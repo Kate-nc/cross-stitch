@@ -547,6 +547,11 @@ return(
       {sidebarOpen&&<>
       <div style={{borderRadius:10,overflow:"hidden",border:"1px solid #e2e5ea",background:"#fff"}}><img src={img.src} alt="" style={{width:"100%",display:"block",cursor:pickBg?"crosshair":"default"}} onClick={srcClick}/><div style={{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"1px solid #f0f2f5"}}><span style={{fontSize:11,color:"#94a3b8"}}>{origW}×{origH}px</span><button onClick={()=>fRef.current.click()} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"1px solid #e2e5ea",borderRadius:6,background:"#f8fafc"}}>Change</button></div>{pickBg&&<div style={{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}</div>
 
+      {previewUrl&&<div style={{borderRadius:10,border:"1px solid #e2e5ea",background:"#fff",overflow:"hidden"}}>
+        <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#64748b"}}>Preview</div>
+        <div style={{padding:"0 14px 10px",display:"flex",justifyContent:"center"}}><img src={previewUrl} alt="Preview" style={{maxWidth:"100%",borderRadius:6,border:"1px solid #e2e5ea",imageRendering:"pixelated"}}/></div>
+      </div>}
+
       <Section title="Dimensions" badge={<span style={{fontSize:11,fontWeight:500,color:"#64748b",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}>{sW}×{sH}</span>}>
         <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}}><input type="checkbox" checked={arLock} onChange={e=>setArLock(e.target.checked)}/>Lock aspect ratio</label>
         {arLock?<SliderRow label="Size" value={sW} min={10} max={300} onChange={slRsz} suffix=" st"/>
@@ -556,7 +561,7 @@ return(
         </div>}
       </Section>
 
-      <Section title="Palette"><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{display:"flex",gap:6,marginTop:6}}><button onClick={()=>setDith(false)} style={{...pill(!dith),flex:1}}>Direct</button><button onClick={()=>setDith(true)} style={{...pill(dith),flex:1}}>Dithered</button></div><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div></Section>
+      <Section title="Palette"><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{display:"flex",gap:6,marginTop:6}}><button onClick={()=>setDith(false)} style={{...pill(!dith),flex:1}}>Direct</button><button onClick={()=>setDith(true)} style={{...pill(dith),flex:1}}>Dithered</button></div></Section>
 
       <Section title="Fabric & Floss" defaultOpen={false} badge={<span style={{fontSize:11,fontWeight:500,color:"#64748b",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}>{fabricCt}ct</span>}>
         <div style={{marginTop:8}}>
@@ -570,6 +575,7 @@ return(
 
       <Section title="Adjustments" defaultOpen={false} badge={(bri||con||sat)?<span style={{width:6,height:6,borderRadius:"50%",background:"#5b7bb3",display:"inline-block"}}/>:null}><div style={{marginTop:8}}><SliderRow label="Brightness" value={bri} min={-50} max={50} onChange={setBri} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Contrast" value={con} min={-50} max={50} onChange={setCon} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Saturation" value={sat} min={-50} max={50} onChange={setSat} format={v=>(v>0?"+":"")+v+"%"}/></div></Section>
       <Section title="Background" defaultOpen={false} badge={skipBg?<span style={{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}/>:null}><label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}}><input type="checkbox" checked={skipBg} onChange={e=>setSkipBg(e.target.checked)}/>Skip background</label>{skipBg&&<div style={{marginTop:10}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><div onClick={()=>setPickBg(true)} style={{width:24,height:24,borderRadius:6,background:`rgb(${bgCol})`,border:"2px solid #e2e5ea",cursor:"pointer"}}/><button onClick={()=>setPickBg(true)} style={{fontSize:11,padding:"3px 8px",border:"1px solid #e2e5ea",borderRadius:6,background:"#f8fafc",cursor:"pointer"}}>Pick</button></div><SliderRow label="Tolerance" value={bgTh} min={3} max={50} onChange={setBgTh}/></div>}</Section>
+      <Section title="Advanced" defaultOpen={false}><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div></Section>
       <button onClick={generate} disabled={busy} style={{padding:"12px 20px",fontSize:15,fontWeight:600,background:busy?"#94a3b8":"linear-gradient(135deg,#5b7bb3,#4a6fa5)",color:"#fff",border:"none",borderRadius:10,cursor:busy?"wait":"pointer",boxShadow:busy?"none":"0 2px 8px rgba(74,111,165,0.25)"}}>{busy?"Generating...":(pat?"Regenerate":"Generate Pattern")}</button>
       </>}
     </div>}
@@ -748,13 +754,7 @@ return(
           <Section title="Save / Load"><p style={{fontSize:12,color:"#64748b",margin:"8px 0 10px"}}>Saves everything: progress, parking, thread organiser, sessions.</p><div style={{display:"flex",gap:8}}><button onClick={saveProject} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#5b7bb3",color:"#fff",cursor:"pointer",fontWeight:600}}>Save (.json)</button><button onClick={()=>loadRef.current.click()} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #e2e5ea",background:"#fff",cursor:"pointer",fontWeight:500}}>Load</button></div></Section>
         </div>}
       </div>}
-      {!pat&&img&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flex:1}}>
-        {previewUrl&&<div style={{borderRadius:10,border:"1px solid #e2e5ea",background:"#fff",overflow:"hidden",boxShadow:"0 4px 12px rgba(0,0,0,0.05)",width:"100%",maxWidth:600}}>
-          <div style={{padding:"10px 16px",fontSize:14,fontWeight:600,color:"#64748b",borderBottom:"1px solid #f0f2f5"}}>Pattern Preview</div>
-          <div style={{padding:"20px",display:"flex",justifyContent:"center",background:"#f8fafc"}}><img src={previewUrl} alt="Preview" style={{maxWidth:"100%",maxHeight:"60vh",borderRadius:6,border:"1px solid #e2e5ea",imageRendering:"pixelated"}}/></div>
-        </div>}
-        <div style={{display:"flex",alignItems:"center",gap:8,color:"#cbd5e1",marginTop:24}}><div style={{fontSize:32}}>←</div><div style={{fontSize:15,fontWeight:500}}>Adjust settings and click Generate</div></div>
-      </div>}
+      {!pat&&img&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:300,color:"#cbd5e1",gap:8}}><div style={{fontSize:40}}>←</div><div style={{fontSize:15,fontWeight:500}}>Adjust settings and click Generate</div></div>}
     </div>
   </div>}
 </div>);
