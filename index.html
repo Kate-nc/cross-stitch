@@ -23,7 +23,55 @@ const DMC=DMC_RAW.map(d=>({id:d[0],name:d[1],rgb:[d[2],d[3],d[4]],lab:rgbToLab(d
 const SYMS="●◆■▲★♦♥♣♠◄►▼○◇□△☆♢♡♧♤◁▷▽⊕⊗⊞⊠⊡⊘⊙⊚⊛⊜⊝⬡⬢⬣⬥⬦⬧⬨⬩".split("");
 
 function findSolid(lab,p){let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE(lab,p[i].lab);if(d<bd){bd=d;b=p[i];}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:bd};}
-function findBest(lab,p){let s=findSolid(lab,p);let bb=null,bbd=1e9;for(let i=0;i<p.length;i++)for(let j=i+1;j<p.length;j++){let bl=[(p[i].lab[0]+p[j].lab[0])/2,(p[i].lab[1]+p[j].lab[1])/2,(p[i].lab[2]+p[j].lab[2])/2];let d=dE(lab,bl);if(d<bbd){bbd=d;bb={t:[p[i],p[j]],lab:bl};}}if(bb&&bbd+3<s.dist&&s.dist>5)return{type:"blend",id:bb.t[0].id+"+"+bb.t[1].id,name:bb.t[0].id+"+"+bb.t[1].id,rgb:[Math.round((bb.t[0].rgb[0]+bb.t[1].rgb[0])/2),Math.round((bb.t[0].rgb[1]+bb.t[1].rgb[1])/2),Math.round((bb.t[0].rgb[2]+bb.t[1].rgb[2])/2)],lab:bb.lab,threads:bb.t,dist:bbd};return s;}
+function findBest(lab, palette) {
+  const solidMatch = findSolid(lab, palette);
+  let bestBlend = null;
+  let bestBlendDist = 1e9;
+
+  for (let i = 0; i < palette.length; i++) {
+    for (let j = i + 1; j < palette.length; j++) {
+      const threadA = palette[i];
+      const threadB = palette[j];
+      const blendLab = [
+        (threadA.lab[0] + threadB.lab[0]) / 2,
+        (threadA.lab[1] + threadB.lab[1]) / 2,
+        (threadA.lab[2] + threadB.lab[2]) / 2
+      ];
+      const dist = dE(lab, blendLab);
+
+      if (dist < bestBlendDist) {
+        bestBlendDist = dist;
+        bestBlend = {
+          threads: [threadA, threadB],
+          lab: blendLab
+        };
+      }
+    }
+  }
+
+  if (bestBlend && (bestBlendDist + 3 < solidMatch.dist) && solidMatch.dist > 5) {
+    const threadA = bestBlend.threads[0];
+    const threadB = bestBlend.threads[1];
+    const blendId = threadA.id + "+" + threadB.id;
+    const blendRgb = [
+      Math.round((threadA.rgb[0] + threadB.rgb[0]) / 2),
+      Math.round((threadA.rgb[1] + threadB.rgb[1]) / 2),
+      Math.round((threadA.rgb[2] + threadB.rgb[2]) / 2)
+    ];
+
+    return {
+      type: "blend",
+      id: blendId,
+      name: blendId,
+      rgb: blendRgb,
+      lab: bestBlend.lab,
+      threads: bestBlend.threads,
+      dist: bestBlendDist
+    };
+  }
+
+  return solidMatch;
+}
 function luminance(rgb){return rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114;}
 
 function quantize(data,w,h,n){let px=[];for(let i=0;i<w*h;i++){let j=i*4;px.push(rgbToLab(data[j],data[j+1],data[j+2]));}let cs=[px[Math.floor(Math.random()*px.length)]];while(cs.length<Math.min(n,px.length)){let ds=px.map(q=>{let md=1e9;for(let i=0;i<cs.length;i++)md=Math.min(md,dE(q,cs[i]));return md*md;});let sum=ds.reduce((a,b)=>a+b,0),r=Math.random()*sum,acc=0;for(let i=0;i<px.length;i++){acc+=ds[i];if(acc>=r){cs.push([px[i][0],px[i][1],px[i][2]]);break;}}}for(let it=0;it<20;it++){let cl=cs.map(()=>[]);for(let pi=0;pi<px.length;pi++){let md=1e9,mi=0;for(let c=0;c<cs.length;c++){let d=dE(px[pi],cs[c]);if(d<md){md=d;mi=c;}}cl[mi].push(px[pi]);}let mv=false;for(let c2=0;c2<cs.length;c2++){if(!cl[c2].length)continue;let nv=[cl[c2].reduce((s,q)=>s+q[0],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[1],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[2],0)/cl[c2].length];if(dE(nv,cs[c2])>0.5)mv=true;cs[c2]=nv;}if(!mv)break;}let pl=[],used=new Set();for(let ci=0;ci<cs.length;ci++){let b=null,bd=1e9;for(let ti=0;ti<DMC.length;ti++){if(used.has(DMC[ti].id))continue;let d2=dE(cs[ci],DMC[ti].lab);if(d2<bd){bd=d2;b=DMC[ti];}}if(b){used.add(b.id);pl.push(b);}}return pl;}
