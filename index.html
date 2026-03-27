@@ -69,6 +69,49 @@ input:focus, select:focus, button:focus { outline: 2px solid #93c5fd; outline-of
   transition: all 0.2s ease;
 }
 .tab-button:hover { background-color: #f1f5f9 !important; border-radius: 6px 6px 0 0; }
+
+.nav-link {
+  font-size: 13px;
+  font-weight: 500;
+  color: #4a5568;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  padding: 4px 0;
+}
+.nav-link:hover {
+  color: #5b7bb3;
+  text-decoration: underline;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-content {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+.modal-close {
+  float: right;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+  color: #94a3b8;
+}
 </style>
 </head>
 <body>
@@ -231,6 +274,7 @@ const[skeinPrice,setSkeinPrice]=useState(DEFAULT_SKEIN_PRICE);
 const[stitchSpeed,setStitchSpeed]=useState(40); // stitches per hour
 
 const[tab,setTab]=useState("pattern"),[sidebarOpen,setSidebarOpen]=useState(true),[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
+const[modal,setModal]=useState(null);
 const[view,setView]=useState("color"),[zoom,setZoom]=useState(1),[hiId,setHiId]=useState(null),[showCtr,setShowCtr]=useState(true);
 
 const[activeTool,setActiveTool]=useState(null),[bsLines,setBsLines]=useState([]),[bsStart,setBsStart]=useState(null);
@@ -592,9 +636,24 @@ const toBuyCount=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")==="tobu
 const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned"),[skeinData,threadOwned]);
 
 return(
+<>
+<header style={{background:"#fff",borderBottom:"1px solid #e2e5ea",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+  <div style={{maxWidth:1100,margin:"0 auto",padding:"12px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+    <div style={{fontWeight:700,color:"#0f172a",cursor:"pointer"}} onClick={()=>window.scrollTo(0,0)}>Cross Stitch Pattern Generator</div>
+    <div style={{display:"flex",gap:20,alignItems:"center"}}>
+      <a className="nav-link" onClick={()=>window.scrollTo(0,0)}>Home</a>
+      <a className="nav-link" onClick={()=>{setTab("stitch");}}>Stitch Tracker</a> {/* TODO: This may become a standalone page/route — update href when defined. */}
+      <a className="nav-link" onClick={()=>setModal("help")}>Help</a>
+      <a className="nav-link" onClick={()=>setModal("about")}>About</a>
+    </div>
+    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+      <button onClick={()=>{if(!pat||confirm("Start a new project? Unsaved progress will be lost.")){resetAll();setImg(null);}}} style={{padding:"6px 14px",fontSize:13,borderRadius:8,border:"1px solid #e2e5ea",background:"#f8fafc",color:"#4a5568",cursor:"pointer",fontWeight:500}}>New Project</button>
+      {pat&&<button onClick={exportPDF} style={{padding:"6px 14px",fontSize:13,borderRadius:8,border:"none",background:"#5b7bb3",color:"#fff",cursor:"pointer",fontWeight:500}}>Export PDF</button>}
+    </div>
+  </div>
+</header>
 <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
-  <div style={{marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-    <h2 style={{margin:0,fontSize:22,fontWeight:700,color:"#0f172a"}}>Cross Stitch Pattern Generator</h2>
+  <div style={{marginBottom:12,display:"flex",justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap",gap:8}}>
     <div style={{display:"flex",gap:6}}><input ref={loadRef} type="file" accept=".json" onChange={loadProject} style={{display:"none"}}/><button onClick={()=>loadRef.current.click()} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"1px solid #e2e5ea",background:"#f8fafc",cursor:"pointer",color:"#4a5568",fontWeight:500}}>Open</button>{pat&&pal&&<button onClick={saveProject} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"none",background:"#5b7bb3",color:"#fff",cursor:"pointer",fontWeight:500}}>Save</button>}</div>
   </div>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
@@ -849,7 +908,10 @@ return(
       </div>}
     </div>
   </div>}
-</div>);
+  {modal==="help"&&<div className="modal-overlay" onClick={()=>setModal(null)}><div className="modal-content" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}>×</button><h3 style={{marginTop:0,marginBottom:15}}>Help</h3><p style={{color:"#4a5568"}}>Coming soon...</p></div></div>}
+  {modal==="about"&&<div className="modal-overlay" onClick={()=>setModal(null)}><div className="modal-content" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}>×</button><h3 style={{marginTop:0,marginBottom:15}}>About</h3><p style={{color:"#4a5568"}}>Coming soon...</p></div></div>}
+</div>
+</>);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
