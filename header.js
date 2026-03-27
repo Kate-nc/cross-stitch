@@ -3,7 +3,7 @@ function Header({ page, onNewProject, onExportPDF, setModal }) {
     React.createElement("div", { style: { maxWidth: 1100, margin: "0 auto", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" } },
       React.createElement("div", { style: { fontWeight: 700, color: "#0f172a", cursor: "pointer" }, onClick: () => { if(page==='creator') window.scrollTo(0,0); else window.location.href = 'index.html'; } }, "Cross Stitch Pattern Generator"),
       React.createElement("div", { style: { display: "flex", gap: 20, alignItems: "center" } },
-        React.createElement("a", { className: "nav-link", style: page === 'creator' ? { color: '#5b7bb3', textDecoration: 'underline' } : {}, onClick: () => { if(page==='creator') window.scrollTo(0,0); else window.location.href = 'index.html'; } }, "Home"),
+        React.createElement("a", { className: "nav-link", style: page === 'creator' ? { color: '#5b7bb3', textDecoration: 'underline' } : {}, onClick: () => { if(page==='creator') window.scrollTo(0,0); else window.location.href = 'index.html'; } }, "Pattern Creator"),
         React.createElement("a", { className: "nav-link", style: page === 'tracker' ? { color: '#5b7bb3', textDecoration: 'underline' } : {}, onClick: () => { if(page==='tracker') window.scrollTo(0,0); else window.location.href = 'stitch.html'; } }, "Stitch Tracker"),
         React.createElement("a", { className: "nav-link", onClick: () => setModal("help") }, "Help"),
         React.createElement("a", { className: "nav-link", onClick: () => setModal("about") }, "About")
