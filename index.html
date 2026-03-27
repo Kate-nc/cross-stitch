@@ -201,7 +201,7 @@ function exportCoverSheet(){
 }
 
 const generate=useCallback(()=>{
-  if(!img)return;setBusy(true);setHiId(null);setExportPage(0);setFocusColour(null);setTrackHistory([]);
+  if(!img)return;setBusy(true);setHiId(null);setExportPage(0);
   setTimeout(()=>{try{
     let c=document.createElement("canvas");c.width=sW;c.height=sH;let cx=c.getContext("2d");
     cx.filter=`brightness(${100+bri}%) contrast(${100+con}%) saturate(${100+sat}%)`;
@@ -213,7 +213,7 @@ const generate=useCallback(()=>{
     for(let safe=0;safe<5;safe++){let ids=new Set();for(let i=0;i<mapped.length;i++){let m=mapped[i];if(m.id==="__skip__")continue;if(m.type==="blend"&&m.threads)m.threads.forEach(t=>ids.add(t.id));else ids.add(m.id);}if(ids.size<=maxC)break;let tu={};for(let i=0;i<mapped.length;i++){let m=mapped[i];if(m.id==="__skip__")continue;if(m.type==="blend"&&m.threads)m.threads.forEach(t=>{tu[t.id]=(tu[t.id]||0)+1;});else tu[m.id]=(tu[m.id]||0)+1;}let sorted=Object.entries(tu).sort((a,b)=>b[1]-a[1]);let ks=new Set(sorted.slice(0,maxC).map(e=>e[0]));let kp=p.filter(t=>ks.has(t.id));if(!kp.length)break;for(let i=0;i<mapped.length;i++){let m=mapped[i];if(m.id==="__skip__")continue;let nr=m.type==="blend"&&m.threads?m.threads.some(t=>!ks.has(t.id)):!ks.has(m.id);if(nr)mapped[i]=findSolid(m.lab||rgbToLab(raw[i*4],raw[i*4+1],raw[i*4+2]),kp);}}
     let{pal:newPal,cmap:newCmap}=buildPalette(mapped);
     setPal(newPal);setCmap(newCmap);setPat(mapped);setDone(new Uint8Array(mapped.length));setParkMarkers([]);setTab("pattern");setThreadOwned({});
-    let z=Math.min(3,Math.max(0.05,750/(sW*20)));setTimeout(()=>{setZoom(z);setStitchZoom(z);},0);
+    let z=Math.min(3,Math.max(0.05,750/(sW*20)));setTimeout(()=>{setZoom(z);},0);
   }catch(err){console.error(err);}setBusy(false);},50);
 },[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh,minSt]);
 
