@@ -138,52 +138,50 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize) {
       let q = [idx];
       vis[idx] = 1;
 
-      // 8-way connectivity for cluster detection
       while (q.length > 0) {
         let curr = q.pop();
         comp.push(curr);
+        if (comp.length > maxOrphanSize) break;
 
         let cx = curr % w;
         let cy = Math.floor(curr / w);
 
-        let neighbors = [];
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            if (dx === 0 && dy === 0) continue;
-            let nx = cx + dx, ny = cy + dy;
-            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
-              neighbors.push([nx, ny]);
-            }
-          }
-        }
+        let neighbors = [
+          [cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]
+        ];
 
         for (let i = 0; i < neighbors.length; i++) {
           let nx = neighbors[i][0];
           let ny = neighbors[i][1];
-          let nidx = ny * w + nx;
-          if (!vis[nidx] && mapped[nidx].id === tid) {
-            vis[nidx] = 1;
-            q.push(nidx);
+          if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+            let nidx = ny * w + nx;
+            if (!vis[nidx] && mapped[nidx].id === tid) {
+              vis[nidx] = 1;
+              q.push(nidx);
+            }
           }
         }
       }
 
       if (comp.length <= maxOrphanSize) {
+        // Find most common surrounding color
         let counts = {};
         for (let i = 0; i < comp.length; i++) {
           let cidx = comp[i];
           let cx = cidx % w;
           let cy = Math.floor(cidx / w);
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              if (dx === 0 && dy === 0) continue;
-              let nx = cx + dx, ny = cy + dy;
-              if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
-                let nidx = ny * w + nx;
+          let neighbors = [
+            [cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1],
+            [cx - 1, cy - 1], [cx + 1, cy - 1], [cx - 1, cy + 1], [cx + 1, cy + 1]
+          ];
+          for (let j = 0; j < neighbors.length; j++) {
+            let nx = neighbors[j][0];
+            let ny = neighbors[j][1];
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+              let nidx = ny * w + nx;
+              if (mapped[nidx].id !== tid && mapped[nidx].id !== "__skip__") {
                 let nid = mapped[nidx].id;
-                if (nid !== tid && nid !== "__skip__") {
-                  counts[nid] = (counts[nid] || 0) + 1;
-                }
+                counts[nid] = (counts[nid] || 0) + 1;
               }
             }
           }
@@ -199,6 +197,7 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize) {
         }
 
         if (bestId) {
+          // Find the object for bestId
           let replacement = null;
           for (let j = 0; j < len; j++) {
             if (mapped[j].id === bestId) {
@@ -208,7 +207,7 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize) {
           }
           if (replacement) {
             for (let i = 0; i < comp.length; i++) {
-              mapped[comp[i]] = {...replacement};
+              mapped[comp[i]] = replacement;
             }
           }
         }

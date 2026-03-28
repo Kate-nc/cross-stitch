@@ -1,3 +1,4 @@
+const assert = require('node:assert');
 const fs = require('fs');
 
 let code = '';
