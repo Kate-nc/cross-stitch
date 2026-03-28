@@ -16,6 +16,7 @@
 <script src="helpers.js"></script>
 <script src="components.js"></script>
 <script src="header.js"></script>
+<script src="modals.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -644,8 +645,8 @@ return(
       </div>}
     </div>
   </div>}
-  {modal==="help"&&<div className="modal-overlay" onClick={()=>setModal(null)}><div className="modal-content" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}>×</button><h3 style={{marginTop:0,marginBottom:15}}>Help</h3><p style={{color:"#4a5568"}}>Coming soon...</p></div></div>}
-  {modal==="about"&&<div className="modal-overlay" onClick={()=>setModal(null)}><div className="modal-content" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}>×</button><h3 style={{marginTop:0,marginBottom:15}}>About</h3><p style={{color:"#4a5568"}}>Coming soon...</p></div></div>}
+  {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
+  {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
 </div>
 </>);
 }
