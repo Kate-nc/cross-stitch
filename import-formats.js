@@ -369,181 +369,240 @@ function parseChartImage(img, options = {}) {
   const pattern = new Array(gridW * gridH).fill(null).map(() => ({ type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] }));
   let stitchCount = 0;
 
+  const maxColours = options.maxColours || 30;
+
   if (chartType === "color") {
-    // Sample the center pixel of each cell
+    // Sample the inner area of each cell to determine the dominant color
+    // This avoids grid lines on the edges and black symbols printed over colors
     const px = [];
     for (let y = 0; y < gridH; y++) {
       for (let x = 0; x < gridW; x++) {
-        const cx = Math.floor(x * cellW + cellW / 2);
-        const cy = Math.floor(y * cellH + cellH / 2);
-        const idx = (cy * img.width + cx) * 4;
+        const startX = Math.floor(x * cellW + cellW * 0.2);
+        const endX = Math.floor((x + 1) * cellW - cellW * 0.2);
+        const startY = Math.floor(y * cellH + cellH * 0.2);
+        const endY = Math.floor((y + 1) * cellH - cellH * 0.2);
 
-        const r = data[idx];
-        const g = data[idx + 1];
-        const b = data[idx + 2];
-        const a = data[idx + 3];
+        let sumR = 0, sumG = 0, sumB = 0;
+        let validPixels = 0;
 
-        if (a > 50) {
-          const lab = rgbToLab(r, g, b);
-          // Skip near white cells (likely empty background grid)
-          if (dE(lab, [100, 0, 0]) > 15) {
-            px.push({ idx: y * gridW + x, rgb: [r, g, b] });
+        for (let py = startY; py < endY; py++) {
+          for (let px2 = startX; px2 < endX; px2++) {
+            const idx = (py * img.width + px2) * 4;
+            const a = data[idx + 3];
+            if (a > 50) {
+              const r = data[idx];
+              const g = data[idx + 1];
+              const b = data[idx + 2];
+              const luma = r*0.299 + g*0.587 + b*0.114;
+
+              // Ignore pixels that are too dark (symbols/gridlines) or too bright (paper/white)
+              if (luma > 50 && luma < 240) {
+                sumR += r;
+                sumG += g;
+                sumB += b;
+                validPixels++;
+              }
+            }
           }
+        }
+
+        if (validPixels > 0) {
+           const r = Math.round(sumR / validPixels);
+           const g = Math.round(sumG / validPixels);
+           const b = Math.round(sumB / validPixels);
+           px.push({ idx: y * gridW + x, rgb: [r, g, b] });
         }
       }
     }
 
     if (px.length > 0) {
-      // Group similar colors greedily
-      const clusters = [];
-      px.forEach(p => {
-        let found = false;
-        for (let c of clusters) {
-          if (dE(p.lab, c.lab) < 10) { // Color grouping threshold
-            c.points.push(p);
-            // Update cluster centroid
-            c.lab[0] = (c.lab[0] * (c.points.length - 1) + p.lab[0]) / c.points.length;
-            c.lab[1] = (c.lab[1] * (c.points.length - 1) + p.lab[1]) / c.points.length;
-            c.lab[2] = (c.lab[2] * (c.points.length - 1) + p.lab[2]) / c.points.length;
-            found = true;
-            break;
-          }
-        }
-        if (!found) {
-          clusters.push({ lab: [...p.lab], points: [p] });
-        }
+      // Quantize the sampled cell colors using existing quantize algorithm
+      const flatData = new Uint8ClampedArray(px.length * 4);
+      px.forEach((p, i) => {
+        flatData[i*4] = p.rgb[0];
+        flatData[i*4+1] = p.rgb[1];
+        flatData[i*4+2] = p.rgb[2];
+        flatData[i*4+3] = 255;
       });
+      const pal = quantize(flatData, px.length, 1, maxColours);
+      const mapped = doMap(flatData, px.length, 1, pal);
 
-      // Map each cluster centroid to nearest DMC color
-      clusters.forEach(c => {
-         let bestDist = 1e9;
-         let bestDmc = DMC[0];
-         for (let i = 0; i < DMC.length; i++) {
-           const dist = dE(c.lab, DMC[i].lab);
-           if (dist < bestDist) {
-             bestDist = dist;
-             bestDmc = DMC[i];
-           }
-         }
-         // Assign to all points in cluster
-         c.points.forEach(p => {
-           pattern[p.idx] = { type: "solid", id: bestDmc.id, name: bestDmc.name, rgb: bestDmc.rgb, lab: bestDmc.lab, dist: 0 };
-           stitchCount++;
-         });
+      px.forEach((p, i) => {
+        const m = mapped[i];
+        pattern[p.idx] = { type: "solid", id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, dist: 0 };
+        stitchCount++;
       });
     }
   } else if (chartType === "bw") {
-    // For B&W symbol charts, extract a small grayscale signature for each cell and cluster them
+    // For B&W symbol charts, we must find the bounding box of the symbol in each cell,
+    // scale it to a standardized 8x8 binary signature, and cluster those signatures.
     const signatures = [];
-    const sigSize = 8; // 8x8 signature
+    const sigSize = 8;
+    const lumaThreshold = 150; // threshold for "dark" ink
 
     for (let y = 0; y < gridH; y++) {
       for (let x = 0; x < gridW; x++) {
-        const sig = new Float32Array(sigSize * sigSize);
-        let darkPixels = 0;
+        // Inner area of the cell (avoiding 10% on each edge where gridlines might be)
+        const startX = Math.floor(x * cellW + cellW * 0.1);
+        const endX = Math.floor((x + 1) * cellW - cellW * 0.1);
+        const startY = Math.floor(y * cellH + cellH * 0.1);
+        const endY = Math.floor((y + 1) * cellH - cellH * 0.1);
 
-        // Sample cell into 8x8 grid
-        for (let sy = 0; sy < sigSize; sy++) {
-          for (let sx = 0; sx < sigSize; sx++) {
-            // Find corresponding area in original image (inset slightly to avoid grid lines)
-            const marginX = cellW * 0.1;
-            const marginY = cellH * 0.1;
-            const usableW = cellW * 0.8;
-            const usableH = cellH * 0.8;
+        // Find bounding box of dark pixels
+        let minX = endX, maxX = startX, minY = endY, maxY = startY;
+        let darkCount = 0;
 
-            const pxStart = Math.floor(x * cellW + marginX + (sx / sigSize) * usableW);
-            const pxEnd = Math.floor(x * cellW + marginX + ((sx + 1) / sigSize) * usableW);
-            const pyStart = Math.floor(y * cellH + marginY + (sy / sigSize) * usableH);
-            const pyEnd = Math.floor(y * cellH + marginY + ((sy + 1) / sigSize) * usableH);
-
-            let sumLuma = 0;
-            let count = 0;
-
-            for (let py = pyStart; py < pyEnd && py < img.height; py++) {
-              for (let px2 = pxStart; px2 < pxEnd && px2 < img.width; px2++) {
-                 const idx = (py * img.width + px2) * 4;
-                 const a = data[idx+3];
-                 if (a < 50) {
-                     sumLuma += 255; // transparent is white
-                 } else {
-                     // Grayscale luminance
-                     const r = data[idx];
-                     const g = data[idx+1];
-                     const b = data[idx+2];
-                     const luma = r*0.299 + g*0.587 + b*0.114;
-                     sumLuma += luma;
-                 }
-                 count++;
-              }
+        for (let py = startY; py < endY; py++) {
+          for (let px2 = startX; px2 < endX; px2++) {
+            const idx = (py * img.width + px2) * 4;
+            const a = data[idx+3];
+            let luma = 255;
+            if (a > 50) {
+              const r = data[idx], g = data[idx+1], b = data[idx+2];
+              luma = r*0.299 + g*0.587 + b*0.114;
             }
-
-            const avgLuma = count > 0 ? sumLuma / count : 255;
-            sig[sy * sigSize + sx] = avgLuma;
-            if (avgLuma < 200) darkPixels++; // Count non-white pixels
+            if (luma < lumaThreshold) {
+              darkCount++;
+              if (px2 < minX) minX = px2;
+              if (px2 > maxX) maxX = px2;
+              if (py < minY) minY = py;
+              if (py > maxY) maxY = py;
+            }
           }
         }
 
-        // Only keep cells that have enough dark pixels (ignore empty grid squares)
-        if (darkPixels > 2) {
-          signatures.push({ idx: y * gridW + x, sig: sig });
+        // If the cell is empty or has a speck of dust, ignore it
+        if (darkCount < 5 || minX > maxX || minY > maxY) continue;
+
+        const bbW = maxX - minX + 1;
+        const bbH = maxY - minY + 1;
+
+        // Scale the bounding box into a binary 8x8 signature
+        const sig = new Float32Array(sigSize * sigSize);
+        for (let sy = 0; sy < sigSize; sy++) {
+          for (let sx = 0; sx < sigSize; sx++) {
+             // Map signature coordinate back to bounding box coordinate
+             const srcX = Math.floor(minX + (sx / sigSize) * bbW);
+             const srcY = Math.floor(minY + (sy / sigSize) * bbH);
+
+             // Sample a tiny block around this mapped coordinate
+             const spanX = Math.max(1, Math.floor(bbW / sigSize));
+             const spanY = Math.max(1, Math.floor(bbH / sigSize));
+
+             let localDark = 0;
+             let localTotal = 0;
+             for(let ldy=0; ldy<spanY; ldy++) {
+                for(let ldx=0; ldx<spanX; ldx++) {
+                   const cx = srcX + ldx;
+                   const cy = srcY + ldy;
+                   if (cx <= maxX && cy <= maxY) {
+                      localTotal++;
+                      const idx = (cy * img.width + cx) * 4;
+                      const a = data[idx+3];
+                      if (a > 50) {
+                         const luma = data[idx]*0.299 + data[idx+1]*0.587 + data[idx+2]*0.114;
+                         if (luma < lumaThreshold) localDark++;
+                      }
+                   }
+                }
+             }
+
+             // If more than half the area is dark, mark the signature bit as 1
+             sig[sy * sigSize + sx] = (localTotal > 0 && localDark / localTotal > 0.4) ? 1.0 : 0.0;
+          }
         }
+        signatures.push({ idx: y * gridW + x, sig: sig });
       }
     }
 
     if (signatures.length > 0) {
-       // Greedy distance-based clustering of signatures using Mean Absolute Difference (MAD)
-       const clusters = [];
-       const madThreshold = 18; // Threshold for average pixel difference (0-255 scale)
+       // K-Means clustering of binary signatures
+       let k = Math.min(maxColours, signatures.length);
 
-       signatures.forEach(s => {
-           let bestCluster = null;
-           let bestMad = madThreshold;
+       // Initialize centroids randomly
+       let centroids = [];
+       const usedIdx = new Set();
+       while (centroids.length < k) {
+           const rIdx = Math.floor(Math.random() * signatures.length);
+           if (!usedIdx.has(rIdx)) {
+               usedIdx.add(rIdx);
+               centroids.push(new Float32Array(signatures[rIdx].sig));
+           }
+       }
 
-           for (let c of clusters) {
-               // Calculate MAD
-               let sumDiff = 0;
-               for(let j=0; j<sigSize*sigSize; j++) {
-                   sumDiff += Math.abs(s.sig[j] - c.centroid[j]);
+       let assignments = new Array(signatures.length);
+       let moved = true;
+       let iters = 0;
+
+       while (moved && iters < 50) {
+           moved = false;
+           iters++;
+
+           for (let i = 0; i < signatures.length; i++) {
+               let minDist = Infinity;
+               let bestK = 0;
+               for (let c = 0; c < k; c++) {
+                   // Euclidean distance between binary signatures
+                   let dist = 0;
+                   for(let j=0; j<sigSize*sigSize; j++) {
+                       const diff = signatures[i].sig[j] - centroids[c][j];
+                       dist += diff * diff;
+                   }
+                   if (dist < minDist) {
+                       minDist = dist;
+                       bestK = c;
+                   }
                }
-               let mad = sumDiff / (sigSize * sigSize);
-               if (mad < bestMad) {
-                   bestMad = mad;
-                   bestCluster = c;
+               if (assignments[i] !== bestK) {
+                   assignments[i] = bestK;
+                   moved = true;
                }
            }
 
-           if (bestCluster) {
-               bestCluster.points.push(s);
-               // Update centroid
+           const newCentroids = Array(k).fill(0).map(() => new Float32Array(sigSize*sigSize));
+           const counts = Array(k).fill(0);
+
+           for (let i = 0; i < signatures.length; i++) {
+               const cluster = assignments[i];
+               counts[cluster]++;
                for(let j=0; j<sigSize*sigSize; j++) {
-                   bestCluster.centroid[j] = (bestCluster.centroid[j] * (bestCluster.points.length - 1) + s.sig[j]) / bestCluster.points.length;
+                   newCentroids[cluster][j] += signatures[i].sig[j];
                }
-           } else {
-               clusters.push({ centroid: new Float32Array(s.sig), points: [s] });
            }
-       });
+
+           for (let c = 0; c < k; c++) {
+               if (counts[c] > 0) {
+                   for(let j=0; j<sigSize*sigSize; j++) {
+                       newCentroids[c][j] /= counts[c];
+                   }
+                   centroids[c] = newCentroids[c];
+               }
+           }
+       }
 
        // Assign distinct DMC colors to each cluster
-       // Use a spread of distinct colors from the DMC palette
        const distinctDMC = [
            "310", "BLANC", "321", "798", "699", "742", "602", "972",
            "900", "208", "820", "890", "995", "600", "444", "814",
            "311", "909", "3801", "3837", "3843", "3850", "3853"
        ];
 
-       clusters.forEach((c, idx) => {
-           let dmcId = distinctDMC[idx % distinctDMC.length];
-           // If we run out of predefined distinct colors, grab a random one
-           if (idx >= distinctDMC.length) {
+       const clusterToDMC = {};
+       for (let c = 0; c < k; c++) {
+           let dmcId = distinctDMC[c % distinctDMC.length];
+           if (c >= distinctDMC.length) {
                dmcId = DMC[Math.floor(Math.random() * DMC.length)].id;
            }
-           const t = DMC.find(d => d.id === dmcId) || DMC[0];
+           clusterToDMC[c] = DMC.find(d => d.id === dmcId) || DMC[0];
+       }
 
-           c.points.forEach(p => {
-               pattern[p.idx] = { type: "solid", id: t.id, name: t.name, rgb: t.rgb, lab: t.lab, dist: 0 };
-               stitchCount++;
-           });
-       });
+       for (let i = 0; i < signatures.length; i++) {
+           const cluster = assignments[i];
+           const t = clusterToDMC[cluster];
+           const pIdx = signatures[i].idx;
+           pattern[pIdx] = { type: "solid", id: t.id, name: t.name, rgb: t.rgb, lab: t.lab, dist: 0 };
+           stitchCount++;
+       }
     }
   }
 

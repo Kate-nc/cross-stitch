@@ -597,6 +597,8 @@ return(
                     </label>
                  </div>
               </div>
+
+              <SliderRow label="Number of Colours / Symbols" val={importMaxColours} setVal={setImportMaxColours} min={2} max={40} />
             </>
           )}
 
@@ -615,7 +617,7 @@ return(
             } else {
               result = parseChartImage(importImage, {
                 gridW: chartGridW, gridH: chartGridH,
-                chartType: chartType
+                chartType: chartType, maxColours: importMaxColours
               });
             }
             let project = importResultToProject(result);
