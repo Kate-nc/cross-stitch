@@ -106,7 +106,7 @@ function parseOXS(xmlString) {
 
       let dmcThread = null;
       let rgb = null;
-      let originalId = null;
+
 
       const threadChild = el.querySelector("thread");
       let dmcNumber = null;

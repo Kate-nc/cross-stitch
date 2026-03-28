@@ -1,27 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stitch Tracker</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-<link rel="stylesheet" href="styles.css">
-<script src="constants.js"></script>
-<script src="dmc-data.js"></script>
-<script src="colour-utils.js"></script>
-<script src="helpers.js"></script>
-<script src="import-formats.js"></script>
-<script src="components.js"></script>
-<script src="header.js"></script>
-<script src="modals.js"></script>
-</head>
-<body>
-<div id="root"></div>
-<script type="text/babel" src="tracker-app.js"></script>
-<script type="text/babel">
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
 
 function App(){
@@ -33,7 +9,7 @@ const[stitchSpeed,setStitchSpeed]=useState(40);
 
 const[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
-const[showCtr,setShowCtr]=useState(true);
+const showCtr=true;
 const[bsLines,setBsLines]=useState([]);
 
 const[done,setDone]=useState(null);
@@ -106,7 +82,6 @@ const skeinData=useMemo(()=>{
 
 const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData]);
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
-const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable):null,[pal,blendCount,totalStitchable]);
 
 function toggleSession(){if(sessionActive){let el=Math.floor((Date.now()-sessionStart)/1000);setTotalTime(p=>p+el);setSessions(p=>[...p,{stitches:sessionStitches,time:el,date:Date.now()}]);setSessionActive(false);setSessionStart(null);setSessionStitches(0);setSessionElapsed(0);}else{setSessionActive(true);setSessionStart(Date.now());setSessionStitches(0);setSessionElapsed(0);prevDoneCount.current=doneCount;}}
 function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0)pushTrackHistory(changes);setDone(nd);}
@@ -125,16 +100,7 @@ function undoTrack(){
   setTrackHistory(prev=>prev.slice(0,-1));
 }
 
-function resetAll(){
-  setPat(null);setPal(null);setCmap(null);setBsLines([]);
-  setSelectedColorId(null);
-  setDone(null);setParkMarkers([]);setHlRow(-1);setHlCol(-1);
-  setTotalTime(0);setSessions([]);setSessionActive(false);setFocusColour(null);
-  setTrackHistory([]);setThreadOwned({});
-  setImportDialog(null);
-  setImportImage(null);
-  setImportSuccess(null);
-}
+
 
 function saveProject(){
   if(!pat||!pal)return;
@@ -411,7 +377,6 @@ function doPan(e){
 
 function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur===""?"owned":cur==="owned"?"tobuy":"";return{...prev,[id]:next};});}
 const ownedCount=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")==="owned").length,[skeinData,threadOwned]);
-const toBuyCount=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")==="tobuy"||!(threadOwned[d.id])).length,[skeinData,threadOwned]);
 const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned"),[skeinData,threadOwned]);
 
 return(
@@ -532,7 +497,7 @@ return(
         <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:320,overflow:"auto"}}>
           {skeinData.map(d=>{
             let st=threadOwned[d.id]||"";
-            let isOwned=st==="owned",isToBuy=st==="tobuy"||st==="";
+            let isOwned=st==="owned";
             return<div key={d.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,background:isOwned?"#f0fdf4":"#fff",border:"1px solid "+(isOwned?"#bbf7d0":"#f0f2f5")}}>
               <span style={{width:16,height:16,borderRadius:3,background:`rgb(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
               <span style={{fontWeight:700,fontSize:13,minWidth:44}}>DMC {d.id}</span>
@@ -632,12 +597,8 @@ return(
     </div>
   </div>}
 
-  {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
-  {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
+  {modal==="help"&&<div className="modal-overlay" onClick={()=>setModal(null)}><div className="modal-content" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}>×</button><h3 style={{marginTop:0,marginBottom:15}}>Help</h3><p style={{color:"#4a5568"}}>Coming soon...</p></div></div>}
+  {modal==="about"&&<div className="modal-overlay" onClick={()=>setModal(null)}><div className="modal-content" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}>×</button><h3 style={{marginTop:0,marginBottom:15}}>About</h3><p style={{color:"#4a5568"}}>Coming soon...</p></div></div>}
 </div>
 </>);
 }
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
-</script>
-</body>
-</html>
