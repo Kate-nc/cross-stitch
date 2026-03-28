@@ -85,6 +85,8 @@ const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitc
 
 function getSkeinCount(){return skeinData.length;}
 
+const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
+const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
 const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
 
 const generatePreview=useCallback(()=>{
@@ -213,10 +215,10 @@ function exportCoverSheet(){
 
   // Progress if any
   if(done&&totalStitchable>0){
-    let doneCount=0;for(let i=0;i<done.length;i++)if(done[i])doneCount++;
-    if(doneCount>0){
-      let progressPct=Math.round(doneCount/totalStitchable*1000)/10;
-      pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("PROGRESS",mg,y);y+=7;pdf.setFontSize(10);pdf.setTextColor(40);pdf.text(`${progressPct}% complete — ${doneCount.toLocaleString()} of ${totalStitchable.toLocaleString()} stitches`,mg,y);y+=8;if(totalTime>0){pdf.text(`Time stitched: ${fmtTimeL(totalTime)} (${sessions.length} session${sessions.length!==1?"s":""})`,mg,y);y+=5.5;let actualSpeed=Math.round(doneCount/(totalTime/3600));pdf.text(`Actual speed: ${actualSpeed} stitches/hr`,mg,y);y+=5.5;}y+=4;
+    let localDoneCount=0;for(let i=0;i<done.length;i++)if(done[i])localDoneCount++;
+    if(localDoneCount>0){
+      let localProgressPct=Math.round(localDoneCount/totalStitchable*1000)/10;
+      pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("PROGRESS",mg,y);y+=7;pdf.setFontSize(10);pdf.setTextColor(40);pdf.text(`${localProgressPct}% complete — ${localDoneCount.toLocaleString()} of ${totalStitchable.toLocaleString()} stitches`,mg,y);y+=8;if(totalTime>0){pdf.text(`Time stitched: ${fmtTimeL(totalTime)} (${sessions.length} session${sessions.length!==1?"s":""})`,mg,y);y+=5.5;let actualSpeed=Math.round(localDoneCount/(totalTime/3600));pdf.text(`Actual speed: ${actualSpeed} stitches/hr`,mg,y);y+=5.5;}y+=4;
     }
   }
 
