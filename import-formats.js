@@ -354,7 +354,6 @@ function parseChartImage(img, options = {}) {
   const gridW = options.gridW || 50;
   const gridH = options.gridH || 50;
   const chartType = options.chartType || "color"; // "color" or "bw"
-  const maxColours = options.maxColours || 30;
 
   const canvas = document.createElement("canvas");
   canvas.width = img.width;
@@ -395,21 +394,42 @@ function parseChartImage(img, options = {}) {
     }
 
     if (px.length > 0) {
-      // Quantize the sampled colors
-      const flatData = new Uint8ClampedArray(px.length * 4);
-      px.forEach((p, i) => {
-        flatData[i*4] = p.rgb[0];
-        flatData[i*4+1] = p.rgb[1];
-        flatData[i*4+2] = p.rgb[2];
-        flatData[i*4+3] = 255;
+      // Group similar colors greedily
+      const clusters = [];
+      px.forEach(p => {
+        let found = false;
+        for (let c of clusters) {
+          if (dE(p.lab, c.lab) < 10) { // Color grouping threshold
+            c.points.push(p);
+            // Update cluster centroid
+            c.lab[0] = (c.lab[0] * (c.points.length - 1) + p.lab[0]) / c.points.length;
+            c.lab[1] = (c.lab[1] * (c.points.length - 1) + p.lab[1]) / c.points.length;
+            c.lab[2] = (c.lab[2] * (c.points.length - 1) + p.lab[2]) / c.points.length;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          clusters.push({ lab: [...p.lab], points: [p] });
+        }
       });
-      const pal = quantize(flatData, px.length, 1, maxColours);
-      const mapped = doMap(flatData, px.length, 1, pal);
 
-      px.forEach((p, i) => {
-        const m = mapped[i];
-        pattern[p.idx] = { type: "solid", id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, dist: 0 };
-        stitchCount++;
+      // Map each cluster centroid to nearest DMC color
+      clusters.forEach(c => {
+         let bestDist = 1e9;
+         let bestDmc = DMC[0];
+         for (let i = 0; i < DMC.length; i++) {
+           const dist = dE(c.lab, DMC[i].lab);
+           if (dist < bestDist) {
+             bestDist = dist;
+             bestDmc = DMC[i];
+           }
+         }
+         // Assign to all points in cluster
+         c.points.forEach(p => {
+           pattern[p.idx] = { type: "solid", id: bestDmc.id, name: bestDmc.name, rgb: bestDmc.rgb, lab: bestDmc.lab, dist: 0 };
+           stitchCount++;
+         });
       });
     }
   } else if (chartType === "bw") {
@@ -439,7 +459,7 @@ function parseChartImage(img, options = {}) {
             let sumLuma = 0;
             let count = 0;
 
-            for (let py = pyStart; py < pxEnd && py < img.height; py++) {
+            for (let py = pyStart; py < pyEnd && py < img.height; py++) {
               for (let px2 = pxStart; px2 < pxEnd && px2 < img.width; px2++) {
                  const idx = (py * img.width + px2) * 4;
                  const a = data[idx+3];
@@ -471,71 +491,37 @@ function parseChartImage(img, options = {}) {
     }
 
     if (signatures.length > 0) {
-       // K-Means clustering of signatures
-       let k = Math.min(maxColours, signatures.length);
+       // Greedy distance-based clustering of signatures using Mean Absolute Difference (MAD)
+       const clusters = [];
+       const madThreshold = 18; // Threshold for average pixel difference (0-255 scale)
 
-       // Initialize centroids randomly
-       let centroids = [];
-       const usedIdx = new Set();
-       while (centroids.length < k) {
-           const rIdx = Math.floor(Math.random() * signatures.length);
-           if (!usedIdx.has(rIdx)) {
-               usedIdx.add(rIdx);
-               centroids.push(new Float32Array(signatures[rIdx].sig));
-           }
-       }
+       signatures.forEach(s => {
+           let bestCluster = null;
+           let bestMad = madThreshold;
 
-       let assignments = new Array(signatures.length);
-       let moved = true;
-       let iters = 0;
-
-       while (moved && iters < 30) {
-           moved = false;
-           iters++;
-
-           // Assign to nearest centroid
-           for (let i = 0; i < signatures.length; i++) {
-               let minDist = Infinity;
-               let bestK = 0;
-               for (let c = 0; c < k; c++) {
-                   // Euclidean distance between signatures
-                   let dist = 0;
-                   for(let j=0; j<sigSize*sigSize; j++) {
-                       const diff = signatures[i].sig[j] - centroids[c][j];
-                       dist += diff * diff;
-                   }
-                   if (dist < minDist) {
-                       minDist = dist;
-                       bestK = c;
-                   }
-               }
-               if (assignments[i] !== bestK) {
-                   assignments[i] = bestK;
-                   moved = true;
-               }
-           }
-
-           // Recalculate centroids
-           const newCentroids = Array(k).fill(0).map(() => new Float32Array(sigSize*sigSize));
-           const counts = Array(k).fill(0);
-
-           for (let i = 0; i < signatures.length; i++) {
-               const cluster = assignments[i];
-               counts[cluster]++;
+           for (let c of clusters) {
+               // Calculate MAD
+               let sumDiff = 0;
                for(let j=0; j<sigSize*sigSize; j++) {
-                   newCentroids[cluster][j] += signatures[i].sig[j];
+                   sumDiff += Math.abs(s.sig[j] - c.centroid[j]);
+               }
+               let mad = sumDiff / (sigSize * sigSize);
+               if (mad < bestMad) {
+                   bestMad = mad;
+                   bestCluster = c;
                }
            }
 
-           for (let c = 0; c < k; c++) {
-               if (counts[c] > 0) {
-                   for(let j=0; j<sigSize*sigSize; j++) {
-                       newCentroids[c][j] /= counts[c];
-                   }
-                   centroids[c] = newCentroids[c];
+           if (bestCluster) {
+               bestCluster.points.push(s);
+               // Update centroid
+               for(let j=0; j<sigSize*sigSize; j++) {
+                   bestCluster.centroid[j] = (bestCluster.centroid[j] * (bestCluster.points.length - 1) + s.sig[j]) / bestCluster.points.length;
                }
+           } else {
+               clusters.push({ centroid: new Float32Array(s.sig), points: [s] });
            }
-       }
+       });
 
        // Assign distinct DMC colors to each cluster
        // Use a spread of distinct colors from the DMC palette
@@ -545,23 +531,19 @@ function parseChartImage(img, options = {}) {
            "311", "909", "3801", "3837", "3843", "3850", "3853"
        ];
 
-       const clusterToDMC = {};
-       for (let c = 0; c < k; c++) {
-           let dmcId = distinctDMC[c % distinctDMC.length];
-           // If we run out of predefined distinct colors, just grab a random one
-           if (c >= distinctDMC.length) {
+       clusters.forEach((c, idx) => {
+           let dmcId = distinctDMC[idx % distinctDMC.length];
+           // If we run out of predefined distinct colors, grab a random one
+           if (idx >= distinctDMC.length) {
                dmcId = DMC[Math.floor(Math.random() * DMC.length)].id;
            }
-           clusterToDMC[c] = DMC.find(d => d.id === dmcId) || DMC[0];
-       }
+           const t = DMC.find(d => d.id === dmcId) || DMC[0];
 
-       for (let i = 0; i < signatures.length; i++) {
-           const cluster = assignments[i];
-           const t = clusterToDMC[cluster];
-           const pIdx = signatures[i].idx;
-           pattern[pIdx] = { type: "solid", id: t.id, name: t.name, rgb: t.rgb, lab: t.lab, dist: 0 };
-           stitchCount++;
-       }
+           c.points.forEach(p => {
+               pattern[p.idx] = { type: "solid", id: t.id, name: t.name, rgb: t.rgb, lab: t.lab, dist: 0 };
+               stitchCount++;
+           });
+       });
     }
   }
 
