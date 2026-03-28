@@ -50,7 +50,56 @@ function findBest(lab, palette) {
 }
 function luminance(rgb){return rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114;}
 
-function quantize(data,w,h,n){let px=[];for(let i=0;i<w*h;i++){let j=i*4;px.push(rgbToLab(data[j],data[j+1],data[j+2]));}let cs=[px[Math.floor(Math.random()*px.length)]];while(cs.length<Math.min(n,px.length)){let ds=px.map(q=>{let md=1e9;for(let i=0;i<cs.length;i++)md=Math.min(md,dE(q,cs[i]));return md*md;});let sum=ds.reduce((a,b)=>a+b,0),r=Math.random()*sum,acc=0;for(let i=0;i<px.length;i++){acc+=ds[i];if(acc>=r){cs.push([px[i][0],px[i][1],px[i][2]]);break;}}}for(let it=0;it<20;it++){let cl=cs.map(()=>[]);for(let pi=0;pi<px.length;pi++){let md=1e9,mi=0;for(let c=0;c<cs.length;c++){let d=dE(px[pi],cs[c]);if(d<md){md=d;mi=c;}}cl[mi].push(px[pi]);}let mv=false;for(let c2=0;c2<cs.length;c2++){if(!cl[c2].length)continue;let nv=[cl[c2].reduce((s,q)=>s+q[0],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[1],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[2],0)/cl[c2].length];if(dE(nv,cs[c2])>0.5)mv=true;cs[c2]=nv;}if(!mv)break;}let pl=[],used=new Set();for(let ci=0;ci<cs.length;ci++){let b=null,bd=1e9;for(let ti=0;ti<DMC.length;ti++){if(used.has(DMC[ti].id))continue;let d2=dE(cs[ci],DMC[ti].lab);if(d2<bd){bd=d2;b=DMC[ti];}}if(b){used.add(b.id);pl.push(b);}}return pl;}
+function quantize(data,w,h,n){
+  let seed=1337;
+  function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
+  let px=[], len=w*h;
+  for(let i=0;i<len;i++){let j=i*4;px.push(rgbToLab(data[j],data[j+1],data[j+2]));}
+  let cs=[px[Math.floor(random()*px.length)]];
+  let ds=new Float32Array(px.length);
+  for(let i=0;i<px.length;i++){ds[i]=1e9;}
+  while(cs.length<Math.min(n,px.length)){
+    let lastCenter = cs[cs.length-1];
+    let sum=0;
+    for(let i=0;i<px.length;i++){
+      let dist = dE(px[i], lastCenter);
+      let distSq = dist * dist;
+      if (distSq < ds[i]) ds[i] = distSq;
+      sum += ds[i];
+    }
+    let r=random()*sum,acc=0;
+    for(let i=0;i<px.length;i++){
+      acc+=ds[i];
+      if(acc>=r){cs.push([px[i][0],px[i][1],px[i][2]]);break;}
+    }
+  }
+  for(let it=0;it<20;it++){
+    let cl=cs.map(()=>[]);
+    for(let pi=0;pi<px.length;pi++){
+      let md=1e9,mi=0;
+      for(let c=0;c<cs.length;c++){let d=dE(px[pi],cs[c]);if(d<md){md=d;mi=c;}}
+      cl[mi].push(px[pi]);
+    }
+    let mv=false;
+    for(let c2=0;c2<cs.length;c2++){
+      if(!cl[c2].length)continue;
+      let nv=[cl[c2].reduce((s,q)=>s+q[0],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[1],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[2],0)/cl[c2].length];
+      if(dE(nv,cs[c2])>0.5)mv=true;
+      cs[c2]=nv;
+    }
+    if(!mv)break;
+  }
+  let pl=[],used=new Set();
+  for(let ci=0;ci<cs.length;ci++){
+    let b=null,bd=1e9;
+    for(let ti=0;ti<DMC.length;ti++){
+      if(used.has(DMC[ti].id))continue;
+      let d2=dE(cs[ci],DMC[ti].lab);if(d2<bd){bd=d2;b=DMC[ti];}
+    }
+    if(b){used.add(b.id);pl.push(b);}
+  }
+  return pl;
+}
 function doDither(data,w,h,pal){let d=new Float32Array(w*h*3);for(let i=0;i<w*h;i++){d[i*3]=data[i*4];d[i*3+1]=data[i*4+1];d[i*3+2]=data[i*4+2];}let r=new Array(w*h);for(let y=0;y<h;y++)for(let x=0;x<w;x++){let idx=y*w+x,cr=Math.max(0,Math.min(255,d[idx*3])),cg=Math.max(0,Math.min(255,d[idx*3+1])),cb=Math.max(0,Math.min(255,d[idx*3+2]));let m=findBest(rgbToLab(cr,cg,cb),pal);r[idx]=m;let eR=cr-m.rgb[0],eG=cg-m.rgb[1],eB=cb-m.rgb[2];if(x+1<w){let ni=(y*w+x+1)*3;d[ni]+=eR*7/16;d[ni+1]+=eG*7/16;d[ni+2]+=eB*7/16;}if(y+1<h){if(x>0){let ni2=((y+1)*w+x-1)*3;d[ni2]+=eR*3/16;d[ni2+1]+=eG*3/16;d[ni2+2]+=eB*3/16;}let ni3=((y+1)*w+x)*3;d[ni3]+=eR*5/16;d[ni3+1]+=eG*5/16;d[ni3+2]+=eB*5/16;if(x+1<w){let ni4=((y+1)*w+x+1)*3;d[ni4]+=eR*1/16;d[ni4+1]+=eG*1/16;d[ni4+2]+=eB*1/16;}}}return r;}
 function doMap(data,w,h,pal){let r=new Array(w*h);for(let i=0;i<w*h;i++)r[i]=findBest(rgbToLab(data[i*4],data[i*4+1],data[i*4+2]),pal);return r;}
 
@@ -214,63 +263,71 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize) {
   let len = mapped.length;
   let vis = new Uint8Array(len);
 
+  // Pre-allocate queue to avoid small array allocations
+  // The max queue size inside an orphan search is very small, but we use a safely sized queue
+  let q = new Uint32Array(maxOrphanSize * 4 + 10);
+  let comp = new Uint32Array(maxOrphanSize + 1);
+
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       let idx = y * w + x;
       if (vis[idx] || mapped[idx].id === "__skip__") continue;
 
       let tid = mapped[idx].id;
-      let comp = [];
-      let q = [idx];
+      let qHead = 0;
+      let qTail = 0;
+      let compCount = 0;
+
+      q[qTail++] = idx;
       vis[idx] = 1;
 
-      while (q.length > 0) {
-        let curr = q.pop();
-        comp.push(curr);
-        if (comp.length > maxOrphanSize) break;
+      while (qHead < qTail) {
+        let curr = q[qHead++];
+        if (compCount <= maxOrphanSize) {
+            comp[compCount++] = curr;
+        }
+        if (compCount > maxOrphanSize) break;
 
         let cx = curr % w;
         let cy = Math.floor(curr / w);
 
-        let neighbors = [
-          [cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]
-        ];
-
-        for (let i = 0; i < neighbors.length; i++) {
-          let nx = neighbors[i][0];
-          let ny = neighbors[i][1];
-          if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
-            let nidx = ny * w + nx;
-            if (!vis[nidx] && mapped[nidx].id === tid) {
-              vis[nidx] = 1;
-              q.push(nidx);
-            }
-          }
+        // unrolled neighbors: left, right, up, down
+        if (cx > 0) {
+            let nidx = curr - 1;
+            if (!vis[nidx] && mapped[nidx].id === tid) { vis[nidx] = 1; q[qTail++] = nidx; }
+        }
+        if (cx < w - 1) {
+            let nidx = curr + 1;
+            if (!vis[nidx] && mapped[nidx].id === tid) { vis[nidx] = 1; q[qTail++] = nidx; }
+        }
+        if (cy > 0) {
+            let nidx = curr - w;
+            if (!vis[nidx] && mapped[nidx].id === tid) { vis[nidx] = 1; q[qTail++] = nidx; }
+        }
+        if (cy < h - 1) {
+            let nidx = curr + w;
+            if (!vis[nidx] && mapped[nidx].id === tid) { vis[nidx] = 1; q[qTail++] = nidx; }
         }
       }
 
-      if (comp.length <= maxOrphanSize) {
-        // Find most common surrounding color
+      if (compCount <= maxOrphanSize) {
         let counts = {};
-        for (let i = 0; i < comp.length; i++) {
+        for (let i = 0; i < compCount; i++) {
           let cidx = comp[i];
           let cx = cidx % w;
           let cy = Math.floor(cidx / w);
-          let neighbors = [
-            [cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1],
-            [cx - 1, cy - 1], [cx + 1, cy - 1], [cx - 1, cy + 1], [cx + 1, cy + 1]
-          ];
-          for (let j = 0; j < neighbors.length; j++) {
-            let nx = neighbors[j][0];
-            let ny = neighbors[j][1];
-            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
-              let nidx = ny * w + nx;
-              if (mapped[nidx].id !== tid && mapped[nidx].id !== "__skip__") {
-                let nid = mapped[nidx].id;
-                counts[nid] = (counts[nid] || 0) + 1;
-              }
-            }
-          }
+
+          let l = cx > 0, r = cx < w - 1, u = cy > 0, d = cy < h - 1;
+
+          if (l) { let nid = mapped[cidx - 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
+          if (r) { let nid = mapped[cidx + 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
+          if (u) { let nid = mapped[cidx - w].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
+          if (d) { let nid = mapped[cidx + w].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
+
+          if (l && u) { let nid = mapped[cidx - w - 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
+          if (r && u) { let nid = mapped[cidx - w + 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
+          if (l && d) { let nid = mapped[cidx + w - 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
+          if (r && d) { let nid = mapped[cidx + w + 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
         }
 
         let bestId = null;
@@ -283,7 +340,6 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize) {
         }
 
         if (bestId) {
-          // Find the object for bestId
           let replacement = null;
           for (let j = 0; j < len; j++) {
             if (mapped[j].id === bestId) {
@@ -292,7 +348,7 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize) {
             }
           }
           if (replacement) {
-            for (let i = 0; i < comp.length; i++) {
+            for (let i = 0; i < compCount; i++) {
               mapped[comp[i]] = replacement;
             }
           }

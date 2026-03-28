@@ -289,7 +289,24 @@ function drawStitch(ctx,cSz){
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
 }
 
-const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;stitchRef.current.width=sW*scs+G+2;stitchRef.current.height=sH*scs+G+2;drawStitch(stitchRef.current.getContext("2d"),scs);},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour]);
+const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
+  let canvas = stitchRef.current;
+  if (canvas.width !== sW*scs+G+2 || canvas.height !== sH*scs+G+2) {
+    canvas.width=sW*scs+G+2;canvas.height=sH*scs+G+2;
+  }
+  let viewportRect = null;
+  if (stitchScrollRef.current) {
+    viewportRect = {
+      left: stitchScrollRef.current.scrollLeft,
+      top: stitchScrollRef.current.scrollTop,
+      width: stitchScrollRef.current.clientWidth,
+      height: stitchScrollRef.current.clientHeight,
+      right: stitchScrollRef.current.scrollLeft + stitchScrollRef.current.clientWidth,
+      bottom: stitchScrollRef.current.scrollTop + stitchScrollRef.current.clientHeight
+    };
+  }
+  drawStitch(canvas.getContext("2d"),scs,viewportRect);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour]);
 useEffect(()=>renderStitch(),[renderStitch]);
 
 function handleStitchMouseDown(e){
@@ -454,7 +471,7 @@ return(
     {stitchMode==="navigate"&&<div style={{fontSize:12,color:"#2563eb",background:"#eff6ff",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #bfdbfe"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}</div>}
     {stitchView==="highlight"&&!focusColour&&<div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a"}}>Open Colours drawer and tap a colour to highlight</div>}
 
-    <div ref={stitchScrollRef} style={{overflow:"auto",maxHeight:drawer?340:600,border:"1px solid #e2e5ea",borderRadius:"8px 8px 0 0",background:"#f0f2f5",cursor:isPanning?"grabbing":stitchMode==="track"?"crosshair":"default",transition:"max-height 0.3s"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}><canvas ref={stitchRef} style={{display:"block"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/></div>
+    <div ref={stitchScrollRef} onScroll={() => requestAnimationFrame(renderStitch)} style={{overflow:"auto",maxHeight:drawer?340:600,border:"1px solid #e2e5ea",borderRadius:"8px 8px 0 0",background:"#f0f2f5",cursor:isPanning?"grabbing":stitchMode==="track"?"crosshair":"default",transition:"max-height 0.3s"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}><canvas ref={stitchRef} style={{display:"block"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/></div>
 
     {hoverInfo && stitchMode==="track" && (
       <div style={{
