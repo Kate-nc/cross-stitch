@@ -26,6 +26,7 @@ function App(){
 const[img,setImg]=useState(null),[sW,setSW]=useState(80),[sH,setSH]=useState(80),[arLock,setArLock]=useState(true),[ar,setAr]=useState(1);
 const[maxC,setMaxC]=useState(30),[bri,setBri]=useState(0),[con,setCon]=useState(0),[sat,setSat]=useState(0),[dith,setDith]=useState(false);
 const[skipBg,setSkipBg]=useState(false),[bgTh,setBgTh]=useState(15),[bgCol,setBgCol]=useState([255,255,255]),[pickBg,setPickBg]=useState(false),[minSt,setMinSt]=useState(0);
+const[smooth,setSmooth]=useState(0),[orphans,setOrphans]=useState(0);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null),[busy,setBusy]=useState(false);
 const[origW,setOrigW]=useState(0),[origH,setOrigH]=useState(0);
 const[fabricCt,setFabricCt]=useState(14);
@@ -86,14 +87,16 @@ const generatePreview=useCallback(()=>{
   cx.filter=`brightness(${100+bri}%) contrast(${100+con}%) saturate(${100+sat}%)`;
   cx.drawImage(img,0,0,pw,ph);cx.filter="none";
   let raw=cx.getImageData(0,0,pw,ph).data;
+  if(smooth>0)applyMedianFilter(raw,pw,ph,smooth);
   let p=quantize(raw,pw,ph,Math.min(maxC,20));if(!p.length)return;
   let mapped=dith?doDither(raw,pw,ph,p):doMap(raw,pw,ph,p);
   if(skipBg){let bl=rgbToLab(bgCol[0],bgCol[1],bgCol[2]);for(let i=0;i<mapped.length;i++){if(dE(rgbToLab(raw[i*4],raw[i*4+1],raw[i*4+2]),bl)<bgTh)mapped[i]={type:"skip",id:"__skip__",rgb:[255,255,255]};}}
+  if(orphans>0)mapped=removeOrphanStitches(mapped,pw,ph,orphans);
   let pc=document.createElement("canvas");let pcs=Math.max(3,Math.floor(260/pw));
   pc.width=pw*pcs;pc.height=ph*pcs;let pcx=pc.getContext("2d");
   for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){let m=mapped[y*pw+x];if(m.id==="__skip__"){pcx.fillStyle="#f0f0f0";}else{pcx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;}pcx.fillRect(x*pcs,y*pcs,pcs,pcs);}
   setPreviewUrl(pc.toDataURL());
-},[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh]);
+},[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh,smooth,orphans]);
 
 useEffect(()=>{
   if(!img)return;
@@ -120,11 +123,12 @@ function slRsz(v){chgW(v);}
 
 function srcClick(e){if(!pickBg||!img)return;let r=e.target.getBoundingClientRect(),c=document.createElement("canvas");c.width=img.width;c.height=img.height;let cx=c.getContext("2d");cx.drawImage(img,0,0);let p=cx.getImageData(Math.floor((e.clientX-r.left)*img.width/r.width),Math.floor((e.clientY-r.top)*img.height/r.height),1,1).data;setBgCol([p[0],p[1],p[2]]);setPickBg(false);}
 
-function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
 function loadProject(e){let f=e.target.files[0];if(!f)return;setLoadError(null);let rd=new FileReader();rd.onload=ev=>{try{
   let project=JSON.parse(ev.target.result);if(!project.pattern||!project.settings)throw new Error("Invalid");
   let s=project.settings;setSW(s.sW);setSH(s.sH);setMaxC(s.maxC);setBri(s.bri||0);setCon(s.con||0);setSat(s.sat||0);setDith(!!s.dith);setSkipBg(!!s.skipBg);setBgTh(s.bgTh||15);setBgCol(s.bgCol||[255,255,255]);setMinSt(s.minSt||0);setArLock(s.arLock!==false);setAr(s.ar||1);setBsLines(project.bsLines||[]);
+  setSmooth(s.smooth||0);setOrphans(s.orphans||0);
   if(s.fabricCt)setFabricCt(s.fabricCt);
   if(s.skeinPrice!=null)setSkeinPrice(s.skeinPrice);
   if(s.stitchSpeed)setStitchSpeed(s.stitchSpeed);
@@ -206,16 +210,18 @@ const generate=useCallback(()=>{
     let c=document.createElement("canvas");c.width=sW;c.height=sH;let cx=c.getContext("2d");
     cx.filter=`brightness(${100+bri}%) contrast(${100+con}%) saturate(${100+sat}%)`;
     cx.drawImage(img,0,0,sW,sH);cx.filter="none";let raw=cx.getImageData(0,0,sW,sH).data;
+    if(smooth>0)applyMedianFilter(raw,sW,sH,smooth);
     let p=quantize(raw,sW,sH,maxC);if(!p.length){setBusy(false);return;}
     let mapped=dith?doDither(raw,sW,sH,p):doMap(raw,sW,sH,p);
     if(skipBg){let bl=rgbToLab(bgCol[0],bgCol[1],bgCol[2]);for(let i=0;i<mapped.length;i++){if(dE(rgbToLab(raw[i*4],raw[i*4+1],raw[i*4+2]),bl)<bgTh)mapped[i]={type:"skip",id:"__skip__",rgb:[255,255,255],lab:[100,0,0]};}}
     if(minSt>0){for(let pass=0;pass<3;pass++){let{pal:ep}=buildPalette(mapped);let rare=ep.filter(e=>e.count<minSt),keep=ep.filter(e=>e.count>=minSt);if(!rare.length||!keep.length)break;let rm2={};rare.forEach(r=>{let b=null,bd=1e9;keep.forEach(k=>{let d=dE(r.lab,k.lab);if(d<bd){bd=d;b=k.id;}});if(b)rm2[r.id]=b;});let changed=false;let keepMap={};keep.forEach(k=>{keepMap[k.id]=k;});for(let i=0;i<mapped.length;i++){if(mapped[i].id!=="__skip__"&&rm2[mapped[i].id]){mapped[i]={...keepMap[rm2[mapped[i].id]]};changed=true;}}if(!changed)break;}}
     for(let safe=0;safe<5;safe++){let ids=new Set();for(let i=0;i<mapped.length;i++){let m=mapped[i];if(m.id==="__skip__")continue;if(m.type==="blend"&&m.threads)m.threads.forEach(t=>ids.add(t.id));else ids.add(m.id);}if(ids.size<=maxC)break;let tu={};for(let i=0;i<mapped.length;i++){let m=mapped[i];if(m.id==="__skip__")continue;if(m.type==="blend"&&m.threads)m.threads.forEach(t=>{tu[t.id]=(tu[t.id]||0)+1;});else tu[m.id]=(tu[m.id]||0)+1;}let sorted=Object.entries(tu).sort((a,b)=>b[1]-a[1]);let ks=new Set(sorted.slice(0,maxC).map(e=>e[0]));let kp=p.filter(t=>ks.has(t.id));if(!kp.length)break;for(let i=0;i<mapped.length;i++){let m=mapped[i];if(m.id==="__skip__")continue;let nr=m.type==="blend"&&m.threads?m.threads.some(t=>!ks.has(t.id)):!ks.has(m.id);if(nr)mapped[i]=findSolid(m.lab||rgbToLab(raw[i*4],raw[i*4+1],raw[i*4+2]),kp);}}
+    if(orphans>0)mapped=removeOrphanStitches(mapped,sW,sH,orphans);
     let{pal:newPal,cmap:newCmap}=buildPalette(mapped);
     setPal(newPal);setCmap(newCmap);setPat(mapped);setDone(new Uint8Array(mapped.length));setParkMarkers([]);setTab("pattern");setThreadOwned({});
     let z=Math.min(3,Math.max(0.05,750/(sW*20)));setTimeout(()=>{setZoom(z);},0);
   }catch(err){console.error(err);}setBusy(false);},50);
-},[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh,minSt]);
+},[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh,minSt,smooth,orphans]);
 
 // ═══ Canvas drawing ═══
 function drawPattern(ctx,offX,offY,dW,dH,cSz,gut){
@@ -309,7 +315,7 @@ return(
         </div>}
       </Section>
 
-      <Section title="Palette"><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div><div style={{display:"flex",gap:6,marginTop:6}}><button onClick={()=>setDith(false)} style={{...pill(!dith),flex:1}}>Direct</button><button onClick={()=>setDith(true)} style={{...pill(dith),flex:1}}>Dithered</button></div></Section>
+      <Section title="Palette"><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div><div style={{marginTop:8}}><SliderRow label="Remove Orphans" value={orphans} min={0} max={3} onChange={setOrphans} format={v=>v===0?"Off":v}/></div><div style={{display:"flex",gap:6,marginTop:6}}><button onClick={()=>setDith(false)} style={{...pill(!dith),flex:1}}>Direct</button><button onClick={()=>setDith(true)} style={{...pill(dith),flex:1}}>Dithered</button></div></Section>
 
       <Section title="Fabric & Floss" defaultOpen={false} badge={<span style={{fontSize:11,fontWeight:500,color:"#64748b",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}>{fabricCt}ct</span>}>
         <div style={{marginTop:8}}>
@@ -321,7 +327,7 @@ return(
         </div>
       </Section>
 
-      <Section title="Adjustments" defaultOpen={false} badge={(bri||con||sat)?<span style={{width:6,height:6,borderRadius:"50%",background:"#5b7bb3",display:"inline-block"}}/>:null}><div style={{marginTop:8}}><SliderRow label="Brightness" value={bri} min={-50} max={50} onChange={setBri} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Contrast" value={con} min={-50} max={50} onChange={setCon} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Saturation" value={sat} min={-50} max={50} onChange={setSat} format={v=>(v>0?"+":"")+v+"%"}/></div></Section>
+      <Section title="Adjustments" defaultOpen={false} badge={(bri||con||sat||smooth)?<span style={{width:6,height:6,borderRadius:"50%",background:"#5b7bb3",display:"inline-block"}}/>:null}><div style={{marginTop:8}}><SliderRow label="Smooth (Noise Reduction)" value={smooth} min={0} max={4} onChange={setSmooth} format={v=>v===0?"Off":v}/><SliderRow label="Brightness" value={bri} min={-50} max={50} onChange={setBri} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Contrast" value={con} min={-50} max={50} onChange={setCon} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Saturation" value={sat} min={-50} max={50} onChange={setSat} format={v=>(v>0?"+":"")+v+"%"}/></div></Section>
       <Section title="Background" defaultOpen={false} badge={skipBg?<span style={{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}/>:null}><label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}}><input type="checkbox" checked={skipBg} onChange={e=>setSkipBg(e.target.checked)}/>Skip background</label>{skipBg&&<div style={{marginTop:10}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><div onClick={()=>setPickBg(true)} style={{width:24,height:24,borderRadius:6,background:`rgb(${bgCol})`,border:"2px solid #e2e5ea",cursor:"pointer"}}/><button onClick={()=>setPickBg(true)} style={{fontSize:11,padding:"3px 8px",border:"1px solid #e2e5ea",borderRadius:6,background:"#f8fafc",cursor:"pointer"}}>Pick</button></div><SliderRow label="Tolerance" value={bgTh} min={3} max={50} onChange={setBgTh}/></div>}</Section>
       <button onClick={generate} disabled={busy} style={{padding:"12px 20px",fontSize:15,fontWeight:600,background:busy?"#94a3b8":"linear-gradient(135deg,#5b7bb3,#4a6fa5)",color:"#fff",border:"none",borderRadius:10,cursor:busy?"wait":"pointer",boxShadow:busy?"none":"0 2px 8px rgba(74,111,165,0.25)"}}>{busy?"Generating...":(pat?"Regenerate":"Generate Pattern")}</button>
       </>}
