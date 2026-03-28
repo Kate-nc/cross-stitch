@@ -42,6 +42,7 @@ const[hasGenerated,setHasGenerated]=useState(false);
 
 const[activeTool,setActiveTool]=useState(null),[bsLines,setBsLines]=useState([]),[bsStart,setBsStart]=useState(null);
 const[selectedColorId,setSelectedColorId]=useState(null);
+const[hoverCoords,setHoverCoords]=useState(null);
 const[editHistory,setEditHistory]=useState([]);
 
 const[exportPage,setExportPage]=useState(0),[pageMode,setPageMode]=useState(false);
@@ -279,12 +280,60 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut){
   }
   if(cSz>=3){ctx.strokeStyle="rgba(0,0,0,0.2)";ctx.lineWidth=cSz>=8?1.5:1;for(let gx=0;gx<=dW;gx+=10){ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut);ctx.lineTo(gut+gx*cSz,gut+dH*cSz);ctx.stroke();}for(let gy=0;gy<=dH;gy+=10){ctx.beginPath();ctx.moveTo(gut,gut+gy*cSz);ctx.lineTo(gut+dW*cSz,gut+gy*cSz);ctx.stroke();}}
   if(showCtr){ctx.strokeStyle="rgba(200,60,60,0.3)";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);let cx2=Math.floor(sW/2)-offX,cy2=Math.floor(sH/2)-offY;if(cx2>=0&&cx2<=dW){ctx.beginPath();ctx.moveTo(gut+cx2*cSz,gut);ctx.lineTo(gut+cx2*cSz,gut+dH*cSz);ctx.stroke();}if(cy2>=0&&cy2<=dH){ctx.beginPath();ctx.moveTo(gut,gut+cy2*cSz);ctx.lineTo(gut+dW*cSz,gut+cy2*cSz);ctx.stroke();}ctx.setLineDash([]);}
-  if(bsLines.length>0){ctx.strokeStyle="#333";ctx.lineWidth=Math.max(2,cSz*0.15);ctx.lineCap="round";bsLines.forEach(ln=>{let lx1=ln.x1-offX,ly1=ln.y1-offY,lx2=ln.x2-offX,ly2=ln.y2-offY;if(lx1>=0&&lx1<=dW&&ly1>=0&&ly1<=dH&&lx2>=0&&lx2<=dW&&ly2>=0&&ly2<=dH){ctx.beginPath();ctx.moveTo(gut+lx1*cSz,gut+ly1*cSz);ctx.lineTo(gut+lx2*cSz,gut+ly2*cSz);ctx.stroke();}});}
-  if(bsStart&&activeTool==="backstitch"){let sx=bsStart.x-offX,sy=bsStart.y-offY;if(sx>=0&&sx<=dW&&sy>=0&&sy<=dH){ctx.fillStyle="rgba(220,50,50,0.8)";ctx.beginPath();ctx.arc(gut+sx*cSz,gut+sy*cSz,Math.max(3,cSz*0.2),0,Math.PI*2);ctx.fill();}}
+  if(bsLines.length>0){
+    ctx.lineCap="round";
+    let hx = hoverCoords ? hoverCoords.gx - offX : null;
+    let hy = hoverCoords ? hoverCoords.gy - offY : null;
+    bsLines.forEach(ln=>{
+      let lx1=ln.x1-offX,ly1=ln.y1-offY,lx2=ln.x2-offX,ly2=ln.y2-offY;
+      let isHoveredErase = false;
+      if (activeTool === "eraseBs" && hx !== null && hy !== null) {
+        let A=hx-lx1,B=hy-ly1,C=lx2-lx1,D=ly2-ly1;
+        let dot=A*C+B*D,lenSq=C*C+D*D;
+        let param=-1;
+        if(lenSq!==0)param=dot/lenSq;
+        let xx,yy;
+        if(param<0){xx=lx1;yy=ly1;}
+        else if(param>1){xx=lx2;yy=ly2;}
+        else{xx=lx1+param*C;yy=ly1+param*D;}
+        let dx=hx-xx,dy=hy-yy;
+        if (Math.sqrt(dx*dx+dy*dy) <= 0.4) isHoveredErase = true;
+      }
+      if(lx1>=0&&lx1<=dW&&ly1>=0&&ly1<=dH&&lx2>=0&&lx2<=dW&&ly2>=0&&ly2<=dH){
+        ctx.strokeStyle=isHoveredErase?"#ef4444":"#333";
+        ctx.lineWidth=Math.max(2,cSz*(isHoveredErase?0.25:0.15));
+        ctx.beginPath();ctx.moveTo(gut+lx1*cSz,gut+ly1*cSz);ctx.lineTo(gut+lx2*cSz,gut+ly2*cSz);ctx.stroke();
+      }
+    });
+  }
+  if(bsStart&&activeTool==="backstitch"){
+    let sx=bsStart.x-offX,sy=bsStart.y-offY;
+    if(sx>=0&&sx<=dW&&sy>=0&&sy<=dH){
+      ctx.fillStyle="rgba(220,50,50,0.8)";ctx.beginPath();ctx.arc(gut+sx*cSz,gut+sy*cSz,Math.max(3,cSz*0.2),0,Math.PI*2);ctx.fill();
+    }
+    if(hoverCoords){
+      let hx=hoverCoords.gx-offX,hy=hoverCoords.gy-offY;
+      ctx.strokeStyle="rgba(50,50,50,0.5)";ctx.lineWidth=Math.max(2,cSz*0.15);ctx.setLineDash([4,4]);
+      ctx.beginPath();ctx.moveTo(gut+sx*cSz,gut+sy*cSz);ctx.lineTo(gut+hx*cSz,gut+hy*cSz);ctx.stroke();ctx.setLineDash([]);
+    }
+  }
+
+  if (hoverCoords && (activeTool === "paint" || activeTool === "fill") && selectedColorId && cmap) {
+    let hx = hoverCoords.gx - offX, hy = hoverCoords.gy - offY;
+    if (hx >= 0 && hx < dW && hy >= 0 && hy < dH) {
+      ctx.strokeStyle = `rgba(${cmap[selectedColorId].rgb[0]},${cmap[selectedColorId].rgb[1]},${cmap[selectedColorId].rgb[2]},0.8)`;
+      ctx.lineWidth = Math.max(2, cSz * 0.15);
+      ctx.strokeRect(gut + hx * cSz + 1, gut + hy * cSz + 1, cSz - 2, cSz - 2);
+      ctx.fillStyle = `rgba(${cmap[selectedColorId].rgb[0]},${cmap[selectedColorId].rgb[1]},${cmap[selectedColorId].rgb[2]},0.3)`;
+      ctx.fillRect(gut + hx * cSz + 1, gut + hy * cSz + 1, cSz - 2, cSz - 2);
+      ctx.lineWidth = 1;
+    }
+  }
+
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
 }
 
-const renderPattern=useCallback(()=>{if(!pat||!cmap||!pcRef.current||tab!=="pattern")return;pcRef.current.width=sW*cs+G+2;pcRef.current.height=sH*cs+G+2;drawPattern(pcRef.current.getContext("2d"),0,0,sW,sH,cs,G);},[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab]);
+const renderPattern=useCallback(()=>{if(!pat||!cmap||!pcRef.current||tab!=="pattern")return;pcRef.current.width=sW*cs+G+2;pcRef.current.height=sH*cs+G+2;drawPattern(pcRef.current.getContext("2d"),0,0,sW,sH,cs,G);},[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab,hoverCoords,selectedColorId]);
 useEffect(()=>renderPattern(),[renderPattern]);
 
 const renderExport=useCallback(()=>{if(tab!=="export"||!expRef.current||!pat||!cmap)return;let epC=exportPage%pxX,epR=Math.floor(exportPage/pxX),eX0=epC*A4W,eY0=epR*A4H,eW=Math.min(A4W,sW-eX0),eH=Math.min(A4H,sH-eY0),dW2=pageMode?eW:sW,dH2=pageMode?eH:sH,oX2=pageMode?eX0:0,oY2=pageMode?eY0:0,expCs=Math.max(8,Math.min(20,Math.floor(750/Math.max(dW2,dH2))));expRef.current.width=dW2*expCs+G+2;expRef.current.height=dH2*expCs+G+2;drawPattern(expRef.current.getContext("2d"),oX2,oY2,dW2,dH2,expCs,G);},[tab,pat,cmap,sW,sH,pageMode,exportPage,pxX,view,hiId,showCtr,bsLines]);
@@ -302,7 +351,36 @@ function handlePatClick(e){
     setPat(np);let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);return;
   }
   if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return;let pt={x:gx,y:gy};if(!bsStart)setBsStart(pt);else{setBsLines(prev=>[...prev,{x1:bsStart.x,y1:bsStart.y,x2:pt.x,y2:pt.y}]);setBsStart(null);}}
+  if(activeTool==="eraseBs"){
+    if(bsLines.length===0)return;
+    let closestIdx=-1,minD=Infinity;
+    bsLines.forEach((ln,i)=>{
+      let A=gx-ln.x1,B=gy-ln.y1,C=ln.x2-ln.x1,D=ln.y2-ln.y1;
+      let dot=A*C+B*D,lenSq=C*C+D*D;
+      let param=-1;
+      if(lenSq!==0)param=dot/lenSq;
+      let xx,yy;
+      if(param<0){xx=ln.x1;yy=ln.y1;}
+      else if(param>1){xx=ln.x2;yy=ln.y2;}
+      else{xx=ln.x1+param*C;yy=ln.y1+param*D;}
+      let dx=gx-xx,dy=gy-yy;
+      let d = Math.sqrt(dx*dx+dy*dy);
+      if(d<minD){minD=d;closestIdx=i;}
+    });
+    if(minD<=0.4&&closestIdx>=0){
+      let nBs=[...bsLines];nBs.splice(closestIdx,1);setBsLines(nBs);
+    }
+  }
 }
+
+function handlePatMouseMove(e){
+  if(!pcRef.current||!pat||!activeTool)return;
+  let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch"||activeTool==="eraseBs");
+  if(!gc)return;
+  if(!hoverCoords||hoverCoords.gx!==gc.gx||hoverCoords.gy!==gc.gy)setHoverCoords(gc);
+}
+
+function handlePatMouseLeave(){setHoverCoords(null);}
 
 // Thread organiser helpers
 function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur===""?"owned":cur==="owned"?"tobuy":"";return{...prev,[id]:next};});}
@@ -389,6 +467,7 @@ return(
           <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap",alignItems:"center"}}>
             <span style={{fontSize:10,fontWeight:600,color:"#94a3b8",textTransform:"uppercase"}}>Tools</span>
             <button onClick={()=>setTool("backstitch")} style={tBtn(activeTool==="backstitch","orange")}>✏️ Backstitch</button>
+            <button onClick={()=>setTool("eraseBs")} style={tBtn(activeTool==="eraseBs","orange")}>🗑️ Erase Line</button>
             <button onClick={()=>setTool("paint")} style={tBtn(activeTool==="paint","blue")}>🖌️ Paint</button>
             <button onClick={()=>setTool("fill")} style={tBtn(activeTool==="fill","green")}>🪣 Fill</button>
             {(activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f1f5f9"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #cbd5e1",display:"inline-block"}}/> {selectedColorId}</span>}
@@ -397,7 +476,7 @@ return(
               {hiId&&<button onClick={()=>setHiId(null)} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Clear ✕</button>}
             </div>
           </div>
-          <div ref={scrollRef} style={{overflow:"auto",maxHeight:550,border:"1px solid #e2e5ea",borderRadius:8,background:"#f0f2f5",cursor:activeTool?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick}/></div>
+          <div ref={scrollRef} style={{overflow:"auto",maxHeight:550,border:"1px solid #e2e5ea",borderRadius:8,background:"#f0f2f5",cursor:activeTool?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave}/></div>
           <div style={{marginTop:8,borderRadius:8,background:"#f8fafc",padding:"8px 12px",border:"1px solid #e2e5ea"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{pal.map(p=>{let ips=(activeTool==="paint"||activeTool==="fill")&&selectedColorId===p.id,ihs=hiId===p.id;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #2563eb":ihs?"2px solid #ea580c":"1.5px solid #e2e5ea",background:ips?"#eff6ff":ihs?"#fff7ed":"#fff"}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#64748b"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span></div>;})}</div></div>
         </div>}
 
