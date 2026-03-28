@@ -1,0 +1,27 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "A feature-rich, single-file web application for creating, managing, and tracking cross-stitch patterns directly from your browser.",
+  "main": "colour-utils.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kate-nc/cross-stitch.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Kate-nc/cross-stitch/issues"
+  },
+  "homepage": "https://github.com/Kate-nc/cross-stitch#readme",
+  "devDependencies": {
+    "jest": "^30.3.0"
+  }
+}

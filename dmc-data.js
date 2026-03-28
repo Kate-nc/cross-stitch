@@ -4,3 +4,7 @@ function rgbToLab(r,g,b){let rr=r/255,gg=g/255,bb=b/255;rr=rr>0.04045?((rr+0.055
 function dE(a,b){return Math.sqrt((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2);}
 const DMC=DMC_RAW.map(d=>({id:d[0],name:d[1],rgb:[d[2],d[3],d[4]],lab:rgbToLab(d[2],d[3],d[4])}));
 const SYMS="●◆■▲★♦♥♣♠◄►▼○◇□△☆♢♡♧♤◁▷▽⊕⊗⊞⊠⊡⊘⊙⊚⊛⊜⊝⬡⬢⬣⬥⬦⬧⬨⬩".split("");
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { rgbToLab, dE, DMC, SYMS };
+}
