@@ -134,6 +134,7 @@ function resetAll(){
   setImportDialog(null);
   setImportImage(null);
   setImportSuccess(null);
+  clearProjectFromDB();
 }
 
 function saveProject(){
@@ -287,8 +288,41 @@ useEffect(() => {
             console.error("Failed to load from URL:", err);
             setLoadError("Failed to load pattern from link.");
         }
+    } else {
+        // Automatically load from IndexedDB
+        loadProjectFromDB().then(project => {
+            if (project) {
+                processLoadedProject(project);
+                setImportSuccess("Loaded last active project.");
+                setTimeout(() => setImportSuccess(null), 3000);
+            }
+        });
     }
 }, []);
+
+// Auto-save effect
+useEffect(() => {
+    if (!pat || !pal) return;
+    const saveTimer = setTimeout(() => {
+        let project = {
+            version: 7,
+            page: "tracker",
+            settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
+            pattern: pat.map(m => m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }),
+            bsLines,
+            done: done ? Array.from(done) : null,
+            parkMarkers,
+            totalTime: totalTime + (sessionActive ? Math.floor((Date.now() - sessionStart) / 1000) : 0),
+            sessions,
+            hlRow,
+            hlCol,
+            threadOwned
+        };
+        saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
+    }, 1000); // 1-second debounce
+
+    return () => clearTimeout(saveTimer);
+}, [pat, pal, sW, sH, fabricCt, skeinPrice, stitchSpeed, bsLines, done, parkMarkers, totalTime, sessionActive, sessionStart, sessions, hlRow, hlCol, threadOwned]);
 
 function drawStitch(ctx,cSz){
   let gut=G,dW=sW,dH=sH;

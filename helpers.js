@@ -25,3 +25,67 @@ function calcDifficulty(palLen,blendCount,totalSt){
   if(score<=6)return{label:"Advanced",color:"#ea580c",stars:3};
   return{label:"Expert",color:"#dc2626",stars:4};
 }
+
+// IndexedDB utility functions
+const DB_NAME = "CrossStitchDB";
+const STORE_NAME = "projects";
+
+function getDB() {
+  return new Promise((resolve, reject) => {
+    let request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = (e) => {
+      let db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function saveProjectToDB(project) {
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      let tx = db.transaction(STORE_NAME, "readwrite");
+      let store = tx.objectStore(STORE_NAME);
+      let request = store.put(project, "auto_save");
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error("Failed to save project to IndexedDB", err);
+  }
+}
+
+async function loadProjectFromDB() {
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      let tx = db.transaction(STORE_NAME, "readonly");
+      let store = tx.objectStore(STORE_NAME);
+      let request = store.get("auto_save");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error("Failed to load project from IndexedDB", err);
+    return null;
+  }
+}
+
+async function clearProjectFromDB() {
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      let tx = db.transaction(STORE_NAME, "readwrite");
+      let store = tx.objectStore(STORE_NAME);
+      let request = store.delete("auto_save");
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error("Failed to clear project from IndexedDB", err);
+  }
+}
