@@ -1,4 +1,3 @@
-const { test, describe, it } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 
@@ -23,28 +22,28 @@ eval(code);
 
 describe('fmtTimeL', () => {
     it('formats times under an hour correctly', () => {
-        assert.strictEqual(fmtTimeL(0), '0 min');
-        assert.strictEqual(fmtTimeL(59), '0 min');
-        assert.strictEqual(fmtTimeL(60), '1 min');
-        assert.strictEqual(fmtTimeL(3599), '59 min');
+        expect(fmtTimeL(0)).toBe('0 min');
+        expect(fmtTimeL(59)).toBe('0 min');
+        expect(fmtTimeL(60)).toBe('1 min');
+        expect(fmtTimeL(3599)).toBe('59 min');
     });
 
     it('formats exactly one hour correctly', () => {
-        assert.strictEqual(fmtTimeL(3600), '1 hr 0 min');
+        expect(fmtTimeL(3600)).toBe('1 hr 0 min');
     });
 
     it('formats one hour and some minutes correctly', () => {
-        assert.strictEqual(fmtTimeL(3660), '1 hr 1 min');
-        assert.strictEqual(fmtTimeL(7199), '1 hr 59 min');
+        expect(fmtTimeL(3660)).toBe('1 hr 1 min');
+        expect(fmtTimeL(7199)).toBe('1 hr 59 min');
     });
 
     it('formats exactly multiple hours correctly', () => {
-        assert.strictEqual(fmtTimeL(7200), '2 hrs 0 min');
-        assert.strictEqual(fmtTimeL(36000), '10 hrs 0 min');
+        expect(fmtTimeL(7200)).toBe('2 hrs 0 min');
+        expect(fmtTimeL(36000)).toBe('10 hrs 0 min');
     });
 
     it('formats multiple hours and some minutes correctly', () => {
-        assert.strictEqual(fmtTimeL(7260), '2 hrs 1 min');
-        assert.strictEqual(fmtTimeL(10000), '2 hrs 46 min');
+        expect(fmtTimeL(7260)).toBe('2 hrs 1 min');
+        expect(fmtTimeL(10000)).toBe('2 hrs 46 min');
     });
 });
