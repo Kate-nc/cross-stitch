@@ -53,6 +53,7 @@ const[sessions,setSessions]=useState([]);
 const[threadOwned,setThreadOwned]=useState({});
 
 const[previewUrl,setPreviewUrl]=useState(null);
+const[previewStats,setPreviewStats]=useState(null);
 const previewTimerRef=useRef(null);
 
 const pcRef=useRef(null),fRef=useRef(null),scrollRef=useRef(null),expRef=useRef(null),loadRef=useRef(null);
@@ -84,21 +85,51 @@ const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0
 
 const generatePreview=useCallback(()=>{
   if(!img)return;
-  let pw=Math.min(40,sW),ph=Math.round(pw/(sW/sH));if(ph<1)ph=1;
+  let pw=Math.min(100,sW),ph=Math.round(pw/(sW/sH));if(ph<1)ph=1;
   let c=document.createElement("canvas");c.width=pw;c.height=ph;let cx=c.getContext("2d");
   cx.filter=`brightness(${100+bri}%) contrast(${100+con}%) saturate(${100+sat}%)`;
   cx.drawImage(img,0,0,pw,ph);cx.filter="none";
   let raw=cx.getImageData(0,0,pw,ph).data;
   if(smooth>0){if(smoothType==="gaussian")applyGaussianBlur(raw,pw,ph,smooth);else applyMedianFilter(raw,pw,ph,smooth);}
-  let p=quantize(raw,pw,ph,Math.min(maxC,20));if(!p.length)return;
+  let p=quantize(raw,pw,ph,maxC);if(!p.length)return;
   let mapped=dith?doDither(raw,pw,ph,p):doMap(raw,pw,ph,p);
   if(skipBg){let bl=rgbToLab(bgCol[0],bgCol[1],bgCol[2]);for(let i=0;i<mapped.length;i++){if(dE(rgbToLab(raw[i*4],raw[i*4+1],raw[i*4+2]),bl)<bgTh)mapped[i]={type:"skip",id:"__skip__",rgb:[255,255,255]};}}
   if(orphans>0)mapped=removeOrphanStitches(mapped,pw,ph,orphans);
+
+  // Calculate preview statistics
+  let stitchable=0;
+  let skipped=0;
+  let colorCounts={};
+  for(let i=0;i<mapped.length;i++){
+    let m=mapped[i];
+    if(m.id==="__skip__"){
+      skipped++;
+    }else{
+      stitchable++;
+      colorCounts[m.id]=(colorCounts[m.id]||0)+1;
+    }
+  }
+  let uniqueColors=Object.keys(colorCounts).length;
+
+  // Estimate skeins (scale preview stitches up to actual size for estimation)
+  let scaleFactor=(sW*sH)/(pw*ph);
+  let estSkeins=0;
+  Object.values(colorCounts).forEach(ct=>{
+    estSkeins+=skeinEst(Math.round(ct*scaleFactor),fabricCt);
+  });
+
+  setPreviewStats({
+    stitchable: Math.round(stitchable*scaleFactor),
+    skipped: Math.round(skipped*scaleFactor),
+    uniqueColors,
+    estSkeins
+  });
+
   let pc=document.createElement("canvas");let pcs=Math.max(3,Math.floor(260/pw));
   pc.width=pw*pcs;pc.height=ph*pcs;let pcx=pc.getContext("2d");
   for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){let m=mapped[y*pw+x];if(m.id==="__skip__"){pcx.fillStyle="#f0f0f0";}else{pcx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;}pcx.fillRect(x*pcs,y*pcs,pcs,pcs);}
   setPreviewUrl(pc.toDataURL());
-},[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh,smooth,smoothType,orphans]);
+},[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh,smooth,smoothType,orphans,fabricCt]);
 
 useEffect(()=>{
   if(!img)return;
@@ -508,6 +539,17 @@ return(
           <div style={{padding:"0 14px 10px",flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>
             <img src={previewUrl} alt="Preview" style={{maxWidth:"100%",maxHeight:"600px",borderRadius:6,border:"1px solid #e2e5ea",imageRendering:"pixelated"}}/>
           </div>
+          {previewStats&&<div style={{padding:"10px 14px",borderTop:"1px solid #f0f2f5",background:"#f8fafc",borderBottomLeftRadius:8,borderBottomRightRadius:8}}>
+            <div style={{fontSize:11,fontWeight:600,color:"#64748b",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
+              <div><div style={{fontSize:10,color:"#94a3b8"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{previewStats.stitchable.toLocaleString()}</div></div>
+              {skipBg&&<div><div style={{fontSize:10,color:"#94a3b8"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{previewStats.skipped.toLocaleString()}</div></div>}
+              <div><div style={{fontSize:10,color:"#94a3b8"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{previewStats.uniqueColors}</div></div>
+              <div><div style={{fontSize:10,color:"#94a3b8"}}>Skeins ({fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{previewStats.estSkeins}</div></div>
+              <div><div style={{fontSize:10,color:"#94a3b8"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{fmtTimeL(Math.round(previewStats.stitchable/stitchSpeed*3600))}</div></div>
+              <div><div style={{fontSize:10,color:"#94a3b8"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>£{(previewStats.estSkeins*skeinPrice).toFixed(2)}</div></div>
+            </div>
+          </div>}
         </div>}
       </div>}
     </div>
