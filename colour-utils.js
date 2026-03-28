@@ -78,11 +78,11 @@ function restoreStitch(m){
   return{type:"solid",id:m.id,name:m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0};
 }
 
-function applyMedianFilter(data, w, h, radius) {
-  if (radius <= 0) return data;
-  const len = data.length;
-  const buf = new Uint8ClampedArray(len);
-
+function applyMedianFilterCore(data, w, h, radius, buf) {
+  if (radius <= 0) {
+    for (let i = 0; i < data.length; i++) buf[i] = data[i];
+    return;
+  }
   const size = (2 * radius + 1) * (2 * radius + 1);
   const rArr = new Int32Array(size);
   const gArr = new Int32Array(size);
@@ -117,9 +117,95 @@ function applyMedianFilter(data, w, h, radius) {
       buf[outIdx + 3] = data[outIdx + 3];
     }
   }
-  for (let i = 0; i < len; i++) {
-    data[i] = buf[i];
+}
+
+function applyMedianFilter(data, w, h, radius) {
+  if (radius <= 0) return data;
+  const len = data.length;
+
+  if (Number.isInteger(radius)) {
+    const buf = new Uint8ClampedArray(len);
+    applyMedianFilterCore(data, w, h, radius, buf);
+    for (let i = 0; i < len; i++) data[i] = buf[i];
+    return data;
   }
+
+  const r1 = Math.floor(radius);
+  const r2 = Math.ceil(radius);
+  const frac = radius - r1;
+
+  const buf1 = new Uint8ClampedArray(len);
+  applyMedianFilterCore(data, w, h, r1, buf1);
+
+  const buf2 = new Uint8ClampedArray(len);
+  applyMedianFilterCore(data, w, h, r2, buf2);
+
+  for (let i = 0; i < len; i++) {
+    data[i] = buf1[i] + (buf2[i] - buf1[i]) * frac;
+  }
+  return data;
+}
+
+function applyGaussianBlur(data, w, h, sigma) {
+  if (sigma <= 0) return data;
+
+  const len = data.length;
+  const buf = new Float32Array(len);
+  for (let i = 0; i < len; i++) buf[i] = data[i];
+
+  const radius = Math.ceil(sigma * 3);
+  const kernel = new Float32Array(2 * radius + 1);
+  let sum = 0;
+  for (let i = -radius; i <= radius; i++) {
+    kernel[i + radius] = Math.exp(-(i * i) / (2 * sigma * sigma));
+    sum += kernel[i + radius];
+  }
+  for (let i = 0; i < kernel.length; i++) kernel[i] /= sum;
+
+  const temp = new Float32Array(len);
+
+  // Horizontal pass
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let r = 0, g = 0, b = 0;
+      for (let k = -radius; k <= radius; k++) {
+        let nx = x + k;
+        if (nx < 0) nx = 0; else if (nx >= w) nx = w - 1;
+        const idx = (y * w + nx) << 2;
+        const weight = kernel[k + radius];
+        r += buf[idx] * weight;
+        g += buf[idx + 1] * weight;
+        b += buf[idx + 2] * weight;
+      }
+      const outIdx = (y * w + x) << 2;
+      temp[outIdx] = r;
+      temp[outIdx + 1] = g;
+      temp[outIdx + 2] = b;
+      temp[outIdx + 3] = buf[outIdx + 3];
+    }
+  }
+
+  // Vertical pass
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      let r = 0, g = 0, b = 0;
+      for (let k = -radius; k <= radius; k++) {
+        let ny = y + k;
+        if (ny < 0) ny = 0; else if (ny >= h) ny = h - 1;
+        const idx = (ny * w + x) << 2;
+        const weight = kernel[k + radius];
+        r += temp[idx] * weight;
+        g += temp[idx + 1] * weight;
+        b += temp[idx + 2] * weight;
+      }
+      const outIdx = (y * w + x) << 2;
+      data[outIdx] = r;
+      data[outIdx + 1] = g;
+      data[outIdx + 2] = b;
+      data[outIdx + 3] = temp[outIdx + 3];
+    }
+  }
+
   return data;
 }
 
@@ -217,4 +303,4 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize) {
   return mapped;
 }
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, removeOrphanStitches }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, removeOrphanStitches }; }
