@@ -1,11 +1,23 @@
-function Section({title,children,defaultOpen=true,badge=null}){
+function Section({title,children,isOpen,onToggle,defaultOpen=true,badge=null}){
   const[o,sO]=React.useState(defaultOpen);
+
+  const isControlled = isOpen !== undefined && onToggle !== undefined;
+  const currentOpen = isControlled ? isOpen : o;
+
+  const handleToggle = () => {
+    if (isControlled) {
+      onToggle(!currentOpen);
+    } else {
+      sO(!currentOpen);
+    }
+  };
+
   return React.createElement("div", {style:{borderRadius:10,border:"1px solid #e2e5ea",background:"#fff",overflow:"hidden"}},
-    React.createElement("button", {onClick:()=>sO(!o), style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"none",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"#2d3748",gap:8}},
+    React.createElement("button", {onClick:handleToggle, style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"none",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"#2d3748",gap:8}},
       React.createElement("span", {style:{display:"flex",alignItems:"center",gap:8}}, title, badge),
-      React.createElement("span", {style:{fontSize:10,color:"#94a3b8",transform:o?"rotate(180deg)":"rotate(0deg)"}}, "▼")
+      React.createElement("span", {style:{fontSize:10,color:"#94a3b8",transform:currentOpen?"rotate(180deg)":"rotate(0deg)"}}, "▼")
     ),
-    o&&React.createElement("div", {style:{padding:"0 14px 14px",borderTop:"1px solid #f0f2f5"}}, children)
+    currentOpen&&React.createElement("div", {style:{padding:"0 14px 14px",borderTop:"1px solid #f0f2f5"}}, children)
   );
 }
 function SliderRow({label,value,min,max,step=1,onChange,suffix="",format=null}){
