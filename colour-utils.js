@@ -77,3 +77,144 @@ function restoreStitch(m){
   if(dmc)return{type:"solid",id:dmc.id,name:dmc.name,rgb:dmc.rgb,lab:dmc.lab,dist:0};
   return{type:"solid",id:m.id,name:m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0};
 }
+
+function applyMedianFilter(data, w, h, radius) {
+  if (radius <= 0) return data;
+  const len = data.length;
+  const buf = new Uint8ClampedArray(len);
+
+  const size = (2 * radius + 1) * (2 * radius + 1);
+  const rArr = new Int32Array(size);
+  const gArr = new Int32Array(size);
+  const bArr = new Int32Array(size);
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let idx = 0;
+      for (let dy = -radius; dy <= radius; dy++) {
+        let ny = y + dy;
+        if (ny < 0) ny = 0; else if (ny >= h) ny = h - 1;
+        let rowOff = ny * w;
+        for (let dx = -radius; dx <= radius; dx++) {
+          let nx = x + dx;
+          if (nx < 0) nx = 0; else if (nx >= w) nx = w - 1;
+          let pIdx = (rowOff + nx) << 2;
+          rArr[idx] = data[pIdx];
+          gArr[idx] = data[pIdx + 1];
+          bArr[idx] = data[pIdx + 2];
+          idx++;
+        }
+      }
+      rArr.sort();
+      gArr.sort();
+      bArr.sort();
+
+      let mid = size >> 1;
+      let outIdx = (y * w + x) << 2;
+      buf[outIdx] = rArr[mid];
+      buf[outIdx + 1] = gArr[mid];
+      buf[outIdx + 2] = bArr[mid];
+      buf[outIdx + 3] = data[outIdx + 3];
+    }
+  }
+  for (let i = 0; i < len; i++) {
+    data[i] = buf[i];
+  }
+  return data;
+}
+
+function removeOrphanStitches(mapped, w, h, maxOrphanSize) {
+  if (maxOrphanSize <= 0) return mapped;
+  let len = mapped.length;
+  let vis = new Uint8Array(len);
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let idx = y * w + x;
+      if (vis[idx] || mapped[idx].id === "__skip__") continue;
+
+      let tid = mapped[idx].id;
+      let comp = [];
+      let q = [idx];
+      vis[idx] = 1;
+
+      while (q.length > 0) {
+        let curr = q.pop();
+        comp.push(curr);
+        if (comp.length > maxOrphanSize) break;
+
+        let cx = curr % w;
+        let cy = Math.floor(curr / w);
+
+        let neighbors = [
+          [cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]
+        ];
+
+        for (let i = 0; i < neighbors.length; i++) {
+          let nx = neighbors[i][0];
+          let ny = neighbors[i][1];
+          if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+            let nidx = ny * w + nx;
+            if (!vis[nidx] && mapped[nidx].id === tid) {
+              vis[nidx] = 1;
+              q.push(nidx);
+            }
+          }
+        }
+      }
+
+      if (comp.length <= maxOrphanSize) {
+        // Find most common surrounding color
+        let counts = {};
+        for (let i = 0; i < comp.length; i++) {
+          let cidx = comp[i];
+          let cx = cidx % w;
+          let cy = Math.floor(cidx / w);
+          let neighbors = [
+            [cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1],
+            [cx - 1, cy - 1], [cx + 1, cy - 1], [cx - 1, cy + 1], [cx + 1, cy + 1]
+          ];
+          for (let j = 0; j < neighbors.length; j++) {
+            let nx = neighbors[j][0];
+            let ny = neighbors[j][1];
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+              let nidx = ny * w + nx;
+              if (mapped[nidx].id !== tid && mapped[nidx].id !== "__skip__") {
+                let nid = mapped[nidx].id;
+                counts[nid] = (counts[nid] || 0) + 1;
+              }
+            }
+          }
+        }
+
+        let bestId = null;
+        let bestCount = -1;
+        for (let nid in counts) {
+          if (counts[nid] > bestCount) {
+            bestCount = counts[nid];
+            bestId = nid;
+          }
+        }
+
+        if (bestId) {
+          // Find the object for bestId
+          let replacement = null;
+          for (let j = 0; j < len; j++) {
+            if (mapped[j].id === bestId) {
+              replacement = mapped[j];
+              break;
+            }
+          }
+          if (replacement) {
+            for (let i = 0; i < comp.length; i++) {
+              mapped[comp[i]] = replacement;
+            }
+          }
+        }
+      }
+    }
+  }
+  return mapped;
+}
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, removeOrphanStitches }; }
