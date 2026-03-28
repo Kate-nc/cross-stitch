@@ -1,36 +1,103 @@
 # Cross Stitch Pattern Generator
 
-A feature-rich, single-file web application for creating, managing, and tracking cross-stitch patterns directly from your browser.
-
-Convert your favorite images into complete cross-stitch projects with an interactive stitch tracker, pattern editor, thread organizer, and PDF export capabilities.
+A feature-rich, client-side web application for creating, managing, and tracking cross-stitch patterns directly in your browser. No installation or build step required — just open and stitch.
 
 ## Features
 
-- **Image Conversion**: Upload any image (JPG, PNG) and automatically generate a cross-stitch pattern.
-- **Customizable Patterns**: Adjust dimensions, max skein count, brightness, contrast, and saturation to get the perfect pattern.
-- **Pattern Editor Tools**: Fine-tune your generated pattern using backstitch, paint, and fill tools.
-- **Interactive Stitch Tracking**: Track your progress cell by cell. Easily pan, highlight specific colors, and mark completed stitches to see your completion percentage grow.
-- **Thread Organizer**: Manage your DMC floss inventory. Track what you own and generate a shopping list for what you need to buy, complete with estimated costs.
-- **Export & Print**: Export your complete pattern as a multi-page PDF or an A4 image chart. You can also generate a project cover sheet summarizing your fabric count, estimated time, thread list, and more.
-- **Session Tracking**: Built-in timer to record your stitching sessions, giving you an estimated time to completion based on your actual stitching speed.
-- **Local Storage**: Save your progress, edits, and thread inventory locally as a `.json` project file to pick up right where you left off.
+### Pattern Creator (`index.html`)
+- **Image Conversion** — Upload any JPG or PNG and automatically generate a cross-stitch pattern using k-means colour quantisation and optional Floyd-Steinberg dithering.
+- **Customisable Dimensions** — Set width and height in stitches (10–300), with optional aspect ratio lock.
+- **Palette Control** — Configure maximum skein count, minimum stitches per colour, and orphan stitch removal to keep your pattern clean.
+- **Colour Blending** — Automatically suggests two-thread blends when a blend produces a significantly better colour match than any single DMC thread.
+- **Image Adjustments** — Tweak brightness, contrast, and saturation, plus median or Gaussian smoothing for noise reduction.
+- **Background Removal** — Skip a selected background colour with configurable tolerance.
+- **Pattern Editor** — Fine-tune the generated pattern using backstitch, paint, and flood-fill tools, with full undo support.
+- **Live Preview** — See a quick low-resolution preview as you adjust settings, before committing to a full generation.
 
-## Technologies Used
+### Stitch Tracker (`stitch.html`)
+- **Interactive Tracking** — Click or drag to mark stitches as done, with undo support.
+- **Multiple Views** — Symbol, colour+symbol, and highlight modes to focus on one colour at a time.
+- **Navigate Mode** — Place a guide crosshair on the canvas and add parking markers per colour.
+- **Session Timer** — Records stitching sessions and estimates time to completion based on actual stitching speed.
+- **Progress Bar** — Per-colour and overall progress displayed at a glance.
 
-- React (via CDN)
-- Babel (for in-browser JSX compilation)
-- jsPDF (for PDF generation)
+### Project & Export
+- **Save / Load** — Save your entire project (pattern, progress, parking markers, thread inventory, session history) as a `.json` file and reload it at any time.
+- **URL Sharing** — Export a compressed link to open a pattern directly in the Stitch Tracker — no file needed.
+- **PDF Export** — Generate a multi-page chart PDF with a thread legend, or a separate cover sheet with pattern summary, finished size, cost estimate, thread list with owned/to-buy status, and a notes section.
+- **PNG Chart** — Preview and export the pattern as a PNG, with optional A4 page mode.
+
+### Thread Organiser
+- **DMC Inventory** — Mark each skein as owned or to-buy across both the Pattern Creator and Stitch Tracker.
+- **Shopping List** — Copy a formatted to-buy list or full thread list to your clipboard.
+- **Skein Estimation** — Calculates skeins needed per colour based on stitch count and fabric count (assumes 2 strands, 8 m per skein).
+- **Cost Estimate** — Configurable price per skein with a running total and still-to-buy cost.
+
+### Project Info
+- **Finished Size** — Shows completed dimensions across all supported fabric counts (14–28 ct).
+- **Difficulty Rating** — Beginner to Expert based on colour count, blend count, and total stitches.
+- **Time Estimate** — Configurable stitching speed (stitches/hr) with remaining time estimate.
+
+## Technologies
+
+- [React 18](https://react.dev/) via CDN (no build step)
+- [Babel Standalone](https://babeljs.io/docs/babel-standalone) for in-browser JSX compilation
+- [jsPDF](https://github.com/parallax/jsPDF) for PDF generation
+- [pako](https://github.com/nodeca/pako) for URL pattern compression
 
 ## Usage
 
-Since this is a client-side application contained entirely within a single HTML file, there is no installation or build step required.
+No installation required. This is a fully client-side application.
 
-1. Clone or download this repository.
-2. Open `index.html` in your preferred modern web browser.
-3. Click to upload an image and start generating your pattern!
+1. Clone or download the repository.
+2. Open `index.html` in a modern browser to create a new pattern.
+3. Open `stitch.html` to track progress on an existing project.
 
-## Project Save & Load
+```bash
+git clone https://github.com/Kate-nc/cross-stitch.git
+cd cross-stitch
+open index.html
+```
 
-You can save your entire project—including your generated pattern, your stitching progress, parking markers, and thread organizer state—by clicking **Save (.json)** in the Export tab.
+> **Note:** Some browsers restrict local file access. If the app doesn't load correctly, serve it with a simple local server:
+> ```bash
+> npx serve .
+> # or
+> python -m http.server
+> ```
 
-To resume a previous project, simply click **Open** at the top of the app and select your saved `.json` file.
+## Saving & Loading
+
+Click **Save (.json)** in the Export tab to save your project, including:
+
+- Generated pattern and palette
+- Stitching progress
+- Parking markers
+- Thread organiser state (owned/to-buy)
+- Session history and total time
+
+To resume, click **Open** and select your saved `.json` file. Projects can also be opened directly in the Stitch Tracker.
+
+## Running Tests
+
+The project uses [Jest](https://jestjs.io/) for unit tests covering colour distance calculation and time formatting utilities.
+
+```bash
+npm install
+npm test
+```
+
+## File Structure
+
+```
+├── index.html        # Pattern Creator app
+├── stitch.html       # Stitch Tracker app
+├── styles.css        # Shared styles
+├── constants.js      # Fabric counts, skein length, defaults
+├── dmc-data.js       # Full DMC thread palette with Lab colour values
+├── colour-utils.js   # Quantisation, dithering, colour matching, filters
+├── helpers.js        # Utility functions (formatting, grid, difficulty)
+├── components.js     # Shared React UI components
+├── header.js         # Shared navigation header
+└── tests/            # Jest unit tests
+```
