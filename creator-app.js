@@ -1,27 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cross Stitch Pattern Generator</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-<link rel="stylesheet" href="styles.css">
-<script src="constants.js"></script>
-<script src="dmc-data.js"></script>
-<script src="colour-utils.js"></script>
-<script src="helpers.js"></script>
-<script src="components.js"></script>
-<script src="header.js"></script>
-<script src="modals.js"></script>
-</head>
-<body>
-<div id="root"></div>
-<script type="text/babel" src="creator-app.js"></script>
-<script type="text/babel">
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
 
 function App(){
@@ -37,13 +13,12 @@ const[stitchSpeed,setStitchSpeed]=useState(40); // stitches per hour
 
 const[tab,setTab]=useState("pattern"),[sidebarOpen,setSidebarOpen]=useState(true),[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
-const[view,setView]=useState("color"),[zoom,setZoom]=useState(1),[hiId,setHiId]=useState(null),[showCtr,setShowCtr]=useState(true);
+const[view,setView]=useState("color"),[zoom,setZoom]=useState(1),[hiId,setHiId]=useState(null),showCtr=true;
 
 const[dimOpen,setDimOpen]=useState(true),[palOpen,setPalOpen]=useState(true),[fabOpen,setFabOpen]=useState(false),[adjOpen,setAdjOpen]=useState(false),[bgOpen,setBgOpen]=useState(false);
 const[hasGenerated,setHasGenerated]=useState(false);
 
 const[activeTool,setActiveTool]=useState(null),[bsLines,setBsLines]=useState([]),[bsStart,setBsStart]=useState(null);
-const[bsContinuous,setBsContinuous]=useState(false);
 const[selectedColorId,setSelectedColorId]=useState(null);
 const[hoverCoords,setHoverCoords]=useState(null);
 const[editHistory,setEditHistory]=useState([]);
@@ -169,7 +144,8 @@ function srcClick(e){if(!pickBg||!img)return;let r=e.target.getBoundingClientRec
 
 function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
-function processLoadedProject(project){
+function loadProject(e){let f=e.target.files[0];if(!f)return;setLoadError(null);let rd=new FileReader();rd.onload=ev=>{try{
+  let project=JSON.parse(ev.target.result);if(!project.pattern||!project.settings)throw new Error("Invalid");
   let s=project.settings;setSW(s.sW);setSH(s.sH);setMaxC(s.maxC);setBri(s.bri||0);setCon(s.con||0);setSat(s.sat||0);setDith(!!s.dith);setSkipBg(!!s.skipBg);setBgTh(s.bgTh||15);setBgCol(s.bgCol||[255,255,255]);setMinSt(s.minSt||0);setArLock(s.arLock!==false);setAr(s.ar||1);setBsLines(project.bsLines||[]);
   setSmooth(s.smooth||0);setSmoothType(s.smoothType||"median");setOrphans(s.orphans||0);
   if(s.fabricCt)setFabricCt(s.fabricCt);
@@ -184,32 +160,7 @@ function processLoadedProject(project){
   if(project.hlRow>=0)setHlRow(project.hlRow);if(project.hlCol>=0)setHlCol(project.hlCol);
   if(project.imgData){let li=new Image();li.onload=()=>{setImg(li);setOrigW(li.width);setOrigH(li.height);};li.src=project.imgData;}
   setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/(s.sW*20)));setZoom(z);},100);
-}
-
-function loadProject(e){let f=e.target.files[0];if(!f)return;setLoadError(null);let rd=new FileReader();rd.onload=ev=>{try{
-  let project=JSON.parse(ev.target.result);if(!project.pattern||!project.settings)throw new Error("Invalid");
-  processLoadedProject(project);
 }catch(err){console.error(err);setLoadError("Could not load: "+err.message);setTimeout(()=>setLoadError(null),4000);}};rd.readAsText(f);if(loadRef.current)loadRef.current.value="";}
-
-useEffect(() => {
-    // Automatically load from IndexedDB on startup
-    loadProjectFromDB().then(project => {
-        if (project && project.pattern && project.settings) {
-            processLoadedProject(project);
-        }
-    });
-}, []);
-
-// Auto-save effect
-useEffect(() => {
-    if (!pat || !pal) return;
-    const saveTimer = setTimeout(() => {
-        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
-        saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
-    }, 1000); // 1-second debounce
-
-    return () => clearTimeout(saveTimer);
-}, [pat, pal, sW, sH, maxC, bri, con, sat, dith, skipBg, bgTh, bgCol, minSt, arLock, ar, fabricCt, skeinPrice, stitchSpeed, smooth, smoothType, orphans, bsLines, done, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned, img]);
 
 function exportPDF(){if(!pat||!pal||!cmap)return;const{jsPDF}=window.jspdf;const pdf=new jsPDF("portrait","mm","a4");const mg=12,cW2=186;pdf.setFontSize(22);pdf.text("Cross Stitch Pattern",mg,mg+10);pdf.setFontSize(12);pdf.setTextColor(100);pdf.text(`${sW}x${sH} · ${pal.length} colours · ${getSkeinCount()} skeins · ${fabricCt}ct`,mg,mg+18);if(done&&totalStitchable>0){let dc=0;for(let i=0;i<done.length;i++)if(done[i])dc++;if(dc>0){let pct=Math.round(dc/totalStitchable*1000)/10;pdf.text(`Progress: ${pct}%`,mg,mg+25);}}pdf.setTextColor(0);let ty=mg+35;pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=8;pdf.setFontSize(8);pal.forEach(p=>{if(ty>285){pdf.addPage();ty=mg+8;}pdf.setFillColor(p.rgb[0],p.rgb[1],p.rgb[2]);pdf.circle(mg+4,ty-1.5,2,"F");pdf.setTextColor(0);let sk=skeinEst(p.count,fabricCt);pdf.text(p.symbol+" DMC "+p.id+" "+(p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name)+" ("+p.count+" st, "+sk+" skein"+(sk>1?"s":"")+")",mg+10,ty);ty+=5;});const cellMM=3,gridCols=Math.floor(cW2/cellMM),gridRows=Math.floor(275/cellMM),pagesX=Math.ceil(sW/gridCols),pagesY=Math.ceil(sH/gridRows);for(let py2=0;py2<pagesY;py2++)for(let px2=0;px2<pagesX;px2++){pdf.addPage();let x0=px2*gridCols,y0=py2*gridRows,dW=Math.min(gridCols,sW-x0),dH=Math.min(gridRows,sH-y0);pdf.setFontSize(8);pdf.setTextColor(100);pdf.text(`Page ${py2*pagesX+px2+1}/${pagesX*pagesY}`,mg,mg+4);for(let gy=0;gy<dH;gy++)for(let gx=0;gx<dW;gx++){let m=pat[(y0+gy)*sW+(x0+gx)];if(!m||m.id==="__skip__")continue;let info=cmap[m.id],px3=mg+gx*cellMM,py3=mg+8+gy*cellMM;pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);pdf.rect(px3,py3,cellMM,cellMM,"F");pdf.setDrawColor(200);pdf.rect(px3,py3,cellMM,cellMM,"S");if(info){pdf.setFontSize(5);pdf.setTextColor(luminance(m.rgb)>128?0:255);pdf.text(info.symbol,px3+cellMM/2,py3+cellMM*0.7,{align:"center"});}}pdf.setDrawColor(80);pdf.setLineWidth(0.2);for(let gx2=0;gx2<=dW;gx2+=10)pdf.line(mg+gx2*cellMM,mg+8,mg+gx2*cellMM,mg+8+dH*cellMM);for(let gy2=0;gy2<=dH;gy2+=10)pdf.line(mg,mg+8+gy2*cellMM,mg+dW*cellMM,mg+8+gy2*cellMM);pdf.setDrawColor(0);pdf.setLineWidth(0.4);pdf.rect(mg,mg+8,dW*cellMM,dH*cellMM,"S");}pdf.save("cross-stitch-pattern.pdf");}
 
@@ -362,7 +313,7 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut){
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
 }
 
-const renderPattern=useCallback(()=>{if(!pat||!cmap||!pcRef.current||tab!=="pattern")return;pcRef.current.width=sW*cs+G+2;pcRef.current.height=sH*cs+G+2;drawPattern(pcRef.current.getContext("2d"),0,0,sW,sH,cs,G);},[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab,hoverCoords,selectedColorId,bsContinuous]);
+const renderPattern=useCallback(()=>{if(!pat||!cmap||!pcRef.current||tab!=="pattern")return;pcRef.current.width=sW*cs+G+2;pcRef.current.height=sH*cs+G+2;drawPattern(pcRef.current.getContext("2d"),0,0,sW,sH,cs,G);},[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab,hoverCoords,selectedColorId]);
 useEffect(()=>renderPattern(),[renderPattern]);
 
 const renderExport=useCallback(()=>{if(tab!=="export"||!expRef.current||!pat||!cmap)return;let epC=exportPage%pxX,epR=Math.floor(exportPage/pxX),eX0=epC*A4W,eY0=epR*A4H,eW=Math.min(A4W,sW-eX0),eH=Math.min(A4H,sH-eY0),dW2=pageMode?eW:sW,dH2=pageMode?eH:sH,oX2=pageMode?eX0:0,oY2=pageMode?eY0:0,expCs=Math.max(8,Math.min(20,Math.floor(750/Math.max(dW2,dH2))));expRef.current.width=dW2*expCs+G+2;expRef.current.height=dH2*expCs+G+2;drawPattern(expRef.current.getContext("2d"),oX2,oY2,dW2,dH2,expCs,G);},[tab,pat,cmap,sW,sH,pageMode,exportPage,pxX,view,hiId,showCtr,bsLines]);
@@ -379,7 +330,7 @@ function handlePatClick(e){
     else{setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}]);np[idx]={...pe};}
     setPat(np);let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);return;
   }
-  if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return;let pt={x:gx,y:gy};if(!bsStart)setBsStart(pt);else{setBsLines(prev=>[...prev,{x1:bsStart.x,y1:bsStart.y,x2:pt.x,y2:pt.y}]);setBsStart(bsContinuous?pt:null);}}
+  if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return;let pt={x:gx,y:gy};if(!bsStart)setBsStart(pt);else{setBsLines(prev=>[...prev,{x1:bsStart.x,y1:bsStart.y,x2:pt.x,y2:pt.y}]);setBsStart(null);}}
   if(activeTool==="eraseBs"){
     if(bsLines.length===0)return;
     let closestIdx=-1,minD=Infinity;
@@ -410,16 +361,6 @@ function handlePatMouseMove(e){
 }
 
 function handlePatMouseLeave(){setHoverCoords(null);}
-
-useEffect(()=>{
-  function handleKeyDown(e){
-    if(e.key==="Escape" && activeTool==="backstitch" && bsStart){
-      setBsStart(null);
-    }
-  }
-  window.addEventListener("keydown",handleKeyDown);
-  return ()=>window.removeEventListener("keydown",handleKeyDown);
-},[activeTool,bsStart]);
 
 // Thread organiser helpers
 function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur===""?"owned":cur==="owned"?"tobuy":"";return{...prev,[id]:next};});}
@@ -506,7 +447,6 @@ return(
           <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap",alignItems:"center"}}>
             <span style={{fontSize:10,fontWeight:600,color:"#94a3b8",textTransform:"uppercase"}}>Tools</span>
             <button onClick={()=>setTool("backstitch")} style={tBtn(activeTool==="backstitch","orange")}>✏️ Backstitch</button>
-            {activeTool==="backstitch"&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer"}}><input type="checkbox" checked={bsContinuous} onChange={e=>{setBsContinuous(e.target.checked);setBsStart(null);}}/>Continuous</label>}
             <button onClick={()=>setTool("eraseBs")} style={tBtn(activeTool==="eraseBs","orange")}>🗑️ Erase Line</button>
             <button onClick={()=>setTool("paint")} style={tBtn(activeTool==="paint","blue")}>🖌️ Paint</button>
             <button onClick={()=>setTool("fill")} style={tBtn(activeTool==="fill","green")}>🪣 Fill</button>
@@ -516,7 +456,7 @@ return(
               {hiId&&<button onClick={()=>setHiId(null)} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Clear ✕</button>}
             </div>
           </div>
-          <div ref={scrollRef} style={{overflow:"auto",maxHeight:550,border:"1px solid #e2e5ea",borderRadius:8,background:"#f0f2f5",cursor:activeTool?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{if(activeTool==="backstitch"&&bsStart){e.preventDefault();setBsStart(null);}}}/></div>
+          <div ref={scrollRef} style={{overflow:"auto",maxHeight:550,border:"1px solid #e2e5ea",borderRadius:8,background:"#f0f2f5",cursor:activeTool?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave}/></div>
           <div style={{marginTop:8,borderRadius:8,background:"#f8fafc",padding:"8px 12px",border:"1px solid #e2e5ea"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{pal.map(p=>{let ips=(activeTool==="paint"||activeTool==="fill")&&selectedColorId===p.id,ihs=hiId===p.id;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #2563eb":ihs?"2px solid #ea580c":"1.5px solid #e2e5ea",background:ips?"#eff6ff":ihs?"#fff7ed":"#fff"}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#64748b"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span></div>;})}</div></div>
         </div>}
 
@@ -591,7 +531,7 @@ return(
             <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:320,overflow:"auto"}}>
               {skeinData.map(d=>{
                 let st=threadOwned[d.id]||"";
-                let isOwned=st==="owned",isToBuy=st==="tobuy"||st==="";
+                let isOwned=st==="owned";
                 return<div key={d.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,background:isOwned?"#f0fdf4":"#fff",border:"1px solid "+(isOwned?"#bbf7d0":"#f0f2f5")}}>
                   <span style={{width:16,height:16,borderRadius:3,background:`rgb(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
                   <span style={{fontWeight:700,fontSize:13,minWidth:44}}>DMC {d.id}</span>
@@ -624,18 +564,26 @@ return(
         {tab==="export"&&<div style={{display:"flex",flexDirection:"column",gap:12}}>
           {copied&&<div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600}}>Copied!</div>}
 
-          <button onClick={async ()=>{
-              if(!pat||!pal)return;
-              let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+          <button onClick={()=>{
+              let pl = pat.map(m=>{
+                  if (m.id==="__skip__") return ["__skip__", "k"];
+                  return [m.id, m.type==="blend"?"b":"s"];
+              });
+              let minimal = { v: 8, w: sW, h: sH, fc: fabricCt, bs: bsLines, p: pl };
               try {
-                  await saveProjectToDB(project);
-                  window.open("stitch.html", "_blank");
+                  let str = JSON.stringify(minimal);
+                  let compressed = pako.deflate(str);
+                  let binaryStr = "";
+                  for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
+                  let b64 = btoa(binaryStr).replace(/\+/g, '-').replace(/\//g, '_');
+                  if (b64.length > 8000) {
+                      alert("Pattern too large for link sharing. Please use Save Project (.json) instead.");
+                      return;
+                  }
+                  window.open("stitch.html#p=" + b64, "_blank");
                   setCopied("Opened in Stitch Tracker");
                   setTimeout(()=>setCopied(null), 3000);
-              } catch(e) {
-                  console.error("Failed to save to DB", e);
-                  alert("Failed to save project state.");
-              }
+              } catch(e) { console.error("Compression failed", e); }
           }} style={{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#5b7bb3",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"0 2px 8px rgba(74,111,165,0.25)", display:"flex", alignItems:"center", justifyContent:"center", gap:8}}>🧵 Open in Stitch Tracker →</button>
 
           <Section title="PDF Export"><p style={{fontSize:12,color:"#64748b",margin:"8px 0 10px"}}>Multi-page PDF with legend and chart.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={exportPDF} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"linear-gradient(135deg,#5b7bb3,#4a6fa5)",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"0 2px 8px rgba(74,111,165,0.25)"}}>Download Pattern PDF</button><button onClick={exportCoverSheet} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #5b7bb3",background:"#fff",color:"#5b7bb3",cursor:"pointer",fontWeight:600}}>Cover Sheet PDF</button></div><p style={{fontSize:11,color:"#94a3b8",marginTop:8}}>The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes — perfect for tucking into your project bag.</p></Section>
@@ -674,12 +622,8 @@ return(
       </div>}
     </div>
   </div>}
-  {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
-  {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
+  {modal==="help"&&<div className="modal-overlay" onClick={()=>setModal(null)}><div className="modal-content" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}>×</button><h3 style={{marginTop:0,marginBottom:15}}>Help</h3><p style={{color:"#4a5568"}}>Coming soon...</p></div></div>}
+  {modal==="about"&&<div className="modal-overlay" onClick={()=>setModal(null)}><div className="modal-content" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}>×</button><h3 style={{marginTop:0,marginBottom:15}}>About</h3><p style={{color:"#4a5568"}}>Coming soon...</p></div></div>}
 </div>
 </>);
 }
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
-</script>
-</body>
-</html>
