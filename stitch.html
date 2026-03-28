@@ -66,6 +66,10 @@ const [importMaxColours, setImportMaxColours] = useState(30);
 const [importSkipBg, setImportSkipBg] = useState(false);
 const [importBgThreshold, setImportBgThreshold] = useState(15);
 const [importArLock, setImportArLock] = useState(true);
+const [importMode, setImportMode] = useState("pixel");
+const [chartType, setChartType] = useState("color");
+const [chartGridW, setChartGridW] = useState(50);
+const [chartGridH, setChartGridH] = useState(50);
 
 const prevDoneCount=useRef(0);
 const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
@@ -528,35 +532,75 @@ return(
           </div>
         </div>
         <div style={{flex:1, minWidth:250, display:"flex", flexDirection:"column", gap:16}}>
-          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
-            <div style={{display:"flex", flexDirection:"column", gap:4}}>
-              <label style={{fontSize:12, fontWeight:600, color:"#4a5568"}}>Max Width (stitches)</label>
-              <input type="number" min={10} max={300} value={importMaxW} onChange={e=>{
-                let val = Number(e.target.value);
-                setImportMaxW(val);
-                if (importArLock) setImportMaxH(Math.max(10, Math.floor(val * (importImage.height / importImage.width))));
-              }} style={{padding:"6px 10px", borderRadius:6, border:"1px solid #e2e5ea"}}/>
-            </div>
-            <div style={{display:"flex", flexDirection:"column", gap:4}}>
-              <label style={{fontSize:12, fontWeight:600, color:"#4a5568"}}>Max Height (stitches)</label>
-              <input type="number" min={10} max={300} value={importMaxH} onChange={e=>{
-                let val = Number(e.target.value);
-                setImportMaxH(val);
-                if (importArLock) setImportMaxW(Math.max(10, Math.floor(val * (importImage.width / importImage.height))));
-              }} style={{padding:"6px 10px", borderRadius:6, border:"1px solid #e2e5ea"}}/>
-            </div>
+          <div style={{display:"flex", background:"#f8fafc", borderRadius:8, padding:4, border:"1px solid #e2e5ea"}}>
+            <button onClick={()=>setImportMode("pixel")} style={{flex:1, padding:"6px 12px", borderRadius:6, border:"none", background:importMode==="pixel"?"#fff":"transparent", color:importMode==="pixel"?"#0f172a":"#64748b", fontWeight:importMode==="pixel"?600:400, boxShadow:importMode==="pixel"?"0 1px 2px rgba(0,0,0,0.05)":"none", cursor:"pointer", fontSize:13}}>Photo / Pixel Art</button>
+            <button onClick={()=>setImportMode("chart")} style={{flex:1, padding:"6px 12px", borderRadius:6, border:"none", background:importMode==="chart"?"#fff":"transparent", color:importMode==="chart"?"#0f172a":"#64748b", fontWeight:importMode==="chart"?600:400, boxShadow:importMode==="chart"?"0 1px 2px rgba(0,0,0,0.05)":"none", cursor:"pointer", fontSize:13}}>Chart Grid (Exp.)</button>
           </div>
-          <label style={{display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#1e293b", cursor:"pointer"}}>
-            <input type="checkbox" checked={importArLock} onChange={e=>setImportArLock(e.target.checked)}/> Lock aspect ratio
-          </label>
 
-          <SliderRow label="Max Colours" val={importMaxColours} setVal={setImportMaxColours} min={5} max={40} />
+          {importMode === "pixel" ? (
+            <>
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
+                <div style={{display:"flex", flexDirection:"column", gap:4}}>
+                  <label style={{fontSize:12, fontWeight:600, color:"#4a5568"}}>Max Width (stitches)</label>
+                  <input type="number" min={10} max={300} value={importMaxW} onChange={e=>{
+                    let val = Number(e.target.value);
+                    setImportMaxW(val);
+                    if (importArLock) setImportMaxH(Math.max(10, Math.floor(val * (importImage.height / importImage.width))));
+                  }} style={{padding:"6px 10px", borderRadius:6, border:"1px solid #e2e5ea"}}/>
+                </div>
+                <div style={{display:"flex", flexDirection:"column", gap:4}}>
+                  <label style={{fontSize:12, fontWeight:600, color:"#4a5568"}}>Max Height (stitches)</label>
+                  <input type="number" min={10} max={300} value={importMaxH} onChange={e=>{
+                    let val = Number(e.target.value);
+                    setImportMaxH(val);
+                    if (importArLock) setImportMaxW(Math.max(10, Math.floor(val * (importImage.width / importImage.height))));
+                  }} style={{padding:"6px 10px", borderRadius:6, border:"1px solid #e2e5ea"}}/>
+                </div>
+              </div>
+              <label style={{display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#1e293b", cursor:"pointer"}}>
+                <input type="checkbox" checked={importArLock} onChange={e=>setImportArLock(e.target.checked)}/> Lock aspect ratio
+              </label>
 
-          <label style={{display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#1e293b", cursor:"pointer"}}>
-            <input type="checkbox" checked={importSkipBg} onChange={e=>setImportSkipBg(e.target.checked)}/> Skip near-white background
-          </label>
+              <SliderRow label="Max Colours" val={importMaxColours} setVal={setImportMaxColours} min={5} max={40} />
 
-          {importSkipBg && <SliderRow label="Background Tolerance" val={importBgThreshold} setVal={setImportBgThreshold} min={3} max={50} />}
+              <label style={{display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#1e293b", cursor:"pointer"}}>
+                <input type="checkbox" checked={importSkipBg} onChange={e=>setImportSkipBg(e.target.checked)}/> Skip near-white background
+              </label>
+
+              {importSkipBg && <SliderRow label="Background Tolerance" val={importBgThreshold} setVal={setImportBgThreshold} min={3} max={50} />}
+            </>
+          ) : (
+            <>
+              <div style={{fontSize:12, color:"#d97706", background:"#fffbeb", padding:"8px", borderRadius:6, border:"1px solid #fde68a", lineHeight:1.4}}>
+                <strong>Experimental Mode:</strong> Extracts a pattern from an image of an existing cross stitch chart. <strong>Image must be perfectly cropped to the grid.</strong>
+              </div>
+
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
+                <div style={{display:"flex", flexDirection:"column", gap:4}}>
+                  <label style={{fontSize:12, fontWeight:600, color:"#4a5568"}}>Grid Width (cells)</label>
+                  <input type="number" min={10} max={300} value={chartGridW} onChange={e=>setChartGridW(Number(e.target.value))} style={{padding:"6px 10px", borderRadius:6, border:"1px solid #e2e5ea"}}/>
+                </div>
+                <div style={{display:"flex", flexDirection:"column", gap:4}}>
+                  <label style={{fontSize:12, fontWeight:600, color:"#4a5568"}}>Grid Height (cells)</label>
+                  <input type="number" min={10} max={300} value={chartGridH} onChange={e=>setChartGridH(Number(e.target.value))} style={{padding:"6px 10px", borderRadius:6, border:"1px solid #e2e5ea"}}/>
+                </div>
+              </div>
+
+              <div style={{display:"flex", flexDirection:"column", gap:6}}>
+                 <label style={{fontSize:12, fontWeight:600, color:"#4a5568"}}>Chart Type</label>
+                 <div style={{display:"flex", gap:16}}>
+                    <label style={{display:"flex", alignItems:"center", gap:6, fontSize:13, cursor:"pointer"}}>
+                      <input type="radio" checked={chartType==="color"} onChange={()=>setChartType("color")}/> Color Blocks
+                    </label>
+                    <label style={{display:"flex", alignItems:"center", gap:6, fontSize:13, cursor:"pointer"}}>
+                      <input type="radio" checked={chartType==="bw"} onChange={()=>setChartType("bw")}/> B&W Symbols
+                    </label>
+                 </div>
+              </div>
+
+              <SliderRow label="Max Colours / Symbols" val={importMaxColours} setVal={setImportMaxColours} min={2} max={40} />
+            </>
+          )}
 
         </div>
       </div>
@@ -564,10 +608,18 @@ return(
         <button onClick={()=>{setImportDialog(null);setImportImage(null);}} style={{padding:"8px 16px", borderRadius:8, border:"1px solid #e2e5ea", background:"#fff", cursor:"pointer", fontWeight:600}}>Cancel</button>
         <button onClick={()=>{
           try {
-            let result = parseImagePattern(importImage, {
-              maxWidth: importMaxW, maxHeight: importMaxH,
-              maxColours: importMaxColours, skipWhiteBg: importSkipBg, bgThreshold: importBgThreshold
-            });
+            let result;
+            if (importMode === "pixel") {
+              result = parseImagePattern(importImage, {
+                maxWidth: importMaxW, maxHeight: importMaxH,
+                maxColours: importMaxColours, skipWhiteBg: importSkipBg, bgThreshold: importBgThreshold
+              });
+            } else {
+              result = parseChartImage(importImage, {
+                gridW: chartGridW, gridH: chartGridH,
+                chartType: chartType, maxColours: importMaxColours
+              });
+            }
             let project = importResultToProject(result);
             processLoadedProject(project);
             setImportSuccess(`Imported image as ${result.width}x${result.height} pattern with ${result.paletteSize} colours and ${result.stitchCount} stitches.`);

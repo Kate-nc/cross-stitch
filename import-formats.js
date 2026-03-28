@@ -349,3 +349,236 @@ function parseImagePattern(img, options = {}) {
     paletteSize: pal.length
   };
 }
+
+function parseChartImage(img, options = {}) {
+  const gridW = options.gridW || 50;
+  const gridH = options.gridH || 50;
+  const chartType = options.chartType || "color"; // "color" or "bw"
+  const maxColours = options.maxColours || 30;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, img.width, img.height);
+  const imgData = ctx.getImageData(0, 0, img.width, img.height);
+  const data = imgData.data;
+
+  const cellW = img.width / gridW;
+  const cellH = img.height / gridH;
+
+  const pattern = new Array(gridW * gridH).fill(null).map(() => ({ type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] }));
+  let stitchCount = 0;
+
+  if (chartType === "color") {
+    // Sample the center pixel of each cell
+    const px = [];
+    for (let y = 0; y < gridH; y++) {
+      for (let x = 0; x < gridW; x++) {
+        const cx = Math.floor(x * cellW + cellW / 2);
+        const cy = Math.floor(y * cellH + cellH / 2);
+        const idx = (cy * img.width + cx) * 4;
+
+        const r = data[idx];
+        const g = data[idx + 1];
+        const b = data[idx + 2];
+        const a = data[idx + 3];
+
+        if (a > 50) {
+          const lab = rgbToLab(r, g, b);
+          // Skip near white cells (likely empty background grid)
+          if (dE(lab, [100, 0, 0]) > 15) {
+            px.push({ idx: y * gridW + x, rgb: [r, g, b] });
+          }
+        }
+      }
+    }
+
+    if (px.length > 0) {
+      // Quantize the sampled colors
+      const flatData = new Uint8ClampedArray(px.length * 4);
+      px.forEach((p, i) => {
+        flatData[i*4] = p.rgb[0];
+        flatData[i*4+1] = p.rgb[1];
+        flatData[i*4+2] = p.rgb[2];
+        flatData[i*4+3] = 255;
+      });
+      const pal = quantize(flatData, px.length, 1, maxColours);
+      const mapped = doMap(flatData, px.length, 1, pal);
+
+      px.forEach((p, i) => {
+        const m = mapped[i];
+        pattern[p.idx] = { type: "solid", id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, dist: 0 };
+        stitchCount++;
+      });
+    }
+  } else if (chartType === "bw") {
+    // For B&W symbol charts, extract a small grayscale signature for each cell and cluster them
+    const signatures = [];
+    const sigSize = 8; // 8x8 signature
+
+    for (let y = 0; y < gridH; y++) {
+      for (let x = 0; x < gridW; x++) {
+        const sig = new Float32Array(sigSize * sigSize);
+        let darkPixels = 0;
+
+        // Sample cell into 8x8 grid
+        for (let sy = 0; sy < sigSize; sy++) {
+          for (let sx = 0; sx < sigSize; sx++) {
+            // Find corresponding area in original image (inset slightly to avoid grid lines)
+            const marginX = cellW * 0.1;
+            const marginY = cellH * 0.1;
+            const usableW = cellW * 0.8;
+            const usableH = cellH * 0.8;
+
+            const pxStart = Math.floor(x * cellW + marginX + (sx / sigSize) * usableW);
+            const pxEnd = Math.floor(x * cellW + marginX + ((sx + 1) / sigSize) * usableW);
+            const pyStart = Math.floor(y * cellH + marginY + (sy / sigSize) * usableH);
+            const pyEnd = Math.floor(y * cellH + marginY + ((sy + 1) / sigSize) * usableH);
+
+            let sumLuma = 0;
+            let count = 0;
+
+            for (let py = pyStart; py < pxEnd && py < img.height; py++) {
+              for (let px2 = pxStart; px2 < pxEnd && px2 < img.width; px2++) {
+                 const idx = (py * img.width + px2) * 4;
+                 const a = data[idx+3];
+                 if (a < 50) {
+                     sumLuma += 255; // transparent is white
+                 } else {
+                     // Grayscale luminance
+                     const r = data[idx];
+                     const g = data[idx+1];
+                     const b = data[idx+2];
+                     const luma = r*0.299 + g*0.587 + b*0.114;
+                     sumLuma += luma;
+                 }
+                 count++;
+              }
+            }
+
+            const avgLuma = count > 0 ? sumLuma / count : 255;
+            sig[sy * sigSize + sx] = avgLuma;
+            if (avgLuma < 200) darkPixels++; // Count non-white pixels
+          }
+        }
+
+        // Only keep cells that have enough dark pixels (ignore empty grid squares)
+        if (darkPixels > 2) {
+          signatures.push({ idx: y * gridW + x, sig: sig });
+        }
+      }
+    }
+
+    if (signatures.length > 0) {
+       // K-Means clustering of signatures
+       let k = Math.min(maxColours, signatures.length);
+
+       // Initialize centroids randomly
+       let centroids = [];
+       const usedIdx = new Set();
+       while (centroids.length < k) {
+           const rIdx = Math.floor(Math.random() * signatures.length);
+           if (!usedIdx.has(rIdx)) {
+               usedIdx.add(rIdx);
+               centroids.push(new Float32Array(signatures[rIdx].sig));
+           }
+       }
+
+       let assignments = new Array(signatures.length);
+       let moved = true;
+       let iters = 0;
+
+       while (moved && iters < 30) {
+           moved = false;
+           iters++;
+
+           // Assign to nearest centroid
+           for (let i = 0; i < signatures.length; i++) {
+               let minDist = Infinity;
+               let bestK = 0;
+               for (let c = 0; c < k; c++) {
+                   // Euclidean distance between signatures
+                   let dist = 0;
+                   for(let j=0; j<sigSize*sigSize; j++) {
+                       const diff = signatures[i].sig[j] - centroids[c][j];
+                       dist += diff * diff;
+                   }
+                   if (dist < minDist) {
+                       minDist = dist;
+                       bestK = c;
+                   }
+               }
+               if (assignments[i] !== bestK) {
+                   assignments[i] = bestK;
+                   moved = true;
+               }
+           }
+
+           // Recalculate centroids
+           const newCentroids = Array(k).fill(0).map(() => new Float32Array(sigSize*sigSize));
+           const counts = Array(k).fill(0);
+
+           for (let i = 0; i < signatures.length; i++) {
+               const cluster = assignments[i];
+               counts[cluster]++;
+               for(let j=0; j<sigSize*sigSize; j++) {
+                   newCentroids[cluster][j] += signatures[i].sig[j];
+               }
+           }
+
+           for (let c = 0; c < k; c++) {
+               if (counts[c] > 0) {
+                   for(let j=0; j<sigSize*sigSize; j++) {
+                       newCentroids[c][j] /= counts[c];
+                   }
+                   centroids[c] = newCentroids[c];
+               }
+           }
+       }
+
+       // Assign distinct DMC colors to each cluster
+       // Use a spread of distinct colors from the DMC palette
+       const distinctDMC = [
+           "310", "BLANC", "321", "798", "699", "742", "602", "972",
+           "900", "208", "820", "890", "995", "600", "444", "814",
+           "311", "909", "3801", "3837", "3843", "3850", "3853"
+       ];
+
+       const clusterToDMC = {};
+       for (let c = 0; c < k; c++) {
+           let dmcId = distinctDMC[c % distinctDMC.length];
+           // If we run out of predefined distinct colors, just grab a random one
+           if (c >= distinctDMC.length) {
+               dmcId = DMC[Math.floor(Math.random() * DMC.length)].id;
+           }
+           clusterToDMC[c] = DMC.find(d => d.id === dmcId) || DMC[0];
+       }
+
+       for (let i = 0; i < signatures.length; i++) {
+           const cluster = assignments[i];
+           const t = clusterToDMC[cluster];
+           const pIdx = signatures[i].idx;
+           pattern[pIdx] = { type: "solid", id: t.id, name: t.name, rgb: t.rgb, lab: t.lab, dist: 0 };
+           stitchCount++;
+       }
+    }
+  }
+
+  if (stitchCount === 0) {
+    throw new Error("No stitches produced from chart grid. Ensure the grid aligns perfectly with the image and contains visible colors or symbols.");
+  }
+
+  // Find unique colors for palette size
+  const uniqueIds = new Set();
+  pattern.forEach(p => { if (p.id !== "__skip__") uniqueIds.add(p.id); });
+
+  return {
+    width: gridW,
+    height: gridH,
+    pattern: pattern,
+    bsLines: [],
+    stitchCount: stitchCount,
+    paletteSize: uniqueIds.size
+  };
+}
