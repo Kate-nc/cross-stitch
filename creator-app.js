@@ -61,7 +61,7 @@ const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData])
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
 const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable):null,[pal,blendCount,totalStitchable]);
 
-function getSkeinCount(){return skeinData.length;}
+
 
 const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
