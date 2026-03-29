@@ -1,4 +1,4 @@
-function findSolid(lab,p){let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE(lab,p[i].lab);if(d<bd){bd=d;b=p[i];}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:bd};}
+function findSolid(lab,p){let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE2(lab,p[i].lab);if(d<bd){bd=d;b=p[i];}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:Math.sqrt(bd)};}
 function findBest(lab, palette) {
   const solidMatch = findSolid(lab, palette);
   let bestBlend = null;
@@ -13,7 +13,7 @@ function findBest(lab, palette) {
         (threadA.lab[1] + threadB.lab[1]) / 2,
         (threadA.lab[2] + threadB.lab[2]) / 2
       ];
-      const dist = dE(lab, blendLab);
+      const dist = dE2(lab, blendLab);
 
       if (dist < bestBlendDist) {
         bestBlendDist = dist;
@@ -25,7 +25,7 @@ function findBest(lab, palette) {
     }
   }
 
-  if (bestBlend && (bestBlendDist + 3 < solidMatch.dist) && solidMatch.dist > 5) {
+  if (bestBlend && (Math.sqrt(bestBlendDist) + 3 < solidMatch.dist) && solidMatch.dist > 5) {
     const threadA = bestBlend.threads[0];
     const threadB = bestBlend.threads[1];
     const blendId = threadA.id + "+" + threadB.id;
@@ -42,7 +42,7 @@ function findBest(lab, palette) {
       rgb: blendRgb,
       lab: bestBlend.lab,
       threads: bestBlend.threads,
-      dist: bestBlendDist
+      dist: Math.sqrt(bestBlendDist)
     };
   }
 
@@ -62,8 +62,7 @@ function quantize(data,w,h,n){
     let lastCenter = cs[cs.length-1];
     let sum=0;
     for(let i=0;i<px.length;i++){
-      let dist = dE(px[i], lastCenter);
-      let distSq = dist * dist;
+      let distSq = dE2(px[i], lastCenter);
       if (distSq < ds[i]) ds[i] = distSq;
       sum += ds[i];
     }
@@ -77,14 +76,14 @@ function quantize(data,w,h,n){
     let cl=cs.map(()=>[]);
     for(let pi=0;pi<px.length;pi++){
       let md=1e9,mi=0;
-      for(let c=0;c<cs.length;c++){let d=dE(px[pi],cs[c]);if(d<md){md=d;mi=c;}}
+      for(let c=0;c<cs.length;c++){let d=dE2(px[pi],cs[c]);if(d<md){md=d;mi=c;}}
       cl[mi].push(px[pi]);
     }
     let mv=false;
     for(let c2=0;c2<cs.length;c2++){
       if(!cl[c2].length)continue;
       let nv=[cl[c2].reduce((s,q)=>s+q[0],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[1],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[2],0)/cl[c2].length];
-      if(dE(nv,cs[c2])>0.5)mv=true;
+      if(dE2(nv,cs[c2])>0.25)mv=true;
       cs[c2]=nv;
     }
     if(!mv)break;
@@ -94,7 +93,7 @@ function quantize(data,w,h,n){
     let b=null,bd=1e9;
     for(let ti=0;ti<DMC.length;ti++){
       if(used.has(DMC[ti].id))continue;
-      let d2=dE(cs[ci],DMC[ti].lab);if(d2<bd){bd=d2;b=DMC[ti];}
+      let d2=dE2(cs[ci],DMC[ti].lab);if(d2<bd){bd=d2;b=DMC[ti];}
     }
     if(b){used.add(b.id);pl.push(b);}
   }

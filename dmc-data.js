@@ -2,9 +2,10 @@ const DMC_RAW=[["blanc","White",255,255,255],["ecru","Ecru",240,234,218],["150",
 
 function rgbToLab(r,g,b){let rr=r/255,gg=g/255,bb=b/255;rr=rr>0.04045?((rr+0.055)/1.055)**2.4:rr/12.92;gg=gg>0.04045?((gg+0.055)/1.055)**2.4:gg/12.92;bb=bb>0.04045?((bb+0.055)/1.055)**2.4:bb/12.92;let x=(rr*0.4124564+gg*0.3575761+bb*0.1804375)/0.95047,y=rr*0.2126729+gg*0.7151522+bb*0.0721750,z=(rr*0.0193339+gg*0.1191920+bb*0.9503041)/1.08883,f=t=>t>0.008856?t**(1/3):(7.787*t)+16/116;return[116*f(y)-16,500*(f(x)-f(y)),200*(f(y)-f(z))];}
 function dE(a,b){return Math.sqrt((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2);}
+function dE2(a,b){return (a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;}
 const DMC=DMC_RAW.map(d=>({id:d[0],name:d[1],rgb:[d[2],d[3],d[4]],lab:rgbToLab(d[2],d[3],d[4])}));
 const SYMS="●◆■▲★♦♥♣♠◄►▼○◇□△☆♢♡♧♤◁▷▽⊕⊗⊞⊠⊡⊘⊙⊚⊛⊜⊝⬡⬢⬣⬥⬦⬧⬨⬩".split("");
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { rgbToLab, dE, DMC, SYMS };
+  module.exports = { rgbToLab, dE, dE2, DMC, SYMS };
 }
