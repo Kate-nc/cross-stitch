@@ -3,7 +3,7 @@ const fs = require('fs');
 function processFile(filePath) {
   let content = fs.readFileSync(filePath, 'utf8');
 
-  // Fix Welcome screen h1/subtitle
+  // Update Welcome screen h1/subtitle
   content = content.replace(
     /<h1 style=\{\{fontSize:28, fontWeight:700, color:"#0f172a", marginBottom:8\}\}>/g,
     '<h1 style={{fontSize:28, fontWeight:700, color:"#18181b", marginBottom:8}}>'
