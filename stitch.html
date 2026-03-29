@@ -85,11 +85,33 @@ useEffect(()=>{
   }else{clearInterval(timerRef.current);}
 },[sessionActive,sessionStart]);
 
-const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
+const doneCount = useMemo(() => {
+  if (!done) return 0;
+  let c = 0;
+  for (let i = 0; i < done.length; i++) {
+    if (done[i]) c++;
+  }
+  return c;
+}, [done]);
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__")c++;return c;},[pat]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
 useEffect(()=>{if(sessionActive&&done){let diff=doneCount-prevDoneCount.current;if(diff>0)setSessionStitches(p=>p+diff);}prevDoneCount.current=doneCount;},[doneCount,sessionActive,done]);
-const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+const colourDoneCounts = useMemo(() => {
+  if (!pat || !done) return {};
+  let c = {};
+  for (let i = 0; i < pat.length; i++) {
+    if (pat[i].id === "__skip__") continue;
+    let id = pat[i].id;
+    if (!c[id]) {
+      c[id] = { total: 0, done: 0 };
+    }
+    c[id].total++;
+    if (done[i]) {
+      c[id].done++;
+    }
+  }
+  return c;
+}, [pat, done]);
 const estCompletion=useMemo(()=>{let t=totalTime+(sessionActive?sessionElapsed:0);if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,sessionElapsed,sessionActive,doneCount,totalStitchable]);
 const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
 const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);

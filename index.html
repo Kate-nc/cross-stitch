@@ -88,9 +88,31 @@ const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitc
 
 function getSkeinCount(){return skeinData.length;}
 
-const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
+const doneCount = useMemo(() => {
+  if (!done) return 0;
+  let c = 0;
+  for (let i = 0; i < done.length; i++) {
+    if (done[i]) c++;
+  }
+  return c;
+}, [done]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
-const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+const colourDoneCounts = useMemo(() => {
+  if (!pat || !done) return {};
+  let c = {};
+  for (let i = 0; i < pat.length; i++) {
+    if (pat[i].id === "__skip__") continue;
+    let id = pat[i].id;
+    if (!c[id]) {
+      c[id] = { total: 0, done: 0 };
+    }
+    c[id].total++;
+    if (done[i]) {
+      c[id].done++;
+    }
+  }
+  return c;
+}, [pat, done]);
 
 const generatePreview=useCallback(()=>{
   if(!img)return;
