@@ -1,32 +1,50 @@
+:root {
+  --accent: #0d9488;
+  --accent-hover: #0f766e;
+  --accent-light: #f0fdfa;
+  --accent-border: #99f6e4;
+  --text-primary: #18181b;
+  --text-secondary: #71717a;
+  --text-tertiary: #a1a1aa;
+  --border: #e4e4e7;
+  --border-subtle: #f4f4f5;
+  --surface: #ffffff;
+  --surface-secondary: #fafafa;
+  --surface-tertiary: #f4f4f5;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#f8fafc;color:#1e293b}
-input[type=range]{accent-color:#5b7bb3; transition: all 0.2s ease;}
-input[type=checkbox]{accent-color:#5b7bb3; transition: all 0.2s ease;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--surface-secondary);color:var(--text-primary)}
+input[type=range]{accent-color:var(--accent); transition: all 0.2s ease;}
+input[type=checkbox]{accent-color:var(--accent); transition: all 0.2s ease;}
 input, select { transition: all 0.2s ease; }
 button{font-family:inherit; transition: all 0.2s ease;}
-button:hover { filter: brightness(0.95); transform: translateY(-1px); }
-button:active { filter: brightness(0.9); transform: translateY(0); }
+button:hover { filter: brightness(0.97); transform: translateY(0); }
+button:active { filter: brightness(0.94); transform: translateY(0); }
 select{font-family:inherit}
-input:focus, select:focus, button:focus { outline: 2px solid #93c5fd; outline-offset: 2px; }
+input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border); outline-offset: 2px; }
 ::-webkit-scrollbar{width:6px;height:6px}
-::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+::-webkit-scrollbar-thumb{background:#d4d4d8;border-radius:3px}
 
 .card {
-  border-radius: 10px;
-  border: 1px solid #e2e5ea;
-  background: #fff;
+  border-radius: var(--radius-xl);
+  border: 0.5px solid var(--border);
+  background: var(--surface);
   overflow: hidden;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  box-shadow: none;
 }
 
 .upload-area {
-  border: 2px dashed #cbd5e1;
-  border-radius: 16px;
-  padding: 64px 24px;
+  border: 1.5px dashed #d4d4d8;
+  border-radius: var(--radius-xl);
+  padding: 40px 24px;
   text-align: center;
   cursor: pointer;
-  background: #fff;
-  transition: all 0.2s ease;
+  background: var(--surface);
+  transition: all 0.15s ease;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -34,18 +52,18 @@ input:focus, select:focus, button:focus { outline: 2px solid #93c5fd; outline-of
   gap: 12px;
 }
 .upload-area svg {
-  color: #94a3b8;
+  color: var(--text-tertiary);
   transition: all 0.2s ease;
 }
 .upload-area:hover {
-  border-color: #5b7bb3;
-  background: #f8fafc;
-  transform: translateY(-4px);
-  box-shadow: 0 10px 25px -5px rgba(91, 123, 179, 0.15);
+  border-color: var(--accent);
+  background: var(--accent-light);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.08);
 }
 .upload-area:hover svg {
-  color: #5b7bb3;
-  transform: scale(1.1);
+  color: var(--accent);
+  transform: none;
 }
 
 .tab-button {
@@ -57,19 +75,18 @@ input:focus, select:focus, button:focus { outline: 2px solid #93c5fd; outline-of
   margin-bottom: -2px;
   transition: all 0.2s ease;
 }
-.tab-button:hover { background-color: #f1f5f9 !important; border-radius: 6px 6px 0 0; }
 
 .nav-link {
   font-size: 13px;
   font-weight: 500;
-  color: #4a5568;
+  color: var(--text-secondary);
   cursor: pointer;
   text-decoration: none;
   transition: all 0.2s ease;
   padding: 4px 0;
 }
 .nav-link:hover {
-  color: #5b7bb3;
+  color: var(--accent);
   text-decoration: underline;
 }
 
@@ -86,12 +103,13 @@ input:focus, select:focus, button:focus { outline: 2px solid #93c5fd; outline-of
   z-index: 1000;
 }
 .modal-content {
-  background: #fff;
-  border-radius: 12px;
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  border: 0.5px solid var(--border);
   padding: 24px;
   width: 90%;
   max-width: 400px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
 }
 .modal-close {
   float: right;
