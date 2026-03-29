@@ -10,7 +10,7 @@ function Header({ page, onNewProject, onExportPDF, setModal }) {
       ),
       React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center" } },
         page === 'creator' && React.createElement("button", { onClick: onNewProject, style: { padding: "6px 14px", fontSize: 13, borderRadius: 8, border: "1px solid #e2e5ea", background: "#f8fafc", color: "#4a5568", cursor: "pointer", fontWeight: 500 } }, "New Project"),
-        page === 'creator' && onExportPDF && React.createElement("button", { onClick: onExportPDF, style: { padding: "6px 14px", fontSize: 13, borderRadius: 8, border: "none", background: "#5b7bb3", color: "#fff", cursor: "pointer", fontWeight: 500 } }, "Export PDF")
+        onExportPDF && React.createElement("button", { onClick: onExportPDF, style: { padding: "6px 14px", fontSize: 13, borderRadius: 8, border: "none", background: "#5b7bb3", color: "#fff", cursor: "pointer", fontWeight: 500 } }, "Export PDF")
       )
     )
   );

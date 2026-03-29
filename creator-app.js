@@ -162,66 +162,6 @@ function loadProject(e){let f=e.target.files[0];if(!f)return;setLoadError(null);
   setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/(s.sW*20)));setZoom(z);},100);
 }catch(err){console.error(err);setLoadError("Could not load: "+err.message);setTimeout(()=>setLoadError(null),4000);}};rd.readAsText(f);if(loadRef.current)loadRef.current.value="";}
 
-function exportPDF(){if(!pat||!pal||!cmap)return;const{jsPDF}=window.jspdf;const pdf=new jsPDF("portrait","mm","a4");const mg=12,cW2=186;pdf.setFontSize(22);pdf.text("Cross Stitch Pattern",mg,mg+10);pdf.setFontSize(12);pdf.setTextColor(100);pdf.text(`${sW}x${sH} · ${pal.length} colours · ${getSkeinCount()} skeins · ${fabricCt}ct`,mg,mg+18);if(done&&totalStitchable>0){let dc=0;for(let i=0;i<done.length;i++)if(done[i])dc++;if(dc>0){let pct=Math.round(dc/totalStitchable*1000)/10;pdf.text(`Progress: ${pct}%`,mg,mg+25);}}pdf.setTextColor(0);let ty=mg+35;pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=8;pdf.setFontSize(8);pal.forEach(p=>{if(ty>285){pdf.addPage();ty=mg+8;}pdf.setFillColor(p.rgb[0],p.rgb[1],p.rgb[2]);pdf.circle(mg+4,ty-1.5,2,"F");pdf.setTextColor(0);let sk=skeinEst(p.count,fabricCt);pdf.text(p.symbol+" DMC "+p.id+" "+(p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name)+" ("+p.count+" st, "+sk+" skein"+(sk>1?"s":"")+")",mg+10,ty);ty+=5;});const cellMM=3,gridCols=Math.floor(cW2/cellMM),gridRows=Math.floor(275/cellMM),pagesX=Math.ceil(sW/gridCols),pagesY=Math.ceil(sH/gridRows);for(let py2=0;py2<pagesY;py2++)for(let px2=0;px2<pagesX;px2++){pdf.addPage();let x0=px2*gridCols,y0=py2*gridRows,dW=Math.min(gridCols,sW-x0),dH=Math.min(gridRows,sH-y0);pdf.setFontSize(8);pdf.setTextColor(100);pdf.text(`Page ${py2*pagesX+px2+1}/${pagesX*pagesY}`,mg,mg+4);for(let gy=0;gy<dH;gy++)for(let gx=0;gx<dW;gx++){let m=pat[(y0+gy)*sW+(x0+gx)];if(!m||m.id==="__skip__")continue;let info=cmap[m.id],px3=mg+gx*cellMM,py3=mg+8+gy*cellMM;pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);pdf.rect(px3,py3,cellMM,cellMM,"F");pdf.setDrawColor(200);pdf.rect(px3,py3,cellMM,cellMM,"S");if(info){pdf.setFontSize(5);pdf.setTextColor(luminance(m.rgb)>128?0:255);pdf.text(info.symbol,px3+cellMM/2,py3+cellMM*0.7,{align:"center"});}}pdf.setDrawColor(80);pdf.setLineWidth(0.2);for(let gx2=0;gx2<=dW;gx2+=10)pdf.line(mg+gx2*cellMM,mg+8,mg+gx2*cellMM,mg+8+dH*cellMM);for(let gy2=0;gy2<=dH;gy2+=10)pdf.line(mg,mg+8+gy2*cellMM,mg+dW*cellMM,mg+8+gy2*cellMM);pdf.setDrawColor(0);pdf.setLineWidth(0.4);pdf.rect(mg,mg+8,dW*cellMM,dH*cellMM,"S");}pdf.save("cross-stitch-pattern.pdf");}
-
-function exportCoverSheet(){
-  if(!pat||!pal||!cmap)return;
-  const{jsPDF}=window.jspdf;const pdf=new jsPDF("portrait","mm","a4");const mg=15;
-  let y=mg;
-  // Title
-  pdf.setFontSize(26);pdf.setTextColor(30,30,30);pdf.text("Cross Stitch Project",mg,y+10);y+=18;
-  pdf.setDrawColor(91,123,179);pdf.setLineWidth(0.8);pdf.line(mg,y,195,y);y+=10;
-
-  // Pattern info
-  pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("PATTERN SUMMARY",mg,y);y+=7;
-  pdf.setFontSize(10);pdf.setTextColor(40);
-  let div2=fabricCt===28?14:fabricCt;let wIn2=sW/div2,hIn2=sH/div2;
-  let infoLines=[
-    ["Pattern size",`${sW} × ${sH} stitches`],
-    ["Stitchable stitches",totalStitchable.toLocaleString()],
-    ["Colours",`${pal.length} (${blendCount} blend${blendCount!==1?"s":""})`],
-    ["Skeins needed",`${totalSkeins}`],
-    ["Fabric",`${fabricCt} count`],
-    ["Finished size",`${wIn2.toFixed(1)}″ × ${hIn2.toFixed(1)}″ (${(wIn2*2.54).toFixed(1)} × ${(hIn2*2.54).toFixed(1)} cm)`],
-    ["With 1″ margin",`${(wIn2+2).toFixed(0)}″ × ${(hIn2+2).toFixed(0)}″`],
-    ["Est. time",fmtTimeL(Math.round(totalStitchable/stitchSpeed*3600))+` (at ${stitchSpeed} st/hr)`],
-    ["Difficulty",difficulty?difficulty.label:"—"],
-    ["Est. thread cost",`£${(totalSkeins*skeinPrice).toFixed(2)} (at £${skeinPrice.toFixed(2)}/skein)`],
-  ];
-  infoLines.forEach(([l,v])=>{pdf.setTextColor(120);pdf.text(l+":",mg,y);pdf.setTextColor(40);pdf.text(v,mg+50,y);y+=5.5;});
-  y+=6;
-
-  // Progress if any
-  if(done&&totalStitchable>0){
-    let localDoneCount=0;for(let i=0;i<done.length;i++)if(done[i])localDoneCount++;
-    if(localDoneCount>0){
-      let localProgressPct=Math.round(localDoneCount/totalStitchable*1000)/10;
-      pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("PROGRESS",mg,y);y+=7;pdf.setFontSize(10);pdf.setTextColor(40);pdf.text(`${localProgressPct}% complete — ${localDoneCount.toLocaleString()} of ${totalStitchable.toLocaleString()} stitches`,mg,y);y+=8;if(totalTime>0){pdf.text(`Time stitched: ${fmtTimeL(totalTime)} (${sessions.length} session${sessions.length!==1?"s":""})`,mg,y);y+=5.5;let actualSpeed=Math.round(localDoneCount/(totalTime/3600));pdf.text(`Actual speed: ${actualSpeed} stitches/hr`,mg,y);y+=5.5;}y+=4;
-    }
-  }
-
-  // Thread list
-  pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("THREAD LIST",mg,y);y+=7;
-  pdf.setFontSize(8);pdf.setTextColor(80);pdf.text("DMC",mg,y);pdf.text("Name",mg+20,y);pdf.text("Skeins",mg+100,y);pdf.text("Status",mg+120,y);y+=2;
-  pdf.setDrawColor(200);pdf.line(mg,y,180,y);y+=4;
-  pdf.setFontSize(9);
-  skeinData.forEach(d=>{
-    if(y>275){pdf.addPage();y=mg+8;}
-    pdf.setFillColor(d.rgb[0],d.rgb[1],d.rgb[2]);pdf.circle(mg+3,y-1.2,1.8,"F");
-    pdf.setTextColor(40);pdf.text(d.id,mg+8,y);pdf.text(d.name,mg+20,y);pdf.text(String(d.skeins),mg+104,y);
-    let st=threadOwned[d.id]||"";
-    if(st==="owned"){pdf.setTextColor(22,163,74);pdf.text("Owned",mg+120,y);}
-    else{pdf.setTextColor(234,88,12);pdf.text("To buy",mg+120,y);}
-    pdf.setTextColor(40);
-    y+=5;
-  });
-  y+=6;
-
-  // Notes section
-  if(y<240){pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("NOTES",mg,y);y+=4;pdf.setDrawColor(220);for(let nl=0;nl<8;nl++){y+=7;pdf.line(mg,y,180,y);}}
-
-  pdf.save("cross-stitch-cover-sheet.pdf");
-}
 
 const generate=useCallback(()=>{
   if(!img)return;setBusy(true);setHiId(null);setExportPage(0);
@@ -370,7 +310,7 @@ const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned
 
 return(
 <>
-<Header page="creator" onNewProject={()=>{if(!pat||confirm("Start a new project? Unsaved progress will be lost.")){resetAll();setImg(null);}}} onExportPDF={pat ? exportPDF : null} setModal={setModal} />
+<Header page="creator" onNewProject={()=>{if(!pat||confirm("Start a new project? Unsaved progress will be lost.")){resetAll();setImg(null);}}} onExportPDF={pat ? () => setModal("pdf_export") : null} setModal={setModal} />
 <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   <div style={{marginBottom:12,display:"flex",justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap",gap:8}}>
     <div style={{display:"flex",gap:6}}><input ref={loadRef} type="file" accept=".json" onChange={loadProject} style={{display:"none"}}/><button onClick={()=>loadRef.current.click()} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"1px solid #e2e5ea",background:"#f8fafc",cursor:"pointer",color:"#4a5568",fontWeight:500}}>Open</button>{pat&&pal&&<button onClick={saveProject} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"none",background:"#5b7bb3",color:"#fff",cursor:"pointer",fontWeight:500}}>Save</button>}</div>
@@ -586,7 +526,7 @@ return(
               } catch(e) { console.error("Compression failed", e); }
           }} style={{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#5b7bb3",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"0 2px 8px rgba(74,111,165,0.25)", display:"flex", alignItems:"center", justifyContent:"center", gap:8}}>🧵 Open in Stitch Tracker →</button>
 
-          <Section title="PDF Export"><p style={{fontSize:12,color:"#64748b",margin:"8px 0 10px"}}>Multi-page PDF with legend and chart.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={exportPDF} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"linear-gradient(135deg,#5b7bb3,#4a6fa5)",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"0 2px 8px rgba(74,111,165,0.25)"}}>Download Pattern PDF</button><button onClick={exportCoverSheet} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #5b7bb3",background:"#fff",color:"#5b7bb3",cursor:"pointer",fontWeight:600}}>Cover Sheet PDF</button></div><p style={{fontSize:11,color:"#94a3b8",marginTop:8}}>The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes — perfect for tucking into your project bag.</p></Section>
+          <Section title="PDF Export"><p style={{fontSize:12,color:"#64748b",margin:"8px 0 10px"}}>Export multi-page chart, cover sheet, and legend.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={()=>setModal("pdf_export")} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"linear-gradient(135deg,#5b7bb3,#4a6fa5)",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"0 2px 8px rgba(74,111,165,0.25)"}}>Export PDF</button></div></Section>
           <Section title="PNG Chart"><div style={{display:"flex",gap:8,alignItems:"center",marginTop:8,marginBottom:8}}><label style={{display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer"}}><input type="checkbox" checked={pageMode} onChange={e=>{setPageMode(e.target.checked);setExportPage(0);}}/>A4 pages</label>{pageMode&&<><button onClick={()=>setExportPage(Math.max(0,exportPage-1))} disabled={exportPage===0} style={{fontSize:11,padding:"3px 8px",border:"1px solid #e2e5ea",borderRadius:6,background:"#fff",cursor:"pointer"}}>◀</button><span style={{fontSize:12}}>Page {exportPage+1}/{totPg}</span><button onClick={()=>setExportPage(Math.min(totPg-1,exportPage+1))} disabled={exportPage>=totPg-1} style={{fontSize:11,padding:"3px 8px",border:"1px solid #e2e5ea",borderRadius:6,background:"#fff",cursor:"pointer"}}>▶</button></>}</div><div style={{overflow:"auto",maxHeight:400,border:"1px solid #e2e5ea",borderRadius:8,background:"#fff"}}><canvas ref={expRef} style={{display:"block"}}/></div></Section>
           <Section title="Save / Load"><p style={{fontSize:12,color:"#64748b",margin:"8px 0 10px"}}>Saves pattern for later editing or opening in Stitch Tracker.</p><div style={{display:"flex",gap:8}}><button onClick={saveProject} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#5b7bb3",color:"#fff",cursor:"pointer",fontWeight:600}}>Save (.json)</button><button onClick={()=>loadRef.current.click()} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #e2e5ea",background:"#fff",cursor:"pointer",fontWeight:500}}>Load</button></div></Section>
         </div>}
@@ -622,8 +562,9 @@ return(
       </div>}
     </div>
   </div>}
-  {modal==="help"&&<div className="modal-overlay" onClick={()=>setModal(null)}><div className="modal-content" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}>×</button><h3 style={{marginTop:0,marginBottom:15}}>Help</h3><p style={{color:"#4a5568"}}>Coming soon...</p></div></div>}
-  {modal==="about"&&<div className="modal-overlay" onClick={()=>setModal(null)}><div className="modal-content" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}>×</button><h3 style={{marginTop:0,marginBottom:15}}>About</h3><p style={{color:"#4a5568"}}>Coming soon...</p></div></div>}
+  {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
+  {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
+  {modal==="pdf_export"&&<SharedModals.PdfExport onClose={()=>setModal(null)} initialSettings={pdfSettings} sW={sW} sH={sH} hasTrackingData={doneCount > 0} hasBackstitch={bsLines.length > 0} pal={pal} onExport={(s)=>{setPdfSettings(s);setModal(null);generatePDF({pat, pal, cmap, sW, sH, done, totalStitchable, fabricCt, skeinData, blendCount, totalSkeins, difficulty, stitchSpeed, totalTime, sessions, threadOwned, bsLines, imgData:img?img.src:null}, s);}} />}
 </div>
 </>);
 }

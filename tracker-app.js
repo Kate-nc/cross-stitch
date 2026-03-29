@@ -9,6 +9,7 @@ const[stitchSpeed,setStitchSpeed]=useState(40);
 
 const[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
+const [pdfSettings, setPdfSettings] = useState({ chartStyle: 'symbols', cellSize: 3, paper: 'a4', orientation: 'portrait', gridInterval: 10, gridNumbers: true, centerMarks: true, legendLocation: 'separate', legendColumns: 2, coverPage: true, progressOverlay: false, separateBackstitch: false });
 const showCtr=true;
 const[bsLines,setBsLines]=useState([]);
 
@@ -157,6 +158,7 @@ function processLoadedProject(project){
   let{pal:newPal,cmap:newCmap}=buildPalette(restored);
   setPat(restored);setPal(newPal);setCmap(newCmap);
   setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);
+  if(project.settings && project.settings.pdfSettings) setPdfSettings(project.settings.pdfSettings);
   setThreadOwned(project.threadOwned||{});
   if(project.done&&project.done.length===restored.length)setDone(new Uint8Array(project.done));
   else setDone(new Uint8Array(restored.length));
@@ -381,7 +383,7 @@ const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned
 
 return(
 <>
-<Header page="tracker" setModal={setModal} />
+<Header page="tracker" onExportPDF={pat ? () => setModal("pdf_export") : null} setModal={setModal} />
 <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
   {importSuccess && (
@@ -597,8 +599,9 @@ return(
     </div>
   </div>}
 
-  {modal==="help"&&<div className="modal-overlay" onClick={()=>setModal(null)}><div className="modal-content" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}>×</button><h3 style={{marginTop:0,marginBottom:15}}>Help</h3><p style={{color:"#4a5568"}}>Coming soon...</p></div></div>}
-  {modal==="about"&&<div className="modal-overlay" onClick={()=>setModal(null)}><div className="modal-content" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setModal(null)}>×</button><h3 style={{marginTop:0,marginBottom:15}}>About</h3><p style={{color:"#4a5568"}}>Coming soon...</p></div></div>}
+  {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
+  {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
+  {modal==="pdf_export"&&<SharedModals.PdfExport onClose={()=>setModal(null)} initialSettings={pdfSettings} sW={sW} sH={sH} hasTrackingData={doneCount > 0} hasBackstitch={bsLines.length > 0} pal={pal} onExport={(s)=>{setPdfSettings(s);setModal(null);generatePDF({pat, pal, cmap, sW, sH, done, totalStitchable, fabricCt, skeinData, blendCount, totalSkeins, difficulty:null, stitchSpeed, totalTime, sessions, threadOwned, bsLines, imgData:null}, s);}} />}
 </div>
 </>);
 }
