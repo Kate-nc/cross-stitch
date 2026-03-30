@@ -39,6 +39,7 @@ const[stitchSpeed,setStitchSpeed]=useState(40); // stitches per hour
 const[tab,setTab]=useState("pattern"),[sidebarOpen,setSidebarOpen]=useState(true),[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
 const[view,setView]=useState("color"),[zoom,setZoom]=useState(1),[hiId,setHiId]=useState(null),[showCtr,setShowCtr]=useState(true);
+const[showOverlay,setShowOverlay]=useState(false),[overlayOpacity,setOverlayOpacity]=useState(0.3);
 
 const[dimOpen,setDimOpen]=useState(true),[palOpen,setPalOpen]=useState(true),[fabOpen,setFabOpen]=useState(false),[adjOpen,setAdjOpen]=useState(false),[bgOpen,setBgOpen]=useState(false);
 const[hasGenerated,setHasGenerated]=useState(false);
@@ -504,16 +505,43 @@ const generate=useCallback(()=>{
 },[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh,minSt,smooth,smoothType,orphans,hasGenerated]);
 
 // ═══ Canvas drawing ═══
-function drawPattern(ctx,offX,offY,dW,dH,cSz,gut){
+function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, showOverlayImg=false, op=0.3){
   ctx.fillStyle="#fff";ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
+
+  if (showOverlayImg && img) {
+    ctx.globalAlpha = op;
+    ctx.drawImage(img, gut, gut, dW * cSz, dH * cSz);
+    ctx.globalAlpha = 1.0;
+  }
   ctx.fillStyle="#a1a1aa";ctx.font=`${Math.max(7,Math.min(11,cSz*0.5))}px system-ui`;ctx.textAlign="center";ctx.textBaseline="middle";
   for(let x=0;x<dW;x+=10)ctx.fillText(String(offX+x+1),gut+x*cSz+cSz/2,gut/2);ctx.textAlign="right";for(let y=0;y<dH;y+=10)ctx.fillText(String(offY+y+1),gut-3,gut+y*cSz+cSz/2);
   for(let y2=0;y2<dH;y2++)for(let x2=0;x2<dW;x2++){let idx=(offY+y2)*sW+(offX+x2);let m=pat[idx];if(!m)continue;let info=m.id==="__skip__"?null:(cmap?cmap[m.id]:null);let px=gut+x2*cSz,py=gut+y2*cSz;let isHi=!hiId||m.id===hiId;let dim=hiId&&!isHi&&m.id!=="__skip__";
-    if(m.id==="__skip__"){drawCk(ctx,px,py,cSz);}
-    else if(view==="color"||view==="both"){ctx.fillStyle=dim?`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.15)`:`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-    else{ctx.fillStyle=dim?"#f5f5f5":"#fff";ctx.fillRect(px,py,cSz,cSz);}
+    if(m.id==="__skip__"){
+      if(showOverlayImg){
+        ctx.globalAlpha=0.2;drawCk(ctx,px,py,cSz);ctx.globalAlpha=1.0;
+      }else{
+        drawCk(ctx,px,py,cSz);
+      }
+    }
+    else if(view==="color"||view==="both"){
+      let alpha = 1.0;
+      if (dim) alpha = 0.15;
+      else if (showOverlayImg) {
+        alpha = view === "both" ? 0.4 : 0.5;
+      }
+      ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},${alpha})`;ctx.fillRect(px,py,cSz,cSz);
+    }
+    else{
+      let alpha = 1.0;
+      if (showOverlayImg) alpha = 0.3;
+      ctx.fillStyle=dim?"rgba(245,245,245,"+alpha+")":`rgba(255,255,255,${alpha})`;ctx.fillRect(px,py,cSz,cSz);
+    }
     if(m.id!=="__skip__"&&(view==="symbol"||view==="both")&&info&&cSz>=6){let lum=luminance(m.rgb);ctx.fillStyle=dim?"rgba(0,0,0,0.08)":(view==="both"?(lum>128?"#000":"#fff"):"#333");ctx.font=`bold ${Math.max(6,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
-    if(cSz>=4){ctx.strokeStyle=dim?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+    if(cSz>=4){
+      let sAlpha = dim ? 0.03 : 0.08;
+      if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
+      ctx.strokeStyle=`rgba(0,0,0,${sAlpha})`;ctx.strokeRect(px,py,cSz,cSz);
+    }
   }
   if(cSz>=3){ctx.strokeStyle="rgba(0,0,0,0.2)";ctx.lineWidth=cSz>=8?1.5:1;for(let gx=0;gx<=dW;gx+=10){ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut);ctx.lineTo(gut+gx*cSz,gut+dH*cSz);ctx.stroke();}for(let gy=0;gy<=dH;gy+=10){ctx.beginPath();ctx.moveTo(gut,gut+gy*cSz);ctx.lineTo(gut+dW*cSz,gut+gy*cSz);ctx.stroke();}}
   if(showCtr){ctx.strokeStyle="rgba(200,60,60,0.3)";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);let cx2=Math.floor(sW/2)-offX,cy2=Math.floor(sH/2)-offY;if(cx2>=0&&cx2<=dW){ctx.beginPath();ctx.moveTo(gut+cx2*cSz,gut);ctx.lineTo(gut+cx2*cSz,gut+dH*cSz);ctx.stroke();}if(cy2>=0&&cy2<=dH){ctx.beginPath();ctx.moveTo(gut,gut+cy2*cSz);ctx.lineTo(gut+dW*cSz,gut+cy2*cSz);ctx.stroke();}ctx.setLineDash([]);}
@@ -570,7 +598,7 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut){
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
 }
 
-const renderPattern=useCallback(()=>{if(!pat||!cmap||!pcRef.current||tab!=="pattern")return;pcRef.current.width=sW*cs+G+2;pcRef.current.height=sH*cs+G+2;drawPattern(pcRef.current.getContext("2d"),0,0,sW,sH,cs,G);},[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab,hoverCoords,selectedColorId,bsContinuous]);
+const renderPattern=useCallback(()=>{if(!pat||!cmap||!pcRef.current||tab!=="pattern")return;pcRef.current.width=sW*cs+G+2;pcRef.current.height=sH*cs+G+2;drawPattern(pcRef.current.getContext("2d"),0,0,sW,sH,cs,G, showOverlay && !!img, overlayOpacity);},[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab,hoverCoords,selectedColorId,bsContinuous,showOverlay,overlayOpacity,img]);
 useEffect(()=>renderPattern(),[renderPattern]);
 
 const renderExport=useCallback(()=>{if(tab!=="export"||!expRef.current||!pat||!cmap)return;let epC=exportPage%pxX,epR=Math.floor(exportPage/pxX),eX0=epC*A4W,eY0=epR*A4H,eW=Math.min(A4W,sW-eX0),eH=Math.min(A4H,sH-eY0),dW2=pageMode?eW:sW,dH2=pageMode?eH:sH,oX2=pageMode?eX0:0,oY2=pageMode?eY0:0,expCs=Math.max(8,Math.min(20,Math.floor(750/Math.max(dW2,dH2))));expRef.current.width=dW2*expCs+G+2;expRef.current.height=dH2*expCs+G+2;drawPattern(expRef.current.getContext("2d"),oX2,oY2,dW2,dH2,expCs,G);},[tab,pat,cmap,sW,sH,pageMode,exportPage,pxX,view,hiId,showCtr,bsLines]);
@@ -710,6 +738,7 @@ return(
             <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}>{[["color","Colour"],["symbol","Symbol"],["both","Both"]].map(it=><button key={it[0]} onClick={()=>setView(it[0])} style={{ padding: "5px 12px", fontSize: 12, fontWeight: view===it[0] ? 500 : 400, background: view===it[0] ? "#fff" : "transparent", borderRadius: 6, color: view===it[0] ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: view===it[0] ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>{it[1]}</button>)}</div>
             <div style={{width:1,height:18,background:"#e4e4e7",margin:"0 2px"}}/>
             <span style={{fontSize:11,color:"#a1a1aa"}}>Zoom</span><input type="range" min={0.05} max={3} step={0.05} value={zoom} onChange={e=>setZoom(Number(e.target.value))} style={{width:60}}/><span style={{fontSize:11,minWidth:28}}>{Math.round(zoom*100)}%</span><button onClick={fitZ} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Fit</button>
+            {img&&<><div style={{width:1,height:18,background:"#e4e4e7",margin:"0 2px"}}/><button onClick={()=>setShowOverlay(!showOverlay)} style={tBtn(showOverlay)}>Overlay</button>{showOverlay&&<input type="range" min={0.1} max={0.8} step={0.05} value={overlayOpacity} onChange={e=>setOverlayOpacity(Number(e.target.value))} style={{width:50}}/>}</>}
           </div>
           {cs < 6 && (view === "symbol" || view === "both") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
           <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap",alignItems:"center", padding: "6px 10px", background: "#fff", border: "0.5px solid #e4e4e7", borderRadius: 10}}>
