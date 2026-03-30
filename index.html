@@ -43,6 +43,9 @@ const[showOverlay,setShowOverlay]=useState(false),[overlayOpacity,setOverlayOpac
 
 const[dimOpen,setDimOpen]=useState(true),[palOpen,setPalOpen]=useState(true),[fabOpen,setFabOpen]=useState(false),[adjOpen,setAdjOpen]=useState(false),[bgOpen,setBgOpen]=useState(false);
 const[hasGenerated,setHasGenerated]=useState(false);
+const[isCropping,setIsCropping]=useState(false),[cropRect,setCropRect]=useState(null);
+const cropStartRef=useRef(null);
+const cropRef=useRef(null);
 
 const[activeTool,setActiveTool]=useState(null),[bsLines,setBsLines]=useState([]),[bsStart,setBsStart]=useState(null);
 const[bsContinuous,setBsContinuous]=useState(false);
@@ -159,6 +162,7 @@ function resetAll(){
   setTotalTime(0);setSessions([]);setThreadOwned({});
   setHasGenerated(false);
   setDimOpen(true);setPalOpen(true);setFabOpen(false);setAdjOpen(false);setBgOpen(false);
+  setIsCropping(false);setCropRect(null);
 }
 
 function handleFile(e){let f=e.target.files[0];if(!f)return;let rd=new FileReader();rd.onload=ev=>{let i=new Image();i.onload=()=>{setOrigW(i.width);setOrigH(i.height);let a=i.width/i.height;setAr(a);setSW(80);setSH(Math.round(80/a));setImg(i);resetAll();};i.src=ev.target.result;};rd.readAsDataURL(f);}
@@ -168,6 +172,57 @@ function chgH(v){let h=Math.max(10,Math.min(300,parseInt(v)||10));setSH(h);if(ar
 function slRsz(v){chgW(v);}
 
 function srcClick(e){if(!pickBg||!img)return;let r=e.target.getBoundingClientRect(),c=document.createElement("canvas");c.width=img.width;c.height=img.height;let cx=c.getContext("2d");cx.drawImage(img,0,0);let p=cx.getImageData(Math.floor((e.clientX-r.left)*img.width/r.width),Math.floor((e.clientY-r.top)*img.height/r.height),1,1).data;setBgCol([p[0],p[1],p[2]]);setPickBg(false);}
+
+function handleCropMouseDown(e){
+  if(!isCropping||!cropRef.current)return;
+  e.preventDefault();
+  let r=cropRef.current.getBoundingClientRect();
+  cropStartRef.current={x:e.clientX-r.left,y:e.clientY-r.top};
+  setCropRect({x:cropStartRef.current.x,y:cropStartRef.current.y,w:0,h:0});
+}
+function handleCropMouseMove(e){
+  if(!isCropping||!cropStartRef.current||!cropRef.current)return;
+  let r=cropRef.current.getBoundingClientRect();
+  let cx=e.clientX-r.left,cy=e.clientY-r.top;
+  cx=Math.max(0,Math.min(r.width,cx));cy=Math.max(0,Math.min(r.height,cy));
+  let x=Math.min(cropStartRef.current.x,cx),y=Math.min(cropStartRef.current.y,cy);
+  let w=Math.abs(cx-cropStartRef.current.x),h=Math.abs(cy-cropStartRef.current.y);
+  setCropRect({x,y,w,h});
+}
+function handleCropMouseUp(e){
+  if(!isCropping||!cropStartRef.current)return;
+  cropStartRef.current=null;
+}
+function applyCrop(){
+  if(!cropRect||cropRect.w<10||cropRect.h<10||!cropRef.current||!img) {
+    setIsCropping(false);
+    return;
+  }
+  let r=cropRef.current.getBoundingClientRect();
+  let scaleX=img.width/r.width,scaleY=img.height/r.height;
+  let cropX=Math.floor(cropRect.x*scaleX),cropY=Math.floor(cropRect.y*scaleY);
+  let cropW=Math.floor(cropRect.w*scaleX),cropH=Math.floor(cropRect.h*scaleY);
+
+  let c=document.createElement("canvas");
+  c.width=cropW;c.height=cropH;
+  let cx=c.getContext("2d");
+  cx.drawImage(img,cropX,cropY,cropW,cropH,0,0,cropW,cropH);
+
+  let newImg=new Image();
+  newImg.onload=()=>{
+    setImg(newImg);
+    setOrigW(newImg.width);
+    setOrigH(newImg.height);
+    let newAr=newImg.width/newImg.height;
+    setAr(newAr);
+    setIsCropping(false);
+    setCropRect(null);
+    setPat(null);
+    setPal(null);
+    setCmap(null);
+  };
+  newImg.src=c.toDataURL();
+}
 
 function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
@@ -481,6 +536,59 @@ function exportCoverSheet(){
   pdf.save("cross-stitch-cover-sheet.pdf");
 }
 
+const autoCrop = useCallback(() => {
+  if (!pat || !img) return;
+  let minX = sW, minY = sH, maxX = -1, maxY = -1;
+  let hasStitches = false;
+  for (let y = 0; y < sH; y++) {
+    for (let x = 0; x < sW; x++) {
+      let idx = y * sW + x;
+      if (pat[idx].id !== "__skip__") {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        hasStitches = true;
+      }
+    }
+  }
+  if (!hasStitches || (minX === 0 && minY === 0 && maxX === sW - 1 && maxY === sH - 1)) return;
+
+  // Calculate coordinates in the original image
+  let pxStart = Math.floor(minX * (img.width / sW));
+  let pyStart = Math.floor(minY * (img.height / sH));
+  let pxEnd = Math.ceil((maxX + 1) * (img.width / sW));
+  let pyEnd = Math.ceil((maxY + 1) * (img.height / sH));
+  let cropW = pxEnd - pxStart;
+  let cropH = pyEnd - pyStart;
+
+  if (cropW <= 0 || cropH <= 0) return;
+
+  let c = document.createElement("canvas");
+  c.width = cropW;
+  c.height = cropH;
+  let ctx = c.getContext("2d");
+  ctx.drawImage(img, pxStart, pyStart, cropW, cropH, 0, 0, cropW, cropH);
+
+  let newImg = new Image();
+  newImg.onload = () => {
+    setImg(newImg);
+    setOrigW(newImg.width);
+    setOrigH(newImg.height);
+    let newAr = newImg.width / newImg.height;
+    setAr(newAr);
+    let newSW = maxX - minX + 1;
+    let newSH = maxY - minY + 1;
+    setSW(newSW);
+    setSH(newSH);
+    // Resetting pat to trigger the preview logic and allow user to hit generate
+    setPat(null);
+    setPal(null);
+    setCmap(null);
+  };
+  newImg.src = c.toDataURL();
+}, [pat, img, sW, sH]);
+
 const generate=useCallback(()=>{
   if(!img)return;setBusy(true);setHiId(null);setExportPage(0);
   setTimeout(()=>{try{
@@ -699,7 +807,26 @@ return(
     {tab!=="stitch"&&<div style={{flex:sidebarOpen?"0 0 280px":"0 0 auto",display:"flex",flexDirection:"column",gap:sidebarOpen?10:0,overflow:"hidden"}}>
       {pat&&<button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{padding:"5px 10px",fontSize:12,fontWeight:500,background:"#f4f4f5",border:"0.5px solid #e4e4e7",borderRadius:8,cursor:"pointer",color:"#71717a",alignSelf:sidebarOpen?"flex-end":"flex-start",whiteSpace:"nowrap"}}>{sidebarOpen?"◀ Hide":"▶ Settings"}</button>}
       {sidebarOpen&&<>
-      {pat&&<div className="card"><img src={img.src} alt="" style={{width:"100%",display:"block",cursor:pickBg?"crosshair":"default"}} onClick={srcClick}/><div style={{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}}><span style={{fontSize:11,color:"#a1a1aa"}}>{origW}×{origH}px</span><button onClick={()=>fRef.current.click()} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Change</button></div>{pickBg&&<div style={{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}</div>}
+      {pat&&<div className="card">
+        <div style={{position:"relative"}} ref={cropRef} onMouseDown={handleCropMouseDown} onMouseMove={handleCropMouseMove} onMouseUp={handleCropMouseUp} onMouseLeave={handleCropMouseUp}>
+          <img src={img.src} alt="" style={{width:"100%",display:"block",cursor:isCropping?"crosshair":(pickBg?"crosshair":"default"),opacity:isCropping?0.7:1}} onClick={srcClick}/>
+          {isCropping&&cropRect&&<div style={{position:"absolute",left:cropRect.x,top:cropRect.y,width:cropRect.w,height:cropRect.h,border:"2px dashed #0d9488",background:"rgba(13, 148, 136, 0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
+        </div>
+        {isCropping ? <div style={{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}}>
+          <span style={{fontSize:11,color:"#a1a1aa"}}>Draw a rectangle</span>
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>{setIsCropping(false);setCropRect(null);}} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Cancel</button>
+            <button onClick={applyCrop} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}}>Apply</button>
+          </div>
+        </div> : <div style={{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}}>
+          <span style={{fontSize:11,color:"#a1a1aa"}}>{origW}×{origH}px</span>
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>{setIsCropping(true);setCropRect(null);}} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Crop</button>
+            <button onClick={()=>fRef.current.click()} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Change</button>
+          </div>
+        </div>}
+        {pickBg&&<div style={{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}
+      </div>}
 
       <Section title="Dimensions" isOpen={dimOpen} onToggle={setDimOpen} badge={<span style={{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}>{sW}×{sH}</span>}>
         <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}}><input type="checkbox" checked={arLock} onChange={e=>setArLock(e.target.checked)}/>Lock aspect ratio</label>
@@ -723,7 +850,17 @@ return(
       </Section>
 
       <Section title="Adjustments" isOpen={adjOpen} onToggle={setAdjOpen} badge={(bri||con||sat||smooth)?<span style={{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}/>:null}><div style={{marginTop:8}}><div style={{display:"flex",gap:6,marginBottom:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setSmoothType("median")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: smoothType==="median" ? 500 : 400, background: smoothType==="median" ? "#fff" : "transparent", borderRadius: 6, color: smoothType==="median" ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: smoothType==="median" ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Median</button><button onClick={()=>setSmoothType("gaussian")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: smoothType==="gaussian" ? 500 : 400, background: smoothType==="gaussian" ? "#fff" : "transparent", borderRadius: 6, color: smoothType==="gaussian" ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: smoothType==="gaussian" ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Gaussian</button></div></div><SliderRow label="Smooth (Noise Reduction)" value={smooth} min={0} max={4} step={0.1} onChange={setSmooth} format={v=>v===0?"Off":v.toFixed(1)}/><SliderRow label="Brightness" value={bri} min={-50} max={50} onChange={setBri} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Contrast" value={con} min={-50} max={50} onChange={setCon} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Saturation" value={sat} min={-50} max={50} onChange={setSat} format={v=>(v>0?"+":"")+v+"%"}/></div></Section>
-      <Section title="Background" isOpen={bgOpen} onToggle={setBgOpen} badge={skipBg?<span style={{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}/>:null}><label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}}><input type="checkbox" checked={skipBg} onChange={e=>setSkipBg(e.target.checked)}/>Skip background</label>{skipBg&&<div style={{marginTop:10}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><div onClick={()=>setPickBg(true)} style={{width:24,height:24,borderRadius:6,background:`rgb(${bgCol})`,border:"2px solid #e4e4e7",cursor:"pointer"}}/><button onClick={()=>setPickBg(true)} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Pick</button></div><SliderRow label="Tolerance" value={bgTh} min={3} max={50} onChange={setBgTh}/></div>}</Section>
+      <Section title="Background" isOpen={bgOpen} onToggle={setBgOpen} badge={skipBg?<span style={{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}/>:null}>
+        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}}><input type="checkbox" checked={skipBg} onChange={e=>setSkipBg(e.target.checked)}/>Skip background</label>
+        {skipBg&&<div style={{marginTop:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><div onClick={()=>setPickBg(true)} style={{width:24,height:24,borderRadius:6,background:`rgb(${bgCol})`,border:"2px solid #e4e4e7",cursor:"pointer"}}/><button onClick={()=>setPickBg(true)} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Pick</button></div>
+          <SliderRow label="Tolerance" value={bgTh} min={3} max={50} onChange={setBgTh}/>
+          {pat && <div style={{marginTop:10, padding:"8px", background:"#f4f4f5", borderRadius:8, fontSize:11, color:"#71717a"}}>
+             <div style={{marginBottom:6}}>Want to shrink the pattern to fit only the stitches?</div>
+             <button onClick={autoCrop} style={{width:"100%", padding:"6px", fontSize:12, fontWeight:500, background:"#fff", border:"1px solid #d4d4d8", borderRadius:6, cursor:"pointer", color:"#18181b"}}>Auto-Crop to Stitches</button>
+          </div>}
+        </div>}
+      </Section>
       <button onClick={generate} disabled={busy} style={{padding:"12px 20px",fontSize:15,fontWeight:600,background:busy?"#a1a1aa":"#0d9488",color:"#fff",border:"none",borderRadius:10,cursor:busy?"wait":"pointer",boxShadow:busy?"none":"none"}}>{busy?"Generating...":(pat?"Regenerate":"Generate Pattern")}</button>
       </>}
     </div>}
@@ -884,11 +1021,23 @@ return(
       {!pat&&img&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:20}}>
         <div className="card">
           <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a"}}>Original Image</div>
-          <img src={img.src} alt="Original" style={{width:"100%",display:"block",cursor:pickBg?"crosshair":"default"}} onClick={srcClick}/>
-          <div style={{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}}>
-            <span style={{fontSize:11,color:"#a1a1aa"}}>{origW}×{origH}px</span>
-            <button onClick={()=>fRef.current.click()} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Change</button>
+          <div style={{position:"relative"}} ref={cropRef} onMouseDown={handleCropMouseDown} onMouseMove={handleCropMouseMove} onMouseUp={handleCropMouseUp} onMouseLeave={handleCropMouseUp}>
+            <img src={img.src} alt="Original" style={{width:"100%",display:"block",cursor:isCropping?"crosshair":(pickBg?"crosshair":"default"),opacity:isCropping?0.7:1}} onClick={srcClick}/>
+            {isCropping&&cropRect&&<div style={{position:"absolute",left:cropRect.x,top:cropRect.y,width:cropRect.w,height:cropRect.h,border:"2px dashed #0d9488",background:"rgba(13, 148, 136, 0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
           </div>
+          {isCropping ? <div style={{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}}>
+            <span style={{fontSize:11,color:"#a1a1aa"}}>Draw a rectangle</span>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>{setIsCropping(false);setCropRect(null);}} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Cancel</button>
+              <button onClick={applyCrop} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}}>Apply</button>
+            </div>
+          </div> : <div style={{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}}>
+            <span style={{fontSize:11,color:"#a1a1aa"}}>{origW}×{origH}px</span>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>{setIsCropping(true);setCropRect(null);}} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Crop</button>
+              <button onClick={()=>fRef.current.click()} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Change</button>
+            </div>
+          </div>}
           {pickBg&&<div style={{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}
         </div>
 
