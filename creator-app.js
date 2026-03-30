@@ -597,7 +597,10 @@ function exportPDF(){if(!pat||!pal||!cmap)return;const{jsPDF}=window.jspdf;const
     for(let py2=0;py2<pagesY;py2++){
       for(let px2=0;px2<pagesX;px2++){
         pdf.addPage();
-        let x0=px2*gridCols,y0=py2*gridRows,dW=Math.min(gridCols,sW-x0),dH=Math.min(gridRows,sH-y0);
+        let x0=px2*gridCols,y0=py2*gridRows;
+        let mainW=Math.min(gridCols,sW-x0),mainH=Math.min(gridRows,sH-y0);
+        let overlapRight=(x0+mainW<sW)?2:0,overlapBottom=(y0+mainH<sH)?2:0;
+        let dW=mainW+overlapRight,dH=mainH+overlapBottom;
         pdf.setFontSize(8);pdf.setTextColor(100);
         let headerText = (isBackstitchOnly ? "Backstitch Chart - " : "") + `Page ${py2*pagesX+px2+1}/${pagesX*pagesY}`;
         pdf.text(headerText, mg, mg+4);
@@ -607,6 +610,8 @@ function exportPDF(){if(!pat||!pal||!cmap)return;const{jsPDF}=window.jspdf;const
             let m=pat[(y0+gy)*sW+(x0+gx)];
             if(!m||m.id==="__skip__") continue;
             let info=cmap[m.id],px3=mg+gx*cellMM,py3=mg+8+gy*cellMM;
+            let isOverlap=gx>=mainW||gy>=mainH;
+            if(isOverlap){pdf.setGState(new pdf.GState({opacity:0.4}));}
             if(!isBackstitchOnly) {
               pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);
               pdf.rect(px3,py3,cellMM,cellMM,"F");
@@ -618,23 +623,49 @@ function exportPDF(){if(!pat||!pal||!cmap)return;const{jsPDF}=window.jspdf;const
               pdf.setTextColor(luminance(m.rgb)>128?0:255);
               pdf.text(info.symbol,px3+cellMM/2,py3+cellMM*0.7,{align:"center"});
             }
+            if(isOverlap){pdf.setGState(new pdf.GState({opacity:1.0}));}
           }
         }
 
         pdf.setDrawColor(80);pdf.setLineWidth(0.2);
-        for(let gx2=0;gx2<=dW;gx2+=10) {
-          pdf.line(mg+gx2*cellMM,mg+8,mg+gx2*cellMM,mg+8+dH*cellMM);
-          if(gx2 < dW || x0+gx2 === sW) {
-            pdf.setFontSize(6);pdf.setTextColor(150);
-            pdf.text(String(x0+gx2+1), mg+gx2*cellMM, mg+7, {align:"center"});
+        for(let gx2=0;gx2<=dW;gx2++) {
+          if (gx2 % 10 === 0) {
+            pdf.line(mg+gx2*cellMM,mg+8,mg+gx2*cellMM,mg+8+dH*cellMM);
+            if(gx2 < dW || x0+gx2 === sW) {
+              pdf.setFontSize(6);pdf.setTextColor(150);
+              pdf.text(String(x0+gx2+1), mg+gx2*cellMM, mg+7, {align:"center"});
+            }
           }
         }
-        for(let gy2=0;gy2<=dH;gy2+=10) {
-          pdf.line(mg,mg+8+gy2*cellMM,mg+dW*cellMM,mg+8+gy2*cellMM);
-          if(gy2 < dH || y0+gy2 === sH) {
-            pdf.setFontSize(6);pdf.setTextColor(150);
-            pdf.text(String(y0+gy2+1), mg-1, mg+8+gy2*cellMM+1, {align:"right"});
+        if (dW % 10 !== 0) {
+          pdf.line(mg+dW*cellMM,mg+8,mg+dW*cellMM,mg+8+dH*cellMM);
+        }
+        for(let gy2=0;gy2<=dH;gy2++) {
+          if (gy2 % 10 === 0) {
+            pdf.line(mg,mg+8+gy2*cellMM,mg+dW*cellMM,mg+8+gy2*cellMM);
+            if(gy2 < dH || y0+gy2 === sH) {
+              pdf.setFontSize(6);pdf.setTextColor(150);
+              pdf.text(String(y0+gy2+1), mg-1, mg+8+gy2*cellMM+1, {align:"right"});
+            }
           }
+        }
+        if (dH % 10 !== 0) {
+          pdf.line(mg,mg+8+dH*cellMM,mg+dW*cellMM,mg+8+dH*cellMM);
+        }
+
+        if (overlapRight > 0) {
+          pdf.setLineWidth(0.3);
+          pdf.setDrawColor(120, 120, 120);
+          pdf.setLineDash([2, 2]);
+          pdf.line(mg+mainW*cellMM,mg+8,mg+mainW*cellMM,mg+8+dH*cellMM);
+          pdf.setLineDash([]);
+        }
+        if (overlapBottom > 0) {
+          pdf.setLineWidth(0.3);
+          pdf.setDrawColor(120, 120, 120);
+          pdf.setLineDash([2, 2]);
+          pdf.line(mg,mg+8+mainH*cellMM,mg+dW*cellMM,mg+8+mainH*cellMM);
+          pdf.setLineDash([]);
         }
 
         if (bsLines && bsLines.length > 0) {
