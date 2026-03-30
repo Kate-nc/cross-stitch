@@ -215,6 +215,9 @@ function applyCrop(){
     setOrigH(newImg.height);
     let newAr=newImg.width/newImg.height;
     setAr(newAr);
+    if(arLock){
+      setSH(Math.max(10,Math.round(sW/newAr)));
+    }
     setIsCropping(false);
     setCropRect(null);
     setPat(null);
