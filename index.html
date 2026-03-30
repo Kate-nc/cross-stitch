@@ -835,35 +835,35 @@ function handlePatClick(e){
     if(st === "quarter" || st === "three_quarter") st = st + "_" + stitchCorner;
 
     const applyStitch = (existingCell, newPe, newStitchType) => {
-      let cell = {...existingCell};
-      if (newStitchType === "full") {
-        return {...newPe, stitchType: "full"};
-      }
-
-      // If placing a quarter stitch onto an existing cell (that isn't a skip)
-      if (newStitchType.startsWith("quarter_") && cell.id !== "__skip__" && cell.stitchType !== newStitchType && cell.id !== newPe.id) {
-        // Find opposite corner for three_quarter
-        const corner = newStitchType.split("_")[1];
-        const oppMap = {tl:"br", tr:"bl", bl:"tr", br:"tl"};
-        const opp = oppMap[corner];
-
-        let newPrimary = {...cell};
-        // Convert existing to opposite three_quarter if it's currently full
-        if (!newPrimary.stitchType || newPrimary.stitchType === "full") {
-          newPrimary.stitchType = "three_quarter_" + opp;
+        let cell = {...existingCell};
+        if (newStitchType === "full") {
+          return {...newPe, stitchType: "full"};
         }
 
-        // Add new quarter as secondary
-        newPrimary.secondary = {...newPe, stitchType: newStitchType};
-        return newPrimary;
-      }
+        // If placing a quarter stitch onto an existing cell (that isn't a skip)
+        if (newStitchType.startsWith("quarter_") && cell.id !== "__skip__" && cell.stitchType !== newStitchType && cell.id !== newPe.id) {
+          // Find opposite corner for three_quarter
+          const corner = newStitchType.split("_")[1];
+          const oppMap = {tl:"br", tr:"bl", bl:"tr", br:"tl"};
+          const opp = oppMap[corner];
 
-      // Allow overriding secondary cells directly if they exist
-      if (cell.secondary) {
-         return {...newPe, stitchType: newStitchType};
-      }
+          let newPrimary = {...cell};
+          // Convert existing to opposite three_quarter if it's currently full
+          if (!newPrimary.stitchType || newPrimary.stitchType === "full") {
+            newPrimary.stitchType = "three_quarter_" + opp;
+          }
 
-      return {...newPe, stitchType: newStitchType};
+          // Add new quarter as secondary
+          newPrimary.secondary = {...newPe, stitchType: newStitchType};
+          return newPrimary;
+        }
+
+        // Allow overriding secondary cells directly if they exist
+        if (cell.secondary) {
+           return {...newPe, stitchType: newStitchType};
+        }
+
+        return {...newPe, stitchType: newStitchType};
     };
 
     if(activeTool==="fill"){
@@ -936,17 +936,30 @@ function handlePatMouseMove(e){
         if (newStitchType === "full") {
           return {...newPe, stitchType: "full"};
         }
+
+        // If placing a quarter stitch onto an existing cell (that isn't a skip)
         if (newStitchType.startsWith("quarter_") && cell.id !== "__skip__" && cell.stitchType !== newStitchType && cell.id !== newPe.id) {
+          // Find opposite corner for three_quarter
           const corner = newStitchType.split("_")[1];
           const oppMap = {tl:"br", tr:"bl", bl:"tr", br:"tl"};
           const opp = oppMap[corner];
+
           let newPrimary = {...cell};
+          // Convert existing to opposite three_quarter if it's currently full
           if (!newPrimary.stitchType || newPrimary.stitchType === "full") {
             newPrimary.stitchType = "three_quarter_" + opp;
           }
+
+          // Add new quarter as secondary
           newPrimary.secondary = {...newPe, stitchType: newStitchType};
           return newPrimary;
         }
+
+        // Allow overriding secondary cells directly if they exist
+        if (cell.secondary) {
+           return {...newPe, stitchType: newStitchType};
+        }
+
         return {...newPe, stitchType: newStitchType};
       };
 
