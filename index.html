@@ -309,7 +309,105 @@ function exportPDF(){if(!pat||!pal||!cmap)return;const{jsPDF}=window.jspdf;const
   })();
   // --- End Cover Sheet ---
   pdf.addPage();
-  pdf.setTextColor(0);let ty=mg+10;pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=8;pdf.setFontSize(8);pal.forEach(p=>{if(ty>285){pdf.addPage();ty=mg+8;}pdf.setFillColor(p.rgb[0],p.rgb[1],p.rgb[2]);pdf.circle(mg+4,ty-1.5,2,"F");pdf.setTextColor(0);let sk=skeinEst(p.count,fabricCt);pdf.text(p.symbol+" DMC "+p.id+" "+(p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name)+" ("+p.count+" st, "+sk+" skein"+(sk>1?"s":"")+")",mg+10,ty);ty+=5;});const cellMM=3,gridCols=Math.floor(cW2/cellMM),gridRows=Math.floor(275/cellMM),pagesX=Math.ceil(sW/gridCols),pagesY=Math.ceil(sH/gridRows);for(let py2=0;py2<pagesY;py2++)for(let px2=0;px2<pagesX;px2++){pdf.addPage();let x0=px2*gridCols,y0=py2*gridRows,dW=Math.min(gridCols,sW-x0),dH=Math.min(gridRows,sH-y0);pdf.setFontSize(8);pdf.setTextColor(100);pdf.text(`Page ${py2*pagesX+px2+1}/${pagesX*pagesY}`,mg,mg+4);for(let gy=0;gy<dH;gy++)for(let gx=0;gx<dW;gx++){let m=pat[(y0+gy)*sW+(x0+gx)];if(!m||m.id==="__skip__")continue;let info=cmap[m.id],px3=mg+gx*cellMM,py3=mg+8+gy*cellMM;pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);pdf.rect(px3,py3,cellMM,cellMM,"F");pdf.setDrawColor(200);pdf.rect(px3,py3,cellMM,cellMM,"S");if(info){pdf.setFontSize(5);pdf.setTextColor(luminance(m.rgb)>128?0:255);pdf.text(info.symbol,px3+cellMM/2,py3+cellMM*0.7,{align:"center"});}}pdf.setDrawColor(80);pdf.setLineWidth(0.2);for(let gx2=0;gx2<=dW;gx2+=10)pdf.line(mg+gx2*cellMM,mg+8,mg+gx2*cellMM,mg+8+dH*cellMM);for(let gy2=0;gy2<=dH;gy2+=10)pdf.line(mg,mg+8+gy2*cellMM,mg+dW*cellMM,mg+8+gy2*cellMM);pdf.setDrawColor(0);pdf.setLineWidth(0.4);pdf.rect(mg,mg+8,dW*cellMM,dH*cellMM,"S");}pdf.save("cross-stitch-pattern.pdf");}
+  pdf.setTextColor(0);let ty=mg+10;pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=8;pdf.setFontSize(8);pal.forEach(p=>{if(ty>285){pdf.addPage();ty=mg+8;}pdf.setFillColor(p.rgb[0],p.rgb[1],p.rgb[2]);pdf.circle(mg+4,ty-1.5,2,"F");pdf.setTextColor(0);let sk=skeinEst(p.count,fabricCt);pdf.text(p.symbol+" DMC "+p.id+" "+(p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name)+" ("+p.count+" st, "+sk+" skein"+(sk>1?"s":"")+")",mg+10,ty);ty+=5;});
+  const cellMM=3,gridCols=Math.floor(cW2/cellMM),gridRows=Math.floor(275/cellMM),pagesX=Math.ceil(sW/gridCols),pagesY=Math.ceil(sH/gridRows);
+
+  function clipLine(x1, y1, x2, y2, xmin, ymin, xmax, ymax) {
+    let INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
+    function computeOutCode(x, y) {
+      let code = INSIDE;
+      if (x < xmin) code |= LEFT;
+      else if (x > xmax) code |= RIGHT;
+      if (y < ymin) code |= TOP;
+      else if (y > ymax) code |= BOTTOM;
+      return code;
+    }
+    let outcode0 = computeOutCode(x1, y1), outcode1 = computeOutCode(x2, y2), accept = false;
+    while (true) {
+      if (!(outcode0 | outcode1)) { accept = true; break; }
+      else if (outcode0 & outcode1) { break; }
+      else {
+        let x, y, outcodeOut = outcode0 ? outcode0 : outcode1;
+        if (outcodeOut & TOP) { x = x1 + (x2 - x1) * (ymin - y1) / (y2 - y1); y = ymin; }
+        else if (outcodeOut & BOTTOM) { x = x1 + (x2 - x1) * (ymax - y1) / (y2 - y1); y = ymax; }
+        else if (outcodeOut & RIGHT) { y = y1 + (y2 - y1) * (xmax - x1) / (x2 - x1); x = xmax; }
+        else if (outcodeOut & LEFT) { y = y1 + (y2 - y1) * (xmin - x1) / (x2 - x1); x = xmin; }
+        if (outcodeOut === outcode0) { x1 = x; y1 = y; outcode0 = computeOutCode(x1, y1); }
+        else { x2 = x; y2 = y; outcode1 = computeOutCode(x2, y2); }
+      }
+    }
+    return accept ? [x1, y1, x2, y2] : null;
+  }
+
+  function drawChartPages(isBackstitchOnly) {
+    for(let py2=0;py2<pagesY;py2++){
+      for(let px2=0;px2<pagesX;px2++){
+        pdf.addPage();
+        let x0=px2*gridCols,y0=py2*gridRows,dW=Math.min(gridCols,sW-x0),dH=Math.min(gridRows,sH-y0);
+        pdf.setFontSize(8);pdf.setTextColor(100);
+        let headerText = (isBackstitchOnly ? "Backstitch Chart - " : "") + `Page ${py2*pagesX+px2+1}/${pagesX*pagesY}`;
+        pdf.text(headerText, mg, mg+4);
+
+        for(let gy=0;gy<dH;gy++){
+          for(let gx=0;gx<dW;gx++){
+            let m=pat[(y0+gy)*sW+(x0+gx)];
+            if(!m||m.id==="__skip__") continue;
+            let info=cmap[m.id],px3=mg+gx*cellMM,py3=mg+8+gy*cellMM;
+            if(!isBackstitchOnly) {
+              pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);
+              pdf.rect(px3,py3,cellMM,cellMM,"F");
+            }
+            pdf.setDrawColor(isBackstitchOnly ? 220 : 200);
+            pdf.rect(px3,py3,cellMM,cellMM,"S");
+            if(!isBackstitchOnly && info){
+              pdf.setFontSize(5);
+              pdf.setTextColor(luminance(m.rgb)>128?0:255);
+              pdf.text(info.symbol,px3+cellMM/2,py3+cellMM*0.7,{align:"center"});
+            }
+          }
+        }
+
+        pdf.setDrawColor(80);pdf.setLineWidth(0.2);
+        for(let gx2=0;gx2<=dW;gx2+=10) {
+          pdf.line(mg+gx2*cellMM,mg+8,mg+gx2*cellMM,mg+8+dH*cellMM);
+          if(gx2 < dW || x0+gx2 === sW) {
+            pdf.setFontSize(6);pdf.setTextColor(150);
+            pdf.text(String(x0+gx2+1), mg+gx2*cellMM, mg+7, {align:"center"});
+          }
+        }
+        for(let gy2=0;gy2<=dH;gy2+=10) {
+          pdf.line(mg,mg+8+gy2*cellMM,mg+dW*cellMM,mg+8+gy2*cellMM);
+          if(gy2 < dH || y0+gy2 === sH) {
+            pdf.setFontSize(6);pdf.setTextColor(150);
+            pdf.text(String(y0+gy2+1), mg-1, mg+8+gy2*cellMM+1, {align:"right"});
+          }
+        }
+
+        if (bsLines && bsLines.length > 0) {
+          pdf.setLineWidth(0.6);
+          pdf.setDrawColor(0,0,0);
+          bsLines.forEach(ln => {
+            let clipped = clipLine(ln.x1, ln.y1, ln.x2, ln.y2, x0, y0, x0+dW, y0+dH);
+            if (clipped) {
+              pdf.line(mg+(clipped[0]-x0)*cellMM, mg+8+(clipped[1]-y0)*cellMM,
+                       mg+(clipped[2]-x0)*cellMM, mg+8+(clipped[3]-y0)*cellMM);
+            }
+          });
+        }
+
+        pdf.setDrawColor(0);pdf.setLineWidth(0.4);
+        pdf.rect(mg,mg+8,dW*cellMM,dH*cellMM,"S");
+      }
+    }
+  }
+
+  drawChartPages(false);
+  if (bsLines && bsLines.length > 0) {
+    drawChartPages(true);
+  }
+
+  pdf.save("cross-stitch-pattern.pdf");
+}
 
 function exportCoverSheet(){
   if(!pat||!pal||!cmap)return;
