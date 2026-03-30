@@ -632,6 +632,7 @@ return(
             <div style={{width:1,height:18,background:"#e4e4e7",margin:"0 2px"}}/>
             <span style={{fontSize:11,color:"#a1a1aa"}}>Zoom</span><input type="range" min={0.05} max={3} step={0.05} value={zoom} onChange={e=>setZoom(Number(e.target.value))} style={{width:60}}/><span style={{fontSize:11,minWidth:28}}>{Math.round(zoom*100)}%</span><button onClick={fitZ} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Fit</button>
           </div>
+          {cs < 6 && (view === "symbol" || view === "both") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
           <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap",alignItems:"center", padding: "6px 10px", background: "#fff", border: "0.5px solid #e4e4e7", borderRadius: 10}}>
             <span style={{fontSize:10,fontWeight:600,color:"#a1a1aa",textTransform:"uppercase"}}>Tools</span>
             <button onClick={()=>setTool("backstitch")} style={tBtn(activeTool==="backstitch")}>Backstitch</button>
