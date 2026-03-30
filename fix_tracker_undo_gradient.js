@@ -7,6 +7,9 @@ function processFile(filePath) {
   content = content.replace(/background:busy\?"#a1a1aa":"linear-gradient\(135deg,#0d9488,#0f766e\)"/g, 'background:busy?"#a1a1aa":"#0d9488"');
   content = content.replace(/background:busy\?"#94a3b8":"linear-gradient\(135deg,#0d9488,#0f766e\)"/g, 'background:busy?"#a1a1aa":"#0d9488"'); // Just in case slate color wasn't caught
 
+  // Fix all other buttons that might still be using the gradient
+  content = content.replace(/linear-gradient\(135deg,#0d9488,#0f766e\)/g, '#0d9488');
+
   fs.writeFileSync(filePath, content, 'utf8');
 }
 
@@ -31,6 +34,9 @@ function processTracker(filePath) {
     /border:"1px solid #c4b5fd",borderRadius:6,background:"#f5f3ff",color:"#0d9488"/g,
     'border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488"'
   );
+
+  // Fix any remaining buttons that might still be using the gradient
+  content = content.replace(/linear-gradient\(135deg,#0d9488,#0f766e\)/g, '#0d9488');
 
   fs.writeFileSync(filePath, content, 'utf8');
 }
