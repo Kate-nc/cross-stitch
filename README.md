@@ -16,6 +16,7 @@ A feature-rich, client-side web application for creating, managing, and tracking
 
 ### Stitch Tracker (`stitch.html`)
 - **Interactive Tracking** — Click or drag to mark stitches as done, with undo support.
+- **Import Patterns** — Load existing patterns from `.oxs` (KG-Chart / Pattern Keeper XML), `.json`, or pixel art images (`.png`, `.jpg`, etc.).
 - **Multiple Views** — Symbol, colour+symbol, and highlight modes to focus on one colour at a time.
 - **Navigate Mode** — Place a guide crosshair on the canvas and add parking markers per colour.
 - **Session Timer** — Records stitching sessions and estimates time to completion based on actual stitching speed.
@@ -99,5 +100,9 @@ npm test
 ├── helpers.js        # Utility functions (formatting, grid, difficulty)
 ├── components.js     # Shared React UI components
 ├── header.js         # Shared navigation header
+├── modals.js         # Shared modal components
+├── creator-app.js    # React logic for Pattern Creator
+├── tracker-app.js    # React logic for Stitch Tracker
+├── import-formats.js # Import parsing logic
 └── tests/            # Jest unit tests
 ```
