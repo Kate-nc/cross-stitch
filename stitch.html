@@ -96,14 +96,37 @@ const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
 const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
 
 const skeinData=useMemo(()=>{
-  if(!pal)return[];
+  if(!pal||!pat)return[];
   let map={};
-  pal.forEach(p=>{
-    if(p.type==="solid"){map[p.id]=(map[p.id]||0)+p.count;}
-    else if(p.type==="blend"&&p.threads){p.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+p.count;});}
-  });
-  return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{let t=DMC.find(d=>d.id===id);return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
-},[pal,fabricCt]);
+
+  for(let i=0;i<pat.length;i++){
+    let m=pat[i];
+    if(m.id==="__skip__")continue;
+    let weight = 1.0;
+    if(m.stitchType){
+      if(m.stitchType.startsWith("half_")) weight = 0.5;
+      else if(m.stitchType.startsWith("quarter_")) weight = 0.25;
+      else if(m.stitchType.startsWith("three_quarter_")) weight = 0.75;
+    }
+
+    if(m.type==="blend"&&m.threads){
+      m.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+weight;});
+    } else {
+      map[m.id]=(map[m.id]||0)+weight;
+    }
+
+    if(m.secondary){
+      let sec = m.secondary;
+      if(sec.type==="blend"&&sec.threads){
+        sec.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+0.25;});
+      } else {
+        map[sec.id]=(map[sec.id]||0)+0.25;
+      }
+    }
+  }
+
+  return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{let t=DMC.find(d=>d.id===id);return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:Math.ceil(ct),skeins:skeinEst(ct,fabricCt)};});
+},[pal,pat,fabricCt]);
 
 const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData]);
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
@@ -144,7 +167,7 @@ function saveProject(){
     version:7,
     page:"tracker",
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
-    pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),
+    pattern:pat.map(m=>{if(m.id==="__skip__")return{id:"__skip__"};let o={id:m.id,type:m.type,rgb:m.rgb};if(m.stitchType&&m.stitchType!=="full")o.stitchType=m.stitchType;if(m.secondary)o.secondary=m.secondary;return o;}),
     bsLines,
     done:done?Array.from(done):null,
     parkMarkers,
@@ -325,6 +348,149 @@ useEffect(() => {
     return () => clearTimeout(saveTimer);
 }, [pat, pal, sW, sH, fabricCt, skeinPrice, stitchSpeed, bsLines, done, parkMarkers, totalTime, sessionActive, sessionStart, sessions, hlRow, hlCol, threadOwned]);
 
+
+function drawStitchShape(ctx, st, px, py, cSz, isDimmed, isDone, viewMode) {
+  let stType = st.stitchType || "full";
+  let fillCol = `rgb(${st.rgb[0]},${st.rgb[1]},${st.rgb[2]})`;
+  let fillAlpha = isDimmed ? 0.15 : 1;
+  let lineCol = fillCol;
+
+  if (viewMode === "symbol") {
+    fillCol = isDone ? "#d1fae5" : "#fff";
+    lineCol = isDone ? "#059669" : "#333";
+    fillAlpha = 1;
+  } else if (viewMode === "color" || viewMode === "colour") { if (isDone) return; } else if (viewMode === "both") {
+    fillAlpha = isDimmed ? 0.15 : 1;
+    if (isDone) fillAlpha = 0.5;
+  } else if (viewMode === "highlight") {
+    if (isDone) {
+      fillCol = isDimmed ? "#f4f4f5" : `rgb(${st.rgb[0]},${st.rgb[1]},${st.rgb[2]})`;
+      lineCol = "#059669";
+      fillAlpha = 1;
+    } else if (isDimmed) {
+      fillCol = "#f4f4f5";
+      lineCol = "rgba(0,0,0,0.1)";
+      fillAlpha = 1;
+    } else {
+      fillAlpha = 0.25;
+    }
+  }
+
+  if (stType === "full") {
+    ctx.fillStyle = fillCol;
+    ctx.globalAlpha = fillAlpha;
+    ctx.fillRect(px, py, cSz, cSz);
+    ctx.globalAlpha = 1.0;
+    return;
+  }
+
+  if (viewMode === "symbol" && !isDone) {
+    ctx.fillStyle = "#fff";
+    ctx.globalAlpha = 1.0;
+    ctx.fillRect(px, py, cSz, cSz);
+  } else if (fillCol !== "#fff" || isDone) {
+    ctx.fillStyle = fillCol;
+    ctx.globalAlpha = fillAlpha * 0.35;
+    if (isDone && viewMode === "symbol") ctx.globalAlpha = 1.0;
+    ctx.fillRect(px, py, cSz, cSz);
+  }
+
+  ctx.globalAlpha = isDimmed && viewMode !== "highlight" ? 0.2 : 1.0;
+  ctx.strokeStyle = lineCol;
+  ctx.lineWidth = Math.max(1.5, cSz * 0.15);
+  ctx.lineCap = "round";
+
+  let cx = px + cSz / 2;
+  let cy = py + cSz / 2;
+  let rT = py, rB = py + cSz, rL = px, rR = px + cSz;
+
+  let drawLine = (x1, y1, x2, y2) => {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  };
+
+  if (stType === "half_bl") drawLine(rL, rB, rR, rT);
+  else if (stType === "half_br") drawLine(rR, rB, rL, rT);
+  else if (stType === "quarter_tl") drawLine(rL, rT, cx, cy);
+  else if (stType === "quarter_tr") drawLine(rR, rT, cx, cy);
+  else if (stType === "quarter_bl") drawLine(rL, rB, cx, cy);
+  else if (stType === "quarter_br") drawLine(rR, rB, cx, cy);
+  else if (stType === "three_quarter_tl") { drawLine(rL, rT, cx, cy); drawLine(rL, rB, rR, rT); }
+  else if (stType === "three_quarter_tr") { drawLine(rR, rT, cx, cy); drawLine(rR, rB, rL, rT); }
+  else if (stType === "three_quarter_bl") { drawLine(rL, rB, cx, cy); drawLine(rR, rB, rL, rT); }
+  else if (stType === "three_quarter_br") { drawLine(rR, rB, cx, cy); drawLine(rL, rB, rR, rT); }
+
+  ctx.globalAlpha = 1.0;
+}
+
+function drawSymbol(ctx, st, info, px, py, cSz, isDimmed, isDone, viewMode) {
+  if (!info || cSz < 6) return;
+  let stType = st.stitchType || "full";
+
+  if (viewMode === "color" || viewMode === "colour") {
+    if (isDone) return;
+    /* In creator 'color' view, symbols are NOT drawn anyway.
+       Wait, in creator, we simply shouldn't draw symbol if viewMode === "color" */
+    // However, tracker "colour" mode IS "Colour+Symbol", so it DOES draw symbols!
+    // But creator "color" mode is pure color. The string is "color" for creator, "colour" for tracker!
+    if (viewMode === "color") return;
+  }
+
+  let isQuarter = stType.startsWith("quarter_") || stType.startsWith("three_quarter_") || st.isSecondary;
+
+  let symCol = "#333";
+  let lum = luminance(st.rgb);
+
+  if (viewMode === "symbol") {
+    symCol = isDone ? "#059669" : "#333";
+    if (isDimmed) symCol = "rgba(0,0,0,0.15)";
+  } else if (viewMode === "colour") {
+    // Tracker's "Colour+Symbol" mode
+    symCol = lum > 140 ? "rgba(0,0,0,0.8)" : "rgba(255,255,255,0.95)";
+  } else if (viewMode === "both") {
+    symCol = lum > 128 ? "#000" : "#fff";
+    if (isDimmed) symCol = "rgba(0,0,0,0.3)";
+  } else if (viewMode === "highlight") {
+    symCol = isDimmed ? "rgba(0,0,0,0.06)" : "#18181b";
+    if (isDone && !isDimmed) symCol = "#fff";
+  }
+
+  ctx.fillStyle = symCol;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  let symX = px + cSz / 2;
+  let symY = py + cSz / 2;
+  let fontSize = cSz * (viewMode === "highlight" ? 0.7 : 0.6);
+
+  if (isQuarter) {
+    if (cSz < 10 && !st.isSecondary && !stType.startsWith("three_quarter_")) return;
+
+    let corner = "";
+    if (st.isSecondary) {
+      corner = st.stitchType.split("_")[1];
+    } else if (stType.startsWith("quarter_")) {
+      corner = stType.split("_")[1];
+    }
+
+    if (corner) {
+      fontSize = cSz * 0.4;
+      let off = cSz * 0.25;
+      if (corner === "tl") { symX -= off; symY -= off; }
+      else if (corner === "tr") { symX += off; symY -= off; }
+      else if (corner === "bl") { symX -= off; symY += off; }
+      else if (corner === "br") { symX += off; symY += off; }
+    }
+  }
+
+  ctx.font = `bold ${Math.max(5, fontSize)}px monospace`;
+  if (viewMode === "highlight" && isDimmed) ctx.font = `${Math.max(5, fontSize)}px monospace`;
+
+  ctx.fillText(info.symbol, symX, symY);
+}
+
 function drawStitch(ctx,cSz){
   let gut=G,dW=sW,dH=sH;
   ctx.fillStyle="#fff";ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
@@ -336,17 +502,18 @@ function drawStitch(ctx,cSz){
     let px=gut+x*cSz,py=gut+y*cSz;
     let isDn=done&&done[idx];
     let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__";
-    if(m.id==="__skip__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle="rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
-    if(stitchView==="symbol"){
-      if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-      else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-    }else if(stitchView==="colour"){
-      ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-      if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
-    }else{
-      if(isDn){ctx.fillStyle=dimmed?"#f4f4f5":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-      else if(dimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,cSz*0.45)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-      else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.7)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+    if(m.id==="__skip__"){
+      drawCk(ctx,px,py,cSz);
+    } else {
+      drawStitchShape(ctx, m, px, py, cSz, dimmed, isDn, stitchView);
+      drawSymbol(ctx, m, info, px, py, cSz, dimmed, isDn, stitchView);
+      if(m.secondary){
+          let sec = m.secondary;
+          sec.isSecondary = true;
+          let secInfo = cmap ? cmap[sec.id] : null;
+          drawStitchShape(ctx, sec, px, py, cSz, dimmed, isDn, stitchView);
+          drawSymbol(ctx, sec, secInfo, px, py, cSz, dimmed, isDn, stitchView);
+      }
     }
     if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
   }
