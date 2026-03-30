@@ -858,6 +858,11 @@ function handlePatClick(e){
         return newPrimary;
       }
 
+      // Allow overriding secondary cells directly if they exist
+      if (cell.secondary) {
+         return {...newPe, stitchType: newStitchType};
+      }
+
       return {...newPe, stitchType: newStitchType};
     };
 
