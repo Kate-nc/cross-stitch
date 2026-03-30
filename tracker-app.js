@@ -78,7 +78,11 @@ const skeinData=useMemo(()=>{
     if(p.type==="solid"){map[p.id]=(map[p.id]||0)+p.count;}
     else if(p.type==="blend"&&p.threads){p.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+p.count;});}
   });
-  return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{let t=DMC.find(d=>d.id===id);return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
+  return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{
+    let t=DMC.find(d=>d.id===id);
+    let originalPalEntry = pal.find(p=>p.id===id) || pal.find(p=>p.type==="blend"&&p.threads&&p.threads.some(th=>th.id===id));
+    return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:originalPalEntry?originalPalEntry.cellCount:Math.ceil(ct),skeins:skeinEst(ct,fabricCt)};
+  });
 },[pal,fabricCt]);
 
 const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData]);
@@ -109,7 +113,7 @@ function saveProject(){
     version:7,
     page:"tracker",
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
-    pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),
+    pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:Object.assign({id:m.id,type:m.type,rgb:m.rgb}, m.stitchType && m.stitchType !== "full" ? {stitchType:m.stitchType} : {}, m.secondary ? {secondary:m.secondary} : {})),
     bsLines,
     done:done?Array.from(done):null,
     parkMarkers,
@@ -270,17 +274,146 @@ function drawStitch(ctx,cSz){
     let isDn=done&&done[idx];
     let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__";
     if(m.id==="__skip__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle="rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
-    if(stitchView==="symbol"){
-      if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-      else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-    }else if(stitchView==="colour"){
-      ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-      if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
-    }else{
-      if(isDn){ctx.fillStyle=dimmed?"#f4f4f5":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-      else if(dimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,cSz*0.45)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-      else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.7)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+
+    const cx = px + cSz/2;
+    const cy = py + cSz/2;
+
+    if (isDn && stitchView==="symbol") {
+      ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);
+    } else if (isDn && stitchView==="colour") {
+      // Draw nothing here, we'll draw colors below
+    } else if (isDn && stitchView==="both") {
+       // Draw nothing here
     }
+
+    const drawSubStitch = (stitchObj, isSecondary) => {
+      let sType = stitchObj.stitchType || "full";
+      let showSym = cSz >= 6;
+      let showSymSmall = cSz >= 10;
+      let symSize = Math.max(7, cSz * 0.65);
+      let symSizeSmall = Math.max(6, cSz * 0.45);
+      let iInfo = stitchObj.id === "__skip__" ? null : (cmap ? cmap[stitchObj.id] : null);
+      if (!iInfo) return;
+
+      const fillBg = () => {
+        if(sType === "full"){
+          ctx.fillRect(px,py,cSz,cSz);
+        } else {
+          ctx.globalAlpha = 0.35;
+          if (sType.startsWith("half_")) {
+            ctx.fillRect(px,py,cSz,cSz);
+          } else if (sType.startsWith("quarter_") || sType.startsWith("three_quarter_")) {
+            if(sType.endsWith("_tl")) ctx.fillRect(px, py, cSz/2, cSz/2);
+            if(sType.endsWith("_tr")) ctx.fillRect(cx, py, cSz/2, cSz/2);
+            if(sType.endsWith("_bl")) ctx.fillRect(px, cy, cSz/2, cSz/2);
+            if(sType.endsWith("_br")) ctx.fillRect(cx, cy, cSz/2, cSz/2);
+            if(sType.startsWith("three_quarter_")){
+              if(sType.endsWith("_tl")) { ctx.fillRect(cx,py,cSz/2,cSz); ctx.fillRect(px,cy,cSz/2,cSz/2); }
+              if(sType.endsWith("_tr")) { ctx.fillRect(px,py,cSz/2,cSz); ctx.fillRect(cx,cy,cSz/2,cSz/2); }
+              if(sType.endsWith("_bl")) { ctx.fillRect(px,py,cSz,cSz/2); ctx.fillRect(cx,cy,cSz/2,cSz/2); }
+              if(sType.endsWith("_br")) { ctx.fillRect(px,py,cSz,cSz/2); ctx.fillRect(px,cy,cSz/2,cSz/2); }
+            }
+          }
+          ctx.globalAlpha = 1.0;
+        }
+      };
+
+      const drawLines = () => {
+        if (sType === "full") return;
+        ctx.lineWidth = Math.max(1, cSz * 0.15);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        if(sType === "half_bl") { ctx.moveTo(px, py+cSz); ctx.lineTo(px+cSz, py); }
+        else if(sType === "half_br") { ctx.moveTo(px+cSz, py+cSz); ctx.lineTo(px, py); }
+        else if(sType === "quarter_tl") { ctx.moveTo(px, py); ctx.lineTo(cx, cy); }
+        else if(sType === "quarter_tr") { ctx.moveTo(px+cSz, py); ctx.lineTo(cx, cy); }
+        else if(sType === "quarter_bl") { ctx.moveTo(px, py+cSz); ctx.lineTo(cx, cy); }
+        else if(sType === "quarter_br") { ctx.moveTo(px+cSz, py+cSz); ctx.lineTo(cx, cy); }
+        else if(sType === "three_quarter_tl") { ctx.moveTo(px, py+cSz); ctx.lineTo(px+cSz, py); ctx.moveTo(px, py); ctx.lineTo(cx, cy); }
+        else if(sType === "three_quarter_tr") { ctx.moveTo(px+cSz, py+cSz); ctx.lineTo(px, py); ctx.moveTo(px+cSz, py); ctx.lineTo(cx, cy); }
+        else if(sType === "three_quarter_bl") { ctx.moveTo(px+cSz, py+cSz); ctx.lineTo(px, py); ctx.moveTo(px, py+cSz); ctx.lineTo(cx, cy); }
+        else if(sType === "three_quarter_br") { ctx.moveTo(px, py+cSz); ctx.lineTo(px+cSz, py); ctx.moveTo(px+cSz, py+cSz); ctx.lineTo(cx, cy); }
+        ctx.stroke();
+      };
+
+      const getSymPos = () => {
+        let symX = cx;
+        let symY = cy;
+        let drawSym = showSym;
+        let fs = symSize;
+        if(sType !== "full"){
+          if(sType.startsWith("quarter_") || isSecondary){
+            drawSym = showSymSmall;
+            fs = symSizeSmall;
+            if(sType.endsWith("_tl")) { symX = px + cSz*0.25; symY = py + cSz*0.25; }
+            else if(sType.endsWith("_tr")) { symX = px + cSz*0.75; symY = py + cSz*0.25; }
+            else if(sType.endsWith("_bl")) { symX = px + cSz*0.25; symY = py + cSz*0.75; }
+            else if(sType.endsWith("_br")) { symX = px + cSz*0.75; symY = py + cSz*0.75; }
+          } else if(sType.startsWith("three_quarter_")) {
+            if(sType.endsWith("_tl")) { symX = px + cSz*0.65; symY = py + cSz*0.65; }
+            else if(sType.endsWith("_tr")) { symX = px + cSz*0.35; symY = py + cSz*0.65; }
+            else if(sType.endsWith("_bl")) { symX = px + cSz*0.65; symY = py + cSz*0.35; }
+            else if(sType.endsWith("_br")) { symX = px + cSz*0.35; symY = py + cSz*0.35; }
+          }
+        }
+        return {x: symX, y: symY, draw: drawSym, fs};
+      };
+
+      if(stitchView==="symbol"){
+        if(!isDn){
+          ctx.fillStyle="#fff"; fillBg();
+          if(cSz>=6){
+            ctx.fillStyle="#18181b";
+            let sPos = getSymPos();
+            if(sPos.draw) { ctx.font=`bold ${sPos.fs}px monospace`; ctx.fillText(iInfo.symbol,sPos.x,sPos.y); }
+          }
+        }
+      }else if(stitchView==="colour"){
+        ctx.fillStyle=`rgb(${stitchObj.rgb[0]},${stitchObj.rgb[1]},${stitchObj.rgb[2]})`;
+        fillBg();
+        ctx.strokeStyle=`rgb(${stitchObj.rgb[0]},${stitchObj.rgb[1]},${stitchObj.rgb[2]})`;
+        drawLines();
+        if(!isDn&&cSz>=6){
+          ctx.fillStyle=luminance(stitchObj.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";
+          let sPos = getSymPos();
+          if(sPos.draw) { ctx.font=`bold ${sPos.fs}px monospace`; ctx.fillText(iInfo.symbol,sPos.x,sPos.y); }
+        }
+      }else{
+        if(isDn){
+          ctx.fillStyle=dimmed?"#f4f4f5":`rgb(${stitchObj.rgb[0]},${stitchObj.rgb[1]},${stitchObj.rgb[2]})`;
+          fillBg();
+          ctx.strokeStyle=`rgb(${stitchObj.rgb[0]},${stitchObj.rgb[1]},${stitchObj.rgb[2]})`;
+          drawLines();
+        } else if(dimmed){
+          ctx.fillStyle="#f4f4f5";
+          fillBg();
+          if(cSz>=8){
+            ctx.fillStyle="rgba(0,0,0,0.06)";
+            let sPos = getSymPos();
+            if(sPos.draw) { ctx.font=`${sPos.fs}px monospace`; ctx.fillText(iInfo.symbol,sPos.x,sPos.y); }
+          }
+        } else{
+          ctx.fillStyle=`rgba(${stitchObj.rgb[0]},${stitchObj.rgb[1]},${stitchObj.rgb[2]},0.25)`;
+          fillBg();
+          ctx.strokeStyle=`rgb(${stitchObj.rgb[0]},${stitchObj.rgb[1]},${stitchObj.rgb[2]})`;
+          drawLines();
+          if(cSz>=6){
+            ctx.fillStyle="#18181b";
+            let sPos = getSymPos();
+            if(sPos.draw) { ctx.font=`bold ${sPos.fs}px monospace`; ctx.fillText(iInfo.symbol,sPos.x,sPos.y); }
+          }
+        }
+      }
+    };
+
+    drawSubStitch(m, false);
+    if(m.secondary) drawSubStitch(m.secondary, true);
+    if(isDn && stitchView!=="symbol") {
+      ctx.strokeStyle="#34d399";
+      ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+cSz,py+cSz);ctx.moveTo(px+cSz,py);ctx.lineTo(px,py+cSz);ctx.stroke();
+    }
+
     if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
   }
   if(cSz>=3){ctx.strokeStyle="rgba(0,0,0,0.2)";ctx.lineWidth=cSz>=8?1.5:1;for(let gx=0;gx<=dW;gx+=10){ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut);ctx.lineTo(gut+gx*cSz,gut+dH*cSz);ctx.stroke();}for(let gy=0;gy<=dH;gy+=10){ctx.beginPath();ctx.moveTo(gut,gut+gy*cSz);ctx.lineTo(gut+dW*cSz,gut+gy*cSz);ctx.stroke();}}

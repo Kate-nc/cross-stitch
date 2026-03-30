@@ -5,6 +5,9 @@ const[img,setImg]=useState(null),[sW,setSW]=useState(80),[sH,setSH]=useState(80)
 const[maxC,setMaxC]=useState(30),[bri,setBri]=useState(0),[con,setCon]=useState(0),[sat,setSat]=useState(0),[dith,setDith]=useState(false);
 const[skipBg,setSkipBg]=useState(false),[bgTh,setBgTh]=useState(15),[bgCol,setBgCol]=useState([255,255,255]),[pickBg,setPickBg]=useState(false),[minSt,setMinSt]=useState(0);
 const[smooth,setSmooth]=useState(0),[smoothType,setSmoothType]=useState("median"),[orphans,setOrphans]=useState(0);
+const[fractional,setFractional]=useState(false);
+const[stitchType,setStitchType]=useState("full");
+const[stitchCorner,setStitchCorner]=useState("tl");
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null),[busy,setBusy]=useState(false);
 const[origW,setOrigW]=useState(0),[origH,setOrigH]=useState(0);
 const[fabricCt,setFabricCt]=useState(14);
@@ -61,7 +64,11 @@ const skeinData=useMemo(()=>{
     if(p.type==="solid"){map[p.id]=(map[p.id]||0)+p.count;}
     else if(p.type==="blend"&&p.threads){p.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+p.count;});}
   });
-  return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{let t=DMC.find(d=>d.id===id);return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
+  return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{
+    let t=DMC.find(d=>d.id===id);
+    let originalPalEntry = pal.find(p=>p.id===id) || pal.find(p=>p.type==="blend"&&p.threads&&p.threads.some(th=>th.id===id));
+    return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:originalPalEntry?originalPalEntry.cellCount:Math.ceil(ct),skeins:skeinEst(ct,fabricCt)};
+  });
 },[pal,fabricCt]);
 
 const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData]);
@@ -204,11 +211,12 @@ function applyCrop(){
   newImg.src=c.toDataURL();
 }
 
-function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,fractional},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:Object.assign({id:m.id,type:m.type,rgb:m.rgb}, m.stitchType && m.stitchType !== "full" ? {stitchType:m.stitchType} : {}, m.secondary ? {secondary:m.secondary} : {})),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
 function processLoadedProject(project){
   let s=project.settings;setSW(s.sW);setSH(s.sH);setMaxC(s.maxC);setBri(s.bri||0);setCon(s.con||0);setSat(s.sat||0);setDith(!!s.dith);setSkipBg(!!s.skipBg);setBgTh(s.bgTh||15);setBgCol(s.bgCol||[255,255,255]);setMinSt(s.minSt||0);setArLock(s.arLock!==false);setAr(s.ar||1);setBsLines(project.bsLines||[]);
   setSmooth(s.smooth||0);setSmoothType(s.smoothType||"median");setOrphans(s.orphans||0);
+  setFractional(!!s.fractional);
   if(s.fabricCt)setFabricCt(s.fabricCt);
   if(s.skeinPrice!=null)setSkeinPrice(s.skeinPrice);
   if(s.stitchSpeed)setStitchSpeed(s.stitchSpeed);
@@ -241,7 +249,7 @@ useEffect(() => {
 useEffect(() => {
     if (!pat || !pal) return;
     const saveTimer = setTimeout(() => {
-        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:Object.assign({id:m.id,type:m.type,rgb:m.rgb}, m.stitchType && m.stitchType !== "full" ? {stitchType:m.stitchType} : {}, m.secondary ? {secondary:m.secondary} : {})),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
     }, 1000); // 1-second debounce
 
@@ -612,17 +620,86 @@ function exportPDF(){if(!pat||!pal||!cmap)return;const{jsPDF}=window.jspdf;const
             let info=cmap[m.id],px3=mg+gx*cellMM,py3=mg+8+gy*cellMM;
             let isOverlap=gx>=mainW||gy>=mainH;
             if(isOverlap){pdf.setGState(new pdf.GState({opacity:0.4}));}
-            if(!isBackstitchOnly) {
-              pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);
-              pdf.rect(px3,py3,cellMM,cellMM,"F");
-            }
+
+            const cx = px3 + cellMM/2;
+            const cy = py3 + cellMM/2;
+
+            const drawPdfSubStitch = (stitchObj, isSecondary) => {
+              let sType = stitchObj.stitchType || "full";
+              let iInfo = stitchObj.id === "__skip__" ? null : (cmap ? cmap[stitchObj.id] : null);
+
+              if (!isBackstitchOnly) {
+                const mix = (c) => Math.round(c * 0.35 + 255 * 0.65);
+                const bgRgb = [mix(stitchObj.rgb[0]), mix(stitchObj.rgb[1]), mix(stitchObj.rgb[2])];
+
+                if (sType === "full") {
+                  pdf.setFillColor(stitchObj.rgb[0], stitchObj.rgb[1], stitchObj.rgb[2]);
+                  pdf.rect(px3, py3, cellMM, cellMM, "F");
+                } else {
+                  pdf.setFillColor(bgRgb[0], bgRgb[1], bgRgb[2]);
+                  if (sType.startsWith("half_")) {
+                    pdf.rect(px3, py3, cellMM, cellMM, "F");
+                  } else if (sType.startsWith("quarter_") || sType.startsWith("three_quarter_")) {
+                    if(sType.endsWith("_tl")) pdf.rect(px3, py3, cellMM/2, cellMM/2, "F");
+                    if(sType.endsWith("_tr")) pdf.rect(cx, py3, cellMM/2, cellMM/2, "F");
+                    if(sType.endsWith("_bl")) pdf.rect(px3, cy, cellMM/2, cellMM/2, "F");
+                    if(sType.endsWith("_br")) pdf.rect(cx, cy, cellMM/2, cellMM/2, "F");
+                    if(sType.startsWith("three_quarter_")){
+                      if(sType.endsWith("_tl")) { pdf.rect(cx,py3,cellMM/2,cellMM,"F"); pdf.rect(px3,cy,cellMM/2,cellMM/2,"F"); }
+                      if(sType.endsWith("_tr")) { pdf.rect(px3,py3,cellMM/2,cellMM,"F"); pdf.rect(cx,cy,cellMM/2,cellMM/2,"F"); }
+                      if(sType.endsWith("_bl")) { pdf.rect(px3,py3,cellMM,cellMM/2,"F"); pdf.rect(cx,cy,cellMM/2,cellMM/2,"F"); }
+                      if(sType.endsWith("_br")) { pdf.rect(px3,py3,cellMM,cellMM/2,"F"); pdf.rect(px3,cy,cellMM/2,cellMM/2,"F"); }
+                    }
+                  }
+
+                  // Draw lines
+                  pdf.setDrawColor(stitchObj.rgb[0], stitchObj.rgb[1], stitchObj.rgb[2]);
+                  pdf.setLineWidth(Math.max(0.1, cellMM * 0.15));
+                  if(sType === "half_bl") pdf.line(px3, py3+cellMM, px3+cellMM, py3);
+                  else if(sType === "half_br") pdf.line(px3+cellMM, py3+cellMM, px3, py3);
+                  else if(sType === "quarter_tl") pdf.line(px3, py3, cx, cy);
+                  else if(sType === "quarter_tr") pdf.line(px3+cellMM, py3, cx, cy);
+                  else if(sType === "quarter_bl") pdf.line(px3, py3+cellMM, cx, cy);
+                  else if(sType === "quarter_br") pdf.line(px3+cellMM, py3+cellMM, cx, cy);
+                  else if(sType === "three_quarter_tl") { pdf.line(px3, py3+cellMM, px3+cellMM, py3); pdf.line(px3, py3, cx, cy); }
+                  else if(sType === "three_quarter_tr") { pdf.line(px3+cellMM, py3+cellMM, px3, py3); pdf.line(px3+cellMM, py3, cx, cy); }
+                  else if(sType === "three_quarter_bl") { pdf.line(px3+cellMM, py3+cellMM, px3, py3); pdf.line(px3, py3+cellMM, cx, cy); }
+                  else if(sType === "three_quarter_br") { pdf.line(px3, py3+cellMM, px3+cellMM, py3); pdf.line(px3+cellMM, py3+cellMM, cx, cy); }
+                }
+              }
+
+              if(!isBackstitchOnly && iInfo){
+                let symX = px3 + cellMM/2;
+                let symY = py3 + cellMM*0.7;
+                pdf.setFontSize(5);
+
+                if (sType !== "full") {
+                  if (sType.startsWith("quarter_") || isSecondary) {
+                    pdf.setFontSize(3.5);
+                    if(sType.endsWith("_tl")) { symX = px3 + cellMM*0.25; symY = py3 + cellMM*0.4; }
+                    else if(sType.endsWith("_tr")) { symX = px3 + cellMM*0.75; symY = py3 + cellMM*0.4; }
+                    else if(sType.endsWith("_bl")) { symX = px3 + cellMM*0.25; symY = py3 + cellMM*0.9; }
+                    else if(sType.endsWith("_br")) { symX = px3 + cellMM*0.75; symY = py3 + cellMM*0.9; }
+                  } else if (sType.startsWith("three_quarter_")) {
+                    if(sType.endsWith("_tl")) { symX = px3 + cellMM*0.65; symY = py3 + cellMM*0.8; }
+                    else if(sType.endsWith("_tr")) { symX = px3 + cellMM*0.35; symY = py3 + cellMM*0.8; }
+                    else if(sType.endsWith("_bl")) { symX = px3 + cellMM*0.65; symY = py3 + cellMM*0.5; }
+                    else if(sType.endsWith("_br")) { symX = px3 + cellMM*0.35; symY = py3 + cellMM*0.5; }
+                  }
+                }
+
+                pdf.setTextColor(luminance(stitchObj.rgb)>128?0:255);
+                pdf.text(iInfo.symbol, symX, symY, {align:"center"});
+              }
+            };
+
+            drawPdfSubStitch(m, false);
+            if(m.secondary) drawPdfSubStitch(m.secondary, true);
+
             pdf.setDrawColor(isBackstitchOnly ? 220 : 200);
+            pdf.setLineWidth(0.1);
             pdf.rect(px3,py3,cellMM,cellMM,"S");
-            if(!isBackstitchOnly && info){
-              pdf.setFontSize(5);
-              pdf.setTextColor(luminance(m.rgb)>128?0:255);
-              pdf.text(info.symbol,px3+cellMM/2,py3+cellMM*0.7,{align:"center"});
-            }
+
             if(isOverlap){pdf.setGState(new pdf.GState({opacity:1.0}));}
           }
         }
@@ -772,8 +849,55 @@ function handlePatClick(e){
   if((activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap){
     if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
     let pe=cmap[selectedColorId];if(!pe)return;let np=pat.slice();
-    if(activeTool==="fill"){let ch=[],vis=new Set(),q=[idx],tid=pat[idx].id;if(tid===pe.id)return;while(q.length){let id2=q.pop();if(vis.has(id2))continue;vis.add(id2);if(pat[id2].id!==tid)continue;ch.push({idx:id2,old:{...pat[id2]}});let x2=id2%sW,y2=Math.floor(id2/sW);if(x2>0)q.push(id2-1);if(x2<sW-1)q.push(id2+1);if(y2>0)q.push(id2-sW);if(y2<sH-1)q.push(id2+sW);}if(!ch.length)return;setEditHistory(prev=>[...prev,{type:"fill",changes:ch}]);ch.forEach(c2=>np[c2.idx]={...pe});}
-    else{setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}]);np[idx]={...pe};}
+
+    let st = stitchType;
+    if(st === "quarter" || st === "three_quarter") st = st + "_" + stitchCorner;
+
+    const applyStitch = (existingCell, newPe, newStitchType) => {
+      let cell = {...existingCell};
+      if (newStitchType === "full") {
+        return {...newPe, stitchType: "full"};
+      }
+
+      // If placing a quarter stitch onto an existing cell (that isn't a skip)
+      if (newStitchType.startsWith("quarter_") && cell.id !== "__skip__" && cell.stitchType !== newStitchType && cell.id !== newPe.id) {
+        // Find opposite corner for three_quarter
+        const corner = newStitchType.split("_")[1];
+        const oppMap = {tl:"br", tr:"bl", bl:"tr", br:"tl"};
+        const opp = oppMap[corner];
+
+        let newPrimary = {...cell};
+        // Convert existing to opposite three_quarter if it's currently full
+        if (!newPrimary.stitchType || newPrimary.stitchType === "full") {
+          newPrimary.stitchType = "three_quarter_" + opp;
+        }
+
+        // Add new quarter as secondary
+        newPrimary.secondary = {...newPe, stitchType: newStitchType};
+        return newPrimary;
+      }
+
+      return {...newPe, stitchType: newStitchType};
+    };
+
+    if(activeTool==="fill"){
+      let ch=[],vis=new Set(),q=[idx],tid=pat[idx].id;
+      if(tid===pe.id && (!pat[idx].stitchType || pat[idx].stitchType==="full") && st==="full") return;
+      while(q.length){
+        let id2=q.pop();if(vis.has(id2))continue;vis.add(id2);
+        if(pat[id2].id!==tid)continue;
+        ch.push({idx:id2,old:{...pat[id2]}});
+        let x2=id2%sW,y2=Math.floor(id2/sW);
+        if(x2>0)q.push(id2-1);if(x2<sW-1)q.push(id2+1);if(y2>0)q.push(id2-sW);if(y2<sH-1)q.push(id2+sW);
+      }
+      if(!ch.length)return;
+      setEditHistory(prev=>[...prev,{type:"fill",changes:ch}]);
+      ch.forEach(c2=>np[c2.idx] = applyStitch(pat[c2.idx], pe, st));
+    }
+    else{
+      setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}]);
+      np[idx] = applyStitch(pat[idx], pe, st);
+    }
     setPat(np);let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);return;
   }
   if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return;let pt={x:gx,y:gy};if(!bsStart)setBsStart(pt);else{setBsLines(prev=>[...prev,{x1:bsStart.x,y1:bsStart.y,x2:pt.x,y2:pt.y}]);setBsStart(bsContinuous?pt:null);}}
@@ -803,6 +927,68 @@ function handlePatMouseMove(e){
   if(!pcRef.current||!pat||!activeTool)return;
   let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch"||activeTool==="eraseBs");
   if(!gc)return;
+
+  if (e.buttons === 1 && (activeTool === "paint" || activeTool === "fill")) {
+    let {gx, gy} = gc;
+    if(gx<0||gx>=sW||gy<0||gy>=sH)return;
+    let idx=gy*sW+gx;
+
+    // Only paint if dragging into a different cell or if the state should change
+    if(hoverCoords && hoverCoords.gx === gx && hoverCoords.gy === gy) return;
+
+    if(pat[idx].id==="__skip__" && !skipBg) return;
+    if(pat[idx].id==="__skip__") return;
+
+    if(selectedColorId && cmap){
+      let pe=cmap[selectedColorId];if(!pe)return;
+      let np=pat.slice();
+      let st = stitchType;
+      if(st === "quarter" || st === "three_quarter") st = st + "_" + stitchCorner;
+
+      const applyStitch = (existingCell, newPe, newStitchType) => {
+        let cell = {...existingCell};
+        if (newStitchType === "full") {
+          return {...newPe, stitchType: "full"};
+        }
+        if (newStitchType.startsWith("quarter_") && cell.id !== "__skip__" && cell.stitchType !== newStitchType && cell.id !== newPe.id) {
+          const corner = newStitchType.split("_")[1];
+          const oppMap = {tl:"br", tr:"bl", bl:"tr", br:"tl"};
+          const opp = oppMap[corner];
+          let newPrimary = {...cell};
+          if (!newPrimary.stitchType || newPrimary.stitchType === "full") {
+            newPrimary.stitchType = "three_quarter_" + opp;
+          }
+          newPrimary.secondary = {...newPe, stitchType: newStitchType};
+          return newPrimary;
+        }
+        return {...newPe, stitchType: newStitchType};
+      };
+
+      let newCell = applyStitch(pat[idx], pe, st);
+      // Cheap check to avoid excessive history pushes on same cell content (e.g. dragging over already painted cell)
+      if (pat[idx].id === newCell.id && pat[idx].stitchType === newCell.stitchType && !pat[idx].secondary && !newCell.secondary) {
+         // skip
+      } else {
+         if (editHistory.length === 0 || editHistory[editHistory.length-1].type !== "paint_drag" || editHistory[editHistory.length-1].changes[0].idx !== idx) {
+             setEditHistory(prev=>{
+                let last = prev.length > 0 ? prev[prev.length-1] : null;
+                if (last && last.type === "paint_drag") {
+                    // Append to ongoing drag event
+                    let newChanges = [...last.changes, {idx,old:{...pat[idx]}}];
+                    return [...prev.slice(0, -1), {type:"paint_drag", changes: newChanges}];
+                } else {
+                    return [...prev,{type:"paint_drag",changes:[{idx,old:{...pat[idx]}}]}];
+                }
+             });
+         }
+         np[idx] = newCell;
+         setPat(np);
+         let{pal:np2,cmap:nc}=buildPalette(np);
+         setPal(np2);setCmap(nc);
+      }
+    }
+  }
+
   if(!hoverCoords||hoverCoords.gx!==gc.gx||hoverCoords.gy!==gc.gy)setHoverCoords(gc);
 }
 
@@ -890,7 +1076,11 @@ return(
         </div>}
       </Section>
 
-      <Section title="Palette" isOpen={palOpen} onToggle={setPalOpen}><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div><div style={{marginTop:8}}><SliderRow label="Remove Orphans" value={orphans} min={0} max={3} onChange={setOrphans} format={v=>v===0?"Off":v}/></div><div style={{display:"flex",gap:6,marginTop:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setDith(false)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !dith ? 500 : 400, background: !dith ? "#fff" : "transparent", borderRadius: 6, color: !dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: !dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Direct</button><button onClick={()=>setDith(true)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: dith ? 500 : 400, background: dith ? "#fff" : "transparent", borderRadius: 6, color: dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Dithered</button></div></div></Section>
+      <Section title="Palette" isOpen={palOpen} onToggle={setPalOpen}><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div><div style={{marginTop:8}}><SliderRow label="Remove Orphans" value={orphans} min={0} max={3} onChange={setOrphans} format={v=>v===0?"Off":v}/></div>
+        <div style={{padding:"6px 0",display:"flex",alignItems:"center",gap:6,borderTop:"0.5px solid #f4f4f5",marginTop:8}}>
+          <input type="checkbox" checked={fractional} onChange={e=>setFractional(e.target.checked)} title="Enable fractional stitch tools for manual editing."/>
+          <span style={{fontSize:11,color:"#a1a1aa"}}>Allow fractional stitches</span>
+        </div><div style={{display:"flex",gap:6,marginTop:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setDith(false)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !dith ? 500 : 400, background: !dith ? "#fff" : "transparent", borderRadius: 6, color: !dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: !dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Direct</button><button onClick={()=>setDith(true)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: dith ? 500 : 400, background: dith ? "#fff" : "transparent", borderRadius: 6, color: dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Dithered</button></div></div></Section>
 
       <Section title="Fabric & Floss" isOpen={fabOpen} onToggle={setFabOpen} badge={<span style={{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}>{fabricCt}ct</span>}>
         <div style={{marginTop:8}}>
@@ -933,6 +1123,24 @@ return(
           {cs < 6 && (view === "symbol" || view === "both") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
           <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap",alignItems:"center", padding: "6px 10px", background: "#fff", border: "0.5px solid #e4e4e7", borderRadius: 10}}>
             <span style={{fontSize:10,fontWeight:600,color:"#a1a1aa",textTransform:"uppercase"}}>Tools</span>
+            {fractional && (activeTool === "paint" || activeTool === "fill") && (
+              <div style={{display:"flex",gap:4,marginRight:10,borderRight:"1px solid #e4e4e7",paddingRight:10,alignItems:"center"}}>
+                {["full", "half_bl", "half_br", "quarter", "three_quarter"].map(t => (
+                  <button key={t} onClick={()=>setStitchType(t)} style={{padding:"4px 8px",fontSize:11,cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:stitchType===t?"#0d9488":"#fff",color:stitchType===t?"#fff":"#18181b"}} title={t}>
+                    {t==="full"?"Full":t==="half_bl"?"½ /":t==="half_br"?"½ \\":t==="quarter"?"¼":t==="three_quarter"?"¾":t}
+                  </button>
+                ))}
+                {(stitchType === "quarter" || stitchType === "three_quarter") && (
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:2,marginLeft:4}}>
+                    {["tl","tr","bl","br"].map(c => (
+                      <button key={c} onClick={()=>setStitchCorner(c)} style={{width:16,height:16,padding:0,fontSize:8,cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:2,background:stitchCorner===c?"#0d9488":"#fff",color:stitchCorner===c?"#fff":"#18181b",lineHeight:"1"}} title={c.toUpperCase()}>
+                        {c==="tl"?"◸":c==="tr"?"◹":c==="bl"?"◺":"◿"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <button onClick={()=>setTool("backstitch")} style={tBtn(activeTool==="backstitch")}>Backstitch</button>
             {activeTool==="backstitch"&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer"}}><input type="checkbox" checked={bsContinuous} onChange={e=>{setBsContinuous(e.target.checked);setBsStart(null);}}/>Continuous</label>}
             <button onClick={()=>setTool("eraseBs")} style={tBtn(activeTool==="eraseBs")}>Erase line</button>

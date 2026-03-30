@@ -104,10 +104,26 @@ function doMap(data,w,h,pal){let r=new Array(w*h);for(let i=0;i<w*h;i++)r[i]=fin
 
 function buildPalette(patArr){
   let usage={};
+  const countStitch = (m) => {
+    if(!m || m.id==="__skip__") return;
+    if(!usage[m.id])usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0,cellCount:0};
+
+    let weight = 1.0;
+    if(m.stitchType){
+      if(m.stitchType.startsWith("half_")) weight = 0.5;
+      else if(m.stitchType.startsWith("quarter_")) weight = 0.25;
+      else if(m.stitchType.startsWith("three_quarter_")) weight = 0.75;
+    }
+    usage[m.id].count += weight;
+    usage[m.id].cellCount += 1;
+
+    if(m.secondary){
+      countStitch(m.secondary);
+    }
+  };
+
   for(let i=0;i<patArr.length;i++){
-    let m=patArr[i];if(m.id==="__skip__")continue;
-    if(!usage[m.id])usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};
-    usage[m.id].count++;
+    countStitch(patArr[i]);
   }
   let entries=Object.values(usage).sort((a,b)=>b.count-a.count);
   entries.forEach((e,i)=>{e.symbol=SYMS[i%SYMS.length];});
@@ -116,14 +132,21 @@ function buildPalette(patArr){
 }
 
 function restoreStitch(m){
-  if(m.id==="__skip__")return{type:"skip",id:"__skip__",rgb:[255,255,255],lab:[100,0,0]};
-  if(m.type==="blend"){
+  let res;
+  if(m.id==="__skip__"){
+    res = {type:"skip",id:"__skip__",rgb:[255,255,255],lab:[100,0,0]};
+  } else if(m.type==="blend"){
     let ids=m.id.split("+"),t0=DMC.find(d=>d.id===ids[0]),t1=DMC.find(d=>d.id===ids[1]);
-    if(t0&&t1)return{type:"blend",id:m.id,name:m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};
+    if(t0&&t1) res = {type:"blend",id:m.id,name:m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};
+    else res = {type:"solid",id:m.id,name:m.name||m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0};
+  } else {
+    let dmc=DMC.find(d=>d.id===m.id);
+    if(dmc) res = {type:"solid",id:dmc.id,name:dmc.name,rgb:dmc.rgb,lab:dmc.lab,dist:0};
+    else res = {type:"solid",id:m.id,name:m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0};
   }
-  let dmc=DMC.find(d=>d.id===m.id);
-  if(dmc)return{type:"solid",id:dmc.id,name:dmc.name,rgb:dmc.rgb,lab:dmc.lab,dist:0};
-  return{type:"solid",id:m.id,name:m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0};
+  if(m.stitchType) res.stitchType = m.stitchType;
+  if(m.secondary) res.secondary = restoreStitch(m.secondary);
+  return res;
 }
 
 function applyMedianFilterCore(data, w, h, radius, buf) {
