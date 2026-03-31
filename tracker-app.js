@@ -196,6 +196,16 @@ function loadProject(e){
       }
     };
     rd.readAsText(f);
+  } else if (format === "pdf") {
+    PatternKeeperImporter.import(f).then(result => {
+      let project = importResultToProject(result);
+      processLoadedProject(project);
+      setImportSuccess(`Imported PDF pattern ${result.width}x${result.height} with ${result.paletteSize} colours and ${result.stitchCount} stitches.`);
+    }).catch(err => {
+      console.error(err);
+      setLoadError("Could not load PDF: " + err.message);
+      setTimeout(()=>setLoadError(null),4000);
+    });
   } else if (format === "oxs") {
     let rd=new FileReader();
     rd.onload=ev=>{
@@ -227,7 +237,7 @@ function loadProject(e){
     };
     rd.readAsDataURL(f);
   } else {
-    setLoadError("Unsupported file format. Please load .json, .oxs, .xml, or image files.");
+    setLoadError("Unsupported file format. Please load .pdf, .json, .oxs, .xml, or image files.");
     setTimeout(()=>setLoadError(null),4000);
   }
 
@@ -411,7 +421,7 @@ return(
       ✓ {importSuccess}
     </div>
   )}
-  <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp" onChange={loadProject} style={{display:"none"}}/>
+  <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
 
   {!pat&&<div style={{maxWidth:500, margin:"40px auto", textAlign:"center"}}>
     <div className="card" style={{padding:"30px"}}>
@@ -434,6 +444,10 @@ return(
           <div style={{display:"flex", alignItems:"center", gap:10, fontSize:13, color:"#71717a"}}>
             <span style={{padding:"3px 8px", background:"#f5f3ff", color:"#0d9488", borderRadius:6, border:"1px solid #d8b4fe", fontWeight:600, fontSize:11, width:64, textAlign:"center", flexShrink:0}}>.oxs</span>
             KG-Chart / Pattern Keeper XML format
+          </div>
+          <div style={{display:"flex", alignItems:"center", gap:10, fontSize:13, color:"#71717a"}}>
+            <span style={{padding:"3px 8px", background:"#fffbeb", color:"#d97706", borderRadius:6, border:"1px solid #fde68a", fontWeight:600, fontSize:11, width:64, textAlign:"center", flexShrink:0}}>.pdf</span>
+            Pattern Keeper compatible PDFs
           </div>
           <div style={{display:"flex", alignItems:"center", gap:10, fontSize:13, color:"#71717a"}}>
             <span style={{padding:"3px 8px", background:"#f0fdf4", color:"#16a34a", borderRadius:6, border:"1px solid #bbf7d0", fontWeight:600, fontSize:11, width:64, textAlign:"center", flexShrink:0}}>.png .jpg</span>
