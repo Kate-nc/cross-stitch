@@ -5,6 +5,7 @@ function Header({ page, onNewProject, onExportPDF, setModal }) {
       React.createElement("div", { style: { display: "flex", gap: 20, alignItems: "center" } },
         React.createElement("a", { className: "nav-link", style: page === 'creator' ? { color: '#0d9488', textDecoration: 'underline' } : {}, onClick: () => { if(page==='creator') window.scrollTo(0,0); else window.location.href = 'index.html'; } }, "Pattern Creator"),
         React.createElement("a", { className: "nav-link", style: page === 'tracker' ? { color: '#0d9488', textDecoration: 'underline' } : {}, onClick: () => { if(page==='tracker') window.scrollTo(0,0); else window.location.href = 'stitch.html'; } }, "Stitch Tracker"),
+        React.createElement("a", { className: "nav-link", style: page === 'manager' ? { color: '#0d9488', textDecoration: 'underline' } : {}, onClick: () => { if(page==='manager') window.scrollTo(0,0); else window.location.href = 'manager.html'; } }, "Stash Manager"),
         React.createElement("a", { className: "nav-link", onClick: () => setModal("help") }, "Help"),
         React.createElement("a", { className: "nav-link", onClick: () => setModal("about") }, "About")
       ),
