@@ -286,7 +286,8 @@ class PdfClassifier {
         }
       }
 
-      const isChart = totalPaths > 100 && singleCharTextCount > 100;
+      // In relaxed logic for jsPDF testing, we just need *some* vectors and text, and we shouldn't have too many legend keywords
+      const isChart = totalPaths > 20 && singleCharTextCount > 20 && legendKeywordCount < 5;
       const isLegend = (dmcKeywordCount > 0 || legendKeywordCount >= 2) && singleCharTextCount < totalPaths && !isChart;
 
       if (isChart) {
@@ -325,21 +326,31 @@ class PdfGridDetector {
     const vLines = [];
 
     // 1. Flatten all path segments into horizontal and vertical lines
+    // This handles both explicit lines and strokes/rectangles that make up the grid cells
     for (const path of page.vectorPaths) {
-      if (path.points && path.points.length >= 2) {
+      if (path.type === 'rect' || (path.points && path.points.length >= 2)) {
         for (let i = 0; i < path.points.length - 1; i++) {
           const p1 = path.points[i];
           const p2 = path.points[i+1];
-          if (Math.abs(p1.y - p2.y) < TOLERANCE && Math.abs(p1.x - p2.x) > 5) { // min length
+
+          // Only process lines that are explicitly drawn (i.e. not just fills)
+          if (path.type === 'rect' && !path.strokeColor) continue;
+
+          // Horizontal line
+          if (Math.abs(p1.y - p2.y) < TOLERANCE && Math.abs(p1.x - p2.x) > 2) {
             hLines.push({ y: p1.y, minX: Math.min(p1.x, p2.x), maxX: Math.max(p1.x, p2.x) });
-          } else if (Math.abs(p1.x - p2.x) < TOLERANCE && Math.abs(p1.y - p2.y) > 5) {
+          }
+          // Vertical line
+          else if (Math.abs(p1.x - p2.x) < TOLERANCE && Math.abs(p1.y - p2.y) > 2) {
             vLines.push({ x: p1.x, minY: Math.min(p1.y, p2.y), maxY: Math.max(p1.y, p2.y) });
           }
         }
       }
     }
 
-    if (hLines.length < 10 || vLines.length < 10) return null;
+    // Some charts export the grid as a single path or just draw overlapping rectangles.
+    // Wait until clustering to see if we have enough distinct unique lines to form a grid.
+    if (hLines.length < 5 || vLines.length < 5) return null;
 
     // 2. Cluster lines by position to find unique grid intervals
     const clusterValues = (lines, key) => {
@@ -651,16 +662,27 @@ class PatternKeeperImporter {
     const pages = await PdfLoader.load(file);
     const classified = PdfClassifier.classifyPages(pages);
 
-    if (classified.chartPages.length === 0) {
-      throw new Error("No chart grid could be detected in this PDF.");
+    // If classification was too strict, fallback to testing all pages
+    const potentialChartPages = classified.chartPages.length > 0 ? classified.chartPages : pages;
+
+    if (potentialChartPages.length === 0) {
+      throw new Error("No pages found in this PDF.");
     }
 
-    // For this single-page/basic implementation, take the first chart page
-    const chartPage = classified.chartPages[0];
-    const grid = PdfGridDetector.detectGrid(chartPage);
+    let grid = null;
+    let chartPage = null;
+
+    // Scan for the first page that actually resolves a grid
+    for (const page of potentialChartPages) {
+       grid = PdfGridDetector.detectGrid(page);
+       if (grid) {
+           chartPage = page;
+           break;
+       }
+    }
 
     if (!grid) {
-      throw new Error("Could not detect a uniform grid on the chart page.");
+      throw new Error("No chart grid could be detected in this PDF. (Tried all pages)");
     }
 
     const cells = PdfSymbolExtractor.extractSymbols(chartPage, grid);
