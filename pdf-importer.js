@@ -138,10 +138,16 @@ class PatternKeeperImporter {
       const args = argsArray[i];
 
       if (fn === pdfjsLib.OPS.moveTo) {
+        if (currentPath.length > 0) {
+           paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1 });
+        }
         currentPath = [{x: args[0], y: args[1]}];
       } else if (fn === pdfjsLib.OPS.lineTo) {
         currentPath.push({x: args[0], y: args[1]});
       } else if (fn === pdfjsLib.OPS.rectangle) {
+        if (currentPath.length > 0) {
+           paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1 });
+        }
         currentPath = [
           {x: args[0], y: args[1]},
           {x: args[0] + args[2], y: args[1]},
@@ -155,6 +161,44 @@ class PatternKeeperImporter {
           lineWidth: 1
         });
         currentPath = [];
+      } else if (fn === pdfjsLib.OPS.constructPath) {
+        const ops = args[0];
+        const pointArgs = args[1];
+        let argIdx = 0;
+        // OPS internal mapping for paths: 1=moveTo, 2=lineTo, 3=curveTo, 4=curveTo2, 5=curveTo3, 6=closePath, 7=rectangle
+        for (let j = 0; j < ops.length; j++) {
+           const op = ops[j];
+           if (op === 1) { // moveTo
+              if (currentPath.length > 0) {
+                 paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1 });
+              }
+              currentPath = [{x: pointArgs[argIdx++], y: pointArgs[argIdx++]}];
+           } else if (op === 2) { // lineTo
+              currentPath.push({x: pointArgs[argIdx++], y: pointArgs[argIdx++]});
+           } else if (op === 7) { // rectangle
+              if (currentPath.length > 0) {
+                 paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1 });
+              }
+              const rx = pointArgs[argIdx++];
+              const ry = pointArgs[argIdx++];
+              const rw = pointArgs[argIdx++];
+              const rh = pointArgs[argIdx++];
+              paths.push({
+                type: 'rect',
+                points: [{x: rx, y: ry}, {x: rx + rw, y: ry}, {x: rx + rw, y: ry + rh}, {x: rx, y: ry + rh}, {x: rx, y: ry}],
+                lineWidth: 1
+              });
+              currentPath = [];
+           } else if (op === 6) { // closePath
+              if (currentPath.length > 0 && currentPath[0].x !== currentPath[currentPath.length-1].x && currentPath[0].y !== currentPath[currentPath.length-1].y) {
+                 currentPath.push({x: currentPath[0].x, y: currentPath[0].y});
+              }
+           } else if (op === 3) {
+              argIdx += 6;
+           } else if (op === 4 || op === 5) {
+              argIdx += 4;
+           }
+        }
       } else if (fn === pdfjsLib.OPS.stroke || fn === pdfjsLib.OPS.fill) {
         if (currentPath.length > 0) {
           paths.push({
@@ -180,10 +224,11 @@ class PatternKeeperImporter {
 
     for (const page of pages) {
       const numLines = page.vectorPaths.filter(p => p.type === 'line' || p.type === 'rect').length;
+      const numTexts = page.textItems.length;
       const numSingleChars = page.textItems.filter(t => t.str.trim().length === 1).length;
       const hasDMC = page.textItems.some(t => t.str.toLowerCase().includes('dmc'));
 
-      if (numLines > 100 && numSingleChars > 100) {
+      if (numLines > 50 && (numSingleChars > 50 || numTexts > 1000)) {
         chartPages.push(page);
       } else if (hasDMC || page.textItems.some(t => t.str.toLowerCase().includes('stitch count'))) {
         legendPages.push(page);
@@ -202,7 +247,6 @@ class PatternKeeperImporter {
       return {
         pageIndex: p.pageIndex,
         grid: this.detectGrid(p),
-        // Simplistic layout mapping
         globalOffsetCol: i * 50,
         globalOffsetRow: 0
       };
@@ -329,14 +373,12 @@ class PatternKeeperImporter {
      if (legendPages.length === 0) return legend;
 
      for (const page of legendPages) {
-         // Sort items primarily by Y, then by X to read top-to-bottom, left-to-right
          const items = [...page.textItems].sort((a,b) => Math.abs(a.y - b.y) > 2 ? b.y - a.y : a.x - b.x);
          const texts = items.map(t => t.str.trim()).filter(s => s.length > 0);
 
          for (let i = 0; i < texts.length; i++) {
            const t = texts[i];
            if (t.length === 1 && !/^[A-Za-z0-9]$/.test(t) || (t.length === 1 && i+1 < texts.length && /^\d+$/.test(texts[i+1]))) {
-              // Usually a symbol is followed by DMC code and maybe name
               const nextItems = texts.slice(i+1, i+5);
               let code = nextItems.find(n => /^\d{3,4}$/.test(n) || /^(B5200|BLANC|ECRU)$/i.test(n));
 
@@ -346,9 +388,9 @@ class PatternKeeperImporter {
                     symbolFontName: "Unknown",
                     threadCode: code,
                     colorName: "Color " + code,
-                    stitchCount: 100 // Hard to parse consistently without strict tabular layout
+                    stitchCount: 100
                  });
-                 i++; // Skip ahead
+                 i++;
               }
            }
          }
@@ -397,9 +439,6 @@ class PatternKeeperImporter {
 
      linked.forEach(cell => {
         if (!cell.isEmpty && cell.thread && cell.col >= 0 && cell.col < width && cell.row >= 0 && cell.row < height) {
-           // PDF coordinates might go up-is-y, but pattern expects down-is-y.
-           // However, if we built the layout sorting properly, rows correspond directly.
-           // For now, assume top-down.
            const idx = cell.row * width + cell.col;
            pattern[idx] = {
               type: "solid",
@@ -415,12 +454,17 @@ class PatternKeeperImporter {
      });
 
      return {
-        width,
-        height,
-        pattern,
+        v: 8,
+        w: width,
+        h: height,
+        settings: { sW: width, sH: height, fabricCt: 14 },
+        pattern: pattern,
         bsLines: [],
-        stitchCount,
-        paletteSize: paletteMap.size
+        done: null,
+        parkMarkers: [],
+        totalTime: 0,
+        sessions: [],
+        threadOwned: {}
      };
   }
 }

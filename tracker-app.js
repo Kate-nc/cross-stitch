@@ -227,18 +227,16 @@ function loadProject(e){
     };
     rd.readAsDataURL(f);
   } else if (format === "pdf") {
-    setImportSuccess("Parsing PDF...");
-    let importer = new PatternKeeperImporter();
-    importer.import(f).then(result => {
-      let project = importResultToProject(result);
+    setLoadError("Parsing PDF chart... This may take a moment.");
+    const importer = new PatternKeeperImporter();
+    importer.import(f).then(project => {
       processLoadedProject(project);
-      setImportSuccess(`Imported PDF pattern with ${result.paletteSize} colours and ${result.stitchCount} stitches.`);
-      setTimeout(()=>setImportSuccess(null),4000);
+      setLoadError(null);
+      setImportSuccess(`Imported PDF chart successfully.`);
     }).catch(err => {
       console.error(err);
-      setImportSuccess(null);
-      setLoadError("PDF import failed: " + err.message);
-      setTimeout(()=>setLoadError(null), 4000);
+      setLoadError("Could not load PDF: " + err.message);
+      setTimeout(()=>setLoadError(null),4000);
     });
   } else {
     setLoadError("Unsupported file format. Please load .json, .oxs, .xml, .pdf, or image files.");
