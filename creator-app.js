@@ -29,6 +29,8 @@ const[bsContinuous,setBsContinuous]=useState(false);
 const[selectedColorId,setSelectedColorId]=useState(null);
 const[hoverCoords,setHoverCoords]=useState(null);
 const[editHistory,setEditHistory]=useState([]);
+  const [selectedStitchType, setSelectedStitchType] = useState("full");
+  const [fractional, setFractional] = useState(false);
 
 const[exportPage,setExportPage]=useState(0),[pageMode,setPageMode]=useState(false);
 
@@ -55,14 +57,21 @@ const pxX=Math.ceil(sW/A4W),pxY=Math.ceil(sH/A4H),totPg=pxX*pxY;
 
 // Derived: all individual skein IDs and their stitch counts
 const skeinData=useMemo(()=>{
-  if(!pal)return[];
+  if(!pal||!pat)return[];
   let map={};
-  pal.forEach(p=>{
-    if(p.type==="solid"){map[p.id]=(map[p.id]||0)+p.count;}
-    else if(p.type==="blend"&&p.threads){p.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+p.count;});}
-  });
+  for(let i=0;i<pat.length;i++){
+    let m=pat[i];if(m.id==="__skip__")continue;
+    let w=stitchWeight(m.stitchType);
+    if(m.type==="solid"){map[m.id]=(map[m.id]||0)+w;}
+    else if(m.type==="blend"&&m.threads){m.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+w;});}
+    if(m.secondary&&m.secondary.id&&m.secondary.id!=="__skip__"){
+      let sw=stitchWeight(m.secondary.stitchType);
+      if(m.secondary.type==="solid"){map[m.secondary.id]=(map[m.secondary.id]||0)+sw;}
+      else if(m.secondary.type==="blend"&&m.secondary.threads){m.secondary.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+sw;});}
+    }
+  }
   return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{let t=DMC.find(d=>d.id===id);return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
-},[pal,fabricCt]);
+},[pat,pal,fabricCt]);
 
 const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData]);
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
@@ -72,7 +81,7 @@ const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitc
 
 const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
-const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;if(pat[i].secondary&&pat[i].secondary.id&&pat[i].secondary.id!=="__skip__"){let sid=pat[i].secondary.id;if(!c[sid])c[sid]={total:0,done:0};c[sid].total++;if(done[i])c[sid].done++;}}return c;},[pat,done]);
 
 const generatePreview=useCallback(()=>{
   if(!img)return;
@@ -134,7 +143,7 @@ function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);s
 
 function resetAll(){
   setPat(null);setPal(null);setCmap(null);setHiId(null);setBsLines([]);setBsStart(null);
-  setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setExportPage(0);
+  setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setExportPage(0);setSelectedStitchType("full");
   setDone(null);setParkMarkers([]);setHlRow(-1);setHlCol(-1);
   setTotalTime(0);setSessions([]);setThreadOwned({});
   setHasGenerated(false);
@@ -204,11 +213,12 @@ function applyCrop(){
   newImg.src=c.toDataURL();
 }
 
-function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,fractional},pattern:pat.map(m=>{if(m.id==="__skip__")return{id:"__skip__"};let o={id:m.id,type:m.type,rgb:m.rgb};if(m.stitchType&&m.stitchType!=="full")o.stitchType=m.stitchType;if(m.secondary)o.secondary={id:m.secondary.id,type:m.secondary.type,rgb:m.secondary.rgb,stitchType:m.secondary.stitchType};return o;}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
 function processLoadedProject(project){
   let s=project.settings;setSW(s.sW);setSH(s.sH);setMaxC(s.maxC);setBri(s.bri||0);setCon(s.con||0);setSat(s.sat||0);setDith(!!s.dith);setSkipBg(!!s.skipBg);setBgTh(s.bgTh||15);setBgCol(s.bgCol||[255,255,255]);setMinSt(s.minSt||0);setArLock(s.arLock!==false);setAr(s.ar||1);setBsLines(project.bsLines||[]);
   setSmooth(s.smooth||0);setSmoothType(s.smoothType||"median");setOrphans(s.orphans||0);
+  setFractional(!!s.fractional);
   if(s.fabricCt)setFabricCt(s.fabricCt);
   if(s.skeinPrice!=null)setSkeinPrice(s.skeinPrice);
   if(s.stitchSpeed)setStitchSpeed(s.stitchSpeed);
@@ -241,7 +251,7 @@ useEffect(() => {
 useEffect(() => {
     if (!pat || !pal) return;
     const saveTimer = setTimeout(() => {
-        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,fractional},pattern:pat.map(m=>{if(m.id==="__skip__")return{id:"__skip__"};let o={id:m.id,type:m.type,rgb:m.rgb};if(m.stitchType&&m.stitchType!=="full")o.stitchType=m.stitchType;if(m.secondary)o.secondary={id:m.secondary.id,type:m.secondary.type,rgb:m.secondary.rgb,stitchType:m.secondary.stitchType};return o;}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
     }, 1000); // 1-second debounce
 
@@ -327,6 +337,38 @@ const generate=useCallback(()=>{
 },[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh,minSt,smooth,smoothType,orphans,hasGenerated]);
 
 // ═══ Canvas drawing ═══
+function drawFracFill(ctx,px,py,cSz,st,rgb,alpha){
+  ctx.fillStyle=`rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+  if(!st||st==="full"){ctx.fillRect(px,py,cSz,cSz);return;}
+  ctx.beginPath();
+  if(st==="half_bl"){ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz,py);ctx.lineTo(px+cSz,py+cSz);ctx.closePath();}
+  else if(st==="half_br"){ctx.moveTo(px,py);ctx.lineTo(px+cSz,py+cSz);ctx.lineTo(px,py+cSz);ctx.closePath();}
+  else if(st==="quarter_tl"){ctx.moveTo(px,py);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px,py+cSz/2);ctx.closePath();}
+  else if(st==="quarter_tr"){ctx.moveTo(px+cSz,py);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px+cSz,py+cSz/2);ctx.closePath();}
+  else if(st==="quarter_bl"){ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px,py+cSz/2);ctx.closePath();}
+  else if(st==="quarter_br"){ctx.moveTo(px+cSz,py+cSz);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px+cSz,py+cSz/2);ctx.closePath();}
+  else if(st==="three_quarter_tl"){ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz,py);ctx.lineTo(px+cSz,py+cSz);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px,py+cSz/2);ctx.closePath();}
+  else if(st==="three_quarter_tr"){ctx.moveTo(px,py);ctx.lineTo(px+cSz,py+cSz);ctx.lineTo(px,py+cSz);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(px+cSz,py);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px+cSz,py+cSz/2);ctx.closePath();}
+  else if(st==="three_quarter_bl"){ctx.moveTo(px,py);ctx.lineTo(px+cSz,py+cSz);ctx.lineTo(px,py+cSz);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px,py+cSz/2);ctx.closePath();}
+  else if(st==="three_quarter_br"){ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz,py);ctx.lineTo(px+cSz,py+cSz);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(px+cSz,py+cSz);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px+cSz,py+cSz/2);ctx.closePath();}
+  else{ctx.fillRect(px,py,cSz,cSz);return;}
+  ctx.fill();
+}
+function fracSymPos(st,px,py,cSz){
+  if(!st||st==="full")return{x:px+cSz/2,y:py+cSz/2,s:1};
+  if(st==="half_bl")return{x:px+cSz*0.65,y:py+cSz*0.65,s:0.7};
+  if(st==="half_br")return{x:px+cSz*0.35,y:py+cSz*0.65,s:0.7};
+  if(st==="quarter_tl")return{x:px+cSz*0.25,y:py+cSz*0.25,s:0.45};
+  if(st==="quarter_tr")return{x:px+cSz*0.75,y:py+cSz*0.25,s:0.45};
+  if(st==="quarter_bl")return{x:px+cSz*0.25,y:py+cSz*0.75,s:0.45};
+  if(st==="quarter_br")return{x:px+cSz*0.75,y:py+cSz*0.75,s:0.45};
+  if(st==="three_quarter_tl")return{x:px+cSz*0.65,y:py+cSz*0.65,s:0.65};
+  if(st==="three_quarter_tr")return{x:px+cSz*0.35,y:py+cSz*0.65,s:0.65};
+  if(st==="three_quarter_bl")return{x:px+cSz*0.35,y:py+cSz*0.35,s:0.65};
+  if(st==="three_quarter_br")return{x:px+cSz*0.65,y:py+cSz*0.35,s:0.65};
+  return{x:px+cSz/2,y:py+cSz/2,s:1};
+}
+
 function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlayImg=false, op=0.3){
   let startX = 0, startY = 0, endX = dW, endY = dH;
   if (viewportRect) {
@@ -361,6 +403,8 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
   }
 
   for(let y2=startY;y2<endY;y2++)for(let x2=startX;x2<endX;x2++){let idx=(offY+y2)*sW+(offX+x2);let m=pat[idx];if(!m)continue;let info=m.id==="__skip__"?null:(cmap?cmap[m.id]:null);let px=gut+x2*cSz,py=gut+y2*cSz;let isHi=!hiId||m.id===hiId;let dim=hiId&&!isHi&&m.id!=="__skip__";
+    let st=m.stitchType||"full";
+    let isFrac=st!=="full";
     if(m.id==="__skip__"){
       if(showOverlayImg){
         ctx.globalAlpha=0.2;drawCk(ctx,px,py,cSz);ctx.globalAlpha=1.0;
@@ -374,14 +418,20 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
       else if (showOverlayImg) {
         alpha = view === "both" ? 0.4 : 0.5;
       }
-      ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},${alpha})`;ctx.fillRect(px,py,cSz,cSz);
+      if(isFrac&&!showOverlayImg){ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);}
+      drawFracFill(ctx,px,py,cSz,st,m.rgb,alpha);
+      if(m.secondary&&m.secondary.id!=="__skip__"){
+        let sInfo=cmap?cmap[m.secondary.id]:null;
+        drawFracFill(ctx,px,py,cSz,m.secondary.stitchType||"full",m.secondary.rgb,alpha);
+      }
     }
     else{
       let alpha = 1.0;
       if (showOverlayImg) alpha = 0.3;
       ctx.fillStyle=dim?"rgba(245,245,245,"+alpha+")":`rgba(255,255,255,${alpha})`;ctx.fillRect(px,py,cSz,cSz);
     }
-    if(m.id!=="__skip__"&&(view==="symbol"||view==="both")&&info&&cSz>=6){let lum=luminance(m.rgb);ctx.fillStyle=dim?"rgba(0,0,0,0.08)":(view==="both"?(lum>128?"#000":"#fff"):"#333");ctx.font=`bold ${Math.max(6,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+    if(m.id!=="__skip__"&&(view==="symbol"||view==="both")&&info&&cSz>=6){let lum=luminance(m.rgb);ctx.fillStyle=dim?"rgba(0,0,0,0.08)":(view==="both"?(lum>128?"#000":"#fff"):"#333");let sp=fracSymPos(st,px,py,cSz);ctx.font=`bold ${Math.max(6,cSz*0.6*sp.s)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,sp.x,sp.y);}
+    if(m.secondary&&m.secondary.id!=="__skip__"&&(view==="symbol"||view==="both")&&cSz>=6){let sInfo=cmap?cmap[m.secondary.id]:null;if(sInfo){let lum2=luminance(m.secondary.rgb);ctx.fillStyle=dim?"rgba(0,0,0,0.08)":(view==="both"?(lum2>128?"#000":"#fff"):"#333");let sp2=fracSymPos(m.secondary.stitchType||"full",px,py,cSz);ctx.font=`bold ${Math.max(6,cSz*0.6*sp2.s)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(sInfo.symbol,sp2.x,sp2.y);}}
     if(cSz>=4){
       let sAlpha = dim ? 0.03 : 0.08;
       if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
@@ -613,8 +663,42 @@ function exportPDF(){if(!pat||!pal||!cmap)return;const{jsPDF}=window.jspdf;const
             let isOverlap=gx>=mainW||gy>=mainH;
             if(isOverlap){pdf.setGState(new pdf.GState({opacity:0.4}));}
             if(!isBackstitchOnly) {
-              pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);
-              pdf.rect(px3,py3,cellMM,cellMM,"F");
+              let pst=m.stitchType||"full";
+              if(pst==="full"&&!m.secondary){
+                pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);
+                pdf.rect(px3,py3,cellMM,cellMM,"F");
+              }else{
+                let pts=[];
+                if(pst==="half_bl")pts=[[px3,py3+cellMM],[px3+cellMM,py3],[px3+cellMM,py3+cellMM]];
+                else if(pst==="half_br")pts=[[px3,py3],[px3+cellMM,py3+cellMM],[px3,py3+cellMM]];
+                else if(pst==="quarter_tl")pts=[[px3,py3],[px3+cellMM/2,py3+cellMM/2],[px3,py3+cellMM/2]];
+                else if(pst==="quarter_tr")pts=[[px3+cellMM,py3],[px3+cellMM/2,py3+cellMM/2],[px3+cellMM,py3+cellMM/2]];
+                else if(pst==="quarter_bl")pts=[[px3,py3+cellMM],[px3+cellMM/2,py3+cellMM/2],[px3,py3+cellMM/2]];
+                else if(pst==="quarter_br")pts=[[px3+cellMM,py3+cellMM],[px3+cellMM/2,py3+cellMM/2],[px3+cellMM,py3+cellMM/2]];
+                else if(pst.startsWith("three_quarter_")){
+                  let hPts=pst.endsWith("_tl")||pst.endsWith("_br")?[[px3,py3+cellMM],[px3+cellMM,py3],[px3+cellMM,py3+cellMM]]:[[px3,py3],[px3+cellMM,py3+cellMM],[px3,py3+cellMM]];
+                  pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);
+                  pdf.triangle(hPts[0][0],hPts[0][1],hPts[1][0],hPts[1][1],hPts[2][0],hPts[2][1],"F");
+                  let qc2=pst.replace("three_quarter_","");
+                  let qPts2;
+                  if(qc2==="tl")qPts2=[[px3,py3],[px3+cellMM/2,py3+cellMM/2],[px3,py3+cellMM/2]];
+                  else if(qc2==="tr")qPts2=[[px3+cellMM,py3],[px3+cellMM/2,py3+cellMM/2],[px3+cellMM,py3+cellMM/2]];
+                  else if(qc2==="bl")qPts2=[[px3,py3+cellMM],[px3+cellMM/2,py3+cellMM/2],[px3,py3+cellMM/2]];
+                  else qPts2=[[px3+cellMM,py3+cellMM],[px3+cellMM/2,py3+cellMM/2],[px3+cellMM,py3+cellMM/2]];
+                  pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);
+                  pdf.triangle(qPts2[0][0],qPts2[0][1],qPts2[1][0],qPts2[1][1],qPts2[2][0],qPts2[2][1],"F");
+                  pts=[];
+                }
+                if(pts.length===3){pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);pdf.triangle(pts[0][0],pts[0][1],pts[1][0],pts[1][1],pts[2][0],pts[2][1],"F");}
+                if(m.secondary&&m.secondary.id!=="__skip__"){
+                  let s2=m.secondary,sst2=s2.stitchType||"full",sPts=[];
+                  if(sst2==="quarter_tl")sPts=[[px3,py3],[px3+cellMM/2,py3+cellMM/2],[px3,py3+cellMM/2]];
+                  else if(sst2==="quarter_tr")sPts=[[px3+cellMM,py3],[px3+cellMM/2,py3+cellMM/2],[px3+cellMM,py3+cellMM/2]];
+                  else if(sst2==="quarter_bl")sPts=[[px3,py3+cellMM],[px3+cellMM/2,py3+cellMM/2],[px3,py3+cellMM/2]];
+                  else if(sst2==="quarter_br")sPts=[[px3+cellMM,py3+cellMM],[px3+cellMM/2,py3+cellMM/2],[px3+cellMM,py3+cellMM/2]];
+                  if(sPts.length===3){pdf.setFillColor(s2.rgb[0],s2.rgb[1],s2.rgb[2]);pdf.triangle(sPts[0][0],sPts[0][1],sPts[1][0],sPts[1][1],sPts[2][0],sPts[2][1],"F");}
+                }
+              }
             }
             pdf.setDrawColor(isBackstitchOnly ? 220 : 200);
             pdf.rect(px3,py3,cellMM,cellMM,"S");
@@ -772,8 +856,23 @@ function handlePatClick(e){
   if((activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap){
     if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
     let pe=cmap[selectedColorId];if(!pe)return;let np=pat.slice();
-    if(activeTool==="fill"){let ch=[],vis=new Set(),q=[idx],tid=pat[idx].id;if(tid===pe.id)return;while(q.length){let id2=q.pop();if(vis.has(id2))continue;vis.add(id2);if(pat[id2].id!==tid)continue;ch.push({idx:id2,old:{...pat[id2]}});let x2=id2%sW,y2=Math.floor(id2/sW);if(x2>0)q.push(id2-1);if(x2<sW-1)q.push(id2+1);if(y2>0)q.push(id2-sW);if(y2<sH-1)q.push(id2+sW);}if(!ch.length)return;setEditHistory(prev=>[...prev,{type:"fill",changes:ch}]);ch.forEach(c2=>np[c2.idx]={...pe});}
-    else{setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}]);np[idx]={...pe};}
+    let sst=selectedStitchType||"full";
+    if(activeTool==="fill"){let ch=[],vis=new Set(),q=[idx],tid=pat[idx].id;if(tid===pe.id&&sst==="full")return;while(q.length){let id2=q.pop();if(vis.has(id2))continue;vis.add(id2);if(pat[id2].id!==tid)continue;ch.push({idx:id2,old:{...pat[id2],secondary:pat[id2].secondary?{...pat[id2].secondary}:undefined}});let x2=id2%sW,y2=Math.floor(id2/sW);if(x2>0)q.push(id2-1);if(x2<sW-1)q.push(id2+1);if(y2>0)q.push(id2-sW);if(y2<sH-1)q.push(id2+sW);}if(!ch.length)return;setEditHistory(prev=>[...prev,{type:"fill",changes:ch}]);ch.forEach(c2=>{let nc2={...pe};if(sst!=="full")nc2.stitchType=sst;else delete nc2.stitchType;delete nc2.secondary;np[c2.idx]=nc2;});}
+    else{
+      let oldCell={...pat[idx],secondary:pat[idx].secondary?{...pat[idx].secondary}:undefined};
+      if(sst.startsWith("quarter_")&&pat[idx].id!=="__skip__"&&pat[idx].id!==pe.id){
+        let nc2={...pat[idx],secondary:{...pe,stitchType:sst}};
+        if(!nc2.stitchType||nc2.stitchType==="full"){
+          let qc=sst.replace("quarter_","");
+          let tqMap={tl:"three_quarter_tl",tr:"three_quarter_tr",bl:"three_quarter_bl",br:"three_quarter_br"};
+          nc2.stitchType=tqMap[qc];
+        }
+        setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:oldCell}]}]);np[idx]=nc2;
+      } else {
+        let nc2={...pe};if(sst!=="full")nc2.stitchType=sst;else delete nc2.stitchType;delete nc2.secondary;
+        setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:oldCell}]}]);np[idx]=nc2;
+      }
+    }
     setPat(np);let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);return;
   }
   if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return;let pt={x:gx,y:gy};if(!bsStart)setBsStart(pt);else{setBsLines(prev=>[...prev,{x1:bsStart.x,y1:bsStart.y,x2:pt.x,y2:pt.y}]);setBsStart(bsContinuous?pt:null);}}
@@ -890,7 +989,7 @@ return(
         </div>}
       </Section>
 
-      <Section title="Palette" isOpen={palOpen} onToggle={setPalOpen}><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div><div style={{marginTop:8}}><SliderRow label="Remove Orphans" value={orphans} min={0} max={3} onChange={setOrphans} format={v=>v===0?"Off":v}/></div><div style={{display:"flex",gap:6,marginTop:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setDith(false)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !dith ? 500 : 400, background: !dith ? "#fff" : "transparent", borderRadius: 6, color: !dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: !dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Direct</button><button onClick={()=>setDith(true)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: dith ? 500 : 400, background: dith ? "#fff" : "transparent", borderRadius: 6, color: dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Dithered</button></div></div></Section>
+      <Section title="Palette" isOpen={palOpen} onToggle={setPalOpen}><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div><div style={{marginTop:8}}><SliderRow label="Remove Orphans" value={orphans} min={0} max={3} onChange={setOrphans} format={v=>v===0?"Off":v}/></div><div style={{display:"flex",gap:6,marginTop:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setDith(false)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !dith ? 500 : 400, background: !dith ? "#fff" : "transparent", borderRadius: 6, color: !dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: !dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Direct</button><button onClick={()=>setDith(true)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: dith ? 500 : 400, background: dith ? "#fff" : "transparent", borderRadius: 6, color: dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Dithered</button></div></div><label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}} title="Enable fractional stitch tools for manual editing."><input type="checkbox" checked={fractional} onChange={e=>setFractional(e.target.checked)}/>Allow fractional stitches</label></Section>
 
       <Section title="Fabric & Floss" isOpen={fabOpen} onToggle={setFabOpen} badge={<span style={{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}>{fabricCt}ct</span>}>
         <div style={{marginTop:8}}>
@@ -939,6 +1038,7 @@ return(
             <button onClick={()=>setTool("paint")} style={tBtn(activeTool==="paint")}>Paint</button>
             <button onClick={()=>setTool("fill")} style={tBtn(activeTool==="fill")}>Fill</button>
             {(activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
+            {fractional&&(activeTool==="paint"||activeTool==="fill")&&<select value={selectedStitchType} onChange={e=>setSelectedStitchType(e.target.value)} style={{fontSize:11,padding:"3px 6px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer"}}><option value="full">Full</option><option value="half_bl">½ ↗</option><option value="half_br">½ ↘</option><option value="quarter_tl">¼ TL</option><option value="quarter_tr">¼ TR</option><option value="quarter_bl">¼ BL</option><option value="quarter_br">¼ BR</option><option value="three_quarter_tl">¾ TL</option><option value="three_quarter_tr">¾ TR</option><option value="three_quarter_bl">¾ BL</option><option value="three_quarter_br">¾ BR</option></select>}
             <div style={{marginLeft:"auto",display:"flex",gap:4}}>
               {editHistory.length>0&&<button onClick={()=>{let last=editHistory[editHistory.length-1],np=pat.slice();last.changes.forEach(c2=>np[c2.idx]={...c2.old});setPat(np);setEditHistory(prev=>prev.slice(0,-1));let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
               {hiId&&<button onClick={()=>setHiId(null)} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Clear ✕</button>}

@@ -3,6 +3,8 @@ function drawCk(ctx,x,y,s){for(let cy=0;cy<s;cy+=CK)for(let cx=0;cx<s;cx+=CK){ct
 function fmtTime(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?`${h}h ${m}m`:`${m}m`;}
 function fmtTimeL(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);if(h>0)return`${h} hr${h>1?"s":""} ${m} min`;return`${m} min`;}
 
+function stitchWeight(st){if(!st)return 1;if(st==="full"||st===undefined)return 1;if(st==="half_bl"||st==="half_br")return 0.5;if(st.startsWith("three_quarter"))return 0.75;if(st.startsWith("quarter"))return 0.25;return 1;}
+
 function skeinEst(stitchCount,fabricCt){let fc=FABRIC_COUNTS.find(f=>f.ct===fabricCt)||FABRIC_COUNTS[0];let totalIn=stitchCount*fc.inPerSt*2;return Math.max(1,Math.ceil(totalIn/SKEIN_LENGTH_IN));}
 
 function gridCoord(canvasRef,e,cellSize,gutter,snap=false){

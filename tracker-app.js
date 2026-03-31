@@ -66,20 +66,27 @@ const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__")c++;return c;},[pat]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
 useEffect(()=>{if(sessionActive&&done){let diff=doneCount-prevDoneCount.current;if(diff>0)setSessionStitches(p=>p+diff);}prevDoneCount.current=doneCount;},[doneCount,sessionActive,done]);
-const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;if(pat[i].secondary&&pat[i].secondary.id&&pat[i].secondary.id!=="__skip__"){let sid=pat[i].secondary.id;if(!c[sid])c[sid]={total:0,done:0};c[sid].total++;if(done[i])c[sid].done++;}}return c;},[pat,done]);
 const estCompletion=useMemo(()=>{let t=totalTime+(sessionActive?sessionElapsed:0);if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,sessionElapsed,sessionActive,doneCount,totalStitchable]);
 const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
 const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
 
 const skeinData=useMemo(()=>{
-  if(!pal)return[];
+  if(!pal||!pat)return[];
   let map={};
-  pal.forEach(p=>{
-    if(p.type==="solid"){map[p.id]=(map[p.id]||0)+p.count;}
-    else if(p.type==="blend"&&p.threads){p.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+p.count;});}
-  });
+  for(let i=0;i<pat.length;i++){
+    let m=pat[i];if(m.id==="__skip__")continue;
+    let w=stitchWeight(m.stitchType);
+    if(m.type==="solid"){map[m.id]=(map[m.id]||0)+w;}
+    else if(m.type==="blend"&&m.threads){m.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+w;});}
+    if(m.secondary&&m.secondary.id&&m.secondary.id!=="__skip__"){
+      let sw=stitchWeight(m.secondary.stitchType);
+      if(m.secondary.type==="solid"){map[m.secondary.id]=(map[m.secondary.id]||0)+sw;}
+      else if(m.secondary.type==="blend"&&m.secondary.threads){m.secondary.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+sw;});}
+    }
+  }
   return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{let t=DMC.find(d=>d.id===id);return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
-},[pal,fabricCt]);
+},[pat,pal,fabricCt]);
 
 const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData]);
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
@@ -109,7 +116,7 @@ function saveProject(){
     version:7,
     page:"tracker",
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
-    pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),
+      pattern:pat.map(m=>{if(m.id==="__skip__")return{id:"__skip__"};let o={id:m.id,type:m.type,rgb:m.rgb};if(m.stitchType&&m.stitchType!=="full")o.stitchType=m.stitchType;if(m.secondary)o.secondary={id:m.secondary.id,type:m.secondary.type,rgb:m.secondary.rgb,stitchType:m.secondary.stitchType};return o;}),
     bsLines,
     done:done?Array.from(done):null,
     parkMarkers,
@@ -263,6 +270,37 @@ function drawStitch(ctx,cSz){
   ctx.fillStyle="#fff";ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
   ctx.fillStyle="#a1a1aa";ctx.font=`${Math.max(7,Math.min(11,cSz*0.5))}px system-ui`;ctx.textAlign="center";ctx.textBaseline="middle";
   for(let x=0;x<dW;x+=10)ctx.fillText(String(x+1),gut+x*cSz+cSz/2,gut/2);ctx.textAlign="right";for(let y=0;y<dH;y+=10)ctx.fillText(String(y+1),gut-3,gut+y*cSz+cSz/2);
+    function tFracFill(ctx,px,py,cSz,st,rgb,alpha){
+      ctx.fillStyle=`rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+      if(!st||st==="full"){ctx.fillRect(px,py,cSz,cSz);return;}
+      ctx.beginPath();
+      if(st==="half_bl"){ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz,py);ctx.lineTo(px+cSz,py+cSz);ctx.closePath();}
+      else if(st==="half_br"){ctx.moveTo(px,py);ctx.lineTo(px+cSz,py+cSz);ctx.lineTo(px,py+cSz);ctx.closePath();}
+      else if(st==="quarter_tl"){ctx.moveTo(px,py);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px,py+cSz/2);ctx.closePath();}
+      else if(st==="quarter_tr"){ctx.moveTo(px+cSz,py);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px+cSz,py+cSz/2);ctx.closePath();}
+      else if(st==="quarter_bl"){ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px,py+cSz/2);ctx.closePath();}
+      else if(st==="quarter_br"){ctx.moveTo(px+cSz,py+cSz);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px+cSz,py+cSz/2);ctx.closePath();}
+      else if(st==="three_quarter_tl"){ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz,py);ctx.lineTo(px+cSz,py+cSz);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px,py+cSz/2);ctx.closePath();}
+      else if(st==="three_quarter_tr"){ctx.moveTo(px,py);ctx.lineTo(px+cSz,py+cSz);ctx.lineTo(px,py+cSz);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(px+cSz,py);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px+cSz,py+cSz/2);ctx.closePath();}
+      else if(st==="three_quarter_bl"){ctx.moveTo(px,py);ctx.lineTo(px+cSz,py+cSz);ctx.lineTo(px,py+cSz);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px,py+cSz/2);ctx.closePath();}
+      else if(st==="three_quarter_br"){ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz,py);ctx.lineTo(px+cSz,py+cSz);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(px+cSz,py+cSz);ctx.lineTo(px+cSz/2,py+cSz/2);ctx.lineTo(px+cSz,py+cSz/2);ctx.closePath();}
+      else{ctx.fillRect(px,py,cSz,cSz);return;}
+      ctx.fill();
+    }
+    function tFracSymPos(st,px,py,cSz){
+      if(!st||st==="full")return{x:px+cSz/2,y:py+cSz/2,s:1};
+      if(st==="half_bl")return{x:px+cSz*0.65,y:py+cSz*0.65,s:0.7};
+      if(st==="half_br")return{x:px+cSz*0.35,y:py+cSz*0.65,s:0.7};
+      if(st==="quarter_tl")return{x:px+cSz*0.25,y:py+cSz*0.25,s:0.45};
+      if(st==="quarter_tr")return{x:px+cSz*0.75,y:py+cSz*0.25,s:0.45};
+      if(st==="quarter_bl")return{x:px+cSz*0.25,y:py+cSz*0.75,s:0.45};
+      if(st==="quarter_br")return{x:px+cSz*0.75,y:py+cSz*0.75,s:0.45};
+      if(st==="three_quarter_tl")return{x:px+cSz*0.65,y:py+cSz*0.65,s:0.65};
+      if(st==="three_quarter_tr")return{x:px+cSz*0.35,y:py+cSz*0.65,s:0.65};
+      if(st==="three_quarter_bl")return{x:px+cSz*0.35,y:py+cSz*0.35,s:0.65};
+      if(st==="three_quarter_br")return{x:px+cSz*0.65,y:py+cSz*0.35,s:0.65};
+      return{x:px+cSz/2,y:py+cSz/2,s:1};
+    }
   for(let y=0;y<dH;y++)for(let x=0;x<dW;x++){
     let idx=y*sW+x,m=pat[idx];if(!m)continue;
     let info=m.id==="__skip__"?null:(cmap?cmap[m.id]:null);
