@@ -40,11 +40,13 @@ function detectImportFormat(file) {
   if (name.endsWith('.json')) return "json";
   if (name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') ||
       name.endsWith('.gif') || name.endsWith('.bmp') || name.endsWith('.webp')) return "image";
+  if (name.endsWith('.pdf')) return "pdf";
 
   const mime = file.type.toLowerCase();
   if (mime === 'application/json') return "json";
   if (mime.includes('xml')) return "oxs";
   if (mime.startsWith('image/')) return "image";
+  if (mime === 'application/pdf') return "pdf";
 
   return "unknown";
 }
