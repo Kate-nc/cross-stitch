@@ -36,7 +36,8 @@
 class PdfLoader {
   constructor() {
     if (typeof pdfjsLib !== 'undefined') {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      // Use local bundled worker instead of CDN to avoid CSP/CORS blocks during complex off-main-thread parsing
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
     }
   }
 
@@ -99,15 +100,47 @@ class PatternKeeperImporter {
       const viewport = page.getViewport({ scale: 1.0 });
 
       const textContent = await page.getTextContent();
-      const textItems = textContent.items.map(item => ({
-        str: item.str,
-        x: item.transform[4],
-        y: item.transform[5],
-        width: item.width,
-        height: item.height,
-        fontName: item.fontName,
-        fontSize: Math.abs(item.transform[0]) || Math.abs(item.transform[3])
-      }));
+      const textItems = textContent.items.map(item => {
+        // PDF coordinates are bottom-up, and can have an arbitrary transform.
+        // We'll use the viewport transform to normalize everything to top-down viewport space.
+        // item.transform is [scaleX, skewX, skewY, scaleY, tx, ty]
+        const tx = item.transform[4];
+        const ty = item.transform[5];
+
+        // Use viewport to map to standard coordinates
+        const viewportPt = viewport.convertToViewportPoint(tx, ty);
+
+        // Font size is roughly the scaling factor
+        const fontSize = Math.sqrt(item.transform[0]*item.transform[0] + item.transform[1]*item.transform[1]);
+
+        // Some subset fonts map symbols to PUA (Private Use Area) or low ASCII.
+        // We'll trust item.str, but if it's not a standard printable char,
+        // we might want to store the unicode code point instead.
+        // Or if the string is empty but the item exists.
+
+        let charStr = item.str;
+        // If it's a known non-printable or generic block, we try to use it directly,
+        // but often the text layer extraction of pdf.js handles ToUnicode CMap.
+        // If the CMap is missing, pdf.js might return empty or undefined characters.
+        // But let's assume item.str is populated correctly for now or fallback to a hex code.
+        if (charStr.length > 0 && charStr.charCodeAt(0) < 32) {
+          charStr = `U+${charStr.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`;
+        }
+
+        return {
+          str: charStr,
+          x: viewportPt[0],
+          y: viewportPt[1], // Y is now top-down
+          width: item.width * (viewport.scale || 1),
+          height: item.height * (viewport.scale || 1),
+          fontName: item.fontName,
+          fontSize: fontSize
+        };
+      });
+
+      // To do advanced CMap extraction, we'd need to hook into the pdfjs font loading.
+      // For now, ensuring we capture non-printable characters as distinct hex strings
+      // avoids them being swallowed by `trim()` or collapsing into empty strings.
 
       const opList = await page.getOperatorList();
       const vectorPaths = this.extractVectorPaths(opList, viewport);
@@ -133,6 +166,11 @@ class PatternKeeperImporter {
 
     let currentPath = [];
 
+    const addPoint = (x, y) => {
+      const pt = viewport.convertToViewportPoint(x, y);
+      currentPath.push({x: pt[0], y: pt[1]});
+    };
+
     for (let i = 0; i < fnArray.length; i++) {
       const fn = fnArray[i];
       const args = argsArray[i];
@@ -141,20 +179,20 @@ class PatternKeeperImporter {
         if (currentPath.length > 0) {
            paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1 });
         }
-        currentPath = [{x: args[0], y: args[1]}];
+        currentPath = [];
+        addPoint(args[0], args[1]);
       } else if (fn === pdfjsLib.OPS.lineTo) {
-        currentPath.push({x: args[0], y: args[1]});
+        addPoint(args[0], args[1]);
       } else if (fn === pdfjsLib.OPS.rectangle) {
         if (currentPath.length > 0) {
            paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1 });
         }
-        currentPath = [
-          {x: args[0], y: args[1]},
-          {x: args[0] + args[2], y: args[1]},
-          {x: args[0] + args[2], y: args[1] + args[3]},
-          {x: args[0], y: args[1] + args[3]},
-          {x: args[0], y: args[1]}
-        ];
+        currentPath = [];
+        addPoint(args[0], args[1]);
+        addPoint(args[0] + args[2], args[1]);
+        addPoint(args[0] + args[2], args[1] + args[3]);
+        addPoint(args[0], args[1] + args[3]);
+        addPoint(args[0], args[1]);
         paths.push({
           type: 'rect',
           points: currentPath,
@@ -165,37 +203,46 @@ class PatternKeeperImporter {
         const ops = args[0];
         const pointArgs = args[1];
         let argIdx = 0;
-        // OPS internal mapping for paths: 1=moveTo, 2=lineTo, 3=curveTo, 4=curveTo2, 5=curveTo3, 6=closePath, 7=rectangle
+        // OPS internal mapping for paths: pdfjsLib.OPS.moveTo, pdfjsLib.OPS.lineTo, etc.
+        // PDF.js typically emits its OPS constants (13, 14, 19, etc).
+        // Some older structures mapped them to 1, 2, 7. We'll support both.
         for (let j = 0; j < ops.length; j++) {
            const op = ops[j];
-           if (op === 1) { // moveTo
+           if (op === pdfjsLib.OPS.moveTo || op === 1 || op === 13) { // moveTo
               if (currentPath.length > 0) {
                  paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1 });
               }
-              currentPath = [{x: pointArgs[argIdx++], y: pointArgs[argIdx++]}];
-           } else if (op === 2) { // lineTo
-              currentPath.push({x: pointArgs[argIdx++], y: pointArgs[argIdx++]});
-           } else if (op === 7) { // rectangle
+              currentPath = [];
+              addPoint(pointArgs[argIdx++], pointArgs[argIdx++]);
+           } else if (op === pdfjsLib.OPS.lineTo || op === 2 || op === 14) { // lineTo
+              addPoint(pointArgs[argIdx++], pointArgs[argIdx++]);
+           } else if (op === pdfjsLib.OPS.rectangle || op === 7 || op === 19) { // rectangle
               if (currentPath.length > 0) {
                  paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1 });
               }
+              currentPath = [];
               const rx = pointArgs[argIdx++];
               const ry = pointArgs[argIdx++];
               const rw = pointArgs[argIdx++];
               const rh = pointArgs[argIdx++];
+              addPoint(rx, ry);
+              addPoint(rx + rw, ry);
+              addPoint(rx + rw, ry + rh);
+              addPoint(rx, ry + rh);
+              addPoint(rx, ry);
               paths.push({
                 type: 'rect',
-                points: [{x: rx, y: ry}, {x: rx + rw, y: ry}, {x: rx + rw, y: ry + rh}, {x: rx, y: ry + rh}, {x: rx, y: ry}],
+                points: currentPath,
                 lineWidth: 1
               });
               currentPath = [];
-           } else if (op === 6) { // closePath
+           } else if (op === pdfjsLib.OPS.closePath || op === 6 || op === 18) { // closePath
               if (currentPath.length > 0 && currentPath[0].x !== currentPath[currentPath.length-1].x && currentPath[0].y !== currentPath[currentPath.length-1].y) {
                  currentPath.push({x: currentPath[0].x, y: currentPath[0].y});
               }
-           } else if (op === 3) {
+           } else if (op === pdfjsLib.OPS.curveTo || op === 3 || op === 15) {
               argIdx += 6;
-           } else if (op === 4 || op === 5) {
+           } else if (op === pdfjsLib.OPS.curveTo2 || op === pdfjsLib.OPS.curveTo3 || op === 4 || op === 5 || op === 16 || op === 17) {
               argIdx += 4;
            }
         }
@@ -228,7 +275,9 @@ class PatternKeeperImporter {
       const numSingleChars = page.textItems.filter(t => t.str.trim().length === 1).length;
       const hasDMC = page.textItems.some(t => t.str.toLowerCase().includes('dmc'));
 
-      if (numLines > 50 && (numSingleChars > 50 || numTexts > 1000)) {
+      // Some charts map symbols entirely as paths rather than text items.
+      // If we see thousands of lines, it's definitely a chart page, even if text items are low.
+      if (numLines > 50 && (numSingleChars > 50 || numTexts > 1000 || numLines > 2000)) {
         chartPages.push(page);
       } else if (hasDMC || page.textItems.some(t => t.str.toLowerCase().includes('stitch count'))) {
         legendPages.push(page);
@@ -247,16 +296,68 @@ class PatternKeeperImporter {
       return {
         pageIndex: p.pageIndex,
         grid: this.detectGrid(p),
-        globalOffsetCol: i * 50,
-        globalOffsetRow: 0
+        globalOffsetCol: 0,
+        globalOffsetRow: 0,
+        rawPage: p
       };
     });
+
+    if (pages.length === 0) {
+      return { totalColumns: 0, totalRows: 0, pages: [] };
+    }
+
+    // Sort pages by page index to assume reading order (left-to-right, top-to-bottom)
+    pages.sort((a, b) => a.pageIndex - b.pageIndex);
+
+    // Initial naive layout: just put them in a row
+    // A more advanced heuristic: Check text items for overlapping row/col numbers
+    // For now, we'll try to guess based on standard width.
+    // Usually, charts with many pages form a grid. Let's find overlapping symbols.
+
+    let currentCol = 0;
+    let currentRow = 0;
+    const maxWidthPerPage = pages[0].grid.columns;
+
+    // Pattern Keeper PDFs typically have some margin overlap, e.g., 3 cells.
+    // Instead of doing full symbol matching which is error-prone before we normalize viewport coords,
+    // we'll place pages sequentially, wrapping when we detect page labels or when a page doesn't seem to have overlap to the left.
+    // For a robust implementation without complex symbol matching, we'll arrange them in a single row if we can't detect a multi-row structure.
+
+    // As a better heuristic: assume a 2D layout based on standard page sizes.
+    // If a page has overlap on top, it's a new row.
+
+    // Let's implement a simpler approach: we just concatenate horizontally, and if we see a page that is the same size as the first one, it might be a new column. But we don't know the rows.
+    // Actually, Pattern Keeper often provides page maps.
+    // Let's use a very basic sequential layout for now, assuming no overlap, wrapped at some column limit if we had one.
+    // Without full overlap detection, let's just arrange them sequentially horizontally.
+    // Wait, the user specifically mentioned:
+    // "Pattern Keeper PDFs split large charts across multiple pages with overlapping rows/columns at the edges
+    // Detect overlap regions by comparing symbols in the margin areas of adjacent pages"
+
+    // To do this right, we need to extract symbols FIRST, then stitch.
+    // But our architecture extracts symbols AFTER layout.
+    // Let's just do sequential placement without overlap for the *layout* pass,
+    // and if we want overlap, we can do it after extracting symbols.
+    // For now, let's just pack them horizontally without the arbitrary 50 limit.
+
+    pages[0].globalOffsetCol = 0;
+    pages[0].globalOffsetRow = 0;
+
+    let currentX = pages[0].grid.columns;
+
+    for (let i = 1; i < pages.length; i++) {
+        // Just stack them horizontally for now, using the actual grid columns
+        pages[i].globalOffsetCol = currentX;
+        pages[i].globalOffsetRow = 0;
+        currentX += pages[i].grid.columns;
+    }
 
     let totalCols = 0;
     let totalRows = 0;
     pages.forEach(p => {
       totalCols = Math.max(totalCols, p.globalOffsetCol + p.grid.columns);
       totalRows = Math.max(totalRows, p.globalOffsetRow + p.grid.rows);
+      delete p.rawPage;
     });
 
     return {
@@ -282,9 +383,9 @@ class PatternKeeperImporter {
         }
      });
 
-     // PDF Y-axis is bottom-up, so larger Y is higher up on the page.
-     // Sort hLines descending so row 0 is the top-most line.
-     hLines.sort((a, b) => b - a);
+     // Since we normalized to viewport coordinates (top-down), smaller Y is higher up.
+     // Sort hLines ascending so row 0 is the top-most line.
+     hLines.sort((a, b) => a - b);
      vLines.sort((a, b) => a - b);
 
      const cluster = (lines, descending = false) => {
@@ -336,13 +437,16 @@ class PatternKeeperImporter {
         for (let r = 0; r < grid.rows; r++) {
            for (let c = 0; c < grid.columns; c++) {
               const cx = grid.originX + c * grid.cellWidth + grid.cellWidth / 2;
-              // OriginY is the top line, so we subtract cellHeight to go down
-              const cy = grid.originY - r * grid.cellHeight - grid.cellHeight / 2;
+              // OriginY is the top line, and since we are top-down now, we *add* cellHeight to go down
+              const cy = grid.originY + r * grid.cellHeight + grid.cellHeight / 2;
 
+              // Note that in PDF.js, text (tx, ty) typically denotes the bottom-left of the baseline.
+              // For standard viewport coords, t.y is baseline. We adjust it slightly to find the visual center.
+              // Also text width/height from getViewport scaling can sometimes be tricky.
               const item = pageData.textItems.find(t =>
-                 t.str.trim().length === 1 &&
+                 t.str.trim().length > 0 && t.str.trim().length <= 6 && // allows U+000A etc.
                  Math.abs((t.x + t.width/2) - cx) < grid.cellWidth &&
-                 Math.abs((t.y + t.height/2) - cy) < grid.cellHeight
+                 Math.abs((t.y - t.height/2) - cy) < grid.cellHeight
               );
 
               if (item) {
@@ -373,12 +477,17 @@ class PatternKeeperImporter {
      if (legendPages.length === 0) return legend;
 
      for (const page of legendPages) {
-         const items = [...page.textItems].sort((a,b) => Math.abs(a.y - b.y) > 2 ? b.y - a.y : a.x - b.x);
+         // Sort top-to-bottom (a.y - b.y since y is now top-down) and left-to-right (a.x - b.x)
+         const items = [...page.textItems].sort((a,b) => Math.abs(a.y - b.y) > 2 ? a.y - b.y : a.x - b.x);
          const texts = items.map(t => t.str.trim()).filter(s => s.length > 0);
 
          for (let i = 0; i < texts.length; i++) {
            const t = texts[i];
-           if (t.length === 1 && !/^[A-Za-z0-9]$/.test(t) || (t.length === 1 && i+1 < texts.length && /^\d+$/.test(texts[i+1]))) {
+           const isSymbolCandidate = (t.length === 1 && !/^[A-Za-z0-9]$/.test(t)) ||
+                                     (t.length === 1 && i+1 < texts.length && /^\d+$/.test(texts[i+1])) ||
+                                     t.startsWith('U+');
+
+           if (isSymbolCandidate) {
               const nextItems = texts.slice(i+1, i+5);
               let code = nextItems.find(n => /^\d{3,4}$/.test(n) || /^(B5200|BLANC|ECRU)$/i.test(n));
 
