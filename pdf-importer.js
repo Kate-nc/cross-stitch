@@ -165,9 +165,14 @@ class PatternKeeperImporter {
     const argsArray = opList.argsArray;
 
     let currentPath = [];
+    let currentRGB = null;
+    let currentTransform = [1, 0, 0, 1, 0, 0];
 
     const addPoint = (x, y) => {
-      const pt = viewport.convertToViewportPoint(x, y);
+      // Apply current transform before viewport conversion
+      const tx = x * currentTransform[0] + y * currentTransform[2] + currentTransform[4];
+      const ty = x * currentTransform[1] + y * currentTransform[3] + currentTransform[5];
+      const pt = viewport.convertToViewportPoint(tx, ty);
       currentPath.push({x: pt[0], y: pt[1]});
     };
 
@@ -175,31 +180,32 @@ class PatternKeeperImporter {
       const fn = fnArray[i];
       const args = argsArray[i];
 
-      if (fn === pdfjsLib.OPS.moveTo) {
-        if (currentPath.length > 0) {
-           paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1 });
-        }
-        currentPath = [];
-        addPoint(args[0], args[1]);
-      } else if (fn === pdfjsLib.OPS.lineTo) {
-        addPoint(args[0], args[1]);
-      } else if (fn === pdfjsLib.OPS.rectangle) {
-        if (currentPath.length > 0) {
-           paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1 });
-        }
-        currentPath = [];
-        addPoint(args[0], args[1]);
-        addPoint(args[0] + args[2], args[1]);
-        addPoint(args[0] + args[2], args[1] + args[3]);
-        addPoint(args[0], args[1] + args[3]);
-        addPoint(args[0], args[1]);
-        paths.push({
-          type: 'rect',
-          points: currentPath,
-          lineWidth: 1
-        });
-        currentPath = [];
-      } else if (fn === pdfjsLib.OPS.constructPath) {
+      if (fn === pdfjsLib.OPS.transform) {
+          // Multiply current transform matrix with new transform
+          const [a, b, c, d, e, f] = args;
+          const [a1, b1, c1, d1, e1, f1] = currentTransform;
+          currentTransform = [
+             a1 * a + c1 * b,
+             b1 * a + d1 * b,
+             a1 * c + c1 * d,
+             b1 * c + d1 * d,
+             a1 * e + c1 * f + e1,
+             b1 * e + d1 * f + f1
+          ];
+      } else if (fn === pdfjsLib.OPS.save) {
+          // Simplification: Not full push/pop state but we reset path
+          currentPath = [];
+      } else if (fn === pdfjsLib.OPS.restore) {
+          currentPath = [];
+          currentTransform = [1, 0, 0, 1, 0, 0];
+      }
+
+      // Track RGB fills
+      if (fn === pdfjsLib.OPS.setFillRGBColor || fn === 59) {
+         currentRGB = args;
+      }
+
+      if (fn === pdfjsLib.OPS.constructPath) {
         const ops = args[0];
         const pointArgs = args[1];
         let argIdx = 0;
@@ -210,7 +216,7 @@ class PatternKeeperImporter {
            const op = ops[j];
            if (op === pdfjsLib.OPS.moveTo || op === 1 || op === 13) { // moveTo
               if (currentPath.length > 0) {
-                 paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1 });
+                 paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1, pendingFill: true });
               }
               currentPath = [];
               addPoint(pointArgs[argIdx++], pointArgs[argIdx++]);
@@ -218,7 +224,7 @@ class PatternKeeperImporter {
               addPoint(pointArgs[argIdx++], pointArgs[argIdx++]);
            } else if (op === pdfjsLib.OPS.rectangle || op === 7 || op === 19) { // rectangle
               if (currentPath.length > 0) {
-                 paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1 });
+                 paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1, pendingFill: true });
               }
               currentPath = [];
               const rx = pointArgs[argIdx++];
@@ -233,7 +239,8 @@ class PatternKeeperImporter {
               paths.push({
                 type: 'rect',
                 points: currentPath,
-                lineWidth: 1
+                lineWidth: 1,
+                pendingFill: true
               });
               currentPath = [];
            } else if (op === pdfjsLib.OPS.closePath || op === 6 || op === 18) { // closePath
@@ -246,14 +253,61 @@ class PatternKeeperImporter {
               argIdx += 4;
            }
         }
-      } else if (fn === pdfjsLib.OPS.stroke || fn === pdfjsLib.OPS.fill) {
+      } else if (fn === pdfjsLib.OPS.moveTo) {
+        if (currentPath.length > 0) {
+           paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1, pendingFill: true });
+        }
+        currentPath = [];
+        addPoint(args[0], args[1]);
+      } else if (fn === pdfjsLib.OPS.lineTo) {
+        addPoint(args[0], args[1]);
+      } else if (fn === pdfjsLib.OPS.rectangle) {
+        if (currentPath.length > 0) {
+           paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1, pendingFill: true });
+        }
+        currentPath = [];
+        addPoint(args[0], args[1]);
+        addPoint(args[0] + args[2], args[1]);
+        addPoint(args[0] + args[2], args[1] + args[3]);
+        addPoint(args[0], args[1] + args[3]);
+        addPoint(args[0], args[1]);
+        paths.push({
+          type: 'rect',
+          points: currentPath,
+          lineWidth: 1,
+          pendingFill: true
+        });
+        currentPath = [];
+      } else if (fn === pdfjsLib.OPS.stroke || fn === pdfjsLib.OPS.fill || fn === pdfjsLib.OPS.eoFill || fn === 20 || fn === 22 || fn === 23) {
         if (currentPath.length > 0) {
           paths.push({
             type: currentPath.length === 2 ? 'line' : 'path',
             points: currentPath,
-            lineWidth: 1
+            lineWidth: 1,
+            pendingFill: true
           });
           currentPath = [];
+        }
+        // Retroactively apply the fill color to all pending paths
+        if (fn === pdfjsLib.OPS.fill || fn === pdfjsLib.OPS.eoFill || fn === 22 || fn === 23) {
+            for (let k = paths.length - 1; k >= 0; k--) {
+                if (paths[k].pendingFill) {
+                    // Only apply if it's an actual color array, otherwise leave as null
+                    paths[k].fillColor = currentRGB ? Array.from(currentRGB) : null;
+                    delete paths[k].pendingFill;
+                } else {
+                    break;
+                }
+            }
+        } else {
+            // It was a stroke, just clear pending flags
+            for (let k = paths.length - 1; k >= 0; k--) {
+                if (paths[k].pendingFill) {
+                    delete paths[k].pendingFill;
+                } else {
+                    break;
+                }
+            }
         }
       }
     }
@@ -378,8 +432,13 @@ class PatternKeeperImporter {
            if (dx > 20 && dy < 2) hLines.push(p.points[0].y);
            if (dy > 20 && dx < 2) vLines.push(p.points[0].x);
         } else if (p.type === 'rect' && p.points.length >= 4) {
-           hLines.push(p.points[0].y, p.points[2].y);
-           vLines.push(p.points[0].x, p.points[2].x);
+           const w = Math.abs(p.points[0].x - p.points[2].x);
+           const h = Math.abs(p.points[0].y - p.points[2].y);
+           // Only count large rectangles as grid layout elements (ignore 2x2px cell fills)
+           if (w > 20 || h > 20) {
+               hLines.push(p.points[0].y, p.points[2].y);
+               vLines.push(p.points[0].x, p.points[2].x);
+           }
         }
      });
 
@@ -388,19 +447,21 @@ class PatternKeeperImporter {
      hLines.sort((a, b) => a - b);
      vLines.sort((a, b) => a - b);
 
-     const cluster = (lines, descending = false) => {
+     const cluster = (lines) => {
         if (lines.length === 0) return [];
         const res = [lines[0]];
         for (let i = 1; i < lines.length; i++) {
-           if (Math.abs(lines[i] - res[res.length - 1]) > 2) {
+           // Cell spacing can be very small (e.g. 2.14px) depending on the viewport scale mapping.
+           // Use > 1 to avoid clustering adjacent lines together while filtering out exact duplicates.
+           if (Math.abs(lines[i] - res[res.length - 1]) > 1) {
               res.push(lines[i]);
            }
         }
         return res;
      };
 
-     const hClustered = cluster(hLines, true);
-     const vClustered = cluster(vLines, false);
+     const hClustered = cluster(hLines);
+     const vClustered = cluster(vLines);
 
      let cellWidth = 10;
      let cellHeight = 10;
@@ -409,19 +470,64 @@ class PatternKeeperImporter {
         const diffs = [];
         for(let i=1; i<vClustered.length; i++) diffs.push(Math.abs(vClustered[i]-vClustered[i-1]));
         diffs.sort((a,b)=>a-b);
-        cellWidth = diffs[Math.floor(diffs.length/2)] || 10;
+        const valid = diffs.filter(d => d > 1);
+        cellWidth = valid[Math.floor(valid.length/2)] || 10;
      }
      if (hClustered.length > 1) {
         const diffs = [];
         for(let i=1; i<hClustered.length; i++) diffs.push(Math.abs(hClustered[i]-hClustered[i-1]));
         diffs.sort((a,b)=>a-b);
-        cellHeight = diffs[Math.floor(diffs.length/2)] || 10;
+        const valid = diffs.filter(d => d > 1);
+        cellHeight = valid[Math.floor(valid.length/2)] || 10;
      }
 
-     const originX = vClustered.length > 0 ? vClustered[0] : 50;
-     const originY = hClustered.length > 0 ? hClustered[0] : 50;
-     const cols = vClustered.length > 1 ? vClustered.length - 1 : Math.max(10, Math.floor((page.width - 100) / cellWidth));
-     const rows = hClustered.length > 1 ? hClustered.length - 1 : Math.max(10, Math.floor((page.height - 100) / cellHeight));
+     let originX = vClustered.length > 0 ? vClustered[0] : 50;
+     let originY = hClustered.length > 0 ? hClustered[0] : 50;
+
+     // Filter out stray lines (like page borders at 0,0) by finding the first contiguous sequence
+     if (vClustered.length > 3) {
+         for (let i = 0; i < vClustered.length - 2; i++) {
+             if (Math.abs((vClustered[i+1] - vClustered[i]) - cellWidth) < 2 &&
+                 Math.abs((vClustered[i+2] - vClustered[i+1]) - cellWidth) < 2) {
+                 originX = vClustered[i];
+                 break;
+             }
+         }
+     }
+
+     if (hClustered.length > 3) {
+         for (let i = 0; i < hClustered.length - 2; i++) {
+             if (Math.abs((hClustered[i+1] - hClustered[i]) - cellHeight) < 2 &&
+                 Math.abs((hClustered[i+2] - hClustered[i+1]) - cellHeight) < 2) {
+                 originY = hClustered[i];
+                 break;
+             }
+         }
+     }
+
+     let endX = vClustered.length > 0 ? vClustered[vClustered.length-1] : page.width - 50;
+     let endY = hClustered.length > 0 ? hClustered[hClustered.length-1] : page.height - 50;
+
+     if (vClustered.length > 3) {
+         for (let i = vClustered.length - 1; i >= 2; i--) {
+             if (Math.abs((vClustered[i] - vClustered[i-1]) - cellWidth) < 2) {
+                 endX = vClustered[i];
+                 break;
+             }
+         }
+     }
+
+     if (hClustered.length > 3) {
+         for (let i = hClustered.length - 1; i >= 2; i--) {
+             if (Math.abs((hClustered[i] - hClustered[i-1]) - cellHeight) < 2) {
+                 endY = hClustered[i];
+                 break;
+             }
+         }
+     }
+
+     const cols = vClustered.length > 1 ? Math.round((endX - originX) / cellWidth) : Math.max(10, Math.floor((page.width - 100) / cellWidth));
+     const rows = hClustered.length > 1 ? Math.round((endY - originY) / cellHeight) : Math.max(10, Math.floor((page.height - 100) / cellHeight));
 
      return { originX, originY, cellWidth, cellHeight, columns: cols, rows: rows, boldLineInterval: 10 };
   }
@@ -449,6 +555,22 @@ class PatternKeeperImporter {
                  Math.abs((t.y - t.height/2) - cy) < grid.cellHeight
               );
 
+              let fillColor = null;
+              if (!item) {
+                 // Check if the cell is filled with a vector path color instead of a text symbol
+                 const coloredPath = pageData.vectorPaths.find(pa => {
+                    if (!pa.fillColor) return false;
+                    // We only need the center of the path to be close to the cell center.
+                    const bx = pa.points[0].x;
+                    const by = pa.points[0].y;
+                    // Provide a slight tolerance to avoid missing paths barely overlapping edges
+                    return Math.abs(bx - cx) < grid.cellWidth && Math.abs(by - cy) < grid.cellHeight;
+                 });
+                 if (coloredPath) {
+                    fillColor = coloredPath.fillColor;
+                 }
+              }
+
               if (item) {
                  symbols.push({
                    col: pInfo.globalOffsetCol + c,
@@ -456,6 +578,15 @@ class PatternKeeperImporter {
                    symbol: item.str.trim(),
                    fontName: item.fontName,
                    isEmpty: false
+                 });
+              } else if (fillColor) {
+                 symbols.push({
+                   col: pInfo.globalOffsetCol + c,
+                   row: pInfo.globalOffsetRow + r,
+                   symbol: "",
+                   fontName: "",
+                   isEmpty: false,
+                   fillColor: fillColor
                  });
               } else {
                  symbols.push({
@@ -477,31 +608,151 @@ class PatternKeeperImporter {
      if (legendPages.length === 0) return legend;
 
      for (const page of legendPages) {
-         // Sort top-to-bottom (a.y - b.y since y is now top-down) and left-to-right (a.x - b.x)
-         const items = [...page.textItems].sort((a,b) => Math.abs(a.y - b.y) > 2 ? a.y - b.y : a.x - b.x);
-         const texts = items.map(t => t.str.trim()).filter(s => s.length > 0);
+         // Option 1: Try row-based clustering (handles 90% of standard patterns)
+         const rows = [];
+         const items = [...page.textItems].sort((a,b) => a.y - b.y);
 
-         for (let i = 0; i < texts.length; i++) {
-           const t = texts[i];
-           const isSymbolCandidate = (t.length === 1 && !/^[A-Za-z0-9]$/.test(t)) ||
-                                     (t.length === 1 && i+1 < texts.length && /^\d+$/.test(texts[i+1])) ||
-                                     t.startsWith('U+');
+         let currentRow = [];
+         for (let i = 0; i < items.length; i++) {
+             const item = items[i];
+             if (item.str.trim().length === 0) continue;
 
-           if (isSymbolCandidate) {
-              const nextItems = texts.slice(i+1, i+5);
-              let code = nextItems.find(n => /^\d{3,4}$/.test(n) || /^(B5200|BLANC|ECRU)$/i.test(n));
+             if (currentRow.length === 0) {
+                 currentRow.push(item);
+             } else {
+                 if (Math.abs(item.y - currentRow[0].y) <= 3) {
+                     currentRow.push(item);
+                 } else {
+                     rows.push(currentRow);
+                     currentRow = [item];
+                 }
+             }
+         }
+         if (currentRow.length > 0) rows.push(currentRow);
 
-              if (code) {
-                 legend.entries.push({
-                    symbol: t,
-                    symbolFontName: "Unknown",
-                    threadCode: code,
-                    colorName: "Color " + code,
-                    stitchCount: 100
-                 });
-                 i++;
-              }
-           }
+         let foundInRows = false;
+         for (const row of rows) {
+             row.sort((a,b) => a.x - b.x); // Left to right
+
+             for (let i = 0; i < row.length; i++) {
+                 const t = row[i].str.trim();
+                 const isSymbolCandidate = (t.length === 1 && !/^[A-Za-z0-9]$/.test(t)) ||
+                                           (t.length === 1 && i+1 < row.length && /^\d+$/.test(row[i+1].str.trim())) ||
+                                           t.startsWith('U+');
+
+                 if (isSymbolCandidate) {
+                     const nextItems = row.slice(i+1, i+6).map(it => it.str.trim());
+                     let code = nextItems.find(n => /^\d{3,4}$/.test(n) || /^(B5200|BLANC|ECRU)$/i.test(n) || /^DMC\s+\d{3,4}$/i.test(n) || /^DMC\s+(B5200|BLANC|ECRU)$/i.test(n));
+
+                     if (code) {
+                         let cleanCode = code.replace(/^DMC\s+/i, '').trim();
+                         let colorName = "Color " + cleanCode;
+                         for (let j = i+1; j < row.length; j++) {
+                             const rowText = row[j].str.trim();
+                             if (rowText !== code && rowText.length > 3 && !/^\d+$/.test(rowText) && !rowText.toLowerCase().includes('dmc')) {
+                                 colorName = rowText;
+                                 break;
+                             }
+                         }
+
+                         legend.entries.push({
+                            symbol: t,
+                            symbolFontName: row[i].fontName || "Unknown",
+                            threadCode: cleanCode,
+                            colorName: colorName,
+                            stitchCount: 100
+                         });
+                         foundInRows = true;
+                         break;
+                     }
+                 }
+             }
+         }
+
+         // Option 3 / Enhanced Bounding Box Fallback:
+         // If row clustering found nothing, the layout is likely fractured vertically (e.g. PAT1968_2.pdf).
+         // We search for single characters and map them to the nearest number physically below/right of it.
+         if (!foundInRows) {
+             const allSingleChars = items.filter(t => t.str.trim().length === 1 || t.str.startsWith('U+'));
+             const numbers = items.filter(t => /^\d{3,4}$/.test(t.str.trim()) || /^(B5200|BLANC|ECRU)$/i.test(t.str.trim()));
+
+             // Extract Headers to help map symbols to codes vertically
+             const symbolHeaders = items.filter(t => ['symbol', 'symbole'].includes(t.str.trim().toLowerCase()));
+             const codeHeaders = items.filter(t => {
+                const s = t.str.trim().toLowerCase();
+                return (s === 'colour' || s === 'couleur' || s === 'number' || s === 'code' || s.includes('dmc')) && s.length < 15 && !s.includes('www.');
+             });
+
+             const columns = [];
+             symbolHeaders.forEach(sh => {
+                 const rightHeaders = codeHeaders.filter(ch => Math.abs(ch.y - sh.y) < 10 && ch.x > sh.x);
+                 rightHeaders.sort((a, b) => a.x - b.x);
+                 if (rightHeaders.length > 0) {
+                    columns.push({ symbolX: sh.x, codeX: rightHeaders[0].x, yStart: sh.y });
+                 }
+             });
+
+             // If headers are found, we map column to column
+             if (columns.length > 0) {
+                const uniqueCols = [];
+                columns.forEach(c => {
+                   if (!uniqueCols.find(u => Math.abs(u.symbolX - c.symbolX) < 15)) {
+                       uniqueCols.push(c);
+                   }
+                });
+
+                uniqueCols.forEach(col => {
+                    let colSyms = allSingleChars.filter(s => s.y > col.yStart && Math.abs((s.x + s.width/2) - col.symbolX) < 150);
+                    // De-duplicate symbols mapped vertically
+                    colSyms = colSyms.filter((s, i, arr) => arr.findIndex(t => Math.abs(t.y - s.y) < 5 && t.str === s.str) === i);
+
+                    let colNums = numbers.filter(n => n.y > col.yStart && Math.abs((n.x + n.width/2) - col.codeX) < 100);
+                    colNums = colNums.filter((n, i, arr) => arr.findIndex(t => Math.abs(t.y - n.y) < 5 && t.str === n.str) === i);
+
+                    colSyms.sort((a, b) => a.y - b.y);
+                    colNums.sort((a, b) => a.y - b.y);
+
+                    for (let i = 0; i < Math.min(colSyms.length, colNums.length); i++) {
+                        const sym = colSyms[i];
+                        const cleanCode = colNums[i].str.trim().replace(/^DMC\s+/i, '');
+
+                        if (!legend.entries.find(e => e.symbol === sym.str.trim())) {
+                            legend.entries.push({
+                               symbol: sym.str.trim(),
+                               symbolFontName: sym.fontName || "Unknown",
+                               threadCode: cleanCode,
+                               colorName: "Color " + cleanCode,
+                               stitchCount: 100
+                            });
+                        }
+                    }
+                });
+             } else {
+                // Total fallback: Distance-based weighting
+                allSingleChars.forEach(sym => {
+                   const validNums = numbers.filter(n => n.y > sym.y - 10 && n.y < sym.y + 100);
+                   if (validNums.length > 0) {
+                      validNums.sort((a, b) => {
+                         const dyA = Math.abs(a.y - sym.y);
+                         const dyB = Math.abs(b.y - sym.y);
+                         const dxA = Math.abs(a.x - sym.x);
+                         const dxB = Math.abs(b.x - sym.x);
+                         return (dyA * 10 + dxA) - (dyB * 10 + dxB);
+                      });
+
+                      const cleanCode = validNums[0].str.trim().replace(/^DMC\s+/i, '');
+                      if (!legend.entries.find(e => e.symbol === sym.str.trim())) {
+                          legend.entries.push({
+                             symbol: sym.str.trim(),
+                             symbolFontName: sym.fontName || "Unknown",
+                             threadCode: cleanCode,
+                             colorName: "Color " + cleanCode,
+                             stitchCount: 100
+                          });
+                      }
+                   }
+                });
+             }
          }
      }
 
@@ -517,16 +768,71 @@ class PatternKeeperImporter {
            return;
         }
 
-        const entry = legend.entries.find(e => e.symbol === cell.symbol);
         let thread = null;
-        if (entry && typeof DMC !== 'undefined') {
-           thread = DMC.find(d => String(d.id).toLowerCase() === String(entry.threadCode).toLowerCase());
+
+        // 1. Match by exact text symbol first
+        let entry = null;
+        if (cell.symbol) {
+            entry = legend.entries.find(e => e.symbol === cell.symbol);
         }
 
-        if (!thread && entry) {
-           thread = { id: entry.threadCode, rgb: [128,128,128], lab: [50,0,0], name: entry.colorName };
-        } else if (!thread) {
-           thread = { id: "310", rgb: [0,0,0], lab: [0,0,0], name: "Black" };
+        if (entry && typeof DMC !== 'undefined') {
+            thread = DMC.find(d => String(d.id).toLowerCase() === String(entry.threadCode).toLowerCase());
+            if (!thread) {
+                thread = { id: entry.threadCode, rgb: [128,128,128], lab: [50,0,0], name: entry.colorName };
+            }
+        }
+
+        // 2. Fallback: If no symbol text matches, match by color proximity to legend threads
+        if (!thread && cell.fillColor && typeof rgbToLab !== 'undefined' && typeof dE !== 'undefined' && typeof DMC !== 'undefined') {
+            const lab = rgbToLab(cell.fillColor[0], cell.fillColor[1], cell.fillColor[2]);
+            let bestDist = Infinity;
+            let bestThread = null;
+
+            let matchedEntry = null;
+            if (legend.entries && legend.entries.length > 0) {
+                for (const legEntry of legend.entries) {
+                    const dmcThread = DMC.find(d => String(d.id).toLowerCase() === String(legEntry.threadCode).toLowerCase());
+                    if (dmcThread) {
+                        const dist = dE(lab, dmcThread.lab);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            bestThread = dmcThread;
+                            matchedEntry = legEntry;
+                        }
+                    }
+                }
+            }
+
+            // Allow matching if it's visually close
+            if (bestThread && bestDist < 15) {
+                thread = bestThread;
+                if (matchedEntry) {
+                    cell.symbol = matchedEntry.symbol || cell.symbol;
+                }
+            } else {
+                // Second pass: Match against any DMC color (sometimes the legend parsing failed, but we still have colors)
+                bestDist = Infinity;
+                bestThread = null;
+                for (let i = 0; i < DMC.length; i++) {
+                    const dmc = DMC[i];
+                    const dist = dE(lab, dmc.lab);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestThread = dmc;
+                    }
+                }
+                thread = bestThread;
+                // Since this isn't in the legend natively, assign a proxy symbol if it has none
+                if (!cell.symbol) {
+                    cell.symbol = bestThread ? bestThread.id : "■";
+                }
+            }
+        }
+
+        // 3. Last resort fallback
+        if (!thread) {
+           thread = { id: "310", rgb: [0,0,0], lab: [0,0,0], name: "Unknown" };
         }
 
         linked.push({ ...cell, thread });
