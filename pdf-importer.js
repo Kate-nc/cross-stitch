@@ -99,7 +99,7 @@ class PatternKeeperImporter {
       const page = await pdfData.getPage(i);
       const viewport = page.getViewport({ scale: 1.0 });
 
-      const textContent = await page.getTextContent();
+      const textContent = await page.getTextContent({ disableCombineTextItems: true });
       const textItems = textContent.items.map(item => {
         // PDF coordinates are bottom-up, and can have an arbitrary transform.
         // We'll use the viewport transform to normalize everything to top-down viewport space.
@@ -549,11 +549,25 @@ class PatternKeeperImporter {
               // Note that in PDF.js, text (tx, ty) typically denotes the bottom-left of the baseline.
               // For standard viewport coords, t.y is baseline. We adjust it slightly to find the visual center.
               // Also text width/height from getViewport scaling can sometimes be tricky.
-              const item = pageData.textItems.find(t =>
-                 t.str.trim().length > 0 && t.str.trim().length <= 6 && // allows U+000A etc.
-                 Math.abs((t.x + t.width/2) - cx) < grid.cellWidth &&
+              let item = pageData.textItems.find(t =>
+                 t.str.trim().length > 0 && // Don't restrict length in case text wasn't split
+                 // Check if the center of this specific cell falls within the text item's bounding box
+                 cx >= t.x - (grid.cellWidth * 0.2) && cx <= (t.x + t.width + grid.cellWidth * 0.2) &&
                  Math.abs((t.y - t.height/2) - cy) < grid.cellHeight
               );
+
+              // If the matched item is a clump of characters spread out, try to extract just the one under this cell
+              if (item && item.str.length > 1 && !item.str.startsWith('U+')) {
+                  // We need to find which character in item.str is at cx.
+                  // Assuming monospaced or evenly distributed string:
+                  const charWidth = item.width / item.str.length;
+                  const relativeX = cx - item.x;
+                  const charIndex = Math.max(0, Math.min(item.str.length - 1, Math.floor(relativeX / charWidth)));
+                  const singleChar = item.str[charIndex];
+
+                  // Clone it so we don't modify the original pageData reference and can assign the single char
+                  item = { ...item, str: singleChar.trim() };
+              }
 
               let fillColor = null;
               if (!item) {
@@ -636,13 +650,12 @@ class PatternKeeperImporter {
 
              for (let i = 0; i < row.length; i++) {
                  const t = row[i].str.trim();
-                 const isSymbolCandidate = (t.length === 1 && !/^[A-Za-z0-9]$/.test(t)) ||
-                                           (t.length === 1 && i+1 < row.length && /^\d+$/.test(row[i+1].str.trim())) ||
-                                           t.startsWith('U+');
+                 const isSymbolCandidate = (t.length === 1) || t.startsWith('U+');
 
                  if (isSymbolCandidate) {
-                     const nextItems = row.slice(i+1, i+6).map(it => it.str.trim());
-                     let code = nextItems.find(n => /^\d{3,4}$/.test(n) || /^(B5200|BLANC|ECRU)$/i.test(n) || /^DMC\s+\d{3,4}$/i.test(n) || /^DMC\s+(B5200|BLANC|ECRU)$/i.test(n));
+                     // Check items to the right AND left (some parsers sort X positions weirdly or symbols are placed after thread code)
+                     let adjacentItems = row.filter((r, idx) => idx !== i).map(it => it.str.trim());
+                     let code = adjacentItems.find(n => /^\d{1,4}$/.test(n) || /^(B5200|BLANC|ECRU)$/i.test(n) || /^DMC\s+\d{1,4}$/i.test(n) || /^DMC\s+(B5200|BLANC|ECRU)$/i.test(n));
 
                      if (code) {
                          let cleanCode = code.replace(/^DMC\s+/i, '').trim();
