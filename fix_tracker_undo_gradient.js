@@ -27,11 +27,7 @@ function processTracker(filePath) {
 
   // Fix Undo Button Tracker (violet background missed because it might have had different colors or already partially replaced)
   content = content.replace(
-    /border:"0\.5px solid #c4b5fd",borderRadius:6,background:"#f5f3ff",color:"#0d9488"/g,
-    'border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488"'
-  );
-  content = content.replace(
-    /border:"1px solid #c4b5fd",borderRadius:6,background:"#f5f3ff",color:"#0d9488"/g,
+    /border:"(?:0\.5px|1px) solid #(?:c4b5fd|99f6e4)",borderRadius:6,background:"#(?:f5f3ff|f0fdfa)",color:"#(?:0d9488|7c3aed|2563eb)"/g,
     'border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488"'
   );
 
