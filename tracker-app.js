@@ -285,12 +285,6 @@ function loadProject(e){
     };
     rd.readAsText(f);
   } else if (format === "image") {
-    const MAX_FILE_SIZE = 5 * 1024 * 1024;
-    if (f.size > MAX_FILE_SIZE) {
-      setLoadError("File is too large. Please select an image under 5MB.");
-      setTimeout(() => setLoadError(null), 4000);
-      return;
-    }
     let rd=new FileReader();
     rd.onload=ev=>{
       let img = new Image();

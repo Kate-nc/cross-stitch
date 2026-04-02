@@ -142,7 +142,7 @@ function resetAll(){
   setIsCropping(false);setCropRect(null);
 }
 
-function handleFile(e){let f=e.target.files[0];if(!f)return;const MAX_FILE_SIZE = 5 * 1024 * 1024; if(f.size>MAX_FILE_SIZE){alert("File is too large. Please select an image under 5MB.");return;}let rd=new FileReader();rd.onload=ev=>{let i=new Image();i.onload=()=>{setOrigW(i.width);setOrigH(i.height);let a=i.width/i.height;setAr(a);setSW(80);setSH(Math.round(80/a));setImg(i);resetAll();};i.src=ev.target.result;};rd.readAsDataURL(f);}
+function handleFile(e){let f=e.target.files[0];if(!f)return;if(f.size>5*1024*1024){alert("File is too large. Please select an image under 5MB.");return;}let rd=new FileReader();rd.onload=ev=>{let i=new Image();i.onload=()=>{setOrigW(i.width);setOrigH(i.height);let a=i.width/i.height;setAr(a);setSW(80);setSH(Math.round(80/a));setImg(i);resetAll();};i.src=ev.target.result;};rd.readAsDataURL(f);}
 
 function chgW(v){let w=Math.max(10,Math.min(300,parseInt(v)||10));setSW(w);if(arLock)setSH(Math.max(10,Math.round(w/ar)));}
 function chgH(v){let h=Math.max(10,Math.min(300,parseInt(v)||10));setSH(h);if(arLock)setSW(Math.max(10,Math.round(h*ar)));}
