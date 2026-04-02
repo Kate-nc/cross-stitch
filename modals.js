@@ -76,5 +76,87 @@ const SharedModals = {
         )
       )
     );
+  },
+
+  ThreadSelector: ({ onClose, currentSymbol, currentThreadId, onSelect, usedThreads }) => {
+    const [search, setSearch] = React.useState("");
+
+    // We expect DMC to be available globally
+    const filteredThreads = React.useMemo(() => {
+      if (!DMC) return [];
+      const lowerSearch = search.toLowerCase();
+      return DMC.filter(t =>
+        t.id.toLowerCase().includes(lowerSearch) ||
+        t.name.toLowerCase().includes(lowerSearch)
+      );
+    }, [search]);
+
+    return React.createElement("div", { className: "modal-overlay", onClick: onClose },
+      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "80vh" } },
+        React.createElement("button", { className: "modal-close", onClick: onClose }, "×"),
+        React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 20, color: "#18181b" } },
+          "Reassign Thread for ",
+          React.createElement("span", { style: { fontFamily: "monospace", background: "#f4f4f5", padding: "2px 6px", borderRadius: 4, border: "1px solid #e4e4e7" } }, currentSymbol)
+        ),
+
+        React.createElement("div", { style: { marginBottom: 15 } },
+          React.createElement("input", {
+            type: "text",
+            placeholder: "Search by DMC code or name...",
+            value: search,
+            onChange: e => setSearch(e.target.value),
+            style: { width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #e4e4e7", fontSize: 14, boxSizing: "border-box" },
+            autoFocus: true
+          })
+        ),
+
+        React.createElement("div", { style: { flex: 1, overflowY: "auto", border: "1px solid #e4e4e7", borderRadius: 8 } },
+          filteredThreads.length === 0 ? React.createElement("div", { style: { padding: 20, textAlign: "center" } },
+            React.createElement("div", { style: { color: "#71717a", fontSize: 14, marginBottom: 12 } }, "No threads found."),
+            search.trim() !== "" ? React.createElement("button", {
+              onClick: () => {
+                if (usedThreads.includes(search.trim())) {
+                  alert(`Thread ${search.trim()} is already assigned to another symbol.`);
+                  return;
+                }
+                onSelect({
+                  id: search.trim(),
+                  name: "Unknown Thread",
+                  rgb: [200, 200, 200],
+                  lab: [80, 0, 0] // Approx mid-grey lab
+                });
+              },
+              style: { padding: "8px 16px", fontSize: 13, background: "#0d9488", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 }
+            }, `Use "${search.trim()}" anyway`) : null
+          ) :
+          filteredThreads.map(t => {
+            const isCurrent = t.id === currentThreadId;
+            const isUsed = usedThreads.includes(t.id) && !isCurrent;
+            return React.createElement("div", {
+              key: t.id,
+              onClick: () => {
+                if (isUsed) {
+                  alert(`DMC ${t.id} is already assigned to another symbol. Each colour can only be assigned to one symbol.`);
+                  return;
+                }
+                onSelect(t);
+              },
+              style: {
+                display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #f4f4f5",
+                background: isCurrent ? "#f0fdfa" : (isUsed ? "#fafafa" : "#fff"),
+                cursor: isUsed ? "not-allowed" : "pointer",
+                opacity: isUsed ? 0.5 : 1
+              }
+            },
+              React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid #d4d4d8", flexShrink: 0 } }),
+              React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "#18181b" } }, "DMC " + t.id),
+              React.createElement("div", { style: { fontSize: 13, color: "#71717a", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
+              isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#0d9488", background: "#ccfbf1", padding: "2px 8px", borderRadius: 10 } }, "Current"),
+              isUsed && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#dc2626", background: "#fee2e2", padding: "2px 8px", borderRadius: 10 } }, "In Use")
+            );
+          })
+        )
+      )
+    );
   }
 };
