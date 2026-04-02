@@ -54,6 +54,7 @@ const [importBgThreshold, setImportBgThreshold] = useState(15);
 const [importArLock, setImportArLock] = useState(true);
 
 const prevDoneCount=useRef(0);
+const modeToggleRef=useRef(0);
 const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
 const G=28;
 
@@ -140,10 +141,10 @@ function saveProject(){
 function handleSymbolReassignment(oldColorId, newThread) {
   if (!pat || !pal || !cmap) return;
 
-  // 1. Snapshot for undo
+  // 1. Snapshot for undo (oldId/newId stored so undo can reverse cell mapping without needing cell.symbol)
   const currentPalState = JSON.parse(JSON.stringify(pal));
   const currentThreadOwnedState = JSON.parse(JSON.stringify(threadOwned));
-  setEditHistory(prev => [...prev, { pal: currentPalState, threadOwned: currentThreadOwnedState }]);
+  setEditHistory(prev => [...prev, { pal: currentPalState, threadOwned: currentThreadOwnedState, oldId: oldColorId, newId: newThread.id }]);
 
   // 2. Map grid values
   const newPat = pat.map(cell => {
@@ -554,6 +555,8 @@ return(
     <div style={{display:"flex",gap:6,marginBottom:6,alignItems:"center",flexWrap:"wrap", padding: "6px 10px", background: isEditMode ? "#fffbeb" : "#fff", border: isEditMode ? "1px solid #fde68a" : "0.5px solid #e4e4e7", borderRadius: 10}}>
       <div style={{ display: "flex", gap: 2, background: isEditMode ? "#fef3c7" : "#f4f4f5", borderRadius: 8, padding: 2 }}>
         <button onClick={()=>{
+          if (Date.now() - modeToggleRef.current < 300) return;
+          modeToggleRef.current = Date.now();
           if (isEditMode) {
             if (editHistory.length > 0) {
               setShowExitEditModal(true);
@@ -564,6 +567,8 @@ return(
           }
         }} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !isEditMode ? 500 : 400, background: !isEditMode ? "#0d9488" : "transparent", borderRadius: 6, color: !isEditMode ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: !isEditMode ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Tracking Mode</button>
         <button onClick={()=>{
+          if (Date.now() - modeToggleRef.current < 300) return;
+          modeToggleRef.current = Date.now();
           setStitchMode("navigate");
           setFocusColour(null);
           setHoverInfo(null);
@@ -591,22 +596,18 @@ return(
           const previousState = editHistory[editHistory.length - 1];
           const previousPal = previousState.pal;
           const previousThreadOwned = previousState.threadOwned;
-          const previousMap = {};
-          previousPal.forEach(p => { previousMap[p.symbol] = p; });
+          const { oldId, newId } = previousState;
 
+          const oldEntry = previousPal.find(p => p.id === oldId);
           const newPat = pat.map(cell => {
-            if (cell.id === "__skip__") return cell;
-            const originalThread = previousMap[cell.symbol];
-            if (originalThread) {
-              return {
-                ...cell,
-                id: originalThread.id,
-                name: originalThread.name,
-                rgb: originalThread.rgb,
-                lab: originalThread.lab
-              };
-            }
-            return cell;
+            if (cell.id !== newId) return cell;
+            return {
+              ...cell,
+              id: oldId,
+              name: oldEntry ? oldEntry.name : cell.name,
+              rgb: oldEntry ? oldEntry.rgb : cell.rgb,
+              lab: oldEntry ? oldEntry.lab : cell.lab
+            };
           });
 
           const newCmap = {};
@@ -626,7 +627,9 @@ return(
 
             const newPat = pat.map(cell => {
               if (cell.id === "__skip__") return cell;
-              const originalThread = previousMap[cell.symbol];
+              // Use cmap to find the symbol for this cell (symbols live in palette, not cells)
+              const currentEntry = cmap[cell.id];
+              const originalThread = currentEntry ? previousMap[currentEntry.symbol] : null;
               if (originalThread) {
                 return {
                   ...cell,
@@ -701,7 +704,10 @@ return(
           <span style={{fontSize:11,color:complete?"#16a34a":"#71717a",fontWeight:complete?600:400,minWidth:50,textAlign:"right"}}>{dc.done}/{dc.total}</span>
           <button onClick={e2=>{e2.stopPropagation();markColourDone(p.id,!complete);}} style={{fontSize:10,padding:"2px 8px",borderRadius:5,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{complete?"Undo":"All ✓"}</button>
           </>}
-          {isEditMode && <span style={{fontSize:11, color:"#d97706", fontWeight:600}}>✎ Edit</span>}
+          {isEditMode && <>
+            <span style={{fontSize:11,color:"#a1a1aa",flexShrink:0}}>{p.count} st</span>
+            <span style={{fontSize:11,color:"#d97706",fontWeight:600}}>✎ Edit</span>
+          </>}
         </div>;})}</div>
     </div>}
 
@@ -858,7 +864,9 @@ return(
 
               const newPat = pat.map(cell => {
                 if (cell.id === "__skip__") return cell;
-                const originalThread = previousMap[cell.symbol];
+                // Use cmap to find the symbol for this cell (symbols live in palette, not cells)
+                const currentEntry = cmap[cell.id];
+                const originalThread = currentEntry ? previousMap[currentEntry.symbol] : null;
                 if (originalThread) {
                   return {
                     ...cell,
