@@ -43,6 +43,7 @@ const dragChangesRef=useRef([]);
 const[selectedColorId,setSelectedColorId]=useState(null);
 
 const[hoverInfo,setHoverInfo]=useState(null);
+const[hoveredCell,setHoveredCell]=useState(null);
 
 const[isPanning,setIsPanning]=useState(false);
 const panStart=useRef({x:0,y:0,scrollX:0,scrollY:0});
@@ -500,11 +501,13 @@ useEffect(() => {
     }
 }, []);
 
-function drawStitch(ctx,cSz){
+function drawStitch(ctx,cSz,viewportRect){
   let gut=G,dW=sW,dH=sH;
+  let vLeft = viewportRect ? viewportRect.left : 0;
+  let vTop = viewportRect ? viewportRect.top : 0;
+
   ctx.fillStyle="#fff";ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
-  ctx.fillStyle="#a1a1aa";ctx.font=`${Math.max(7,Math.min(11,cSz*0.5))}px system-ui`;ctx.textAlign="center";ctx.textBaseline="middle";
-  for(let x=0;x<dW;x+=10)ctx.fillText(String(x+1),gut+x*cSz+cSz/2,gut/2);ctx.textAlign="right";for(let y=0;y<dH;y+=10)ctx.fillText(String(y+1),gut-3,gut+y*cSz+cSz/2);
+
   for(let y=0;y<dH;y++)for(let x=0;x<dW;x++){
     let idx=y*sW+x,m=pat[idx];if(!m)continue;
     let info=(m.id==="__skip__"||m.id==="__empty__")?null:(cmap?cmap[m.id]:null);
@@ -525,12 +528,27 @@ function drawStitch(ctx,cSz){
     }
     if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
   }
-  if(cSz>=3){ctx.strokeStyle="rgba(0,0,0,0.2)";ctx.lineWidth=cSz>=8?1.5:1;for(let gx=0;gx<=dW;gx+=10){ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut);ctx.lineTo(gut+gx*cSz,gut+dH*cSz);ctx.stroke();}for(let gy=0;gy<=dH;gy+=10){ctx.beginPath();ctx.moveTo(gut,gut+gy*cSz);ctx.lineTo(gut+dW*cSz,gut+gy*cSz);ctx.stroke();}}
+  if(cSz>=3){
+    for(let gx=0;gx<=dW;gx++){
+      if(gx%10===0){ctx.strokeStyle="#444";ctx.lineWidth=2;}
+      else if(gx%5===0){ctx.strokeStyle="#aaa";ctx.lineWidth=1;}
+      else continue;
+      ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut);ctx.lineTo(gut+gx*cSz,gut+dH*cSz);ctx.stroke();
+    }
+    for(let gy=0;gy<=dH;gy++){
+      if(gy%10===0){ctx.strokeStyle="#444";ctx.lineWidth=2;}
+      else if(gy%5===0){ctx.strokeStyle="#aaa";ctx.lineWidth=1;}
+      else continue;
+      ctx.beginPath();ctx.moveTo(gut,gut+gy*cSz);ctx.lineTo(gut+dW*cSz,gut+gy*cSz);ctx.stroke();
+    }
+    ctx.lineWidth=1;
+  }
   if(showCtr){ctx.strokeStyle="rgba(200,60,60,0.3)";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(gut+Math.floor(sW/2)*cSz,gut);ctx.lineTo(gut+Math.floor(sW/2)*cSz,gut+dH*cSz);ctx.stroke();ctx.beginPath();ctx.moveTo(gut,gut+Math.floor(sH/2)*cSz);ctx.lineTo(gut+sW*cSz,gut+Math.floor(sH/2)*cSz);ctx.stroke();ctx.setLineDash([]);}
   if(hlRow>=0&&hlCol>=0){ctx.strokeStyle="rgba(59,130,246,0.6)";ctx.lineWidth=2;ctx.setLineDash([]);if(hlRow<dH){ctx.beginPath();ctx.moveTo(gut,gut+hlRow*cSz+cSz/2);ctx.lineTo(gut+dW*cSz,gut+hlRow*cSz+cSz/2);ctx.stroke();}if(hlCol<dW){ctx.beginPath();ctx.moveTo(gut+hlCol*cSz+cSz/2,gut);ctx.lineTo(gut+hlCol*cSz+cSz/2,gut+dH*cSz);ctx.stroke();}}
   if(bsLines.length>0){ctx.strokeStyle="#333";ctx.lineWidth=Math.max(2,cSz*0.15);ctx.lineCap="round";bsLines.forEach(ln=>{ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();});}
   if(parkMarkers.length>0){parkMarkers.forEach(pm=>{let cx2=gut+pm.x*cSz,cy2=gut+pm.y*cSz,r=Math.max(4,cSz*0.35);ctx.fillStyle=`rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;ctx.strokeStyle="#000";ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx2,cy2,r,0,Math.PI*2);ctx.fill();ctx.stroke();});}
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
+
 }
 
 const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
@@ -589,16 +607,23 @@ function handleStitchMouseMove(e){
   if(isPanning){
     doPan(e);
     if(hoverInfo) setHoverInfo(null);
+    setHoveredCell(null);
     return;
   }
   let gc=gridCoord(stitchRef,e,scs,G);
+
+  if(gc && gc.gx>=0 && gc.gx<sW && gc.gy>=0 && gc.gy<sH) {
+    setHoveredCell(prev => prev && prev.row === gc.gy && prev.col === gc.gx ? prev : { row: gc.gy, col: gc.gx });
+  } else {
+    setHoveredCell(null);
+  }
 
   if(isDragging) {
     if(hoverInfo) setHoverInfo(null);
   } else if(stitchMode==="track" && pat && gc && gc.gx>=0 && gc.gx<sW && gc.gy>=0 && gc.gy<sH){
     let idx=gc.gy*sW+gc.gx;
     let cell=pat[idx];
-    if(cell && cell.id!=="__skip__"){
+    if(cell && cell.id!=="__skip__" && cell.id!=="__empty__"){
       let name="";
       if(cell.type==="blend"){
         name=cell.threads[0].name+"+"+cell.threads[1].name;
@@ -626,6 +651,7 @@ function handleStitchMouseMove(e){
 function handleStitchMouseLeave(){
   handleMouseUp();
   setHoverInfo(null);
+  setHoveredCell(null);
 }
 function handleMouseUp(){
   if(isPanning){setIsPanning(false);return;}
@@ -710,7 +736,17 @@ return(
   {pat&&pal&&<div>
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"8px 14px",background:"#fff",border:"0.5px solid #e4e4e7",borderRadius:10,flexWrap:"wrap"}}>
       <button onClick={toggleSession} style={{padding:"5px 16px",fontSize:13,borderRadius:8,border:"none",background:sessionActive?"#dc2626":"#16a34a",color:"#fff",cursor:"pointer",fontWeight:700,minWidth:100}}>{sessionActive?"⏹ Stop":"▶ Start"}</button>
-      <div style={{flex:1,minWidth:100}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}><span style={{fontWeight:700,color:progressPct>=100?"#16a34a":"#0d9488"}}>{progressPct}%{progressPct>=100?" 🎉":""}</span><span style={{color:"#71717a"}}>{doneCount.toLocaleString()}/{totalStitchable.toLocaleString()}</span></div><div style={{height:6,background:"#e4e4e7",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:Math.min(progressPct,100)+"%",background:progressPct>=100?"#16a34a":"#0d9488",borderRadius:3,transition:"width 0.3s"}}/></div></div>
+      <div style={{flex:1,minWidth:100}}>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
+          <span style={{fontWeight:700,color:progressPct>=100?"#16a34a":"#0d9488"}}>
+            {doneCount.toLocaleString()} / {totalStitchable.toLocaleString()} stitches ({progressPct.toFixed(1)}%){progressPct>=100?" 🎉":""}
+          </span>
+          <span style={{color:"#71717a"}}>{(totalStitchable - doneCount).toLocaleString()} remaining</span>
+        </div>
+        <div style={{height:6,background:"#e4e4e7",borderRadius:3,overflow:"hidden"}}>
+          <div style={{height:"100%",width:Math.min(progressPct,100)+"%",background:progressPct>=100?"#16a34a":"#0d9488",borderRadius:3,transition:"width 0.3s"}}/>
+        </div>
+      </div>
       {(sessionActive||totalTime>0)&&<div style={{fontSize:11,color:"#71717a",textAlign:"right",minWidth:90}}>{sessionActive?<><span style={{color:"#dc2626"}}>● </span>{fmtTime(sessionElapsed)} · {sessionStitches} st</>:<>Total: {fmtTime(totalTime)}</>}{estCompletion&&<div style={{fontSize:10,color:"#a1a1aa"}}>~{fmtTime(estCompletion)} left</div>}</div>}
     </div>
 
@@ -830,18 +866,67 @@ return(
     {!isEditMode && stitchMode==="navigate"&&<div style={{fontSize:12,color:"#18181b",background:"#f4f4f5",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}</div>}
     {!isEditMode && stitchView==="highlight"&&!focusColour&&<div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a"}}>Open Colours drawer and tap a colour to highlight</div>}
 
-    <div ref={stitchScrollRef} onScroll={() => requestAnimationFrame(renderStitch)} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid #e4e4e7",borderRadius:"8px 8px 0 0",background:"#f4f4f5",cursor:isPanning?"grabbing":(!isEditMode&&stitchMode==="track"?"crosshair":"default"),transition:"max-height 0.3s"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}><canvas ref={stitchRef} style={{display:"block"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/></div>
-
-    {hoverInfo && !isEditMode && stitchMode==="track" && (
-      <div style={{
-        position:"fixed", left:hoverInfo.x+15, top:hoverInfo.y+15,
-        background:"#18181b", color:"#fff", padding:"6px 10px", borderRadius:6,
-        fontSize:12, fontWeight:500, pointerEvents:"none", zIndex:1000,
-        boxShadow:"0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)"
-      }}>
-        Row {hoverInfo.row}, Col {hoverInfo.col} &mdash; DMC {hoverInfo.id} {hoverInfo.name}
+    <div ref={stitchScrollRef} onScroll={() => requestAnimationFrame(renderStitch)} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid #e4e4e7",borderRadius:"8px 8px 0 0",background:"#f4f4f5",cursor:isPanning?"grabbing":(!isEditMode&&stitchMode==="track"?"crosshair":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: '#fff', borderBottom: '1px solid #e4e4e7' }}>
+        <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: '#fff', borderRight: '1px solid #e4e4e7', zIndex: 4 }}></div>
+        {Array.from({length: sW}, (_, x) => {
+          let step = scs < 6 ? 10 : scs < 14 ? 5 : 1;
+          let show = ((x + 1) % step === 0 || x === 0);
+          let is10 = (x + 1) % 10 === 0;
+          let is5 = (x + 1) % 5 === 0;
+          return (
+            <div key={x} style={{ width: scs, flexShrink: 0, height: G, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.max(9, Math.min(11, scs * 0.6)), fontWeight: is10 ? 'bold' : is5 ? 600 : 400, color: is10 ? '#333' : is5 ? '#666' : '#888', fontFamily: 'monospace' }}>
+              {show ? (x + 1) : ''}
+            </div>
+          );
+        })}
       </div>
-    )}
+      <div style={{ display: 'flex', width: 'max-content' }}>
+        <div style={{ position: 'sticky', left: 0, zIndex: 3, width: G, background: '#fff', borderRight: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column' }}>
+          {Array.from({length: sH}, (_, y) => {
+            let step = scs < 6 ? 10 : scs < 14 ? 5 : 1;
+            let show = ((y + 1) % step === 0 || y === 0);
+            let is10 = (y + 1) % 10 === 0;
+            let is5 = (y + 1) % 5 === 0;
+            return (
+              <div key={y} style={{ height: scs, flexShrink: 0, width: G, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4, fontSize: Math.max(9, Math.min(11, scs * 0.6)), fontWeight: is10 ? 'bold' : is5 ? 600 : 400, color: is10 ? '#333' : is5 ? '#666' : '#888', fontFamily: 'monospace' }}>
+                {show ? (y + 1) : ''}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ position: 'relative' }}>
+          <canvas ref={stitchRef} style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/>
+
+          {hoveredCell && (
+            <>
+              <div style={{
+                position: 'absolute', pointerEvents: 'none', background: 'rgba(100, 149, 237, 0.08)', zIndex: 3,
+                top: hoveredCell.row * scs, left: -G, width: sW * scs + G, height: scs
+              }} />
+              <div style={{
+                position: 'absolute', pointerEvents: 'none', background: 'rgba(100, 149, 237, 0.08)', zIndex: 3,
+                top: -G, left: hoveredCell.col * scs, width: scs, height: sH * scs + G
+              }} />
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+
+    <div style={{background:"#18181b", color:"#fff", padding:"6px 10px", borderRadius:"0 0 8px 8px", fontSize:12, fontWeight:500, display:"flex", alignItems:"center", minHeight:30, marginBottom: 12}}>
+      {hoveredCell ? (
+        <>
+          Row: {hoveredCell.row + 1} &nbsp;&nbsp; Col: {hoveredCell.col + 1}
+          {hoverInfo && hoverInfo.row === hoveredCell.row + 1 && hoverInfo.col === hoveredCell.col + 1 && (
+             <>&nbsp;&nbsp;&mdash;&nbsp;&nbsp; DMC {hoverInfo.id} {hoverInfo.name}</>
+          )}
+        </>
+      ) : (
+        <>&mdash;</>
+      )}
+    </div>
+
 
     <button onClick={()=>setDrawer(!drawer)} style={{width:"100%",padding:"8px",borderRadius:"0 0 8px 8px",border:"0.5px solid #e4e4e7",borderTop:"none",background:drawer?"#fafafa":"#fff",cursor:"pointer",fontSize:12,fontWeight:600,color:"#0d9488",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:12}}><span style={{transform:drawer?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s",display:"inline-block"}}>▲</span>Colours ({pal.length}) — {Object.values(colourDoneCounts).filter(c=>c.done>=c.total).length} complete</button>
 
