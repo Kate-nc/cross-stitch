@@ -4,9 +4,10 @@ def test():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(bypass_csp=True)
-        page.goto("http://localhost:8000/index.html")
-        page.wait_for_timeout(1000)
+        page.goto("http://localhost:8000/stitch.html")
+        page.wait_for_selector(".card")
 
+        # We just want to check if there are no gross syntax errors breaking babel transpilation
         errors = []
         page.on("pageerror", lambda err: errors.append(err.message))
         page.wait_for_timeout(1000)

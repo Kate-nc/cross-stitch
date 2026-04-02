@@ -204,9 +204,110 @@ function applyCrop(){
   newImg.src=c.toDataURL();
 }
 
+      window.location.href = 'stitch.html#p=' + b64;
+    }catch(e2){
+      alert('Pattern is too large for direct transfer. Please save the file and open it in the Tracker.');
+    }
+  }
+}
+
+      window.location.href = 'stitch.html#p=' + b64;
+    }catch(e2){
+      alert('Pattern is too large for direct transfer. Please save the file and open it in the Tracker.');
+    }
+  }
+}
+
+function handleOpenInTracker(){
+  if(!pat||!pal)return;
+  let project={version:8,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+  try{
+    localStorage.setItem('crossstitch_handoff', JSON.stringify(project));
+    window.location.href = 'stitch.html?source=creator';
+  }catch(e){
+    try{
+      let pl = pat.map(m=>{
+          if (m.id==="__skip__") return ["__skip__", "k"];
+          return [m.id, m.type==="blend"?"b":"s"];
+      });
+      let minimal = { v: 8, w: sW, h: sH, fc: fabricCt, bs: bsLines, p: pl };
+      let str = JSON.stringify(minimal);
+      let compressed = pako.deflate(str);
+      let binaryStr = "";
+      for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
+      let b64 = btoa(binaryStr).replace(/\+/g, '-').replace(/\//g, '_');
+      if (b64.length > 8000) {
+          alert("Pattern too large for direct transfer. Please use Save Project (.json) instead and load it in the tracker.");
+          return;
+      }
+      window.location.href = 'stitch.html#p=' + b64;
+    }catch(e2){
+      alert('Pattern is too large for direct transfer. Please save the file and open it in the Tracker.');
+    }
+  }
+}
+
+function handleOpenInTracker(){
+  if(!pat||!pal)return;
+  let project={version:8,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+  try{
+    localStorage.setItem('crossstitch_handoff', JSON.stringify(project));
+    window.location.href = 'stitch.html?source=creator';
+  }catch(e){
+    try{
+      let pl = pat.map(m=>{
+          if (m.id==="__skip__") return ["__skip__", "k"];
+          return [m.id, m.type==="blend"?"b":"s"];
+      });
+      let minimal = { v: 8, w: sW, h: sH, fc: fabricCt, bs: bsLines, p: pl };
+      let str = JSON.stringify(minimal);
+      let compressed = pako.deflate(str);
+      let binaryStr = "";
+      for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
+      let b64 = btoa(binaryStr).replace(/\+/g, '-').replace(/\//g, '_');
+      if (b64.length > 8000) {
+          alert("Pattern too large for link sharing. Please use Save Project (.json) instead.");
+          return;
+      }
+      window.location.href = 'stitch.html#p=' + b64;
+    }catch(e2){
+      alert('Pattern is too large for direct transfer. Please save the file and open it in the Tracker.');
+    }
+  }
+}
+
 function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
 function processLoadedProject(project){
+  if(project.v===8 || project.p){
+    setSW(project.w||80);setSH(project.h||80);setBsLines(project.bs||[]);setFabricCt(project.fc||14);
+    let p = project.p.map(m => {
+        if(m[1] === 'k') return restoreStitch({id:"__skip__"});
+        if(m[1] === 'b') return restoreStitch({type:"blend",id:m[0]});
+        return restoreStitch({type:"solid",id:m[0]});
+    });
+    let{pal:newPal,cmap:newCmap}=buildPalette(p);
+    setPat(p);setPal(newPal);setCmap(newCmap);setTab("pattern");setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setSidebarOpen(true);
+    setDone(new Uint8Array(p.length));
+    setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/((project.w||80)*20)));setZoom(z);},100);
+    return;
+  }
+
+  if(project.v===8 || project.p){
+    // Load from pako compressed format
+    setSW(project.w||80);setSH(project.h||80);setBsLines(project.bs||[]);setFabricCt(project.fc||14);
+    let p = project.p.map(m => {
+        if(m[1] === 'k') return restoreStitch({id:"__skip__"});
+        if(m[1] === 'b') return restoreStitch({type:"blend",id:m[0]});
+        return restoreStitch({type:"solid",id:m[0]});
+    });
+    let{pal:newPal,cmap:newCmap}=buildPalette(p);
+    setPat(p);setPal(newPal);setCmap(newCmap);setTab("pattern");setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setSidebarOpen(true);
+    setDone(new Uint8Array(p.length));
+    setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/((project.w||80)*20)));setZoom(z);},100);
+    return;
+  }
+
   let s=project.settings;setSW(s.sW);setSH(s.sH);setMaxC(s.maxC);setBri(s.bri||0);setCon(s.con||0);setSat(s.sat||0);setDith(!!s.dith);setSkipBg(!!s.skipBg);setBgTh(s.bgTh||15);setBgCol(s.bgCol||[255,255,255]);setMinSt(s.minSt||0);setArLock(s.arLock!==false);setAr(s.ar||1);setBsLines(project.bsLines||[]);
   setSmooth(s.smooth||0);setSmoothType(s.smoothType||"median");setOrphans(s.orphans||0);
   if(s.fabricCt)setFabricCt(s.fabricCt);
@@ -229,12 +330,45 @@ function loadProject(e){let f=e.target.files[0];if(!f)return;setLoadError(null);
 }catch(err){console.error(err);setLoadError("Could not load: "+err.message);setTimeout(()=>setLoadError(null),4000);}};rd.readAsText(f);if(loadRef.current)loadRef.current.value="";}
 
 useEffect(() => {
-    // Automatically load from IndexedDB on startup
-    loadProjectFromDB().then(project => {
-        if (project && project.pattern && project.settings) {
-            processLoadedProject(project);
-        }
-    });
+  // Check for handoff from Tracker
+  const handoff = localStorage.getItem('crossstitch_handoff');
+  if (handoff) {
+    try {
+      const projectData = JSON.parse(handoff);
+      localStorage.removeItem('crossstitch_handoff'); // one-time read
+      processLoadedProject(projectData);
+      return; // Skip DB load if handoff successful
+    } catch (e) {
+      console.error('Failed to load handoff data:', e);
+    }
+  }
+
+  // Also check URL params for shared links
+  const hash = window.location.hash.slice(1);
+  if (hash.startsWith('p=')) {
+    try {
+      const encoded = hash.slice(2);
+      const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      const binaryStr = atob(base64);
+      const binaryData = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) binaryData[i] = binaryStr.charCodeAt(i);
+      const decompressed = pako.inflate(binaryData, { to: 'string' });
+      const project = JSON.parse(decompressed);
+      processLoadedProject(project);
+      window.location.hash = ''; // Clear hash after loading
+      return; // Skip DB load if URL load successful
+    } catch (err) {
+      console.error("Failed to load from URL:", err);
+      setLoadError("Failed to load pattern from link.");
+    }
+  }
+
+  // Fallback to IndexedDB on startup
+  loadProjectFromDB().then(project => {
+    if (project && project.pattern && project.settings) {
+      processLoadedProject(project);
+    }
+  });
 }, []);
 
 // Auto-save effect
@@ -252,6 +386,9 @@ useEffect(() => {
 
 const autoCrop = useCallback(() => {
   if (!pat || !img) return;
+  if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
+  if(doneCount>0&&!confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?"))return;
+
   let minX = sW, minY = sH, maxX = -1, maxY = -1;
   let hasStitches = false;
   for (let y = 0; y < sH; y++) {
@@ -304,7 +441,10 @@ const autoCrop = useCallback(() => {
 }, [pat, img, sW, sH]);
 
 const generate=useCallback(()=>{
-  if(!img)return;setBusy(true);setHiId(null);setExportPage(0);
+  if(!img)return;
+  if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
+  if(doneCount>0&&!confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?"))return;
+  setBusy(true);setHiId(null);setExportPage(0);
   setTimeout(()=>{try{
     let c=document.createElement("canvas");c.width=sW;c.height=sH;let cx=c.getContext("2d");
     cx.filter=`brightness(${100+bri}%) contrast(${100+con}%) saturate(${100+sat}%)`;
@@ -770,15 +910,20 @@ function handlePatClick(e){
   let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch");
   if(!gc)return;let{gx,gy}=gc;
   if((activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap){
-    if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
+    if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
+
+  if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
     let pe=cmap[selectedColorId];if(!pe)return;let np=pat.slice();
     if(activeTool==="fill"){let ch=[],vis=new Set(),q=[idx],tid=pat[idx].id;if(tid===pe.id)return;while(q.length){let id2=q.pop();if(vis.has(id2))continue;vis.add(id2);if(pat[id2].id!==tid)continue;ch.push({idx:id2,old:{...pat[id2]}});let x2=id2%sW,y2=Math.floor(id2/sW);if(x2>0)q.push(id2-1);if(x2<sW-1)q.push(id2+1);if(y2>0)q.push(id2-sW);if(y2<sH-1)q.push(id2+sW);}if(!ch.length)return;setEditHistory(prev=>[...prev,{type:"fill",changes:ch}]);ch.forEach(c2=>np[c2.idx]={...pe});}
     else{setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}]);np[idx]={...pe};}
     setPat(np);let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);return;
   }
-  if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return;let pt={x:gx,y:gy};if(!bsStart)setBsStart(pt);else{setBsLines(prev=>[...prev,{x1:bsStart.x,y1:bsStart.y,x2:pt.x,y2:pt.y}]);setBsStart(bsContinuous?pt:null);}}
+  if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return;if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
+  let pt={x:gx,y:gy};if(!bsStart)setBsStart(pt);else{setBsLines(prev=>[...prev,{x1:bsStart.x,y1:bsStart.y,x2:pt.x,y2:pt.y}]);setBsStart(bsContinuous?pt:null);}}
   if(activeTool==="eraseBs"){
-    if(bsLines.length===0)return;
+    if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
+
+  if(bsLines.length===0)return;
     let closestIdx=-1,minD=Infinity;
     bsLines.forEach((ln,i)=>{
       let A=gx-ln.x1,B=gy-ln.y1,C=ln.x2-ln.x1,D=ln.y2-ln.y1;
@@ -829,7 +974,7 @@ return(
 <Header page="creator" onNewProject={()=>{if(!pat||confirm("Start a new project? Unsaved progress will be lost.")){resetAll();setImg(null);}}} onExportPDF={pat ? exportPDF : null} setModal={setModal} />
 <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   <div style={{marginBottom:12,display:"flex",justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap",gap:8}}>
-    <div style={{display:"flex",gap:6}}><input ref={loadRef} type="file" accept=".json" onChange={loadProject} style={{display:"none"}}/><button onClick={()=>loadRef.current.click()} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fafafa",cursor:"pointer",color:"#71717a",fontWeight:500}}>Open</button>{pat&&pal&&<button onClick={saveProject} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:500}}>Save</button>}</div>
+    <div style={{display:"flex",gap:6}}><input ref={loadRef} type="file" accept=".json" onChange={loadProject} style={{display:"none"}}/><button onClick={()=>loadRef.current.click()} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fafafa",cursor:"pointer",color:"#71717a",fontWeight:500}}>Open</button>{pat&&pal&&<button onClick={saveProject} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:500}}>Save</button>}{pat&&pal&&<button onClick={handleOpenInTracker} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"none",background:"#ea580c",color:"#fff",cursor:"pointer",fontWeight:500}}>Start Tracking →</button>}</div>
   </div>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
 
@@ -1053,27 +1198,7 @@ return(
         {tab==="export"&&<div style={{display:"flex",flexDirection:"column",gap:12}}>
           {copied&&<div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600}}>Copied!</div>}
 
-          <button onClick={()=>{
-              let pl = pat.map(m=>{
-                  if (m.id==="__skip__") return ["__skip__", "k"];
-                  return [m.id, m.type==="blend"?"b":"s"];
-              });
-              let minimal = { v: 8, w: sW, h: sH, fc: fabricCt, bs: bsLines, p: pl };
-              try {
-                  let str = JSON.stringify(minimal);
-                  let compressed = pako.deflate(str);
-                  let binaryStr = "";
-                  for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
-                  let b64 = btoa(binaryStr).replace(/\+/g, '-').replace(/\//g, '_');
-                  if (b64.length > 8000) {
-                      alert("Pattern too large for link sharing. Please use Save Project (.json) instead.");
-                      return;
-                  }
-                  window.open("stitch.html#p=" + b64, "_blank");
-                  setCopied("Opened in Stitch Tracker");
-                  setTimeout(()=>setCopied(null), 3000);
-              } catch(e) { console.error("Compression failed", e); }
-          }} style={{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none", display:"flex", alignItems:"center", justifyContent:"center", gap:8}}>🧵 Open in Stitch Tracker →</button>
+          <button onClick={handleOpenInTracker} style={{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none", display:"flex", alignItems:"center", justifyContent:"center", gap:8}}>🧵 Open in Stitch Tracker →</button>
 
           <Section title="PDF Export"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Multi-page PDF with legend and chart.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={exportPDF} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none"}}>Download Pattern PDF</button><button onClick={exportCoverSheet} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}}>Cover Sheet PDF</button></div><p style={{fontSize:11,color:"#a1a1aa",marginTop:8}}>The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes — perfect for tucking into your project bag.</p></Section>
           <Section title="PNG Chart"><div style={{display:"flex",gap:8,alignItems:"center",marginTop:8,marginBottom:8}}><label style={{display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer"}}><input type="checkbox" checked={pageMode} onChange={e=>{setPageMode(e.target.checked);setExportPage(0);}}/>A4 pages</label>{pageMode&&<><button onClick={()=>setExportPage(Math.max(0,exportPage-1))} disabled={exportPage===0} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}}>◀</button><span style={{fontSize:12}}>Page {exportPage+1}/{totPg}</span><button onClick={()=>setExportPage(Math.min(totPg-1,exportPage+1))} disabled={exportPage>=totPg-1} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}}>▶</button></>}</div><div style={{overflow:"auto",maxHeight:400,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#fff"}}><canvas ref={expRef} style={{display:"block"}}/></div></Section>

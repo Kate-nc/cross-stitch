@@ -4,11 +4,12 @@ def test():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(bypass_csp=True)
-        page.goto("http://localhost:8000/index.html")
-        page.wait_for_timeout(1000)
 
         errors = []
         page.on("pageerror", lambda err: errors.append(err.message))
+
+        page.goto("http://localhost:8000/manager.html")
+        page.wait_for_load_state("networkidle")
         page.wait_for_timeout(1000)
         browser.close()
 
