@@ -78,8 +78,9 @@ const SharedModals = {
     );
   },
 
-  ThreadSelector: ({ onClose, currentSymbol, currentThreadId, onSelect, usedThreads }) => {
+  ThreadSelector: ({ onClose, currentSymbol, currentThreadId, onSelect, usedThreads, onSwap, pal }) => {
     const [search, setSearch] = React.useState("");
+    const [swapCandidate, setSwapCandidate] = React.useState(null); // thread entry that was "In Use" and clicked
 
     // We expect DMC to be available globally
     const filteredThreads = React.useMemo(() => {
@@ -110,6 +111,32 @@ const SharedModals = {
           })
         ),
 
+        // Swap confirmation banner — shown when user clicks an "In Use" thread
+        swapCandidate && React.createElement("div", { style: { margin: "0 0 12px 0", padding: "12px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8 } },
+          React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 8 } },
+            `DMC ${swapCandidate.id} is already assigned to another symbol.`
+          ),
+          React.createElement("div", { style: { fontSize: 12, color: "#71717a", marginBottom: 10 } },
+            `Swap the two symbols' colour assignments? Both symbols will keep their shapes — only their thread colours will exchange.`
+          ),
+          React.createElement("div", { style: { display: "flex", gap: 8 } },
+            React.createElement("button", {
+              onClick: () => {
+                if (onSwap && pal) {
+                  // Find the palette entry that holds swapCandidate.id (the conflicting symbol)
+                  const conflictingPalEntry = pal.find(p => p.id === swapCandidate.id);
+                  if (conflictingPalEntry) onSwap(conflictingPalEntry);
+                }
+              },
+              style: { padding: "7px 14px", fontSize: 13, background: "#d97706", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }
+            }, "Swap Colours"),
+            React.createElement("button", {
+              onClick: () => setSwapCandidate(null),
+              style: { padding: "7px 14px", fontSize: 13, background: "#fff", color: "#71717a", border: "1px solid #e4e4e7", borderRadius: 6, cursor: "pointer" }
+            }, "Cancel")
+          )
+        ),
+
         React.createElement("div", { style: { flex: 1, overflowY: "auto", border: "1px solid #e4e4e7", borderRadius: 8 } },
           filteredThreads.length === 0 ? React.createElement("div", { style: { padding: 20, textAlign: "center" } },
             React.createElement("div", { style: { color: "#71717a", fontSize: 14, marginBottom: 12 } }, "No threads found."),
@@ -123,7 +150,7 @@ const SharedModals = {
                   id: search.trim(),
                   name: "Unknown Thread",
                   rgb: [200, 200, 200],
-                  lab: [80, 0, 0] // Approx mid-grey lab
+                  lab: [80, 0, 0]
                 });
               },
               style: { padding: "8px 16px", fontSize: 13, background: "#0d9488", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 }
@@ -132,27 +159,30 @@ const SharedModals = {
           filteredThreads.map(t => {
             const isCurrent = t.id === currentThreadId;
             const isUsed = usedThreads.includes(t.id) && !isCurrent;
+            const isSwapCandidate = swapCandidate && swapCandidate.id === t.id;
             return React.createElement("div", {
               key: t.id,
               onClick: () => {
                 if (isUsed) {
-                  alert(`DMC ${t.id} is already assigned to another symbol. Each colour can only be assigned to one symbol.`);
+                  // Offer swap instead of blocking with an alert
+                  setSwapCandidate(t);
                   return;
                 }
                 onSelect(t);
               },
               style: {
                 display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #f4f4f5",
-                background: isCurrent ? "#f0fdfa" : (isUsed ? "#fafafa" : "#fff"),
-                cursor: isUsed ? "not-allowed" : "pointer",
-                opacity: isUsed ? 0.5 : 1
+                background: isCurrent ? "#f0fdfa" : isSwapCandidate ? "#fffbeb" : (isUsed ? "#fafafa" : "#fff"),
+                cursor: isUsed ? "pointer" : "pointer",
+                opacity: 1
               }
             },
               React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid #d4d4d8", flexShrink: 0 } }),
               React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "#18181b" } }, "DMC " + t.id),
               React.createElement("div", { style: { fontSize: 13, color: "#71717a", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
               isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#0d9488", background: "#ccfbf1", padding: "2px 8px", borderRadius: 10 } }, "Current"),
-              isUsed && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#dc2626", background: "#fee2e2", padding: "2px 8px", borderRadius: 10 } }, "In Use")
+              isUsed && !isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 } }, "In Use — tap to swap"),
+              isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fde68a", padding: "2px 8px", borderRadius: 10 } }, "Swap?")
             );
           })
         )
