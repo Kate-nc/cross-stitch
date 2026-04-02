@@ -1131,3 +1131,5 @@ return(
 </div>
 </>);
 }
+// External script enabled
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
