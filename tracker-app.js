@@ -28,6 +28,8 @@ const[hlRow,setHlRow]=useState(-1),[hlCol,setHlCol]=useState(-1);
 const[isDragging,setIsDragging]=useState(false),[dragVal,setDragVal]=useState(1);
 const dragChangesRef=useRef([]);
 
+const[symbolMap,setSymbolMap]=useState({});
+
 const[selectedColorId,setSelectedColorId]=useState(null);
 
 const[hoverInfo,setHoverInfo]=useState(null);
@@ -213,7 +215,8 @@ function saveProject(){
     sessions,
     hlRow,
     hlCol,
-    threadOwned
+    threadOwned,
+    symbolMap
   };
   let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
   let url=URL.createObjectURL(blob);
@@ -251,7 +254,9 @@ function processLoadedProject(project){
     restored=p.map(restoreStitch);
   }
 
-  let{pal:newPal,cmap:newCmap}=buildPalette(restored);
+  let loadedSymMap = project.symbolMap || {};
+  let{pal:newPal,cmap:newCmap}=buildPalette(restored, loadedSymMap);
+  setSymbolMap(loadedSymMap);
   setPat(restored);setPal(newPal);setCmap(newCmap);
   setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);
   if(project.settings && project.settings.pdfSettings) setPdfSettings(project.settings.pdfSettings);
@@ -570,7 +575,7 @@ function handleStitchMouseDown(e){
   if(gx<0||gx>=sW||gy<0||gy>=sH||!done)return;
   let idx=gy*sW+gx;
   let cell=pat[idx];
-  if(cell.id==="__skip__")return;
+  if(!cell || cell.id==="__skip__")return;
 
   // Calculate clicked mask
   let clickMask = FRACTIONAL_DONE.FULL;
@@ -848,9 +853,11 @@ return(
       <div style={{width:1,height:20,background:"#e4e4e7"}}/>
       <span style={{fontSize:11,color:"#a1a1aa"}}>Zoom</span><input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{width:60}}/><span style={{fontSize:11,minWidth:28}}>{Math.round(stitchZoom*100)}%</span><button onClick={fitSZ} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Fit</button>
       {stitchMode==="navigate"&&<><div style={{width:1,height:20,background:"#e4e4e7"}}/><span style={{fontSize:11,color:"#71717a"}}>📌</span><select value={selectedColorId||""} onChange={e=>setSelectedColorId(e.target.value||null)} style={{fontSize:11,padding:"3px 6px",borderRadius:6,border:"0.5px solid #e4e4e7"}}><option value="">No parking</option>{pal.map(p=><option key={p.id} value={p.id}>DMC {p.id}</option>)}</select>{parkMarkers.length>0&&<button onClick={()=>setParkMarkers([])} style={{fontSize:11,padding:"3px 8px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",color:"#d97706",cursor:"pointer"}}>Clear</button>}</>}
-      <div style={{marginLeft:"auto",display:"flex",gap:4}}>
+      <div style={{marginLeft:"auto",display:"flex",gap:4,alignItems:"center"}}>
         {stitchMode==="track"&&trackHistory.length>0&&<button onClick={undoTrack} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo ({trackHistory.length})</button>}
         {done&&doneCount>0&&<button onClick={()=>{if(confirm("Clear all progress?")){setDone(new Uint8Array(pat.length));setTrackHistory([]);}}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Reset</button>}
+        <div style={{width:1,height:18,background:"#e4e4e7"}}/>
+        <button onClick={()=>setModal("stitch_guide")} style={{width:28,height:28,borderRadius:"50%",border:"0.5px solid #e4e4e7",background:"#fff",color:"#71717a",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,fontWeight:600}} title="Stitch guide">?</button>
       </div>
     </div>
     {scs < 6 && (stitchView === "symbol" || stitchView === "colour") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
@@ -1009,6 +1016,7 @@ return(
 
   {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
+  {modal==="stitch_guide"&&<SharedModals.StitchGuide onClose={()=>setModal(null)} />}
   {modal==="pdf_export"&&<SharedModals.PdfExport onClose={()=>setModal(null)} initialSettings={pdfSettings} sW={sW} sH={sH} hasTrackingData={doneCount > 0} hasBackstitch={bsLines.length > 0} pal={pal} onExport={(s)=>{setPdfSettings(s);setModal(null);generatePDF({pat, pal, cmap, sW, sH, done, totalStitchable, fabricCt, skeinData, blendCount, totalSkeins, difficulty:null, stitchSpeed, totalTime, sessions, threadOwned, bsLines, imgData:null}, s);}} />}
 </div>
 </>);

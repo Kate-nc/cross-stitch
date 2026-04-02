@@ -139,6 +139,9 @@ function setTool(tool){
   }else if(tool==="fracBack"){
      setFracMode("back");
      localStorage.setItem("halfStitchSeen", "true");
+  }else if(tool==="quarter"){
+     setFracMode("quarter");
+     localStorage.setItem("quarterStitchSeen", "true");
   }else{
      setFracMode(null);
   }
@@ -865,7 +868,7 @@ function handlePatClick(e){
   let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch");
   if(!gc)return;let{gx,gy}=gc;
 
-  if((activeTool==="fracFwd" || activeTool==="fracBack") && selectedColorId && cmap) {
+  if((activeTool==="fracFwd" || activeTool==="fracBack" || activeTool==="quarter") && selectedColorId && cmap) {
     if(gx<0||gx>=sW||gy<0||gy>=sH)return;
     let idx=gy*sW+gx;
 
@@ -883,11 +886,17 @@ function handlePatClick(e){
     let orientation = activeTool==="fracFwd" ? "forwardslash" : "backslash";
 
     let newComp = null;
-    if(isCenter){
-       newComp = {type:"half", id:selectedColorId, orientation};
-    } else {
-       if(qx===1||qy===1) return; // ignore edge midpoints for now
+    if(activeTool==="quarter"){
+       if(qx===1||qy===1) return; // ignore edges
        newComp = {type:"quarter", id:selectedColorId, path:{start:[qx,qy], end:[1,1]}};
+       isCenter = false;
+    }else{
+       if(isCenter){
+          newComp = {type:"half", id:selectedColorId, orientation};
+       } else {
+          if(qx===1||qy===1) return; // ignore edge midpoints
+          newComp = {type:"quarter", id:selectedColorId, path:{start:[qx,qy], end:[1,1]}};
+       }
     }
 
     let cell = pat[idx];
@@ -1156,12 +1165,30 @@ return(
                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" strokeOpacity="0.4"/><path d="M7 7l10 10"/></svg>
                {(!localStorage.getItem("halfStitchSeen")) && <span style={{position:"absolute", top:-4, right:-4, width:8, height:8, background:"#ef4444", borderRadius:"50%"}}/>}
             </button>
+            <div style={{width:1,height:18,background:"#e4e4e7",margin:"0 2px"}}/>
+            <button onClick={()=>setTool("quarter")} style={{...tBtn(activeTool==="quarter"), position:"relative"}} title="Quarter stitch">
+               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="3,21 12,21 12,12 3,12"/></svg>
+               {(!localStorage.getItem("quarterStitchSeen")) && <span style={{position:"absolute", top:-4, right:-4, width:8, height:8, background:"#ef4444", borderRadius:"50%"}}/>}
+            </button>
 
-            {(activeTool==="fracFwd"||activeTool==="fracBack") && <div style={{position:"absolute",top:60,left:"50%",transform:"translateX(-50%)",background:"#18181b",color:"#fff",padding:"8px 12px",borderRadius:8,fontSize:12,zIndex:100,boxShadow:"0 10px 15px -3px rgba(0,0,0,0.1)", pointerEvents:"none", display:"flex", flexDirection:"column", gap:4}}>
-               <div style={{fontWeight:600}}>Half stitch tool</div>
-               <div style={{color:"#a1a1aa"}}>Tap a cell to place. Coloured triangle shows coverage. Tap again to remove.</div>
-            </div>}
-            {(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
+            <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
+               <div style={{width:1,height:18,background:"#e4e4e7"}}/>
+               <button onClick={()=>setModal("stitch_guide")} style={{width:28,height:28,borderRadius:"50%",border:"0.5px solid #e4e4e7",background:"#fff",color:"#71717a",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,fontWeight:600}} title="Stitch guide">?</button>
+            </div>
+          </div>
+
+          {((activeTool==="fracFwd"||activeTool==="fracBack") && !localStorage.getItem("tipDismissed_halfStitch")) && <div style={{background:"#f0fdfa",borderBottom:"0.5px solid #99f6e4",padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12}}>
+               <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:600,color:"#0f766e"}}>Half stitch:</span> <span style={{color:"#0d9488"}}>places a single diagonal. The tinted triangle shows which half of the cell is covered. Tap again to remove.</span></div>
+               <span onClick={()=>localStorage.setItem("tipDismissed_halfStitch", "true")||setFracMode(fracMode)} style={{cursor:"pointer",textDecoration:"underline",color:"#0f766e",fontWeight:500}}>Dismiss</span>
+          </div>}
+
+          {(activeTool==="quarter" && !localStorage.getItem("tipDismissed_quarterStitch")) && <div style={{background:"#f0fdfa",borderBottom:"0.5px solid #99f6e4",padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12}}>
+               <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:600,color:"#0f766e"}}>Quarter stitch:</span> <span style={{color:"#0d9488"}}>tap a specific quadrant of the cell. The crosshair guide shows the 4 zones on hover.</span></div>
+               <span onClick={()=>localStorage.setItem("tipDismissed_quarterStitch", "true")||setFracMode(fracMode)} style={{cursor:"pointer",textDecoration:"underline",color:"#0f766e",fontWeight:500}}>Dismiss</span>
+          </div>}
+
+          <div style={{display:"flex",gap:5,marginBottom:8,marginTop:8,flexWrap:"wrap",alignItems:"center", padding: "0px 10px"}}>
+            {(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack"||activeTool==="quarter")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
             <div style={{marginLeft:"auto",display:"flex",gap:4}}>
               {editHistory.length>0&&<button onClick={()=>{let last=editHistory[editHistory.length-1],np=pat.slice();last.changes.forEach(c2=>np[c2.idx]={...c2.old});setPat(np);setEditHistory(prev=>prev.slice(0,-1));let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
               {hiId&&<button onClick={()=>setHiId(null)} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Clear ✕</button>}
@@ -1171,7 +1198,7 @@ return(
             e.preventDefault();
             if(activeTool==="backstitch"&&bsStart){
               setBsStart(null);
-            } else if(activeTool==="fracFwd" || activeTool==="fracBack") {
+            } else if(activeTool==="fracFwd" || activeTool==="fracBack" || activeTool==="quarter") {
               // Right click priority swap
               let gc=gridCoord(pcRef,e,cs,G,false);
               if(gc && gc.gx>=0&&gc.gx<sW&&gc.gy>=0&&gc.gy<sH) {
@@ -1189,7 +1216,7 @@ return(
               }
             }
           }}/></div>
-          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{pal.map(p=>{let ips=(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack")&&selectedColorId===p.id,ihs=hiId===p.id;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff"}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span></div>;})}</div></div>
+          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{pal.map(p=>{let ips=(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack"||activeTool==="quarter")&&selectedColorId===p.id,ihs=hiId===p.id;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack"||activeTool==="quarter")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff"}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span></div>;})}</div></div>
         </div>}
 
         {/* ═══ PROJECT TAB ═══ */}
@@ -1442,6 +1469,7 @@ return(
   </div>}
   {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
+  {modal==="stitch_guide"&&<SharedModals.StitchGuide onClose={()=>setModal(null)} />}
   {modal==="pdf_export"&&<SharedModals.PdfExport onClose={()=>setModal(null)} initialSettings={pdfSettings} sW={sW} sH={sH} hasTrackingData={doneCount > 0} hasBackstitch={bsLines.length > 0} pal={pal} onExport={(s)=>{setPdfSettings(s);setModal(null);generatePDF({pat, pal, cmap, sW, sH, done, totalStitchable, fabricCt, skeinData, blendCount, totalSkeins, difficulty, stitchSpeed, totalTime, sessions, threadOwned, bsLines, imgData:img?img.src:null}, s);}} />}
 </div>
 </>);
