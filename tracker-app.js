@@ -62,11 +62,74 @@ useEffect(()=>{
   }else{clearInterval(timerRef.current);}
 },[sessionActive,sessionStart]);
 
-const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
-const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__")c++;return c;},[pat]);
+const doneCount=useMemo(()=>{
+  if(!done||!pat)return 0;
+  let c=0;
+  for(let i=0;i<done.length;i++){
+    let d=done[i];
+    if(d===0)continue;
+    let m=pat[i];
+    if(m&&m.type==="fractional"&&m.components){
+      if(d&FRACTIONAL_DONE.TL) c+=0.25;
+      if(d&FRACTIONAL_DONE.TR) c+=0.25;
+      if(d&FRACTIONAL_DONE.BL) c+=0.25;
+      if(d&FRACTIONAL_DONE.BR) c+=0.25;
+      if(d&FRACTIONAL_DONE.HALF_FWD) c+=0.5;
+      if(d&FRACTIONAL_DONE.HALF_BACK) c+=0.5;
+    }else if(d&FRACTIONAL_DONE.FULL){
+      c+=1;
+    }
+  }
+  return c;
+},[done,pat]);
+const totalStitchable=useMemo(()=>{
+  if(!pat)return 0;
+  let c=0;
+  for(let i=0;i<pat.length;i++){
+    let m=pat[i];
+    if(m.id!=="__skip__"){
+      if(m.type==="fractional"&&m.components){
+         m.components.forEach(comp=>{ c+=(comp.type==="half"?0.5:0.25); });
+      }else{ c++; }
+    }
+  }
+  return c;
+},[pat]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
 useEffect(()=>{if(sessionActive&&done){let diff=doneCount-prevDoneCount.current;if(diff>0)setSessionStitches(p=>p+diff);}prevDoneCount.current=doneCount;},[doneCount,sessionActive,done]);
-const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+const colourDoneCounts=useMemo(()=>{
+  if(!pat||!done)return{};
+  let c={};
+  for(let i=0;i<pat.length;i++){
+    let m=pat[i];
+    if(m.id==="__skip__")continue;
+    if(m.type==="fractional"&&m.components){
+       m.components.forEach(comp=>{
+          let id=comp.id;
+          if(!c[id])c[id]={total:0,done:0};
+          let vol = comp.type==="half"?0.5:0.25;
+          c[id].total+=vol;
+          let d=done[i];
+          if(comp.type==="half"){
+             if(comp.orientation==="forwardslash" && (d&FRACTIONAL_DONE.HALF_FWD)) c[id].done+=vol;
+             else if(comp.orientation==="backslash" && (d&FRACTIONAL_DONE.HALF_BACK)) c[id].done+=vol;
+          }else{
+             let p=comp.path.start;
+             if(p[0]===0&&p[1]===0 && (d&FRACTIONAL_DONE.TL)) c[id].done+=vol;
+             else if(p[0]===2&&p[1]===0 && (d&FRACTIONAL_DONE.TR)) c[id].done+=vol;
+             else if(p[0]===0&&p[1]===2 && (d&FRACTIONAL_DONE.BL)) c[id].done+=vol;
+             else if(p[0]===2&&p[1]===2 && (d&FRACTIONAL_DONE.BR)) c[id].done+=vol;
+          }
+       });
+    }else{
+       let id=m.id;
+       if(!c[id])c[id]={total:0,done:0};
+       c[id].total++;
+       if(done[i]&FRACTIONAL_DONE.FULL)c[id].done++;
+    }
+  }
+  return c;
+},[pat,done]);
 const estCompletion=useMemo(()=>{let t=totalTime+(sessionActive?sessionElapsed:0);if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,sessionElapsed,sessionActive,doneCount,totalStitchable]);
 const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
 const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
@@ -85,7 +148,40 @@ const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData])
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
 
 function toggleSession(){if(sessionActive){let el=Math.floor((Date.now()-sessionStart)/1000);setTotalTime(p=>p+el);setSessions(p=>[...p,{stitches:sessionStitches,time:el,date:Date.now()}]);setSessionActive(false);setSessionStart(null);setSessionStitches(0);setSessionElapsed(0);}else{setSessionActive(true);setSessionStart(Date.now());setSessionStitches(0);setSessionElapsed(0);prevDoneCount.current=doneCount;}}
-function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0)pushTrackHistory(changes);setDone(nd);}
+function markColourDone(cid,md){
+  if(!pat||!done)return;
+  let changes=[];
+  let nd=new Uint8Array(done);
+  for(let i=0;i<pat.length;i++){
+     let m=pat[i];
+     if(m.id==="__skip__")continue;
+     let oldVal = nd[i];
+     if(m.type==="fractional"&&m.components){
+        let newVal = oldVal;
+        m.components.forEach(comp=>{
+           if(comp.id===cid){
+              let mask = 0;
+              if(comp.type==="half"){
+                 mask = comp.orientation==="forwardslash" ? FRACTIONAL_DONE.HALF_FWD : FRACTIONAL_DONE.HALF_BACK;
+              }else{
+                 let p = comp.path.start;
+                 if(p[0]===0&&p[1]===0) mask = FRACTIONAL_DONE.TL;
+                 else if(p[0]===2&&p[1]===0) mask = FRACTIONAL_DONE.TR;
+                 else if(p[0]===0&&p[1]===2) mask = FRACTIONAL_DONE.BL;
+                 else if(p[0]===2&&p[1]===2) mask = FRACTIONAL_DONE.BR;
+              }
+              if(md) newVal |= mask; else newVal &= ~mask;
+           }
+        });
+        if(newVal !== oldVal){ changes.push({idx:i,oldVal}); nd[i]=newVal; }
+     }else if(m.id===cid){
+        let newVal = md ? FRACTIONAL_DONE.FULL : 0;
+        if(newVal !== oldVal){ changes.push({idx:i,oldVal}); nd[i]=newVal; }
+     }
+  }
+  if(changes.length>0)pushTrackHistory(changes);
+  setDone(nd);
+}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 
 function pushTrackHistory(changes){
@@ -109,7 +205,7 @@ function saveProject(){
     version:7,
     page:"tracker",
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
-    pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),
+    pattern:pat.map(m=>{if(m.id==="__skip__")return{id:"__skip__"};if(m.type==="fractional")return{type:"fractional",components:m.components};return{id:m.id,type:m.type,rgb:m.rgb};}),
     bsLines,
     done:done?Array.from(done):null,
     parkMarkers,
@@ -270,18 +366,122 @@ useEffect(() => {
     }
 }, []);
 
-function drawStitch(ctx,cSz){
+function drawStitch(ctx,cSz,viewportRect=null){
   let gut=G,dW=sW,dH=sH;
-  ctx.fillStyle="#fff";ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
+  let startX=0, startY=0, endX=dW, endY=dH;
+  if(viewportRect){
+    startX = Math.max(0, Math.floor((viewportRect.left - gut) / cSz) - 1);
+    startY = Math.max(0, Math.floor((viewportRect.top - gut) / cSz) - 1);
+    endX = Math.min(dW, Math.ceil((viewportRect.right - gut) / cSz) + 1);
+    endY = Math.min(dH, Math.ceil((viewportRect.bottom - gut) / cSz) + 1);
+    ctx.clearRect(Math.max(0, viewportRect.left), Math.max(0, viewportRect.top), viewportRect.width, viewportRect.height);
+    ctx.fillStyle="#fff";ctx.fillRect(Math.max(0, viewportRect.left), Math.max(0, viewportRect.top), viewportRect.width, viewportRect.height);
+  } else {
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
+  }
+
   ctx.fillStyle="#a1a1aa";ctx.font=`${Math.max(7,Math.min(11,cSz*0.5))}px system-ui`;ctx.textAlign="center";ctx.textBaseline="middle";
-  for(let x=0;x<dW;x+=10)ctx.fillText(String(x+1),gut+x*cSz+cSz/2,gut/2);ctx.textAlign="right";for(let y=0;y<dH;y+=10)ctx.fillText(String(y+1),gut-3,gut+y*cSz+cSz/2);
-  for(let y=0;y<dH;y++)for(let x=0;x<dW;x++){
+  if (!viewportRect || viewportRect.top <= gut) {
+      for(let x=startX;x<endX;x+=1){
+          if(x%10===0) ctx.fillText(String(x+1),gut+x*cSz+cSz/2,gut/2);
+      }
+  }
+  if (!viewportRect || viewportRect.left <= gut) {
+      ctx.textAlign="right";
+      for(let y=startY;y<endY;y+=1){
+          if(y%10===0) ctx.fillText(String(y+1),gut-3,gut+y*cSz+cSz/2);
+      }
+  }
+
+  for(let y=startY;y<endY;y++)for(let x=startX;x<endX;x++){
     let idx=y*sW+x,m=pat[idx];if(!m)continue;
-    let info=m.id==="__skip__"?null:(cmap?cmap[m.id]:null);
     let px=gut+x*cSz,py=gut+y*cSz;
-    let isDn=done&&done[idx];
-    let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__";
+    let dVal=done?done[idx]:0;
+
     if(m.id==="__skip__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle="rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
+
+    if(m.type==="fractional"&&m.components){
+        drawCk(ctx,px,py,cSz);
+        let sorted = m.components.slice().sort((a,b)=>(a.priority||0)-(b.priority||0));
+        sorted.forEach(comp=>{
+           let ci=cmap?cmap[comp.id]:null;
+           if(!ci)return;
+           let isDimmed=stitchView==="highlight"&&focusColour&&comp.id!==focusColour;
+
+           let isCompDone = false;
+           if(comp.type==="half"){
+              isCompDone = comp.orientation==="forwardslash" ? (dVal&FRACTIONAL_DONE.HALF_FWD) : (dVal&FRACTIONAL_DONE.HALF_BACK);
+           }else{
+              let p = comp.path.start;
+              if(p[0]===0&&p[1]===0) isCompDone = (dVal&FRACTIONAL_DONE.TL);
+              else if(p[0]===2&&p[1]===0) isCompDone = (dVal&FRACTIONAL_DONE.TR);
+              else if(p[0]===0&&p[1]===2) isCompDone = (dVal&FRACTIONAL_DONE.BL);
+              else if(p[0]===2&&p[1]===2) isCompDone = (dVal&FRACTIONAL_DONE.BR);
+           }
+
+           ctx.save();
+           ctx.beginPath();
+           if(comp.type==="half"){
+             if(comp.orientation==="backslash"){
+               ctx.moveTo(px,py);ctx.lineTo(px+cSz,py+cSz);ctx.lineTo(px,py+cSz);ctx.closePath();
+             } else {
+               ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz,py);ctx.lineTo(px+cSz,py+cSz);ctx.closePath();
+             }
+           } else if(comp.type==="quarter"){
+             ctx.moveTo(px+cSz/2,py+cSz/2);
+             let p=comp.path.start;
+             if(p[0]===0&&p[1]===0){ ctx.lineTo(px,py); ctx.lineTo(px,py+cSz/2); ctx.lineTo(px+cSz/2,py); }
+             else if(p[0]===2&&p[1]===0){ ctx.lineTo(px+cSz,py); ctx.lineTo(px+cSz,py+cSz/2); ctx.lineTo(px+cSz/2,py); }
+             else if(p[0]===0&&p[1]===2){ ctx.lineTo(px,py+cSz); ctx.lineTo(px,py+cSz/2); ctx.lineTo(px+cSz/2,py+cSz); }
+             else if(p[0]===2&&p[1]===2){ ctx.lineTo(px+cSz,py+cSz); ctx.lineTo(px+cSz,py+cSz/2); ctx.lineTo(px+cSz/2,py+cSz); }
+           }
+           ctx.clip();
+
+           if(stitchView==="symbol"){
+             if(isCompDone){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
+             else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);}
+           }else if(stitchView==="colour"){
+             ctx.fillStyle=`rgb(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
+           }else{
+             if(isCompDone){ctx.fillStyle=isDimmed?"#f4f4f5":`rgb(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+             else if(isDimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);}
+             else{ctx.fillStyle=`rgba(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);}
+           }
+
+           let showSym = false;
+           if(stitchView==="symbol" && !isCompDone) showSym=true;
+           else if(stitchView==="colour" && !isCompDone) showSym=true;
+           else if(stitchView==="highlight" && !isCompDone && !isDimmed) showSym=true;
+           else if(stitchView==="highlight" && isDimmed) showSym=true;
+
+           if(showSym && cSz>=10){
+             let lum=luminance(ci.rgb);
+             if(stitchView==="symbol"||isDimmed) ctx.fillStyle="#18181b";
+             else ctx.fillStyle=lum>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";
+             if(isDimmed) { ctx.fillStyle="rgba(0,0,0,0.15)"; }
+             ctx.font=`bold ${Math.max(6,cSz*0.4)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+             let sx=px+cSz/2,sy=py+cSz/2;
+             if(comp.type==="quarter"){
+                let p=comp.path.start;
+                if(p[0]===0&&p[1]===0){ sx=px+cSz*0.25; sy=py+cSz*0.25; }
+                else if(p[0]===2&&p[1]===0){ sx=px+cSz*0.75; sy=py+cSz*0.25; }
+                else if(p[0]===0&&p[1]===2){ sx=px+cSz*0.25; sy=py+cSz*0.75; }
+                else if(p[0]===2&&p[1]===2){ sx=px+cSz*0.75; sy=py+cSz*0.75; }
+             } else if(comp.type==="half") {
+                if(comp.orientation==="backslash"){ sx=px+cSz*0.25; sy=py+cSz*0.75; }
+                else { sx=px+cSz*0.75; sy=py+cSz*0.75; }
+             }
+             ctx.fillText(ci.symbol,sx,sy);
+           }
+           ctx.restore();
+        });
+        if(cSz>=4){ctx.strokeStyle="rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+        continue;
+    }
+
+    let info=cmap?cmap[m.id]:null;
+    let isDn=dVal&FRACTIONAL_DONE.FULL;
+    let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__";
     if(stitchView==="symbol"){
       if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
       else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
@@ -337,12 +537,58 @@ function handleStitchMouseDown(e){
     return;
   }
   if(gx<0||gx>=sW||gy<0||gy>=sH||!done)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
-  let nv=done[idx]?0:1;setDragVal(nv);setIsDragging(true);
-  dragChangesRef.current=[{idx,oldVal:done[idx]}];
-  let nd=new Uint8Array(done);nd[idx]=nv;setDone(nd);
+  let idx=gy*sW+gx;
+  let cell=pat[idx];
+  if(cell.id==="__skip__")return;
+
+  // Calculate clicked mask
+  let clickMask = FRACTIONAL_DONE.FULL;
+  if(cell.type==="fractional"&&cell.components){
+     let rect=stitchRef.current.getBoundingClientRect();
+     let mx=(e.clientX-rect.left)-G;
+     let my=(e.clientY-rect.top)-G;
+     let cx=mx-gx*scs;
+     let cy=my-gy*scs;
+     let qx = cx < scs*0.5 ? 0 : 2;
+     let qy = cy < scs*0.5 ? 0 : 2;
+
+     // Check which component we clicked closest to
+     let clickedComp = null;
+     for(let i=cell.components.length-1; i>=0; i--){
+        let comp = cell.components[i];
+        if(comp.type==="quarter"){
+           if(comp.path.start[0]===qx && comp.path.start[1]===qy) { clickedComp=comp; break; }
+        }else if(comp.type==="half"){
+           if(comp.orientation==="forwardslash" && ((qx===0&&qy===2) || (qx===2&&qy===0))) { clickedComp=comp; break; }
+           if(comp.orientation==="backslash" && ((qx===0&&qy===0) || (qx===2&&qy===2))) { clickedComp=comp; break; }
+        }
+     }
+     if(clickedComp){
+        if(clickedComp.type==="quarter"){
+           let p = clickedComp.path.start;
+           if(p[0]===0&&p[1]===0) clickMask = FRACTIONAL_DONE.TL;
+           else if(p[0]===2&&p[1]===0) clickMask = FRACTIONAL_DONE.TR;
+           else if(p[0]===0&&p[1]===2) clickMask = FRACTIONAL_DONE.BL;
+           else if(p[0]===2&&p[1]===2) clickMask = FRACTIONAL_DONE.BR;
+        }else{
+           clickMask = clickedComp.orientation==="forwardslash" ? FRACTIONAL_DONE.HALF_FWD : FRACTIONAL_DONE.HALF_BACK;
+        }
+     }else{
+        return; // Clicked an empty part of the cell
+     }
+  }
+
+  let oldVal = done[idx];
+  let isDone = (oldVal & clickMask);
+  let newVal = isDone ? (oldVal & ~clickMask) : (oldVal | clickMask);
+
+  setDragVal({mask: clickMask, turnOn: !isDone});
+  setIsDragging(true);
+  dragChangesRef.current=[{idx,oldVal}];
+  let nd=new Uint8Array(done);nd[idx]=newVal;setDone(nd);
   e.preventDefault();
 }
+
 function handleStitchMouseMove(e){
   if(isPanning){
     doPan(e);
@@ -358,13 +604,16 @@ function handleStitchMouseMove(e){
     let cell=pat[idx];
     if(cell && cell.id!=="__skip__"){
       let name="";
+      let cellId=cell.id;
       if(cell.type==="blend"){
         name=cell.threads[0].name+"+"+cell.threads[1].name;
+      }else if(cell.type==="fractional"){
+        cellId = "Multiple"; name="Fractional Stitches";
       }else{
         let t=DMC.find(d=>d.id===cell.id);
         if(t) name=t.name;
       }
-      setHoverInfo({row:gc.gy+1, col:gc.gx+1, id:cell.id, name:name, x:e.clientX, y:e.clientY});
+      setHoverInfo({row:gc.gy+1, col:gc.gx+1, id:cellId, name:name, x:e.clientX, y:e.clientY});
     } else {
       setHoverInfo(null);
     }
@@ -375,10 +624,55 @@ function handleStitchMouseMove(e){
   if(!isDragging||stitchMode!=="track"||!done||!stitchRef.current||!pat)return;
   if(!gc)return;let{gx,gy}=gc;
   if(gx<0||gx>=sW||gy<0||gy>=sH)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
-  if(done[idx]!==dragVal){
-    dragChangesRef.current.push({idx,oldVal:done[idx]});
-    let nd=new Uint8Array(done);nd[idx]=dragVal;setDone(nd);
+  let idx=gy*sW+gx;
+  let cell = pat[idx];
+  if(cell.id==="__skip__")return;
+
+  let clickMask = dragVal.mask;
+  if(cell.type==="fractional"&&cell.components){
+     // Only allow dragging over similar components if possible, otherwise we might corrupt.
+     // For safety on drag over fractions, just use the first component we hit in that region.
+     let rect=stitchRef.current.getBoundingClientRect();
+     let mx=(e.clientX-rect.left)-G;
+     let my=(e.clientY-rect.top)-G;
+     let cx=mx-gx*scs;
+     let cy=my-gy*scs;
+     let qx = cx < scs*0.5 ? 0 : 2;
+     let qy = cy < scs*0.5 ? 0 : 2;
+
+     let clickedComp = null;
+     for(let i=cell.components.length-1; i>=0; i--){
+        let comp = cell.components[i];
+        if(comp.type==="quarter"){
+           if(comp.path.start[0]===qx && comp.path.start[1]===qy) { clickedComp=comp; break; }
+        }else if(comp.type==="half"){
+           if(comp.orientation==="forwardslash" && ((qx===0&&qy===2) || (qx===2&&qy===0))) { clickedComp=comp; break; }
+           if(comp.orientation==="backslash" && ((qx===0&&qy===0) || (qx===2&&qy===2))) { clickedComp=comp; break; }
+        }
+     }
+     if(clickedComp){
+        if(clickedComp.type==="quarter"){
+           let p = clickedComp.path.start;
+           if(p[0]===0&&p[1]===0) clickMask = FRACTIONAL_DONE.TL;
+           else if(p[0]===2&&p[1]===0) clickMask = FRACTIONAL_DONE.TR;
+           else if(p[0]===0&&p[1]===2) clickMask = FRACTIONAL_DONE.BL;
+           else if(p[0]===2&&p[1]===2) clickMask = FRACTIONAL_DONE.BR;
+        }else{
+           clickMask = clickedComp.orientation==="forwardslash" ? FRACTIONAL_DONE.HALF_FWD : FRACTIONAL_DONE.HALF_BACK;
+        }
+     }else{
+        return;
+     }
+  } else {
+     clickMask = FRACTIONAL_DONE.FULL;
+  }
+
+  let oldVal=done[idx];
+  let newVal=dragVal.turnOn ? (oldVal | clickMask) : (oldVal & ~clickMask);
+
+  if(oldVal!==newVal){
+    dragChangesRef.current.push({idx,oldVal});
+    let nd=new Uint8Array(done);nd[idx]=newVal;setDone(nd);
   }
 }
 function handleStitchMouseLeave(){

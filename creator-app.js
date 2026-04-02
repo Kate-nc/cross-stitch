@@ -26,6 +26,7 @@ const [pdfSettings, setPdfSettings] = useState({ chartStyle: 'symbols', cellSize
 
 const[activeTool,setActiveTool]=useState(null),[bsLines,setBsLines]=useState([]),[bsStart,setBsStart]=useState(null);
 const[bsContinuous,setBsContinuous]=useState(false);
+const[fracMode,setFracMode]=useState(null); // null, "fwd", "back"
 const[selectedColorId,setSelectedColorId]=useState(null);
 const[hoverCoords,setHoverCoords]=useState(null);
 const[editHistory,setEditHistory]=useState([]);
@@ -129,7 +130,7 @@ useEffect(()=>{
   return()=>{if(previewTimerRef.current)clearTimeout(previewTimerRef.current);};
 },[generatePreview]);
 
-function setTool(tool){if(activeTool===tool){setActiveTool(null);setBsStart(null);return;}setActiveTool(tool);setBsStart(null);}
+function setTool(tool){if(activeTool===tool){setActiveTool(null);setBsStart(null);setFracMode(null);return;}setActiveTool(tool);setBsStart(null);if(tool==="fracFwd"){setFracMode("fwd");}else if(tool==="fracBack"){setFracMode("back");}else{setFracMode(null);}}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 
 function resetAll(){
@@ -204,7 +205,7 @@ function applyCrop(){
   newImg.src=c.toDataURL();
 }
 
-function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>{if(m.id==="__skip__")return{id:"__skip__"};if(m.type==="fractional")return{type:"fractional",components:m.components};return{id:m.id,type:m.type,rgb:m.rgb};}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
 function processLoadedProject(project){
   let s=project.settings;setSW(s.sW);setSH(s.sH);setMaxC(s.maxC);setBri(s.bri||0);setCon(s.con||0);setSat(s.sat||0);setDith(!!s.dith);setSkipBg(!!s.skipBg);setBgTh(s.bgTh||15);setBgCol(s.bgCol||[255,255,255]);setMinSt(s.minSt||0);setArLock(s.arLock!==false);setAr(s.ar||1);setBsLines(project.bsLines||[]);
@@ -241,7 +242,7 @@ useEffect(() => {
 useEffect(() => {
     if (!pat || !pal) return;
     const saveTimer = setTimeout(() => {
-        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>{if(m.id==="__skip__")return{id:"__skip__"};if(m.type==="fractional")return{type:"fractional",components:m.components};return{id:m.id,type:m.type,rgb:m.rgb};}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
     }, 1000); // 1-second debounce
 
@@ -368,6 +369,63 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
         drawCk(ctx,px,py,cSz);
       }
     }
+    else if(m.type==="fractional"){
+      if(!showOverlayImg) drawCk(ctx,px,py,cSz);
+      if(m.components){
+        let sorted = m.components.slice().sort((a,b)=>(a.priority||0)-(b.priority||0));
+        sorted.forEach(comp=>{
+           let ci=cmap?cmap[comp.id]:null;
+           if(!ci)return;
+           let path = comp.path;
+           let alpha = 1.0;
+           if(dim) alpha = 0.15;
+           else if (showOverlayImg) alpha = view==="both"?0.4:0.5;
+
+           ctx.save();
+           ctx.beginPath();
+           if(comp.type==="half"){
+             if(comp.orientation==="backslash"){ // TL to BR
+               ctx.moveTo(px,py);ctx.lineTo(px+cSz,py+cSz);ctx.lineTo(px,py+cSz);ctx.closePath();
+             } else { // BL to TR (forward slash)
+               ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz,py);ctx.lineTo(px+cSz,py+cSz);ctx.closePath();
+             }
+           } else if(comp.type==="quarter"){
+             ctx.moveTo(px+cSz/2,py+cSz/2);
+             if(path.start[0]===0&&path.start[1]===0){ ctx.lineTo(px,py); ctx.lineTo(px,py+cSz/2); ctx.lineTo(px+cSz/2,py); }
+             else if(path.start[0]===2&&path.start[1]===0){ ctx.lineTo(px+cSz,py); ctx.lineTo(px+cSz,py+cSz/2); ctx.lineTo(px+cSz/2,py); }
+             else if(path.start[0]===0&&path.start[1]===2){ ctx.lineTo(px,py+cSz); ctx.lineTo(px,py+cSz/2); ctx.lineTo(px+cSz/2,py+cSz); }
+             else if(path.start[0]===2&&path.start[1]===2){ ctx.lineTo(px+cSz,py+cSz); ctx.lineTo(px+cSz,py+cSz/2); ctx.lineTo(px+cSz/2,py+cSz); }
+           }
+           ctx.clip();
+           if(view==="color"||view==="both"){
+             ctx.fillStyle=`rgba(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]},${alpha})`;ctx.fillRect(px,py,cSz,cSz);
+           } else {
+             ctx.fillStyle=dim?"rgba(245,245,245,"+alpha+")":`rgba(255,255,255,${alpha})`;ctx.fillRect(px,py,cSz,cSz);
+           }
+           if((view==="symbol"||view==="both")&&ci&&cSz>=10){ // need slightly larger size for split symbols
+             let lum=luminance(ci.rgb);
+             ctx.fillStyle=dim?"rgba(0,0,0,0.08)":(view==="both"?(lum>128?"#000":"#fff"):"#333");
+             ctx.font=`bold ${Math.max(6,cSz*0.4)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+             let sx=px+cSz/2,sy=py+cSz/2;
+             if(comp.type==="quarter"){
+                if(path.start[0]===0&&path.start[1]===0){ sx=px+cSz*0.25; sy=py+cSz*0.25; }
+                else if(path.start[0]===2&&path.start[1]===0){ sx=px+cSz*0.75; sy=py+cSz*0.25; }
+                else if(path.start[0]===0&&path.start[1]===2){ sx=px+cSz*0.25; sy=py+cSz*0.75; }
+                else if(path.start[0]===2&&path.start[1]===2){ sx=px+cSz*0.75; sy=py+cSz*0.75; }
+             } else if(comp.type==="half") {
+                if(comp.orientation==="backslash"){ sx=px+cSz*0.25; sy=py+cSz*0.75; }
+                else { sx=px+cSz*0.75; sy=py+cSz*0.75; }
+             }
+             ctx.fillText(ci.symbol,sx,sy);
+           }
+           ctx.restore();
+        });
+      }
+      if(activeTool==="fracFwd" || activeTool==="fracBack"){
+         ctx.fillStyle="rgba(255,0,0,0.5)";
+         ctx.beginPath();ctx.arc(px+cSz/2,py+cSz/2,1.5,0,Math.PI*2);ctx.fill();
+      }
+    }
     else if(view==="color"||view==="both"){
       let alpha = 1.0;
       if (dim) alpha = 0.15;
@@ -381,7 +439,7 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
       if (showOverlayImg) alpha = 0.3;
       ctx.fillStyle=dim?"rgba(245,245,245,"+alpha+")":`rgba(255,255,255,${alpha})`;ctx.fillRect(px,py,cSz,cSz);
     }
-    if(m.id!=="__skip__"&&(view==="symbol"||view==="both")&&info&&cSz>=6){let lum=luminance(m.rgb);ctx.fillStyle=dim?"rgba(0,0,0,0.08)":(view==="both"?(lum>128?"#000":"#fff"):"#333");ctx.font=`bold ${Math.max(6,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+    if(m.id!=="__skip__"&&m.type!=="fractional"&&(view==="symbol"||view==="both")&&info&&cSz>=6){let lum=luminance(m.rgb);ctx.fillStyle=dim?"rgba(0,0,0,0.08)":(view==="both"?(lum>128?"#000":"#fff"):"#333");ctx.font=`bold ${Math.max(6,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
     if(cSz>=4){
       let sAlpha = dim ? 0.03 : 0.08;
       if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
@@ -769,6 +827,118 @@ function handlePatClick(e){
   if(!pcRef.current||!pat)return;
   let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch");
   if(!gc)return;let{gx,gy}=gc;
+
+  if((activeTool==="fracFwd" || activeTool==="fracBack") && selectedColorId && cmap) {
+    if(gx<0||gx>=sW||gy<0||gy>=sH)return;
+    let idx=gy*sW+gx;
+
+    // Intra-cell coords
+    let rect=pcRef.current.getBoundingClientRect();
+    let mx=(e.clientX-rect.left)-G;
+    let my=(e.clientY-rect.top)-G;
+    let cx=mx-gx*cs;
+    let cy=my-gy*cs;
+
+    let qx = cx < cs*0.25 ? 0 : (cx > cs*0.75 ? 2 : 1);
+    let qy = cy < cs*0.25 ? 0 : (cy > cs*0.75 ? 2 : 1);
+
+    let isCenter = qx===1 && qy===1;
+    let orientation = activeTool==="fracFwd" ? "forwardslash" : "backslash";
+
+    let newComp = null;
+    if(isCenter){
+       newComp = {type:"half", id:selectedColorId, orientation};
+    } else {
+       if(qx===1||qy===1) return; // ignore edge midpoints for now
+       newComp = {type:"quarter", id:selectedColorId, path:{start:[qx,qy], end:[1,1]}};
+    }
+
+    let cell = pat[idx];
+    let np = pat.slice();
+    let nCell = {type:"fractional", components:[]};
+
+    if(cell.type==="fractional" && cell.components){
+        nCell.components = JSON.parse(JSON.stringify(cell.components));
+    } else if (cell.id!=="__skip__") {
+        nCell.components = [
+           {type:"half", id:cell.id, orientation:"forwardslash", priority:0},
+           {type:"half", id:cell.id, orientation:"backslash", priority:1}
+        ];
+    }
+
+    let existingIdx = -1;
+    if(isCenter) {
+       existingIdx = nCell.components.findIndex(c=>c.type==="half"&&c.orientation===orientation);
+    } else {
+       existingIdx = nCell.components.findIndex(c=>c.type==="quarter"&&c.path&&c.path.start[0]===qx&&c.path.start[1]===qy);
+    }
+
+    if (existingIdx >= 0) {
+       let ex = nCell.components[existingIdx];
+       if(ex.id === selectedColorId) {
+           nCell.components.splice(existingIdx, 1); // toggle off
+       } else {
+           nCell.components[existingIdx].id = selectedColorId; // replace color
+       }
+    } else {
+       // Validate volume and conflicts
+       let currentVol = nCell.components.reduce((sum,c)=>sum+(c.type==="half"?0.5:0.25), 0);
+       let addVol = newComp.type==="half"?0.5:0.25;
+
+       // Handle half stitch conflicting with existing quarters
+       if (newComp.type==="half") {
+          let conflict1 = nCell.components.findIndex(c=>c.type==="quarter" && ((orientation==="forwardslash" && ((c.path.start[0]===0&&c.path.start[1]===2) || (c.path.start[0]===2&&c.path.start[1]===0))) || (orientation==="backslash" && ((c.path.start[0]===0&&c.path.start[1]===0) || (c.path.start[0]===2&&c.path.start[1]===2)))));
+          if(conflict1 >= 0) {
+             if(confirm("This will replace existing quarter stitches in this half. Proceed?")) {
+                nCell.components = nCell.components.filter(c=>!(c.type==="quarter" && ((orientation==="forwardslash" && ((c.path.start[0]===0&&c.path.start[1]===2) || (c.path.start[0]===2&&c.path.start[1]===0))) || (orientation==="backslash" && ((c.path.start[0]===0&&c.path.start[1]===0) || (c.path.start[0]===2&&c.path.start[1]===2))))));
+                newComp.priority = Date.now();
+                nCell.components.push(newComp);
+             }
+          } else if (currentVol + addVol <= 1.0) {
+             newComp.priority = Date.now();
+             nCell.components.push(newComp);
+          } else {
+             alert("Cannot place half stitch: cell is full.");
+          }
+       } else {
+          // Check if quarter is inside an existing half
+          let confHalfIdx = nCell.components.findIndex(c=>c.type==="half" && ((c.orientation==="forwardslash" && ((qx===0&&qy===2) || (qx===2&&qy===0))) || (c.orientation==="backslash" && ((qx===0&&qy===0) || (qx===2&&qy===2)))));
+          if(confHalfIdx >= 0) {
+              if(confirm("This will replace an existing half stitch. Proceed?")) {
+                 nCell.components.splice(confHalfIdx, 1);
+                 newComp.priority = Date.now();
+                 nCell.components.push(newComp);
+              }
+          } else if(currentVol + addVol <= 1.0) {
+             newComp.priority = Date.now();
+             nCell.components.push(newComp);
+          } else {
+             alert("Cannot place quarter stitch: cell is full.");
+          }
+       }
+    }
+
+    // Simplification check (e.g. 4 identical quarters -> full)
+    if(nCell.components.length > 0) {
+       let allSame = nCell.components.every(c=>c.id === nCell.components[0].id);
+       let totalVol = nCell.components.reduce((sum,c)=>sum+(c.type==="half"?0.5:0.25), 0);
+       if(allSame && totalVol === 1.0) {
+           let solidColor = nCell.components[0].id;
+           let pe = cmap[solidColor];
+           if(pe) np[idx] = {...pe};
+       } else {
+           np[idx] = nCell;
+       }
+    } else {
+       np[idx] = {id:"__skip__"};
+    }
+
+    setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}]);
+    setPat(np);
+    let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);
+    return;
+  }
+
   if((activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap){
     if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
     let pe=cmap[selectedColorId];if(!pe)return;let np=pat.slice();
@@ -938,14 +1108,37 @@ return(
             <button onClick={()=>setTool("eraseBs")} style={tBtn(activeTool==="eraseBs")}>Erase line</button>
             <button onClick={()=>setTool("paint")} style={tBtn(activeTool==="paint")}>Paint</button>
             <button onClick={()=>setTool("fill")} style={tBtn(activeTool==="fill")}>Fill</button>
-            {(activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
+            <button onClick={()=>setTool("fracFwd")} style={tBtn(activeTool==="fracFwd")}>Half stitch /</button>
+            <button onClick={()=>setTool("fracBack")} style={tBtn(activeTool==="fracBack")}>Half stitch \</button>
+            {(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
             <div style={{marginLeft:"auto",display:"flex",gap:4}}>
               {editHistory.length>0&&<button onClick={()=>{let last=editHistory[editHistory.length-1],np=pat.slice();last.changes.forEach(c2=>np[c2.idx]={...c2.old});setPat(np);setEditHistory(prev=>prev.slice(0,-1));let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
               {hiId&&<button onClick={()=>setHiId(null)} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Clear ✕</button>}
             </div>
           </div>
-          <div ref={scrollRef} onScroll={() => requestAnimationFrame(renderPattern)} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:activeTool?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{if(activeTool==="backstitch"&&bsStart){e.preventDefault();setBsStart(null);}}}/></div>
-          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{pal.map(p=>{let ips=(activeTool==="paint"||activeTool==="fill")&&selectedColorId===p.id,ihs=hiId===p.id;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff"}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span></div>;})}</div></div>
+          <div ref={scrollRef} onScroll={() => requestAnimationFrame(renderPattern)} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:activeTool?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{
+            e.preventDefault();
+            if(activeTool==="backstitch"&&bsStart){
+              setBsStart(null);
+            } else if(activeTool==="fracFwd" || activeTool==="fracBack") {
+              // Right click priority swap
+              let gc=gridCoord(pcRef,e,cs,G,false);
+              if(gc && gc.gx>=0&&gc.gx<sW&&gc.gy>=0&&gc.gy<sH) {
+                 let idx=gc.gy*sW+gc.gx;
+                 if(pat[idx] && pat[idx].type==="fractional" && pat[idx].components.length > 1) {
+                    let np = pat.slice();
+                    let comps = np[idx].components.slice();
+                    // Just swap priority of first two
+                    let tmp = comps[0].priority;
+                    comps[0].priority = comps[1].priority;
+                    comps[1].priority = tmp;
+                    np[idx] = {...np[idx], components:comps};
+                    setPat(np);
+                 }
+              }
+            }
+          }}/></div>
+          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{pal.map(p=>{let ips=(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack")&&selectedColorId===p.id,ihs=hiId===p.id;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff"}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span></div>;})}</div></div>
         </div>}
 
         {/* ═══ PROJECT TAB ═══ */}
@@ -1076,7 +1269,48 @@ return(
 
           <Section title="PDF Export"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Multi-page PDF with legend and chart.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={exportPDF} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none"}}>Download Pattern PDF</button><button onClick={exportCoverSheet} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}}>Cover Sheet PDF</button></div><p style={{fontSize:11,color:"#a1a1aa",marginTop:8}}>The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes — perfect for tucking into your project bag.</p></Section>
           <Section title="PNG Chart"><div style={{display:"flex",gap:8,alignItems:"center",marginTop:8,marginBottom:8}}><label style={{display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer"}}><input type="checkbox" checked={pageMode} onChange={e=>{setPageMode(e.target.checked);setExportPage(0);}}/>A4 pages</label>{pageMode&&<><button onClick={()=>setExportPage(Math.max(0,exportPage-1))} disabled={exportPage===0} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}}>◀</button><span style={{fontSize:12}}>Page {exportPage+1}/{totPg}</span><button onClick={()=>setExportPage(Math.min(totPg-1,exportPage+1))} disabled={exportPage>=totPg-1} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}}>▶</button></>}</div><div style={{overflow:"auto",maxHeight:400,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#fff"}}><canvas ref={expRef} style={{display:"block"}}/></div></Section>
-          <Section title="Save / Load"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Saves pattern for later editing or opening in Stitch Tracker.</p><div style={{display:"flex",gap:8}}><button onClick={saveProject} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save (.json)</button><button onClick={()=>loadRef.current.click()} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Load</button></div></Section>
+          <Section title="Save / Load"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Saves pattern for later editing or opening in Stitch Tracker.</p><div style={{display:"flex",gap:8}}><button onClick={saveProject} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save (.json)</button><button onClick={()=>{
+            if(!pat||!pal||!cmap)return;
+            let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<chart width="${sW}" height="${sH}">\n  <palette>\n`;
+            pal.forEach((p,i)=>{ xml += `    <color index="${p.id}" number="${p.id}" name="${p.name}" red="${p.rgb[0]}" green="${p.rgb[1]}" blue="${p.rgb[2]}"/>\n`; });
+            xml += `  </palette>\n  <fullstitches>\n`;
+
+            let fractions = "";
+            for(let y=0;y<sH;y++)for(let x=0;x<sW;x++){
+               let idx=y*sW+x, m=pat[idx];
+               if(!m||m.id==="__skip__")continue;
+               if(m.type==="fractional" && m.components){
+                  let halves = m.components.filter(c=>c.type==="half");
+                  let quarters = m.components.filter(c=>c.type==="quarter");
+
+                  // Simple output: list them all. If there is 1 half + 1 quarter of the same color, we can group as <threequarter>, but outputting them as <half> and <quarter> is also valid Open Cross Stitch XML.
+                  halves.forEach(c=>{
+                      let dir = c.orientation==="forwardslash" ? "/" : "\\\\";
+                      fractions += `    <half x="${x}" y="${y}" palindex="${c.id}" dir="${dir}"/>\n`;
+                  });
+                  quarters.forEach(c=>{
+                      let p = c.path.start;
+                      let cx = p[0] === 0 ? "0" : (p[0] === 2 ? "2" : "1");
+                      let cy = p[1] === 0 ? "0" : (p[1] === 2 ? "2" : "1");
+                      fractions += `    <quarter x="${x}" y="${y}" cx="${cx}" cy="${cy}" palindex="${c.id}"/>\n`;
+                  });
+               } else {
+                  xml += `    <stitch x="${x}" y="${y}" palindex="${m.id}"/>\n`;
+               }
+            }
+            xml += `  </fullstitches>\n`;
+            if(fractions.length > 0) { xml += `  <fractionalstitches>\n${fractions}  </fractionalstitches>\n`; }
+            if(bsLines.length>0){
+              xml += `  <backstitches>\n`;
+              bsLines.forEach(ln=>xml+=`    <line x1="${ln.x1}" y1="${ln.y1}" x2="${ln.x2}" y2="${ln.y2}"/>\n`);
+              xml += `  </backstitches>\n`;
+            }
+            xml += `</chart>`;
+            let blob=new Blob([xml],{type:"application/xml"});
+            let url=URL.createObjectURL(blob);
+            let a=document.createElement("a");a.href=url;a.download="cross-stitch-pattern.oxs";
+            document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+          }} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}}>Export (.oxs)</button><button onClick={()=>loadRef.current.click()} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Load</button></div></Section>
         </div>}
       </div>}
       {!pat&&img&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:20}}>

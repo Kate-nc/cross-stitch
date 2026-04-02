@@ -231,6 +231,61 @@ function parseOXS(xmlString) {
     }
   });
 
+  // Fractional stitches (quarter, half, threequarter)
+  const fracSelectors = ["quarter", "Quarter", "half", "Half", "threequarter", "Threequarter"];
+  fracSelectors.forEach(sel => {
+    const fracEls = chart.querySelectorAll(sel);
+    fracEls.forEach(el => {
+      let x = parseInt(el.getAttribute("x") || el.getAttribute("col") || el.getAttribute("column"));
+      let y = parseInt(el.getAttribute("y") || el.getAttribute("row"));
+      let palIdx = el.getAttribute("palindex") || el.getAttribute("palette") || el.getAttribute("color") || el.getAttribute("index") || el.textContent.trim();
+      let cx = parseFloat(el.getAttribute("cx") || "1");
+      let cy = parseFloat(el.getAttribute("cy") || "1");
+      let dir = el.getAttribute("dir") || el.getAttribute("direction");
+
+      if (isNaN(x) || isNaN(y) || x < 0 || x >= width || y < 0 || y >= height) return;
+      const palEntry = paletteMap[palIdx];
+      if (!palEntry || !palEntry.dmcThread) return;
+
+      let idx = y * width + x;
+      let existing = pattern[idx];
+      let t = palEntry.dmcThread;
+
+      let comp = null;
+      let tn = sel.toLowerCase();
+      if(tn === "half") {
+         let orientation = "forwardslash";
+         if(dir === "\\" || dir === "back" || dir === "backslash") orientation = "backslash";
+         comp = {type: "half", id: t.id, orientation};
+      } else if(tn === "quarter" || tn === "threequarter") {
+         // Threequarter handles as one quarter + one half (below).
+         // Just extract the quarter component here based on anchor point.
+         let sx = cx < 1 ? 0 : 2;
+         let sy = cy < 1 ? 0 : 2;
+         comp = {type: "quarter", id: t.id, path: {start:[sx,sy], end:[1,1]}};
+      }
+
+      if(comp) {
+         comp.priority = Date.now() + Math.random();
+         if(existing.id === "__skip__" || existing.type !== "fractional") {
+            pattern[idx] = {type: "fractional", components: [comp]};
+         } else {
+            pattern[idx].components.push(comp);
+         }
+
+         if(tn === "threequarter") {
+             // add the half stitch component too
+             let sx = cx < 1 ? 0 : 2;
+             let sy = cy < 1 ? 0 : 2;
+             let orientation = "forwardslash";
+             if ((sx===0&&sy===0) || (sx===2&&sy===2)) orientation = "backslash";
+             pattern[idx].components.push({type: "half", id: t.id, orientation, priority: comp.priority - 1});
+         }
+         stitchCount++;
+      }
+    });
+  });
+
   if (stitchCount === 0) {
     throw new Error("No valid stitches found in pattern");
   }

@@ -5,3 +5,14 @@ const DEFAULT_SKEIN_PRICE=0.95;
 
 const A4W=50,A4H=75;
 const CK=4;
+
+// Fractional Stitch Tracking Bitmask Flags
+const FRACTIONAL_DONE = {
+  FULL: 1,
+  TL: 2,
+  TR: 4,
+  BL: 8,
+  BR: 16,
+  HALF_FWD: 32, // /
+  HALF_BACK: 64 // \
+};
