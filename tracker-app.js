@@ -532,6 +532,7 @@ return(
           <div style={{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}}><span style={{fontWeight:700,color:"#16a34a"}}>{ownedCount}</span> <span style={{color:"#71717a"}}>owned</span></div>
           <div style={{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}}><span style={{fontWeight:700,color:"#ea580c"}}>{toBuyList.length}</span> <span style={{color:"#71717a"}}>to buy</span></div>
           <div style={{marginLeft:"auto",display:"flex",gap:4}}>
+            <button onClick={()=>setModal("calculator_batch")} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>Calculate thread needed</button>
             <button onClick={()=>{let n={};skeinData.forEach(d=>{n[d.id]="owned";});setThreadOwned(n);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #bbf7d0",borderRadius:6,background:"#f0fdf4",color:"#16a34a",cursor:"pointer"}}>Own all</button>
             <button onClick={()=>setThreadOwned({})} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",color:"#71717a",cursor:"pointer"}}>Clear</button>
           </div>
@@ -641,6 +642,8 @@ return(
 
   {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
+  {modal==="calculator"&&<SharedModals.Calculator onClose={()=>setModal(null)} />}
+  {modal==="calculator_batch"&&<SharedModals.Calculator onClose={()=>setModal(null)} initialPatterns={pal} />}
   {modal==="pdf_export"&&<SharedModals.PdfExport onClose={()=>setModal(null)} initialSettings={pdfSettings} sW={sW} sH={sH} hasTrackingData={doneCount > 0} hasBackstitch={bsLines.length > 0} pal={pal} onExport={(s)=>{setPdfSettings(s);setModal(null);generatePDF({pat, pal, cmap, sW, sH, done, totalStitchable, fabricCt, skeinData, blendCount, totalSkeins, difficulty:null, stitchSpeed, totalTime, sessions, threadOwned, bsLines, imgData:null}, s);}} />}
 </div>
 </>);
