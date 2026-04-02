@@ -119,6 +119,18 @@ function buildPalette(patArr){
   return{pal:entries,cmap:cm};
 }
 
+// Recalculates stitch counts from the grid while preserving existing symbol assignments.
+// Use this instead of buildPalette() when symbols must stay stable (e.g. after single-stitch edits).
+function rebuildPaletteCounts(patArr, existingPal) {
+  const counts = {};
+  for (let i = 0; i < patArr.length; i++) {
+    const id = patArr[i].id;
+    if (id === "__skip__" || id === "__empty__") continue;
+    counts[id] = (counts[id] || 0) + 1;
+  }
+  return existingPal.map(p => ({ ...p, count: counts[p.id] || 0 }));
+}
+
 function restoreStitch(m){
   if(m.id==="__skip__")return{type:"skip",id:"__skip__",rgb:[255,255,255],lab:[100,0,0]};
   if(m.type==="blend"){

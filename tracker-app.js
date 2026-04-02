@@ -24,7 +24,14 @@ const[sessionElapsed,setSessionElapsed]=useState(0),[sessions,setSessions]=useSt
 const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
 const[isEditMode,setIsEditMode]=useState(false);
 const[originalPaletteState,setOriginalPaletteState]=useState(null);
-const[editHistory,setEditHistory]=useState([]);
+// V2: single-level undo snapshot (replaces editHistory array)
+const[undoSnapshot,setUndoSnapshot]=useState(null);
+// V2: sparse diff of single-stitch edits/removals: Map<cellIdx, {originalId, currentId|null}>
+const[singleStitchEdits,setSingleStitchEdits]=useState(new Map());
+// V2: cell edit popover state
+const[cellEditPopover,setCellEditPopover]=useState(null);
+// V2: snapshot taken on entering Edit Mode, used by Discard
+const[sessionStartSnapshot,setSessionStartSnapshot]=useState(null);
 const[editModalColor,setEditModalColor]=useState(null);
 const[showExitEditModal,setShowExitEditModal]=useState(false);
 const[drawer,setDrawer]=useState(false),[focusColour,setFocusColour]=useState(null);
@@ -69,10 +76,10 @@ useEffect(()=>{
 },[sessionActive,sessionStart]);
 
 const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
-const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__")c++;return c;},[pat]);
+const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id!=="__skip__"&&id!=="__empty__")c++;}return c;},[pat]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
 useEffect(()=>{if(sessionActive&&done){let diff=doneCount-prevDoneCount.current;if(diff>0)setSessionStitches(p=>p+diff);}prevDoneCount.current=doneCount;},[doneCount,sessionActive,done]);
-const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id==="__skip__"||id==="__empty__")continue;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
 const estCompletion=useMemo(()=>{let t=totalTime+(sessionActive?sessionElapsed:0);if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,sessionElapsed,sessionActive,doneCount,totalStitchable]);
 const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
 const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
@@ -108,15 +115,150 @@ function undoTrack(){
   setTrackHistory(prev=>prev.slice(0,-1));
 }
 
+// --- V2 Edit functions ---
 
+// Change a single cell's symbol. Updates the sparse diff and pat, preserves symbols in pal.
+function handleSingleStitchEdit(cellIdx, newId) {
+  if (!pat || !pal || !cmap) return;
+  const cell = pat[cellIdx];
+  if (cell.id === newId) return; // no-op: tapped the symbol the cell already has
+  const newEntry = cmap[newId];
+  if (!newEntry) return;
+
+  const existingEditEntry = singleStitchEdits.get(cellIdx) || null;
+  setUndoSnapshot({ type:"single_stitch_edit", cellIdx, previousCell:{...cell}, previousEditEntry:existingEditEntry });
+
+  // Update sparse diff — originalId is always the first-ever pre-edit value
+  const originalId = existingEditEntry ? existingEditEntry.originalId : cell.id;
+  const newEdits = new Map(singleStitchEdits);
+  if (newId === originalId) {
+    newEdits.delete(cellIdx); // back to original — no diff needed
+  } else {
+    newEdits.set(cellIdx, { originalId, currentId: newId });
+  }
+  setSingleStitchEdits(newEdits);
+
+  const newPat = [...pat];
+  newPat[cellIdx] = { ...cell, id:newId, name:newEntry.name, rgb:newEntry.rgb, lab:newEntry.lab };
+  const newPal = rebuildPaletteCounts(newPat, pal);
+  const newCmap = {}; newPal.forEach(p => { newCmap[p.id] = p; });
+  setPat(newPat); setPal(newPal); setCmap(newCmap);
+  setCellEditPopover(null);
+}
+
+// Remove a single stitch (marks cell as __empty__). Clears done state for that cell.
+function handleStitchRemoval(cellIdx) {
+  if (!pat || !done) return;
+  const cell = pat[cellIdx];
+  if (cell.id === "__skip__" || cell.id === "__empty__") return;
+  const existingEditEntry = singleStitchEdits.get(cellIdx) || null;
+  const previousDone = done[cellIdx];
+
+  setUndoSnapshot({ type:"removal", cellIdx, previousCell:{...cell}, previousEditEntry:existingEditEntry, previousDone });
+
+  const originalId = existingEditEntry ? existingEditEntry.originalId : cell.id;
+  const newEdits = new Map(singleStitchEdits);
+  newEdits.set(cellIdx, { originalId, currentId: null });
+  setSingleStitchEdits(newEdits);
+
+  const newPat = [...pat];
+  newPat[cellIdx] = { id:"__empty__", type:"skip", rgb:[255,255,255], lab:[100,0,0] };
+  if (previousDone) { const nd=new Uint8Array(done); nd[cellIdx]=0; setDone(nd); }
+  const newPal = rebuildPaletteCounts(newPat, pal);
+  const newCmap = {}; newPal.forEach(p => { newCmap[p.id] = p; });
+  setPat(newPat); setPal(newPal); setCmap(newCmap);
+  setCellEditPopover(null);
+}
+
+// Swap the thread assignments of two palette entries. Each symbol keeps its visual character;
+// only the underlying thread (id/rgb/name) swaps. O(n) cell scan required since cell.id = threadCode.
+function handleSymbolSwap(palEntryA, palEntryB) {
+  if (!pat || !pal) return;
+  if (palEntryA.id === palEntryB.id) return; // no-op
+  setUndoSnapshot({ type:"swap", entryA:{...palEntryA}, entryB:{...palEntryB} });
+  _applySwap(palEntryA, palEntryB);
+}
+
+// Internal swap — does not touch undoSnapshot. Used by both handleSymbolSwap and applyUndo.
+function _applySwap(palEntryA, palEntryB) {
+  const newPat = pat.map(cell => {
+    if (cell.id === palEntryA.id) return { ...cell, id:palEntryB.id, name:palEntryB.name, rgb:palEntryB.rgb, lab:palEntryB.lab };
+    if (cell.id === palEntryB.id) return { ...cell, id:palEntryA.id, name:palEntryA.name, rgb:palEntryA.rgb, lab:palEntryA.lab };
+    return cell;
+  });
+  const newPal = pal.map(p => {
+    if (p.id === palEntryA.id) return { ...p, id:palEntryB.id, name:palEntryB.name, rgb:palEntryB.rgb, lab:palEntryB.lab };
+    if (p.id === palEntryB.id) return { ...p, id:palEntryA.id, name:palEntryA.name, rgb:palEntryA.rgb, lab:palEntryA.lab };
+    return p;
+  });
+  const newCmap = {}; newPal.forEach(p => { newCmap[p.id] = p; });
+  // Transfer thread ownership
+  const newOwned = { ...threadOwned };
+  const ownA = threadOwned[palEntryA.id], ownB = threadOwned[palEntryB.id];
+  delete newOwned[palEntryA.id]; delete newOwned[palEntryB.id];
+  if (ownA !== undefined) newOwned[palEntryB.id] = ownA;
+  if (ownB !== undefined) newOwned[palEntryA.id] = ownB;
+  setPat(newPat); setPal(newPal); setCmap(newCmap); setThreadOwned(newOwned);
+}
+
+// Single-level undo for edit operations (bulk reassign, single-stitch edit, removal, swap).
+function applyUndo() {
+  if (!undoSnapshot) return;
+  const snap = undoSnapshot;
+  setUndoSnapshot(null);
+
+  if (snap.type === "bulk_reassignment") {
+    const { pal:prevPal, threadOwned:prevOwned, oldId, newId } = snap;
+    const oldEntry = prevPal.find(p => p.id === oldId);
+    const newPat = pat.map(cell => {
+      if (cell.id !== newId) return cell;
+      return { ...cell, id:oldId, name:oldEntry?.name||cell.name, rgb:oldEntry?.rgb||cell.rgb, lab:oldEntry?.lab||cell.lab };
+    });
+    const newCmap = {}; prevPal.forEach(p => { newCmap[p.id] = p; });
+    setPat(newPat); setPal(prevPal); setCmap(newCmap); setThreadOwned(prevOwned);
+  }
+  else if (snap.type === "single_stitch_edit") {
+    const { cellIdx, previousCell, previousEditEntry } = snap;
+    const newPat = [...pat];
+    newPat[cellIdx] = previousCell;
+    const newEdits = new Map(singleStitchEdits);
+    if (previousEditEntry === null) newEdits.delete(cellIdx);
+    else newEdits.set(cellIdx, previousEditEntry);
+    setSingleStitchEdits(newEdits);
+    const newPal = rebuildPaletteCounts(newPat, pal);
+    const newCmap = {}; newPal.forEach(p => { newCmap[p.id] = p; });
+    setPat(newPat); setPal(newPal); setCmap(newCmap);
+  }
+  else if (snap.type === "removal") {
+    const { cellIdx, previousCell, previousEditEntry, previousDone } = snap;
+    const newPat = [...pat];
+    newPat[cellIdx] = previousCell;
+    const newEdits = new Map(singleStitchEdits);
+    if (previousEditEntry === null) newEdits.delete(cellIdx);
+    else newEdits.set(cellIdx, previousEditEntry);
+    setSingleStitchEdits(newEdits);
+    if (previousDone) { const nd=new Uint8Array(done); nd[cellIdx]=1; setDone(nd); }
+    const newPal = rebuildPaletteCounts(newPat, pal);
+    const newCmap = {}; newPal.forEach(p => { newCmap[p.id] = p; });
+    setPat(newPat); setPal(newPal); setCmap(newCmap);
+  }
+  else if (snap.type === "swap") {
+    // A swap is self-inverse: apply the same swap using the current (post-swap) entries
+    const curA = pal.find(p => p.id === snap.entryA.id);
+    const curB = pal.find(p => p.id === snap.entryB.id);
+    if (curA && curB) _applySwap(curA, curB);
+  }
+}
 
 function saveProject(){
   if(!pat||!pal)return;
+  // Serialise singleStitchEdits Map as array of [cellIdx, {originalId, currentId}] pairs
+  const sseArr = [...singleStitchEdits.entries()];
   let project={
-    version:7,
+    version:8,
     page:"tracker",
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
-    pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),
+    pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),
     bsLines,
     done:done?Array.from(done):null,
     parkMarkers,
@@ -125,7 +267,8 @@ function saveProject(){
     hlRow,
     hlCol,
     threadOwned,
-    originalPaletteState
+    originalPaletteState,
+    singleStitchEdits: sseArr
   };
   let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
   let url=URL.createObjectURL(blob);
@@ -141,10 +284,10 @@ function saveProject(){
 function handleSymbolReassignment(oldColorId, newThread) {
   if (!pat || !pal || !cmap) return;
 
-  // 1. Snapshot for undo (oldId/newId stored so undo can reverse cell mapping without needing cell.symbol)
+  // 1. Snapshot for undo — V2 single-level undoSnapshot
   const currentPalState = JSON.parse(JSON.stringify(pal));
   const currentThreadOwnedState = JSON.parse(JSON.stringify(threadOwned));
-  setEditHistory(prev => [...prev, { pal: currentPalState, threadOwned: currentThreadOwnedState, oldId: oldColorId, newId: newThread.id }]);
+  setUndoSnapshot({ type:"bulk_reassignment", pal: currentPalState, threadOwned: currentThreadOwnedState, oldId: oldColorId, newId: newThread.id });
 
   // 2. Map grid values
   const newPat = pat.map(cell => {
@@ -209,7 +352,10 @@ function processLoadedProject(project){
   let restored;
 
   setIsEditMode(false);
-  setEditHistory([]);
+  setUndoSnapshot(null);
+  setSingleStitchEdits(new Map());
+  setCellEditPopover(null);
+  setSessionStartSnapshot(null);
   setEditModalColor(null);
 
   if (project.v === 8 || project.p) {
@@ -230,6 +376,10 @@ function processLoadedProject(project){
     setOriginalPaletteState(project.originalPaletteState);
   } else {
     setOriginalPaletteState(JSON.parse(JSON.stringify(newPal)));
+  }
+  // V2: restore sparse diff of single-stitch edits
+  if (project.singleStitchEdits && project.singleStitchEdits.length > 0) {
+    setSingleStitchEdits(new Map(project.singleStitchEdits));
   }
   setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);
   if(project.settings && project.settings.pdfSettings) setPdfSettings(project.settings.pdfSettings);
@@ -357,11 +507,11 @@ function drawStitch(ctx,cSz){
   for(let x=0;x<dW;x+=10)ctx.fillText(String(x+1),gut+x*cSz+cSz/2,gut/2);ctx.textAlign="right";for(let y=0;y<dH;y+=10)ctx.fillText(String(y+1),gut-3,gut+y*cSz+cSz/2);
   for(let y=0;y<dH;y++)for(let x=0;x<dW;x++){
     let idx=y*sW+x,m=pat[idx];if(!m)continue;
-    let info=m.id==="__skip__"?null:(cmap?cmap[m.id]:null);
+    let info=(m.id==="__skip__"||m.id==="__empty__")?null:(cmap?cmap[m.id]:null);
     let px=gut+x*cSz,py=gut+y*cSz;
     let isDn=done&&done[idx];
-    let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__";
-    if(m.id==="__skip__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle="rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
+    let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__"&&m.id!=="__empty__";
+    if(m.id==="__skip__"||m.id==="__empty__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
     if(stitchView==="symbol"){
       if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
       else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
@@ -406,6 +556,18 @@ useEffect(()=>renderStitch(),[renderStitch]);
 function handleStitchMouseDown(e){
   if(!stitchRef.current||!pat)return;
   if(e.button===1){e.preventDefault();startPan(e);return;}
+  // Edit Mode: left-click on grid opens cell edit popover instead of any navigate/track action
+  if(isEditMode){
+    if(e.button!==0)return;
+    const gc2=gridCoord(stitchRef,e,scs,G,false);
+    if(gc2&&gc2.gx>=0&&gc2.gx<sW&&gc2.gy>=0&&gc2.gy<sH){
+      const idx=gc2.gy*sW+gc2.gx;
+      const cell=pat[idx];
+      if(cell.id==="__skip__")return; // __skip__ cells are not editable
+      setCellEditPopover({idx,row:gc2.gy+1,col:gc2.gx+1,x:e.clientX,y:e.clientY});
+    }
+    return;
+  }
   let gc=gridCoord(stitchRef,e,scs,G,stitchMode==="navigate"&&selectedColorId);
   if(!gc)return;let{gx,gy}=gc;
   if(stitchMode==="navigate"){
@@ -417,7 +579,7 @@ function handleStitchMouseDown(e){
     return;
   }
   if(gx<0||gx>=sW||gy<0||gy>=sH||!done)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
+  let idx=gy*sW+gx;if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
   let nv=done[idx]?0:1;setDragVal(nv);setIsDragging(true);
   dragChangesRef.current=[{idx,oldVal:done[idx]}];
   let nd=new Uint8Array(done);nd[idx]=nv;setDone(nd);
@@ -558,22 +720,30 @@ return(
           if (Date.now() - modeToggleRef.current < 300) return;
           modeToggleRef.current = Date.now();
           if (isEditMode) {
-            if (editHistory.length > 0) {
+            if (undoSnapshot !== null) {
               setShowExitEditModal(true);
             } else {
               setIsEditMode(false);
-              setEditHistory([]);
+              setUndoSnapshot(null);
+              setSessionStartSnapshot(null);
             }
           }
         }} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !isEditMode ? 500 : 400, background: !isEditMode ? "#0d9488" : "transparent", borderRadius: 6, color: !isEditMode ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: !isEditMode ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Tracking Mode</button>
         <button onClick={()=>{
           if (Date.now() - modeToggleRef.current < 300) return;
           modeToggleRef.current = Date.now();
+          // Snapshot current state so Discard can restore it
+          setSessionStartSnapshot({
+            pat: [...pat],
+            pal: JSON.parse(JSON.stringify(pal)),
+            threadOwned: JSON.parse(JSON.stringify(threadOwned)),
+            singleStitchEdits: new Map(singleStitchEdits)
+          });
           setStitchMode("navigate");
           setFocusColour(null);
           setHoverInfo(null);
           setIsEditMode(true);
-          setDrawer(true); // Open drawer automatically
+          setDrawer(true);
         }} style={{ padding: "5px 12px", fontSize: 12, fontWeight: isEditMode ? 500 : 400, background: isEditMode ? "#d97706" : "transparent", borderRadius: 6, color: isEditMode ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: isEditMode ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Edit Mode</button>
       </div>
 
@@ -592,33 +762,7 @@ return(
       </>}
 
       {isEditMode && <div style={{marginLeft:"auto",display:"flex",gap:4}}>
-        {editHistory.length>0&&<button onClick={()=>{
-          const previousState = editHistory[editHistory.length - 1];
-          const previousPal = previousState.pal;
-          const previousThreadOwned = previousState.threadOwned;
-          const { oldId, newId } = previousState;
-
-          const oldEntry = previousPal.find(p => p.id === oldId);
-          const newPat = pat.map(cell => {
-            if (cell.id !== newId) return cell;
-            return {
-              ...cell,
-              id: oldId,
-              name: oldEntry ? oldEntry.name : cell.name,
-              rgb: oldEntry ? oldEntry.rgb : cell.rgb,
-              lab: oldEntry ? oldEntry.lab : cell.lab
-            };
-          });
-
-          const newCmap = {};
-          previousPal.forEach(p => { newCmap[p.id] = p; });
-
-          setPat(newPat);
-          setPal(previousPal);
-          setCmap(newCmap);
-          setThreadOwned(previousThreadOwned);
-          setEditHistory(prev => prev.slice(0, -1));
-        }} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",color:"#d97706",cursor:"pointer"}}>↩ Undo Edit</button>}
+        {undoSnapshot&&<button onClick={applyUndo} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",color:"#d97706",cursor:"pointer"}} title={undoSnapshot.type==="removal"?`Undo: stitch removal at Row ${undoSnapshot.cellIdx!==undefined?Math.floor(undoSnapshot.cellIdx/sW)+1:"?"}, Col ${undoSnapshot.cellIdx!==undefined?(undoSnapshot.cellIdx%sW)+1:"?"}`:undoSnapshot.type==="single_stitch_edit"?`Undo: single stitch edit at Row ${undoSnapshot.cellIdx!==undefined?Math.floor(undoSnapshot.cellIdx/sW)+1:"?"}, Col ${undoSnapshot.cellIdx!==undefined?(undoSnapshot.cellIdx%sW)+1:"?"}`:undoSnapshot.type==="swap"?"Undo: symbol swap":"Undo: bulk reassignment"}>↩ Undo Edit</button>}
         <button onClick={()=>{
           if(confirm("Revert all symbol assignments to the original PDF import? Your tracking progress will be kept, but all colour corrections will be lost.")){
             const previousPal = originalPaletteState;
@@ -653,18 +797,35 @@ return(
               }
             });
 
-            setPat(newPat);
+            // V2: also restore single-stitch edits using the sparse diff
+            let revertedPat = newPat;
+            if (singleStitchEdits.size > 0) {
+              revertedPat = [...newPat];
+              singleStitchEdits.forEach((entry, cellIdx) => {
+                const originalCell = revertedPat[cellIdx];
+                const origEntry = previousPal.find(p => p.id === entry.originalId);
+                if (origEntry) {
+                  revertedPat[cellIdx] = { ...originalCell, id:origEntry.id, name:origEntry.name, rgb:origEntry.rgb, lab:origEntry.lab };
+                } else {
+                  // originalId not in pal (shouldn't happen) — restore using originalId directly
+                  revertedPat[cellIdx] = { ...originalCell, id:entry.originalId };
+                }
+              });
+            }
+
+            setPat(revertedPat);
             setPal(previousPal);
             setCmap(newCmap);
             setThreadOwned(newThreadOwned);
-            setEditHistory([]);
+            setSingleStitchEdits(new Map());
+            setUndoSnapshot(null);
           }
         }} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Revert to Original</button>
       </div>}
     </div>
     {scs < 6 && !isEditMode && (stitchView === "symbol" || stitchView === "colour") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
 
-    {isEditMode && <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING SYMBOLS — Tap a colour in the list below to change its assigned thread</div>}
+    {isEditMode && <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>}
     {!isEditMode && stitchMode==="track"&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>Click or drag to mark/unmark stitches · Middle-click drag to pan{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
     {!isEditMode && stitchMode==="navigate"&&<div style={{fontSize:12,color:"#18181b",background:"#f4f4f5",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}</div>}
     {!isEditMode && stitchView==="highlight"&&!focusColour&&<div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a"}}>Open Colours drawer and tap a colour to highlight</div>}
@@ -831,6 +992,65 @@ return(
   {modal==="calculator_batch"&&<SharedModals.Calculator onClose={()=>setModal(null)} initialPatterns={pal} />}
   {modal==="pdf_export"&&<SharedModals.PdfExport onClose={()=>setModal(null)} initialSettings={pdfSettings} sW={sW} sH={sH} hasTrackingData={doneCount > 0} hasBackstitch={bsLines.length > 0} pal={pal} onExport={(s)=>{setPdfSettings(s);setModal(null);generatePDF({pat, pal, cmap, sW, sH, done, totalStitchable, fabricCt, skeinData, blendCount, totalSkeins, difficulty:null, stitchSpeed, totalTime, sessions, threadOwned, bsLines, imgData:null}, s);}} />}
 
+  {cellEditPopover && isEditMode && (()=>{
+    const cell = pat[cellEditPopover.idx];
+    const currentEntry = cell && cell.id !== "__empty__" ? cmap[cell.id] : null;
+    const isEmpty = !cell || cell.id === "__empty__";
+    return (
+      <div className="modal-overlay" onClick={()=>setCellEditPopover(null)}>
+        <div className="modal-content" style={{maxWidth:440,display:"flex",flexDirection:"column",maxHeight:"80vh"}} onClick={e=>e.stopPropagation()}>
+          <button className="modal-close" onClick={()=>setCellEditPopover(null)}>×</button>
+          <h3 style={{marginTop:0,marginBottom:4,fontSize:18,color:"#18181b"}}>Edit Stitch</h3>
+          <div style={{fontSize:12,color:"#a1a1aa",marginBottom:12}}>Row {cellEditPopover.row}, Col {cellEditPopover.col}</div>
+
+          {isEmpty ? (
+            <div style={{padding:"10px 12px",background:"#f4f4f5",borderRadius:8,marginBottom:12,fontSize:13,color:"#71717a",fontStyle:"italic"}}>
+              Empty — no stitch. Select a symbol below to assign one.
+            </div>
+          ) : currentEntry ? (
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#f0fdfa",borderRadius:8,marginBottom:12,border:"1px solid #99f6e4"}}>
+              <span style={{width:22,height:22,borderRadius:4,background:`rgb(${currentEntry.rgb[0]},${currentEntry.rgb[1]},${currentEntry.rgb[2]})`,border:"1px solid #d4d4d8",flexShrink:0}}/>
+              <span style={{fontFamily:"monospace",fontWeight:700,fontSize:16}}>{currentEntry.symbol}</span>
+              <span style={{fontWeight:600,fontSize:13}}>DMC {currentEntry.id}</span>
+              <span style={{fontSize:12,color:"#71717a",flex:1}}>{currentEntry.name}</span>
+              <span style={{fontSize:11,color:"#0d9488",fontWeight:600}}>Current</span>
+            </div>
+          ) : null}
+
+          <div style={{fontSize:12,fontWeight:600,color:"#71717a",marginBottom:6}}>Assign symbol:</div>
+          <div style={{flex:1,overflowY:"auto",border:"1px solid #e4e4e7",borderRadius:8,marginBottom:12}}>
+            {pal.map(p=>{
+              const isCurrent = !isEmpty && p.id === cell.id;
+              return (
+                <div key={p.id} onClick={()=>{ if(!isCurrent) handleSingleStitchEdit(cellEditPopover.idx,p.id); }}
+                  style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:"1px solid #f4f4f5",
+                    background:isCurrent?"#f0fdfa":"#fff",cursor:isCurrent?"default":"pointer",
+                    opacity:isCurrent?0.6:1}}>
+                  <span style={{width:20,height:20,borderRadius:4,background:`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`,border:"1px solid #d4d4d8",flexShrink:0}}/>
+                  <span style={{fontFamily:"monospace",fontWeight:700,fontSize:14,width:18,textAlign:"center"}}>{p.symbol}</span>
+                  <span style={{fontWeight:600,fontSize:13,minWidth:52}}>DMC {p.id}</span>
+                  <span style={{fontSize:12,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
+                  <span style={{fontSize:11,color:"#a1a1aa"}}>{p.count} st</span>
+                  {isCurrent&&<span style={{fontSize:11,fontWeight:600,color:"#0d9488",background:"#ccfbf1",padding:"2px 8px",borderRadius:10}}>Current</span>}
+                </div>
+              );
+            })}
+          </div>
+
+          {!isEmpty && (
+            <button onClick={()=>{
+              if(confirm(`Remove stitch at Row ${cellEditPopover.row}, Col ${cellEditPopover.col}? It will be marked as empty.`)){
+                handleStitchRemoval(cellEditPopover.idx);
+              }
+            }} style={{padding:"9px 16px",borderRadius:8,border:"1px solid #fecaca",background:"#fef2f2",color:"#dc2626",cursor:"pointer",fontWeight:600,fontSize:13,textAlign:"left"}}>
+              Remove Stitch
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  })()}
+
   {editModalColor && <SharedModals.ThreadSelector
     onClose={() => setEditModalColor(null)}
     currentSymbol={editModalColor.symbol}
@@ -840,6 +1060,12 @@ return(
       handleSymbolReassignment(editModalColor.id, newThread);
       setEditModalColor(null);
     }}
+    onSwap={(conflictingThread) => {
+      // conflictingThread = the palette entry currently holding the desired thread
+      handleSymbolSwap(editModalColor, conflictingThread);
+      setEditModalColor(null);
+    }}
+    pal={pal}
   />}
 
   {showExitEditModal && (
@@ -855,45 +1081,26 @@ return(
 
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>{
-              // Discard
-              const originalState = editHistory[0];
-              const originalPal = originalState.pal;
-              const originalThreadOwned = originalState.threadOwned;
-              const previousMap = {};
-              originalPal.forEach(p => { previousMap[p.symbol] = p; });
-
-              const newPat = pat.map(cell => {
-                if (cell.id === "__skip__") return cell;
-                // Use cmap to find the symbol for this cell (symbols live in palette, not cells)
-                const currentEntry = cmap[cell.id];
-                const originalThread = currentEntry ? previousMap[currentEntry.symbol] : null;
-                if (originalThread) {
-                  return {
-                    ...cell,
-                    id: originalThread.id,
-                    name: originalThread.name,
-                    rgb: originalThread.rgb,
-                    lab: originalThread.lab
-                  };
-                }
-                return cell;
-              });
-
-              const newCmap = {};
-              originalPal.forEach(p => { newCmap[p.id] = p; });
-
-              setThreadOwned(originalThreadOwned);
-              setPat(newPat);
-              setPal(originalPal);
-              setCmap(newCmap);
-              setEditHistory([]);
+              // Discard — restore the full state from when Edit Mode was entered
+              if (sessionStartSnapshot) {
+                const { pat:startPat, pal:startPal, threadOwned:startOwned, singleStitchEdits:startEdits } = sessionStartSnapshot;
+                const newCmap = {}; startPal.forEach(p => { newCmap[p.id] = p; });
+                setPat([...startPat]);
+                setPal(startPal);
+                setCmap(newCmap);
+                setThreadOwned(startOwned);
+                setSingleStitchEdits(startEdits);
+              }
+              setUndoSnapshot(null);
+              setSessionStartSnapshot(null);
               setIsEditMode(false);
               setShowExitEditModal(false);
             }} style={{padding:"8px 12px",fontSize:14,borderRadius:8,border:"none",background:"#fef2f2",color:"#dc2626",cursor:"pointer",fontWeight:500}}>Discard</button>
 
             <button onClick={()=>{
-              // Apply
-              setEditHistory([]);
+              // Apply — commit edits; clear undo snapshot (edits are now permanent)
+              setUndoSnapshot(null);
+              setSessionStartSnapshot(null);
               setIsEditMode(false);
               setShowExitEditModal(false);
             }} style={{padding:"8px 12px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:500}}>Apply</button>
