@@ -21,8 +21,8 @@ function processTracker(filePath) {
 
   // Fix Tracker View Toggles (missed because of curly braces in onClick)
   content = content.replace(
-    /\{\[\["symbol","Sym"\],\["colour","Col\+Sym"\],\["highlight","Highlight"\]\]\.map\(\(\[k,l\]\)=><button key=\{k\} onClick=\{([^}]+)\}\} style=\{\{\.\.\.pill\(stitchView===k\),padding:"4px 10px",fontSize:11\}\}>\{l\}<\/button>\)\}/g,
-    `<div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}>{[["symbol","Sym"],["colour","Col+Sym"],["highlight","Highlight"]].map(([k,l])=><button key={k} onClick={$1}} style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchView===k ? 500 : 400, background: stitchView===k ? "#fff" : "transparent", borderRadius: 6, color: stitchView===k ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchView===k ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>{l}</button>)}</div>`
+    /\{\[\["symbol","Sym"\],\["colour","Col\+Sym"\],\["highlight","Highlight"\]\]\.map\(\(\[k,l\]\)=><button key=\{k\} onClick=\{(.*?)\}\s*style=\{\{\.\.\.pill\(stitchView===k\),padding:"4px 10px",fontSize:11\}\}>\{l\}<\/button>\)\}/g,
+    `<div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}>{[["symbol","Sym"],["colour","Col+Sym"],["highlight","Highlight"]].map(([k,l])=><button key={k} onClick={$1} style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchView===k ? 500 : 400, background: stitchView===k ? "#fff" : "transparent", borderRadius: 6, color: stitchView===k ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchView===k ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>{l}</button>)}</div>`
   );
 
   // Fix Undo Button Tracker (violet background missed because it might have had different colors or already partially replaced)
