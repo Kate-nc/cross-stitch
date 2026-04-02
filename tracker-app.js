@@ -22,14 +22,25 @@ const[sessionStitches,setSessionStitches]=useState(0),[totalTime,setTotalTime]=u
 const[sessionElapsed,setSessionElapsed]=useState(0),[sessions,setSessions]=useState([]);
 
 const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
+<<<<<<< HEAD
+=======
+const[isEditMode,setIsEditMode]=useState(false);
+const[originalPaletteState,setOriginalPaletteState]=useState(null);
+const[editHistory,setEditHistory]=useState([]);
+const[editModalColor,setEditModalColor]=useState(null);
+const[showExitEditModal,setShowExitEditModal]=useState(false);
+>>>>>>> origin/main
 const[drawer,setDrawer]=useState(false),[focusColour,setFocusColour]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
 const[hlRow,setHlRow]=useState(-1),[hlCol,setHlCol]=useState(-1);
 const[isDragging,setIsDragging]=useState(false),[dragVal,setDragVal]=useState(1);
 const dragChangesRef=useRef([]);
 
+<<<<<<< HEAD
 const[symbolMap,setSymbolMap]=useState({});
 
+=======
+>>>>>>> origin/main
 const[selectedColorId,setSelectedColorId]=useState(null);
 
 const[hoverInfo,setHoverInfo]=useState(null);
@@ -64,6 +75,7 @@ useEffect(()=>{
   }else{clearInterval(timerRef.current);}
 },[sessionActive,sessionStart]);
 
+<<<<<<< HEAD
 const doneCount=useMemo(()=>{
   if(!done||!pat)return 0;
   let c=0;
@@ -133,6 +145,13 @@ const colourDoneCounts=useMemo(()=>{
   return c;
 },[pat,done]);
 
+=======
+const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
+const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__")c++;return c;},[pat]);
+const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
+useEffect(()=>{if(sessionActive&&done){let diff=doneCount-prevDoneCount.current;if(diff>0)setSessionStitches(p=>p+diff);}prevDoneCount.current=doneCount;},[doneCount,sessionActive,done]);
+const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+>>>>>>> origin/main
 const estCompletion=useMemo(()=>{let t=totalTime+(sessionActive?sessionElapsed:0);if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,sessionElapsed,sessionActive,doneCount,totalStitchable]);
 const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
 const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
@@ -149,6 +168,7 @@ const skeinData=useMemo(()=>{
 
 const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData]);
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
+<<<<<<< HEAD
 
 function toggleSession(){if(sessionActive){let el=Math.floor((Date.now()-sessionStart)/1000);setTotalTime(p=>p+el);setSessions(p=>[...p,{stitches:sessionStitches,time:el,date:Date.now()}]);setSessionActive(false);setSessionStart(null);setSessionStitches(0);setSessionElapsed(0);}else{setSessionActive(true);setSessionStart(Date.now());setSessionStitches(0);setSessionElapsed(0);prevDoneCount.current=doneCount;}}
 function markColourDone(cid,md){
@@ -186,6 +206,12 @@ function markColourDone(cid,md){
   setDone(nd);
 }
 
+=======
+const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable):null,[pal,blendCount,totalStitchable]);
+
+function toggleSession(){if(sessionActive){let el=Math.floor((Date.now()-sessionStart)/1000);setTotalTime(p=>p+el);setSessions(p=>[...p,{stitches:sessionStitches,time:el,date:Date.now()}]);setSessionActive(false);setSessionStart(null);setSessionStitches(0);setSessionElapsed(0);}else{setSessionActive(true);setSessionStart(Date.now());setSessionStitches(0);setSessionElapsed(0);prevDoneCount.current=doneCount;}}
+function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0)pushTrackHistory(changes);setDone(nd);}
+>>>>>>> origin/main
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 
 function pushTrackHistory(changes){
@@ -209,8 +235,12 @@ function saveProject(){
     version:7,
     page:"tracker",
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
+<<<<<<< HEAD
     pattern:pat.map(m=>{if(m.id==="__skip__")return{id:"__skip__"};if(m.type==="fractional")return{type:"fractional",components:m.components};return{id:m.id,type:m.type,rgb:m.rgb};}),
 
+=======
+    pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),
+>>>>>>> origin/main
     bsLines,
     done:done?Array.from(done):null,
     parkMarkers,
@@ -219,7 +249,11 @@ function saveProject(){
     hlRow,
     hlCol,
     threadOwned,
+<<<<<<< HEAD
     symbolMap
+=======
+    originalPaletteState
+>>>>>>> origin/main
   };
   let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
   let url=URL.createObjectURL(blob);
@@ -232,6 +266,66 @@ function saveProject(){
   URL.revokeObjectURL(url);
 }
 
+<<<<<<< HEAD
+=======
+function handleSymbolReassignment(oldColorId, newThread) {
+  if (!pat || !pal || !cmap) return;
+
+  // 1. Snapshot for undo
+  const currentPalState = JSON.parse(JSON.stringify(pal));
+  const currentThreadOwnedState = JSON.parse(JSON.stringify(threadOwned));
+  setEditHistory(prev => [...prev, { pal: currentPalState, threadOwned: currentThreadOwnedState }]);
+
+  // 2. Map grid values
+  const newPat = pat.map(cell => {
+    if (cell.id === oldColorId) {
+      return {
+        ...cell,
+        id: newThread.id,
+        name: newThread.name,
+        rgb: newThread.rgb,
+        lab: newThread.lab || cell.lab
+      };
+    }
+    return cell;
+  });
+
+  // 3. Update palette
+  const oldPalEntry = pal.find(p => p.id === oldColorId);
+  const newPal = pal.map(p => {
+    if (p.id === oldColorId) {
+      return {
+        ...p,
+        id: newThread.id,
+        name: newThread.name,
+        rgb: newThread.rgb,
+        lab: newThread.lab || p.lab,
+        // keep symbol and count
+      };
+    }
+    return p;
+  });
+
+  // 4. Update cmap
+  const newCmap = {};
+  newPal.forEach(p => { newCmap[p.id] = p; });
+
+  // 5. Update thread owned status map to move the status if any
+  if (threadOwned[oldColorId]) {
+    setThreadOwned(prev => {
+      const next = { ...prev };
+      next[newThread.id] = prev[oldColorId];
+      delete next[oldColorId];
+      return next;
+    });
+  }
+
+  setPat(newPat);
+  setPal(newPal);
+  setCmap(newCmap);
+}
+
+>>>>>>> origin/main
 function processLoadedProject(project){
   let s=project.settings||{};
   setSW(project.w||s.sW||project.settings?.w||80);
@@ -245,6 +339,13 @@ function processLoadedProject(project){
   let p = project.pattern || project.p;
   let restored;
 
+<<<<<<< HEAD
+=======
+  setIsEditMode(false);
+  setEditHistory([]);
+  setEditModalColor(null);
+
+>>>>>>> origin/main
   if (project.v === 8 || project.p) {
     // Compressed URL format
      restored = p.map(m => {
@@ -257,10 +358,20 @@ function processLoadedProject(project){
     restored=p.map(restoreStitch);
   }
 
+<<<<<<< HEAD
   let loadedSymMap = project.symbolMap || {};
   let{pal:newPal,cmap:newCmap}=buildPalette(restored, loadedSymMap);
   setSymbolMap(loadedSymMap);
   setPat(restored);setPal(newPal);setCmap(newCmap);
+=======
+  let{pal:newPal,cmap:newCmap}=buildPalette(restored);
+  setPat(restored);setPal(newPal);setCmap(newCmap);
+  if (project.originalPaletteState) {
+    setOriginalPaletteState(project.originalPaletteState);
+  } else {
+    setOriginalPaletteState(JSON.parse(JSON.stringify(newPal)));
+  }
+>>>>>>> origin/main
   setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);
   if(project.settings && project.settings.pdfSettings) setPdfSettings(project.settings.pdfSettings);
   setThreadOwned(project.threadOwned||{});
@@ -316,7 +427,16 @@ function loadProject(e){
     };
     rd.readAsText(f);
   } else if (format === "image") {
+<<<<<<< HEAD
 
+=======
+    const MAX_FILE_SIZE = 5 * 1024 * 1024;
+    if (f.size > MAX_FILE_SIZE) {
+      setLoadError("File is too large. Please select an image under 5MB.");
+      setTimeout(() => setLoadError(null), 4000);
+      return;
+    }
+>>>>>>> origin/main
     let rd=new FileReader();
     rd.onload=ev=>{
       let img = new Image();
@@ -375,6 +495,7 @@ useEffect(() => {
     }
 }, []);
 
+<<<<<<< HEAD
 function drawStitch(ctx,cSz,viewportRect=null){
   let gut=G,dW=sW,dH=sH;
   let startX=0, startY=0, endX=dW, endY=dH;
@@ -523,6 +644,20 @@ function drawStitch(ctx,cSz,viewportRect=null){
     let isDn=dVal&FRACTIONAL_DONE.FULL;
     let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__";
 
+=======
+function drawStitch(ctx,cSz){
+  let gut=G,dW=sW,dH=sH;
+  ctx.fillStyle="#fff";ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
+  ctx.fillStyle="#a1a1aa";ctx.font=`${Math.max(7,Math.min(11,cSz*0.5))}px system-ui`;ctx.textAlign="center";ctx.textBaseline="middle";
+  for(let x=0;x<dW;x+=10)ctx.fillText(String(x+1),gut+x*cSz+cSz/2,gut/2);ctx.textAlign="right";for(let y=0;y<dH;y+=10)ctx.fillText(String(y+1),gut-3,gut+y*cSz+cSz/2);
+  for(let y=0;y<dH;y++)for(let x=0;x<dW;x++){
+    let idx=y*sW+x,m=pat[idx];if(!m)continue;
+    let info=m.id==="__skip__"?null:(cmap?cmap[m.id]:null);
+    let px=gut+x*cSz,py=gut+y*cSz;
+    let isDn=done&&done[idx];
+    let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__";
+    if(m.id==="__skip__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle="rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
+>>>>>>> origin/main
     if(stitchView==="symbol"){
       if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
       else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
@@ -578,6 +713,7 @@ function handleStitchMouseDown(e){
     return;
   }
   if(gx<0||gx>=sW||gy<0||gy>=sH||!done)return;
+<<<<<<< HEAD
   let idx=gy*sW+gx;
   let cell=pat[idx];
   if(!cell || cell.id==="__skip__")return;
@@ -659,6 +795,14 @@ function handleStitchMouseDown(e){
 }
 
 
+=======
+  let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
+  let nv=done[idx]?0:1;setDragVal(nv);setIsDragging(true);
+  dragChangesRef.current=[{idx,oldVal:done[idx]}];
+  let nd=new Uint8Array(done);nd[idx]=nv;setDone(nd);
+  e.preventDefault();
+}
+>>>>>>> origin/main
 function handleStitchMouseMove(e){
   if(isPanning){
     doPan(e);
@@ -674,18 +818,27 @@ function handleStitchMouseMove(e){
     let cell=pat[idx];
     if(cell && cell.id!=="__skip__"){
       let name="";
+<<<<<<< HEAD
       let cellId=cell.id;
       if(cell.type==="blend"){
         name=cell.threads[0].name+"+"+cell.threads[1].name;
       }else if(cell.type==="fractional"){
         cellId = "Multiple"; name="Fractional Stitches";
 
+=======
+      if(cell.type==="blend"){
+        name=cell.threads[0].name+"+"+cell.threads[1].name;
+>>>>>>> origin/main
       }else{
         let t=DMC.find(d=>d.id===cell.id);
         if(t) name=t.name;
       }
+<<<<<<< HEAD
       setHoverInfo({row:gc.gy+1, col:gc.gx+1, id:cellId, name:name, x:e.clientX, y:e.clientY});
 
+=======
+      setHoverInfo({row:gc.gy+1, col:gc.gx+1, id:cell.id, name:name, x:e.clientX, y:e.clientY});
+>>>>>>> origin/main
     } else {
       setHoverInfo(null);
     }
@@ -696,6 +849,7 @@ function handleStitchMouseMove(e){
   if(!isDragging||stitchMode!=="track"||!done||!stitchRef.current||!pat)return;
   if(!gc)return;let{gx,gy}=gc;
   if(gx<0||gx>=sW||gy<0||gy>=sH)return;
+<<<<<<< HEAD
   let idx=gy*sW+gx;
   let cell = pat[idx];
   if(cell.id==="__skip__")return;
@@ -762,6 +916,12 @@ function handleStitchMouseMove(e){
     dragChangesRef.current.push({idx,oldVal});
     let nd=new Uint8Array(done);nd[idx]=newVal;setDone(nd);
 
+=======
+  let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
+  if(done[idx]!==dragVal){
+    dragChangesRef.current.push({idx,oldVal:done[idx]});
+    let nd=new Uint8Array(done);nd[idx]=dragVal;setDone(nd);
+>>>>>>> origin/main
   }
 }
 function handleStitchMouseLeave(){
@@ -855,13 +1015,40 @@ return(
       {(sessionActive||totalTime>0)&&<div style={{fontSize:11,color:"#71717a",textAlign:"right",minWidth:90}}>{sessionActive?<><span style={{color:"#dc2626"}}>● </span>{fmtTime(sessionElapsed)} · {sessionStitches} st</>:<>Total: {fmtTime(totalTime)}</>}{estCompletion&&<div style={{fontSize:10,color:"#a1a1aa"}}>~{fmtTime(estCompletion)} left</div>}</div>}
     </div>
 
+<<<<<<< HEAD
     <div style={{display:"flex",gap:6,marginBottom:6,alignItems:"center",flexWrap:"wrap", padding: "6px 10px", background: "#fff", border: "0.5px solid #e4e4e7", borderRadius: 10}}>
+=======
+    <div style={{display:"flex",gap:6,marginBottom:6,alignItems:"center",flexWrap:"wrap", padding: "6px 10px", background: isEditMode ? "#fffbeb" : "#fff", border: isEditMode ? "1px solid #fde68a" : "0.5px solid #e4e4e7", borderRadius: 10}}>
+      <div style={{ display: "flex", gap: 2, background: isEditMode ? "#fef3c7" : "#f4f4f5", borderRadius: 8, padding: 2 }}>
+        <button onClick={()=>{
+          if (isEditMode) {
+            if (editHistory.length > 0) {
+              setShowExitEditModal(true);
+            } else {
+              setIsEditMode(false);
+              setEditHistory([]);
+            }
+          }
+        }} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !isEditMode ? 500 : 400, background: !isEditMode ? "#0d9488" : "transparent", borderRadius: 6, color: !isEditMode ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: !isEditMode ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Tracking Mode</button>
+        <button onClick={()=>{
+          setStitchMode("navigate");
+          setFocusColour(null);
+          setHoverInfo(null);
+          setIsEditMode(true);
+          setDrawer(true); // Open drawer automatically
+        }} style={{ padding: "5px 12px", fontSize: 12, fontWeight: isEditMode ? 500 : 400, background: isEditMode ? "#d97706" : "transparent", borderRadius: 6, color: isEditMode ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: isEditMode ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Edit Mode</button>
+      </div>
+
+      {!isEditMode && <>
+      <div style={{width:1,height:20,background:"#e4e4e7"}}/>
+>>>>>>> origin/main
       <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}><button onClick={()=>setStitchMode("track")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchMode==="track" ? 500 : 400, background: stitchMode==="track" ? "#0d9488" : "transparent", borderRadius: 6, color: stitchMode==="track" ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchMode==="track" ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Track</button><button onClick={()=>setStitchMode("navigate")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchMode==="navigate" ? 500 : 400, background: stitchMode==="navigate" ? "#18181b" : "transparent", borderRadius: 6, color: stitchMode==="navigate" ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchMode==="navigate" ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Navigate</button></div>
       <div style={{width:1,height:20,background:"#e4e4e7"}}/>
       <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}>{[["symbol","Sym"],["colour","Col+Sym"],["highlight","Highlight"]].map(([k,l])=><button key={k} onClick={()=>{setStitchView(k);if(k!=="highlight")setFocusColour(null);}} style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchView===k ? 500 : 400, background: stitchView===k ? "#fff" : "transparent", borderRadius: 6, color: stitchView===k ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchView===k ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>{l}</button>)}</div>
       <div style={{width:1,height:20,background:"#e4e4e7"}}/>
       <span style={{fontSize:11,color:"#a1a1aa"}}>Zoom</span><input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{width:60}}/><span style={{fontSize:11,minWidth:28}}>{Math.round(stitchZoom*100)}%</span><button onClick={fitSZ} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Fit</button>
       {stitchMode==="navigate"&&<><div style={{width:1,height:20,background:"#e4e4e7"}}/><span style={{fontSize:11,color:"#71717a"}}>📌</span><select value={selectedColorId||""} onChange={e=>setSelectedColorId(e.target.value||null)} style={{fontSize:11,padding:"3px 6px",borderRadius:6,border:"0.5px solid #e4e4e7"}}><option value="">No parking</option>{pal.map(p=><option key={p.id} value={p.id}>DMC {p.id}</option>)}</select>{parkMarkers.length>0&&<button onClick={()=>setParkMarkers([])} style={{fontSize:11,padding:"3px 8px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",color:"#d97706",cursor:"pointer"}}>Clear</button>}</>}
+<<<<<<< HEAD
       <div style={{marginLeft:"auto",display:"flex",gap:4,alignItems:"center"}}>
         {stitchMode==="track"&&trackHistory.length>0&&<button onClick={undoTrack} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo ({trackHistory.length})</button>}
         {done&&doneCount>0&&<button onClick={()=>{if(confirm("Clear all progress?")){setDone(new Uint8Array(pat.length));setTrackHistory([]);}}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Reset</button>}
@@ -878,6 +1065,97 @@ return(
     <div ref={stitchScrollRef} onScroll={() => requestAnimationFrame(renderStitch)} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid #e4e4e7",borderRadius:"8px 8px 0 0",background:"#f4f4f5",cursor:isPanning?"grabbing":stitchMode==="track"?"crosshair":"default",transition:"max-height 0.3s"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}><canvas ref={stitchRef} style={{display:"block"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/></div>
 
     {hoverInfo && stitchMode==="track" && (
+=======
+      <div style={{marginLeft:"auto",display:"flex",gap:4}}>
+        {stitchMode==="track"&&trackHistory.length>0&&<button onClick={undoTrack} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo ({trackHistory.length})</button>}
+        {done&&doneCount>0&&<button onClick={()=>{if(confirm("Clear all progress?")){setDone(new Uint8Array(pat.length));setTrackHistory([]);}}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Reset</button>}
+      </div>
+      </>}
+
+      {isEditMode && <div style={{marginLeft:"auto",display:"flex",gap:4}}>
+        {editHistory.length>0&&<button onClick={()=>{
+          const previousState = editHistory[editHistory.length - 1];
+          const previousPal = previousState.pal;
+          const previousThreadOwned = previousState.threadOwned;
+          const previousMap = {};
+          previousPal.forEach(p => { previousMap[p.symbol] = p; });
+
+          const newPat = pat.map(cell => {
+            if (cell.id === "__skip__") return cell;
+            const originalThread = previousMap[cell.symbol];
+            if (originalThread) {
+              return {
+                ...cell,
+                id: originalThread.id,
+                name: originalThread.name,
+                rgb: originalThread.rgb,
+                lab: originalThread.lab
+              };
+            }
+            return cell;
+          });
+
+          const newCmap = {};
+          previousPal.forEach(p => { newCmap[p.id] = p; });
+
+          setPat(newPat);
+          setPal(previousPal);
+          setCmap(newCmap);
+          setThreadOwned(previousThreadOwned);
+          setEditHistory(prev => prev.slice(0, -1));
+        }} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",color:"#d97706",cursor:"pointer"}}>↩ Undo Edit</button>}
+        <button onClick={()=>{
+          if(confirm("Revert all symbol assignments to the original PDF import? Your tracking progress will be kept, but all colour corrections will be lost.")){
+            const previousPal = originalPaletteState;
+            const previousMap = {};
+            previousPal.forEach(p => { previousMap[p.symbol] = p; });
+
+            const newPat = pat.map(cell => {
+              if (cell.id === "__skip__") return cell;
+              const originalThread = previousMap[cell.symbol];
+              if (originalThread) {
+                return {
+                  ...cell,
+                  id: originalThread.id,
+                  name: originalThread.name,
+                  rgb: originalThread.rgb,
+                  lab: originalThread.lab
+                };
+              }
+              return cell;
+            });
+
+            const newCmap = {};
+            previousPal.forEach(p => { newCmap[p.id] = p; });
+
+            // Clean up threadOwned for threads that no longer exist
+            const newThreadOwned = {...threadOwned};
+            Object.keys(newThreadOwned).forEach(threadId => {
+              if (!previousPal.find(p => p.id === threadId)) {
+                delete newThreadOwned[threadId];
+              }
+            });
+
+            setPat(newPat);
+            setPal(previousPal);
+            setCmap(newCmap);
+            setThreadOwned(newThreadOwned);
+            setEditHistory([]);
+          }
+        }} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Revert to Original</button>
+      </div>}
+    </div>
+    {scs < 6 && !isEditMode && (stitchView === "symbol" || stitchView === "colour") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
+
+    {isEditMode && <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING SYMBOLS — Tap a colour in the list below to change its assigned thread</div>}
+    {!isEditMode && stitchMode==="track"&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>Click or drag to mark/unmark stitches · Middle-click drag to pan{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
+    {!isEditMode && stitchMode==="navigate"&&<div style={{fontSize:12,color:"#18181b",background:"#f4f4f5",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}</div>}
+    {!isEditMode && stitchView==="highlight"&&!focusColour&&<div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a"}}>Open Colours drawer and tap a colour to highlight</div>}
+
+    <div ref={stitchScrollRef} onScroll={() => requestAnimationFrame(renderStitch)} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid #e4e4e7",borderRadius:"8px 8px 0 0",background:"#f4f4f5",cursor:isPanning?"grabbing":(!isEditMode&&stitchMode==="track"?"crosshair":"default"),transition:"max-height 0.3s"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}><canvas ref={stitchRef} style={{display:"block"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/></div>
+
+    {hoverInfo && !isEditMode && stitchMode==="track" && (
+>>>>>>> origin/main
       <div style={{
         position:"fixed", left:hoverInfo.x+15, top:hoverInfo.y+15,
         background:"#18181b", color:"#fff", padding:"6px 10px", borderRadius:6,
@@ -893,15 +1171,34 @@ return(
     {drawer&&<div style={{border:"0.5px solid #e4e4e7",borderRadius:"10px",background:"#fff",maxHeight:280,overflow:"auto",padding:8,marginBottom:12}}>
       <div style={{display:"flex",flexDirection:"column",gap:2}}>{pal.map(p=>{let dc=colourDoneCounts[p.id]||{total:0,done:0},pct=dc.total>0?Math.round(dc.done/dc.total*100):0,complete=dc.done>=dc.total,isFocused=focusColour===p.id;
         let sk=skeinEst(p.count,fabricCt);
+<<<<<<< HEAD
         return<div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,background:isFocused?"#f0fdfa":complete?"#f0fdf4":"#fff",border:isFocused?"2px solid #0d9488":"1px solid transparent",cursor:"pointer",opacity:complete&&!isFocused?0.6:1}} onClick={()=>{if(stitchView==="highlight")setFocusColour(focusColour===p.id?null:p.id);}}>
+=======
+        return<div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,background:isFocused?"#f0fdfa":complete?"#f0fdf4":"#fff",border:isFocused?"2px solid #0d9488":isEditMode?"1px solid #fde68a":"1px solid transparent",cursor:"pointer",opacity:complete&&!isFocused?0.6:1}} onClick={()=>{
+          if (isEditMode) {
+            setEditModalColor(p);
+          } else {
+            if(stitchView==="highlight")setFocusColour(focusColour===p.id?null:p.id);
+          }
+        }}>
+>>>>>>> origin/main
           <span style={{width:18,height:18,borderRadius:4,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",flexShrink:0}}/>
           <span style={{fontFamily:"monospace",fontSize:13,color:"#18181b",width:16,textAlign:"center",fontWeight:700}}>{p.symbol}</span>
           <span style={{fontWeight:600,fontSize:12,minWidth:40,color:complete?"#16a34a":"#18181b"}}>{p.id}</span>
           <span style={{fontSize:11,color:"#a1a1aa",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
+<<<<<<< HEAD
+=======
+          {!isEditMode && <>
+>>>>>>> origin/main
           <span style={{fontSize:10,color:"#a1a1aa",flexShrink:0}}>{sk}sk</span>
           <div style={{width:60,height:5,background:"#e4e4e7",borderRadius:3,overflow:"hidden",flexShrink:0}}><div style={{height:"100%",width:pct+"%",background:complete?"#16a34a":"#0d9488",borderRadius:3}}/></div>
           <span style={{fontSize:11,color:complete?"#16a34a":"#71717a",fontWeight:complete?600:400,minWidth:50,textAlign:"right"}}>{dc.done}/{dc.total}</span>
           <button onClick={e2=>{e2.stopPropagation();markColourDone(p.id,!complete);}} style={{fontSize:10,padding:"2px 8px",borderRadius:5,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{complete?"Undo":"All ✓"}</button>
+<<<<<<< HEAD
+=======
+          </>}
+          {isEditMode && <span style={{fontSize:11, color:"#d97706", fontWeight:600}}>✎ Edit</span>}
+>>>>>>> origin/main
         </div>;})}</div>
     </div>}
 
@@ -911,6 +1208,10 @@ return(
           <div style={{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}}><span style={{fontWeight:700,color:"#16a34a"}}>{ownedCount}</span> <span style={{color:"#71717a"}}>owned</span></div>
           <div style={{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}}><span style={{fontWeight:700,color:"#ea580c"}}>{toBuyList.length}</span> <span style={{color:"#71717a"}}>to buy</span></div>
           <div style={{marginLeft:"auto",display:"flex",gap:4}}>
+<<<<<<< HEAD
+=======
+            <button onClick={()=>setModal("calculator_batch")} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>Calculate thread needed</button>
+>>>>>>> origin/main
             <button onClick={()=>{let n={};skeinData.forEach(d=>{n[d.id]="owned";});setThreadOwned(n);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #bbf7d0",borderRadius:6,background:"#f0fdf4",color:"#16a34a",cursor:"pointer"}}>Own all</button>
             <button onClick={()=>setThreadOwned({})} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",color:"#71717a",cursor:"pointer"}}>Clear</button>
           </div>
@@ -938,12 +1239,15 @@ return(
         <div style={{marginTop:8,display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}}>
           {[["Pattern size",`${sW} × ${sH} stitches`],["Total cells",(sW*sH).toLocaleString()],["Stitchable",totalStitchable.toLocaleString()],["Skipped",(sW*sH-totalStitchable).toLocaleString()],["Colours",`${pal.length} (${blendCount} blend${blendCount!==1?"s":""})`],["Skeins needed",`${totalSkeins} (at ${fabricCt}ct)`]].map(([l,v],i)=><div key={i}><div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>{l}</div><div style={{fontSize:14,fontWeight:600,color:"#18181b"}}>{v}</div></div>)}
         </div>
+<<<<<<< HEAD
         <div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid #e4e4e7",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}}>
            <div><div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>Full stitches</div><div style={{fontSize:14,fontWeight:600,color:"#18181b"}}>{pal?pal.reduce((s,p)=>s+Math.max(0, p.count-(p.halfCount*0.5)),0).toLocaleString():0}</div></div>
            <div><div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>Half stitches</div><div style={{fontSize:14,fontWeight:600,color:"#18181b"}}>{pal?pal.reduce((s,p)=>s+p.halfCount,0).toLocaleString():0}</div></div>
            <div style={{gridColumn:"1 / -1"}}><div style={{fontSize:11,color:"#0d9488",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>Combined Progress</div><div style={{fontSize:14,fontWeight:600,color:"#0d9488"}}>{progressPct}%</div></div>
         </div>
 
+=======
+>>>>>>> origin/main
       </Section>
     </div>
 
@@ -1026,8 +1330,89 @@ return(
 
   {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
+<<<<<<< HEAD
   {modal==="stitch_guide"&&<SharedModals.StitchGuide onClose={()=>setModal(null)} />}
   {modal==="pdf_export"&&<SharedModals.PdfExport onClose={()=>setModal(null)} initialSettings={pdfSettings} sW={sW} sH={sH} hasTrackingData={doneCount > 0} hasBackstitch={bsLines.length > 0} pal={pal} onExport={(s)=>{setPdfSettings(s);setModal(null);generatePDF({pat, pal, cmap, sW, sH, done, totalStitchable, fabricCt, skeinData, blendCount, totalSkeins, difficulty:null, stitchSpeed, totalTime, sessions, threadOwned, bsLines, imgData:null}, s);}} />}
 </div>
 </>);
 }
+=======
+  {modal==="calculator"&&<SharedModals.Calculator onClose={()=>setModal(null)} />}
+  {modal==="calculator_batch"&&<SharedModals.Calculator onClose={()=>setModal(null)} initialPatterns={pal} />}
+  {modal==="pdf_export"&&<SharedModals.PdfExport onClose={()=>setModal(null)} initialSettings={pdfSettings} sW={sW} sH={sH} hasTrackingData={doneCount > 0} hasBackstitch={bsLines.length > 0} pal={pal} onExport={(s)=>{setPdfSettings(s);setModal(null);generatePDF({pat, pal, cmap, sW, sH, done, totalStitchable, fabricCt, skeinData, blendCount, totalSkeins, difficulty:null, stitchSpeed, totalTime, sessions, threadOwned, bsLines, imgData:null}, s);}} />}
+
+  {editModalColor && <SharedModals.ThreadSelector
+    onClose={() => setEditModalColor(null)}
+    currentSymbol={editModalColor.symbol}
+    currentThreadId={editModalColor.id}
+    usedThreads={pal.map(p => p.id)}
+    onSelect={(newThread) => {
+      handleSymbolReassignment(editModalColor.id, newThread);
+      setEditModalColor(null);
+    }}
+  />}
+
+  {showExitEditModal && (
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10000}}>
+      <div style={{background:"#fff",padding:24,borderRadius:12,width:350,maxWidth:"90%",boxShadow:"0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)"}}>
+        <h3 style={{margin:"0 0 12px 0",fontSize:18,color:"#18181b"}}>Apply changes?</h3>
+        <p style={{fontSize:14,color:"#71717a",margin:"0 0 24px 0",lineHeight:1.5}}>You have made changes to the symbol assignments. Do you want to apply them?</p>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+          <button onClick={()=>{
+            // Cancel
+            setShowExitEditModal(false);
+          }} style={{padding:"8px 12px",fontSize:14,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500,color:"#71717a"}}>Cancel</button>
+
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{
+              // Discard
+              const originalState = editHistory[0];
+              const originalPal = originalState.pal;
+              const originalThreadOwned = originalState.threadOwned;
+              const previousMap = {};
+              originalPal.forEach(p => { previousMap[p.symbol] = p; });
+
+              const newPat = pat.map(cell => {
+                if (cell.id === "__skip__") return cell;
+                const originalThread = previousMap[cell.symbol];
+                if (originalThread) {
+                  return {
+                    ...cell,
+                    id: originalThread.id,
+                    name: originalThread.name,
+                    rgb: originalThread.rgb,
+                    lab: originalThread.lab
+                  };
+                }
+                return cell;
+              });
+
+              const newCmap = {};
+              originalPal.forEach(p => { newCmap[p.id] = p; });
+
+              setThreadOwned(originalThreadOwned);
+              setPat(newPat);
+              setPal(originalPal);
+              setCmap(newCmap);
+              setEditHistory([]);
+              setIsEditMode(false);
+              setShowExitEditModal(false);
+            }} style={{padding:"8px 12px",fontSize:14,borderRadius:8,border:"none",background:"#fef2f2",color:"#dc2626",cursor:"pointer",fontWeight:500}}>Discard</button>
+
+            <button onClick={()=>{
+              // Apply
+              setEditHistory([]);
+              setIsEditMode(false);
+              setShowExitEditModal(false);
+            }} style={{padding:"8px 12px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:500}}>Apply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+
+</div>
+</>);
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+>>>>>>> origin/main

@@ -1,5 +1,37 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
+<<<<<<< HEAD
+=======
+function PartialGauge({ status }) {
+  const segments = {
+    "null": { count: 0, color: "#e4e4e7", text: "No partial", textColor: "#a1a1aa" },
+    "mostly-full": { count: 3, color: "#378ADD", text: "Mostly full", textColor: "#378ADD" },
+    "about-half": { count: 2, color: "#378ADD", text: "About half", textColor: "#378ADD" },
+    "remnant": { count: 1, color: "#EF9F27", text: "Remnant", textColor: "#EF9F27" },
+    "used-up": { count: 4, color: "#888780", text: "Used up", textColor: "#888780" }
+  };
+
+  const current = segments[status || "null"];
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={{ display: "flex", gap: 2, width: 52 }}>
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} style={{
+            flex: 1,
+            height: 4,
+            borderRadius: 2,
+            background: i < current.count ? current.color : "#e4e4e7"
+          }} />
+        ))}
+      </div>
+      <div style={{ fontSize: 10, color: current.textColor, fontWeight: status ? 600 : 400, whiteSpace: "nowrap" }}>
+        {current.text}
+      </div>
+    </div>
+  );
+}
+>>>>>>> origin/main
 
 function ManagerApp() {
   const [tab, setTab] = useState("inventory"); // 'inventory' or 'patterns'
@@ -15,7 +47,18 @@ function ManagerApp() {
   const [viewingPattern, setViewingPattern] = useState(null); // Pattern object currently being viewed for details
   const [selectedPatternsForList, setSelectedPatternsForList] = useState(new Set());
   const [shoppingListModalOpen, setShoppingListModalOpen] = useState(false);
+<<<<<<< HEAD
 
+=======
+  const [expandedThread, setExpandedThread] = useState(null);
+  const [userProfile, setUserProfile] = useState({
+    fabric_count: 14,
+    strands_used: 2,
+    thread_brand: "DMC",
+    waste_factor: 0.20
+  });
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+>>>>>>> origin/main
   const lowStockThreshold = 1;
 
   // Storage initialization
@@ -24,6 +67,7 @@ function ManagerApp() {
     const loadManagerData = async () => {
       try {
         const db = await openManagerDB();
+<<<<<<< HEAD
         const tx = db.transaction(["manager_state"], "readonly");
         const store = tx.objectStore("manager_state");
         const getThreads = store.get("threads");
@@ -45,6 +89,49 @@ function ManagerApp() {
           if (getPatterns.result) setPatterns(getPatterns.result);
         };
 
+=======
+        const tx = db.transaction(["manager_state"], "readwrite");
+        const store = tx.objectStore("manager_state");
+
+        const getRequest = (req) => new Promise((resolve, reject) => {
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+
+        const threadsData = await getRequest(store.get("threads"));
+        const patternsData = await getRequest(store.get("patterns"));
+        const versionData = await getRequest(store.get("stashDataVersion"));
+        const profileData = await getRequest(store.get("userProfile"));
+
+        if (profileData) {
+          setUserProfile(profileData);
+        }
+
+        let finalThreads = threadsData;
+
+        if (threadsData && versionData !== 2) {
+          // Backup
+          store.put(threadsData, "threads_backup_v1");
+
+          // Migrate
+          finalThreads = {};
+          for (const [id, t] of Object.entries(threadsData)) {
+            finalThreads[id] = { ...t, partialStatus: null };
+          }
+          store.put(finalThreads, "threads");
+          store.put(2, "stashDataVersion");
+        } else if (!threadsData) {
+          finalThreads = {};
+          DMC.forEach(d => {
+              finalThreads[d.id] = { owned: 0, tobuy: false, partialStatus: null };
+          });
+          store.put(finalThreads, "threads");
+          store.put(2, "stashDataVersion");
+        }
+
+        setThreads(finalThreads);
+        if (patternsData) setPatterns(patternsData);
+>>>>>>> origin/main
       } catch (err) {
         console.error("Failed to load manager data:", err);
       }
@@ -75,12 +162,20 @@ function ManagerApp() {
         const store = tx.objectStore("manager_state");
         store.put(threads, "threads");
         store.put(patterns, "patterns");
+<<<<<<< HEAD
+=======
+        store.put(userProfile, "userProfile");
+>>>>>>> origin/main
       } catch (err) {
         console.error("Auto-save failed:", err);
       }
     }, 1000);
     return () => clearTimeout(saveTimer);
+<<<<<<< HEAD
   }, [threads, patterns]);
+=======
+  }, [threads, patterns, userProfile]);
+>>>>>>> origin/main
 
   function openManagerDB() {
     return new Promise((resolve, reject) => {
@@ -97,6 +192,7 @@ function ManagerApp() {
   }
 
   const updateThread = (id, field, value) => {
+<<<<<<< HEAD
     setThreads(prev => ({
       ...prev,
       [id]: {
@@ -105,6 +201,28 @@ function ManagerApp() {
       }
     }));
 
+=======
+    setThreads(prev => {
+      const updated = {
+        ...prev[id],
+        [field]: value
+      };
+
+      // If setting "used-up", auto-zero the skeins
+      if (field === "partialStatus" && value === "used-up") {
+        updated.owned = 0;
+      }
+      // If setting skeins to > 0 while "used-up" is selected, clear "used-up" to prevent conflicting states
+      if (field === "owned" && value > 0 && prev[id]?.partialStatus === "used-up") {
+        updated.partialStatus = null;
+      }
+
+      return {
+        ...prev,
+        [id]: updated
+      };
+    });
+>>>>>>> origin/main
   };
 
   const filteredThreads = useMemo(() => {
@@ -114,6 +232,7 @@ function ManagerApp() {
     });
 
     return list.filter(d => {
+<<<<<<< HEAD
       const t = threads[d.id] || { owned: 0, tobuy: false };
       if (threadFilter === 'owned') return t.owned > 0;
       if (threadFilter === 'tobuy') return t.tobuy;
@@ -122,6 +241,19 @@ function ManagerApp() {
     });
   }, [searchQuery, threads, threadFilter]);
 
+=======
+      if (d.id === expandedThread) return true; // Keep expanded thread visible until closed
+
+      const t = threads[d.id] || { owned: 0, tobuy: false, partialStatus: null };
+      if (threadFilter === 'owned') return t.owned > 0 || ["mostly-full", "about-half", "remnant"].includes(t.partialStatus);
+      if (threadFilter === 'tobuy') return t.tobuy;
+      if (threadFilter === 'lowstock') return (t.owned > 0 && t.owned <= lowStockThreshold) || (t.owned === 0 && ["about-half", "remnant"].includes(t.partialStatus));
+      if (threadFilter === 'remnants') return t.partialStatus === "remnant";
+      if (threadFilter === 'usedup') return t.partialStatus === "used-up" && t.owned === 0;
+      return true; // "all" filter
+    });
+  }, [searchQuery, threads, threadFilter, expandedThread]);
+>>>>>>> origin/main
 
   const totalOwnedCount = useMemo(() => {
     return Object.values(threads).reduce((sum, t) => sum + (t.owned || 0), 0);
@@ -229,10 +361,18 @@ function ManagerApp() {
               <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}>
                 {[
                   {id: "all", label: "All"},
+<<<<<<< HEAD
                   {id: "owned", label: "Owned"},
                   {id: "tobuy", label: "To Buy"},
                   {id: "lowstock", label: "Low Stock"}
 
+=======
+                  {id: "tobuy", label: "To Buy"},
+                  {id: "owned", label: "Owned"},
+                  {id: "lowstock", label: "Low Stock"},
+                  {id: "remnants", label: "Remnants"},
+                  {id: "usedup", label: "Used Up"}
+>>>>>>> origin/main
                 ].map(f => (
                   <button
                     key={f.id}
@@ -259,6 +399,7 @@ function ManagerApp() {
               </div>
             </div>
 
+<<<<<<< HEAD
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
               {filteredThreads.map(d => {
                 const state = threads[d.id] || { owned: 0, tobuy: false };
@@ -318,13 +459,165 @@ function ManagerApp() {
                       </button>
                     </div>
 
+=======
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 10 }}>
+              {filteredThreads.map(d => {
+                const state = threads[d.id] || { owned: 0, tobuy: false, partialStatus: null };
+                const isExpanded = expandedThread === d.id;
+                const isLowStock = state.owned > 0 && state.owned <= lowStockThreshold;
+
+                const dotColors = {
+                  "null": "#e4e4e7",
+                  "mostly-full": "#378ADD",
+                  "about-half": "#378ADD",
+                  "remnant": "#EF9F27",
+                  "used-up": "#888780"
+                };
+
+                return (
+                  <div key={d.id} style={{
+                    display: "flex", flexDirection: "column",
+                    borderRadius: 8, border: isExpanded ? "1px solid #d4d4d8" : "1px solid #e4e4e7",
+                    background: state.owned > 0 || state.partialStatus ? "#fafafa" : "#fff",
+                    boxShadow: isExpanded ? "0 2px 4px rgba(0,0,0,0.05)" : "none",
+                    overflow: "hidden"
+                  }}>
+                    {/* Compact Row */}
+                    <div
+                      onClick={() => setExpandedThread(isExpanded ? null : d.id)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12, padding: "10px 12px",
+                        cursor: "pointer", userSelect: "none"
+                      }}
+                    >
+                      <div style={{ width: 28, height: 28, borderRadius: 14, background: `rgb(${d.rgb})`, border: "1px solid #d4d4d8", flexShrink: 0 }} />
+
+                      <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, justifyContent: "center" }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap", overflow: "hidden" }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#18181b" }}>DMC {d.id}</span>
+                          <span style={{ fontSize: 12, color: "#71717a", textOverflow: "ellipsis", overflow: "hidden" }}>{d.name}</span>
+                        </div>
+                      </div>
+
+                      {isLowStock && <div style={{ fontSize: 10, color: "#ea580c", background: "#fff7ed", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>Low</div>}
+
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                        <div style={{
+                          padding: "2px 8px", background: "#e4e4e7", borderRadius: 12,
+                          fontSize: 12, fontWeight: 600, color: "#3f3f46", minWidth: 28, textAlign: "center"
+                        }}>
+                          {state.owned}
+                        </div>
+
+                        <div className="partial-gauge-container">
+                          <PartialGauge status={state.partialStatus} />
+                        </div>
+
+                        <button
+                          onClick={(e) => { e.stopPropagation(); updateThread(d.id, "tobuy", !state.tobuy); }}
+                          style={{
+                            padding: "6px", borderRadius: 6, border: state.tobuy ? "1px solid #fed7aa" : "1px solid #e4e4e7",
+                            background: state.tobuy ? "#fff7ed" : "#fff", color: state.tobuy ? "#ea580c" : "#a1a1aa", cursor: "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center"
+                          }}
+                          title={state.tobuy ? "Remove from to-buy list" : "Add to to-buy list"}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                             <circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                          </svg>
+                        </button>
+
+                        <div style={{ color: "#a1a1aa", display: "flex", alignItems: "center", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Edit Panel */}
+                    {isExpanded && (
+                      <div style={{ display: "flex", borderTop: "1px solid #f4f4f5", padding: "16px 12px", background: "#fff", gap: 16 }}>
+
+                        {/* Full Skeins Col */}
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#a1a1aa", letterSpacing: 0.5 }}>FULL SKEINS</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); updateThread(d.id, "owned", Math.max(0, state.owned - 1)); }}
+                              style={{ width: 32, height: 32, borderRadius: 16, background: "#f4f4f5", border: "1px solid #e4e4e7", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#3f3f46", fontSize: 16 }}
+                            >−</button>
+                            <div style={{ fontSize: 18, fontWeight: 600, color: "#18181b", minWidth: 24, textAlign: "center" }}>{state.owned}</div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); updateThread(d.id, "owned", state.owned + 1); }}
+                              style={{ width: 32, height: 32, borderRadius: 16, background: "#f4f4f5", border: "1px solid #e4e4e7", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#3f3f46", fontSize: 16 }}
+                            >+</button>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const usedIn = patternsUsingThread(d.id);
+                              if (usedIn.length > 0) {
+                                alert(`Thread DMC ${d.id} is used in:\n\n${usedIn.map(p => `- ${p.title} (needs ${p.threads.find(t=>t.id===d.id).qty})`).join('\n')}`);
+                              } else {
+                                alert(`Thread DMC ${d.id} is not currently used in any of your patterns.`);
+                              }
+                            }}
+                            style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #e4e4e7", background: "#f4f4f5", color: "#71717a", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 11, width: "fit-content", marginTop: "auto" }}
+                            title="What uses this thread?"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            Usage
+                          </button>
+                        </div>
+
+                        {/* Opened Skein Col */}
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#a1a1aa", letterSpacing: 0.5, marginBottom: 4 }}>OPENED SKEIN</div>
+                          {[
+                            { val: null, label: "None" },
+                            { val: "mostly-full", label: "Mostly full" },
+                            { val: "about-half", label: "About half" },
+                            { val: "remnant", label: "Remnant" },
+                            { val: "used-up", label: "Used up" }
+                          ].map(opt => {
+                            const isActive = (state.partialStatus === opt.val) || (opt.val === null && !state.partialStatus);
+                            return (
+                              <div
+                                key={opt.val || 'none'}
+                                onClick={(e) => { e.stopPropagation(); updateThread(d.id, "partialStatus", opt.val); }}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+                                  borderRadius: 6, cursor: "pointer",
+                                  background: isActive ? "#f4f4f5" : "transparent",
+                                  border: isActive ? "1px solid #e4e4e7" : "1px solid transparent"
+                                }}
+                              >
+                                <div style={{ width: 10, height: 10, borderRadius: 5, background: dotColors[opt.val || "null"] }} />
+                                <div style={{ fontSize: 13, color: "#3f3f46", fontWeight: isActive ? 500 : 400 }}>{opt.label}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                      </div>
+                    )}
+>>>>>>> origin/main
                   </div>
                 );
               })}
               {filteredThreads.length === 0 && (
                 <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 20px", color: "#71717a", fontSize: 14 }}>
+<<<<<<< HEAD
                   No threads found.
 
+=======
+                  {threadFilter === 'remnants' ? "Threads marked as remnants will appear here. You can change a thread's status from its entry in the All tab." :
+                   threadFilter === 'usedup' ? "Threads marked as used up will appear here." :
+                   "No threads found."}
+>>>>>>> origin/main
                 </div>
               )}
             </div>
@@ -333,6 +626,14 @@ function ManagerApp() {
 
         {tab === "patterns" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+<<<<<<< HEAD
+=======
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -8 }}>
+               <button onClick={() => setProfileModalOpen(true)} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #e4e4e7", background: "#fff", cursor: "pointer", color: "#3f3f46" }}>
+                 ⚙️ Thread Settings
+               </button>
+            </div>
+>>>>>>> origin/main
             {activeProject && (
                 <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
@@ -467,27 +768,63 @@ function ManagerApp() {
           onSave={(p) => { addOrUpdatePattern(p); if(viewingPattern) setViewingPattern(p); }}
           onClose={() => { setEditingPattern(null); if(viewingPattern) setViewingPattern(viewingPattern); }}
           inventoryThreads={threads}
+<<<<<<< HEAD
+=======
+          userProfile={userProfile}
+>>>>>>> origin/main
         />
       )}
       {shoppingListModalOpen && (
         <ShoppingListModal
           patterns={patterns.filter(p => selectedPatternsForList.has(p.id))}
           inventoryThreads={threads}
+<<<<<<< HEAD
           onClose={() => setShoppingListModalOpen(false)}
         />
       )}
       {modal === "help" && <SharedModals.Help onClose={() => setModal(null)} />}
       {modal === "about" && <SharedModals.About onClose={() => setModal(null)} />}
+=======
+          userProfile={userProfile}
+          onClose={() => setShoppingListModalOpen(false)}
+        />
+      )}
+      {profileModalOpen && (
+        <UserProfileModal
+          profile={userProfile}
+          onSave={(p) => { setUserProfile(p); setProfileModalOpen(false); }}
+          onClose={() => setProfileModalOpen(false)}
+        />
+      )}
+      {modal === "help" && <SharedModals.Help onClose={() => setModal(null)} />}
+      {modal === "about" && <SharedModals.About onClose={() => setModal(null)} />}
+      {modal === "calculator" && <SharedModals.Calculator onClose={() => setModal(null)} />}
+>>>>>>> origin/main
     </>
   );
 }
 
+<<<<<<< HEAD
 function PatternModal({ pattern, onSave, onClose, inventoryThreads }) {
   const [edited, setEdited] = useState({ ...pattern, threads: pattern.threads || [], fabric: pattern.fabric || "" });
   const [threadInput, setThreadInput] = useState("");
   const [threadQty, setThreadQty] = useState(1);
   const [tagInput, setTagInput] = useState("");
   const [showAutocomplete, setShowAutocomplete] = useState(false);
+=======
+function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile }) {
+  const [edited, setEdited] = useState({ ...pattern, threads: pattern.threads || [], fabric: pattern.fabric || "", project_overrides: pattern.project_overrides || null });
+  const [threadInput, setThreadInput] = useState("");
+  const [threadQty, setThreadQty] = useState(1);
+  const [threadUnit, setThreadUnit] = useState("stitches");
+  const [threadBrand, setThreadBrand] = useState(userProfile?.thread_brand || "DMC");
+  const [isBlended, setIsBlended] = useState(false);
+  const [blendColorInput, setBlendColorInput] = useState("");
+  const [blendRatio, setBlendRatio] = useState("1:1");
+  const [tagInput, setTagInput] = useState("");
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [showBlendAutocomplete, setShowBlendAutocomplete] = useState(false);
+>>>>>>> origin/main
 
   const autocompleteResults = useMemo(() => {
     if (!threadInput) return [];
@@ -495,22 +832,80 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads }) {
     return DMC.filter(d => d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q)).slice(0, 10);
   }, [threadInput]);
 
+<<<<<<< HEAD
+=======
+  const blendAutocompleteResults = useMemo(() => {
+    if (!blendColorInput) return [];
+    const q = blendColorInput.toLowerCase();
+    return DMC.filter(d => d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q)).slice(0, 10);
+  }, [blendColorInput]);
+
+>>>>>>> origin/main
   const handleAddThread = (e) => {
     e.preventDefault();
     let match = DMC.find(d => d.id.toLowerCase() === threadInput.toLowerCase());
 
+<<<<<<< HEAD
     // If no exact match by ID, check if there's an autocomplete result by name and use the first one
+=======
+>>>>>>> origin/main
     if (!match && autocompleteResults.length > 0) {
       match = autocompleteResults[0];
     }
 
     if (match) {
+<<<<<<< HEAD
       if (!edited.threads.find(t => t.id === match.id)) {
         setEdited({ ...edited, threads: [...edited.threads, { id: match.id, qty: parseInt(threadQty) || 1 }] });
       }
       setThreadInput("");
       setThreadQty(1);
       setShowAutocomplete(false);
+=======
+      let blendMatch = null;
+      if (isBlended) {
+        blendMatch = DMC.find(d => d.id.toLowerCase() === blendColorInput.toLowerCase());
+        if (!blendMatch && blendAutocompleteResults.length > 0) {
+           blendMatch = blendAutocompleteResults[0];
+        }
+        if (!blendMatch) {
+            alert("Invalid blend color.");
+            return;
+        }
+      }
+
+      // Check if duplicate entry (if we want to allow it, maybe fine, but for now we update if exists or add new)
+      // Actually instructions say: "Duplicate color codes: A user might accidentally add DMC 310 twice... allow override, don't block. But entry form should warn."
+      // For simplicity, we just add it to the list.
+      const newThread = {
+          id: match.id,
+          name: match.name,
+          qty: parseInt(threadQty) || 1,
+          unit: threadUnit,
+          brand: threadBrand,
+          is_blended: isBlended,
+          blend_id: blendMatch ? blendMatch.id : null,
+          blend_name: blendMatch ? blendMatch.name : null,
+          blend_ratio: isBlended ? blendRatio.split(':').map(Number) : null
+      };
+
+      setEdited({ ...edited, threads: [...edited.threads, newThread] });
+
+      setThreadInput("");
+      setThreadQty(1);
+      setThreadUnit("stitches");
+      setIsBlended(false);
+      setBlendColorInput("");
+      setShowAutocomplete(false);
+      setShowBlendAutocomplete(false);
+    }
+  };
+
+  const handleUnitToggle = (newUnit) => {
+    if (newUnit !== threadUnit) {
+      setThreadUnit(newUnit);
+      setThreadQty(""); // clear quantity on toggle
+>>>>>>> origin/main
     }
   };
 
@@ -532,10 +927,17 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads }) {
     setEdited({ ...edited, threads: edited.threads.filter(t => t.id !== idToRemove) });
   };
 
+<<<<<<< HEAD
   const updateThreadQty = (id, newQty) => {
     setEdited({
       ...edited,
       threads: edited.threads.map(t => t.id === id ? { ...t, qty: Math.max(1, newQty) } : t)
+=======
+  const updateThreadQty = (idx, newQty) => {
+    setEdited({
+      ...edited,
+      threads: edited.threads.map((t, i) => i === idx ? { ...t, qty: Math.max(0, newQty) } : t)
+>>>>>>> origin/main
     });
   };
 
@@ -586,6 +988,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads }) {
           <div style={{ borderTop: "1px solid #f4f4f5", paddingTop: 16 }}>
             <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: "#18181b", marginBottom: 8 }}>Thread Requirements</label>
 
+<<<<<<< HEAD
             <form onSubmit={handleAddThread} style={{ display: "flex", gap: 8, marginBottom: 16, position: "relative" }}>
               <div style={{ flex: 1, position: "relative" }}>
                 <input
@@ -641,16 +1044,140 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads }) {
                     ) : (
                       <span title="Missing" style={{ color: "#ef4444", fontSize: 12 }}>❌</span>
                     )}
+=======
+            <form onSubmit={handleAddThread} style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16, background: "#f9fafb", padding: 12, borderRadius: 8, border: "1px solid #e4e4e7" }}>
+              <div style={{ display: "flex", gap: 8, position: "relative", alignItems: "center" }}>
+                <div style={{ flex: 1, position: "relative" }}>
+                  <input
+                    type="text"
+                    value={threadInput}
+                    onChange={e => { setThreadInput(e.target.value); setShowAutocomplete(true); }}
+                    onFocus={() => setShowAutocomplete(true)}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13 }}
+                    placeholder="Color code or name..."
+                    required
+                  />
+                  {showAutocomplete && autocompleteResults.length > 0 && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e4e4e7", borderRadius: 8, marginTop: 4, zIndex: 10, maxHeight: 200, overflowY: "auto", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}>
+                      {autocompleteResults.map(res => (
+                        <div
+                          key={res.id}
+                          onClick={() => { setThreadInput(res.id); setShowAutocomplete(false); }}
+                          style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid #f4f4f5", display: "flex", alignItems: "center", gap: 8 }}
+                        >
+                          <div style={{ width: 16, height: 16, borderRadius: 4, background: `rgb(${res.rgb})`, border: "1px solid #e4e4e7" }} />
+                          <span style={{ fontWeight: 600 }}>{res.id}</span>
+                          <span style={{ color: "#71717a" }}>{res.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <select value={threadBrand} onChange={e => setThreadBrand(e.target.value)} style={{ padding: "8px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, background: "#fff" }}>
+                  {Object.keys(BRAND_SKEIN_LENGTH).map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+
+                <input
+                  type="number"
+                  min={1}
+                  value={threadQty}
+                  onChange={e => setThreadQty(e.target.value)}
+                  style={{ width: 70, padding: "8px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, textAlign: "center" }}
+                  required
+                />
+
+                <div style={{ display: "flex", background: "#f4f4f5", borderRadius: 8, padding: 2, border: "1px solid #e4e4e7" }}>
+                  <button type="button" onClick={() => handleUnitToggle("stitches")} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "none", background: threadUnit === "stitches" ? "#fff" : "transparent", fontWeight: threadUnit === "stitches" ? 600 : 400, cursor: "pointer", boxShadow: threadUnit === "stitches" ? "0 1px 2px rgba(0,0,0,0.05)" : "none" }}>Stitches</button>
+                  <button type="button" onClick={() => handleUnitToggle("skeins")} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "none", background: threadUnit === "skeins" ? "#fff" : "transparent", fontWeight: threadUnit === "skeins" ? 600 : 400, cursor: "pointer", boxShadow: threadUnit === "skeins" ? "0 1px 2px rgba(0,0,0,0.05)" : "none" }}>Skeins</button>
+                </div>
+              </div>
+
+              {threadQty === "" && <div style={{ fontSize: 11, color: "#d97706" }}>Quantity cleared — please enter the value in {threadUnit}.</div>}
+
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+                <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                  <input type="checkbox" checked={isBlended} onChange={e => setIsBlended(e.target.checked)} />
+                  Blended Thread
+                </label>
+              </div>
+
+              {isBlended && (
+                <div style={{ display: "flex", gap: 8, position: "relative", alignItems: "center", paddingLeft: 20 }}>
+                  <div style={{ flex: 1, position: "relative" }}>
+                    <input
+                      type="text"
+                      value={blendColorInput}
+                      onChange={e => { setBlendColorInput(e.target.value); setShowBlendAutocomplete(true); }}
+                      onFocus={() => setShowBlendAutocomplete(true)}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13 }}
+                      placeholder="Second color code..."
+                      required
+                    />
+                    {showBlendAutocomplete && blendAutocompleteResults.length > 0 && (
+                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e4e4e7", borderRadius: 8, marginTop: 4, zIndex: 10, maxHeight: 200, overflowY: "auto", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}>
+                        {blendAutocompleteResults.map(res => (
+                          <div
+                            key={res.id}
+                            onClick={() => { setBlendColorInput(res.id); setShowBlendAutocomplete(false); }}
+                            style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid #f4f4f5", display: "flex", alignItems: "center", gap: 8 }}
+                          >
+                            <div style={{ width: 16, height: 16, borderRadius: 4, background: `rgb(${res.rgb})`, border: "1px solid #e4e4e7" }} />
+                            <span style={{ fontWeight: 600 }}>{res.id}</span>
+                            <span style={{ color: "#71717a" }}>{res.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <select value={blendRatio} onChange={e => setBlendRatio(e.target.value)} style={{ padding: "8px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, background: "#fff" }}>
+                     <option value="1:1">1:1 Ratio</option>
+                     <option value="2:1">2:1 Ratio</option>
+                     <option value="1:2">1:2 Ratio</option>
+                     <option value="3:1">3:1 Ratio</option>
+                     <option value="1:3">1:3 Ratio</option>
+                  </select>
+                </div>
+              )}
+
+              <button type="submit" style={{ padding: "8px 16px", background: "#0d9488", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, alignSelf: "flex-end", marginTop: 4 }}>Add Thread</button>
+            </form>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 250, overflowY: "auto" }}>
+              {edited.threads.map((t, idx) => {
+                const info = DMC.find(d => d.id === t.id);
+                // Backward compatibility for old format
+                const unit = t.unit || "skeins";
+                const displayUnit = unit === "stitches" ? "st" : "sk";
+
+                return (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", background: "#fafafa", borderRadius: 8, border: "1px solid #e4e4e7" }}>
+                    <div style={{ width: 20, height: 20, borderRadius: 4, background: info ? `rgb(${info.rgb})` : "#ccc", border: "1px solid #d4d4d8" }} />
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{t.id}</div>
+                    <div style={{ flex: 1, fontSize: 12, color: "#71717a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                       {t.is_blended ? `${t.name || info?.name || ""} + ${t.blend_name || t.blend_id} [${t.blend_ratio ? t.blend_ratio.join(':') : '1:1'}]` : (t.name || info?.name || "")}
+                    </div>
+>>>>>>> origin/main
 
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <input
                         type="number"
+<<<<<<< HEAD
                         min={1}
                         value={t.qty}
                         onChange={e => updateThreadQty(t.id, parseInt(e.target.value))}
                         style={{ width: 40, padding: "4px", borderRadius: 4, border: "1px solid #e4e4e7", fontSize: 12, textAlign: "center" }}
                       />
                       <span style={{ fontSize: 11, color: "#a1a1aa" }}>sk</span>
+=======
+                        min={0}
+                        value={t.qty}
+                        onChange={e => updateThreadQty(idx, parseInt(e.target.value))}
+                        style={{ width: 50, padding: "4px", borderRadius: 4, border: "1px solid #e4e4e7", fontSize: 12, textAlign: "center" }}
+                      />
+                      <span style={{ fontSize: 11, color: "#a1a1aa", width: 16 }}>{displayUnit}</span>
+>>>>>>> origin/main
                     </div>
 
                     <button onClick={() => removeThread(t.id)} style={{ background: "none", border: "none", color: "#a1a1aa", cursor: "pointer", padding: "4px" }}>×</button>
@@ -673,7 +1200,11 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads }) {
   );
 }
 
+<<<<<<< HEAD
 function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads }) {
+=======
+function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userProfile }) {
+>>>>>>> origin/main
   const statusColors = {
     wishlist: { bg: "#fef3c7", text: "#b45309", label: "Wishlist" },
     owned: { bg: "#e0e7ff", text: "#4338ca", label: "Owned" },
@@ -681,6 +1212,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads }) {
     completed: { bg: "#dcfce3", text: "#15803d", label: "Completed" }
   };
 
+<<<<<<< HEAD
   const missingThreadsCount = useMemo(() => {
     if (!pattern.threads) return 0;
     return pattern.threads.filter(t => {
@@ -688,6 +1220,108 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads }) {
       return invState.owned < t.qty;
     }).length;
   }, [pattern.threads, inventoryThreads]);
+=======
+  const derivedThreads = useMemo(() => {
+    if (!pattern.threads) return [];
+
+    // Default fallback settings
+    const settings = {
+        fabricCount: pattern.project_overrides?.fabric_count || userProfile?.fabric_count || 14,
+        strandsUsed: pattern.project_overrides?.strands_used || userProfile?.strands_used || 2,
+        threadBrand: pattern.project_overrides?.thread_brand || userProfile?.thread_brand || "DMC",
+        wasteFactor: pattern.project_overrides?.waste_factor || userProfile?.waste_factor || 0.20
+    };
+
+    return pattern.threads.map(t => {
+       const info = DMC.find(d => d.id === t.id);
+       let skExact = 0;
+       let skToBuy = 0;
+       let skBExact = 0;
+       let skBToBuy = 0;
+       let isApprox = false;
+       let stApprox = 0;
+
+       if (t.unit === "stitches") {
+           const res = stitchesToSkeins({
+               stitchCount: t.qty,
+               fabricCount: settings.fabricCount,
+               strandsUsed: settings.strandsUsed,
+               skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0,
+               wasteFactor: settings.wasteFactor,
+               isBlended: t.is_blended,
+               blendRatio: t.blend_ratio
+           });
+
+           if (!t.is_blended) {
+               skExact = res.skeinsExact;
+               skToBuy = res.skeinsToBuy;
+           } else {
+               skExact = res.colorA.skeinsExact;
+               skToBuy = res.colorA.skeinsToBuy;
+               skBExact = res.colorB.skeinsExact;
+               skBToBuy = res.colorB.skeinsToBuy;
+           }
+       } else if (t.unit === "skeins" && !t.is_blended) {
+           skToBuy = t.qty;
+           skExact = t.qty;
+           const res = skeinsToStitches({
+               skeinCount: t.qty,
+               fabricCount: settings.fabricCount,
+               strandsUsed: settings.strandsUsed,
+               skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0,
+               wasteFactor: settings.wasteFactor
+           });
+           stApprox = res.stitchesApprox;
+           isApprox = res.isApproximate;
+       } else if (t.unit === "skeins" && t.is_blended) {
+           skToBuy = t.qty;
+           skExact = t.qty;
+       } else {
+           // Fallback for older projects that had no unit but were implicit skeins
+           skToBuy = t.qty;
+           skExact = t.qty;
+       }
+
+       return {
+           ...t,
+           name: t.name || info?.name || "Unknown",
+           rgb: info ? info.rgb : [128,128,128],
+           skExact,
+           skToBuy,
+           skBExact,
+           skBToBuy,
+           isApprox,
+           stApprox,
+           settings
+       };
+    });
+  }, [pattern.threads, pattern.project_overrides, userProfile]);
+
+  const missingThreadsCount = useMemo(() => {
+    if (!derivedThreads) return 0;
+    let missingCount = 0;
+
+    // We only accurately check non-blended ones for simple missing display, or check both sides
+    const requiredColors = {};
+    derivedThreads.forEach(t => {
+        if (!requiredColors[t.id]) requiredColors[t.id] = 0;
+        requiredColors[t.id] += t.skToBuy;
+        if (t.is_blended && t.blend_id) {
+             if (!requiredColors[t.blend_id]) requiredColors[t.blend_id] = 0;
+             requiredColors[t.blend_id] += t.skBToBuy;
+        }
+    });
+
+    Object.entries(requiredColors).forEach(([id, qty]) => {
+         const invState = inventoryThreads[id] || { owned: 0 };
+         if (invState.owned < qty) {
+             missingCount++;
+         }
+    });
+
+    return missingCount;
+  }, [derivedThreads, inventoryThreads]);
+>>>>>>> origin/main
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000 }}>
@@ -727,6 +1361,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads }) {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+<<<<<<< HEAD
               {(!pattern.threads || pattern.threads.length === 0) ? (
                 <div style={{ fontSize: 12, color: "#a1a1aa", textAlign: "center", padding: "10px 0" }}>No threads specified.</div>
               ) : (
@@ -750,6 +1385,58 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads }) {
                           <span style={{ color: "#ef4444", fontSize: 12, background: "#fef2f2", padding: "2px 6px", borderRadius: 4, fontWeight: 600, border: "1px solid #fecaca" }}>Missing ❌</span>
                         )}
                       </div>
+=======
+              {derivedThreads.length === 0 ? (
+                <div style={{ fontSize: 12, color: "#a1a1aa", textAlign: "center", padding: "10px 0" }}>No threads specified.</div>
+              ) : (
+                derivedThreads.map((t, idx) => {
+                  let text = "";
+                  let subtext = "";
+
+                  if (t.is_blended) {
+                      const rA = t.blend_ratio ? t.blend_ratio[0] : 1;
+                      const rB = t.blend_ratio ? t.blend_ratio[1] : 1;
+                      text = `DMC ${t.id} + DMC ${t.blend_id} [${rA}:${rB}] — ${t.unit === "stitches" ? t.qty + " stitches" : t.qty + " skeins"}`;
+                      if (t.unit === "stitches") {
+                          if (rA === rB) {
+                              subtext = `~${t.skToBuy} skein(s) each`;
+                          } else {
+                              subtext = `→ DMC ${t.id}: ~${t.skToBuy} skeins · DMC ${t.blend_id}: ~${t.skBToBuy} skeins`;
+                          }
+                      } else {
+                          subtext = `Stitch estimate not available for blended entries stored as skeins.`;
+                      }
+                  } else {
+                      if (t.unit === "stitches") {
+                          text = `DMC ${t.id} (${t.name}) — ${t.qty.toLocaleString()} stitches (~${t.skToBuy} skeins)`;
+                      } else {
+                          // Is skeins or fallback
+                          if (t.unit === "skeins" && t.isApprox) {
+                              text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s) (~${t.stApprox.toLocaleString()} stitches)`;
+                          } else {
+                              text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s)`;
+                          }
+                      }
+                  }
+
+                  const settingsUsed = t.settings;
+                  const isOverride = !!pattern.project_overrides;
+                  const settingsBadge = `Based on: ${settingsUsed.fabricCount}ct · ${settingsUsed.strandsUsed} strands · ${settingsUsed.threadBrand} · ${Math.round(settingsUsed.wasteFactor * 100)}% waste ${isOverride ? "(project settings)" : ""}`;
+
+                  return (
+                    <div key={idx} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "12px 16px", background: "#fafafa", borderRadius: 8, border: "1px solid #e4e4e7" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{ display: "flex", gap: -4 }}>
+                               <div style={{ width: 16, height: 16, borderRadius: 4, background: `rgb(${t.rgb})`, border: "1px solid #d4d4d8", position: "relative", zIndex: 2 }} />
+                               {t.is_blended && <div style={{ width: 16, height: 16, borderRadius: 4, background: "#ccc", border: "1px solid #d4d4d8", position: "relative", zIndex: 1, marginLeft: -6 }} />}
+                            </div>
+                            <div style={{ flex: 1, fontSize: 13, color: "#18181b", fontWeight: 500 }}>
+                                {text}
+                            </div>
+                        </div>
+                        {subtext && <div style={{ fontSize: 12, color: "#71717a", paddingLeft: 28 }}>{subtext}</div>}
+                        <div style={{ fontSize: 10, color: "#a1a1aa", paddingLeft: 28, marginTop: 2 }}>{settingsBadge}</div>
+>>>>>>> origin/main
                     </div>
                   );
                 })
@@ -767,7 +1454,67 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads }) {
   );
 }
 
+<<<<<<< HEAD
 function ShoppingListModal({ patterns, inventoryThreads, onClose }) {
+=======
+function UserProfileModal({ profile, onSave, onClose }) {
+  const [edited, setEdited] = useState({ ...profile });
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000 }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", padding: 0 }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e4e4e7", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0, fontSize: 18 }}>Default Thread Settings</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#a1a1aa" }}>×</button>
+        </div>
+
+        <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ fontSize: 13, color: "#71717a", marginBottom: 8 }}>
+            These settings are used to estimate the number of skeins required for your patterns based on stitch counts. You can override these for individual projects.
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#71717a", marginBottom: 4 }}>Fabric Count</label>
+            <select value={edited.fabric_count} onChange={e => setEdited({ ...edited, fabric_count: parseInt(e.target.value) })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, background: "#fff" }}>
+               {[11, 14, 16, 18, 20, 22, 25, 28, 32].map(ct => <option key={ct} value={ct}>{ct} count</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#71717a", marginBottom: 4 }}>Strands Used</label>
+            <select value={edited.strands_used} onChange={e => setEdited({ ...edited, strands_used: parseInt(e.target.value) })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, background: "#fff" }}>
+               {[1, 2, 3, 4, 5, 6].map(st => <option key={st} value={st}>{st} strand{st > 1 ? "s" : ""}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#71717a", marginBottom: 4 }}>Preferred Thread Brand</label>
+            <select value={edited.thread_brand} onChange={e => setEdited({ ...edited, thread_brand: e.target.value })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, background: "#fff" }}>
+                {Object.keys(BRAND_SKEIN_LENGTH).map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#71717a", marginBottom: 4 }}>Waste Factor</label>
+            <select value={edited.waste_factor} onChange={e => setEdited({ ...edited, waste_factor: parseFloat(e.target.value) })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, background: "#fff" }}>
+               <option value={0.10}>Low (10% - Efficient stitching, few mistakes)</option>
+               <option value={0.20}>Average (20% - Normal amount of travelling/mistakes)</option>
+               <option value={0.30}>High (30% - Lots of confetti stitches/parking)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={{ padding: "16px 20px", borderTop: "1px solid #e4e4e7", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fafafa", borderRadius: "0 0 8px 8px" }}>
+          <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #e4e4e7", background: "#fff", cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+          <button onClick={() => onSave(edited)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save Settings</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose }) {
+>>>>>>> origin/main
   const [copied, setCopied] = useState(false);
 
   const missingThreads = useMemo(() => {
@@ -775,11 +1522,54 @@ function ShoppingListModal({ patterns, inventoryThreads, onClose }) {
     const required = {};
     patterns.forEach(p => {
       if (!p.threads) return;
+<<<<<<< HEAD
       p.threads.forEach(t => {
         if (!required[t.id]) required[t.id] = 0;
         // Option: we could take the max across patterns, or sum. Summing is safer if doing both.
         // Assuming user might stitch both, we sum.
         required[t.id] += t.qty;
+=======
+
+      const settings = {
+          fabricCount: p.project_overrides?.fabric_count || userProfile?.fabric_count || 14,
+          strandsUsed: p.project_overrides?.strands_used || userProfile?.strands_used || 2,
+          threadBrand: p.project_overrides?.thread_brand || userProfile?.thread_brand || "DMC",
+          wasteFactor: p.project_overrides?.waste_factor || userProfile?.waste_factor || 0.20
+      };
+
+      p.threads.forEach(t => {
+        let qtyA = 0;
+        let qtyB = 0;
+
+        if (t.unit === "stitches") {
+             const res = stitchesToSkeins({
+                 stitchCount: t.qty,
+                 fabricCount: settings.fabricCount,
+                 strandsUsed: settings.strandsUsed,
+                 skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0,
+                 wasteFactor: settings.wasteFactor,
+                 isBlended: t.is_blended,
+                 blendRatio: t.blend_ratio
+             });
+             if (t.is_blended) {
+                 qtyA = res.colorA.skeinsToBuy;
+                 qtyB = res.colorB.skeinsToBuy;
+             } else {
+                 qtyA = res.skeinsToBuy;
+             }
+        } else {
+             // skeins
+             qtyA = t.qty; // Note: we can't accurately split skeins in blends, so apply all to primary
+        }
+
+        if (!required[t.id]) required[t.id] = 0;
+        required[t.id] += qtyA;
+
+        if (t.is_blended && t.blend_id) {
+            if (!required[t.blend_id]) required[t.blend_id] = 0;
+            required[t.blend_id] += qtyB;
+        }
+>>>>>>> origin/main
       });
     });
 
@@ -799,7 +1589,11 @@ function ShoppingListModal({ patterns, inventoryThreads, onClose }) {
     });
 
     return missing.sort((a, b) => parseInt(a.id) - parseInt(b.id));
+<<<<<<< HEAD
   }, [patterns, inventoryThreads]);
+=======
+  }, [patterns, inventoryThreads, userProfile]);
+>>>>>>> origin/main
 
   const copyList = () => {
     const text = missingThreads.map(t => `DMC ${t.id} ${t.name} x${t.qty}`).join('\n');

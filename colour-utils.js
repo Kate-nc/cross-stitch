@@ -120,6 +120,7 @@ function buildPalette(patArr){
        usage[m.id].count++;
     }
 
+
   }
   let entries=Object.values(usage).sort((a,b)=>b.count-a.count);
   entries.forEach((e,i)=>{
