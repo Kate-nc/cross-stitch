@@ -553,7 +553,7 @@ class PatternKeeperImporter {
                  t.str.trim().length > 0 && // Don't restrict length in case text wasn't split
                  // Check if the center of this specific cell falls within the text item's bounding box
                  cx >= t.x - (grid.cellWidth * 0.2) && cx <= (t.x + t.width + grid.cellWidth * 0.2) &&
-                 Math.abs((t.y - t.height/2) - cy) < grid.cellHeight
+                 Math.abs((t.y - t.height/2) - cy) < grid.cellHeight / 2
               );
 
               // If the matched item is a clump of characters spread out, try to extract just the one under this cell
@@ -574,11 +574,12 @@ class PatternKeeperImporter {
                  // Check if the cell is filled with a vector path color instead of a text symbol
                  const coloredPath = pageData.vectorPaths.find(pa => {
                     if (!pa.fillColor) return false;
-                    // We only need the center of the path to be close to the cell center.
-                    const bx = pa.points[0].x;
-                    const by = pa.points[0].y;
-                    // Provide a slight tolerance to avoid missing paths barely overlapping edges
-                    return Math.abs(bx - cx) < grid.cellWidth && Math.abs(by - cy) < grid.cellHeight;
+                    // Use the centroid of the path's points rather than points[0] (which is a corner,
+                    // not the center). Using a corner causes fills to be equidistant from two adjacent
+                    // cell centers, producing a duplicate mark one row above the correct position.
+                    const bx = pa.points.reduce((s, p) => s + p.x, 0) / pa.points.length;
+                    const by = pa.points.reduce((s, p) => s + p.y, 0) / pa.points.length;
+                    return Math.abs(bx - cx) < grid.cellWidth / 2 && Math.abs(by - cy) < grid.cellHeight / 2;
                  });
                  if (coloredPath) {
                     fillColor = coloredPath.fillColor;
