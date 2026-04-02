@@ -874,7 +874,8 @@ class PatternKeeperImporter {
               name: cell.thread.name || ("DMC " + cell.thread.id),
               rgb: cell.thread.rgb,
               lab: cell.thread.lab || [50,0,0],
-              dist: 0
+              dist: 0,
+              symbol: cell.symbol
            };
            stitchCount++;
            paletteMap.add(cell.thread.id);
@@ -882,7 +883,7 @@ class PatternKeeperImporter {
      });
 
      return {
-        v: 8,
+        v: 7, // Not 8, because 8 expects compressed array format (['310', 's']) in Tracker
         w: width,
         h: height,
         settings: { sW: width, sH: height, fabricCt: 14 },
