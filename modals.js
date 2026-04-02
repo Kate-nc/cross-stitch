@@ -158,5 +158,21 @@ const SharedModals = {
         )
       )
     );
+  },
+
+  Calculator: ({ onClose, initialPatterns = [] }) => {
+    // This is a minimal stub to prevent white screens if the Calculator is invoked.
+    return React.createElement("div", { className: "modal-overlay", onClick: onClose },
+      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500, padding: 20 } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 20 } },
+            React.createElement("h2", { style: { margin: 0, fontSize: 18 } }, "Thread Calculator"),
+            React.createElement("button", { onClick: onClose, style: { background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#a1a1aa" } }, "×")
+        ),
+        React.createElement("div", null, "Skein calculation logic has been integrated into the thread views and shopping lists. To calculate threads needed for individual colors or projects, please edit your User Profile default settings in the Stash Manager or view the pattern's thread requirements."),
+        React.createElement("div", { style: { marginTop: 20, textAlign: "right" } },
+            React.createElement("button", { onClick: onClose, style: { padding: "8px 16px", borderRadius: 8, border: "0.5px solid #e4e4e7", background: "#fff", cursor: "pointer", fontWeight: 600 } }, "Close")
+        )
+      )
+    );
   }
 };

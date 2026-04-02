@@ -45,6 +45,13 @@ function ManagerApp() {
   const [selectedPatternsForList, setSelectedPatternsForList] = useState(new Set());
   const [shoppingListModalOpen, setShoppingListModalOpen] = useState(false);
   const [expandedThread, setExpandedThread] = useState(null);
+  const [userProfile, setUserProfile] = useState({
+    fabric_count: 14,
+    strands_used: 2,
+    thread_brand: "DMC",
+    waste_factor: 0.20
+  });
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
   const lowStockThreshold = 1;
 
   // Storage initialization
@@ -64,6 +71,11 @@ function ManagerApp() {
         const threadsData = await getRequest(store.get("threads"));
         const patternsData = await getRequest(store.get("patterns"));
         const versionData = await getRequest(store.get("stashDataVersion"));
+        const profileData = await getRequest(store.get("userProfile"));
+
+        if (profileData) {
+          setUserProfile(profileData);
+        }
 
         let finalThreads = threadsData;
 
@@ -119,12 +131,13 @@ function ManagerApp() {
         const store = tx.objectStore("manager_state");
         store.put(threads, "threads");
         store.put(patterns, "patterns");
+        store.put(userProfile, "userProfile");
       } catch (err) {
         console.error("Auto-save failed:", err);
       }
     }, 1000);
     return () => clearTimeout(saveTimer);
-  }, [threads, patterns]);
+  }, [threads, patterns, userProfile]);
 
   function openManagerDB() {
     return new Promise((resolve, reject) => {
@@ -479,6 +492,11 @@ function ManagerApp() {
 
         {tab === "patterns" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -8 }}>
+               <button onClick={() => setProfileModalOpen(true)} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #e4e4e7", background: "#fff", cursor: "pointer", color: "#3f3f46" }}>
+                 ⚙️ Thread Settings
+               </button>
+            </div>
             {activeProject && (
                 <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
@@ -613,13 +631,22 @@ function ManagerApp() {
           onSave={(p) => { addOrUpdatePattern(p); if(viewingPattern) setViewingPattern(p); }}
           onClose={() => { setEditingPattern(null); if(viewingPattern) setViewingPattern(viewingPattern); }}
           inventoryThreads={threads}
+          userProfile={userProfile}
         />
       )}
       {shoppingListModalOpen && (
         <ShoppingListModal
           patterns={patterns.filter(p => selectedPatternsForList.has(p.id))}
           inventoryThreads={threads}
+          userProfile={userProfile}
           onClose={() => setShoppingListModalOpen(false)}
+        />
+      )}
+      {profileModalOpen && (
+        <UserProfileModal
+          profile={userProfile}
+          onSave={(p) => { setUserProfile(p); setProfileModalOpen(false); }}
+          onClose={() => setProfileModalOpen(false)}
         />
       )}
       {modal === "help" && <SharedModals.Help onClose={() => setModal(null)} />}
@@ -629,12 +656,18 @@ function ManagerApp() {
   );
 }
 
-function PatternModal({ pattern, onSave, onClose, inventoryThreads }) {
-  const [edited, setEdited] = useState({ ...pattern, threads: pattern.threads || [], fabric: pattern.fabric || "" });
+function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile }) {
+  const [edited, setEdited] = useState({ ...pattern, threads: pattern.threads || [], fabric: pattern.fabric || "", project_overrides: pattern.project_overrides || null });
   const [threadInput, setThreadInput] = useState("");
   const [threadQty, setThreadQty] = useState(1);
+  const [threadUnit, setThreadUnit] = useState("stitches");
+  const [threadBrand, setThreadBrand] = useState(userProfile?.thread_brand || "DMC");
+  const [isBlended, setIsBlended] = useState(false);
+  const [blendColorInput, setBlendColorInput] = useState("");
+  const [blendRatio, setBlendRatio] = useState("1:1");
   const [tagInput, setTagInput] = useState("");
   const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [showBlendAutocomplete, setShowBlendAutocomplete] = useState(false);
 
   const autocompleteResults = useMemo(() => {
     if (!threadInput) return [];
@@ -642,22 +675,64 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads }) {
     return DMC.filter(d => d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q)).slice(0, 10);
   }, [threadInput]);
 
+  const blendAutocompleteResults = useMemo(() => {
+    if (!blendColorInput) return [];
+    const q = blendColorInput.toLowerCase();
+    return DMC.filter(d => d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q)).slice(0, 10);
+  }, [blendColorInput]);
+
   const handleAddThread = (e) => {
     e.preventDefault();
     let match = DMC.find(d => d.id.toLowerCase() === threadInput.toLowerCase());
 
-    // If no exact match by ID, check if there's an autocomplete result by name and use the first one
     if (!match && autocompleteResults.length > 0) {
       match = autocompleteResults[0];
     }
 
     if (match) {
-      if (!edited.threads.find(t => t.id === match.id)) {
-        setEdited({ ...edited, threads: [...edited.threads, { id: match.id, qty: parseInt(threadQty) || 1 }] });
+      let blendMatch = null;
+      if (isBlended) {
+        blendMatch = DMC.find(d => d.id.toLowerCase() === blendColorInput.toLowerCase());
+        if (!blendMatch && blendAutocompleteResults.length > 0) {
+           blendMatch = blendAutocompleteResults[0];
+        }
+        if (!blendMatch) {
+            alert("Invalid blend color.");
+            return;
+        }
       }
+
+      // Check if duplicate entry (if we want to allow it, maybe fine, but for now we update if exists or add new)
+      // Actually instructions say: "Duplicate color codes: A user might accidentally add DMC 310 twice... allow override, don't block. But entry form should warn."
+      // For simplicity, we just add it to the list.
+      const newThread = {
+          id: match.id,
+          name: match.name,
+          qty: parseInt(threadQty) || 1,
+          unit: threadUnit,
+          brand: threadBrand,
+          is_blended: isBlended,
+          blend_id: blendMatch ? blendMatch.id : null,
+          blend_name: blendMatch ? blendMatch.name : null,
+          blend_ratio: isBlended ? blendRatio.split(':').map(Number) : null
+      };
+
+      setEdited({ ...edited, threads: [...edited.threads, newThread] });
+
       setThreadInput("");
       setThreadQty(1);
+      setThreadUnit("stitches");
+      setIsBlended(false);
+      setBlendColorInput("");
       setShowAutocomplete(false);
+      setShowBlendAutocomplete(false);
+    }
+  };
+
+  const handleUnitToggle = (newUnit) => {
+    if (newUnit !== threadUnit) {
+      setThreadUnit(newUnit);
+      setThreadQty(""); // clear quantity on toggle
     }
   };
 
@@ -679,10 +754,10 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads }) {
     setEdited({ ...edited, threads: edited.threads.filter(t => t.id !== idToRemove) });
   };
 
-  const updateThreadQty = (id, newQty) => {
+  const updateThreadQty = (idx, newQty) => {
     setEdited({
       ...edited,
-      threads: edited.threads.map(t => t.id === id ? { ...t, qty: Math.max(1, newQty) } : t)
+      threads: edited.threads.map((t, i) => i === idx ? { ...t, qty: Math.max(0, newQty) } : t)
     });
   };
 
@@ -733,71 +808,129 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads }) {
           <div style={{ borderTop: "1px solid #f4f4f5", paddingTop: 16 }}>
             <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: "#18181b", marginBottom: 8 }}>Thread Requirements</label>
 
-            <form onSubmit={handleAddThread} style={{ display: "flex", gap: 8, marginBottom: 16, position: "relative" }}>
-              <div style={{ flex: 1, position: "relative" }}>
+            <form onSubmit={handleAddThread} style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16, background: "#f9fafb", padding: 12, borderRadius: 8, border: "1px solid #e4e4e7" }}>
+              <div style={{ display: "flex", gap: 8, position: "relative", alignItems: "center" }}>
+                <div style={{ flex: 1, position: "relative" }}>
+                  <input
+                    type="text"
+                    value={threadInput}
+                    onChange={e => { setThreadInput(e.target.value); setShowAutocomplete(true); }}
+                    onFocus={() => setShowAutocomplete(true)}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13 }}
+                    placeholder="Color code or name..."
+                    required
+                  />
+                  {showAutocomplete && autocompleteResults.length > 0 && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e4e4e7", borderRadius: 8, marginTop: 4, zIndex: 10, maxHeight: 200, overflowY: "auto", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}>
+                      {autocompleteResults.map(res => (
+                        <div
+                          key={res.id}
+                          onClick={() => { setThreadInput(res.id); setShowAutocomplete(false); }}
+                          style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid #f4f4f5", display: "flex", alignItems: "center", gap: 8 }}
+                        >
+                          <div style={{ width: 16, height: 16, borderRadius: 4, background: `rgb(${res.rgb})`, border: "1px solid #e4e4e7" }} />
+                          <span style={{ fontWeight: 600 }}>{res.id}</span>
+                          <span style={{ color: "#71717a" }}>{res.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <select value={threadBrand} onChange={e => setThreadBrand(e.target.value)} style={{ padding: "8px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, background: "#fff" }}>
+                  {Object.keys(BRAND_SKEIN_LENGTH).map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+
                 <input
-                  type="text"
-                  value={threadInput}
-                  onChange={e => { setThreadInput(e.target.value); setShowAutocomplete(true); }}
-                  onFocus={() => setShowAutocomplete(true)}
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13 }}
-                  placeholder="Type DMC number or color..."
+                  type="number"
+                  min={1}
+                  value={threadQty}
+                  onChange={e => setThreadQty(e.target.value)}
+                  style={{ width: 70, padding: "8px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, textAlign: "center" }}
+                  required
                 />
-                {showAutocomplete && autocompleteResults.length > 0 && (
-                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e4e4e7", borderRadius: 8, marginTop: 4, zIndex: 10, maxHeight: 200, overflowY: "auto", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}>
-                    {autocompleteResults.map(res => (
-                      <div
-                        key={res.id}
-                        onClick={() => { setThreadInput(res.id); setShowAutocomplete(false); }}
-                        style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid #f4f4f5", display: "flex", alignItems: "center", gap: 8 }}
-                      >
-                        <div style={{ width: 16, height: 16, borderRadius: 4, background: `rgb(${res.rgb})`, border: "1px solid #e4e4e7" }} />
-                        <span style={{ fontWeight: 600 }}>{res.id}</span>
-                        <span style={{ color: "#71717a" }}>{res.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+
+                <div style={{ display: "flex", background: "#f4f4f5", borderRadius: 8, padding: 2, border: "1px solid #e4e4e7" }}>
+                  <button type="button" onClick={() => handleUnitToggle("stitches")} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "none", background: threadUnit === "stitches" ? "#fff" : "transparent", fontWeight: threadUnit === "stitches" ? 600 : 400, cursor: "pointer", boxShadow: threadUnit === "stitches" ? "0 1px 2px rgba(0,0,0,0.05)" : "none" }}>Stitches</button>
+                  <button type="button" onClick={() => handleUnitToggle("skeins")} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "none", background: threadUnit === "skeins" ? "#fff" : "transparent", fontWeight: threadUnit === "skeins" ? 600 : 400, cursor: "pointer", boxShadow: threadUnit === "skeins" ? "0 1px 2px rgba(0,0,0,0.05)" : "none" }}>Skeins</button>
+                </div>
               </div>
-              <input
-                type="number"
-                min={1}
-                value={threadQty}
-                onChange={e => setThreadQty(e.target.value)}
-                style={{ width: 60, padding: "8px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, textAlign: "center" }}
-              />
-              <button type="submit" style={{ padding: "8px 16px", background: "#f4f4f5", border: "0.5px solid #e4e4e7", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}>Add</button>
+
+              {threadQty === "" && <div style={{ fontSize: 11, color: "#d97706" }}>Quantity cleared — please enter the value in {threadUnit}.</div>}
+
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+                <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                  <input type="checkbox" checked={isBlended} onChange={e => setIsBlended(e.target.checked)} />
+                  Blended Thread
+                </label>
+              </div>
+
+              {isBlended && (
+                <div style={{ display: "flex", gap: 8, position: "relative", alignItems: "center", paddingLeft: 20 }}>
+                  <div style={{ flex: 1, position: "relative" }}>
+                    <input
+                      type="text"
+                      value={blendColorInput}
+                      onChange={e => { setBlendColorInput(e.target.value); setShowBlendAutocomplete(true); }}
+                      onFocus={() => setShowBlendAutocomplete(true)}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13 }}
+                      placeholder="Second color code..."
+                      required
+                    />
+                    {showBlendAutocomplete && blendAutocompleteResults.length > 0 && (
+                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e4e4e7", borderRadius: 8, marginTop: 4, zIndex: 10, maxHeight: 200, overflowY: "auto", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}>
+                        {blendAutocompleteResults.map(res => (
+                          <div
+                            key={res.id}
+                            onClick={() => { setBlendColorInput(res.id); setShowBlendAutocomplete(false); }}
+                            style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid #f4f4f5", display: "flex", alignItems: "center", gap: 8 }}
+                          >
+                            <div style={{ width: 16, height: 16, borderRadius: 4, background: `rgb(${res.rgb})`, border: "1px solid #e4e4e7" }} />
+                            <span style={{ fontWeight: 600 }}>{res.id}</span>
+                            <span style={{ color: "#71717a" }}>{res.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <select value={blendRatio} onChange={e => setBlendRatio(e.target.value)} style={{ padding: "8px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, background: "#fff" }}>
+                     <option value="1:1">1:1 Ratio</option>
+                     <option value="2:1">2:1 Ratio</option>
+                     <option value="1:2">1:2 Ratio</option>
+                     <option value="3:1">3:1 Ratio</option>
+                     <option value="1:3">1:3 Ratio</option>
+                  </select>
+                </div>
+              )}
+
+              <button type="submit" style={{ padding: "8px 16px", background: "#0d9488", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, alignSelf: "flex-end", marginTop: 4 }}>Add Thread</button>
             </form>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 250, overflowY: "auto" }}>
-              {edited.threads.map(t => {
+              {edited.threads.map((t, idx) => {
                 const info = DMC.find(d => d.id === t.id);
-                const invState = inventoryThreads[t.id] || { owned: 0 };
-                const missing = t.qty - invState.owned;
+                // Backward compatibility for old format
+                const unit = t.unit || "skeins";
+                const displayUnit = unit === "stitches" ? "st" : "sk";
 
                 return (
-                  <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", background: "#fafafa", borderRadius: 8, border: "1px solid #e4e4e7" }}>
+                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", background: "#fafafa", borderRadius: 8, border: "1px solid #e4e4e7" }}>
                     <div style={{ width: 20, height: 20, borderRadius: 4, background: info ? `rgb(${info.rgb})` : "#ccc", border: "1px solid #d4d4d8" }} />
-                    <div style={{ width: 40, fontWeight: 700, fontSize: 13 }}>{t.id}</div>
-                    <div style={{ flex: 1, fontSize: 12, color: "#71717a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{info ? info.name : ""}</div>
-
-                    {missing <= 0 ? (
-                      <span title="Owned" style={{ color: "#16a34a", fontSize: 12 }}>✅</span>
-                    ) : invState.owned > 0 ? (
-                      <span title={`Owned ${invState.owned}, need ${t.qty}`} style={{ color: "#ea580c", fontSize: 12 }}>⚠️</span>
-                    ) : (
-                      <span title="Missing" style={{ color: "#ef4444", fontSize: 12 }}>❌</span>
-                    )}
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{t.id}</div>
+                    <div style={{ flex: 1, fontSize: 12, color: "#71717a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                       {t.is_blended ? `${t.name || info?.name || ""} + ${t.blend_name || t.blend_id} [${t.blend_ratio ? t.blend_ratio.join(':') : '1:1'}]` : (t.name || info?.name || "")}
+                    </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <input
                         type="number"
-                        min={1}
+                        min={0}
                         value={t.qty}
-                        onChange={e => updateThreadQty(t.id, parseInt(e.target.value))}
-                        style={{ width: 40, padding: "4px", borderRadius: 4, border: "1px solid #e4e4e7", fontSize: 12, textAlign: "center" }}
+                        onChange={e => updateThreadQty(idx, parseInt(e.target.value))}
+                        style={{ width: 50, padding: "4px", borderRadius: 4, border: "1px solid #e4e4e7", fontSize: 12, textAlign: "center" }}
                       />
-                      <span style={{ fontSize: 11, color: "#a1a1aa" }}>sk</span>
+                      <span style={{ fontSize: 11, color: "#a1a1aa", width: 16 }}>{displayUnit}</span>
                     </div>
 
                     <button onClick={() => removeThread(t.id)} style={{ background: "none", border: "none", color: "#a1a1aa", cursor: "pointer", padding: "4px" }}>×</button>
@@ -820,7 +953,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads }) {
   );
 }
 
-function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads }) {
+function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userProfile }) {
   const statusColors = {
     wishlist: { bg: "#fef3c7", text: "#b45309", label: "Wishlist" },
     owned: { bg: "#e0e7ff", text: "#4338ca", label: "Owned" },
@@ -828,13 +961,106 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads }) {
     completed: { bg: "#dcfce3", text: "#15803d", label: "Completed" }
   };
 
+  const derivedThreads = useMemo(() => {
+    if (!pattern.threads) return [];
+
+    // Default fallback settings
+    const settings = {
+        fabricCount: pattern.project_overrides?.fabric_count || userProfile?.fabric_count || 14,
+        strandsUsed: pattern.project_overrides?.strands_used || userProfile?.strands_used || 2,
+        threadBrand: pattern.project_overrides?.thread_brand || userProfile?.thread_brand || "DMC",
+        wasteFactor: pattern.project_overrides?.waste_factor || userProfile?.waste_factor || 0.20
+    };
+
+    return pattern.threads.map(t => {
+       const info = DMC.find(d => d.id === t.id);
+       let skExact = 0;
+       let skToBuy = 0;
+       let skBExact = 0;
+       let skBToBuy = 0;
+       let isApprox = false;
+       let stApprox = 0;
+
+       if (t.unit === "stitches") {
+           const res = stitchesToSkeins({
+               stitchCount: t.qty,
+               fabricCount: settings.fabricCount,
+               strandsUsed: settings.strandsUsed,
+               skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0,
+               wasteFactor: settings.wasteFactor,
+               isBlended: t.is_blended,
+               blendRatio: t.blend_ratio
+           });
+
+           if (!t.is_blended) {
+               skExact = res.skeinsExact;
+               skToBuy = res.skeinsToBuy;
+           } else {
+               skExact = res.colorA.skeinsExact;
+               skToBuy = res.colorA.skeinsToBuy;
+               skBExact = res.colorB.skeinsExact;
+               skBToBuy = res.colorB.skeinsToBuy;
+           }
+       } else if (t.unit === "skeins" && !t.is_blended) {
+           skToBuy = t.qty;
+           skExact = t.qty;
+           const res = skeinsToStitches({
+               skeinCount: t.qty,
+               fabricCount: settings.fabricCount,
+               strandsUsed: settings.strandsUsed,
+               skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0,
+               wasteFactor: settings.wasteFactor
+           });
+           stApprox = res.stitchesApprox;
+           isApprox = res.isApproximate;
+       } else if (t.unit === "skeins" && t.is_blended) {
+           skToBuy = t.qty;
+           skExact = t.qty;
+       } else {
+           // Fallback for older projects that had no unit but were implicit skeins
+           skToBuy = t.qty;
+           skExact = t.qty;
+       }
+
+       return {
+           ...t,
+           name: t.name || info?.name || "Unknown",
+           rgb: info ? info.rgb : [128,128,128],
+           skExact,
+           skToBuy,
+           skBExact,
+           skBToBuy,
+           isApprox,
+           stApprox,
+           settings
+       };
+    });
+  }, [pattern.threads, pattern.project_overrides, userProfile]);
+
   const missingThreadsCount = useMemo(() => {
-    if (!pattern.threads) return 0;
-    return pattern.threads.filter(t => {
-      const invState = inventoryThreads[t.id] || { owned: 0 };
-      return invState.owned < t.qty;
-    }).length;
-  }, [pattern.threads, inventoryThreads]);
+    if (!derivedThreads) return 0;
+    let missingCount = 0;
+
+    // We only accurately check non-blended ones for simple missing display, or check both sides
+    const requiredColors = {};
+    derivedThreads.forEach(t => {
+        if (!requiredColors[t.id]) requiredColors[t.id] = 0;
+        requiredColors[t.id] += t.skToBuy;
+        if (t.is_blended && t.blend_id) {
+             if (!requiredColors[t.blend_id]) requiredColors[t.blend_id] = 0;
+             requiredColors[t.blend_id] += t.skBToBuy;
+        }
+    });
+
+    Object.entries(requiredColors).forEach(([id, qty]) => {
+         const invState = inventoryThreads[id] || { owned: 0 };
+         if (invState.owned < qty) {
+             missingCount++;
+         }
+    });
+
+    return missingCount;
+  }, [derivedThreads, inventoryThreads]);
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000 }}>
@@ -874,29 +1100,56 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads }) {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {(!pattern.threads || pattern.threads.length === 0) ? (
+              {derivedThreads.length === 0 ? (
                 <div style={{ fontSize: 12, color: "#a1a1aa", textAlign: "center", padding: "10px 0" }}>No threads specified.</div>
               ) : (
-                pattern.threads.map(t => {
-                  const info = DMC.find(d => d.id === t.id);
-                  const invState = inventoryThreads[t.id] || { owned: 0 };
-                  const missing = t.qty - invState.owned;
+                derivedThreads.map((t, idx) => {
+                  let text = "";
+                  let subtext = "";
+
+                  if (t.is_blended) {
+                      const rA = t.blend_ratio ? t.blend_ratio[0] : 1;
+                      const rB = t.blend_ratio ? t.blend_ratio[1] : 1;
+                      text = `DMC ${t.id} + DMC ${t.blend_id} [${rA}:${rB}] — ${t.unit === "stitches" ? t.qty + " stitches" : t.qty + " skeins"}`;
+                      if (t.unit === "stitches") {
+                          if (rA === rB) {
+                              subtext = `~${t.skToBuy} skein(s) each`;
+                          } else {
+                              subtext = `→ DMC ${t.id}: ~${t.skToBuy} skeins · DMC ${t.blend_id}: ~${t.skBToBuy} skeins`;
+                          }
+                      } else {
+                          subtext = `Stitch estimate not available for blended entries stored as skeins.`;
+                      }
+                  } else {
+                      if (t.unit === "stitches") {
+                          text = `DMC ${t.id} (${t.name}) — ${t.qty.toLocaleString()} stitches (~${t.skToBuy} skeins)`;
+                      } else {
+                          // Is skeins or fallback
+                          if (t.unit === "skeins" && t.isApprox) {
+                              text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s) (~${t.stApprox.toLocaleString()} stitches)`;
+                          } else {
+                              text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s)`;
+                          }
+                      }
+                  }
+
+                  const settingsUsed = t.settings;
+                  const isOverride = !!pattern.project_overrides;
+                  const settingsBadge = `Based on: ${settingsUsed.fabricCount}ct · ${settingsUsed.strandsUsed} strands · ${settingsUsed.threadBrand} · ${Math.round(settingsUsed.wasteFactor * 100)}% waste ${isOverride ? "(project settings)" : ""}`;
 
                   return (
-                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", background: "#fafafa", borderRadius: 8, border: "1px solid #e4e4e7" }}>
-                      <div style={{ width: 20, height: 20, borderRadius: 4, background: info ? `rgb(${info.rgb})` : "#ccc", border: "1px solid #d4d4d8" }} />
-                      <div style={{ width: 40, fontWeight: 700, fontSize: 13 }}>{t.id}</div>
-                      <div style={{ flex: 1, fontSize: 12, color: "#71717a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{info ? info.name : ""}</div>
-                      <div style={{ fontSize: 12, color: "#71717a", width: 40, textAlign: "right" }}>{t.qty} sk</div>
-                      <div style={{ display: "flex", alignItems: "center", width: 80, justifyContent: "flex-end" }}>
-                        {missing <= 0 ? (
-                          <span style={{ color: "#16a34a", fontSize: 12, background: "#f0fdf4", padding: "2px 6px", borderRadius: 4, fontWeight: 600, border: "1px solid #bbf7d0" }}>Owned ✅</span>
-                        ) : invState.owned > 0 ? (
-                          <span style={{ color: "#ea580c", fontSize: 12, background: "#fff7ed", padding: "2px 6px", borderRadius: 4, fontWeight: 600, border: "1px solid #fed7aa" }}>Need {missing} ⚠️</span>
-                        ) : (
-                          <span style={{ color: "#ef4444", fontSize: 12, background: "#fef2f2", padding: "2px 6px", borderRadius: 4, fontWeight: 600, border: "1px solid #fecaca" }}>Missing ❌</span>
-                        )}
-                      </div>
+                    <div key={idx} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "12px 16px", background: "#fafafa", borderRadius: 8, border: "1px solid #e4e4e7" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{ display: "flex", gap: -4 }}>
+                               <div style={{ width: 16, height: 16, borderRadius: 4, background: `rgb(${t.rgb})`, border: "1px solid #d4d4d8", position: "relative", zIndex: 2 }} />
+                               {t.is_blended && <div style={{ width: 16, height: 16, borderRadius: 4, background: "#ccc", border: "1px solid #d4d4d8", position: "relative", zIndex: 1, marginLeft: -6 }} />}
+                            </div>
+                            <div style={{ flex: 1, fontSize: 13, color: "#18181b", fontWeight: 500 }}>
+                                {text}
+                            </div>
+                        </div>
+                        {subtext && <div style={{ fontSize: 12, color: "#71717a", paddingLeft: 28 }}>{subtext}</div>}
+                        <div style={{ fontSize: 10, color: "#a1a1aa", paddingLeft: 28, marginTop: 2 }}>{settingsBadge}</div>
                     </div>
                   );
                 })
@@ -914,7 +1167,63 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads }) {
   );
 }
 
-function ShoppingListModal({ patterns, inventoryThreads, onClose }) {
+function UserProfileModal({ profile, onSave, onClose }) {
+  const [edited, setEdited] = useState({ ...profile });
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000 }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", padding: 0 }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e4e4e7", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0, fontSize: 18 }}>Default Thread Settings</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#a1a1aa" }}>×</button>
+        </div>
+
+        <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ fontSize: 13, color: "#71717a", marginBottom: 8 }}>
+            These settings are used to estimate the number of skeins required for your patterns based on stitch counts. You can override these for individual projects.
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#71717a", marginBottom: 4 }}>Fabric Count</label>
+            <select value={edited.fabric_count} onChange={e => setEdited({ ...edited, fabric_count: parseInt(e.target.value) })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, background: "#fff" }}>
+               {[11, 14, 16, 18, 20, 22, 25, 28, 32].map(ct => <option key={ct} value={ct}>{ct} count</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#71717a", marginBottom: 4 }}>Strands Used</label>
+            <select value={edited.strands_used} onChange={e => setEdited({ ...edited, strands_used: parseInt(e.target.value) })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, background: "#fff" }}>
+               {[1, 2, 3, 4, 5, 6].map(st => <option key={st} value={st}>{st} strand{st > 1 ? "s" : ""}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#71717a", marginBottom: 4 }}>Preferred Thread Brand</label>
+            <select value={edited.thread_brand} onChange={e => setEdited({ ...edited, thread_brand: e.target.value })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, background: "#fff" }}>
+                {Object.keys(BRAND_SKEIN_LENGTH).map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#71717a", marginBottom: 4 }}>Waste Factor</label>
+            <select value={edited.waste_factor} onChange={e => setEdited({ ...edited, waste_factor: parseFloat(e.target.value) })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e4e4e7", fontSize: 13, background: "#fff" }}>
+               <option value={0.10}>Low (10% - Efficient stitching, few mistakes)</option>
+               <option value={0.20}>Average (20% - Normal amount of travelling/mistakes)</option>
+               <option value={0.30}>High (30% - Lots of confetti stitches/parking)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={{ padding: "16px 20px", borderTop: "1px solid #e4e4e7", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fafafa", borderRadius: "0 0 8px 8px" }}>
+          <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #e4e4e7", background: "#fff", cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+          <button onClick={() => onSave(edited)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save Settings</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose }) {
   const [copied, setCopied] = useState(false);
 
   const missingThreads = useMemo(() => {
@@ -922,11 +1231,46 @@ function ShoppingListModal({ patterns, inventoryThreads, onClose }) {
     const required = {};
     patterns.forEach(p => {
       if (!p.threads) return;
+
+      const settings = {
+          fabricCount: p.project_overrides?.fabric_count || userProfile?.fabric_count || 14,
+          strandsUsed: p.project_overrides?.strands_used || userProfile?.strands_used || 2,
+          threadBrand: p.project_overrides?.thread_brand || userProfile?.thread_brand || "DMC",
+          wasteFactor: p.project_overrides?.waste_factor || userProfile?.waste_factor || 0.20
+      };
+
       p.threads.forEach(t => {
+        let qtyA = 0;
+        let qtyB = 0;
+
+        if (t.unit === "stitches") {
+             const res = stitchesToSkeins({
+                 stitchCount: t.qty,
+                 fabricCount: settings.fabricCount,
+                 strandsUsed: settings.strandsUsed,
+                 skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0,
+                 wasteFactor: settings.wasteFactor,
+                 isBlended: t.is_blended,
+                 blendRatio: t.blend_ratio
+             });
+             if (t.is_blended) {
+                 qtyA = res.colorA.skeinsToBuy;
+                 qtyB = res.colorB.skeinsToBuy;
+             } else {
+                 qtyA = res.skeinsToBuy;
+             }
+        } else {
+             // skeins
+             qtyA = t.qty; // Note: we can't accurately split skeins in blends, so apply all to primary
+        }
+
         if (!required[t.id]) required[t.id] = 0;
-        // Option: we could take the max across patterns, or sum. Summing is safer if doing both.
-        // Assuming user might stitch both, we sum.
-        required[t.id] += t.qty;
+        required[t.id] += qtyA;
+
+        if (t.is_blended && t.blend_id) {
+            if (!required[t.blend_id]) required[t.blend_id] = 0;
+            required[t.blend_id] += qtyB;
+        }
       });
     });
 
@@ -946,7 +1290,7 @@ function ShoppingListModal({ patterns, inventoryThreads, onClose }) {
     });
 
     return missing.sort((a, b) => parseInt(a.id) - parseInt(b.id));
-  }, [patterns, inventoryThreads]);
+  }, [patterns, inventoryThreads, userProfile]);
 
   const copyList = () => {
     const text = missingThreads.map(t => `DMC ${t.id} ${t.name} x${t.qty}`).join('\n');
