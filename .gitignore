@@ -1,1 +1,7 @@
 node_modules/
+*.log
+test_*.js
+debug_*.js
+dump_*.js
+run_*.js
+inspect_*.js

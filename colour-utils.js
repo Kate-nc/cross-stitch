@@ -110,7 +110,11 @@ function buildPalette(patArr){
     usage[m.id].count++;
   }
   let entries=Object.values(usage).sort((a,b)=>b.count-a.count);
-  entries.forEach((e,i)=>{e.symbol=SYMS[i%SYMS.length];});
+  entries.forEach((e,i)=>{
+    // Try to find an existing symbol in the pattern array
+    const cell = patArr.find(c => c.id === e.id && c.symbol);
+    e.symbol = cell ? cell.symbol : SYMS[i%SYMS.length];
+  });
   let cm={};entries.forEach(e=>{cm[e.id]=e;});
   return{pal:entries,cmap:cm};
 }
@@ -122,8 +126,8 @@ function restoreStitch(m){
     if(t0&&t1)return{type:"blend",id:m.id,name:m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};
   }
   let dmc=DMC.find(d=>d.id===m.id);
-  if(dmc)return{type:"solid",id:dmc.id,name:dmc.name,rgb:dmc.rgb,lab:dmc.lab,dist:0};
-  return{type:"solid",id:m.id,name:m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0};
+  if(dmc)return{type:"solid",id:dmc.id,name:dmc.name,rgb:dmc.rgb,lab:dmc.lab,dist:0,symbol:m.symbol};
+  return{type:"solid",id:m.id,name:m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0,symbol:m.symbol};
 }
 
 function applyMedianFilterCore(data, w, h, radius, buf) {
