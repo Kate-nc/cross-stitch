@@ -67,11 +67,11 @@ useEffect(()=>{
   }else{clearInterval(timerRef.current);}
 },[sessionActive,sessionStart]);
 
-const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
-const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__")c++;return c;},[pat]);
+const doneCount=useMemo(()=>{if(!done||!pat)return 0;let c=0;for(let i=0;i<done.length;i++){let m=pat[i];if(m.type==="fractional"&&done[i]>0){let d=done[i];m.components.forEach((comp,ci)=>{if((d&(1<<ci))!==0)c+=(comp.type==="quarter"?0.25:0.5);});}else if(done[i])c++;}return c;},[done,pat]);
+const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++){let m=pat[i];if(m.id!=="__skip__"&&m.type!=="fractional")c++;else if(m.type==="fractional")m.components.forEach(comp=>c+=(comp.type==="quarter"?0.25:0.5));}return c;},[pat]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
 useEffect(()=>{if(sessionActive&&done){let diff=doneCount-prevDoneCount.current;if(diff>0)setSessionStitches(p=>p+diff);}prevDoneCount.current=doneCount;},[doneCount,sessionActive,done]);
-const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){let m=pat[i];if(m.id==="__skip__")continue;if(m.type==="fractional"){let d=done[i];m.components.forEach((comp,ci)=>{if(!c[comp.id])c[comp.id]={total:0,done:0};let v=(comp.type==="quarter"?0.25:0.5);c[comp.id].total+=v;if((d&(1<<ci))!==0)c[comp.id].done+=v;});}else{let id=m.id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}}return c;},[pat,done]);
 const estCompletion=useMemo(()=>{let t=totalTime+(sessionActive?sessionElapsed:0);if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,sessionElapsed,sessionActive,doneCount,totalStitchable]);
 const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
 const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
@@ -361,18 +361,155 @@ function drawStitch(ctx,cSz){
     let isDn=done&&done[idx];
     let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__";
     if(m.id==="__skip__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle="rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
-    if(stitchView==="symbol"){
-      if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-      else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-    }else if(stitchView==="colour"){
-      ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-      if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
-    }else{
-      if(isDn){ctx.fillStyle=dimmed?"#f4f4f5":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-      else if(dimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,cSz*0.45)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-      else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.7)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+
+    if (m.type==="fractional") {
+       // Draw checkerboard or white
+       ctx.fillStyle=dimmed?"#f4f4f5":"#fff";
+       ctx.fillRect(px,py,cSz,cSz);
+
+       let sortedComps = m.components.map((c,ci) => ({...c, compIndex: ci})).sort((a,b) => (a.priority||0) - (b.priority||0));
+
+       sortedComps.forEach(c => {
+           let isCompDn = (done && (done[idx] & (1<<c.compIndex)) !== 0);
+           let compDimmed = stitchView==="highlight"&&focusColour&&c.id!==focusColour;
+           let sInfo = cmap ? cmap[c.id] : null;
+
+           let fillStyle = "#fff";
+           let showSym = false;
+
+           if(stitchView==="symbol"){
+              if(isCompDn){fillStyle="#d1fae5";}
+              else{showSym=true;}
+           }else if(stitchView==="colour"){
+              fillStyle=`rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;
+              if(!isCompDn)showSym=true;
+           }else{
+              if(isCompDn){fillStyle=compDimmed?"#f4f4f5":`rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;}
+              else if(compDimmed){fillStyle="#f4f4f5";showSym=true;}
+              else{fillStyle=`rgba(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]},0.25)`;showSym=true;}
+           }
+
+           ctx.fillStyle = fillStyle;
+           ctx.beginPath();
+           let hSz = cSz/2;
+           if (c.type === "half") {
+               let s = c.path.start; let e = c.path.end;
+               if ((s[0]===0&&s[1]===2&&e[0]===2&&e[1]===0) || (s[0]===2&&s[1]===0&&e[0]===0&&e[1]===2)) {
+                   // /
+                   if (stitchView==="colour"||stitchView==="both"||stitchView==="highlight") {
+                       ctx.moveTo(px+cSz, py+cSz); ctx.lineTo(px+cSz, py); ctx.lineTo(px, py+cSz); ctx.closePath(); ctx.fill();
+                   }
+                   if (stitchView==="symbol"||stitchView==="both"||stitchView==="highlight") {
+                       if (stitchView==="symbol" && !isCompDn) {
+                           ctx.beginPath();
+                           ctx.strokeStyle="#333";
+                           ctx.lineWidth = Math.max(1, cSz*0.08);
+                           ctx.moveTo(px, py+cSz); ctx.lineTo(px+cSz, py);
+                           ctx.stroke();
+                       }
+                   }
+               } else {
+                   // \
+                   if (stitchView==="colour"||stitchView==="both"||stitchView==="highlight") {
+                       ctx.moveTo(px, py); ctx.lineTo(px+cSz, py); ctx.lineTo(px, py+cSz); ctx.closePath(); ctx.fill();
+                   }
+                   if (stitchView==="symbol"||stitchView==="both"||stitchView==="highlight") {
+                       if (stitchView==="symbol" && !isCompDn) {
+                           ctx.beginPath();
+                           ctx.strokeStyle="#333";
+                           ctx.lineWidth = Math.max(1, cSz*0.08);
+                           ctx.moveTo(px, py); ctx.lineTo(px+cSz, py+cSz);
+                           ctx.stroke();
+                       }
+                   }
+               }
+           } else if (c.type === "quarter") {
+                 let sx = c.path.start[0]; let sy = c.path.start[1];
+                 let cx = px + hSz; let cy = py + hSz;
+                 if (stitchView==="colour"||stitchView==="both"||stitchView==="highlight") {
+                     ctx.moveTo(cx, cy);
+                     if (sx===0 && sy===0) { ctx.lineTo(px+hSz, py); ctx.lineTo(px, py); ctx.lineTo(px, py+hSz); }
+                     else if (sx===2 && sy===0) { ctx.lineTo(px+cSz, py+hSz); ctx.lineTo(px+cSz, py); ctx.lineTo(px+hSz, py); }
+                     else if (sx===0 && sy===2) { ctx.lineTo(px+hSz, py+cSz); ctx.lineTo(px, py+cSz); ctx.lineTo(px, py+hSz); }
+                     else if (sx===2 && sy===2) { ctx.lineTo(px+cSz, py+hSz); ctx.lineTo(px+cSz, py+cSz); ctx.lineTo(px+hSz, py+cSz); }
+                     ctx.closePath();
+                     ctx.fill();
+                 }
+                 if (stitchView==="symbol"||stitchView==="both"||stitchView==="highlight") {
+                     if (stitchView==="symbol" && !isCompDn) {
+                         ctx.beginPath();
+                         ctx.strokeStyle="#333";
+                         ctx.lineWidth = Math.max(1, cSz*0.08);
+                         ctx.moveTo(cx, cy);
+                         if (sx===0 && sy===0) { ctx.lineTo(px, py); }
+                         else if (sx===2 && sy===0) { ctx.lineTo(px+cSz, py); }
+                         else if (sx===0 && sy===2) { ctx.lineTo(px, py+cSz); }
+                         else if (sx===2 && sy===2) { ctx.lineTo(px+cSz, py+cSz); }
+                         ctx.stroke();
+                     }
+                 }
+           }
+       });
+
+       if (cSz>=6) {
+             let isSplit = m.components.length > 1;
+             let scale = isSplit ? 0.6 : 1.0;
+             ctx.font=`bold ${Math.max(6,cSz*0.65*scale)}px monospace`;
+
+             let drawnSymbols = new Set();
+             sortedComps.forEach(c => {
+                 let isCompDn = (done && (done[idx] & (1<<c.compIndex)) !== 0);
+                 let compDimmed = stitchView==="highlight"&&focusColour&&c.id!==focusColour;
+
+                 let showSym = false;
+                 if(stitchView==="symbol" && !isCompDn) showSym=true;
+                 if(stitchView==="colour" && !isCompDn) showSym=true;
+                 if(stitchView==="both" && (!isCompDn || compDimmed)) showSym=true;
+
+                 let sInfo = cmap ? cmap[c.id] : null;
+                 if (!sInfo || !showSym) return;
+                 let sid = c.id + '-' + c.type + '-' + c.path.start.join(',');
+                 if (drawnSymbols.has(sid)) return;
+                 drawnSymbols.add(sid);
+
+                 let lum=luminance(c.rgb);
+
+                 if(stitchView==="symbol"){
+                     ctx.fillStyle="#18181b";
+                 }else if(stitchView==="colour"){
+                     ctx.fillStyle=lum>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";
+                 }else{
+                     if(compDimmed) ctx.fillStyle="rgba(0,0,0,0.06)";
+                     else ctx.fillStyle="#18181b";
+                 }
+
+                 let tx = px + cSz/2; let ty = py + cSz/2;
+                 if (isSplit && c.type === "quarter") {
+                     let sx = c.path.start[0]; let sy = c.path.start[1];
+                     if (sx===0 && sy===0) { tx = px + cSz*0.25; ty = py + cSz*0.25; }
+                     else if (sx===2 && sy===0) { tx = px + cSz*0.75; ty = py + cSz*0.25; }
+                     else if (sx===0 && sy===2) { tx = px + cSz*0.25; ty = py + cSz*0.75; }
+                     else if (sx===2 && sy===2) { tx = px + cSz*0.75; ty = py + cSz*0.75; }
+                 }
+                 ctx.fillText(sInfo.symbol, tx, ty);
+             });
+       }
+
+       if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+    } else {
+        if(stitchView==="symbol"){
+          if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
+          else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+        }else if(stitchView==="colour"){
+          ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
+          if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+        }else{
+          if(isDn){ctx.fillStyle=dimmed?"#f4f4f5":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+          else if(dimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,cSz*0.45)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+          else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.7)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+        }
+        if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
     }
-    if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
   }
   if(cSz>=3){ctx.strokeStyle="rgba(0,0,0,0.2)";ctx.lineWidth=cSz>=8?1.5:1;for(let gx=0;gx<=dW;gx+=10){ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut);ctx.lineTo(gut+gx*cSz,gut+dH*cSz);ctx.stroke();}for(let gy=0;gy<=dH;gy+=10){ctx.beginPath();ctx.moveTo(gut,gut+gy*cSz);ctx.lineTo(gut+dW*cSz,gut+gy*cSz);ctx.stroke();}}
   if(showCtr){ctx.strokeStyle="rgba(200,60,60,0.3)";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(gut+Math.floor(sW/2)*cSz,gut);ctx.lineTo(gut+Math.floor(sW/2)*cSz,gut+dH*cSz);ctx.stroke();ctx.beginPath();ctx.moveTo(gut,gut+Math.floor(sH/2)*cSz);ctx.lineTo(gut+sW*cSz,gut+Math.floor(sH/2)*cSz);ctx.stroke();ctx.setLineDash([]);}
@@ -416,7 +553,68 @@ function handleStitchMouseDown(e){
     return;
   }
   if(gx<0||gx>=sW||gy<0||gy>=sH||!done)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
+  let idx=gy*sW+gx;
+  let cell = pat[idx];
+  if(cell.id==="__skip__")return;
+
+  if (cell.type==="fractional") {
+       let rect = stitchRef.current.getBoundingClientRect();
+       let { isCenter, cornerX, cornerY } = typeof getSubCellCoords !== "undefined" ? getSubCellCoords((e.clientX - rect.left - G - gx*scs), (e.clientY - rect.top - G - gy*scs), scs) : { isCenter: true, cornerX: 0, cornerY: 0 };
+
+       let curVal = done[idx];
+       let nd = new Uint8Array(done);
+
+       // If tapping center and any part is not done, toggle all, else untoggle all
+       // Or even better: determine which component was clicked.
+       // For simplicity, click corner toggles that corner component if it exists.
+       // Click center toggles half stitch if it exists.
+
+       let comps = cell.components;
+       let targetCompIdx = -1;
+
+       if (isCenter) {
+           targetCompIdx = comps.findIndex(c => c.type === "half");
+           if (targetCompIdx === -1) {
+              // Tapped center but no half stitch. Let's just toggle the whole cell.
+              let nv = curVal === ((1<<comps.length)-1) ? 0 : ((1<<comps.length)-1);
+              nd[idx] = nv;
+              setDragVal(nv);
+              setIsDragging(true);
+              dragChangesRef.current=[{idx,oldVal:curVal}];
+              setDone(nd);
+              e.preventDefault();
+              return;
+           }
+       } else {
+           // Find quarter stitch anchored to this corner
+           targetCompIdx = comps.findIndex(c => c.type === "quarter" && c.path.start[0] === cornerX && c.path.start[1] === cornerY);
+           if (targetCompIdx === -1) {
+               // Maybe the corner falls on a half stitch
+               targetCompIdx = comps.findIndex(c => c.type === "half" && ((c.path.start[0]===cornerX && c.path.start[1]===cornerY) || (c.path.end[0]===cornerX && c.path.end[1]===cornerY)));
+           }
+           if (targetCompIdx === -1) {
+              // Tapped empty space, do nothing
+              e.preventDefault();
+              return;
+           }
+       }
+
+       let bitMask = 1 << targetCompIdx;
+       let isCompDone = (curVal & bitMask) !== 0;
+
+       let newVal = isCompDone ? (curVal & ~bitMask) : (curVal | bitMask);
+       nd[idx] = newVal;
+
+       setDragVal(newVal); // Dragging over others will set their whole value to this new mask which is a bit weird, so disable dragging for fractions
+       setIsDragging(false);
+       dragChangesRef.current=[{idx,oldVal:curVal}];
+       pushTrackHistory([...dragChangesRef.current]);
+       dragChangesRef.current=[];
+       setDone(nd);
+       e.preventDefault();
+       return;
+  }
+
   let nv=done[idx]?0:1;setDragVal(nv);setIsDragging(true);
   dragChangesRef.current=[{idx,oldVal:done[idx]}];
   let nd=new Uint8Array(done);nd[idx]=nv;setDone(nd);
@@ -454,7 +652,7 @@ function handleStitchMouseMove(e){
   if(!isDragging||stitchMode!=="track"||!done||!stitchRef.current||!pat)return;
   if(!gc)return;let{gx,gy}=gc;
   if(gx<0||gx>=sW||gy<0||gy>=sH)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
+  let idx=gy*sW+gx;if(pat[idx].id==="__skip__" || pat[idx].type==="fractional")return;
   if(done[idx]!==dragVal){
     dragChangesRef.current.push({idx,oldVal:done[idx]});
     let nd=new Uint8Array(done);nd[idx]=dragVal;setDone(nd);
