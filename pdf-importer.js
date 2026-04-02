@@ -529,7 +529,10 @@ class PatternKeeperImporter {
      const cols = vClustered.length > 1 ? Math.round((endX - originX) / cellWidth) : Math.max(10, Math.floor((page.width - 100) / cellWidth));
      const rows = hClustered.length > 1 ? Math.round((endY - originY) / cellHeight) : Math.max(10, Math.floor((page.height - 100) / cellHeight));
 
-     return { originX, originY, cellWidth, cellHeight, columns: cols, rows: rows, boldLineInterval: 10 };
+     const exactCellWidth = cols > 0 ? (endX - originX) / cols : cellWidth;
+     const exactCellHeight = rows > 0 ? (endY - originY) / rows : cellHeight;
+
+     return { originX, originY, cellWidth: exactCellWidth, cellHeight: exactCellHeight, columns: cols, rows: rows, boldLineInterval: 10 };
   }
 
   extractSymbols(chartPages, chartLayout) {
