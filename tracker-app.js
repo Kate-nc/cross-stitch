@@ -132,6 +132,7 @@ const colourDoneCounts=useMemo(()=>{
   }
   return c;
 },[pat,done]);
+
 const estCompletion=useMemo(()=>{let t=totalTime+(sessionActive?sessionElapsed:0);if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,sessionElapsed,sessionActive,doneCount,totalStitchable]);
 const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
 const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
@@ -184,6 +185,7 @@ function markColourDone(cid,md){
   if(changes.length>0)pushTrackHistory(changes);
   setDone(nd);
 }
+
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 
 function pushTrackHistory(changes){
@@ -208,6 +210,7 @@ function saveProject(){
     page:"tracker",
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
     pattern:pat.map(m=>{if(m.id==="__skip__")return{id:"__skip__"};if(m.type==="fractional")return{type:"fractional",components:m.components};return{id:m.id,type:m.type,rgb:m.rgb};}),
+
     bsLines,
     done:done?Array.from(done):null,
     parkMarkers,
@@ -313,6 +316,7 @@ function loadProject(e){
     };
     rd.readAsText(f);
   } else if (format === "image") {
+
     let rd=new FileReader();
     rd.onload=ev=>{
       let img = new Image();
@@ -518,6 +522,7 @@ function drawStitch(ctx,cSz,viewportRect=null){
     let info=cmap?cmap[m.id]:null;
     let isDn=dVal&FRACTIONAL_DONE.FULL;
     let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__";
+
     if(stitchView==="symbol"){
       if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
       else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
@@ -653,6 +658,7 @@ function handleStitchMouseDown(e){
   e.preventDefault();
 }
 
+
 function handleStitchMouseMove(e){
   if(isPanning){
     doPan(e);
@@ -673,11 +679,13 @@ function handleStitchMouseMove(e){
         name=cell.threads[0].name+"+"+cell.threads[1].name;
       }else if(cell.type==="fractional"){
         cellId = "Multiple"; name="Fractional Stitches";
+
       }else{
         let t=DMC.find(d=>d.id===cell.id);
         if(t) name=t.name;
       }
       setHoverInfo({row:gc.gy+1, col:gc.gx+1, id:cellId, name:name, x:e.clientX, y:e.clientY});
+
     } else {
       setHoverInfo(null);
     }
@@ -753,6 +761,7 @@ function handleStitchMouseMove(e){
   if(oldVal!==newVal){
     dragChangesRef.current.push({idx,oldVal});
     let nd=new Uint8Array(done);nd[idx]=newVal;setDone(nd);
+
   }
 }
 function handleStitchMouseLeave(){
@@ -934,6 +943,7 @@ return(
            <div><div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>Half stitches</div><div style={{fontSize:14,fontWeight:600,color:"#18181b"}}>{pal?pal.reduce((s,p)=>s+p.halfCount,0).toLocaleString():0}</div></div>
            <div style={{gridColumn:"1 / -1"}}><div style={{fontSize:11,color:"#0d9488",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>Combined Progress</div><div style={{fontSize:14,fontWeight:600,color:"#0d9488"}}>{progressPct}%</div></div>
         </div>
+
       </Section>
     </div>
 

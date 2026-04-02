@@ -1,5 +1,6 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
+
 function ManagerApp() {
   const [tab, setTab] = useState("inventory"); // 'inventory' or 'patterns'
   const [modal, setModal] = useState(null); // 'help', 'about', 'add_pattern'
@@ -14,6 +15,7 @@ function ManagerApp() {
   const [viewingPattern, setViewingPattern] = useState(null); // Pattern object currently being viewed for details
   const [selectedPatternsForList, setSelectedPatternsForList] = useState(new Set());
   const [shoppingListModalOpen, setShoppingListModalOpen] = useState(false);
+
   const lowStockThreshold = 1;
 
   // Storage initialization
@@ -42,6 +44,7 @@ function ManagerApp() {
         getPatterns.onsuccess = () => {
           if (getPatterns.result) setPatterns(getPatterns.result);
         };
+
       } catch (err) {
         console.error("Failed to load manager data:", err);
       }
@@ -101,6 +104,7 @@ function ManagerApp() {
         [field]: value
       }
     }));
+
   };
 
   const filteredThreads = useMemo(() => {
@@ -117,6 +121,7 @@ function ManagerApp() {
       return true;
     });
   }, [searchQuery, threads, threadFilter]);
+
 
   const totalOwnedCount = useMemo(() => {
     return Object.values(threads).reduce((sum, t) => sum + (t.owned || 0), 0);
@@ -227,6 +232,7 @@ function ManagerApp() {
                   {id: "owned", label: "Owned"},
                   {id: "tobuy", label: "To Buy"},
                   {id: "lowstock", label: "Low Stock"}
+
                 ].map(f => (
                   <button
                     key={f.id}
@@ -311,12 +317,14 @@ function ManagerApp() {
                         </svg>
                       </button>
                     </div>
+
                   </div>
                 );
               })}
               {filteredThreads.length === 0 && (
                 <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 20px", color: "#71717a", fontSize: 14 }}>
                   No threads found.
+
                 </div>
               )}
             </div>

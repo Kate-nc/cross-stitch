@@ -119,6 +119,7 @@ function buildPalette(patArr){
        if(!usage[m.id])usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0,halfCount:0};
        usage[m.id].count++;
     }
+
   }
   let entries=Object.values(usage).sort((a,b)=>b.count-a.count);
   entries.forEach((e,i)=>{

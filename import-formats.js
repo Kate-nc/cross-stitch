@@ -286,6 +286,7 @@ function parseOXS(xmlString) {
     });
   });
 
+
   if (stitchCount === 0) {
     throw new Error("No valid stitches found in pattern");
   }

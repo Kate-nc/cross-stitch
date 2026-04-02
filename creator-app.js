@@ -27,6 +27,7 @@ const [pdfSettings, setPdfSettings] = useState({ chartStyle: 'symbols', cellSize
 const[activeTool,setActiveTool]=useState(null),[bsLines,setBsLines]=useState([]),[bsStart,setBsStart]=useState(null);
 const[bsContinuous,setBsContinuous]=useState(false);
 const[fracMode,setFracMode]=useState(null); // null, "fwd", "back"
+
 const[selectedColorId,setSelectedColorId]=useState(null);
 const[hoverCoords,setHoverCoords]=useState(null);
 const[editHistory,setEditHistory]=useState([]);
@@ -146,6 +147,7 @@ function setTool(tool){
      setFracMode(null);
   }
 }
+
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 
 function resetAll(){
@@ -159,6 +161,7 @@ function resetAll(){
 }
 
 function handleFile(e){let f=e.target.files[0];if(!f)return;if(f.size>5*1024*1024){alert("File is too large. Please select an image under 5MB.");return;}let rd=new FileReader();rd.onload=ev=>{let i=new Image();i.onload=()=>{setOrigW(i.width);setOrigH(i.height);let a=i.width/i.height;setAr(a);setSW(80);setSH(Math.round(80/a));setImg(i);resetAll();};i.src=ev.target.result;};rd.readAsDataURL(f);}
+
 
 function chgW(v){let w=Math.max(10,Math.min(300,parseInt(v)||10));setSW(w);if(arLock)setSH(Math.max(10,Math.round(w/ar)));}
 function chgH(v){let h=Math.max(10,Math.min(300,parseInt(v)||10));setSH(h);if(arLock)setSW(Math.max(10,Math.round(h*ar)));}
@@ -222,6 +225,7 @@ function applyCrop(){
 
 function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>{if(m.id==="__skip__")return{id:"__skip__"};if(m.type==="fractional")return{type:"fractional",components:m.components};return{id:m.id,type:m.type,rgb:m.rgb};}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
+
 function processLoadedProject(project){
   let s=project.settings;setSW(s.sW);setSH(s.sH);setMaxC(s.maxC);setBri(s.bri||0);setCon(s.con||0);setSat(s.sat||0);setDith(!!s.dith);setSkipBg(!!s.skipBg);setBgTh(s.bgTh||15);setBgCol(s.bgCol||[255,255,255]);setMinSt(s.minSt||0);setArLock(s.arLock!==false);setAr(s.ar||1);setBsLines(project.bsLines||[]);
   setSmooth(s.smooth||0);setSmoothType(s.smoothType||"median");setOrphans(s.orphans||0);
@@ -258,6 +262,7 @@ useEffect(() => {
     if (!pat || !pal) return;
     const saveTimer = setTimeout(() => {
         let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>{if(m.id==="__skip__")return{id:"__skip__"};if(m.type==="fractional")return{type:"fractional",components:m.components};return{id:m.id,type:m.type,rgb:m.rgb};}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
     }, 1000); // 1-second debounce
 
@@ -466,6 +471,7 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
          ctx.beginPath();ctx.arc(px+cSz/2,py+cSz/2,1.5,0,Math.PI*2);ctx.fill();
       }
     }
+
     else if(view==="color"||view==="both"){
       let alpha = 1.0;
       if (dim) alpha = 0.15;
@@ -480,6 +486,7 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
       ctx.fillStyle=dim?"rgba(245,245,245,"+alpha+")":`rgba(255,255,255,${alpha})`;ctx.fillRect(px,py,cSz,cSz);
     }
     if(m.id!=="__skip__"&&m.type!=="fractional"&&(view==="symbol"||view==="both")&&info&&cSz>=6){let lum=luminance(m.rgb);ctx.fillStyle=dim?"rgba(0,0,0,0.08)":(view==="both"?(lum>128?"#000":"#fff"):"#333");ctx.font=`bold ${Math.max(6,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+
     if(cSz>=4){
       let sAlpha = dim ? 0.03 : 0.08;
       if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
@@ -985,6 +992,7 @@ function handlePatClick(e){
     return;
   }
 
+
   if((activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap){
     if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
     let pe=cmap[selectedColorId];if(!pe)return;let np=pat.slice();
@@ -1189,6 +1197,7 @@ return(
 
           <div style={{display:"flex",gap:5,marginBottom:8,marginTop:8,flexWrap:"wrap",alignItems:"center", padding: "0px 10px"}}>
             {(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack"||activeTool==="quarter")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
+
             <div style={{marginLeft:"auto",display:"flex",gap:4}}>
               {editHistory.length>0&&<button onClick={()=>{let last=editHistory[editHistory.length-1],np=pat.slice();last.changes.forEach(c2=>np[c2.idx]={...c2.old});setPat(np);setEditHistory(prev=>prev.slice(0,-1));let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
               {hiId&&<button onClick={()=>setHiId(null)} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Clear ✕</button>}
@@ -1217,6 +1226,7 @@ return(
             }
           }}/></div>
           <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{pal.map(p=>{let ips=(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack"||activeTool==="quarter")&&selectedColorId===p.id,ihs=hiId===p.id;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack"||activeTool==="quarter")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff"}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span></div>;})}</div></div>
+
         </div>}
 
         {/* ═══ PROJECT TAB ═══ */}
@@ -1350,6 +1360,7 @@ return(
               </tbody>
             </table>
           </div>
+
         </div>}
 
         {/* ═══ EXPORT TAB ═══ */}
@@ -1422,6 +1433,7 @@ return(
             let a=document.createElement("a");a.href=url;a.download="cross-stitch-pattern.oxs";
             document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
           }} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}}>Export (.oxs)</button><button onClick={()=>loadRef.current.click()} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Load</button></div></Section>
+
         </div>}
       </div>}
       {!pat&&img&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:20}}>
