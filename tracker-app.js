@@ -37,13 +37,15 @@ const[showExitEditModal,setShowExitEditModal]=useState(false);
 const[drawer,setDrawer]=useState(false),[focusColour,setFocusColour]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
 const[hlRow,setHlRow]=useState(-1),[hlCol,setHlCol]=useState(-1);
-const[isDragging,setIsDragging]=useState(false),[dragVal,setDragVal]=useState(1);
+const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
 
 const[selectedColorId,setSelectedColorId]=useState(null);
 
 const[hoverInfo,setHoverInfo]=useState(null);
-const[hoveredCell,setHoveredCell]=useState(null);
+const hoverRefs = useRef({ row: null, col: null });
+const hoverCellRef = useRef(null);
+const [hoverInfoCell, setHoverInfoCell] = useState(null);
 
 const[isPanning,setIsPanning]=useState(false);
 const panStart=useRef({x:0,y:0,scrollX:0,scrollY:0});
@@ -571,6 +573,76 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
 },[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour]);
 useEffect(()=>renderStitch(),[renderStitch]);
 
+const updateHoverOverlay = (gc) => {
+  if (gc && gc.gx >= 0 && gc.gx < sW && gc.gy >= 0 && gc.gy < sH) {
+    if (hoverRefs.current.row) {
+      hoverRefs.current.row.style.display = 'block';
+      hoverRefs.current.row.style.top = (gc.gy * scs) + 'px';
+      hoverRefs.current.row.style.left = (-G) + 'px';
+      hoverRefs.current.row.style.width = (sW * scs + G) + 'px';
+      hoverRefs.current.row.style.height = scs + 'px';
+    }
+    if (hoverRefs.current.col) {
+      hoverRefs.current.col.style.display = 'block';
+      hoverRefs.current.col.style.top = (-G) + 'px';
+      hoverRefs.current.col.style.left = (gc.gx * scs) + 'px';
+      hoverRefs.current.col.style.width = scs + 'px';
+      hoverRefs.current.col.style.height = (sH * scs + G) + 'px';
+    }
+    if (!hoverCellRef.current || hoverCellRef.current.row !== gc.gy || hoverCellRef.current.col !== gc.gx) {
+      hoverCellRef.current = { row: gc.gy, col: gc.gx };
+      setHoverInfoCell({ row: gc.gy, col: gc.gx }); // For bottom bar
+    }
+  } else {
+    if (hoverRefs.current.row) hoverRefs.current.row.style.display = 'none';
+    if (hoverRefs.current.col) hoverRefs.current.col.style.display = 'none';
+    if (hoverCellRef.current) {
+      hoverCellRef.current = null;
+      setHoverInfoCell(null);
+    }
+  }
+};
+
+const rafIdRef = useRef(null);
+
+function drawCellDirectly(idx, nv) {
+  if (!stitchRef.current || !pat || !cmap) return;
+  const ctx = stitchRef.current.getContext('2d');
+  const gx = idx % sW;
+  const gy = Math.floor(idx / sW);
+  const px = G + gx * scs;
+  const py = G + gy * scs;
+  const m = pat[idx];
+  const info = m.id==="__skip__"||m.id==="__empty__"?null:(cmap?cmap[m.id]:null);
+  const isDn = nv;
+  const cSz = scs;
+  const dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__"&&m.id!=="__empty__";
+
+  ctx.clearRect(px, py, cSz, cSz);
+
+  if(m.id==="__skip__"||m.id==="__empty__"){
+    drawCk(ctx,px,py,cSz);
+    if(cSz>=4){
+      ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";
+      ctx.strokeRect(px,py,cSz,cSz);
+    }
+    return;
+  }
+
+  if(stitchView==="symbol"){
+    if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
+    else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+  }else if(stitchView==="colour"){
+    ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
+    if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+  }else{
+    if(isDn){ctx.fillStyle=dimmed?"#f4f4f5":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+    else if(dimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,cSz*0.45)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+    else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.7)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+  }
+  if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+}
+
 function handleStitchMouseDown(e){
   if(!stitchRef.current||!pat)return;
   if(e.button===1){e.preventDefault();startPan(e);return;}
@@ -598,27 +670,25 @@ function handleStitchMouseDown(e){
   }
   if(gx<0||gx>=sW||gy<0||gy>=sH||!done)return;
   let idx=gy*sW+gx;if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
-  let nv=done[idx]?0:1;setDragVal(nv);setIsDragging(true);
+  let nv=done[idx]?0:1;
+  dragStateRef.current = { isDragging: true, dragVal: nv };
   dragChangesRef.current=[{idx,oldVal:done[idx]}];
-  let nd=new Uint8Array(done);nd[idx]=nv;setDone(nd);
+  done[idx] = nv; // Optimistic update
+  drawCellDirectly(idx, nv);
   e.preventDefault();
 }
 function handleStitchMouseMove(e){
   if(isPanning){
     doPan(e);
     if(hoverInfo) setHoverInfo(null);
-    setHoveredCell(null);
+    updateHoverOverlay(null);
     return;
   }
   let gc=gridCoord(stitchRef,e,scs,G);
 
-  if(gc && gc.gx>=0 && gc.gx<sW && gc.gy>=0 && gc.gy<sH) {
-    setHoveredCell(prev => prev && prev.row === gc.gy && prev.col === gc.gx ? prev : { row: gc.gy, col: gc.gx });
-  } else {
-    setHoveredCell(null);
-  }
+  updateHoverOverlay(gc);
 
-  if(isDragging) {
+  if(dragStateRef.current.isDragging) {
     if(hoverInfo) setHoverInfo(null);
   } else if(stitchMode==="track" && pat && gc && gc.gx>=0 && gc.gx<sW && gc.gy>=0 && gc.gy<sH){
     let idx=gc.gy*sW+gc.gx;
@@ -635,31 +705,35 @@ function handleStitchMouseMove(e){
     } else {
       setHoverInfo(null);
     }
-  } else if (!isDragging && hoverInfo) {
+  } else if (!dragStateRef.current.isDragging && hoverInfo) {
     setHoverInfo(null);
   }
 
-  if(!isDragging||stitchMode!=="track"||!done||!stitchRef.current||!pat)return;
+  if(!dragStateRef.current.isDragging||stitchMode!=="track"||!done||!stitchRef.current||!pat)return;
   if(!gc)return;let{gx,gy}=gc;
   if(gx<0||gx>=sW||gy<0||gy>=sH)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
-  if(done[idx]!==dragVal){
+  let idx=gy*sW+gx;if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
+  const dVal = dragStateRef.current.dragVal;
+  if(done[idx]!==dVal){
     dragChangesRef.current.push({idx,oldVal:done[idx]});
-    let nd=new Uint8Array(done);nd[idx]=dragVal;setDone(nd);
+    done[idx] = dVal; // Optimistic update
+    drawCellDirectly(idx, dVal);
   }
 }
 function handleStitchMouseLeave(){
   handleMouseUp();
   setHoverInfo(null);
-  setHoveredCell(null);
+  updateHoverOverlay(null);
 }
 function handleMouseUp(){
   if(isPanning){setIsPanning(false);return;}
-  if(isDragging&&dragChangesRef.current.length>0){
+  if(dragStateRef.current.isDragging&&dragChangesRef.current.length>0){
     pushTrackHistory([...dragChangesRef.current]);
+    let nd = new Uint8Array(done);
+    setDone(nd);
     dragChangesRef.current=[];
   }
-  setIsDragging(false);
+  dragStateRef.current.isDragging = false;
 }
 
 function startPan(e){
@@ -898,27 +972,25 @@ return(
         <div style={{ position: 'relative' }}>
           <canvas ref={stitchRef} style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/>
 
-          {hoveredCell && (
-            <>
-              <div style={{
-                position: 'absolute', pointerEvents: 'none', background: 'rgba(100, 149, 237, 0.08)', zIndex: 3,
-                top: hoveredCell.row * scs, left: -G, width: sW * scs + G, height: scs
-              }} />
-              <div style={{
-                position: 'absolute', pointerEvents: 'none', background: 'rgba(100, 149, 237, 0.08)', zIndex: 3,
-                top: -G, left: hoveredCell.col * scs, width: scs, height: sH * scs + G
-              }} />
-            </>
-          )}
+          <>
+            <div ref={el => hoverRefs.current.row = el} style={{
+              display: 'none', position: 'absolute', pointerEvents: 'none', background: 'rgba(100, 149, 237, 0.08)', zIndex: 3,
+              willChange: 'transform'
+            }} />
+            <div ref={el => hoverRefs.current.col = el} style={{
+              display: 'none', position: 'absolute', pointerEvents: 'none', background: 'rgba(100, 149, 237, 0.08)', zIndex: 3,
+              willChange: 'transform'
+            }} />
+          </>
         </div>
       </div>
     </div>
 
     <div style={{background:"#18181b", color:"#fff", padding:"6px 10px", borderRadius:"0 0 8px 8px", fontSize:12, fontWeight:500, display:"flex", alignItems:"center", minHeight:30, marginBottom: 12}}>
-      {hoveredCell ? (
+      {hoverInfoCell ? (
         <>
-          Row: {hoveredCell.row + 1} &nbsp;&nbsp; Col: {hoveredCell.col + 1}
-          {hoverInfo && hoverInfo.row === hoveredCell.row + 1 && hoverInfo.col === hoveredCell.col + 1 && (
+          Row: {hoverInfoCell.row + 1} &nbsp;&nbsp; Col: {hoverInfoCell.col + 1}
+          {hoverInfo && hoverInfo.row === hoverInfoCell.row + 1 && hoverInfo.col === hoverInfoCell.col + 1 && (
              <>&nbsp;&nbsp;&mdash;&nbsp;&nbsp; DMC {hoverInfo.id} {hoverInfo.name}</>
           )}
         </>
