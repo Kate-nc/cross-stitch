@@ -88,6 +88,7 @@ const skeinData=useMemo(()=>{
 
 const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData]);
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
+const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable):null,[pal,blendCount,totalStitchable]);
 
 function toggleSession(){if(sessionActive){let el=Math.floor((Date.now()-sessionStart)/1000);setTotalTime(p=>p+el);setSessions(p=>[...p,{stitches:sessionStitches,time:el,date:Date.now()}]);setSessionActive(false);setSessionStart(null);setSessionStitches(0);setSessionElapsed(0);}else{setSessionActive(true);setSessionStart(Date.now());setSessionStitches(0);setSessionElapsed(0);prevDoneCount.current=doneCount;}}
 function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0)pushTrackHistory(changes);setDone(nd);}
