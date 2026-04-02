@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find /c/Users/katie/Documents/Code/cross-stitch -name \"*.js\" -exec grep -l \"function rgbToLab\\\\|function dE\\\\|rgbToLab.*=\" {} \\\\;)"
+      "Bash(find /c/Users/katie/Documents/Code/cross-stitch -name \"*.js\" -exec grep -l \"function rgbToLab\\\\|function dE\\\\|rgbToLab.*=\" {} \\\\;)",
+      "Bash(wc -l /c/Users/katie/Documents/Code/cross-stitch/*.js)",
+      "WebSearch"
     ]
   }
 }
