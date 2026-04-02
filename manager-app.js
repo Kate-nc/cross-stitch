@@ -1,5 +1,35 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
+function PartialGauge({ status }) {
+  const segments = {
+    "null": { count: 0, color: "#e4e4e7", text: "No partial", textColor: "#a1a1aa" },
+    "mostly-full": { count: 3, color: "#378ADD", text: "Mostly full", textColor: "#378ADD" },
+    "about-half": { count: 2, color: "#378ADD", text: "About half", textColor: "#378ADD" },
+    "remnant": { count: 1, color: "#EF9F27", text: "Remnant", textColor: "#EF9F27" },
+    "used-up": { count: 4, color: "#888780", text: "Used up", textColor: "#888780" }
+  };
+
+  const current = segments[status || "null"];
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={{ display: "flex", gap: 2, width: 52 }}>
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} style={{
+            flex: 1,
+            height: 4,
+            borderRadius: 2,
+            background: i < current.count ? current.color : "#e4e4e7"
+          }} />
+        ))}
+      </div>
+      <div style={{ fontSize: 10, color: current.textColor, fontWeight: status ? 600 : 400, whiteSpace: "nowrap" }}>
+        {current.text}
+      </div>
+    </div>
+  );
+}
+
 function ManagerApp() {
   const [tab, setTab] = useState("inventory"); // 'inventory' or 'patterns'
   const [modal, setModal] = useState(null); // 'help', 'about', 'add_pattern'
@@ -14,6 +44,7 @@ function ManagerApp() {
   const [viewingPattern, setViewingPattern] = useState(null); // Pattern object currently being viewed for details
   const [selectedPatternsForList, setSelectedPatternsForList] = useState(new Set());
   const [shoppingListModalOpen, setShoppingListModalOpen] = useState(false);
+  const [expandedThread, setExpandedThread] = useState(null);
   const lowStockThreshold = 1;
 
   // Storage initialization
@@ -139,6 +170,8 @@ function ManagerApp() {
     });
 
     return list.filter(d => {
+      if (d.id === expandedThread) return true; // Keep expanded thread visible until closed
+
       const t = threads[d.id] || { owned: 0, tobuy: false, partialStatus: null };
       if (threadFilter === 'owned') return t.owned > 0 || ["mostly-full", "about-half", "remnant"].includes(t.partialStatus);
       if (threadFilter === 'tobuy') return t.tobuy;
@@ -147,7 +180,7 @@ function ManagerApp() {
       if (threadFilter === 'usedup') return t.partialStatus === "used-up" && t.owned === 0;
       return true; // "all" filter
     });
-  }, [searchQuery, threads, threadFilter]);
+  }, [searchQuery, threads, threadFilter, expandedThread]);
 
   const totalOwnedCount = useMemo(() => {
     return Object.values(threads).reduce((sum, t) => sum + (t.owned || 0), 0);
@@ -286,79 +319,150 @@ function ManagerApp() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 10 }}>
               {filteredThreads.map(d => {
-                const state = threads[d.id] || { owned: 0, tobuy: false };
+                const state = threads[d.id] || { owned: 0, tobuy: false, partialStatus: null };
+                const isExpanded = expandedThread === d.id;
                 const isLowStock = state.owned > 0 && state.owned <= lowStockThreshold;
 
+                const dotColors = {
+                  "null": "#e4e4e7",
+                  "mostly-full": "#378ADD",
+                  "about-half": "#378ADD",
+                  "remnant": "#EF9F27",
+                  "used-up": "#888780"
+                };
+
                 return (
-                  <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, border: "1px solid #e4e4e7", background: state.owned > 0 || state.partialStatus ? "#fafafa" : "#fff" }}>
-                    <div style={{ width: 24, height: 24, borderRadius: 6, background: `rgb(${d.rgb})`, border: "1px solid #d4d4d8", flexShrink: 0 }} />
-                    <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#18181b" }}>DMC {d.id}</div>
-                      <div style={{ fontSize: 11, color: "#71717a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.name}</div>
-                    </div>
-
-                    {isLowStock && <div style={{ fontSize: 10, color: "#ea580c", background: "#fff7ed", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>Low</div>}
-
-                    <select
-                      value={state.partialStatus || ""}
-                      onChange={(e) => {
-                        const val = e.target.value === "" ? null : e.target.value;
-                        updateThread(d.id, "partialStatus", val);
+                  <div key={d.id} style={{
+                    display: "flex", flexDirection: "column",
+                    borderRadius: 8, border: isExpanded ? "1px solid #d4d4d8" : "1px solid #e4e4e7",
+                    background: state.owned > 0 || state.partialStatus ? "#fafafa" : "#fff",
+                    boxShadow: isExpanded ? "0 2px 4px rgba(0,0,0,0.05)" : "none",
+                    overflow: "hidden"
+                  }}>
+                    {/* Compact Row */}
+                    <div
+                      onClick={() => setExpandedThread(isExpanded ? null : d.id)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12, padding: "10px 12px",
+                        cursor: "pointer", userSelect: "none"
                       }}
-                      style={{ padding: "4px 6px", fontSize: 11, borderRadius: 6, border: "1px solid #e4e4e7", background: "#fff", cursor: "pointer", color: state.partialStatus ? "#0d9488" : "#71717a", fontWeight: state.partialStatus ? 600 : 400 }}
                     >
-                      <option value="">Full only</option>
-                      <option value="mostly-full">Mostly Full</option>
-                      <option value="about-half">About Half</option>
-                      <option value="remnant">Remnant</option>
-                      <option value="used-up">Used Up</option>
-                    </select>
+                      <div style={{ width: 28, height: 28, borderRadius: 14, background: `rgb(${d.rgb})`, border: "1px solid #d4d4d8", flexShrink: 0 }} />
 
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <button
-                        onClick={() => {
-                          const usedIn = patternsUsingThread(d.id);
-                          if (usedIn.length > 0) {
-                            alert(`Thread DMC ${d.id} is used in:\n\n${usedIn.map(p => `- ${p.title} (needs ${p.threads.find(t=>t.id===d.id).qty})`).join('\n')}`);
-                          } else {
-                            alert(`Thread DMC ${d.id} is not currently used in any of your patterns.`);
-                          }
-                        }}
-                        style={{ padding: "6px", borderRadius: 6, border: "1px solid #e4e4e7", background: "#f4f4f5", color: "#71717a", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                        title="What uses this thread?"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        </svg>
-                      </button>
-
-                      <div style={{ display: "flex", alignItems: "center", border: "1px solid #e4e4e7", borderRadius: 6, overflow: "hidden", background: "#fff" }}>
-                        <button onClick={() => updateThread(d.id, "owned", Math.max(0, state.owned - 1))} style={{ padding: "4px 8px", background: "none", border: "none", cursor: "pointer", color: "#71717a" }}>-</button>
-                        <input
-                          type="number"
-                          min={0}
-                          value={state.owned}
-                          onChange={(e) => updateThread(d.id, "owned", Math.max(0, parseInt(e.target.value) || 0))}
-                          style={{ width: 30, textAlign: "center", border: "none", background: "none", fontSize: 12, padding: 0 }}
-                        />
-                        <button onClick={() => updateThread(d.id, "owned", state.owned + 1)} style={{ padding: "4px 8px", background: "none", border: "none", cursor: "pointer", color: "#71717a" }}>+</button>
+                      <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, justifyContent: "center" }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap", overflow: "hidden" }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#18181b" }}>DMC {d.id}</span>
+                          <span style={{ fontSize: 12, color: "#71717a", textOverflow: "ellipsis", overflow: "hidden" }}>{d.name}</span>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => updateThread(d.id, "tobuy", !state.tobuy)}
-                        style={{
-                          padding: "6px", borderRadius: 6, border: state.tobuy ? "1px solid #fed7aa" : "1px solid #e4e4e7",
-                          background: state.tobuy ? "#fff7ed" : "#fff", color: state.tobuy ? "#ea580c" : "#a1a1aa", cursor: "pointer",
-                          display: "flex", alignItems: "center", justifyContent: "center"
-                        }}
-                        title={state.tobuy ? "Remove from to-buy list" : "Add to to-buy list"}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                           <circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-                        </svg>
-                      </button>
+
+                      {isLowStock && <div style={{ fontSize: 10, color: "#ea580c", background: "#fff7ed", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>Low</div>}
+
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                        <div style={{
+                          padding: "2px 8px", background: "#e4e4e7", borderRadius: 12,
+                          fontSize: 12, fontWeight: 600, color: "#3f3f46", minWidth: 28, textAlign: "center"
+                        }}>
+                          {state.owned}
+                        </div>
+
+                        <div className="partial-gauge-container">
+                          <PartialGauge status={state.partialStatus} />
+                        </div>
+
+                        <button
+                          onClick={(e) => { e.stopPropagation(); updateThread(d.id, "tobuy", !state.tobuy); }}
+                          style={{
+                            padding: "6px", borderRadius: 6, border: state.tobuy ? "1px solid #fed7aa" : "1px solid #e4e4e7",
+                            background: state.tobuy ? "#fff7ed" : "#fff", color: state.tobuy ? "#ea580c" : "#a1a1aa", cursor: "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center"
+                          }}
+                          title={state.tobuy ? "Remove from to-buy list" : "Add to to-buy list"}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                             <circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                          </svg>
+                        </button>
+
+                        <div style={{ color: "#a1a1aa", display: "flex", alignItems: "center", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                          </svg>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Edit Panel */}
+                    {isExpanded && (
+                      <div style={{ display: "flex", borderTop: "1px solid #f4f4f5", padding: "16px 12px", background: "#fff", gap: 16 }}>
+
+                        {/* Full Skeins Col */}
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#a1a1aa", letterSpacing: 0.5 }}>FULL SKEINS</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); updateThread(d.id, "owned", Math.max(0, state.owned - 1)); }}
+                              style={{ width: 32, height: 32, borderRadius: 16, background: "#f4f4f5", border: "1px solid #e4e4e7", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#3f3f46", fontSize: 16 }}
+                            >−</button>
+                            <div style={{ fontSize: 18, fontWeight: 600, color: "#18181b", minWidth: 24, textAlign: "center" }}>{state.owned}</div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); updateThread(d.id, "owned", state.owned + 1); }}
+                              style={{ width: 32, height: 32, borderRadius: 16, background: "#f4f4f5", border: "1px solid #e4e4e7", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#3f3f46", fontSize: 16 }}
+                            >+</button>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const usedIn = patternsUsingThread(d.id);
+                              if (usedIn.length > 0) {
+                                alert(`Thread DMC ${d.id} is used in:\n\n${usedIn.map(p => `- ${p.title} (needs ${p.threads.find(t=>t.id===d.id).qty})`).join('\n')}`);
+                              } else {
+                                alert(`Thread DMC ${d.id} is not currently used in any of your patterns.`);
+                              }
+                            }}
+                            style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #e4e4e7", background: "#f4f4f5", color: "#71717a", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 11, width: "fit-content", marginTop: "auto" }}
+                            title="What uses this thread?"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            Usage
+                          </button>
+                        </div>
+
+                        {/* Opened Skein Col */}
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#a1a1aa", letterSpacing: 0.5, marginBottom: 4 }}>OPENED SKEIN</div>
+                          {[
+                            { val: null, label: "None" },
+                            { val: "mostly-full", label: "Mostly full" },
+                            { val: "about-half", label: "About half" },
+                            { val: "remnant", label: "Remnant" },
+                            { val: "used-up", label: "Used up" }
+                          ].map(opt => {
+                            const isActive = (state.partialStatus === opt.val) || (opt.val === null && !state.partialStatus);
+                            return (
+                              <div
+                                key={opt.val || 'none'}
+                                onClick={(e) => { e.stopPropagation(); updateThread(d.id, "partialStatus", opt.val); }}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+                                  borderRadius: 6, cursor: "pointer",
+                                  background: isActive ? "#f4f4f5" : "transparent",
+                                  border: isActive ? "1px solid #e4e4e7" : "1px solid transparent"
+                                }}
+                              >
+                                <div style={{ width: 10, height: 10, borderRadius: 5, background: dotColors[opt.val || "null"] }} />
+                                <div style={{ fontSize: 13, color: "#3f3f46", fontWeight: isActive ? 500 : 400 }}>{opt.label}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                      </div>
+                    )}
                   </div>
                 );
               })}
