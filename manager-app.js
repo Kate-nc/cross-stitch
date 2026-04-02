@@ -22,26 +22,42 @@ function ManagerApp() {
     const loadManagerData = async () => {
       try {
         const db = await openManagerDB();
-        const tx = db.transaction(["manager_state"], "readonly");
+        const tx = db.transaction(["manager_state"], "readwrite");
         const store = tx.objectStore("manager_state");
-        const getThreads = store.get("threads");
-        const getPatterns = store.get("patterns");
 
-        getThreads.onsuccess = () => {
-          if (getThreads.result) {
-            setThreads(getThreads.result);
-          } else {
-            // Initialize with standard DMC empty state if not found
-            let initialThreads = {};
-            DMC.forEach(d => {
-                initialThreads[d.id] = { owned: 0, tobuy: false };
-            });
-            setThreads(initialThreads);
+        const getRequest = (req) => new Promise((resolve, reject) => {
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+
+        const threadsData = await getRequest(store.get("threads"));
+        const patternsData = await getRequest(store.get("patterns"));
+        const versionData = await getRequest(store.get("stashDataVersion"));
+
+        let finalThreads = threadsData;
+
+        if (threadsData && versionData !== 2) {
+          // Backup
+          store.put(threadsData, "threads_backup_v1");
+
+          // Migrate
+          finalThreads = {};
+          for (const [id, t] of Object.entries(threadsData)) {
+            finalThreads[id] = { ...t, partialStatus: null };
           }
-        };
-        getPatterns.onsuccess = () => {
-          if (getPatterns.result) setPatterns(getPatterns.result);
-        };
+          store.put(finalThreads, "threads");
+          store.put(2, "stashDataVersion");
+        } else if (!threadsData) {
+          finalThreads = {};
+          DMC.forEach(d => {
+              finalThreads[d.id] = { owned: 0, tobuy: false, partialStatus: null };
+          });
+          store.put(finalThreads, "threads");
+          store.put(2, "stashDataVersion");
+        }
+
+        setThreads(finalThreads);
+        if (patternsData) setPatterns(patternsData);
       } catch (err) {
         console.error("Failed to load manager data:", err);
       }
@@ -94,13 +110,26 @@ function ManagerApp() {
   }
 
   const updateThread = (id, field, value) => {
-    setThreads(prev => ({
-      ...prev,
-      [id]: {
+    setThreads(prev => {
+      const updated = {
         ...prev[id],
         [field]: value
+      };
+
+      // If setting "used-up", auto-zero the skeins
+      if (field === "partialStatus" && value === "used-up") {
+        updated.owned = 0;
       }
-    }));
+      // If setting skeins to > 0 while "used-up" is selected, clear "used-up" to prevent conflicting states
+      if (field === "owned" && value > 0 && prev[id]?.partialStatus === "used-up") {
+        updated.partialStatus = null;
+      }
+
+      return {
+        ...prev,
+        [id]: updated
+      };
+    });
   };
 
   const filteredThreads = useMemo(() => {
@@ -110,11 +139,13 @@ function ManagerApp() {
     });
 
     return list.filter(d => {
-      const t = threads[d.id] || { owned: 0, tobuy: false };
-      if (threadFilter === 'owned') return t.owned > 0;
+      const t = threads[d.id] || { owned: 0, tobuy: false, partialStatus: null };
+      if (threadFilter === 'owned') return t.owned > 0 || ["mostly-full", "about-half", "remnant"].includes(t.partialStatus);
       if (threadFilter === 'tobuy') return t.tobuy;
-      if (threadFilter === 'lowstock') return t.owned <= lowStockThreshold && t.owned > 0;
-      return true;
+      if (threadFilter === 'lowstock') return (t.owned > 0 && t.owned <= lowStockThreshold) || (t.owned === 0 && ["about-half", "remnant"].includes(t.partialStatus));
+      if (threadFilter === 'remnants') return t.partialStatus === "remnant";
+      if (threadFilter === 'usedup') return t.partialStatus === "used-up" && t.owned === 0;
+      return true; // "all" filter
     });
   }, [searchQuery, threads, threadFilter]);
 
@@ -224,9 +255,11 @@ function ManagerApp() {
               <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}>
                 {[
                   {id: "all", label: "All"},
-                  {id: "owned", label: "Owned"},
                   {id: "tobuy", label: "To Buy"},
-                  {id: "lowstock", label: "Low Stock"}
+                  {id: "owned", label: "Owned"},
+                  {id: "lowstock", label: "Low Stock"},
+                  {id: "remnants", label: "Remnants"},
+                  {id: "usedup", label: "Used Up"}
                 ].map(f => (
                   <button
                     key={f.id}
@@ -259,7 +292,7 @@ function ManagerApp() {
                 const isLowStock = state.owned > 0 && state.owned <= lowStockThreshold;
 
                 return (
-                  <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, border: "1px solid #e4e4e7", background: state.owned > 0 ? "#fafafa" : "#fff" }}>
+                  <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, border: "1px solid #e4e4e7", background: state.owned > 0 || state.partialStatus ? "#fafafa" : "#fff" }}>
                     <div style={{ width: 24, height: 24, borderRadius: 6, background: `rgb(${d.rgb})`, border: "1px solid #d4d4d8", flexShrink: 0 }} />
                     <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#18181b" }}>DMC {d.id}</div>
@@ -267,6 +300,21 @@ function ManagerApp() {
                     </div>
 
                     {isLowStock && <div style={{ fontSize: 10, color: "#ea580c", background: "#fff7ed", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>Low</div>}
+
+                    <select
+                      value={state.partialStatus || ""}
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? null : e.target.value;
+                        updateThread(d.id, "partialStatus", val);
+                      }}
+                      style={{ padding: "4px 6px", fontSize: 11, borderRadius: 6, border: "1px solid #e4e4e7", background: "#fff", cursor: "pointer", color: state.partialStatus ? "#0d9488" : "#71717a", fontWeight: state.partialStatus ? 600 : 400 }}
+                    >
+                      <option value="">Full only</option>
+                      <option value="mostly-full">Mostly Full</option>
+                      <option value="about-half">About Half</option>
+                      <option value="remnant">Remnant</option>
+                      <option value="used-up">Used Up</option>
+                    </select>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <button
@@ -316,7 +364,9 @@ function ManagerApp() {
               })}
               {filteredThreads.length === 0 && (
                 <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 20px", color: "#71717a", fontSize: 14 }}>
-                  No threads found.
+                  {threadFilter === 'remnants' ? "Threads marked as remnants will appear here. You can change a thread's status from its entry in the All tab." :
+                   threadFilter === 'usedup' ? "Threads marked as used up will appear here." :
+                   "No threads found."}
                 </div>
               )}
             </div>
