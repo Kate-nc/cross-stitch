@@ -1,1 +1,16 @@
-{"version":7,"page":"tracker","settings":{"sW":10,"sH":10,"fabricCt":14,"skeinPrice":1.2,"stitchSpeed":40},"pattern":[{"id":"310","type":"solid","rgb":[0,0,0],"symbol":"A"},{"id":"310","type":"solid","rgb":[0,0,0],"symbol":"A"}],"bsLines":[],"done":null,"parkMarkers":[],"totalTime":0,"sessions":[],"hlRow":-1,"hlCol":-1,"threadOwned":{},"originalPaletteState":[{"id":"310","type":"solid","name":"Black","rgb":[0,0,0],"lab":[0,0,0],"count":2,"symbol":"A"}]}
+{
+  "version": 8,
+  "page": "tracker",
+  "settings": {"sW": 2, "sH": 2, "fabricCt": 14, "skeinPrice": 1.2, "stitchSpeed": 40},
+  "pattern": [{"id": "310", "type": "solid", "rgb": [0,0,0]}, {"id": "310", "type": "solid", "rgb": [0,0,0]}, {"id": "310", "type": "solid", "rgb": [0,0,0]}, {"id": "310", "type": "solid", "rgb": [0,0,0]}],
+  "bsLines": [],
+  "done": [1, 0, 0, 0],
+  "parkMarkers": [],
+  "totalTime": 0,
+  "sessions": [],
+  "hlRow": -1,
+  "hlCol": -1,
+  "threadOwned": {},
+  "originalPaletteState": [{"id": "310", "type": "solid", "name": "Black", "rgb": [0,0,0], "lab": [0,0,0], "count": 4, "symbol": "A"}],
+  "singleStitchEdits": {}
+}

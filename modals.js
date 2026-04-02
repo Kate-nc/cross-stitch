@@ -136,16 +136,18 @@ const SharedModals = {
               key: t.id,
               onClick: () => {
                 if (isUsed) {
-                  alert(`DMC ${t.id} is already assigned to another symbol. Each colour can only be assigned to one symbol.`);
+                  if (confirm(`DMC ${t.id} is already assigned. Would you like to swap the colours of these two symbols?`)) {
+                    onSelect(t, true);
+                  }
                   return;
                 }
-                onSelect(t);
+                onSelect(t, false);
               },
               style: {
                 display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #f4f4f5",
                 background: isCurrent ? "#f0fdfa" : (isUsed ? "#fafafa" : "#fff"),
-                cursor: isUsed ? "not-allowed" : "pointer",
-                opacity: isUsed ? 0.5 : 1
+                cursor: isCurrent ? "default" : "pointer",
+                opacity: isUsed ? 0.7 : 1
               }
             },
               React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid #d4d4d8", flexShrink: 0 } }),

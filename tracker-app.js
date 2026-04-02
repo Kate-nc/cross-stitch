@@ -24,6 +24,7 @@ const[sessionElapsed,setSessionElapsed]=useState(0),[sessions,setSessions]=useSt
 const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
 const[isEditMode,setIsEditMode]=useState(false);
 const[originalPaletteState,setOriginalPaletteState]=useState(null);
+const[singleStitchEdits,setSingleStitchEdits]=useState({});
 const[editHistory,setEditHistory]=useState([]);
 const[editModalColor,setEditModalColor]=useState(null);
 const[showExitEditModal,setShowExitEditModal]=useState(false);
@@ -36,6 +37,7 @@ const dragChangesRef=useRef([]);
 const[selectedColorId,setSelectedColorId]=useState(null);
 
 const[hoverInfo,setHoverInfo]=useState(null);
+const[editPopoverInfo,setEditPopoverInfo]=useState(null);
 
 const[isPanning,setIsPanning]=useState(false);
 const panStart=useRef({x:0,y:0,scrollX:0,scrollY:0});
@@ -68,10 +70,10 @@ useEffect(()=>{
 },[sessionActive,sessionStart]);
 
 const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
-const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__")c++;return c;},[pat]);
+const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++){if(pat[i].id!=="__skip__"){let effId=singleStitchEdits[i]?singleStitchEdits[i].currentSymbolId:pat[i].id;if(effId!==null)c++;}}return c;},[pat,singleStitchEdits]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
 useEffect(()=>{if(sessionActive&&done){let diff=doneCount-prevDoneCount.current;if(diff>0)setSessionStitches(p=>p+diff);}prevDoneCount.current=doneCount;},[doneCount,sessionActive,done]);
-const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=singleStitchEdits[i]?singleStitchEdits[i].currentSymbolId:pat[i].id;if(id===null)continue;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done,singleStitchEdits]);
 const estCompletion=useMemo(()=>{let t=totalTime+(sessionActive?sessionElapsed:0);if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,sessionElapsed,sessionActive,doneCount,totalStitchable]);
 const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
 const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
@@ -112,7 +114,7 @@ function undoTrack(){
 function saveProject(){
   if(!pat||!pal)return;
   let project={
-    version:7,
+    version:8,
     page:"tracker",
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
     pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),
@@ -124,7 +126,8 @@ function saveProject(){
     hlRow,
     hlCol,
     threadOwned,
-    originalPaletteState
+    originalPaletteState,
+    singleStitchEdits
   };
   let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
   let url=URL.createObjectURL(blob);
@@ -137,13 +140,53 @@ function saveProject(){
   URL.revokeObjectURL(url);
 }
 
-function handleSymbolReassignment(oldColorId, newThread) {
+function handleSymbolReassignment(oldColorId, newThread, isSwap) {
   if (!pat || !pal || !cmap) return;
+
+  if (isSwap) {
+    const symbolA = pal.find(p => p.id === oldColorId);
+    const symbolB = pal.find(p => p.id === newThread.id);
+    if (!symbolA || !symbolB) return;
+
+    setEditHistory(prev => [...prev, {
+      type: "swap",
+      symbolA: { currentId: newThread.id, previousThreadCode: symbolA.id, previousName: symbolA.name, previousRgb: symbolA.rgb, previousLab: symbolA.lab },
+      symbolB: { currentId: symbolA.id, previousThreadCode: symbolB.id, previousName: symbolB.name, previousRgb: symbolB.rgb, previousLab: symbolB.lab }
+    }]);
+
+    const newPal = pal.map(p => {
+      if (p.id === oldColorId) {
+        return { ...p, id: symbolB.id, name: symbolB.name, rgb: symbolB.rgb, lab: symbolB.lab };
+      }
+      if (p.id === newThread.id) {
+        return { ...p, id: symbolA.id, name: symbolA.name, rgb: symbolA.rgb, lab: symbolA.lab };
+      }
+      return p;
+    });
+
+    const newCmap = {};
+    newPal.forEach(p => { newCmap[p.id] = p; });
+
+    const newPat = pat.map(cell => {
+      if (cell.id === oldColorId) {
+        return { ...cell, id: symbolB.id, name: symbolB.name, rgb: symbolB.rgb, lab: symbolB.lab };
+      }
+      if (cell.id === newThread.id) {
+        return { ...cell, id: symbolA.id, name: symbolA.name, rgb: symbolA.rgb, lab: symbolA.lab };
+      }
+      return cell;
+    });
+
+    setPat(newPat);
+    setPal(newPal);
+    setCmap(newCmap);
+    return;
+  }
 
   // 1. Snapshot for undo
   const currentPalState = JSON.parse(JSON.stringify(pal));
   const currentThreadOwnedState = JSON.parse(JSON.stringify(threadOwned));
-  setEditHistory(prev => [...prev, { pal: currentPalState, threadOwned: currentThreadOwnedState }]);
+  setEditHistory(prev => [...prev, { type: "bulk_reassignment", pal: currentPalState, threadOwned: currentThreadOwnedState }]);
 
   // 2. Map grid values
   const newPat = pat.map(cell => {
@@ -230,6 +273,7 @@ function processLoadedProject(project){
   } else {
     setOriginalPaletteState(JSON.parse(JSON.stringify(newPal)));
   }
+  setSingleStitchEdits(project.singleStitchEdits||{});
   setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);
   if(project.settings && project.settings.pdfSettings) setPdfSettings(project.settings.pdfSettings);
   setThreadOwned(project.threadOwned||{});
@@ -356,21 +400,25 @@ function drawStitch(ctx,cSz){
   for(let x=0;x<dW;x+=10)ctx.fillText(String(x+1),gut+x*cSz+cSz/2,gut/2);ctx.textAlign="right";for(let y=0;y<dH;y+=10)ctx.fillText(String(y+1),gut-3,gut+y*cSz+cSz/2);
   for(let y=0;y<dH;y++)for(let x=0;x<dW;x++){
     let idx=y*sW+x,m=pat[idx];if(!m)continue;
-    let info=m.id==="__skip__"?null:(cmap?cmap[m.id]:null);
+    let effId=singleStitchEdits[idx]?singleStitchEdits[idx].currentSymbolId:m.id;
     let px=gut+x*cSz,py=gut+y*cSz;
     let isDn=done&&done[idx];
-    let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__";
-    if(m.id==="__skip__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle="rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
+    if(effId==="__skip__"||effId===null){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle="rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
+
+    let info=cmap?cmap[effId]:null;
+    let rgb=info?info.rgb:[128,128,128];
+    let symbol=info?info.symbol:"?";
+    let dimmed=stitchView==="highlight"&&focusColour&&effId!==focusColour&&effId!=="__skip__";
     if(stitchView==="symbol"){
       if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-      else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+      else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(symbol,px+cSz/2,py+cSz/2);}}
     }else if(stitchView==="colour"){
-      ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-      if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+      ctx.fillStyle=`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
+      if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(symbol,px+cSz/2,py+cSz/2);}
     }else{
-      if(isDn){ctx.fillStyle=dimmed?"#f4f4f5":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-      else if(dimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,cSz*0.45)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-      else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.7)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+      if(isDn){ctx.fillStyle=dimmed?"#f4f4f5":`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+      else if(dimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,cSz*0.45)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(symbol,px+cSz/2,py+cSz/2);}}
+      else{ctx.fillStyle=`rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.7)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(symbol,px+cSz/2,py+cSz/2);}}
     }
     if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
   }
@@ -399,7 +447,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,singleStitchEdits]);
 useEffect(()=>renderStitch(),[renderStitch]);
 
 function handleStitchMouseDown(e){
@@ -407,6 +455,17 @@ function handleStitchMouseDown(e){
   if(e.button===1){e.preventDefault();startPan(e);return;}
   let gc=gridCoord(stitchRef,e,scs,G,stitchMode==="navigate"&&selectedColorId);
   if(!gc)return;let{gx,gy}=gc;
+
+  if (isEditMode) {
+    if(gx<0||gx>=sW||gy<0||gy>=sH)return;
+    let idx=gy*sW+gx;
+    if(pat[idx].id!=="__skip__") {
+      let effId=singleStitchEdits[idx]?singleStitchEdits[idx].currentSymbolId:pat[idx].id;
+      setEditPopoverInfo({idx, row: gy+1, col: gx+1, x: e.clientX, y: e.clientY, currentSymbolId: effId, originalSymbolId: pat[idx].id});
+    }
+    return;
+  }
+
   if(stitchMode==="navigate"){
     if(e.shiftKey||!selectedColorId||!cmap||!cmap[selectedColorId]){
       let gc2=gridCoord(stitchRef,e,scs,G,false);if(gc2&&gc2.gx>=0&&gc2.gx<sW&&gc2.gy>=0&&gc2.gy<sH){setHlRow(gc2.gy);setHlCol(gc2.gx);}
@@ -416,7 +475,9 @@ function handleStitchMouseDown(e){
     return;
   }
   if(gx<0||gx>=sW||gy<0||gy>=sH||!done)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
+  let idx=gy*sW+gx;
+  let effId=singleStitchEdits[idx]?singleStitchEdits[idx].currentSymbolId:pat[idx].id;
+  if(effId==="__skip__"||effId===null)return;
   let nv=done[idx]?0:1;setDragVal(nv);setIsDragging(true);
   dragChangesRef.current=[{idx,oldVal:done[idx]}];
   let nd=new Uint8Array(done);nd[idx]=nv;setDone(nd);
@@ -434,16 +495,17 @@ function handleStitchMouseMove(e){
     if(hoverInfo) setHoverInfo(null);
   } else if(stitchMode==="track" && pat && gc && gc.gx>=0 && gc.gx<sW && gc.gy>=0 && gc.gy<sH){
     let idx=gc.gy*sW+gc.gx;
-    let cell=pat[idx];
-    if(cell && cell.id!=="__skip__"){
+    let effId=singleStitchEdits[idx]?singleStitchEdits[idx].currentSymbolId:pat[idx].id;
+    if(effId && effId!=="__skip__"){
       let name="";
-      if(cell.type==="blend"){
-        name=cell.threads[0].name+"+"+cell.threads[1].name;
+      if(effId.includes("+")){
+        let ids=effId.split("+"),t0=DMC.find(d=>d.id===ids[0]),t1=DMC.find(d=>d.id===ids[1]);
+        if(t0&&t1)name=t0.name+"+"+t1.name;
       }else{
-        let t=DMC.find(d=>d.id===cell.id);
+        let t=DMC.find(d=>d.id===effId);
         if(t) name=t.name;
       }
-      setHoverInfo({row:gc.gy+1, col:gc.gx+1, id:cell.id, name:name, x:e.clientX, y:e.clientY});
+      setHoverInfo({row:gc.gy+1, col:gc.gx+1, id:effId, name:name, x:e.clientX, y:e.clientY});
     } else {
       setHoverInfo(null);
     }
@@ -454,7 +516,9 @@ function handleStitchMouseMove(e){
   if(!isDragging||stitchMode!=="track"||!done||!stitchRef.current||!pat)return;
   if(!gc)return;let{gx,gy}=gc;
   if(gx<0||gx>=sW||gy<0||gy>=sH)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
+  let idx=gy*sW+gx;
+  let effId=singleStitchEdits[idx]?singleStitchEdits[idx].currentSymbolId:pat[idx].id;
+  if(effId==="__skip__"||effId===null)return;
   if(done[idx]!==dragVal){
     dragChangesRef.current.push({idx,oldVal:done[idx]});
     let nd=new Uint8Array(done);nd[idx]=dragVal;setDone(nd);
@@ -560,6 +624,7 @@ return(
             } else {
               setIsEditMode(false);
               setEditHistory([]);
+              setEditPopoverInfo(null);
             }
           }
         }} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !isEditMode ? 500 : 400, background: !isEditMode ? "#0d9488" : "transparent", borderRadius: 6, color: !isEditMode ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: !isEditMode ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Tracking Mode</button>
@@ -589,37 +654,109 @@ return(
       {isEditMode && <div style={{marginLeft:"auto",display:"flex",gap:4}}>
         {editHistory.length>0&&<button onClick={()=>{
           const previousState = editHistory[editHistory.length - 1];
-          const previousPal = previousState.pal;
-          const previousThreadOwned = previousState.threadOwned;
-          const previousMap = {};
-          previousPal.forEach(p => { previousMap[p.symbol] = p; });
 
-          const newPat = pat.map(cell => {
-            if (cell.id === "__skip__") return cell;
-            const originalThread = previousMap[cell.symbol];
-            if (originalThread) {
-              return {
-                ...cell,
-                id: originalThread.id,
-                name: originalThread.name,
-                rgb: originalThread.rgb,
-                lab: originalThread.lab
-              };
+          if (previousState.type === "bulk_reassignment") {
+            const previousPal = previousState.pal;
+            const previousThreadOwned = previousState.threadOwned;
+            const previousMap = {};
+            previousPal.forEach(p => { previousMap[p.symbol] = p; });
+
+            const newPat = pat.map(cell => {
+              if (cell.id === "__skip__") return cell;
+              const originalThread = previousMap[cell.symbol];
+              if (originalThread) {
+                return {
+                  ...cell,
+                  id: originalThread.id,
+                  name: originalThread.name,
+                  rgb: originalThread.rgb,
+                  lab: originalThread.lab
+                };
+              }
+              return cell;
+            });
+
+            const newCmap = {};
+            previousPal.forEach(p => { newCmap[p.id] = p; });
+
+            setPat(newPat);
+            setPal(previousPal);
+            setCmap(newCmap);
+            setThreadOwned(previousThreadOwned);
+          } else if (previousState.type === "single_stitch_edit" || previousState.type === "removal") {
+            setSingleStitchEdits(prev => {
+              const next = { ...prev };
+              if (previousState.previousSymbolId === pat[previousState.idx].id) {
+                delete next[previousState.idx];
+              } else {
+                next[previousState.idx] = {
+                  originalSymbolId: pat[previousState.idx].id,
+                  currentSymbolId: previousState.previousSymbolId
+                };
+              }
+              return next;
+            });
+
+            if (previousState.type === "removal" && previousState.previousTrackingState) {
+              let nd = new Uint8Array(done);
+              nd[previousState.idx] = 1;
+              setDone(nd);
             }
-            return cell;
-          });
+          } else if (previousState.type === "swap") {
+             const { symbolA, symbolB } = previousState;
+             const newPal = pal.map(p => {
+               if (p.id === symbolA.currentId) return { ...p, id: symbolA.previousThreadCode, name: symbolA.previousName, rgb: symbolA.previousRgb, lab: symbolA.previousLab };
+               if (p.id === symbolB.currentId) return { ...p, id: symbolB.previousThreadCode, name: symbolB.previousName, rgb: symbolB.previousRgb, lab: symbolB.previousLab };
+               return p;
+             });
 
-          const newCmap = {};
-          previousPal.forEach(p => { newCmap[p.id] = p; });
+             const newCmap = {};
+             newPal.forEach(p => { newCmap[p.id] = p; });
 
-          setPat(newPat);
-          setPal(previousPal);
-          setCmap(newCmap);
-          setThreadOwned(previousThreadOwned);
+             const newPat = pat.map(cell => {
+               if (cell.id === symbolA.currentId) return { ...cell, id: symbolA.previousThreadCode, name: symbolA.previousName, rgb: symbolA.previousRgb, lab: symbolA.previousLab };
+               if (cell.id === symbolB.currentId) return { ...cell, id: symbolB.previousThreadCode, name: symbolB.previousName, rgb: symbolB.previousRgb, lab: symbolB.previousLab };
+               return cell;
+             });
+
+             setPat(newPat);
+             setPal(newPal);
+             setCmap(newCmap);
+          } else if (!previousState.type) {
+            // Fallback for V1 format in memory
+            const previousPal = previousState.pal;
+            const previousThreadOwned = previousState.threadOwned;
+            const previousMap = {};
+            previousPal.forEach(p => { previousMap[p.symbol] = p; });
+
+            const newPat = pat.map(cell => {
+              if (cell.id === "__skip__") return cell;
+              const originalThread = previousMap[cell.symbol];
+              if (originalThread) {
+                return {
+                  ...cell,
+                  id: originalThread.id,
+                  name: originalThread.name,
+                  rgb: originalThread.rgb,
+                  lab: originalThread.lab
+                };
+              }
+              return cell;
+            });
+
+            const newCmap = {};
+            previousPal.forEach(p => { newCmap[p.id] = p; });
+
+            setPat(newPat);
+            setPal(previousPal);
+            setCmap(newCmap);
+            setThreadOwned(previousThreadOwned);
+          }
+
           setEditHistory(prev => prev.slice(0, -1));
         }} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",color:"#d97706",cursor:"pointer"}}>↩ Undo Edit</button>}
         <button onClick={()=>{
-          if(confirm("Revert all symbol assignments to the original PDF import? Your tracking progress will be kept, but all colour corrections will be lost.")){
+          if(confirm("Revert all symbol assignments to the original PDF import? Your tracking progress will be kept, but all colour corrections and single-stitch edits will be lost.")){
             const previousPal = originalPaletteState;
             const previousMap = {};
             previousPal.forEach(p => { previousMap[p.symbol] = p; });
@@ -655,6 +792,7 @@ return(
             setCmap(newCmap);
             setThreadOwned(newThreadOwned);
             setEditHistory([]);
+            setSingleStitchEdits({});
           }
         }} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Revert to Original</button>
       </div>}
@@ -676,6 +814,99 @@ return(
         boxShadow:"0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)"
       }}>
         Row {hoverInfo.row}, Col {hoverInfo.col} &mdash; DMC {hoverInfo.id} {hoverInfo.name}
+      </div>
+    )}
+
+    {editPopoverInfo && isEditMode && (
+      <div className="modal-overlay" onClick={()=>setEditPopoverInfo(null)} style={{background:"transparent"}}>
+        <div className="modal-content" onClick={e=>e.stopPropagation()} style={{
+          position:"absolute",
+          left: Math.min(editPopoverInfo.x+15, window.innerWidth - 300),
+          top: Math.min(editPopoverInfo.y+15, window.innerHeight - 400),
+          width: 280, padding: 12, borderRadius: 8, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2)",
+          display: "flex", flexDirection: "column", gap: 10
+        }}>
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+            <span style={{fontSize:12, color:"#71717a", fontWeight:600}}>Row {editPopoverInfo.row}, Col {editPopoverInfo.col}</span>
+            <button onClick={()=>setEditPopoverInfo(null)} style={{background:"none", border:"none", fontSize:16, cursor:"pointer", color:"#71717a"}}>×</button>
+          </div>
+
+          <div style={{fontSize:13, color:"#18181b", paddingBottom: 8, borderBottom:"1px solid #e4e4e7"}}>
+            Current: {editPopoverInfo.currentSymbolId===null ? <span style={{color:"#71717a"}}>Empty (Removed)</span> : (
+              <span style={{fontWeight:600}}>
+                {cmap[editPopoverInfo.currentSymbolId] ? cmap[editPopoverInfo.currentSymbolId].symbol : ""} DMC {editPopoverInfo.currentSymbolId}
+              </span>
+            )}
+          </div>
+
+          <div style={{fontSize:12, color:"#71717a"}}>Change to:</div>
+          <div style={{maxHeight:200, overflowY:"auto", display:"flex", flexDirection:"column", gap:4}}>
+            {pal.map(p => (
+              <div key={p.id} onClick={() => {
+                if (p.id !== editPopoverInfo.currentSymbolId) {
+                  setEditHistory(prev => [...prev, {
+                    type: "single_stitch_edit",
+                    idx: editPopoverInfo.idx,
+                    previousSymbolId: editPopoverInfo.currentSymbolId,
+                    previousTrackingState: null
+                  }]);
+
+                  setSingleStitchEdits(prev => ({
+                    ...prev,
+                    [editPopoverInfo.idx]: {
+                      originalSymbolId: editPopoverInfo.originalSymbolId,
+                      currentSymbolId: p.id
+                    }
+                  }));
+                }
+                setEditPopoverInfo(null);
+              }} style={{
+                display:"flex", alignItems:"center", gap:8, padding:"4px 8px", borderRadius:4,
+                background: p.id === editPopoverInfo.currentSymbolId ? "#f0fdfa" : "#fff",
+                cursor:"pointer", border: p.id === editPopoverInfo.currentSymbolId ? "1px solid #0d9488" : "1px solid #f4f4f5"
+              }}>
+                <span style={{width:16, height:16, borderRadius:3, background:`rgb(${p.rgb})`, border:"1px solid #d4d4d8", flexShrink:0}}/>
+                <span style={{fontFamily:"monospace", fontSize:12, fontWeight:700, width:16, textAlign:"center"}}>{p.symbol}</span>
+                <span style={{fontSize:12, fontWeight:600, color:"#18181b"}}>DMC {p.id}</span>
+              </div>
+            ))}
+          </div>
+
+          {editPopoverInfo.currentSymbolId !== null && (
+            <button onClick={() => {
+              if (confirm("Remove this stitch? It will be marked as empty.")) {
+                let trackState = null;
+                if (done && done[editPopoverInfo.idx]) {
+                   trackState = { done: true };
+                   let nd = new Uint8Array(done);
+                   nd[editPopoverInfo.idx] = 0;
+                   setDone(nd);
+                }
+
+                setEditHistory(prev => [...prev, {
+                  type: "removal",
+                  idx: editPopoverInfo.idx,
+                  previousSymbolId: editPopoverInfo.currentSymbolId,
+                  previousTrackingState: trackState
+                }]);
+
+                setSingleStitchEdits(prev => ({
+                  ...prev,
+                  [editPopoverInfo.idx]: {
+                    originalSymbolId: editPopoverInfo.originalSymbolId,
+                    currentSymbolId: null
+                  }
+                }));
+                setEditPopoverInfo(null);
+              }
+            }} style={{
+              marginTop: 4, padding:"6px", fontSize:12, fontWeight:600, color:"#dc2626", background:"#fef2f2",
+              border:"1px solid #fecaca", borderRadius:6, cursor:"pointer"
+            }}>
+              Remove Stitch
+            </button>
+          )}
+        </div>
       </div>
     )}
 
@@ -827,8 +1058,8 @@ return(
     currentSymbol={editModalColor.symbol}
     currentThreadId={editModalColor.id}
     usedThreads={pal.map(p => p.id)}
-    onSelect={(newThread) => {
-      handleSymbolReassignment(editModalColor.id, newThread);
+    onSelect={(newThread, isSwap) => {
+      handleSymbolReassignment(editModalColor.id, newThread, isSwap);
       setEditModalColor(null);
     }}
   />}
@@ -837,7 +1068,7 @@ return(
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10000}}>
       <div style={{background:"#fff",padding:24,borderRadius:12,width:350,maxWidth:"90%",boxShadow:"0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)"}}>
         <h3 style={{margin:"0 0 12px 0",fontSize:18,color:"#18181b"}}>Apply changes?</h3>
-        <p style={{fontSize:14,color:"#71717a",margin:"0 0 24px 0",lineHeight:1.5}}>You have made changes to the symbol assignments. Do you want to apply them?</p>
+        <p style={{fontSize:14,color:"#71717a",margin:"0 0 24px 0",lineHeight:1.5}}>You have made changes to the symbol assignments or stitches. Do you want to apply them?</p>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
           <button onClick={()=>{
             // Cancel
@@ -846,35 +1077,67 @@ return(
 
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>{
-              // Discard
-              const originalState = editHistory[0];
-              const originalPal = originalState.pal;
-              const originalThreadOwned = originalState.threadOwned;
-              const previousMap = {};
-              originalPal.forEach(p => { previousMap[p.symbol] = p; });
+              // Discard all edits in the stack by iteratively undoing them
+              let currentPal = [...pal];
+              let currentPat = [...pat];
+              let currentThreadOwned = {...threadOwned};
+              let currentSingleStitchEdits = {...singleStitchEdits};
 
-              const newPat = pat.map(cell => {
-                if (cell.id === "__skip__") return cell;
-                const originalThread = previousMap[cell.symbol];
-                if (originalThread) {
-                  return {
-                    ...cell,
-                    id: originalThread.id,
-                    name: originalThread.name,
-                    rgb: originalThread.rgb,
-                    lab: originalThread.lab
-                  };
+              for (let i = editHistory.length - 1; i >= 0; i--) {
+                const previousState = editHistory[i];
+                if (previousState.type === "bulk_reassignment") {
+                  currentPal = previousState.pal;
+                  currentThreadOwned = previousState.threadOwned;
+                  const previousMap = {};
+                  currentPal.forEach(p => { previousMap[p.symbol] = p; });
+
+                  currentPat = currentPat.map(cell => {
+                    if (cell.id === "__skip__") return cell;
+                    const originalThread = previousMap[cell.symbol];
+                    if (originalThread) {
+                      return { ...cell, id: originalThread.id, name: originalThread.name, rgb: originalThread.rgb, lab: originalThread.lab };
+                    }
+                    return cell;
+                  });
+                } else if (previousState.type === "single_stitch_edit" || previousState.type === "removal") {
+                  if (previousState.previousSymbolId === currentPat[previousState.idx].id) {
+                    delete currentSingleStitchEdits[previousState.idx];
+                  } else {
+                    currentSingleStitchEdits[previousState.idx] = {
+                      originalSymbolId: currentPat[previousState.idx].id,
+                      currentSymbolId: previousState.previousSymbolId
+                    };
+                  }
+
+                  if (previousState.type === "removal" && previousState.previousTrackingState) {
+                    let nd = new Uint8Array(done);
+                    nd[previousState.idx] = 1;
+                    setDone(nd);
+                  }
+                } else if (previousState.type === "swap") {
+                   const { symbolA, symbolB } = previousState;
+                   currentPal = currentPal.map(p => {
+                     if (p.id === symbolA.currentId) return { ...p, id: symbolA.previousThreadCode, name: symbolA.previousName, rgb: symbolA.previousRgb, lab: symbolA.previousLab };
+                     if (p.id === symbolB.currentId) return { ...p, id: symbolB.previousThreadCode, name: symbolB.previousName, rgb: symbolB.previousRgb, lab: symbolB.previousLab };
+                     return p;
+                   });
+
+                   currentPat = currentPat.map(cell => {
+                     if (cell.id === symbolA.currentId) return { ...cell, id: symbolA.previousThreadCode, name: symbolA.previousName, rgb: symbolA.previousRgb, lab: symbolA.previousLab };
+                     if (cell.id === symbolB.currentId) return { ...cell, id: symbolB.previousThreadCode, name: symbolB.previousName, rgb: symbolB.previousRgb, lab: symbolB.previousLab };
+                     return cell;
+                   });
                 }
-                return cell;
-              });
+              }
 
               const newCmap = {};
-              originalPal.forEach(p => { newCmap[p.id] = p; });
+              currentPal.forEach(p => { newCmap[p.id] = p; });
 
-              setThreadOwned(originalThreadOwned);
-              setPat(newPat);
-              setPal(originalPal);
+              setThreadOwned(currentThreadOwned);
+              setPat(currentPat);
+              setPal(currentPal);
               setCmap(newCmap);
+              setSingleStitchEdits(currentSingleStitchEdits);
               setEditHistory([]);
               setIsEditMode(false);
               setShowExitEditModal(false);

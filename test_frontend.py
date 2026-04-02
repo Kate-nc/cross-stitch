@@ -1,69 +1,58 @@
 from playwright.sync_api import sync_playwright
-import base64
-import time
-import os
 
-dummy_png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-
-def main():
-    with open("dummy.png", "wb") as f:
-        f.write(base64.b64decode(dummy_png_b64))
-
+def run_test():
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        context = browser.new_context(bypass_csp=True)
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(viewport={"width": 1280, "height": 1024}, bypass_csp=True)
         page = context.new_page()
 
-        print("Navigating to http://localhost:8000/index.html")
-        page.goto("http://localhost:8000/index.html")
+        # Load tracker
+        page.goto("http://localhost:8000/stitch.html")
+        page.wait_for_selector("button:has-text('Load Project')", timeout=10000)
 
-        # Wait for "Create New Pattern" area
-        page.wait_for_selector("text=Create New Pattern")
-
-        print("Uploading dummy image...")
+        # Upload valid dummy
         with page.expect_file_chooser() as fc_info:
-            page.click("text=Create New Pattern")
+            page.locator("button:has-text('Load Project')").click()
         file_chooser = fc_info.value
-        file_chooser.set_files("dummy.png")
+        file_chooser.set_files("test_proj2.json")
 
-        # Wait for "Generate Pattern" button
-        page.wait_for_selector("text=Generate Pattern")
-        print("Image uploaded successfully.")
+        page.wait_for_timeout(2000)
 
-        print("Generating pattern...")
-        page.click("text=Generate Pattern")
+        # We can run JS to click it since Playwright selectors are acting strange.
+        page.evaluate("document.querySelectorAll('button').forEach(b => { if(b.textContent === 'Edit Mode') b.click(); })")
 
-        # Wait for the tabs to appear
-        page.wait_for_selector("button.tab-button:has-text('Export')")
-        print("Pattern generated successfully.")
+        page.wait_for_timeout(1000)
 
-        print("Clicking Export tab...")
-        page.click("button.tab-button:has-text('Export')")
+        # Click the second stitch
+        canvas = page.locator("canvas")
+        box = canvas.bounding_box()
+        # Click upper-right cell (approx)
+        page.mouse.click(box["x"] + box["width"] * 0.75, box["y"] + box["height"] * 0.25)
 
-        # Wait a bit to ensure it rendered
-        time.sleep(1)
+        page.wait_for_timeout(1000)
+        page.screenshot(path="tracker_edit_popover.png")
 
-        # Verify Download Pattern PDF button exists
-        page.wait_for_selector("text=Download Pattern PDF")
-        print("Download Pattern PDF button found.")
+        # Click remove stitch
+        page.once("dialog", lambda dialog: dialog.accept())
+        page.evaluate("document.querySelectorAll('button').forEach(b => { if(b.textContent.includes('Remove Stitch')) b.click(); })")
+        page.wait_for_timeout(500)
 
-        # Verify Save (.json) button exists
-        page.wait_for_selector("text=Save (.json)")
-        print("Save (.json) button found.")
+        page.screenshot(path="tracker_edit_remove.png")
 
-        # Try to click "Save (.json)" to trigger download
-        with page.expect_download() as download_info:
-            page.click("button:has-text('Save (.json)')")
-        download = download_info.value
-        path = download.path()
-        print(f"Downloaded project to {path}")
+        # Close edit mode modal (Apply changes)
+        page.evaluate("document.querySelectorAll('button').forEach(b => { if(b.textContent === 'Tracking Mode') b.click(); })")
+        page.wait_for_timeout(500)
 
-        if os.path.exists(path) and os.path.getsize(path) > 0:
-            print("Save functionality works.")
-        else:
-            print("Save functionality failed.")
+        # In case the modal appears
+        try:
+            page.evaluate("document.querySelectorAll('button').forEach(b => { if(b.textContent === 'Apply') b.click(); })")
+        except:
+            pass
+
+        page.wait_for_timeout(500)
+        page.screenshot(path="tracker_edit_applied.png")
 
         browser.close()
 
 if __name__ == "__main__":
-    main()
+    run_test()
