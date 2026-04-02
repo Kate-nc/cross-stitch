@@ -130,7 +130,19 @@ useEffect(()=>{
   return()=>{if(previewTimerRef.current)clearTimeout(previewTimerRef.current);};
 },[generatePreview]);
 
-function setTool(tool){if(activeTool===tool){setActiveTool(null);setBsStart(null);setFracMode(null);return;}setActiveTool(tool);setBsStart(null);if(tool==="fracFwd"){setFracMode("fwd");}else if(tool==="fracBack"){setFracMode("back");}else{setFracMode(null);}}
+function setTool(tool){
+  if(activeTool===tool){setActiveTool(null);setBsStart(null);setFracMode(null);return;}
+  setActiveTool(tool);setBsStart(null);
+  if(tool==="fracFwd"){
+     setFracMode("fwd");
+     localStorage.setItem("halfStitchSeen", "true");
+  }else if(tool==="fracBack"){
+     setFracMode("back");
+     localStorage.setItem("halfStitchSeen", "true");
+  }else{
+     setFracMode(null);
+  }
+}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 
 function resetAll(){
@@ -398,25 +410,50 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
            }
            ctx.clip();
            if(view==="color"||view==="both"){
-             ctx.fillStyle=`rgba(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]},${alpha})`;ctx.fillRect(px,py,cSz,cSz);
+             // Half stitches get a very specific triangle tint and diagonal line
+             if(comp.type==="half"){
+               ctx.fillStyle=`rgba(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]},${dim ? 0.04 : 0.12})`;
+               ctx.fillRect(px,py,cSz,cSz);
+
+               if(cSz>=6){ // Line optimization
+                 ctx.beginPath();
+                 if(comp.orientation==="backslash"){ ctx.moveTo(px,py);ctx.lineTo(px+cSz,py+cSz); }
+                 else { ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz,py); }
+                 ctx.strokeStyle=dim?"rgba(113,113,122,0.1)":`rgb(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]})`;
+                 ctx.lineWidth=2;ctx.lineCap="round";ctx.stroke();
+               }
+             } else {
+               ctx.fillStyle=`rgba(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]},${alpha})`;ctx.fillRect(px,py,cSz,cSz);
+             }
            } else {
              ctx.fillStyle=dim?"rgba(245,245,245,"+alpha+")":`rgba(255,255,255,${alpha})`;ctx.fillRect(px,py,cSz,cSz);
+             if(comp.type==="half" && cSz>=6){
+                 ctx.beginPath();
+                 if(comp.orientation==="backslash"){ ctx.moveTo(px,py);ctx.lineTo(px+cSz,py+cSz); }
+                 else { ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz,py); }
+                 ctx.strokeStyle=dim?"rgba(113,113,122,0.1)":"rgba(51,51,51,0.5)";
+                 ctx.lineWidth=2;ctx.lineCap="round";ctx.stroke();
+             }
            }
            if((view==="symbol"||view==="both")&&ci&&cSz>=10){ // need slightly larger size for split symbols
              let lum=luminance(ci.rgb);
              ctx.fillStyle=dim?"rgba(0,0,0,0.08)":(view==="both"?(lum>128?"#000":"#fff"):"#333");
-             ctx.font=`bold ${Math.max(6,cSz*0.4)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
-             let sx=px+cSz/2,sy=py+cSz/2;
-             if(comp.type==="quarter"){
-                if(path.start[0]===0&&path.start[1]===0){ sx=px+cSz*0.25; sy=py+cSz*0.25; }
-                else if(path.start[0]===2&&path.start[1]===0){ sx=px+cSz*0.75; sy=py+cSz*0.25; }
-                else if(path.start[0]===0&&path.start[1]===2){ sx=px+cSz*0.25; sy=py+cSz*0.75; }
-                else if(path.start[0]===2&&path.start[1]===2){ sx=px+cSz*0.75; sy=py+cSz*0.75; }
-             } else if(comp.type==="half") {
-                if(comp.orientation==="backslash"){ sx=px+cSz*0.25; sy=py+cSz*0.75; }
-                else { sx=px+cSz*0.75; sy=py+cSz*0.75; }
+             if(dim) ctx.fillStyle = "rgba(0,0,0,0)"; // hide symbol if dimmed completely
+             if(!dim) {
+               ctx.font=`bold ${Math.max(6,cSz*0.4)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+               let sx=px+cSz/2,sy=py+cSz/2;
+               if(comp.type==="quarter"){
+                  if(path.start[0]===0&&path.start[1]===0){ sx=px+cSz*0.25; sy=py+cSz*0.25; }
+                  else if(path.start[0]===2&&path.start[1]===0){ sx=px+cSz*0.75; sy=py+cSz*0.25; }
+                  else if(path.start[0]===0&&path.start[1]===2){ sx=px+cSz*0.25; sy=py+cSz*0.75; }
+                  else if(path.start[0]===2&&path.start[1]===2){ sx=px+cSz*0.75; sy=py+cSz*0.75; }
+               } else if(comp.type==="half") {
+                  // Center symbol on the diagonal line roughly
+                  if(comp.orientation==="backslash"){ sx=px+cSz*0.35; sy=py+cSz*0.65; }
+                  else { sx=px+cSz*0.65; sy=py+cSz*0.65; }
+               }
+               ctx.fillText(ci.symbol,sx,sy);
              }
-             ctx.fillText(ci.symbol,sx,sy);
            }
            ctx.restore();
         });
@@ -1106,10 +1143,24 @@ return(
             <button onClick={()=>setTool("backstitch")} style={tBtn(activeTool==="backstitch")}>Backstitch</button>
             {activeTool==="backstitch"&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer"}}><input type="checkbox" checked={bsContinuous} onChange={e=>{setBsContinuous(e.target.checked);setBsStart(null);}}/>Continuous</label>}
             <button onClick={()=>setTool("eraseBs")} style={tBtn(activeTool==="eraseBs")}>Erase line</button>
-            <button onClick={()=>setTool("paint")} style={tBtn(activeTool==="paint")}>Paint</button>
-            <button onClick={()=>setTool("fill")} style={tBtn(activeTool==="fill")}>Fill</button>
-            <button onClick={()=>setTool("fracFwd")} style={tBtn(activeTool==="fracFwd")}>Half stitch /</button>
-            <button onClick={()=>setTool("fracBack")} style={tBtn(activeTool==="fracBack")}>Half stitch \</button>
+            <button onClick={()=>setTool("paint")} style={tBtn(activeTool==="paint")} title="Paint full stitch">
+               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7l10 10M17 7L7 17"/></svg>
+            </button>
+            <button onClick={()=>setTool("fill")} style={tBtn(activeTool==="fill")} title="Fill area">Fill</button>
+            <div style={{width:1,height:18,background:"#e4e4e7",margin:"0 2px"}}/>
+            <button onClick={()=>setTool("fracFwd")} style={{...tBtn(activeTool==="fracFwd"), position:"relative"}} title="Half stitch (bottom-left to top-right)">
+               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" strokeOpacity="0.4"/><path d="M7 17L17 7"/></svg>
+               {(!localStorage.getItem("halfStitchSeen")) && <span style={{position:"absolute", top:-4, right:-4, width:8, height:8, background:"#ef4444", borderRadius:"50%"}}/>}
+            </button>
+            <button onClick={()=>setTool("fracBack")} style={{...tBtn(activeTool==="fracBack"), position:"relative"}} title="Half stitch (top-left to bottom-right)">
+               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" strokeOpacity="0.4"/><path d="M7 7l10 10"/></svg>
+               {(!localStorage.getItem("halfStitchSeen")) && <span style={{position:"absolute", top:-4, right:-4, width:8, height:8, background:"#ef4444", borderRadius:"50%"}}/>}
+            </button>
+
+            {(activeTool==="fracFwd"||activeTool==="fracBack") && <div style={{position:"absolute",top:60,left:"50%",transform:"translateX(-50%)",background:"#18181b",color:"#fff",padding:"8px 12px",borderRadius:8,fontSize:12,zIndex:100,boxShadow:"0 10px 15px -3px rgba(0,0,0,0.1)", pointerEvents:"none", display:"flex", flexDirection:"column", gap:4}}>
+               <div style={{fontWeight:600}}>Half stitch tool</div>
+               <div style={{color:"#a1a1aa"}}>Tap a cell to place. Coloured triangle shows coverage. Tap again to remove.</div>
+            </div>}
             {(activeTool==="paint"||activeTool==="fill"||activeTool==="fracFwd"||activeTool==="fracBack")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
             <div style={{marginLeft:"auto",display:"flex",gap:4}}>
               {editHistory.length>0&&<button onClick={()=>{let last=editHistory[editHistory.length-1],np=pat.slice();last.changes.forEach(c2=>np[c2.idx]={...c2.old});setPat(np);setEditHistory(prev=>prev.slice(0,-1));let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
@@ -1238,7 +1289,40 @@ return(
             </select>
             <span style={{fontSize:11,color:"#a1a1aa"}}>Total skeins: {totalSkeins}</span>
           </div>
-          <div style={{overflow:"auto",maxHeight:540}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}><thead><tr style={{background:"#fafafa"}}>{["Sym","","DMC","Name","Type","Stitches","Skeins",done?"Done":""].filter(Boolean).map((h,i)=><th key={i} style={{padding:"8px 10px",textAlign:i>=5?"right":"left",borderBottom:"2px solid #e4e4e7",color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}}>{h}</th>)}</tr></thead><tbody>{pal.map((p,i)=>{let dc=colourDoneCounts[p.id]||{total:0,done:0};let sk=skeinEst(p.count,fabricCt);return<tr key={i} onClick={()=>{setHiId(hiId===p.id?null:p.id);setTab("pattern");}} style={{borderBottom:"0.5px solid #f4f4f5",cursor:"pointer",background:hiId===p.id?"#fff7ed":"transparent"}}><td style={{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}>{p.symbol}</td><td style={{padding:"6px 10px"}}><div style={{width:24,height:24,borderRadius:5,background:`rgb(${p.rgb})`,border:"0.5px solid #e4e4e7",display:"inline-block"}}/></td><td style={{padding:"6px 10px",fontWeight:600}}>{p.id}</td><td style={{padding:"6px 10px",fontSize:11,color:"#71717a"}}>{p.type==="blend"?p.threads[0].name+" + "+p.threads[1].name:p.name}</td><td style={{padding:"6px 10px"}}><span style={{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:p.type==="blend"?"#fff7ed":"#f0fdf4",color:p.type==="blend"?"#ea580c":"#16a34a"}}>{p.type==="blend"?"Blend":"Solid"}</span></td><td style={{padding:"6px 10px",textAlign:"right"}}>{p.count.toLocaleString()}</td><td style={{padding:"6px 10px",textAlign:"right",fontWeight:600}}>{sk}</td>{done&&<td style={{padding:"6px 10px",textAlign:"right"}}><span style={{color:dc.done>=dc.total?"#16a34a":"#71717a"}}>{dc.done}/{dc.total}</span></td>}</tr>;})}</tbody></table></div>
+          <div style={{overflow:"auto",maxHeight:540}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{background:"#fafafa"}}>{["Icon","Sym","","DMC","Name","Type","Stitches","Skeins",done?"Done":""].filter(Boolean).map((h,i)=><th key={i} style={{padding:"8px 10px",textAlign:(h==="Stitches"||h==="Skeins"||h==="Done")?"right":"left",borderBottom:"2px solid #e4e4e7",color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+              <tbody>
+                {pal.flatMap((p,i)=>{
+                   let rows = [];
+                   let fullCt = Math.max(0, p.count - (p.halfCount * 0.5));
+                   if (fullCt > 0 || p.halfCount === 0) {
+                     rows.push({ ...p, isHalf: false, displayCount: fullCt });
+                   }
+                   if (p.halfCount > 0) {
+                     rows.push({ ...p, isHalf: true, displayCount: p.halfCount });
+                   }
+                   return rows;
+                }).map((p,i)=>{
+                   let dc=colourDoneCounts[p.id]||{total:0,done:0};
+                   let sk=skeinEst(p.displayCount * (p.isHalf ? 0.5 : 1.0),fabricCt);
+                   return<tr key={i} onClick={()=>{setHiId(hiId===p.id?null:p.id);setTab("pattern");}} style={{borderBottom:"0.5px solid #f4f4f5",cursor:"pointer",background:hiId===p.id?"#fff7ed":"transparent"}}>
+                     <td style={{padding:"6px 10px"}}>
+                       {p.isHalf ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{color:"#a1a1aa"}}><polygon points="3,21 21,21 3,3"/></svg> : <div style={{width:10,height:10,background:"#a1a1aa",display:"inline-block"}}/>}
+                     </td>
+                     <td style={{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}>{p.symbol}</td>
+                     <td style={{padding:"6px 10px"}}><div style={{width:24,height:24,borderRadius:5,background:`rgb(${p.rgb})`,border:"0.5px solid #e4e4e7",display:"inline-block"}}/></td>
+                     <td style={{padding:"6px 10px",fontWeight:600}}>{p.id}</td>
+                     <td style={{padding:"6px 10px",fontSize:11,color:"#71717a"}}>{p.type==="blend"?p.threads[0].name+" + "+p.threads[1].name:p.name} <span style={{fontSize:10,color:"#d4d4d8"}}>— {p.isHalf?"Half stitch":"Full cross"}</span></td>
+                     <td style={{padding:"6px 10px"}}><span style={{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:p.type==="blend"?"#fff7ed":"#f0fdf4",color:p.type==="blend"?"#ea580c":"#16a34a"}}>{p.type==="blend"?"Blend":"Solid"}</span></td>
+                     <td style={{padding:"6px 10px",textAlign:"right"}}>{p.displayCount.toLocaleString()}</td>
+                     <td style={{padding:"6px 10px",textAlign:"right",fontWeight:600}}>{sk}</td>
+                     {done&&<td style={{padding:"6px 10px",textAlign:"right"}}><span style={{color:dc.done>=dc.total?"#16a34a":"#71717a"}}>{p.isHalf?"-":`${dc.done}/${dc.total}`}</span></td>}
+                   </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>}
 
         {/* ═══ EXPORT TAB ═══ */}

@@ -106,8 +106,19 @@ function buildPalette(patArr){
   let usage={};
   for(let i=0;i<patArr.length;i++){
     let m=patArr[i];if(m.id==="__skip__")continue;
-    if(!usage[m.id])usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};
-    usage[m.id].count++;
+    if(m.type==="fractional"&&m.components){
+       m.components.forEach(comp=>{
+           if(!usage[comp.id])usage[comp.id]={id:comp.id,type:"solid",name:"",rgb:[128,128,128],lab:[50,0,0],count:0,halfCount:0};
+           let t=DMC.find(d=>d.id===comp.id);
+           if(t){ usage[comp.id].name=t.name;usage[comp.id].rgb=t.rgb;usage[comp.id].lab=t.lab; }
+           let vol = comp.type==="half"?0.5:0.25;
+           usage[comp.id].count += vol;
+           if(comp.type==="half") usage[comp.id].halfCount++;
+       });
+    }else{
+       if(!usage[m.id])usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0,halfCount:0};
+       usage[m.id].count++;
+    }
   }
   let entries=Object.values(usage).sort((a,b)=>b.count-a.count);
   entries.forEach((e,i)=>{

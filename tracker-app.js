@@ -437,28 +437,59 @@ function drawStitch(ctx,cSz,viewportRect=null){
            }
            ctx.clip();
 
-           if(stitchView==="symbol"){
-             if(isCompDone){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-             else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);}
-           }else if(stitchView==="colour"){
-             ctx.fillStyle=`rgb(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
+           if(comp.type==="half"){
+             let fillOp = isCompDone ? 0.40 : 0.06;
+             let lineOp = isCompDone ? 1.0 : 0.25;
+             let strokeWidth = isCompDone ? 2.5 : 1.5;
+             if(isDimmed){ fillOp=0.04; lineOp=0.10; }
+
+             ctx.fillStyle=`rgba(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]},${fillOp})`;
+             ctx.fillRect(px,py,cSz,cSz);
+
+             if(cSz>=6){
+                 ctx.beginPath();
+                 if(comp.orientation==="backslash"){ ctx.moveTo(px,py);ctx.lineTo(px+cSz,py+cSz); }
+                 else { ctx.moveTo(px,py+cSz);ctx.lineTo(px+cSz,py); }
+                 if(isDimmed) {
+                    ctx.strokeStyle=`rgba(113,113,122,${lineOp})`;
+                 } else {
+                    ctx.strokeStyle=`rgba(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]},${lineOp})`;
+                 }
+                 ctx.lineWidth=Math.max(1, cSz*(strokeWidth/20));
+                 ctx.lineCap="round";ctx.stroke();
+             }
            }else{
-             if(isCompDone){ctx.fillStyle=isDimmed?"#f4f4f5":`rgb(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-             else if(isDimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);}
-             else{ctx.fillStyle=`rgba(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);}
+             if(stitchView==="symbol"){
+               if(isCompDone){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
+               else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);}
+             }else if(stitchView==="colour"){
+               ctx.fillStyle=`rgb(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
+             }else{
+               if(isCompDone){ctx.fillStyle=isDimmed?"#f4f4f5":`rgb(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+               else if(isDimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);}
+               else{ctx.fillStyle=`rgba(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);}
+             }
            }
 
            let showSym = false;
-           if(stitchView==="symbol" && !isCompDone) showSym=true;
-           else if(stitchView==="colour" && !isCompDone) showSym=true;
-           else if(stitchView==="highlight" && !isCompDone && !isDimmed) showSym=true;
-           else if(stitchView==="highlight" && isDimmed) showSym=true;
+           if(comp.type==="half"){
+               if(!isCompDone && !isDimmed) showSym = true;
+           } else {
+               if(stitchView==="symbol" && !isCompDone) showSym=true;
+               else if(stitchView==="colour" && !isCompDone) showSym=true;
+               else if(stitchView==="highlight" && !isCompDone && !isDimmed) showSym=true;
+               else if(stitchView==="highlight" && isDimmed) showSym=true;
+           }
 
            if(showSym && cSz>=10){
              let lum=luminance(ci.rgb);
-             if(stitchView==="symbol"||isDimmed) ctx.fillStyle="#18181b";
-             else ctx.fillStyle=lum>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";
-             if(isDimmed) { ctx.fillStyle="rgba(0,0,0,0.15)"; }
+             if(comp.type==="half") {
+                 ctx.fillStyle=`rgba(${ci.rgb[0]},${ci.rgb[1]},${ci.rgb[2]},0.3)`;
+             } else {
+                 if(stitchView==="symbol"||isDimmed) ctx.fillStyle="#18181b";
+                 else ctx.fillStyle=lum>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";
+                 if(isDimmed) { ctx.fillStyle="rgba(0,0,0,0.15)"; }
+             }
              ctx.font=`bold ${Math.max(6,cSz*0.4)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
              let sx=px+cSz/2,sy=py+cSz/2;
              if(comp.type==="quarter"){
@@ -468,8 +499,8 @@ function drawStitch(ctx,cSz,viewportRect=null){
                 else if(p[0]===0&&p[1]===2){ sx=px+cSz*0.25; sy=py+cSz*0.75; }
                 else if(p[0]===2&&p[1]===2){ sx=px+cSz*0.75; sy=py+cSz*0.75; }
              } else if(comp.type==="half") {
-                if(comp.orientation==="backslash"){ sx=px+cSz*0.25; sy=py+cSz*0.75; }
-                else { sx=px+cSz*0.75; sy=py+cSz*0.75; }
+                if(comp.orientation==="backslash"){ sx=px+cSz*0.35; sy=py+cSz*0.65; }
+                else { sx=px+cSz*0.65; sy=py+cSz*0.65; }
              }
              ctx.fillText(ci.symbol,sx,sy);
            }
@@ -552,16 +583,44 @@ function handleStitchMouseDown(e){
      let qx = cx < scs*0.5 ? 0 : 2;
      let qy = cy < scs*0.5 ? 0 : 2;
 
-     // Check which component we clicked closest to
+     // Use diagonal line checks for more precise targeting of half stitches
      let clickedComp = null;
-     for(let i=cell.components.length-1; i>=0; i--){
-        let comp = cell.components[i];
-        if(comp.type==="quarter"){
-           if(comp.path.start[0]===qx && comp.path.start[1]===qy) { clickedComp=comp; break; }
-        }else if(comp.type==="half"){
-           if(comp.orientation==="forwardslash" && ((qx===0&&qy===2) || (qx===2&&qy===0))) { clickedComp=comp; break; }
-           if(comp.orientation==="backslash" && ((qx===0&&qy===0) || (qx===2&&qy===2))) { clickedComp=comp; break; }
-        }
+     let clickDist = 999;
+
+     cell.components.forEach(comp => {
+         if(comp.type==="half"){
+             let cxMid = cx - scs*0.5;
+             let cyMid = cy - scs*0.5;
+             if(comp.orientation==="forwardslash"){
+                 // Triangle boundaries: bottom-right half vs top-left half
+                 // Equation: x + y = scs. Bottom-right means x+y > scs
+                 let isBR = (cx + cy) > scs;
+                 if (isBR) {
+                     clickedComp = comp;
+                 }
+             }else if(comp.orientation==="backslash"){
+                 // Equation: y = x. Bottom-left means y > x.
+                 let isBL = cy > cx;
+                 if (isBL) {
+                     clickedComp = comp;
+                 }
+             }
+         } else if(comp.type==="quarter"){
+             if(comp.path.start[0]===qx && comp.path.start[1]===qy) { clickedComp=comp; }
+         }
+     });
+
+     // Fallback to simpler bounds check if the precise diagonal logic failed
+     if (!clickedComp) {
+         for(let i=cell.components.length-1; i>=0; i--){
+            let comp = cell.components[i];
+            if(comp.type==="quarter"){
+               if(comp.path.start[0]===qx && comp.path.start[1]===qy) { clickedComp=comp; break; }
+            }else if(comp.type==="half"){
+               if(comp.orientation==="forwardslash" && ((qx===0&&qy===2) || (qx===2&&qy===0))) { clickedComp=comp; break; }
+               if(comp.orientation==="backslash" && ((qx===0&&qy===0) || (qx===2&&qy===2))) { clickedComp=comp; break; }
+            }
+         }
      }
      if(clickedComp){
         if(clickedComp.type==="quarter"){
@@ -641,14 +700,30 @@ function handleStitchMouseMove(e){
      let qy = cy < scs*0.5 ? 0 : 2;
 
      let clickedComp = null;
-     for(let i=cell.components.length-1; i>=0; i--){
-        let comp = cell.components[i];
-        if(comp.type==="quarter"){
-           if(comp.path.start[0]===qx && comp.path.start[1]===qy) { clickedComp=comp; break; }
-        }else if(comp.type==="half"){
-           if(comp.orientation==="forwardslash" && ((qx===0&&qy===2) || (qx===2&&qy===0))) { clickedComp=comp; break; }
-           if(comp.orientation==="backslash" && ((qx===0&&qy===0) || (qx===2&&qy===2))) { clickedComp=comp; break; }
-        }
+     cell.components.forEach(comp => {
+         if(comp.type==="half"){
+             if(comp.orientation==="forwardslash"){
+                 let isBR = (cx + cy) > scs;
+                 if (isBR) clickedComp = comp;
+             }else if(comp.orientation==="backslash"){
+                 let isBL = cy > cx;
+                 if (isBL) clickedComp = comp;
+             }
+         } else if(comp.type==="quarter"){
+             if(comp.path.start[0]===qx && comp.path.start[1]===qy) clickedComp=comp;
+         }
+     });
+
+     if (!clickedComp) {
+         for(let i=cell.components.length-1; i>=0; i--){
+            let comp = cell.components[i];
+            if(comp.type==="quarter"){
+               if(comp.path.start[0]===qx && comp.path.start[1]===qy) { clickedComp=comp; break; }
+            }else if(comp.type==="half"){
+               if(comp.orientation==="forwardslash" && ((qx===0&&qy===2) || (qx===2&&qy===0))) { clickedComp=comp; break; }
+               if(comp.orientation==="backslash" && ((qx===0&&qy===0) || (qx===2&&qy===2))) { clickedComp=comp; break; }
+            }
+         }
      }
      if(clickedComp){
         if(clickedComp.type==="quarter"){
@@ -846,6 +921,11 @@ return(
       <Section title="Project Info">
         <div style={{marginTop:8,display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}}>
           {[["Pattern size",`${sW} × ${sH} stitches`],["Total cells",(sW*sH).toLocaleString()],["Stitchable",totalStitchable.toLocaleString()],["Skipped",(sW*sH-totalStitchable).toLocaleString()],["Colours",`${pal.length} (${blendCount} blend${blendCount!==1?"s":""})`],["Skeins needed",`${totalSkeins} (at ${fabricCt}ct)`]].map(([l,v],i)=><div key={i}><div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>{l}</div><div style={{fontSize:14,fontWeight:600,color:"#18181b"}}>{v}</div></div>)}
+        </div>
+        <div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid #e4e4e7",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}}>
+           <div><div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>Full stitches</div><div style={{fontSize:14,fontWeight:600,color:"#18181b"}}>{pal?pal.reduce((s,p)=>s+Math.max(0, p.count-(p.halfCount*0.5)),0).toLocaleString():0}</div></div>
+           <div><div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>Half stitches</div><div style={{fontSize:14,fontWeight:600,color:"#18181b"}}>{pal?pal.reduce((s,p)=>s+p.halfCount,0).toLocaleString():0}</div></div>
+           <div style={{gridColumn:"1 / -1"}}><div style={{fontSize:11,color:"#0d9488",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>Combined Progress</div><div style={{fontSize:14,fontWeight:600,color:"#0d9488"}}>{progressPct}%</div></div>
         </div>
       </Section>
     </div>

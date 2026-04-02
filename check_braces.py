@@ -21,4 +21,4 @@ def check_file(filepath):
             if brace_count == 0:
                 print("ERROR: return is at depth 0 (outside of any function/block)")
 
-check_file('tracker-app.js')
+check_file('creator-app.js')
