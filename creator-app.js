@@ -155,7 +155,7 @@ function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);s
 function resetAll(){
   setPat(null);setPal(null);setCmap(null);setHiId(null);setBsLines([]);setBsStart(null);
   setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setExportPage(0);
-  setHalfStitchOnboarding(false);
+  if (localStorage.getItem("halfStitchOnboardingSeen") === "true") setHalfStitchOnboarding(false);
   setDone(null);setParkMarkers([]);setHlRow(-1);setHlCol(-1);
   setTotalTime(0);setSessions([]);setThreadOwned({});
   setHasGenerated(false);
@@ -418,7 +418,7 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
       }
   }
 
-  for(let y2=startY;y2<endY;y2++)for(let x2=startX;x2<endX;x2++){let idx=(offY+y2)*sW+(offX+x2);let m=pat[idx];if(!m)continue;let info=m.id==="__skip__"?null:(cmap?cmap[m.id]:null);let px=gut+x2*cSz,py=gut+y2*cSz;let isHi=!hiId||m.id===hiId;let dim=hiId&&!isHi&&m.id!=="__skip__";
+  for(let y2=startY;y2<endY;y2++){for(let x2=startX;x2<endX;x2++){let idx=(offY+y2)*sW+(offX+x2);let m=pat[idx];if(!m)continue;let info=m.id==="__skip__"?null:(cmap?cmap[m.id]:null);let px=gut+x2*cSz,py=gut+y2*cSz;let isHi=!hiId||m.id===hiId;let dim=hiId&&!isHi&&m.id!=="__skip__";
     if(m.id==="__skip__"){
       if(showOverlayImg){
         ctx.globalAlpha=0.2;drawCk(ctx,px,py,cSz);ctx.globalAlpha=1.0;
@@ -557,14 +557,6 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
             ctx.strokeStyle=`rgba(0,0,0,${sAlpha})`;ctx.strokeRect(px,py,cSz,cSz);
         }
     }
-
-    // Check if this cell is currently flashing red
-    if (redFlashCell === i) {
-        ctx.strokeStyle = "rgba(255, 0, 0, 0.8)";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(px+1, py+1, cSz-2, cSz-2);
-        ctx.lineWidth = 1;
-    }
     else if(view==="color"||view==="both"){
       let alpha = 1.0;
       if (dim) alpha = 0.15;
@@ -586,7 +578,7 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
       if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
       ctx.strokeStyle=`rgba(0,0,0,${sAlpha})`;ctx.strokeRect(px,py,cSz,cSz);
     }
-  }
+  }}
   if(cSz>=3){ctx.strokeStyle="rgba(0,0,0,0.2)";ctx.lineWidth=cSz>=8?1.5:1;for(let gx=Math.floor(startX/10)*10;gx<=endX;gx+=10){ctx.beginPath();ctx.moveTo(gut+gx*cSz, Math.max(gut, viewportRect ? viewportRect.top : 0));ctx.lineTo(gut+gx*cSz, Math.min(gut+dH*cSz, viewportRect ? viewportRect.bottom : gut+dH*cSz));ctx.stroke();}for(let gy=Math.floor(startY/10)*10;gy<=endY;gy+=10){ctx.beginPath();ctx.moveTo(Math.max(gut, viewportRect ? viewportRect.left : 0), gut+gy*cSz);ctx.lineTo(Math.min(gut+dW*cSz, viewportRect ? viewportRect.right : gut+dW*cSz), gut+gy*cSz);ctx.stroke();}}
   if(showCtr){ctx.strokeStyle="rgba(200,60,60,0.3)";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);let cx2=Math.floor(sW/2)-offX,cy2=Math.floor(sH/2)-offY;if(cx2>=startX&&cx2<=endX){ctx.beginPath();ctx.moveTo(gut+cx2*cSz, Math.max(gut, viewportRect ? viewportRect.top : 0));ctx.lineTo(gut+cx2*cSz, Math.min(gut+dH*cSz, viewportRect ? viewportRect.bottom : gut+dH*cSz));ctx.stroke();}if(cy2>=startY&&cy2<=endY){ctx.beginPath();ctx.moveTo(Math.max(gut, viewportRect ? viewportRect.left : 0), gut+cy2*cSz);ctx.lineTo(Math.min(gut+dW*cSz, viewportRect ? viewportRect.right : gut+dW*cSz), gut+cy2*cSz);ctx.stroke();}ctx.setLineDash([]);}
   if(bsLines.length>0){
