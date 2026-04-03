@@ -1,61 +1,34 @@
-import sys
-import re
-
 with open("creator-app.js", "r") as f:
     content = f.read()
 
-useEffect_str = """useEffect(() => {
+autosave_code = """
+useEffect(() => {
     // Automatically load from IndexedDB on startup
     loadProjectFromDB().then(project => {
         if (project && project.pattern && project.settings) {
             processLoadedProject(project);
         }
     });
-}, []);"""
+}, []);
 
-new_useEffect_str = """useEffect(() => {
-  // Check for handoff from Tracker
-  const handoff = localStorage.getItem('crossstitch_handoff');
-  if (handoff) {
-    try {
-      const projectData = JSON.parse(handoff);
-      localStorage.removeItem('crossstitch_handoff'); // one-time read
-      processLoadedProject(projectData);
-      return; // Skip DB load if handoff successful
-    } catch (e) {
-      console.error('Failed to load handoff data:', e);
-    }
-  }
+// Auto-save effect
+useEffect(() => {
+    if (!pat || !pal) return;
+    const saveTimer = setTimeout(() => {
+        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+        saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
+    }, 1000); // 1-second debounce
 
-  // Also check URL params for shared links
-  const hash = window.location.hash.slice(1);
-  if (hash.startsWith('p=')) {
-    try {
-      const encoded = hash.slice(2);
-      const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-      const binaryStr = atob(base64);
-      const binaryData = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) binaryData[i] = binaryStr.charCodeAt(i);
-      const decompressed = pako.inflate(binaryData, { to: 'string' });
-      const project = JSON.parse(decompressed);
-      processLoadedProject(project);
-      window.location.hash = ''; // Clear hash after loading
-      return; // Skip DB load if URL load successful
-    } catch (err) {
-      console.error("Failed to load from URL:", err);
-      setLoadError("Failed to load pattern from link.");
-    }
-  }
+    return () => clearTimeout(saveTimer);
+}, [pat, pal, sW, sH, maxC, bri, con, sat, dith, skipBg, bgTh, bgCol, minSt, arLock, ar, fabricCt, skeinPrice, stitchSpeed, smooth, smoothType, orphans, bsLines, done, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned, img]);
+"""
 
-  // Fallback to IndexedDB on startup
-  loadProjectFromDB().then(project => {
-    if (project && project.pattern && project.settings) {
-      processLoadedProject(project);
-    }
-  });
-}, []);"""
+target = """function loadProject(e){let f=e.target.files[0];if(!f)return;setLoadError(null);let rd=new FileReader();rd.onload=ev=>{try{
+  let project=JSON.parse(ev.target.result);if(!project.pattern||!project.settings)throw new Error("Invalid");
+  processLoadedProject(project);
+}catch(err){console.error(err);setLoadError("Could not load: "+err.message);setTimeout(()=>setLoadError(null),4000);}};rd.readAsText(f);if(loadRef.current)loadRef.current.value="";}"""
 
-content = content.replace(useEffect_str, new_useEffect_str)
+new_content = content.replace(target, target + "\n" + autosave_code)
 
 with open("creator-app.js", "w") as f:
-    f.write(content)
+    f.write(new_content)

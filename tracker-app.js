@@ -253,96 +253,6 @@ function applyUndo() {
   }
 }
 
-function handleEditInCreator(){
-  if(!pat||!pal)return;
-  const sseArr = [...singleStitchEdits.entries()];
-  let project={
-    version:8,
-    page:"tracker",
-    settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
-    pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),
-    bsLines,
-    done:done?Array.from(done):null,
-    parkMarkers,
-    totalTime:totalTime+(sessionActive?Math.floor((Date.now()-sessionStart)/1000):0),
-    sessions,
-    hlRow,
-    hlCol,
-    threadOwned,
-    originalPaletteState,
-    singleStitchEdits: sseArr
-  };
-  try{
-    localStorage.setItem('crossstitch_handoff', JSON.stringify(project));
-    window.location.href = 'index.html?source=tracker';
-  }catch(e){
-    try{
-      let pl = pat.map(m=>{
-          if (m.id==="__skip__") return ["__skip__", "k"];
-          return [m.id, m.type==="blend"?"b":"s"];
-      });
-      let minimal = { v: 8, w: sW, h: sH, fc: fabricCt, bs: bsLines, p: pl };
-      let str = JSON.stringify(minimal);
-      let compressed = pako.deflate(str);
-      let binaryStr = "";
-      for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
-      let b64 = btoa(binaryStr).replace(/\+/g, '-').replace(/\//g, '_');
-      if (b64.length > 8000) {
-          alert("Pattern too large for direct transfer. Please use Save Project (.json) instead and load it in the Creator.");
-          return;
-      }
-      window.location.href = 'index.html#p=' + b64;
-    }catch(e2){
-      alert('Pattern is too large for direct transfer. Please save the file and open it in the Creator.');
-    }
-  }
-}
-
-function handleEditInCreator(){
-  if(!pat||!pal)return;
-  const sseArr = [...singleStitchEdits.entries()];
-  let project={
-    version:8,
-    page:"tracker",
-    settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
-    pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),
-    bsLines,
-    done:done?Array.from(done):null,
-    parkMarkers,
-    totalTime:totalTime+(sessionActive?Math.floor((Date.now()-sessionStart)/1000):0),
-    sessions,
-    hlRow,
-    hlCol,
-    threadOwned,
-    originalPaletteState,
-    singleStitchEdits: sseArr
-  };
-  try{
-    localStorage.setItem('crossstitch_handoff', JSON.stringify(project));
-    window.location.href = 'index.html?source=tracker';
-  }catch(e){
-    try{
-      let pl = pat.map(m=>{
-          if (m.id==="__skip__") return ["__skip__", "k"];
-          return [m.id, m.type==="blend"?"b":"s"];
-      });
-      let minimal = { v: 8, w: sW, h: sH, fc: fabricCt, bs: bsLines, p: pl };
-      let str = JSON.stringify(minimal);
-      let compressed = pako.deflate(str);
-      let binaryStr = "";
-      for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
-      let b64 = btoa(binaryStr).replace(/\+/g, '-').replace(/\//g, '_');
-      if (b64.length > 8000) {
-          alert("Pattern too large for direct transfer. Please use Save Project (.json) instead and load it in the Creator.");
-          return;
-      }
-      window.location.href = 'index.html#p=' + b64;
-    }catch(e2){
-      alert('Pattern is too large for direct transfer. Please save the file and open it in the Creator.');
-    }
-  }
-}
-
 function saveProject(){
   if(!pat||!pal)return;
   // Serialise singleStitchEdits Map as array of [cellIdx, {originalId, currentId}] pairs
@@ -373,6 +283,31 @@ function saveProject(){
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+function handleEditInCreator(){
+  if(!pat||!pal)return;
+  let project={version:8,page:"tracker",settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice:1.2,stitchSpeed:40,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:Array.from(done),parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:null};
+  try{
+    localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(project));
+    window.location.href = "index.html?source=tracker";
+  }catch(e){
+    try{
+      let str = JSON.stringify(project);
+      let compressed = pako.deflate(str);
+      let binaryStr = "";
+      for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
+      let b64 = btoa(binaryStr).replace(/\+/g, "-").replace(/\//g, "_");
+      if (b64.length > 8000) {
+          alert("Pattern too large for direct transfer. Please use Save Project (.json) instead and load it in the Creator.");
+          return;
+      }
+      window.location.href = "index.html#p=" + b64;
+    }catch(e2){
+      alert("Pattern is too large for direct transfer. Please save the file and open it in the Creator.");
+    }
+  }
+}
+
 
 function handleSymbolReassignment(oldColorId, newThread) {
   if (!pat || !pal || !cmap) return;
@@ -570,40 +505,38 @@ function loadProject(e){
 }
 
 useEffect(() => {
-  // Check for handoff from Creator or Manager
   const handoff = localStorage.getItem('crossstitch_handoff');
   if (handoff) {
     try {
       const projectData = JSON.parse(handoff);
-      localStorage.removeItem('crossstitch_handoff'); // one-time read
+      localStorage.removeItem('crossstitch_handoff');
       processLoadedProject(projectData);
-      return; // Skip URL check if handoff successful
+      return;
     } catch (e) {
-      console.error('Failed to load handoff data:', e);
+      console.error("Failed to load handoff:", e);
     }
   }
-
-  // Check URL hash for shared project
-  const hash = window.location.hash.slice(1);
-  if (hash.startsWith('p=')) {
-      try {
-          const encoded = hash.slice(2);
-          // Replace base64url characters
-          const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-          const binaryStr = atob(base64);
-          const binaryData = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-              binaryData[i] = binaryStr.charCodeAt(i);
-          }
-          const decompressed = pako.inflate(binaryData, { to: 'string' });
-          const project = JSON.parse(decompressed);
-          processLoadedProject(project);
-          window.location.hash = ''; // Clear hash after loading
-      } catch (err) {
-          console.error("Failed to load from URL:", err);
-          setLoadError("Failed to load pattern from link.");
-      }
-  }
+    // Check URL hash for shared project
+    const hash = window.location.hash.slice(1);
+    if (hash.startsWith('p=')) {
+        try {
+            const encoded = hash.slice(2);
+            // Replace base64url characters
+            const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+            const binaryStr = atob(base64);
+            const binaryData = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) {
+                binaryData[i] = binaryStr.charCodeAt(i);
+            }
+            const decompressed = pako.inflate(binaryData, { to: 'string' });
+            const project = JSON.parse(decompressed);
+            processLoadedProject(project);
+            window.location.hash = ''; // Clear hash after loading
+        } catch (err) {
+            console.error("Failed to load from URL:", err);
+            setLoadError("Failed to load pattern from link.");
+        }
+    }
 }, []);
 
 function drawStitch(ctx,cSz,viewportRect){

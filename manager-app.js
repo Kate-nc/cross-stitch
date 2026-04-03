@@ -657,6 +657,10 @@ function ManagerApp() {
 }
 
 function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile }) {
+  function handleTrack() {
+    localStorage.setItem("crossstitch_handoff", JSON.stringify(pattern));
+    window.location.href = "stitch.html?source=manager";
+  }
   const [edited, setEdited] = useState({ ...pattern, threads: pattern.threads || [], fabric: pattern.fabric || "", project_overrides: pattern.project_overrides || null });
   const [threadInput, setThreadInput] = useState("");
   const [threadQty, setThreadQty] = useState(1);
@@ -946,6 +950,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
 
         <div style={{ padding: "16px 20px", borderTop: "1px solid #e4e4e7", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fafafa", borderRadius: "0 0 8px 8px" }}>
           <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #e4e4e7", background: "#fff", cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+          <button onClick={handleTrack} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#ea580c", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Start Tracking →</button>
           <button onClick={() => onSave(edited)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save Pattern</button>
         </div>
       </div>
@@ -1159,68 +1164,6 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
         </div>
 
         <div style={{ padding: "16px 20px", borderTop: "1px solid #e4e4e7", display: "flex", justifyContent: "space-between", gap: 10, background: "#fafafa", borderRadius: "0 0 8px 8px" }}>
-          <button onClick={()=>{
-            // Generate a grid based on thread quantities
-            let patternGrid = [];
-            let totalStitches = 0;
-            if (pattern.threads) {
-                pattern.threads.forEach(t => {
-                    let st = t.unit === "stitches" ? t.qty : (t.qty * 800); // approx
-                    for (let i = 0; i < st; i++) {
-                        patternGrid.push({ id: t.id, type: t.is_blended ? "blend" : "solid", rgb: [128,128,128] }); // minimal rgb
-                    }
-                    totalStitches += st;
-                });
-            }
-            if (totalStitches === 0) patternGrid.push({ id: "__empty__" });
-
-            let sW = Math.ceil(Math.sqrt(Math.max(1, totalStitches)));
-            let sH = Math.ceil(totalStitches / sW);
-
-            // pad grid
-            while (patternGrid.length < sW * sH) {
-                patternGrid.push({ id: "__empty__" });
-            }
-
-            let minimal = { version: 8, page: "tracker", settings: { sW, sH, fabricCt: pattern.fabric ? parseInt(pattern.fabric) || 14 : 14, skeinPrice: 1.0, stitchSpeed: 40 }, pattern: patternGrid, bsLines: [], done: null, parkMarkers: [], totalTime: 0, sessions: [], hlRow: -1, hlCol: -1, threadOwned: inventoryThreads, singleStitchEdits: [] };
-            try{
-              localStorage.setItem('crossstitch_handoff', JSON.stringify(minimal));
-              window.location.href = 'stitch.html?source=manager';
-            }catch(e){
-              alert('Could not open in Tracker: ' + e.message);
-            }
-          }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Start Tracking →</button>
-          <button onClick={()=>{
-            // Generate a grid based on thread quantities
-            let patternGrid = [];
-            let totalStitches = 0;
-            if (pattern.threads) {
-                pattern.threads.forEach(t => {
-                    let st = t.unit === "stitches" ? t.qty : (t.qty * 800); // approx
-                    for (let i = 0; i < st; i++) {
-                        patternGrid.push({ id: t.id, type: t.is_blended ? "blend" : "solid", rgb: [128,128,128] }); // minimal rgb
-                    }
-                    totalStitches += st;
-                });
-            }
-            if (totalStitches === 0) patternGrid.push({ id: "__empty__", type: "skip", rgb: [255,255,255] });
-
-            let sW = Math.ceil(Math.sqrt(Math.max(1, totalStitches)));
-            let sH = Math.ceil(totalStitches / sW);
-
-            // pad grid
-            while (patternGrid.length < sW * sH) {
-                patternGrid.push({ id: "__empty__", type: "skip", rgb: [255,255,255] });
-            }
-
-            let minimal = { version: 8, page: "tracker", settings: { sW, sH, fabricCt: pattern.fabric ? parseInt(pattern.fabric) || 14 : 14, skeinPrice: 1.0, stitchSpeed: 40 }, pattern: patternGrid, bsLines: [], done: null, parkMarkers: [], totalTime: 0, sessions: [], hlRow: -1, hlCol: -1, threadOwned: inventoryThreads, singleStitchEdits: [] };
-            try{
-              localStorage.setItem('crossstitch_handoff', JSON.stringify(minimal));
-              window.location.href = 'stitch.html?source=manager';
-            }catch(e){
-              alert('Could not open in Tracker: ' + e.message);
-            }
-          }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Start Tracking →</button>
           <button onClick={onEdit} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #e4e4e7", background: "#fff", cursor: "pointer", fontWeight: 600 }}>Edit Pattern</button>
           <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#18181b", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Close</button>
         </div>
