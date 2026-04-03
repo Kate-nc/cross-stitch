@@ -25,18 +25,34 @@ const cropRef=useRef(null);
 const [pdfSettings, setPdfSettings] = useState({ chartStyle: 'symbols', cellSize: 3, paper: 'a4', orientation: 'portrait', gridInterval: 10, gridNumbers: true, centerMarks: true, legendLocation: 'separate', legendColumns: 2, coverPage: true, progressOverlay: false, separateBackstitch: false });
 
 const[activeTool,setActiveTool]=useState(null),[bsLines,setBsLines]=useState([]),[bsStart,setBsStart]=useState(null);
-const[bsContinuous,setBsContinuous]=useState(false);
 const[selectedColorId,setSelectedColorId]=useState(null);
+const[bsContinuous,setBsContinuous]=useState(false);
 const[hoverCoords,setHoverCoords]=useState(null);
 const[editHistory,setEditHistory]=useState([]);
 
 const[exportPage,setExportPage]=useState(0),[pageMode,setPageMode]=useState(false);
+
+const[halfStitchOnboarding,setHalfStitchOnboarding]=useState(true);
+
+const dismissHalfStitchOnboarding = useCallback(() => {
+    setHalfStitchOnboarding(false);
+    localStorage.setItem("halfStitchOnboardingSeen", "true");
+}, []);
+
+useEffect(() => {
+    let seen = localStorage.getItem("halfStitchOnboardingSeen");
+    if (seen === "true") setHalfStitchOnboarding(false);
+}, []);
 
 const[done,setDone]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
 const[hlRow,setHlRow]=useState(-1),[hlCol,setHlCol]=useState(-1);
 const[totalTime,setTotalTime]=useState(0);
 const[sessions,setSessions]=useState([]);
+
+const[toastMsg,setToastMsg]=useState(null);
+const[toastAction,setToastAction]=useState(null);
+const[redFlashCell,setRedFlashCell]=useState(null);
 
 // Thread organiser: {skeinId: "owned"|"tobuy"|""}
 const[threadOwned,setThreadOwned]=useState({});
@@ -129,12 +145,17 @@ useEffect(()=>{
   return()=>{if(previewTimerRef.current)clearTimeout(previewTimerRef.current);};
 },[generatePreview]);
 
-function setTool(tool){if(activeTool===tool){setActiveTool(null);setBsStart(null);return;}setActiveTool(tool);setBsStart(null);}
+function setTool(tool){
+  if(activeTool===tool){setActiveTool(null);setBsStart(null);return;}
+  setActiveTool(tool);
+  setBsStart(null);
+}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 
 function resetAll(){
   setPat(null);setPal(null);setCmap(null);setHiId(null);setBsLines([]);setBsStart(null);
   setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setExportPage(0);
+  setHalfStitchOnboarding(false);
   setDone(null);setParkMarkers([]);setHlRow(-1);setHlCol(-1);
   setTotalTime(0);setSessions([]);setThreadOwned({});
   setHasGenerated(false);
@@ -204,7 +225,44 @@ function applyCrop(){
   newImg.src=c.toDataURL();
 }
 
-function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:(m.type==="fractional"?{type:"fractional",components:m.components}:{id:m.id,type:m.type,rgb:m.rgb})),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+
+function exportOXS(){
+   if(!pat||!pal)return;
+   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<chart width="${sW}" height="${sH}">\n`;
+   xml += `<palette>\n`;
+   let cmap2 = {};
+   pal.forEach((p,i) => {
+       xml += `  <color index="${i}" id="${p.id}" name="${p.name}" rgb="${rgbToHex(p.rgb)}" />\n`;
+       cmap2[p.id] = i;
+   });
+   xml += `</palette>\n<fullstitches>\n`;
+   let fractionalXml = "";
+   for(let y=0;y<sH;y++){
+     for(let x=0;x<sW;x++){
+        let m = pat[y*sW+x];
+        if (m.id!=="__skip__" && m.type!=="fractional") {
+            let i = cmap2[m.id];
+            xml += `  <stitch x="${x}" y="${y}" color="${i}" />\n`;
+        } else if (m.type==="fractional" && typeof exportFractionalToOxs !== 'undefined') {
+            fractionalXml += exportFractionalToOxs(m, x, y).split('\n').filter(l=>l).map(l=>`  `+l).join('\n') + "\n";
+        }
+     }
+   }
+   xml += `</fullstitches>\n`;
+   if (fractionalXml) {
+       xml += `<fractionalstitches>\n${fractionalXml}</fractionalstitches>\n`;
+   }
+   if (bsLines && bsLines.length > 0) {
+       xml += `<backstitches>\n`;
+       bsLines.forEach(ln => {
+           xml += `  <line x1="${ln.x1}" y1="${ln.y1}" x2="${ln.x2}" y2="${ln.y2}" />\n`;
+       });
+       xml += `</backstitches>\n`;
+   }
+   xml += `</chart>\n`;
+   let blob=new Blob([xml],{type:"application/xml"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-pattern.oxs";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+}
 
 function processLoadedProject(project){
   let s=project.settings;setSW(s.sW);setSH(s.sH);setMaxC(s.maxC);setBri(s.bri||0);setCon(s.con||0);setSat(s.sat||0);setDith(!!s.dith);setSkipBg(!!s.skipBg);setBgTh(s.bgTh||15);setBgCol(s.bgCol||[255,255,255]);setMinSt(s.minSt||0);setArLock(s.arLock!==false);setAr(s.ar||1);setBsLines(project.bsLines||[]);
@@ -241,7 +299,7 @@ useEffect(() => {
 useEffect(() => {
     if (!pat || !pal) return;
     const saveTimer = setTimeout(() => {
-        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:(m.type==="fractional"?{type:"fractional",components:m.components}:{id:m.id,type:m.type,rgb:m.rgb})),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
     }, 1000); // 1-second debounce
 
@@ -368,6 +426,145 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
         drawCk(ctx,px,py,cSz);
       }
     }
+    else if(m.type==="fractional"){
+        // Draw background
+        ctx.fillStyle=dim?"rgba(245,245,245,1.0)":`rgba(255,255,255,1.0)`;
+        ctx.fillRect(px,py,cSz,cSz);
+
+        let zoomLevel = cSz >= 16 ? "high" : (cSz >= 8 ? "medium" : "low");
+
+        // Draw components in priority order (lowest to highest)
+        let sortedComps = m.components.slice().sort((a,b) => (a.priority||0) - (b.priority||0));
+        sortedComps.forEach(c => {
+             let hSz = cSz/2;
+             let triangleOpacity = dim ? 0.04 : 0.12;
+
+             // Base triangle fill
+             ctx.fillStyle=`rgba(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]},${triangleOpacity})`;
+             ctx.beginPath();
+
+             if (c.type === "half") {
+                 let s = c.path.start; let e = c.path.end;
+                 let isForwardSlash = (s[0]===0&&s[1]===2&&e[0]===2&&e[1]===0) || (s[0]===2&&s[1]===0&&e[0]===0&&e[1]===2);
+                 let fc = c.path.fillCorner || (isForwardSlash ? [2,2] : [0,2]); // Default to bottom-right or bottom-left if none specified
+
+                 if (isForwardSlash) {
+                     // /
+                     if (fc[0] === 0 && fc[1] === 0) {
+                         // Top-left half
+                         ctx.moveTo(px, py+cSz); ctx.lineTo(px, py); ctx.lineTo(px+cSz, py);
+                     } else {
+                         // Bottom-right half
+                         ctx.moveTo(px, py+cSz); ctx.lineTo(px+cSz, py+cSz); ctx.lineTo(px+cSz, py);
+                     }
+                     ctx.closePath(); ctx.fill();
+                     if (zoomLevel !== "low" && (view==="symbol"||view==="both")) {
+                         ctx.beginPath();
+                         let lum=luminance(c.rgb);
+                         ctx.strokeStyle=dim?"rgba(0,0,0,0.08)":`rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;
+                         ctx.lineWidth = 2;
+                         ctx.lineCap = "round";
+                         ctx.moveTo(px, py+cSz); ctx.lineTo(px+cSz, py);
+                         ctx.stroke();
+                     }
+                 } else {
+                     // \
+                     if (fc[0] === 2 && fc[1] === 0) {
+                         // Top-right half
+                         ctx.moveTo(px, py); ctx.lineTo(px+cSz, py); ctx.lineTo(px+cSz, py+cSz);
+                     } else {
+                         // Bottom-left half
+                         ctx.moveTo(px, py); ctx.lineTo(px, py+cSz); ctx.lineTo(px+cSz, py+cSz);
+                     }
+                     ctx.closePath(); ctx.fill();
+                     if (zoomLevel !== "low" && (view==="symbol"||view==="both")) {
+                         ctx.beginPath();
+                         let lum=luminance(c.rgb);
+                         ctx.strokeStyle=dim?"rgba(0,0,0,0.08)":`rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;
+                         ctx.lineWidth = 2;
+                         ctx.lineCap = "round";
+                         ctx.moveTo(px, py); ctx.lineTo(px+cSz, py+cSz);
+                         ctx.stroke();
+                     }
+                 }
+             } else if (c.type === "quarter") {
+                 let sx = c.path.start[0]; let sy = c.path.start[1];
+                 let cx = px + hSz; let cy = py + hSz;
+                 ctx.moveTo(cx, cy);
+                 if (sx===0 && sy===0) { ctx.lineTo(px+hSz, py); ctx.lineTo(px, py); ctx.lineTo(px, py+hSz); }
+                 else if (sx===2 && sy===0) { ctx.lineTo(px+cSz, py+hSz); ctx.lineTo(px+cSz, py); ctx.lineTo(px+hSz, py); }
+                 else if (sx===0 && sy===2) { ctx.lineTo(px+hSz, py+cSz); ctx.lineTo(px, py+cSz); ctx.lineTo(px, py+hSz); }
+                 else if (sx===2 && sy===2) { ctx.lineTo(px+cSz, py+hSz); ctx.lineTo(px+cSz, py+cSz); ctx.lineTo(px+hSz, py+cSz); }
+                 ctx.closePath();
+                 ctx.fill();
+
+                 if (zoomLevel !== "low" && (view==="symbol"||view==="both")) {
+                     ctx.beginPath();
+                     let lum=luminance(c.rgb);
+                     ctx.strokeStyle=dim?"rgba(0,0,0,0.08)":`rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;
+                     ctx.lineWidth = 2;
+                     ctx.lineCap = "round";
+                     ctx.moveTo(cx, cy);
+                     if (sx===0 && sy===0) { ctx.lineTo(px, py); }
+                     else if (sx===2 && sy===0) { ctx.lineTo(px+cSz, py); }
+                     else if (sx===0 && sy===2) { ctx.lineTo(px, py+cSz); }
+                     else if (sx===2 && sy===2) { ctx.lineTo(px+cSz, py+cSz); }
+                     ctx.stroke();
+                 }
+             }
+        });
+
+        if (zoomLevel === "high" && (view==="symbol"||view==="both")) {
+             let isSplit = m.components.length > 1;
+             ctx.font=`500 12px monospace`;
+             ctx.textAlign="center";ctx.textBaseline="middle";
+
+             let drawnSymbols = new Set();
+             sortedComps.forEach(c => {
+                 let sInfo = cmap ? cmap[c.id] : null;
+                 if (!sInfo) return;
+                 let sid = c.id + '-' + c.type + '-' + c.path.start.join(',');
+                 if (drawnSymbols.has(sid)) return;
+                 drawnSymbols.add(sid);
+
+                 ctx.fillStyle=dim?"rgba(0,0,0,0.08)":`rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;
+
+                 let tx = px + cSz/2; let ty = py + cSz/2;
+                 if (isSplit && c.type === "quarter") {
+                     let sx = c.path.start[0]; let sy = c.path.start[1];
+                     if (sx===0 && sy===0) { tx = px + cSz*0.25; ty = py + cSz*0.25; }
+                     else if (sx===2 && sy===0) { tx = px + cSz*0.75; ty = py + cSz*0.25; }
+                     else if (sx===0 && sy===2) { tx = px + cSz*0.25; ty = py + cSz*0.75; }
+                     else if (sx===2 && sy===2) { tx = px + cSz*0.75; ty = py + cSz*0.75; }
+                 } else if (isSplit && c.type === "half") {
+                     // For half, offset slightly towards center of its dominant side, or just leave in center
+                 }
+                 ctx.fillText(sInfo.symbol, tx, ty);
+             });
+        }
+
+        // Center piercing dot
+        if (zoomLevel === "high" && (activeTool === "half-fwd" || activeTool === "half-back")) {
+            ctx.fillStyle = "rgba(0,0,0,0.5)";
+            ctx.beginPath();
+            ctx.arc(px + cSz/2, py + cSz/2, Math.max(1, cSz*0.05), 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        if(cSz>=4){
+            let sAlpha = dim ? 0.03 : 0.08;
+            if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
+            ctx.strokeStyle=`rgba(0,0,0,${sAlpha})`;ctx.strokeRect(px,py,cSz,cSz);
+        }
+    }
+
+    // Check if this cell is currently flashing red
+    if (redFlashCell === i) {
+        ctx.strokeStyle = "rgba(255, 0, 0, 0.8)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px+1, py+1, cSz-2, cSz-2);
+        ctx.lineWidth = 1;
+    }
     else if(view==="color"||view==="both"){
       let alpha = 1.0;
       if (dim) alpha = 0.15;
@@ -381,8 +578,10 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
       if (showOverlayImg) alpha = 0.3;
       ctx.fillStyle=dim?"rgba(245,245,245,"+alpha+")":`rgba(255,255,255,${alpha})`;ctx.fillRect(px,py,cSz,cSz);
     }
-    if(m.id!=="__skip__"&&(view==="symbol"||view==="both")&&info&&cSz>=6){let lum=luminance(m.rgb);ctx.fillStyle=dim?"rgba(0,0,0,0.08)":(view==="both"?(lum>128?"#000":"#fff"):"#333");ctx.font=`bold ${Math.max(6,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
-    if(cSz>=4){
+
+    if(m.id!=="__skip__"&&m.type!=="fractional"&&(view==="symbol"||view==="both")&&info&&cSz>=6){let lum=luminance(m.rgb);ctx.fillStyle=dim?"rgba(0,0,0,0.08)":(view==="both"?(lum>128?"#000":"#fff"):"#333");ctx.font=`bold ${Math.max(6,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+
+    if(cSz>=4&&m.type!=="fractional"&&m.id!=="__skip__"){
       let sAlpha = dim ? 0.03 : 0.08;
       if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
       ctx.strokeStyle=`rgba(0,0,0,${sAlpha})`;ctx.strokeRect(px,py,cSz,cSz);
@@ -768,10 +967,111 @@ function exportCoverSheet(){
 function handlePatClick(e){
   if(!pcRef.current||!pat)return;
   let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch");
+
+  if(e.type === 'contextmenu') {
+     e.preventDefault();
+     if(activeTool==="backstitch"&&bsStart){setBsStart(null);return;}
+     if(!gc)return;let{gx,gy}=gc;
+     if(gx<0||gx>=sW||gy<0||gy>=sH)return;
+     let idx=gy*sW+gx;
+     if(pat[idx].type==="fractional" && pat[idx].components.length > 1) {
+         let np=pat.slice();
+         let c=np[idx];
+         let comps = c.components.slice();
+         let first = comps.shift();
+         comps.push(first);
+         comps.forEach((comp, i) => comp.priority = i);
+         np[idx] = {...c, components: comps};
+         setEditHistory(prev=>[...prev,{type:"fractional",changes:[{idx,old:{...pat[idx]}}]}]);
+         setPat(np);
+     }
+     return;
+  }
+
   if(!gc)return;let{gx,gy}=gc;
-  if((activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap){
-    if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
+  if((activeTool==="paint"||activeTool==="fill"||activeTool==="half-fwd"||activeTool==="half-back")&&selectedColorId&&cmap){
+    if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;
+
     let pe=cmap[selectedColorId];if(!pe)return;let np=pat.slice();
+
+    if (activeTool==="half-fwd" || activeTool==="half-back") {
+       let rect = pcRef.current.getBoundingClientRect();
+       let xInCell = (e.clientX - rect.left - G - gx*cs);
+       let yInCell = (e.clientY - rect.top - G - gy*cs);
+
+       let isTopLeftHalf = yInCell < (cs - xInCell); // For /
+       let isTopRightHalf = yInCell < xInCell; // For \
+
+       let path;
+       if (activeTool==="half-fwd") {
+           // / diagonal goes from bottom-left [0,2] to top-right [2,0]
+           // Top-left half: [0,2] -> [0,0] -> [2,0] -> [0,2]. Let's encode this using start/end as the two NON-right angle corners.
+           // The existing codebase uses { start: [0,2], end: [2,0] }. Let's stick to start/end, but we need a way to distinguish the halves.
+           // Let's use `corner` or `side` property on the component, or we can encode the 3 vertices in path.
+           // We will encode it as: path: { start: [0,2], end: [2,0], fillCorner: [0,0] } for top-left.
+           path = { start: [0,2], end: [2,0], fillCorner: isTopLeftHalf ? [0,0] : [2,2] };
+       } else {
+           // \ diagonal goes from top-left [0,0] to bottom-right [2,2]
+           path = { start: [0,0], end: [2,2], fillCorner: isTopRightHalf ? [2,0] : [0,2] };
+       }
+
+       let newComp = { type: "half", id: pe.id, name: pe.name, rgb: pe.rgb, lab: pe.lab, symbol: pe.symbol, path: path };
+
+       let res = typeof handleFractionalClick !== "undefined" ? handleFractionalClick(pat[idx], newComp, "prompt") : { changed: false };
+
+       if (res.error === "full_cross_conflict") {
+           setToastMsg("Remove the full cross first");
+           setRedFlashCell(idx);
+           setTimeout(() => {
+               setToastMsg(null);
+               setRedFlashCell(null);
+           }, 2000);
+           return;
+       }
+
+       if (res.conflict) {
+           setToastMsg("Overlapping stitches detected.");
+           setRedFlashCell(idx);
+           setToastAction({
+               label: "Replace",
+               onClick: () => {
+                   let res2 = typeof handleFractionalClick !== "undefined" ? handleFractionalClick(pat[idx], newComp, "replace") : { changed: false };
+                   if (res2.changed) {
+                       setEditHistory(prev=>[...prev,{type:"fractional",changes:[{idx,old:{...pat[idx]}}]}]);
+                       let np2 = pat.slice(); np2[idx] = res2.cell;
+                       setPat(np2);let{pal:np2p,cmap:nc}=buildPalette(np2);setPal(np2p);setCmap(nc);
+                   }
+                   setToastMsg(null); setToastAction(null); setRedFlashCell(null);
+               }
+           });
+           setTimeout(()=>{setToastMsg(null); setToastAction(null); setRedFlashCell(null);}, 4000);
+           return;
+       }
+
+       if (res.changed) {
+           if (res.cell.type === "solid" && pat[idx].type === "fractional") {
+               setToastMsg("This equals a full cross stitch. Convert?");
+               setToastAction({
+                   label: "Convert",
+                   onClick: () => {
+                       setEditHistory(prev=>[...prev,{type:"fractional",changes:[{idx,old:{...pat[idx]}}]}]);
+                       let np2 = pat.slice(); np2[idx] = res.cell;
+                       setPat(np2);let{pal:np2p,cmap:nc}=buildPalette(np2);setPal(np2p);setCmap(nc);
+                       setToastMsg(null); setToastAction(null);
+                   }
+               });
+               setTimeout(()=>{setToastMsg(null); setToastAction(null);}, 4000);
+               return; // Don't apply immediately, wait for toast action
+           }
+
+           setEditHistory(prev=>[...prev,{type:"fractional",changes:[{idx,old:{...pat[idx]}}]}]);
+           np[idx] = res.cell;
+           setPat(np);let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);
+       }
+       return;
+    }
+
+    if(pat[idx].id==="__skip__")return;
     if(activeTool==="fill"){let ch=[],vis=new Set(),q=[idx],tid=pat[idx].id;if(tid===pe.id)return;while(q.length){let id2=q.pop();if(vis.has(id2))continue;vis.add(id2);if(pat[id2].id!==tid)continue;ch.push({idx:id2,old:{...pat[id2]}});let x2=id2%sW,y2=Math.floor(id2/sW);if(x2>0)q.push(id2-1);if(x2<sW-1)q.push(id2+1);if(y2>0)q.push(id2-sW);if(y2<sH-1)q.push(id2+sW);}if(!ch.length)return;setEditHistory(prev=>[...prev,{type:"fill",changes:ch}]);ch.forEach(c2=>np[c2.idx]={...pe});}
     else{setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}]);np[idx]={...pe};}
     setPat(np);let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);return;
@@ -856,6 +1156,28 @@ return(
   </div>}
   <input ref={fRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
 
+  {toastMsg && (
+    <div style={{
+      position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)",
+      background: "#18181b", color: "#fff", padding: "12px 24px", borderRadius: 8,
+      fontSize: 14, fontWeight: 500, zIndex: 10000, display: "flex", alignItems: "center", gap: 12,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+    }}>
+      <span>{toastMsg}</span>
+      {toastAction && (
+        <button
+          onClick={toastAction.onClick}
+          style={{
+            background: "#0d9488", color: "#fff", border: "none", borderRadius: 4,
+            padding: "4px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer"
+          }}
+        >
+          {toastAction.label}
+        </button>
+      )}
+    </div>
+  )}
+
   {img&&<div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
     {tab!=="stitch"&&<div style={{flex:sidebarOpen?"0 0 280px":"0 0 auto",display:"flex",flexDirection:"column",gap:sidebarOpen?10:0,overflow:"hidden"}}>
       {pat&&<button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{padding:"5px 10px",fontSize:12,fontWeight:500,background:"#f4f4f5",border:"0.5px solid #e4e4e7",borderRadius:8,cursor:"pointer",color:"#71717a",alignSelf:sidebarOpen?"flex-end":"flex-start",whiteSpace:"nowrap"}}>{sidebarOpen?"◀ Hide":"▶ Settings"}</button>}
@@ -932,20 +1254,63 @@ return(
           </div>
           {cs < 6 && (view === "symbol" || view === "both") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
           <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap",alignItems:"center", padding: "6px 10px", background: "#fff", border: "0.5px solid #e4e4e7", borderRadius: 10}}>
-            <span style={{fontSize:10,fontWeight:600,color:"#a1a1aa",textTransform:"uppercase"}}>Tools</span>
-            <button onClick={()=>setTool("backstitch")} style={tBtn(activeTool==="backstitch")}>Backstitch</button>
+            <span style={{fontSize:10,fontWeight:600,color:"#a1a1aa",textTransform:"uppercase",marginRight:4}}>Tools</span>
+
+            <button onClick={()=>setTool("paint")} style={{...tBtn(activeTool==="paint"), width:44, height:44, padding:0, display:"flex", alignItems:"center", justifyContent:"center"}} title="Full Cross Stitch (Paint)">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="16" height="16" stroke="rgba(0,0,0,0.15)" strokeWidth="1"/><line x1="4" y1="4" x2="16" y2="16"/><line x1="16" y1="4" x2="4" y2="16"/></svg>
+            </button>
+            <button onClick={()=>setTool("fill")} style={{...tBtn(activeTool==="fill"), height:44, padding:"0 12px"}} title="Fill Area">Fill</button>
+
+            <div style={{width:1,height:24,background:"#e4e4e7",margin:"0 4px"}}/>
+
+            <div style={{position:"relative"}}>
+                <button onClick={()=>{setTool("half-fwd");}} style={{...tBtn(activeTool==="half-fwd"), width:44, height:44, padding:0, display:"flex", alignItems:"center", justifyContent:"center", position:"relative"}} title="Half stitch /">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="16" height="16" stroke="rgba(0,0,0,0.15)" strokeWidth="1"/><line x1="4" y1="16" x2="16" y2="4"/></svg>
+                    {typeof halfStitchOnboarding!=="undefined"&&halfStitchOnboarding&&<div style={{position:"absolute",top:-2,right:-2,width:8,height:8,background:"#ef4444",borderRadius:"50%",border:"2px solid #fff"}}/>}
+                </button>
+                {activeTool==="half-fwd"&&typeof halfStitchOnboarding!=="undefined"&&!halfStitchOnboarding&&<div style={{position:"absolute",top:"100%",left:0,marginTop:8,width:240,background:"#fff",border:"1px solid #e4e4e7",borderRadius:8,padding:12,boxShadow:"0 10px 15px -3px rgba(0,0,0,0.1)",zIndex:50}}>
+                    <div style={{fontSize:12,color:"#18181b",lineHeight:1.4}}>Places a single diagonal from bottom-left to top-right. Used for shading, sky, water, and soft edges. Counts as 0.5 of a full stitch for progress tracking.</div>
+                </div>}
+            </div>
+
+            <div style={{position:"relative"}}>
+                <button onClick={()=>{setTool("half-back");}} style={{...tBtn(activeTool==="half-back"), width:44, height:44, padding:0, display:"flex", alignItems:"center", justifyContent:"center", position:"relative"}} title="Half stitch \">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="16" height="16" stroke="rgba(0,0,0,0.15)" strokeWidth="1"/><line x1="4" y1="4" x2="16" y2="16"/></svg>
+                    {typeof halfStitchOnboarding!=="undefined"&&halfStitchOnboarding&&<div style={{position:"absolute",top:-2,right:-2,width:8,height:8,background:"#ef4444",borderRadius:"50%",border:"2px solid #fff"}}/>}
+                </button>
+                {activeTool==="half-back"&&typeof halfStitchOnboarding!=="undefined"&&!halfStitchOnboarding&&<div style={{position:"absolute",top:"100%",left:0,marginTop:8,width:240,background:"#fff",border:"1px solid #e4e4e7",borderRadius:8,padding:12,boxShadow:"0 10px 15px -3px rgba(0,0,0,0.1)",zIndex:50}}>
+                    <div style={{fontSize:12,color:"#18181b",lineHeight:1.4}}>Places a single diagonal from top-left to bottom-right. You can combine both directions in one cell for colour blending.</div>
+                </div>}
+            </div>
+
+            {/* First-time Onboarding Overlay */}
+            {typeof halfStitchOnboarding!=="undefined"&&halfStitchOnboarding&&(activeTool==="half-fwd"||activeTool==="half-back")&&<div style={{position:"absolute",top:"100%",left:0,marginTop:12,width:260,background:"#18181b",color:"#fff",borderRadius:8,padding:"14px",boxShadow:"0 10px 15px -3px rgba(0,0,0,0.2)",zIndex:100}}>
+                <div style={{fontWeight:600,fontSize:14,marginBottom:8}}>New: Half Stitches</div>
+                <ul style={{margin:"0 0 12px 16px",padding:0,fontSize:12,lineHeight:1.5,color:"#a1a1aa",display:"flex",flexDirection:"column",gap:6}}>
+                    <li>Select a half stitch direction &mdash; / or \</li>
+                    <li>Tap a cell to place. The coloured triangle shows which half is covered</li>
+                    <li>Tap again to remove. You can place both directions in one cell</li>
+                </ul>
+                <button onClick={dismissHalfStitchOnboarding} style={{width:"100%",padding:"6px 0",background:"#fff",color:"#18181b",border:"none",borderRadius:6,fontSize:13,fontWeight:600,cursor:"pointer"}}>Got it</button>
+            </div>}
+
+            <div style={{width:1,height:24,background:"#e4e4e7",margin:"0 4px"}}/>
+
+            <button onClick={()=>setTool("backstitch")} style={{...tBtn(activeTool==="backstitch"), height:44, padding:"0 12px"}} title="Backstitch">Backstitch</button>
             {activeTool==="backstitch"&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer"}}><input type="checkbox" checked={bsContinuous} onChange={e=>{setBsContinuous(e.target.checked);setBsStart(null);}}/>Continuous</label>}
-            <button onClick={()=>setTool("eraseBs")} style={tBtn(activeTool==="eraseBs")}>Erase line</button>
-            <button onClick={()=>setTool("paint")} style={tBtn(activeTool==="paint")}>Paint</button>
-            <button onClick={()=>setTool("fill")} style={tBtn(activeTool==="fill")}>Fill</button>
-            {(activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
+
+            <button onClick={()=>setTool("eraseBs")} style={{...tBtn(activeTool==="eraseBs"), width:44, height:44, padding:0, display:"flex", alignItems:"center", justifyContent:"center"}} title="Erase line">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="16" height="16" stroke="rgba(0,0,0,0.15)" strokeWidth="1"/><line x1="6" y1="6" x2="14" y2="14" stroke="#a1a1aa"/><line x1="14" y1="6" x2="6" y2="14" stroke="#a1a1aa"/></svg>
+            </button>
+
+            {(activeTool==="paint"||activeTool==="fill"||activeTool==="half-fwd"||activeTool==="half-back")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
             <div style={{marginLeft:"auto",display:"flex",gap:4}}>
               {editHistory.length>0&&<button onClick={()=>{let last=editHistory[editHistory.length-1],np=pat.slice();last.changes.forEach(c2=>np[c2.idx]={...c2.old});setPat(np);setEditHistory(prev=>prev.slice(0,-1));let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
               {hiId&&<button onClick={()=>setHiId(null)} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Clear ✕</button>}
             </div>
           </div>
-          <div ref={scrollRef} onScroll={() => requestAnimationFrame(renderPattern)} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:activeTool?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{if(activeTool==="backstitch"&&bsStart){e.preventDefault();setBsStart(null);}}}/></div>
-          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{pal.map(p=>{let ips=(activeTool==="paint"||activeTool==="fill")&&selectedColorId===p.id,ihs=hiId===p.id;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff"}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span></div>;})}</div></div>
+          <div ref={scrollRef} onScroll={() => requestAnimationFrame(renderPattern)} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:activeTool?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={handlePatClick}/></div>
+          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{pal.map(p=>{let ips=(activeTool==="paint"||activeTool==="fill"||activeTool==="half-fwd"||activeTool==="half-back")&&selectedColorId===p.id,ihs=hiId===p.id;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill"||activeTool==="half-fwd"||activeTool==="half-back")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff"}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span></div>;})}</div></div>
         </div>}
 
         {/* ═══ PROJECT TAB ═══ */}
@@ -1046,7 +1411,31 @@ return(
             </select>
             <span style={{fontSize:11,color:"#a1a1aa"}}>Total skeins: {totalSkeins}</span>
           </div>
-          <div style={{overflow:"auto",maxHeight:540}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}><thead><tr style={{background:"#fafafa"}}>{["Sym","","DMC","Name","Type","Stitches","Skeins",done?"Done":""].filter(Boolean).map((h,i)=><th key={i} style={{padding:"8px 10px",textAlign:i>=5?"right":"left",borderBottom:"2px solid #e4e4e7",color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}}>{h}</th>)}</tr></thead><tbody>{pal.map((p,i)=>{let dc=colourDoneCounts[p.id]||{total:0,done:0};let sk=skeinEst(p.count,fabricCt);return<tr key={i} onClick={()=>{setHiId(hiId===p.id?null:p.id);setTab("pattern");}} style={{borderBottom:"0.5px solid #f4f4f5",cursor:"pointer",background:hiId===p.id?"#fff7ed":"transparent"}}><td style={{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}>{p.symbol}</td><td style={{padding:"6px 10px"}}><div style={{width:24,height:24,borderRadius:5,background:`rgb(${p.rgb})`,border:"0.5px solid #e4e4e7",display:"inline-block"}}/></td><td style={{padding:"6px 10px",fontWeight:600}}>{p.id}</td><td style={{padding:"6px 10px",fontSize:11,color:"#71717a"}}>{p.type==="blend"?p.threads[0].name+" + "+p.threads[1].name:p.name}</td><td style={{padding:"6px 10px"}}><span style={{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:p.type==="blend"?"#fff7ed":"#f0fdf4",color:p.type==="blend"?"#ea580c":"#16a34a"}}>{p.type==="blend"?"Blend":"Solid"}</span></td><td style={{padding:"6px 10px",textAlign:"right"}}>{p.count.toLocaleString()}</td><td style={{padding:"6px 10px",textAlign:"right",fontWeight:600}}>{sk}</td>{done&&<td style={{padding:"6px 10px",textAlign:"right"}}><span style={{color:dc.done>=dc.total?"#16a34a":"#71717a"}}>{dc.done}/{dc.total}</span></td>}</tr>;})}</tbody></table></div>
+          <div style={{overflow:"auto",maxHeight:540}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}><thead><tr style={{background:"#fafafa"}}>{["Sym","","DMC","Name","Type","Stitches","Skeins",done?"Done":""].filter(Boolean).map((h,i)=><th key={i} style={{padding:"8px 10px",textAlign:i>=5?"right":"left",borderBottom:"2px solid #e4e4e7",color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}}>{h}</th>)}</tr></thead><tbody>{pal.map((p,i)=>{
+            let dc=colourDoneCounts[p.id]||{total:0,done:0};
+            let sk=skeinEst(p.count,fabricCt);
+            let hasFractional = p.isFracRow;
+            return<tr key={i} onClick={()=>{setHiId(hiId===p.id?null:p.id);setTab("pattern");}} style={{borderBottom:"0.5px solid #f4f4f5",cursor:"pointer",background:hiId===p.id?"#fff7ed":"transparent"}}>
+              <td style={{padding:"6px 10px",fontFamily:"monospace",fontSize:16,textAlign:"center"}}>{p.symbol}</td>
+              <td style={{padding:"6px 10px"}}>
+                {hasFractional ?
+                  <div style={{width:24,height:24,position:"relative",overflow:"hidden",borderRadius:5,border:"0.5px solid #e4e4e7"}}>
+                    <div style={{position:"absolute",top:0,left:0,width:0,height:0,borderStyle:"solid",borderWidth:"24px 0 0 24px",borderColor:`transparent transparent transparent rgb(${p.rgb})`}}/>
+                  </div>
+                  : <div style={{width:24,height:24,borderRadius:5,background:`rgb(${p.rgb})`,border:"0.5px solid #e4e4e7",display:"inline-block"}}/>
+                }
+              </td>
+              <td style={{padding:"6px 10px",fontWeight:600}}>{p.id}</td>
+              <td style={{padding:"6px 10px",fontSize:11,color:"#71717a"}}>{p.type==="blend"?p.threads[0].name+" + "+p.threads[1].name:p.name}</td>
+              <td style={{padding:"6px 10px"}}>
+                <span style={{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:p.type==="blend"?"#fff7ed":"#f0fdf4",color:p.type==="blend"?"#ea580c":"#16a34a"}}>{p.type==="blend"?"Blend":"Solid"}</span>
+                {hasFractional && <span style={{marginLeft:4,padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:"#fef3c7",color:"#d97706"}}>Fractional</span>}
+              </td>
+              <td style={{padding:"6px 10px",textAlign:"right"}}>{p.count.toLocaleString()}</td>
+              <td style={{padding:"6px 10px",textAlign:"right",fontWeight:600}}>{sk}</td>
+              {done&&<td style={{padding:"6px 10px",textAlign:"right"}}><span style={{color:dc.done>=dc.total?"#16a34a":"#71717a"}}>{dc.done}/{dc.total}</span></td>}
+            </tr>;
+          })}</tbody></table></div>
         </div>}
 
         {/* ═══ EXPORT TAB ═══ */}
@@ -1077,7 +1466,7 @@ return(
 
           <Section title="PDF Export"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Multi-page PDF with legend and chart.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={exportPDF} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none"}}>Download Pattern PDF</button><button onClick={exportCoverSheet} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}}>Cover Sheet PDF</button></div><p style={{fontSize:11,color:"#a1a1aa",marginTop:8}}>The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes — perfect for tucking into your project bag.</p></Section>
           <Section title="PNG Chart"><div style={{display:"flex",gap:8,alignItems:"center",marginTop:8,marginBottom:8}}><label style={{display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer"}}><input type="checkbox" checked={pageMode} onChange={e=>{setPageMode(e.target.checked);setExportPage(0);}}/>A4 pages</label>{pageMode&&<><button onClick={()=>setExportPage(Math.max(0,exportPage-1))} disabled={exportPage===0} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}}>◀</button><span style={{fontSize:12}}>Page {exportPage+1}/{totPg}</span><button onClick={()=>setExportPage(Math.min(totPg-1,exportPage+1))} disabled={exportPage>=totPg-1} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}}>▶</button></>}</div><div style={{overflow:"auto",maxHeight:400,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#fff"}}><canvas ref={expRef} style={{display:"block"}}/></div></Section>
-          <Section title="Save / Load"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Saves pattern for later editing or opening in Stitch Tracker.</p><div style={{display:"flex",gap:8}}><button onClick={saveProject} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save (.json)</button><button onClick={()=>loadRef.current.click()} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Load</button></div></Section>
+          <Section title="Save / Load"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Saves pattern for later editing or opening in Stitch Tracker.</p><div style={{display:"flex",gap:8}}><button onClick={saveProject} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save (.json)</button><button onClick={exportOXS} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}}>Export (.oxs)</button><button onClick={()=>loadRef.current.click()} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Load</button></div></Section>
         </div>}
       </div>}
       {!pat&&img&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:20}}>

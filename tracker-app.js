@@ -44,6 +44,11 @@ const[selectedColorId,setSelectedColorId]=useState(null);
 
 const[hoverInfo,setHoverInfo]=useState(null);
 
+  // V2: Tracker fractional tap variables
+  const[flashComponent,setFlashComponent]=useState(null);
+  const[disambiguatePopup,setDisambiguatePopup]=useState(null);
+  const disambiguateTimerRef=useRef(null);
+
 const[isPanning,setIsPanning]=useState(false);
 const panStart=useRef({x:0,y:0,scrollX:0,scrollY:0});
 const stitchScrollRef=useRef(null);
@@ -75,11 +80,38 @@ useEffect(()=>{
   }else{clearInterval(timerRef.current);}
 },[sessionActive,sessionStart]);
 
-const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
-const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id!=="__skip__"&&id!=="__empty__")c++;}return c;},[pat]);
+const fullStitchStats=useMemo(()=>{if(!done||!pat)return{done:0,total:0};let d=0,t=0;for(let i=0;i<pat.length;i++){let m=pat[i];if(m.id!=="__skip__"&&m.type!=="fractional"){t++;if(done[i])d++;}}return{done:d,total:t};},[done,pat]);
+const fracStitchStats=useMemo(()=>{if(!done||!pat)return{done:0,total:0};let d=0,t=0;for(let i=0;i<pat.length;i++){let m=pat[i];if(m.type==="fractional"){let di=done[i];m.components.forEach((comp,ci)=>{let amt=(comp.type==="quarter"?0.25:0.5);t+=amt;if((di&(1<<ci))!==0)d+=amt;});}}return{done:d,total:t};},[done,pat]);
+const doneCount=useMemo(()=>fullStitchStats.done+fracStitchStats.done,[fullStitchStats,fracStitchStats]);
+const totalStitchable=useMemo(()=>fullStitchStats.total+fracStitchStats.total,[fullStitchStats,fracStitchStats]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
+const fullProgressPct=fullStitchStats.total>0?Math.round(fullStitchStats.done/fullStitchStats.total*1000)/10:0;
+const fracProgressPct=fracStitchStats.total>0?Math.round(fracStitchStats.done/fracStitchStats.total*1000)/10:0;
 useEffect(()=>{if(sessionActive&&done){let diff=doneCount-prevDoneCount.current;if(diff>0)setSessionStitches(p=>p+diff);}prevDoneCount.current=doneCount;},[doneCount,sessionActive,done]);
-const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id==="__skip__"||id==="__empty__")continue;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+const colourDoneCounts=useMemo(()=>{
+    if(!pat||!done)return{};
+    let c={};
+    for(let i=0;i<pat.length;i++){
+        let m=pat[i];
+        if(m.id==="__skip__")continue;
+        if(m.type==="fractional"){
+            let d=done[i];
+            m.components.forEach((comp,ci)=>{
+                let k = comp.id + "_frac"; // Map fractional counts separately for new UI
+                if(!c[k])c[k]={total:0,done:0};
+                let v=(comp.type==="quarter"?0.25:0.5);
+                c[k].total+=v;
+                if((d&(1<<ci))!==0)c[k].done+=v;
+            });
+        }else{
+            let id=m.id;
+            if(!c[id])c[id]={total:0,done:0};
+            c[id].total++;
+            if(done[i])c[id].done++;
+        }
+    }
+    return c;
+},[pat,done]);
 const estCompletion=useMemo(()=>{let t=totalTime+(sessionActive?sessionElapsed:0);if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,sessionElapsed,sessionActive,doneCount,totalStitchable]);
 const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
 const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
@@ -510,20 +542,203 @@ function drawStitch(ctx,cSz){
     let info=(m.id==="__skip__"||m.id==="__empty__")?null:(cmap?cmap[m.id]:null);
     let px=gut+x*cSz,py=gut+y*cSz;
     let isDn=done&&done[idx];
-    let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__"&&m.id!=="__empty__";
-    if(m.id==="__skip__"||m.id==="__empty__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
-    if(stitchView==="symbol"){
-      if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-      else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-    }else if(stitchView==="colour"){
-      ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-      if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
-    }else{
-      if(isDn){ctx.fillStyle=dimmed?"#f4f4f5":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-      else if(dimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,cSz*0.45)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-      else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.7)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+    let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__";
+    if(m.id==="__skip__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle="rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
+
+    if (m.type==="fractional") {
+       // Draw checkerboard or white
+       ctx.fillStyle=dimmed?"#f4f4f5":"#fff";
+       ctx.fillRect(px,py,cSz,cSz);
+
+       let sortedComps = m.components.map((c,ci) => ({...c, compIndex: ci})).sort((a,b) => (a.priority||0) - (b.priority||0));
+
+       sortedComps.forEach(c => {
+           let isCompDn = (done && (done[idx] & (1<<c.compIndex)) !== 0);
+           let compDimmed = stitchView==="highlight"&&focusColour&&c.id!==focusColour;
+           let sInfo = cmap ? cmap[c.id] : null;
+
+           let fillStyle = "#fff";
+           let showSym = false;
+
+           if(stitchView==="symbol"){
+              if(isCompDn){fillStyle="#d1fae5";}
+              else{showSym=true;}
+           }else if(stitchView==="colour"){
+              fillStyle=`rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;
+              if(!isCompDn)showSym=true;
+           }else{
+              if(isCompDn){fillStyle=compDimmed?"#f4f4f5":`rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;}
+              else if(compDimmed){fillStyle="#f4f4f5";showSym=true;}
+              else{fillStyle=`rgba(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]},0.25)`;showSym=true;}
+           }
+
+           ctx.fillStyle = fillStyle;
+           ctx.beginPath();
+           let hSz = cSz/2;
+           let zoomLevel = cSz >= 16 ? "high" : (cSz >= 8 ? "medium" : "low");
+
+           // Opacity rules based on state
+           let triangleOpacity = 0.06; // unmarked
+           let lineOpacity = 0.3;
+           if (isCompDn) {
+               triangleOpacity = 0.40; // completed
+               lineOpacity = 1.0;
+           }
+           if (compDimmed) {
+               triangleOpacity = 0.04;
+               lineOpacity = 0.1;
+           } else if (stitchView === "highlight" && !compDimmed && focusColour) {
+               triangleOpacity = 0.20;
+               lineOpacity = 1.0;
+           }
+
+           // V2: Tracker fractional visual flash
+           let isFlashing = flashComponent && flashComponent.idx === idx && flashComponent.compIndex === c.compIndex;
+           if (isFlashing) {
+               triangleOpacity = 0.60;
+           }
+
+           ctx.fillStyle=`rgba(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]},${triangleOpacity})`;
+
+           if (c.type === "half") {
+               let s = c.path.start; let e = c.path.end;
+               let isForwardSlash = (s[0]===0&&s[1]===2&&e[0]===2&&e[1]===0) || (s[0]===2&&s[1]===0&&e[0]===0&&e[1]===2);
+               let fc = c.path.fillCorner || (isForwardSlash ? [2,2] : [0,2]); // Default to bottom-right or bottom-left if none specified
+
+               if (isForwardSlash) {
+                   // /
+                   if (fc[0] === 0 && fc[1] === 0) {
+                       // Top-left half
+                       ctx.moveTo(px, py+cSz); ctx.lineTo(px, py); ctx.lineTo(px+cSz, py);
+                   } else {
+                       // Bottom-right half
+                       ctx.moveTo(px, py+cSz); ctx.lineTo(px+cSz, py+cSz); ctx.lineTo(px+cSz, py);
+                   }
+                   ctx.closePath(); ctx.fill();
+                   if (zoomLevel !== "low") {
+                       ctx.beginPath();
+                       if (compDimmed) {
+                           ctx.strokeStyle="rgba(161,161,170,0.1)"; // --color-text-tertiary
+                       } else {
+                           ctx.strokeStyle=`rgba(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]},${lineOpacity})`;
+                       }
+                       ctx.lineWidth = isCompDn ? 2.5 : 1.5;
+                       ctx.lineCap = "round";
+                       ctx.moveTo(px, py+cSz); ctx.lineTo(px+cSz, py);
+                       ctx.stroke();
+                   }
+               } else {
+                   // \
+                   if (fc[0] === 2 && fc[1] === 0) {
+                       // Top-right half
+                       ctx.moveTo(px, py); ctx.lineTo(px+cSz, py); ctx.lineTo(px+cSz, py+cSz);
+                   } else {
+                       // Bottom-left half
+                       ctx.moveTo(px, py); ctx.lineTo(px, py+cSz); ctx.lineTo(px+cSz, py+cSz);
+                   }
+                   ctx.closePath(); ctx.fill();
+                   if (zoomLevel !== "low") {
+                       ctx.beginPath();
+                       if (compDimmed) {
+                           ctx.strokeStyle="rgba(161,161,170,0.1)"; // --color-text-tertiary
+                       } else {
+                           ctx.strokeStyle=`rgba(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]},${lineOpacity})`;
+                       }
+                       ctx.lineWidth = isCompDn ? 2.5 : 1.5;
+                       ctx.lineCap = "round";
+                       ctx.moveTo(px, py); ctx.lineTo(px+cSz, py+cSz);
+                       ctx.stroke();
+                   }
+               }
+           } else if (c.type === "quarter") {
+                 let sx = c.path.start[0]; let sy = c.path.start[1];
+                 let cx = px + hSz; let cy = py + hSz;
+                 ctx.moveTo(cx, cy);
+                 if (sx===0 && sy===0) { ctx.lineTo(px+hSz, py); ctx.lineTo(px, py); ctx.lineTo(px, py+hSz); }
+                 else if (sx===2 && sy===0) { ctx.lineTo(px+cSz, py+hSz); ctx.lineTo(px+cSz, py); ctx.lineTo(px+hSz, py); }
+                 else if (sx===0 && sy===2) { ctx.lineTo(px+hSz, py+cSz); ctx.lineTo(px, py+cSz); ctx.lineTo(px, py+hSz); }
+                 else if (sx===2 && sy===2) { ctx.lineTo(px+cSz, py+hSz); ctx.lineTo(px+cSz, py+cSz); ctx.lineTo(px+hSz, py+cSz); }
+                 ctx.closePath();
+                 ctx.fill();
+
+                 if (zoomLevel !== "low") {
+                     ctx.beginPath();
+                     if (compDimmed) {
+                         ctx.strokeStyle="rgba(161,161,170,0.1)"; // --color-text-tertiary
+                     } else {
+                         ctx.strokeStyle=`rgba(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]},${lineOpacity})`;
+                     }
+                     ctx.lineWidth = isCompDn ? 2.5 : 1.5;
+                     ctx.lineCap = "round";
+                     ctx.moveTo(cx, cy);
+                     if (sx===0 && sy===0) { ctx.lineTo(px, py); }
+                     else if (sx===2 && sy===0) { ctx.lineTo(px+cSz, py); }
+                     else if (sx===0 && sy===2) { ctx.lineTo(px, py+cSz); }
+                     else if (sx===2 && sy===2) { ctx.lineTo(px+cSz, py+cSz); }
+                     ctx.stroke();
+                 }
+           }
+       });
+
+       if (cSz >= 16) {
+             let isSplit = m.components.length > 1;
+             ctx.font=`500 11px monospace`;
+             ctx.textAlign="center";ctx.textBaseline="middle";
+
+             let drawnSymbols = new Set();
+             sortedComps.forEach(c => {
+                 let isCompDn = (done && (done[idx] & (1<<c.compIndex)) !== 0);
+                 let compDimmed = stitchView==="highlight"&&focusColour&&c.id!==focusColour;
+
+                 let showSym = !isCompDn && !compDimmed;
+                 if (stitchView === "highlight" && focusColour === c.id) showSym = true;
+
+                 let sInfo = cmap ? cmap[c.id] : null;
+                 if (!sInfo || !showSym) return;
+                 let sid = c.id + '-' + c.type + '-' + c.path.start.join(',');
+                 if (drawnSymbols.has(sid)) return;
+                 drawnSymbols.add(sid);
+
+                 ctx.fillStyle = `rgba(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]},0.3)`;
+                 if (stitchView === "highlight" && focusColour === c.id) {
+                     ctx.fillStyle = `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;
+                 }
+
+                 let tx = px + cSz/2; let ty = py + cSz/2;
+                 if (isSplit && c.type === "quarter") {
+                     let sx = c.path.start[0]; let sy = c.path.start[1];
+                     if (sx===0 && sy===0) { tx = px + cSz*0.25; ty = py + cSz*0.25; }
+                     else if (sx===2 && sy===0) { tx = px + cSz*0.75; ty = py + cSz*0.25; }
+                     else if (sx===0 && sy===2) { tx = px + cSz*0.25; ty = py + cSz*0.75; }
+                     else if (sx===2 && sy===2) { tx = px + cSz*0.75; ty = py + cSz*0.75; }
+                 }
+                 ctx.fillText(sInfo.symbol, tx, ty);
+             });
+
+             // Piercing dots for corner grid holes at high zoom
+             ctx.fillStyle = "rgba(0,0,0,0.15)";
+             ctx.beginPath(); ctx.arc(px, py, 1.5, 0, Math.PI*2); ctx.fill();
+             ctx.beginPath(); ctx.arc(px+cSz, py, 1.5, 0, Math.PI*2); ctx.fill();
+             ctx.beginPath(); ctx.arc(px, py+cSz, 1.5, 0, Math.PI*2); ctx.fill();
+             ctx.beginPath(); ctx.arc(px+cSz, py+cSz, 1.5, 0, Math.PI*2); ctx.fill();
+       }
+
+       if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+    } else {
+      if(m.id==="__skip__"||m.id==="__empty__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
+      if(stitchView==="symbol"){
+        if(isDn){ctx.fillStyle=dimmed?"#f4f4f5":"#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
+        else{ctx.fillStyle=dimmed?"#f4f4f5":"#fff";ctx.fillRect(px,py,cSz,cSz);if(!dimmed&&info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+      }else if(stitchView==="colour"){
+        ctx.fillStyle=dimmed?`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.04)`:`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
+        if(!isDn&&!dimmed&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+      }else{
+        if(isDn){ctx.fillStyle=dimmed?`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.04)`:`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+        else if(dimmed){ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.04)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,cSz*0.45)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+        else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.20)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.7)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+      }
+      if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(161,161,170,0.1)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
     }
-    if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
   }
   if(cSz>=3){ctx.strokeStyle="rgba(0,0,0,0.2)";ctx.lineWidth=cSz>=8?1.5:1;for(let gx=0;gx<=dW;gx+=10){ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut);ctx.lineTo(gut+gx*cSz,gut+dH*cSz);ctx.stroke();}for(let gy=0;gy<=dH;gy+=10){ctx.beginPath();ctx.moveTo(gut,gut+gy*cSz);ctx.lineTo(gut+dW*cSz,gut+gy*cSz);ctx.stroke();}}
   if(showCtr){ctx.strokeStyle="rgba(200,60,60,0.3)";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(gut+Math.floor(sW/2)*cSz,gut);ctx.lineTo(gut+Math.floor(sW/2)*cSz,gut+dH*cSz);ctx.stroke();ctx.beginPath();ctx.moveTo(gut,gut+Math.floor(sH/2)*cSz);ctx.lineTo(gut+sW*cSz,gut+Math.floor(sH/2)*cSz);ctx.stroke();ctx.setLineDash([]);}
@@ -550,7 +765,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,flashComponent]);
 useEffect(()=>renderStitch(),[renderStitch]);
 
 function handleStitchMouseDown(e){
@@ -579,7 +794,113 @@ function handleStitchMouseDown(e){
     return;
   }
   if(gx<0||gx>=sW||gy<0||gy>=sH||!done)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
+  let idx=gy*sW+gx;
+  let cell = pat[idx];
+  if(cell.id==="__skip__")return;
+
+  if (cell.type==="fractional") {
+       let rect = stitchRef.current.getBoundingClientRect();
+       let xPos = e.clientX - rect.left - G - gx*scs;
+       let yPos = e.clientY - rect.top - G - gy*scs;
+
+       let comps = cell.components;
+       if (comps.length === 1) {
+           // Only one component, just toggle it
+           let curVal = done[idx];
+           let nd = new Uint8Array(done);
+           let bitMask = 1;
+           let newVal = (curVal & bitMask) !== 0 ? (curVal & ~bitMask) : (curVal | bitMask);
+           nd[idx] = newVal;
+           setFlashComponent({idx, compIndex: 0});
+           setTimeout(() => setFlashComponent(null), 200);
+           setDragVal(newVal); setIsDragging(false);
+           dragChangesRef.current=[{idx,oldVal:curVal}];
+           pushTrackHistory([...dragChangesRef.current]); dragChangesRef.current=[];
+           setDone(nd);
+           e.preventDefault();
+           return;
+       }
+
+       // Two or more components. Check for near-center ambiguous tap (within 8px of center)
+       let cx = scs / 2, cy = scs / 2;
+       let distToCenter = Math.sqrt(Math.pow(xPos - cx, 2) + Math.pow(yPos - cy, 2));
+       if (distToCenter <= 8) {
+           setDisambiguatePopup({
+             idx,
+             comps,
+             x: e.clientX,
+             y: e.clientY
+           });
+           if (disambiguateTimerRef.current) clearTimeout(disambiguateTimerRef.current);
+           disambiguateTimerRef.current = setTimeout(() => {
+               setDisambiguatePopup(null);
+           }, 3000);
+           e.preventDefault();
+           return;
+       }
+
+       // We have multiple components, and tap is not ambiguous.
+       // Try to figure out which one was hit based on the diagonal.
+       // E.g. if we have two halves, one is / and one is \ or they share a diagonal.
+       // For a single diagonal /, the line is y = cSz - x.
+       // For a single diagonal \, the line is y = x.
+
+       let targetCompIdx = -1;
+
+       // For simplicity, if there's a half / (start=[0,2], end=[2,0]), top-left is one side, bottom-right is other.
+       // We'll iterate components and see which "half" the tap falls into.
+       comps.forEach((c, ci) => {
+           if (c.type === "half") {
+               let fc = c.path.fillCorner || [0,0];
+               let isFwd = ((c.path.start[0]===0&&c.path.start[1]===2&&c.path.end[0]===2&&c.path.end[1]===0) || (c.path.start[0]===2&&c.path.start[1]===0&&c.path.end[0]===0&&c.path.end[1]===2));
+               if (isFwd) {
+                   // /
+                   if (fc[0]===0 && fc[1]===0) { // dominant top-left triangle
+                       if (xPos + yPos <= scs) targetCompIdx = ci;
+                   } else { // dominant bottom-right triangle
+                       if (xPos + yPos >= scs) targetCompIdx = ci;
+                   }
+               } else {
+                   // \
+                   if (fc[0]===0 && fc[1]===2) { // dominant bottom-left triangle
+                       if (yPos >= xPos) targetCompIdx = ci;
+                   } else { // dominant top-right triangle
+                       if (yPos <= xPos) targetCompIdx = ci;
+                   }
+               }
+           } else if (c.type === "quarter") {
+               let sx = c.path.start[0]; let sy = c.path.start[1];
+               if (sx===0 && sy===0 && xPos < cx && yPos < cy) targetCompIdx = ci;
+               else if (sx===2 && sy===0 && xPos > cx && yPos < cy) targetCompIdx = ci;
+               else if (sx===0 && sy===2 && xPos < cx && yPos > cy) targetCompIdx = ci;
+               else if (sx===2 && sy===2 && xPos > cx && yPos > cy) targetCompIdx = ci;
+           }
+       });
+
+       if (targetCompIdx === -1) {
+           // Fallback to 0 if we couldn't figure it out
+           targetCompIdx = 0;
+       }
+
+       let curVal = done[idx];
+       let nd = new Uint8Array(done);
+       let bitMask = 1 << targetCompIdx;
+       let newVal = (curVal & bitMask) !== 0 ? (curVal & ~bitMask) : (curVal | bitMask);
+       nd[idx] = newVal;
+
+       // Visual flash confirmation
+       setFlashComponent({idx, compIndex: targetCompIdx});
+       setTimeout(() => setFlashComponent(null), 200);
+
+       setDragVal(newVal); setIsDragging(false);
+       dragChangesRef.current=[{idx,oldVal:curVal}];
+       pushTrackHistory([...dragChangesRef.current]); dragChangesRef.current=[];
+       setDone(nd);
+       e.preventDefault();
+       return;
+  }
+
+  if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
   let nv=done[idx]?0:1;setDragVal(nv);setIsDragging(true);
   dragChangesRef.current=[{idx,oldVal:done[idx]}];
   let nd=new Uint8Array(done);nd[idx]=nv;setDone(nd);
@@ -617,7 +938,7 @@ function handleStitchMouseMove(e){
   if(!isDragging||stitchMode!=="track"||!done||!stitchRef.current||!pat)return;
   if(!gc)return;let{gx,gy}=gc;
   if(gx<0||gx>=sW||gy<0||gy>=sH)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
+  let idx=gy*sW+gx;if(pat[idx].id==="__skip__" || pat[idx].type==="fractional")return;
   if(done[idx]!==dragVal){
     dragChangesRef.current.push({idx,oldVal:done[idx]});
     let nd=new Uint8Array(done);nd[idx]=dragVal;setDone(nd);
@@ -843,22 +1164,85 @@ return(
       </div>
     )}
 
+    {disambiguatePopup && (
+      <div style={{
+        position:"fixed", left:disambiguatePopup.x - 40, top:disambiguatePopup.y - 40,
+        background:"#fff", color:"#18181b", padding:"8px", borderRadius:8,
+        border:"1px solid #e4e4e7", boxShadow:"0 10px 15px -3px rgba(0,0,0,0.1)", zIndex:1000
+      }}>
+        <div style={{fontSize:11,fontWeight:600,color:"#71717a",marginBottom:6,textAlign:"center"}}>Mark which half?</div>
+        <div style={{display:"flex",gap:4,flexDirection:"column"}}>
+          {disambiguatePopup.comps.map((c, ci) => {
+            let fc = c.path.fillCorner || [0,0];
+            let isFwd = ((c.path.start[0]===0&&c.path.start[1]===2&&c.path.end[0]===2&&c.path.end[1]===0) || (c.path.start[0]===2&&c.path.start[1]===0&&c.path.end[0]===0&&c.path.end[1]===2));
+            let sInfo = cmap ? cmap[c.id] : null;
+            let icon = isFwd ? (fc[0]===0&&fc[1]===0 ? "◣" : "◥") : (fc[0]===0&&fc[1]===2 ? "◤" : "◢");
+            let isCompDn = (done && (done[disambiguatePopup.idx] & (1<<ci)) !== 0);
+            return (
+              <button key={ci} onClick={() => {
+                let curVal = done[disambiguatePopup.idx];
+                let nd = new Uint8Array(done);
+                let bitMask = 1 << ci;
+                let newVal = (curVal & bitMask) !== 0 ? (curVal & ~bitMask) : (curVal | bitMask);
+                nd[disambiguatePopup.idx] = newVal;
+
+                setFlashComponent({idx: disambiguatePopup.idx, compIndex: ci});
+                setTimeout(() => setFlashComponent(null), 200);
+
+                setDragVal(newVal); setIsDragging(false);
+                dragChangesRef.current=[{idx: disambiguatePopup.idx, oldVal:curVal}];
+                pushTrackHistory([...dragChangesRef.current]); dragChangesRef.current=[];
+                setDone(nd);
+
+                if (disambiguateTimerRef.current) clearTimeout(disambiguateTimerRef.current);
+                setDisambiguatePopup(null);
+              }} style={{padding:"6px 12px",borderRadius:6,border:"1px solid #e4e4e7",background:isCompDn?"#f0fdf4":"#fafafa",cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontWeight:500,color:isCompDn?"#16a34a":"#18181b",minWidth:100}}>
+                <span style={{fontSize:14,color:isCompDn?"#16a34a":"#a1a1aa"}}>{icon}</span> {sInfo?sInfo.symbol:c.id} {isCompDn?"✓":""}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    )}
+
     <button onClick={()=>setDrawer(!drawer)} style={{width:"100%",padding:"8px",borderRadius:"0 0 8px 8px",border:"0.5px solid #e4e4e7",borderTop:"none",background:drawer?"#fafafa":"#fff",cursor:"pointer",fontSize:12,fontWeight:600,color:"#0d9488",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:12}}><span style={{transform:drawer?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s",display:"inline-block"}}>▲</span>Colours ({pal.length}) — {Object.values(colourDoneCounts).filter(c=>c.done>=c.total).length} complete</button>
 
     {drawer&&<div style={{border:"0.5px solid #e4e4e7",borderRadius:"10px",background:"#fff",maxHeight:280,overflow:"auto",padding:8,marginBottom:12}}>
-      <div style={{display:"flex",flexDirection:"column",gap:2}}>{pal.map(p=>{let dc=colourDoneCounts[p.id]||{total:0,done:0},pct=dc.total>0?Math.round(dc.done/dc.total*100):0,complete=dc.done>=dc.total,isFocused=focusColour===p.id;
+      <div style={{display:"flex",flexDirection:"column",gap:2}}>{pal.map((p, pIdx)=>{
+        // Use the new isFracRow property if available, otherwise fallback to simple ID
+        let dcKey = p.isFracRow ? p.id + "_frac" : p.id;
+        let dc=colourDoneCounts[dcKey]||{total:0,done:0};
+
+        // Fallback for older patterns where colourDoneCounts might not have the _frac suffix yet
+        if (!colourDoneCounts[dcKey] && !p.isFracRow) {
+           dc = colourDoneCounts[p.id]||{total:0,done:0};
+        }
+
+        let pct=dc.total>0?Math.round(dc.done/dc.total*100):0;
+        let complete=dc.done>=dc.total && dc.total > 0;
+        let isFocused=focusColour===p.id; // Focus still applies to all rows of same ID
         let sk=skeinEst(p.count,fabricCt);
-        return<div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,background:isFocused?"#f0fdfa":complete?"#f0fdf4":"#fff",border:isFocused?"2px solid #0d9488":isEditMode?"1px solid #fde68a":"1px solid transparent",cursor:"pointer",opacity:complete&&!isFocused?0.6:1}} onClick={()=>{
+        let hasFractional = p.isFracRow;
+
+        // The key must be unique if there are multiple rows for the same ID
+        let rowKey = p.id + (hasFractional ? "_frac" : "_full") + "_" + pIdx;
+
+        return<div key={rowKey} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,background:isFocused?"#f0fdfa":complete?"#f0fdf4":"#fff",border:isFocused?"2px solid #0d9488":isEditMode?"1px solid #fde68a":"1px solid transparent",cursor:"pointer",opacity:complete&&!isFocused?0.6:1}} onClick={()=>{
           if (isEditMode) {
             setEditModalColor(p);
           } else {
             if(stitchView==="highlight")setFocusColour(focusColour===p.id?null:p.id);
           }
         }}>
-          <span style={{width:18,height:18,borderRadius:4,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",flexShrink:0}}/>
+          {hasFractional ?
+            <div style={{width:18,height:18,position:"relative",overflow:"hidden",borderRadius:4,border:"1px solid #d4d4d8",flexShrink:0}}>
+              <div style={{position:"absolute",top:0,left:0,width:0,height:0,borderStyle:"solid",borderWidth:"18px 0 0 18px",borderColor:`transparent transparent transparent rgb(${p.rgb})`}}/>
+            </div>
+            : <span style={{width:18,height:18,borderRadius:4,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",flexShrink:0}}/>
+          }
           <span style={{fontFamily:"monospace",fontSize:13,color:"#18181b",width:16,textAlign:"center",fontWeight:700}}>{p.symbol}</span>
           <span style={{fontWeight:600,fontSize:12,minWidth:40,color:complete?"#16a34a":"#18181b"}}>{p.id}</span>
-          <span style={{fontSize:11,color:"#a1a1aa",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
+          <span style={{fontSize:11,color:"#a1a1aa",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}{hasFractional && <span style={{marginLeft:6,fontSize:10,background:"#fef3c7",color:"#d97706",padding:"1px 6px",borderRadius:10,fontWeight:600}}>Fractional</span>}</span>
           {!isEditMode && <>
           <span style={{fontSize:10,color:"#a1a1aa",flexShrink:0}}>{sk}sk</span>
           <div style={{width:60,height:5,background:"#e4e4e7",borderRadius:3,overflow:"hidden",flexShrink:0}}><div style={{height:"100%",width:pct+"%",background:complete?"#16a34a":"#0d9488",borderRadius:3}}/></div>
@@ -904,7 +1288,26 @@ return(
 
       <Section title="Project Info">
         <div style={{marginTop:8,display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}}>
-          {[["Pattern size",`${sW} × ${sH} stitches`],["Total cells",(sW*sH).toLocaleString()],["Stitchable",totalStitchable.toLocaleString()],["Skipped",(sW*sH-totalStitchable).toLocaleString()],["Colours",`${pal.length} (${blendCount} blend${blendCount!==1?"s":""})`],["Skeins needed",`${totalSkeins} (at ${fabricCt}ct)`]].map(([l,v],i)=><div key={i}><div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>{l}</div><div style={{fontSize:14,fontWeight:600,color:"#18181b"}}>{v}</div></div>)}
+          {[
+              ["Pattern size",`${sW} × ${sH} stitches`],
+              ["Total cells",(sW*sH).toLocaleString()],
+              ["Colours",`${pal.length} (${blendCount} blend${blendCount!==1?"s":""})`],
+              ["Skeins needed",`${totalSkeins} (at ${fabricCt}ct)`]
+          ].map(([l,v],i)=><div key={i}><div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>{l}</div><div style={{fontSize:14,fontWeight:600,color:"#18181b"}}>{v}</div></div>)}
+        </div>
+        <div style={{marginTop:16,paddingTop:12,borderTop:"1px solid #e4e4e7",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px 20px"}}>
+            <div>
+              <div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>Full stitches</div>
+              <div style={{fontSize:14,fontWeight:600,color:"#18181b"}}>{fullStitchStats.done.toLocaleString()} / {fullStitchStats.total.toLocaleString()} <span style={{fontSize:12,color:"#0d9488",fontWeight:700}}>({fullProgressPct}%)</span></div>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>Half stitches</div>
+              <div style={{fontSize:14,fontWeight:600,color:"#18181b"}}>{fracStitchStats.done.toLocaleString()} / {fracStitchStats.total.toLocaleString()} <span style={{fontSize:12,color:"#0d9488",fontWeight:700}}>({fracProgressPct}%)</span></div>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>Combined progress</div>
+              <div style={{fontSize:14,fontWeight:600,color:"#18181b"}}>{doneCount.toLocaleString()} / {totalStitchable.toLocaleString()} <span style={{fontSize:12,color:"#16a34a",fontWeight:800}}>({progressPct}%)</span></div>
+            </div>
         </div>
       </Section>
     </div>

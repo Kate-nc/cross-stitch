@@ -207,6 +207,7 @@ function parseOXS(xmlString) {
                           chart.querySelector("Stitches") || chart.querySelector("crosses") ||
                           chart.querySelector("Crosses") || chart.querySelector("grid") || chart.querySelector("Grid") || chart;
 
+  // Solid stitches
   const stitchEls = stitchContainer.querySelectorAll("stitch, Stitch, cross, Cross, cell, Cell, point, Point");
   stitchEls.forEach(el => {
     let x = parseInt(el.getAttribute("x") || el.getAttribute("col") || el.getAttribute("column"));
@@ -228,6 +229,55 @@ function parseOXS(xmlString) {
         dist: 0
       };
       stitchCount++;
+    }
+  });
+
+  // Fractional stitches
+  const fractionalContainer = chart.querySelector("fractionalstitches") || chart.querySelector("FractionalStitches") || chart;
+  const fractionalEls = fractionalContainer.querySelectorAll("quarter, half, threequarter, Quarter, Half, ThreeQuarter");
+
+  fractionalEls.forEach(el => {
+    let x = parseInt(el.getAttribute("x"));
+    let y = parseInt(el.getAttribute("y"));
+    let palIdx = el.getAttribute("color") || el.getAttribute("index") || el.getAttribute("palette");
+    if (isNaN(x) || isNaN(y) || x < 0 || x >= width || y < 0 || y >= height) return;
+
+    const palEntry = paletteMap[palIdx];
+    if (!palEntry || !palEntry.dmcThread) return;
+    const t = palEntry.dmcThread;
+
+    let tagName = el.tagName.toLowerCase();
+    let comps = [];
+
+    if (tagName === "quarter") {
+        let corner = el.getAttribute("corner") || "top-left";
+        let start = [0,0];
+        if (corner === "top-right") start = [2,0];
+        if (corner === "bottom-left") start = [0,2];
+        if (corner === "bottom-right") start = [2,2];
+        comps.push({ type: "quarter", id: t.id, name: t.name, rgb: t.rgb, lab: t.lab, path: { start: start, end: [1,1] } });
+    } else if (tagName === "half") {
+        let dir = el.getAttribute("direction") || "/";
+        let path = dir === "/" ? { start: [0,2], end: [2,0] } : { start: [0,0], end: [2,2] };
+        comps.push({ type: "half", id: t.id, name: t.name, rgb: t.rgb, lab: t.lab, path: path });
+    } else if (tagName === "threequarter") {
+        // Assume default orientation for imported three-quarters (e.g. forward half + bottom-right quarter)
+        comps.push({ type: "half", id: t.id, name: t.name, rgb: t.rgb, lab: t.lab, path: { start: [0,2], end: [2,0] } });
+        comps.push({ type: "quarter", id: t.id, name: t.name, rgb: t.rgb, lab: t.lab, path: { start: [2,2], end: [1,1] } });
+    }
+
+    if (comps.length > 0) {
+        let idx = y * width + x;
+        let cell = pattern[idx];
+        if (cell.type === "skip") {
+            pattern[idx] = { type: "fractional", components: comps };
+        } else if (cell.type === "fractional") {
+            pattern[idx].components.push(...comps);
+        } else if (cell.type === "solid" && cell.id !== t.id) {
+            // Replace solid if different color, or just ignore (conflicts are rare in valid files)
+            pattern[idx] = { type: "fractional", components: comps };
+        }
+        stitchCount++; // Approximating
     }
   });
 

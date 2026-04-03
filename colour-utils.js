@@ -106,17 +106,56 @@ function buildPalette(patArr){
   let usage={};
   for(let i=0;i<patArr.length;i++){
     let m=patArr[i];if(m.id==="__skip__")continue;
-    if(!usage[m.id])usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};
-    usage[m.id].count++;
+
+    // We group by ID and keep track of both full and fractional counts
+    if(!usage[m.id])usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0, fullCount: 0, fracCount: 0};
+
+    if (m.type === "fractional") {
+        m.components.forEach(c => {
+           let vid = c.id;
+           if (!usage[vid]) usage[vid]={id:vid,type:c.type,name:c.name,rgb:c.rgb,lab:c.lab,count:0, fullCount: 0, fracCount: 0};
+           usage[vid].fracCount += (c.type === "quarter" ? 0.25 : 0.5);
+           usage[vid].count += (c.type === "quarter" ? 0.25 : 0.5);
+        });
+    } else {
+        usage[m.id].fullCount++;
+        usage[m.id].count++;
+    }
   }
   let entries=Object.values(usage).sort((a,b)=>b.count-a.count);
+  let expandedEntries = [];
+
   entries.forEach((e,i)=>{
     // Try to find an existing symbol in the pattern array
     const cell = patArr.find(c => c.id === e.id && c.symbol);
-    e.symbol = cell ? cell.symbol : SYMS[i%SYMS.length];
+    if (cell) {
+        e.symbol = cell.symbol;
+    } else {
+        // if it's fractional, find it in components
+        const fracCell = patArr.find(c => c.type === "fractional" && c.components.some(comp => comp.id === e.id && comp.symbol));
+        if (fracCell) {
+            e.symbol = fracCell.components.find(comp => comp.id === e.id).symbol;
+        } else {
+            e.symbol = SYMS[i%SYMS.length];
+        }
+    }
+
+    // Split into full and half rows if needed
+    if (e.fullCount > 0 && e.fracCount > 0) {
+        let f1 = {...e, count: e.fullCount, isFracRow: false};
+        let f2 = {...e, count: e.fracCount, isFracRow: true};
+        expandedEntries.push(f1, f2);
+    } else if (e.fracCount > 0) {
+        expandedEntries.push({...e, count: e.fracCount, isFracRow: true});
+    } else {
+        expandedEntries.push({...e, count: e.fullCount, isFracRow: false});
+    }
   });
+
+  // The cmap needs to be based on the original entries so it can map colorId -> properties easily.
+  // We'll keep pal as the expanded array for UI rendering.
   let cm={};entries.forEach(e=>{cm[e.id]=e;});
-  return{pal:entries,cmap:cm};
+  return{pal:expandedEntries,cmap:cm};
 }
 
 // Recalculates stitch counts from the grid while preserving existing symbol assignments.
@@ -124,15 +163,33 @@ function buildPalette(patArr){
 function rebuildPaletteCounts(patArr, existingPal) {
   const counts = {};
   for (let i = 0; i < patArr.length; i++) {
-    const id = patArr[i].id;
+    const m = patArr[i];
+    const id = m.id;
     if (id === "__skip__" || id === "__empty__") continue;
-    counts[id] = (counts[id] || 0) + 1;
+
+    if (m.type === "fractional") {
+        m.components.forEach(c => {
+            counts[c.id] = (counts[c.id] || 0) + (c.type === "quarter" ? 0.25 : 0.5);
+        });
+    } else {
+        counts[id] = (counts[id] || 0) + 1;
+    }
   }
   return existingPal.map(p => ({ ...p, count: counts[p.id] || 0 }));
 }
 
 function restoreStitch(m){
   if(m.id==="__skip__")return{type:"skip",id:"__skip__",rgb:[255,255,255],lab:[100,0,0]};
+  if(m.type==="fractional"){
+      let comps = m.components.map(c => {
+          let cdmc = DMC.find(d=>d.id===c.id);
+          if (cdmc) {
+              return {...c, name: cdmc.name, rgb: cdmc.rgb, lab: cdmc.lab};
+          }
+          return c;
+      });
+      return {type:"fractional", id: m.id || "fractional", components: comps};
+  }
   if(m.type==="blend"){
     let ids=m.id.split("+"),t0=DMC.find(d=>d.id===ids[0]),t1=DMC.find(d=>d.id===ids[1]);
     if(t0&&t1)return{type:"blend",id:m.id,name:m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};

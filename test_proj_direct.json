@@ -1,0 +1,44 @@
+{
+  "version": 8,
+  "page": "creator",
+  "settings": {
+    "sW": 10,
+    "sH": 10,
+    "fabricCt": 14,
+    "skeinPrice": 0.8,
+    "stitchSpeed": 40
+  },
+  "pattern": [
+    {
+      "type": "fractional",
+      "components": [
+        {
+          "type": "half",
+          "id": "310",
+          "name": "Black",
+          "rgb": [0,0,0],
+          "symbol": "X",
+          "path": {"start": [0,2], "end": [2,0]}
+        },
+        {
+          "type": "half",
+          "id": "310",
+          "name": "Black",
+          "rgb": [0,0,0],
+          "symbol": "O",
+          "path": {"start": [0,0], "end": [2,2]}
+        }
+      ]
+    },
+    {"id": "__skip__"}, {"id": "__skip__"}, {"id": "__skip__"}, {"id": "__skip__"},
+    {"id": "__skip__"}, {"id": "__skip__"}, {"id": "__skip__"}, {"id": "__skip__"}, {"id": "__skip__"}
+  ],
+  "bsLines": [],
+  "done": [0,0,0,0,0,0,0,0,0,0],
+  "parkMarkers": [],
+  "totalTime": 0,
+  "sessions": [],
+  "hlRow": -1,
+  "hlCol": -1,
+  "threadOwned": {}
+}
