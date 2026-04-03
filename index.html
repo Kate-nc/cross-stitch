@@ -954,17 +954,30 @@ return(
 
       {isScratchMode&&<Section title="Colours" isOpen={colPickerOpen} onToggle={setColPickerOpen} badge={<span style={{fontSize:11,fontWeight:500,color:"#0d9488",background:"#f0fdfa",padding:"1px 8px",borderRadius:10}}>{displayPal?displayPal.filter(p=>p.count>0).length:0} used</span>}>
         <div style={{marginTop:8}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#f4f4f5",borderRadius:8}}>
+            {[["1","Add colour","→"],["2","Select chip","→"],["3","Paint!",""]].map(([n,label,arr],i)=>(
+              <React.Fragment key={i}>
+                <div style={{display:"flex",alignItems:"center",gap:4}}>
+                  <span style={{width:16,height:16,borderRadius:"50%",background:"#0d9488",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{n}</span>
+                  <span style={{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}>{label}</span>
+                </div>
+                {arr&&<span style={{fontSize:10,color:"#a1a1aa"}}>{arr}</span>}
+              </React.Fragment>
+            ))}
+          </div>
           <input type="text" placeholder="Search by DMC # or name…" value={dmcSearch} onChange={e=>setDmcSearch(e.target.value)} style={{width:"100%",padding:"6px 10px",border:"0.5px solid #e4e4e7",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}}/>
           <div style={{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}}>
             {dmcFiltered.slice(0,60).map(d=>{
               const inPal=cmap&&cmap[d.id];
               return(
-                <div key={d.id} onClick={()=>addScratchColour(d)} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,cursor:"pointer",background:inPal?"#f0fdfa":"#fff",border:inPal?"1px solid #99f6e4":"1px solid transparent",opacity:inPal?0.7:1}}>
-                  <span style={{width:16,height:16,borderRadius:3,flexShrink:0,background:`rgb(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]})`,border:"1px solid #d4d4d8"}}/>
-                  <span style={{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#18181b"}}>{d.id}</span>
-                  <span style={{fontSize:11,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
-                  {inPal?<span style={{fontSize:10,color:"#0d9488"}}>✓</span>:<span style={{fontSize:10,color:"#a1a1aa"}}>+</span>}
-                </div>
+                <Tooltip key={d.id} text={inPal?"Already in your palette":"Click to add to your palette"} width={160}>
+                  <div onClick={()=>addScratchColour(d)} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,cursor:"pointer",background:inPal?"#f0fdfa":"#fff",border:inPal?"1px solid #99f6e4":"1px solid transparent",opacity:inPal?0.7:1,width:"100%"}}>
+                    <span style={{width:16,height:16,borderRadius:3,flexShrink:0,background:`rgb(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]})`,border:"1px solid #d4d4d8"}}/>
+                    <span style={{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#18181b"}}>{d.id}</span>
+                    <span style={{fontSize:11,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
+                    {inPal?<span style={{fontSize:10,color:"#0d9488"}}>✓</span>:<span style={{fontSize:10,color:"#a1a1aa"}}>+</span>}
+                  </div>
+                </Tooltip>
               );
             })}
             {dmcFiltered.length===0&&<div style={{fontSize:11,color:"#a1a1aa",padding:"8px 0",textAlign:"center"}}>No colours found</div>}
@@ -1030,8 +1043,12 @@ return(
             <button onClick={()=>setTool("backstitch")} style={tBtn(activeTool==="backstitch")}>Backstitch</button>
             {activeTool==="backstitch"&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer"}}><input type="checkbox" checked={bsContinuous} onChange={e=>{setBsContinuous(e.target.checked);setBsStart(null);}}/>Continuous</label>}
             <button onClick={()=>setTool("eraseBs")} style={tBtn(activeTool==="eraseBs")}>Erase line</button>
-            <button onClick={()=>setTool("paint")} style={tBtn(activeTool==="paint")}>Paint</button>
-            <button onClick={()=>setTool("fill")} style={tBtn(activeTool==="fill")}>Fill</button>
+            <Tooltip text="Select a colour chip below, then click the canvas to paint" width={200}>
+              <button onClick={()=>setTool("paint")} style={tBtn(activeTool==="paint")}>Paint</button>
+            </Tooltip>
+            <Tooltip text="Select a colour chip below, then click to flood-fill a region" width={200}>
+              <button onClick={()=>setTool("fill")} style={tBtn(activeTool==="fill")}>Fill</button>
+            </Tooltip>
             {(activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
             <div style={{marginLeft:"auto",display:"flex",gap:4}}>
               {editHistory.length>0&&<button onClick={()=>{let last=editHistory[editHistory.length-1],np=pat.slice();last.changes.forEach(c2=>np[c2.idx]={...c2.old});setPat(np);setEditHistory(prev=>prev.slice(0,-1));let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);setPal(np2);setCmap(nc);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
@@ -1039,7 +1056,16 @@ return(
             </div>
           </div>
           <div ref={scrollRef} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:activeTool?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{if(activeTool==="backstitch"&&bsStart){e.preventDefault();setBsStart(null);}}}/></div>
-          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{(displayPal||pal||[]).map(p=>{let ips=(activeTool==="paint"||activeTool==="fill")&&selectedColorId===p.id,ihs=hiId===p.id,isUnused=isScratchMode&&p.count===0;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff",opacity:isUnused?0.6:1}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span>{isUnused&&<span onClick={e=>{e.stopPropagation();removeScratchColour(p.id);}} style={{fontSize:9,color:"#a1a1aa",cursor:"pointer",marginLeft:2,lineHeight:1}}>×</span>}</div>;})}</div></div>
+          {isScratchMode&&(activeTool==="paint"||activeTool==="fill")&&!selectedColorId&&displayPal&&displayPal.length>0&&(
+            <div style={{marginBottom:6,padding:"5px 10px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:8,fontSize:11,color:"#92400e",display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:13}}>👇</span> Click a colour chip below to select it, then paint on the canvas
+            </div>
+          )}
+          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{(displayPal||pal||[]).map(p=>{let ips=(activeTool==="paint"||activeTool==="fill")&&selectedColorId===p.id,ihs=hiId===p.id,isUnused=isScratchMode&&p.count===0;
+            const chip=<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff",opacity:isUnused?0.6:1}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span>{isUnused&&<span onClick={e=>{e.stopPropagation();removeScratchColour(p.id);}} style={{fontSize:9,color:"#a1a1aa",cursor:"pointer",marginLeft:2,lineHeight:1}}>×</span>}</div>;
+            const tipText=ips?"Currently selected — click canvas to paint":isUnused?"Click to select · no stitches yet":"Click to select this colour for painting";
+            return isScratchMode?<Tooltip key={p.id} text={tipText} width={180}>{chip}</Tooltip>:chip;
+          })}</div></div>
         </div>}
 
         {/* ═══ PROJECT TAB ═══ */}
