@@ -1731,6 +1731,11 @@ return(
         const newHs=new Map(halfStitches);
         newHs.delete(halfToast.idx);
         setHalfStitches(newHs);
+        setHalfDone(prev=>{
+          const newHd=new Map(prev);
+          newHd.delete(halfToast.idx);
+          return newHd;
+        });
         // The cell already has the full stitch colour from pat[]
         setHalfToast(null);
         renderStitch();
