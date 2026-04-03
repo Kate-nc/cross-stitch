@@ -119,3 +119,33 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   cursor: pointer;
   color: #94a3b8;
 }
+
+/* Half stitch animations */
+@keyframes hs-scale-in {
+  0% { transform: scale(0.85); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes hs-fade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+@keyframes hs-flash {
+  0%, 100% { background-color: inherit; }
+  50% { background-color: #fecaca; }
+}
+.hs-scale-in {
+  animation: hs-scale-in 150ms ease-out both;
+}
+.hs-fade-out {
+  animation: hs-fade-out 120ms ease-in both;
+}
+.hs-flash {
+  animation: hs-flash 300ms ease-in-out;
+}
+@keyframes hs-badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+.hs-badge-pulse {
+  animation: hs-badge-pulse 600ms ease-in-out;
+}
