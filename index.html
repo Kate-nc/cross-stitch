@@ -65,6 +65,10 @@ const[editHistory,setEditHistory]=useState([]);
 const[exportPage,setExportPage]=useState(0),[pageMode,setPageMode]=useState(false);
 
 const[done,setDone]=useState(null);
+const[isScratchMode,setIsScratchMode]=useState(false);
+const[scratchPalette,setScratchPalette]=useState([]);
+const[dmcSearch,setDmcSearch]=useState("");
+const[colPickerOpen,setColPickerOpen]=useState(true);
 const[parkMarkers,setParkMarkers]=useState([]);
 const[hlRow,setHlRow]=useState(-1),[hlCol,setHlCol]=useState(-1);
 const[totalTime,setTotalTime]=useState(0);
@@ -79,9 +83,10 @@ const[confettiData,setConfettiData]=useState(null);
 const previewTimerRef=useRef(null);
 
 const pcRef=useRef(null),fRef=useRef(null),scrollRef=useRef(null),expRef=useRef(null),loadRef=useRef(null);
+const prevSW=useRef(sW),prevSH=useRef(sH);
 const G=28;
 
-const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__")c++;return c;},[pat]);
+const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__"&&pat[i].id!=="__empty__")c++;return c;},[pat]);
 const cs=useMemo(()=>Math.max(2,Math.round(20*zoom)),[zoom]);
 const fitZ=useCallback(()=>setZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
 const pxX=Math.ceil(sW/A4W),pxY=Math.ceil(sH/A4H),totPg=pxX*pxY;
@@ -104,11 +109,13 @@ const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitc
 
 
 const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
+const dmcFiltered=useMemo(()=>{if(!dmcSearch.trim())return DMC;let q=dmcSearch.toLowerCase();return DMC.filter(d=>d.id.toLowerCase().includes(q)||d.name.toLowerCase().includes(q));},[dmcSearch]);
+const displayPal=useMemo(()=>{if(!isScratchMode||!pal)return pal;let ids=new Set(pal.map(p=>p.id));let extras=scratchPalette.filter(p=>!ids.has(p.id));return[...pal,...extras];},[isScratchMode,pal,scratchPalette]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
-const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__"||pat[i].id==="__empty__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
 
 const generatePreview=useCallback(()=>{
-  if(!img)return;
+  if(!img||!img.src)return;
   let pw=Math.min(100,sW),ph=Math.round(pw/(sW/sH));if(ph<1)ph=1;
   let c=document.createElement("canvas");c.width=pw;c.height=ph;let cx=c.getContext("2d");
   cx.filter=`brightness(${100+bri}%) contrast(${100+con}%) saturate(${100+sat}%)`;
@@ -179,6 +186,47 @@ function resetAll(){
   setHasGenerated(false);
   setDimOpen(true);setPalOpen(true);setFabOpen(false);setAdjOpen(false);setBgOpen(false);
   setIsCropping(false);setCropRect(null);
+  setIsScratchMode(false);setScratchPalette([]);setDmcSearch("");
+}
+
+// Merges scratch palette entries into buildPalette results so 0-stitch colours stay visible
+function buildPaletteWithScratch(np){
+  let{pal:p,cmap:c}=buildPalette(np);
+  if(!isScratchMode||!scratchPalette.length)return{pal:p,cmap:c};
+  let ids=new Set(p.map(x=>x.id));
+  let extras=scratchPalette.filter(x=>!ids.has(x.id));
+  let ec={};extras.forEach(e=>{ec[e.id]=e;});
+  return{pal:[...p,...extras],cmap:{...c,...ec}};
+}
+
+function initBlankGrid(w,h){
+  let blank=Array.from({length:w*h},()=>({id:"__empty__",rgb:[255,255,255]}));
+  let{pal:p,cmap:c}=buildPalette(blank);
+  setPat(blank);setPal(p);setCmap(c);setDone(new Uint8Array(w*h));
+}
+
+function startScratch(){
+  resetAll();
+  setIsScratchMode(true);
+  setImg({src:null,w:sW,h:sH});
+  prevSW.current=sW;prevSH.current=sH;
+  initBlankGrid(sW,sH);
+}
+
+function addScratchColour(d){
+  if(cmap&&cmap[d.id])return;
+  let usedSyms=new Set(pal?pal.map(p=>p.symbol):[]);
+  let sym=SYMS.find(s=>!usedSyms.has(s))||SYMS[(pal?pal.length:0)%SYMS.length];
+  let entry={id:d.id,type:"solid",name:d.name,rgb:d.rgb,lab:d.lab,count:0,symbol:sym};
+  setScratchPalette(prev=>[...prev.filter(p=>p.id!==d.id),entry]);
+  setPal(prev=>prev?[...prev,entry]:[entry]);
+  setCmap(prev=>prev?{...prev,[d.id]:entry}:{[d.id]:entry});
+}
+
+function removeScratchColour(id){
+  setScratchPalette(prev=>prev.filter(p=>p.id!==id));
+  setPal(prev=>prev?prev.filter(p=>p.id!==id):prev);
+  setCmap(prev=>{if(!prev)return prev;let n={...prev};delete n[id];return n;});
 }
 
 function handleFile(e){let f=e.target.files[0];if(!f)return;const MAX_FILE_SIZE = 5 * 1024 * 1024; if(f.size>MAX_FILE_SIZE){alert("File is too large. Please select an image under 5MB.");return;}let rd=new FileReader();rd.onload=ev=>{let i=new Image();i.onload=()=>{setOrigW(i.width);setOrigH(i.height);let a=i.width/i.height;setAr(a);setSW(80);setSH(Math.round(80/a));setImg(i);resetAll();};i.src=ev.target.result;};rd.readAsDataURL(f);}
@@ -243,7 +291,7 @@ function applyCrop(){
   newImg.src=c.toDataURL();
 }
 
-function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
 function processLoadedProject(project){
   let s=project.settings;setSW(s.sW);setSH(s.sH);setMaxC(s.maxC);setBri(s.bri||0);setCon(s.con||0);setSat(s.sat||0);setDith(!!s.dith);setSkipBg(!!s.skipBg);setBgTh(s.bgTh||15);setBgCol(s.bgCol||[255,255,255]);setMinSt(s.minSt||0);setArLock(s.arLock!==false);setAr(s.ar||1);setBsLines(project.bsLines||[]);
@@ -258,7 +306,8 @@ function processLoadedProject(project){
   if(project.done&&project.done.length===restored.length)setDone(new Uint8Array(project.done));else setDone(new Uint8Array(restored.length));
   setParkMarkers(project.parkMarkers||[]);setTotalTime(project.totalTime||0);setSessions(project.sessions||[]);
   if(project.hlRow>=0)setHlRow(project.hlRow);if(project.hlCol>=0)setHlCol(project.hlCol);
-  if(project.imgData&&typeof project.imgData==='string'&&project.imgData.startsWith('data:image/')){let li=new Image();li.onload=()=>{setImg(li);setOrigW(li.width);setOrigH(li.height);};li.src=project.imgData;}
+  setIsScratchMode(!!s.isScratchMode);
+  if(project.imgData&&typeof project.imgData==='string'&&project.imgData.startsWith('data:image/')){let li=new Image();li.onload=()=>{setImg(li);setOrigW(li.width);setOrigH(li.height);};li.src=project.imgData;}else if(s.isScratchMode){setImg({src:null,w:s.sW,h:s.sH});}
   setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/(s.sW*20)));setZoom(z);},100);
 }
 
@@ -280,12 +329,27 @@ useEffect(() => {
 useEffect(() => {
     if (!pat || !pal) return;
     const saveTimer = setTimeout(() => {
-        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
     }, 1000); // 1-second debounce
 
     return () => clearTimeout(saveTimer);
 }, [pat, pal, sW, sH, maxC, bri, con, sat, dith, skipBg, bgTh, bgCol, minSt, arLock, ar, fabricCt, skeinPrice, stitchSpeed, smooth, smoothType, orphans, bsLines, done, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned, img]);
+
+// Resize scratch-mode grid: preserve existing stitches, fill new cells with __empty__
+useEffect(()=>{
+  if(!isScratchMode||!pat)return;
+  if(sW===prevSW.current&&sH===prevSH.current)return;
+  let oldW=prevSW.current,oldH=prevSH.current;
+  prevSW.current=sW;prevSH.current=sH;
+  let newPat=Array.from({length:sW*sH},(_,i)=>{
+    let ox=i%sW,oy=Math.floor(i/sW);
+    if(ox<oldW&&oy<oldH){let oi=oy*oldW+ox;if(pat[oi])return pat[oi];}
+    return{id:"__empty__",rgb:[255,255,255]};
+  });
+  let{pal:p,cmap:c}=buildPaletteWithScratch(newPat);
+  setPat(newPat);setPal(p);setCmap(c);setDone(new Uint8Array(sW*sH));
+},[sW,sH,isScratchMode]);
 
 
 function generatePatternThumbnail(pat, sW, sH) {
@@ -676,8 +740,8 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, showOverlayImg=false, op=0.3){
   }
   ctx.fillStyle="#a1a1aa";ctx.font=`${Math.max(7,Math.min(11,cSz*0.5))}px system-ui`;ctx.textAlign="center";ctx.textBaseline="middle";
   for(let x=0;x<dW;x+=10)ctx.fillText(String(offX+x+1),gut+x*cSz+cSz/2,gut/2);ctx.textAlign="right";for(let y=0;y<dH;y+=10)ctx.fillText(String(offY+y+1),gut-3,gut+y*cSz+cSz/2);
-  for(let y2=0;y2<dH;y2++)for(let x2=0;x2<dW;x2++){let idx=(offY+y2)*sW+(offX+x2);let m=pat[idx];if(!m)continue;let info=m.id==="__skip__"?null:(cmap?cmap[m.id]:null);let px=gut+x2*cSz,py=gut+y2*cSz;let isHi=!hiId||m.id===hiId;let dim=hiId&&!isHi&&m.id!=="__skip__";
-    if(m.id==="__skip__"){
+  for(let y2=0;y2<dH;y2++)for(let x2=0;x2<dW;x2++){let idx=(offY+y2)*sW+(offX+x2);let m=pat[idx];if(!m)continue;let info=m.id==="__skip__"?null:(cmap?cmap[m.id]:null);let px=gut+x2*cSz,py=gut+y2*cSz;let isHi=!hiId||m.id===hiId;let dim=hiId&&!isHi&&m.id!=="__skip__"&&m.id!=="__empty__";
+    if(m.id==="__skip__"||m.id==="__empty__"){
       if(showOverlayImg){
         ctx.globalAlpha=0.2;drawCk(ctx,px,py,cSz);ctx.globalAlpha=1.0;
       }else{
@@ -759,7 +823,7 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, showOverlayImg=false, op=0.3){
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
 }
 
-const renderPattern=useCallback(()=>{if(!pat||!cmap||!pcRef.current||tab!=="pattern")return;pcRef.current.width=sW*cs+G+2;pcRef.current.height=sH*cs+G+2;drawPattern(pcRef.current.getContext("2d"),0,0,sW,sH,cs,G, showOverlay && !!img, overlayOpacity);},[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab,hoverCoords,selectedColorId,bsContinuous,showOverlay,overlayOpacity,img]);
+const renderPattern=useCallback(()=>{if(!pat||!cmap||!pcRef.current||tab!=="pattern")return;pcRef.current.width=sW*cs+G+2;pcRef.current.height=sH*cs+G+2;drawPattern(pcRef.current.getContext("2d"),0,0,sW,sH,cs,G, showOverlay && !!img && !!img.src, overlayOpacity);},[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab,hoverCoords,selectedColorId,bsContinuous,showOverlay,overlayOpacity,img]);
 useEffect(()=>renderPattern(),[renderPattern]);
 
 const renderExport=useCallback(()=>{if(tab!=="export"||!expRef.current||!pat||!cmap)return;let epC=exportPage%pxX,epR=Math.floor(exportPage/pxX),eX0=epC*A4W,eY0=epR*A4H,eW=Math.min(A4W,sW-eX0),eH=Math.min(A4H,sH-eY0),dW2=pageMode?eW:sW,dH2=pageMode?eH:sH,oX2=pageMode?eX0:0,oY2=pageMode?eY0:0,expCs=Math.max(8,Math.min(20,Math.floor(750/Math.max(dW2,dH2))));expRef.current.width=dW2*expCs+G+2;expRef.current.height=dH2*expCs+G+2;drawPattern(expRef.current.getContext("2d"),oX2,oY2,dW2,dH2,expCs,G);},[tab,pat,cmap,sW,sH,pageMode,exportPage,pxX,view,hiId,showCtr,bsLines]);
@@ -774,7 +838,7 @@ function handlePatClick(e){
     let pe=cmap[selectedColorId];if(!pe)return;let np=pat.slice();
     if(activeTool==="fill"){let ch=[],vis=new Set(),q=[idx],tid=pat[idx].id;if(tid===pe.id)return;while(q.length){let id2=q.pop();if(vis.has(id2))continue;vis.add(id2);if(pat[id2].id!==tid)continue;ch.push({idx:id2,old:{...pat[id2]}});let x2=id2%sW,y2=Math.floor(id2/sW);if(x2>0)q.push(id2-1);if(x2<sW-1)q.push(id2+1);if(y2>0)q.push(id2-sW);if(y2<sH-1)q.push(id2+sW);}if(!ch.length)return;setEditHistory(prev=>[...prev,{type:"fill",changes:ch}]);ch.forEach(c2=>np[c2.idx]={...pe});}
     else{setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}]);np[idx]={...pe};}
-    setPat(np);let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);return;
+    setPat(np);let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);setPal(np2);setCmap(nc);return;
   }
   if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return;let pt={x:gx,y:gy};if(!bsStart)setBsStart(pt);else{setBsLines(prev=>[...prev,{x1:bsStart.x,y1:bsStart.y,x2:pt.x,y2:pt.y}]);setBsStart(bsContinuous?pt:null);}}
   if(activeTool==="eraseBs"){
@@ -837,7 +901,7 @@ return(
     <h1 style={{fontSize:28, fontWeight:700, color:"#18181b", marginBottom:8}}>Welcome to Cross Stitch Pattern Generator</h1>
     <p style={{fontSize:15, color:"#71717a", marginBottom:32}}>Turn any photo into a detailed pattern, or continue working on an existing project.</p>
 
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:24}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:24}}>
       <div onClick={()=>fRef.current.click()} className="upload-area">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
         <div>
@@ -852,6 +916,13 @@ return(
           <div style={{color:"#71717a",fontSize:14}}>Open a saved JSON file</div>
         </div>
       </div>
+      <div onClick={startScratch} className="upload-area">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <div>
+          <div style={{fontWeight:600,fontSize:18,color:"#18181b",marginBottom:4}}>Design from Scratch</div>
+          <div style={{color:"#71717a",fontSize:14}}>Start with a blank grid and paint by hand</div>
+        </div>
+      </div>
     </div>
   </div>}
   <input ref={fRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
@@ -860,7 +931,7 @@ return(
     {tab!=="stitch"&&<div style={{flex:sidebarOpen?"0 0 280px":"0 0 auto",display:"flex",flexDirection:"column",gap:sidebarOpen?10:0,overflow:"hidden"}}>
       {pat&&<button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{padding:"5px 10px",fontSize:12,fontWeight:500,background:"#f4f4f5",border:"0.5px solid #e4e4e7",borderRadius:8,cursor:"pointer",color:"#71717a",alignSelf:sidebarOpen?"flex-end":"flex-start",whiteSpace:"nowrap"}}>{sidebarOpen?"◀ Hide":"▶ Settings"}</button>}
       {sidebarOpen&&<>
-      {pat&&<div className="card">
+      {pat&&img&&img.src&&<div className="card">
         <div style={{position:"relative"}} ref={cropRef} onMouseDown={handleCropMouseDown} onMouseMove={handleCropMouseMove} onMouseUp={handleCropMouseUp} onMouseLeave={handleCropMouseUp}>
           <img src={img.src} alt="" style={{width:"100%",display:"block",cursor:isCropping?"crosshair":(pickBg?"crosshair":"default"),opacity:isCropping?0.7:1}} onClick={srcClick}/>
           {isCropping&&cropRect&&<div style={{position:"absolute",left:cropRect.x,top:cropRect.y,width:cropRect.w,height:cropRect.h,border:"2px dashed #0d9488",background:"rgba(13, 148, 136, 0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
@@ -881,6 +952,25 @@ return(
         {pickBg&&<div style={{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}
       </div>}
 
+      {isScratchMode&&<Section title="Colours" isOpen={colPickerOpen} onToggle={setColPickerOpen} badge={<span style={{fontSize:11,fontWeight:500,color:"#0d9488",background:"#f0fdfa",padding:"1px 8px",borderRadius:10}}>{displayPal?displayPal.filter(p=>p.count>0).length:0} used</span>}>
+        <div style={{marginTop:8}}>
+          <input type="text" placeholder="Search by DMC # or name…" value={dmcSearch} onChange={e=>setDmcSearch(e.target.value)} style={{width:"100%",padding:"6px 10px",border:"0.5px solid #e4e4e7",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}}/>
+          <div style={{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}}>
+            {dmcFiltered.slice(0,60).map(d=>{
+              const inPal=cmap&&cmap[d.id];
+              return(
+                <div key={d.id} onClick={()=>addScratchColour(d)} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,cursor:"pointer",background:inPal?"#f0fdfa":"#fff",border:inPal?"1px solid #99f6e4":"1px solid transparent",opacity:inPal?0.7:1}}>
+                  <span style={{width:16,height:16,borderRadius:3,flexShrink:0,background:`rgb(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]})`,border:"1px solid #d4d4d8"}}/>
+                  <span style={{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#18181b"}}>{d.id}</span>
+                  <span style={{fontSize:11,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
+                  {inPal?<span style={{fontSize:10,color:"#0d9488"}}>✓</span>:<span style={{fontSize:10,color:"#a1a1aa"}}>+</span>}
+                </div>
+              );
+            })}
+            {dmcFiltered.length===0&&<div style={{fontSize:11,color:"#a1a1aa",padding:"8px 0",textAlign:"center"}}>No colours found</div>}
+          </div>
+        </div>
+      </Section>}
       <Section title="Dimensions" isOpen={dimOpen} onToggle={setDimOpen} badge={<span style={{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}>{sW}×{sH}</span>}>
         <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}}><input type="checkbox" checked={arLock} onChange={e=>setArLock(e.target.checked)}/>Lock aspect ratio</label>
         {arLock?<SliderRow label="Size" value={sW} min={10} max={300} onChange={slRsz} suffix=" st"/>
@@ -890,7 +980,7 @@ return(
         </div>}
       </Section>
 
-      <Section title="Palette" isOpen={palOpen} onToggle={setPalOpen}><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div><div style={{marginTop:8}}><SliderRow label="Remove Orphans" value={orphans} min={0} max={3} onChange={setOrphans} format={v=>v===0?"Off":v}/></div><div style={{display:"flex",gap:6,marginTop:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setDith(false)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !dith ? 500 : 400, background: !dith ? "#fff" : "transparent", borderRadius: 6, color: !dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: !dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Direct</button><button onClick={()=>setDith(true)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: dith ? 500 : 400, background: dith ? "#fff" : "transparent", borderRadius: 6, color: dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Dithered</button></div></div></Section>
+      {!isScratchMode&&<Section title="Palette" isOpen={palOpen} onToggle={setPalOpen}><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div><div style={{marginTop:8}}><SliderRow label="Remove Orphans" value={orphans} min={0} max={3} onChange={setOrphans} format={v=>v===0?"Off":v}/></div><div style={{display:"flex",gap:6,marginTop:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setDith(false)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !dith ? 500 : 400, background: !dith ? "#fff" : "transparent", borderRadius: 6, color: !dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: !dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Direct</button><button onClick={()=>setDith(true)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: dith ? 500 : 400, background: dith ? "#fff" : "transparent", borderRadius: 6, color: dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Dithered</button></div></div></Section>}
 
       <Section title="Fabric & Floss" isOpen={fabOpen} onToggle={setFabOpen} badge={<span style={{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}>{fabricCt}ct</span>}>
         <div style={{marginTop:8}}>
@@ -902,8 +992,8 @@ return(
         </div>
       </Section>
 
-      <Section title="Adjustments" isOpen={adjOpen} onToggle={setAdjOpen} badge={(bri||con||sat||smooth)?<span style={{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}/>:null}><div style={{marginTop:8}}><div style={{display:"flex",gap:6,marginBottom:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setSmoothType("median")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: smoothType==="median" ? 500 : 400, background: smoothType==="median" ? "#fff" : "transparent", borderRadius: 6, color: smoothType==="median" ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: smoothType==="median" ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Median</button><button onClick={()=>setSmoothType("gaussian")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: smoothType==="gaussian" ? 500 : 400, background: smoothType==="gaussian" ? "#fff" : "transparent", borderRadius: 6, color: smoothType==="gaussian" ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: smoothType==="gaussian" ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Gaussian</button></div></div><SliderRow label="Smooth (Noise Reduction)" value={smooth} min={0} max={4} step={0.1} onChange={setSmooth} format={v=>v===0?"Off":v.toFixed(1)}/><SliderRow label="Brightness" value={bri} min={-50} max={50} onChange={setBri} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Contrast" value={con} min={-50} max={50} onChange={setCon} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Saturation" value={sat} min={-50} max={50} onChange={setSat} format={v=>(v>0?"+":"")+v+"%"}/></div></Section>
-      <Section title="Background" isOpen={bgOpen} onToggle={setBgOpen} badge={skipBg?<span style={{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}/>:null}>
+      {!isScratchMode&&<Section title="Adjustments" isOpen={adjOpen} onToggle={setAdjOpen} badge={(bri||con||sat||smooth)?<span style={{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}/>:null}><div style={{marginTop:8}}><div style={{display:"flex",gap:6,marginBottom:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setSmoothType("median")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: smoothType==="median" ? 500 : 400, background: smoothType==="median" ? "#fff" : "transparent", borderRadius: 6, color: smoothType==="median" ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: smoothType==="median" ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Median</button><button onClick={()=>setSmoothType("gaussian")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: smoothType==="gaussian" ? 500 : 400, background: smoothType==="gaussian" ? "#fff" : "transparent", borderRadius: 6, color: smoothType==="gaussian" ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: smoothType==="gaussian" ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Gaussian</button></div></div><SliderRow label="Smooth (Noise Reduction)" value={smooth} min={0} max={4} step={0.1} onChange={setSmooth} format={v=>v===0?"Off":v.toFixed(1)}/><SliderRow label="Brightness" value={bri} min={-50} max={50} onChange={setBri} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Contrast" value={con} min={-50} max={50} onChange={setCon} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Saturation" value={sat} min={-50} max={50} onChange={setSat} format={v=>(v>0?"+":"")+v+"%"}/></div></Section>}
+      {!isScratchMode&&<Section title="Background" isOpen={bgOpen} onToggle={setBgOpen} badge={skipBg?<span style={{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}/>:null}>
         <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}}><input type="checkbox" checked={skipBg} onChange={e=>setSkipBg(e.target.checked)}/>Skip background</label>
         {skipBg&&<div style={{marginTop:10}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><div onClick={()=>setPickBg(true)} style={{width:24,height:24,borderRadius:6,background:`rgb(${bgCol})`,border:"2px solid #e4e4e7",cursor:"pointer"}}/><button onClick={()=>setPickBg(true)} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Pick</button></div>
@@ -913,8 +1003,11 @@ return(
              <button onClick={autoCrop} style={{width:"100%", padding:"6px", fontSize:12, fontWeight:500, background:"#fff", border:"1px solid #d4d4d8", borderRadius:6, cursor:"pointer", color:"#18181b"}}>Auto-Crop to Stitches</button>
           </div>}
         </div>}
-      </Section>
-      <button onClick={generate} disabled={busy} style={{padding:"12px 20px",fontSize:15,fontWeight:600,background:busy?"#a1a1aa":"#0d9488",color:"#fff",border:"none",borderRadius:10,cursor:busy?"wait":"pointer",boxShadow:busy?"none":"none"}}>{busy?"Generating...":(pat?"Regenerate":"Generate Pattern")}</button>
+      </Section>}
+      {isScratchMode
+        ?<button onClick={()=>initBlankGrid(sW,sH)} style={{padding:"12px 20px",fontSize:15,fontWeight:600,background:"#dc2626",color:"#fff",border:"none",borderRadius:10,cursor:"pointer"}}>Reset Canvas</button>
+        :<button onClick={generate} disabled={busy} style={{padding:"12px 20px",fontSize:15,fontWeight:600,background:busy?"#a1a1aa":"#0d9488",color:"#fff",border:"none",borderRadius:10,cursor:busy?"wait":"pointer"}}>{busy?"Generating...":(pat?"Regenerate":"Generate Pattern")}</button>
+      }
       </>}
     </div>}
 
@@ -928,9 +1021,10 @@ return(
             <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}>{[["color","Colour"],["symbol","Symbol"],["both","Both"]].map(it=><button key={it[0]} onClick={()=>setView(it[0])} style={{ padding: "5px 12px", fontSize: 12, fontWeight: view===it[0] ? 500 : 400, background: view===it[0] ? "#fff" : "transparent", borderRadius: 6, color: view===it[0] ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: view===it[0] ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>{it[1]}</button>)}</div>
             <div style={{width:1,height:18,background:"#e4e4e7",margin:"0 2px"}}/>
             <span style={{fontSize:11,color:"#a1a1aa"}}>Zoom</span><input type="range" min={0.05} max={3} step={0.05} value={zoom} onChange={e=>setZoom(Number(e.target.value))} style={{width:60}}/><span style={{fontSize:11,minWidth:28}}>{Math.round(zoom*100)}%</span><button onClick={fitZ} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Fit</button>
-            {img&&<><div style={{width:1,height:18,background:"#e4e4e7",margin:"0 2px"}}/><button onClick={()=>setShowOverlay(!showOverlay)} style={tBtn(showOverlay)}>Overlay</button>{showOverlay&&<input type="range" min={0.1} max={0.8} step={0.05} value={overlayOpacity} onChange={e=>setOverlayOpacity(Number(e.target.value))} style={{width:50}}/>}</>}
+            {img&&img.src&&<><div style={{width:1,height:18,background:"#e4e4e7",margin:"0 2px"}}/><button onClick={()=>setShowOverlay(!showOverlay)} style={tBtn(showOverlay)}>Overlay</button>{showOverlay&&<input type="range" min={0.1} max={0.8} step={0.05} value={overlayOpacity} onChange={e=>setOverlayOpacity(Number(e.target.value))} style={{width:50}}/>}</>}
           </div>
           {cs < 6 && (view === "symbol" || view === "both") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
+          {isScratchMode&&(!displayPal||displayPal.length===0)&&<div style={{fontSize:12,color:"#a1a1aa",padding:"8px 12px",background:"#f4f4f5",borderRadius:8,marginBottom:8,textAlign:"center"}}>Add colours using the Colours panel on the left, then select Paint or Fill to begin.</div>}
           <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap",alignItems:"center", padding: "6px 10px", background: "#fff", border: "0.5px solid #e4e4e7", borderRadius: 10}}>
             <span style={{fontSize:10,fontWeight:600,color:"#a1a1aa",textTransform:"uppercase"}}>Tools</span>
             <button onClick={()=>setTool("backstitch")} style={tBtn(activeTool==="backstitch")}>Backstitch</button>
@@ -940,12 +1034,12 @@ return(
             <button onClick={()=>setTool("fill")} style={tBtn(activeTool==="fill")}>Fill</button>
             {(activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
             <div style={{marginLeft:"auto",display:"flex",gap:4}}>
-              {editHistory.length>0&&<button onClick={()=>{let last=editHistory[editHistory.length-1],np=pat.slice();last.changes.forEach(c2=>np[c2.idx]={...c2.old});setPat(np);setEditHistory(prev=>prev.slice(0,-1));let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
+              {editHistory.length>0&&<button onClick={()=>{let last=editHistory[editHistory.length-1],np=pat.slice();last.changes.forEach(c2=>np[c2.idx]={...c2.old});setPat(np);setEditHistory(prev=>prev.slice(0,-1));let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);setPal(np2);setCmap(nc);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
               {hiId&&<button onClick={()=>setHiId(null)} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Clear ✕</button>}
             </div>
           </div>
           <div ref={scrollRef} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:activeTool?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{if(activeTool==="backstitch"&&bsStart){e.preventDefault();setBsStart(null);}}}/></div>
-          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{pal.map(p=>{let ips=(activeTool==="paint"||activeTool==="fill")&&selectedColorId===p.id,ihs=hiId===p.id;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff"}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span></div>;})}</div></div>
+          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{(displayPal||pal||[]).map(p=>{let ips=(activeTool==="paint"||activeTool==="fill")&&selectedColorId===p.id,ihs=hiId===p.id,isUnused=isScratchMode&&p.count===0;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff",opacity:isUnused?0.6:1}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span>{isUnused&&<span onClick={e=>{e.stopPropagation();removeScratchColour(p.id);}} style={{fontSize:9,color:"#a1a1aa",cursor:"pointer",marginLeft:2,lineHeight:1}}>×</span>}</div>;})}</div></div>
         </div>}
 
         {/* ═══ PROJECT TAB ═══ */}
@@ -1075,7 +1169,7 @@ return(
 
           <button onClick={async ()=>{
               if(!pat||!pal)return;
-              let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+              let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
               try {
                   await saveProjectToDB(project);
                   window.open("stitch.html", "_blank");
