@@ -52,13 +52,12 @@ const[selectedColorId,setSelectedColorId]=useState(null);
 const[halfStitches,setHalfStitches]=useState(new Map());
 // Sparse map: cellIdx → { fwd?: 0|1, bck?: 0|1 }
 const[halfDone,setHalfDone]=useState(new Map());
-const[halfStitchTool,setHalfStitchTool]=useState(null); // null, "fwd", "bck"
+const[halfStitchTool,setHalfStitchTool]=useState(null); // null, "fwd", "bck", "erase"
 const[halfStitchTooltipDismissed,setHalfStitchTooltipDismissed]=useState(false);
 const[halfOnboardingDone,setHalfOnboardingDone]=useState(false);
 const[halfOnboardingStep,setHalfOnboardingStep]=useState(0);
 const[showHalfOnboarding,setShowHalfOnboarding]=useState(false);
 const[halfDisambig,setHalfDisambig]=useState(null); // {x, y, idx} for popup
-const[halfStitchHistory,setHalfStitchHistory]=useState([]);
 const halfEverPlaced=useRef(false);
 const[halfToast,setHalfToast]=useState(null);
 
