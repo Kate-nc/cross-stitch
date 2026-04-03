@@ -58,6 +58,13 @@ const isSpaceDownRef=useRef(false);
 const touchStateRef=useRef({mode:"none",startX:0,startY:0,pinchDist:0,tapIdx:-1,tapVal:0,pinchAnchorCanvas:null,pinchAnchorScreen:null});
 const stitchZoomRef=useRef(1);
 const hasTouchRef=useRef(typeof window!=="undefined"&&"ontouchstart" in window);
+// Stable handler refs — point to latest function each render; listeners attach once
+const touchStartHandlerRef=useRef(null);
+const touchMoveHandlerRef=useRef(null);
+const touchEndHandlerRef=useRef(null);
+const wheelHandlerRef=useRef(null);
+// rAF token for throttling zoom state updates to one per animation frame
+const zoomRafRef=useRef(null);
 
 const[threadOwned,setThreadOwned]=useState({});
 
@@ -792,6 +799,18 @@ function doPan(e){
   stitchScrollRef.current.scrollTop=panStart.current.scrollY-dy;
 }
 
+// Throttle React zoom state to one update per animation frame.
+// stitchZoomRef.current is updated immediately so scroll maths stays accurate.
+function scheduleZoomUpdate(newZoom){
+  stitchZoomRef.current=newZoom;
+  if(!zoomRafRef.current){
+    zoomRafRef.current=requestAnimationFrame(()=>{
+      setStitchZoom(stitchZoomRef.current);
+      zoomRafRef.current=null;
+    });
+  }
+}
+
 function handleStitchWheel(e){
   if(!e.ctrlKey)return;
   e.preventDefault();
@@ -806,7 +825,7 @@ function handleStitchWheel(e){
   const oldZoom=stitchZoomRef.current;
   const newZoom=Math.max(0.3,Math.min(4,oldZoom+delta));
   const scale=newZoom/oldZoom;
-  setStitchZoom(newZoom);
+  scheduleZoomUpdate(newZoom);
   requestAnimationFrame(()=>{
     if(!container)return;
     container.scrollLeft=canvasX*scale-mouseX;
@@ -877,16 +896,17 @@ function handleTouchMove(e){
     const newDist=Math.hypot(dx,dy);
     if(ts.pinchDist>0){
       const scale=newDist/ts.pinchDist;
-      const newZoom=Math.max(0.3,Math.min(4,stitchZoomRef.current*scale));
+      const oldZoom=stitchZoomRef.current;
+      const newZoom=Math.max(0.3,Math.min(4,oldZoom*scale));
       const container=stitchScrollRef.current;
       if(container&&ts.pinchAnchorCanvas){
-        const zRatio=newZoom/stitchZoomRef.current;
+        const zRatio=newZoom/oldZoom;
         requestAnimationFrame(()=>{
           container.scrollLeft=ts.pinchAnchorCanvas.x*zRatio-ts.pinchAnchorScreen.x;
           container.scrollTop=ts.pinchAnchorCanvas.y*zRatio-ts.pinchAnchorScreen.y;
         });
       }
-      setStitchZoom(newZoom);
+      scheduleZoomUpdate(newZoom);
     }
     ts.pinchDist=newDist;
   }
@@ -947,25 +967,37 @@ useEffect(()=>{
   return()=>{window.removeEventListener("keydown",handleKeyDown);window.removeEventListener("keyup",handleKeyUp);};
 },[stitchView,isEditMode,focusableColors]);
 
+// Update stable handler refs every render (cheap assignment, no DOM work)
+wheelHandlerRef.current=handleStitchWheel;
+touchStartHandlerRef.current=handleTouchStart;
+touchMoveHandlerRef.current=handleTouchMove;
+touchEndHandlerRef.current=handleTouchEnd;
+
+// Attach wheel listener once — wrapper always delegates to latest handler via ref
 useEffect(()=>{
   const el=stitchScrollRef.current;
   if(!el)return;
-  el.addEventListener("wheel",handleStitchWheel,{passive:false});
-  return()=>el.removeEventListener("wheel",handleStitchWheel);
-});
+  const handler=e=>wheelHandlerRef.current(e);
+  el.addEventListener("wheel",handler,{passive:false});
+  return()=>el.removeEventListener("wheel",handler);
+},[]);
 
+// Attach touch listeners once when pattern loads — wrapper delegates to latest handler
 useEffect(()=>{
   const canvas=stitchRef.current;
   if(!canvas||!pat)return;
-  canvas.addEventListener("touchstart",handleTouchStart,{passive:false});
-  canvas.addEventListener("touchmove",handleTouchMove,{passive:false});
-  canvas.addEventListener("touchend",handleTouchEnd,{passive:false});
+  const ts=e=>touchStartHandlerRef.current(e);
+  const tm=e=>touchMoveHandlerRef.current(e);
+  const te=e=>touchEndHandlerRef.current(e);
+  canvas.addEventListener("touchstart",ts,{passive:false});
+  canvas.addEventListener("touchmove",tm,{passive:false});
+  canvas.addEventListener("touchend",te,{passive:false});
   return()=>{
-    canvas.removeEventListener("touchstart",handleTouchStart);
-    canvas.removeEventListener("touchmove",handleTouchMove);
-    canvas.removeEventListener("touchend",handleTouchEnd);
+    canvas.removeEventListener("touchstart",ts);
+    canvas.removeEventListener("touchmove",tm);
+    canvas.removeEventListener("touchend",te);
   };
-},[pat,done,scs,sW,sH,stitchZoom,stitchMode,isEditMode]);
+},[!!pat]);
 
 return(
 <>
