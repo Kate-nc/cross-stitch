@@ -1,4 +1,4 @@
-const { rgbToLab } = require('./dmc-data.js');
+const { rgbToLab } = require('../dmc-data.js');
 
 function runBenchmark() {
     const numColors = 10000;

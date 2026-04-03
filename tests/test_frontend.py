@@ -3,10 +3,13 @@ import base64
 import time
 import os
 
+_HERE = os.path.dirname(os.path.abspath(__file__))
+
 dummy_png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 
 def main():
-    with open("dummy.png", "wb") as f:
+    dummy_path = os.path.join(_HERE, "dummy.png")
+    with open(dummy_path, "wb") as f:
         f.write(base64.b64decode(dummy_png_b64))
 
     with sync_playwright() as p:
@@ -24,7 +27,7 @@ def main():
         with page.expect_file_chooser() as fc_info:
             page.click("text=Create New Pattern")
         file_chooser = fc_info.value
-        file_chooser.set_files("dummy.png")
+        file_chooser.set_files(dummy_path)
 
         # Wait for "Generate Pattern" button
         page.wait_for_selector("text=Generate Pattern")
