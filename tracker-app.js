@@ -1506,58 +1506,67 @@ return(
 
       {!isEditMode && <>
       <div style={{width:1,height:20,background:"#e4e4e7"}}/>
-      <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}><button onClick={()=>{setStitchMode("track");setHalfStitchTool(null);}} title="Click or drag to mark stitches as done" style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchMode==="track"&&!halfStitchTool ? 500 : 400, background: stitchMode==="track"&&!halfStitchTool ? "#0d9488" : "transparent", borderRadius: 6, color: stitchMode==="track"&&!halfStitchTool ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchMode==="track"&&!halfStitchTool ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Track</button><button onClick={()=>{setStitchMode("navigate");setHalfStitchTool(null);}} title="Place a guide crosshair or park-marker for your current position" style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchMode==="navigate" ? 500 : 400, background: stitchMode==="navigate" ? "#18181b" : "transparent", borderRadius: 6, color: stitchMode==="navigate" ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchMode==="navigate" ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Navigate</button></div>
-      <div style={{width:1,height:20,background:"#e4e4e7"}}/>
 
-      {/* ═══ Half Stitch Tool Buttons ═══ */}
-      <div style={{display:"flex",gap:2,background:"#f4f4f5",borderRadius:8,padding:2,position:"relative"}}>
-        <button onClick={()=>{
-          if(halfStitchTool==="fwd"){setHalfStitchTool(null);setStitchMode("track");}
-          else{setHalfStitchTool("fwd");setStitchMode("track");if(!halfOnboardingDone&&!showHalfOnboarding){setShowHalfOnboarding(true);setHalfOnboardingStep(0);}}
-        }} title="Half stitch / — bottom-left to top-right" style={{
-          width:36,height:28,fontSize:12,borderRadius:6,border:"none",cursor:"pointer",position:"relative",
-          background:halfStitchTool==="fwd"?"#e0f2fe":"transparent",
-          color:halfStitchTool==="fwd"?"#0284c7":"#71717a",
-          fontWeight:halfStitchTool==="fwd"?600:400,
-          display:"flex",alignItems:"center",justifyContent:"center"
-        }}>
-          <svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="2" fill="none" stroke={halfStitchTool==="fwd"?"#0284c7":"#a1a1aa"} strokeWidth="1.2"/><line x1="3" y1="17" x2="17" y2="3" stroke={halfStitchTool==="fwd"?"#0284c7":"#71717a"} strokeWidth="2" strokeLinecap="round"/></svg>
-          {!halfEverPlaced.current&&!halfOnboardingDone&&<span style={{position:"absolute",top:-2,right:-2,width:8,height:8,borderRadius:4,background:"#0284c7"}}/>}
-        </button>
-        <button onClick={()=>{
-          if(halfStitchTool==="bck"){setHalfStitchTool(null);setStitchMode("track");}
-          else{setHalfStitchTool("bck");setStitchMode("track");if(!halfOnboardingDone&&!showHalfOnboarding){setShowHalfOnboarding(true);setHalfOnboardingStep(0);}}
-        }} title="Half stitch \\ — top-left to bottom-right" style={{
-          width:36,height:28,fontSize:12,borderRadius:6,border:"none",cursor:"pointer",position:"relative",
-          background:halfStitchTool==="bck"?"#e0f2fe":"transparent",
-          color:halfStitchTool==="bck"?"#0284c7":"#71717a",
-          fontWeight:halfStitchTool==="bck"?600:400,
-          display:"flex",alignItems:"center",justifyContent:"center"
-        }}>
-          <svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="2" fill="none" stroke={halfStitchTool==="bck"?"#0284c7":"#a1a1aa"} strokeWidth="1.2"/><line x1="3" y1="3" x2="17" y2="17" stroke={halfStitchTool==="bck"?"#0284c7":"#71717a"} strokeWidth="2" strokeLinecap="round"/></svg>
-          {!halfEverPlaced.current&&!halfOnboardingDone&&<span style={{position:"absolute",top:-2,right:-2,width:8,height:8,borderRadius:4,background:"#0284c7"}}/>}
-        </button>
-        <button onClick={()=>{
-          if(halfStitchTool==="erase"){setHalfStitchTool(null);setStitchMode("track");}
-          else{setHalfStitchTool("erase");setStitchMode("track");}
-        }} title="Erase half stitches" style={{
-          width:36,height:28,fontSize:12,borderRadius:6,border:"none",cursor:"pointer",
-          background:halfStitchTool==="erase"?"#fef2f2":"transparent",
-          color:halfStitchTool==="erase"?"#dc2626":"#a1a1aa",
-          fontWeight:halfStitchTool==="erase"?600:400,
-          display:"flex",alignItems:"center",justifyContent:"center"
-        }}>
-          <svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="1" width="18" height="18" rx="2" fill="none" stroke={halfStitchTool==="erase"?"#dc2626":"#a1a1aa"} strokeWidth="1.2"/><line x1="5" y1="5" x2="15" y2="15" stroke={halfStitchTool==="erase"?"#dc2626":"#a1a1aa"} strokeWidth="1.5" strokeLinecap="round"/><line x1="15" y1="5" x2="5" y2="15" stroke={halfStitchTool==="erase"?"#dc2626":"#a1a1aa"} strokeWidth="1.5" strokeLinecap="round"/></svg>
-        </button>
+      {/* ═══ Stitch Type Selector ═══ */}
+      <div style={{display:"flex",alignItems:"center",gap:4}}>
+        <span style={{fontSize:10,fontWeight:600,color:"#a1a1aa",textTransform:"uppercase",whiteSpace:"nowrap"}}>Stitch</span>
+        <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}>
+          <button onClick={()=>{setStitchMode("track");setHalfStitchTool(null);}} title="Mark full cross stitches as done" style={{ padding: "5px 10px", fontSize: 12, fontWeight: stitchMode==="track"&&!halfStitchTool ? 600 : 400, background: stitchMode==="track"&&!halfStitchTool ? "#0d9488" : "transparent", borderRadius: 6, color: stitchMode==="track"&&!halfStitchTool ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchMode==="track"&&!halfStitchTool ? "0 1px 2px rgba(0,0,0,0.04)" : "none", display:"flex",alignItems:"center",gap:4 }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" style={{flexShrink:0}}><line x1="1" y1="13" x2="13" y2="1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            Cross
+          </button>
+          <button onClick={()=>{
+            if(halfStitchTool==="fwd"){setHalfStitchTool(null);setStitchMode("track");}
+            else{setHalfStitchTool("fwd");setStitchMode("track");if(!halfOnboardingDone&&!showHalfOnboarding){setShowHalfOnboarding(true);setHalfOnboardingStep(0);}}
+          }} title="Place / half stitch — bottom-left to top-right" style={{
+            padding:"5px 10px",fontSize:12,borderRadius:6,border:"none",cursor:"pointer",position:"relative",
+            background:halfStitchTool==="fwd"?"#e0f2fe":"transparent",
+            color:halfStitchTool==="fwd"?"#0284c7":"#71717a",
+            fontWeight:halfStitchTool==="fwd"?600:400,
+            display:"flex",alignItems:"center",gap:4
+          }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" style={{flexShrink:0}}><line x1="1" y1="13" x2="13" y2="1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            Half /
+            {!halfEverPlaced.current&&!halfOnboardingDone&&<span style={{position:"absolute",top:0,right:0,width:7,height:7,borderRadius:4,background:"#0284c7"}}/>}
+          </button>
+          <button onClick={()=>{
+            if(halfStitchTool==="bck"){setHalfStitchTool(null);setStitchMode("track");}
+            else{setHalfStitchTool("bck");setStitchMode("track");if(!halfOnboardingDone&&!showHalfOnboarding){setShowHalfOnboarding(true);setHalfOnboardingStep(0);}}
+          }} title="Place \\ half stitch — top-left to bottom-right" style={{
+            padding:"5px 10px",fontSize:12,borderRadius:6,border:"none",cursor:"pointer",position:"relative",
+            background:halfStitchTool==="bck"?"#e0f2fe":"transparent",
+            color:halfStitchTool==="bck"?"#0284c7":"#71717a",
+            fontWeight:halfStitchTool==="bck"?600:400,
+            display:"flex",alignItems:"center",gap:4
+          }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" style={{flexShrink:0}}><line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            Half \
+            {!halfEverPlaced.current&&!halfOnboardingDone&&<span style={{position:"absolute",top:0,right:0,width:7,height:7,borderRadius:4,background:"#0284c7"}}/>}
+          </button>
+          <button onClick={()=>{
+            if(halfStitchTool==="erase"){setHalfStitchTool(null);setStitchMode("track");}
+            else{setHalfStitchTool("erase");setStitchMode("track");}
+          }} title="Erase half stitches from a cell" style={{
+            padding:"5px 10px",fontSize:12,borderRadius:6,border:"none",cursor:"pointer",
+            background:halfStitchTool==="erase"?"#fef2f2":"transparent",
+            color:halfStitchTool==="erase"?"#dc2626":"#a1a1aa",
+            fontWeight:halfStitchTool==="erase"?600:400,
+            display:"flex",alignItems:"center",gap:4
+          }}>
+            <svg width="12" height="12" viewBox="0 0 12 12" style={{flexShrink:0}}><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            Erase
+          </button>
+        </div>
       </div>
+      {/* Selected colour chip for half stitch placement */}
+      {(halfStitchTool==="fwd"||halfStitchTool==="bck")&&selectedColorId&&cmap&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#e0f2fe",border:"1px solid #7dd3fc"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
       <div style={{width:1,height:20,background:"#e4e4e7"}}/>
 
-      {/* Half stitch contextual tooltip */}
-      {halfStitchTool&&halfStitchTool!=="erase"&&!halfStitchTooltipDismissed&&<div style={{fontSize:11,color:"#0284c7",background:"#e0f2fe",padding:"4px 10px",borderRadius:6,display:"flex",alignItems:"center",gap:6,maxWidth:280}}>
-        <span>{halfStitchTool==="fwd"?"Places a / diagonal from bottom-left to top-right. Used for shading and soft edges. Counts as 0.5 stitch.":"Places a \\ diagonal from top-left to bottom-right. Combine both directions in one cell for colour blending."}</span>
-        <button onClick={()=>setHalfStitchTooltipDismissed(true)} style={{background:"none",border:"none",color:"#0284c7",cursor:"pointer",fontSize:13,padding:"0 2px",flexShrink:0}}>✕</button>
-      </div>}
-      {halfStitchTool==="erase"&&<span style={{fontSize:11,color:"#dc2626"}}>Click to erase half stitches</span>}
+      {/* Navigate button — standalone */}
+      <button onClick={()=>{setStitchMode("navigate");setHalfStitchTool(null);}} title="Place a guide crosshair or park-marker" style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchMode==="navigate" ? 500 : 400, background: stitchMode==="navigate" ? "#18181b" : "#f4f4f5", borderRadius: 8, color: stitchMode==="navigate" ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchMode==="navigate" ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Navigate</button>
+      <div style={{width:1,height:20,background:"#e4e4e7"}}/>
+
+      {/* ═══ View mode ═══ */}
       <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}>{[["symbol","Sym","Show symbols only — best for stitching from the chart"],["colour","Col+Sym","Show thread colours with symbols overlaid"],["highlight","Highlight","Focus on one colour at a time — use [ ] or ◀ ▶ to cycle"]].map(([k,l,tip])=><button key={k} title={tip} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}} style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchView===k ? 500 : 400, background: stitchView===k ? "#fff" : "transparent", borderRadius: 6, color: stitchView===k ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchView===k ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>{l}</button>)}</div>
       <div style={{width:1,height:20,background:"#e4e4e7"}}/>
       {stitchView==="highlight"&&<>
@@ -1691,7 +1700,11 @@ return(
     {scs < 6 && !isEditMode && (stitchView === "symbol" || stitchView === "colour") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
 
     {isEditMode && <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>}
-    {!isEditMode && stitchMode==="track"&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{hasTouchRef.current?"Tap to mark · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark · Space+drag or middle-click to pan · Ctrl+scroll to zoom"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
+    {!isEditMode && stitchMode==="track"&&!halfStitchTool&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag or middle-click to pan · Ctrl+scroll to zoom"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
+    {!isEditMode && halfStitchTool&&halfStitchTool!=="erase"&&<div style={{fontSize:12,color:"#0284c7",background:"#e0f2fe",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #7dd3fc"}}>
+      <strong>Half stitch {halfStitchTool==="fwd"?"/":"\\"}</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to place{selectedColorId&&cmap&&cmap[selectedColorId]?` using DMC ${selectedColorId}`:" using cell colour"}. {hasTouchRef.current?"Tap":"Click"} again to remove. Counts as 0.5 stitch.
+    </div>}
+    {!isEditMode && halfStitchTool==="erase"&&<div style={{fontSize:12,color:"#dc2626",background:"#fef2f2",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #fecaca"}}><strong>Erase mode</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to remove all half stitches from it.</div>}
     {!isEditMode && stitchMode==="navigate"&&<div style={{fontSize:12,color:"#18181b",background:"#f4f4f5",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}</div>}
     {advanceToast&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #bbf7d0",fontWeight:600}}>✓ Complete! Next: {advanceToast}</div>}
 
@@ -1724,9 +1737,6 @@ return(
       }} style={{fontSize:11,padding:"2px 10px",borderRadius:6,border:"1px solid #fde68a",background:"#fff",color:"#d97706",cursor:"pointer",fontWeight:600}}>Convert</button>
       <button onClick={()=>setHalfToast(null)} style={{fontSize:11,padding:"2px 10px",borderRadius:6,border:"1px solid #e4e4e7",background:"#fff",color:"#71717a",cursor:"pointer"}}>Keep</button>
     </div>}
-
-    {/* Half stitch tool active hint */}
-    {halfStitchTool&&halfStitchTool!=="erase"&&!isEditMode&&<div style={{fontSize:12,color:"#0284c7",background:"#e0f2fe",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #7dd3fc"}}>Half stitch {halfStitchTool==="fwd"?"/":"\\"} tool active{selectedColorId&&cmap&&cmap[selectedColorId]?" — using DMC "+selectedColorId:" — using cell colour"} · Click to place, click again to remove</div>}
 
     <div ref={stitchScrollRef} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitch();scrollRafRef.current=null;})}}} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid #e4e4e7",borderRadius:"8px 8px 0 0",background:"#f4f4f5",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?"crosshair":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
       <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: '#fff', borderBottom: '1px solid #e4e4e7' }}>

@@ -1039,15 +1039,24 @@ return(
           {cs < 6 && (view === "symbol" || view === "both") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
           <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap",alignItems:"center", padding: "6px 10px", background: "#fff", border: "0.5px solid #e4e4e7", borderRadius: 10}}>
             <span style={{fontSize:10,fontWeight:600,color:"#a1a1aa",textTransform:"uppercase"}}>Tools</span>
-            <button onClick={()=>setTool("backstitch")} style={tBtn(activeTool==="backstitch")}>Backstitch</button>
-            {activeTool==="backstitch"&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer"}}><input type="checkbox" checked={bsContinuous} onChange={e=>{setBsContinuous(e.target.checked);setBsStart(null);}}/>Continuous</label>}
-            <button onClick={()=>setTool("eraseBs")} style={tBtn(activeTool==="eraseBs")}>Erase line</button>
             <button onClick={()=>setTool("paint")} style={tBtn(activeTool==="paint")}>Paint</button>
             <button onClick={()=>setTool("fill")} style={tBtn(activeTool==="fill")}>Fill</button>
             <div style={{width:1,height:18,background:"#e4e4e7",margin:"0 2px"}}/>
-            <button onClick={()=>setHsTool("fwd")} title="Half stitch /" style={{...tBtn(halfStitchTool==="fwd"),padding:"3px 6px",position:"relative"}}><svg width="16" height="16" viewBox="0 0 16 16"><line x1="2" y1="14" x2="14" y2="2" stroke={halfStitchTool==="fwd"?"#0d9488":"#71717a"} strokeWidth="2" strokeLinecap="round"/></svg></button>
-            <button onClick={()=>setHsTool("bck")} title="Half stitch \" style={{...tBtn(halfStitchTool==="bck"),padding:"3px 6px",position:"relative"}}><svg width="16" height="16" viewBox="0 0 16 16"><line x1="2" y1="2" x2="14" y2="14" stroke={halfStitchTool==="bck"?"#0d9488":"#71717a"} strokeWidth="2" strokeLinecap="round"/></svg></button>
-            <button onClick={()=>setHsTool("erase")} title="Erase half stitch" style={{...tBtn(halfStitchTool==="erase"),padding:"3px 6px"}}><svg width="16" height="16" viewBox="0 0 16 16"><line x1="3" y1="13" x2="13" y2="3" stroke={halfStitchTool==="erase"?"#dc2626":"#71717a"} strokeWidth="1.5" strokeLinecap="round"/><line x1="3" y1="3" x2="13" y2="13" stroke={halfStitchTool==="erase"?"#dc2626":"#71717a"} strokeWidth="1.5" strokeLinecap="round"/><line x1="4" y1="8" x2="12" y2="8" stroke={halfStitchTool==="erase"?"#dc2626":"#71717a"} strokeWidth="2" strokeLinecap="round"/></svg></button>
+            <span style={{fontSize:10,fontWeight:600,color:"#a1a1aa",textTransform:"uppercase"}}>Half</span>
+            <button onClick={()=>setHsTool("fwd")} title="Place / half stitch" style={{...tBtn(halfStitchTool==="fwd"),display:"flex",alignItems:"center",gap:3}}>
+              <svg width="12" height="12" viewBox="0 0 12 12" style={{flexShrink:0}}><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+              Half /
+            </button>
+            <button onClick={()=>setHsTool("bck")} title="Place \\ half stitch" style={{...tBtn(halfStitchTool==="bck"),display:"flex",alignItems:"center",gap:3}}>
+              <svg width="12" height="12" viewBox="0 0 12 12" style={{flexShrink:0}}><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+              Half \
+            </button>
+            <button onClick={()=>setHsTool("erase")} title="Erase half stitches" style={{...tBtn(halfStitchTool==="erase"),color:halfStitchTool==="erase"?"#dc2626":undefined}}>Erase △</button>
+            <div style={{width:1,height:18,background:"#e4e4e7",margin:"0 2px"}}/>
+            <span style={{fontSize:10,fontWeight:600,color:"#a1a1aa",textTransform:"uppercase"}}>Lines</span>
+            <button onClick={()=>setTool("backstitch")} style={tBtn(activeTool==="backstitch")}>Backstitch</button>
+            {activeTool==="backstitch"&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer"}}><input type="checkbox" checked={bsContinuous} onChange={e=>{setBsContinuous(e.target.checked);setBsStart(null);}}/>Continuous</label>}
+            <button onClick={()=>setTool("eraseBs")} style={tBtn(activeTool==="eraseBs")}>Erase line</button>
             {(activeTool==="paint"||activeTool==="fill"||halfStitchTool==="fwd"||halfStitchTool==="bck")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
             <div style={{marginLeft:"auto",display:"flex",gap:4}}>
               {editHistory.length>0&&<button onClick={()=>{let last=editHistory[editHistory.length-1],np=pat.slice();last.changes.forEach(c2=>np[c2.idx]={...c2.old});setPat(np);setEditHistory(prev=>prev.slice(0,-1));let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
