@@ -53,6 +53,8 @@ const[activeTool,setActiveTool]=useState(null),[bsLines,setBsLines]=useState([])
 const[bsContinuous,setBsContinuous]=useState(false);
 const[selectedColorId,setSelectedColorId]=useState(null);
 const[hoverCoords,setHoverCoords]=useState(null);
+const[halfStitches,setHalfStitches]=useState(()=>new Map());
+const[halfStitchTool,setHalfStitchTool]=useState(null); // null|"fwd"|"bck"|"erase"
 const[editHistory,setEditHistory]=useState([]);
 
 const[exportPage,setExportPage]=useState(0),[pageMode,setPageMode]=useState(false);
@@ -161,7 +163,8 @@ useEffect(()=>{
   return()=>{if(previewTimerRef.current)clearTimeout(previewTimerRef.current);};
 },[generatePreview]);
 
-function setTool(tool){if(activeTool===tool){setActiveTool(null);setBsStart(null);return;}setActiveTool(tool);setBsStart(null);}
+function setTool(tool){if(activeTool===tool){setActiveTool(null);setBsStart(null);return;}setActiveTool(tool);setBsStart(null);setHalfStitchTool(null);}
+function setHsTool(t){if(halfStitchTool===t){setHalfStitchTool(null);return;}setHalfStitchTool(t);setActiveTool(null);setBsStart(null);}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 
 function resetAll(){
@@ -170,7 +173,7 @@ function resetAll(){
   setDone(null);setParkMarkers([]);setHlRow(-1);setHlCol(-1);
   setTotalTime(0);setSessions([]);setThreadOwned({});
   setConfettiData(null);
-  setHasGenerated(false);
+  setHasGenerated(false);setHalfStitches(new Map());setHalfStitchTool(null);
   setDimOpen(true);setPalOpen(true);setFabOpen(false);setAdjOpen(false);setBgOpen(false);
   setIsCropping(false);setCropRect(null);
 }
@@ -237,11 +240,12 @@ function applyCrop(){
   newImg.src=c.toDataURL();
 }
 
-function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+function saveProject(){if(!pat||!pal)return;let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));let project={version:9,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,halfStitches:hsArr,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
 function handleOpenInTracker(){
   if(!pat||!pal)return;
-  let project={version:8,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+  let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
+  let project={version:9,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,halfStitches:hsArr,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
   try{
     localStorage.setItem("crossstitch_handoff", JSON.stringify(project));
     window.location.href = "stitch.html?source=creator";
@@ -278,6 +282,11 @@ function processLoadedProject(project){
   setParkMarkers(project.parkMarkers||[]);setTotalTime(project.totalTime||0);setSessions(project.sessions||[]);
   if(project.hlRow>=0)setHlRow(project.hlRow);if(project.hlCol>=0)setHlCol(project.hlCol);
   if(project.imgData&&typeof project.imgData==='string'&&project.imgData.startsWith('data:image/')){let li=new Image();li.onload=()=>{setImg(li);setOrigW(li.width);setOrigH(li.height);};li.src=project.imgData;}
+  // Restore half stitches
+  if(project.halfStitches&&Array.isArray(project.halfStitches)){
+    let hm=new Map();project.halfStitches.forEach(([idx,v])=>{let entry={};if(v.fwd)entry.fwd=restoreStitch(v.fwd);if(v.bck)entry.bck=restoreStitch(v.bck);if(entry.fwd||entry.bck)hm.set(idx,entry);});setHalfStitches(hm);
+  }else{setHalfStitches(new Map());}
+  setHalfStitchTool(null);
   setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/(s.sW*20)));setZoom(z);},100);
 }
 
@@ -299,12 +308,13 @@ useEffect(() => {
 useEffect(() => {
     if (!pat || !pal) return;
     const saveTimer = setTimeout(() => {
-        let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+        let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
+        let project={version:9,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,halfStitches:hsArr,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
     }, 1000); // 1-second debounce
 
     return () => clearTimeout(saveTimer);
-}, [pat, pal, sW, sH, maxC, bri, con, sat, dith, skipBg, bgTh, bgCol, minSt, arLock, ar, fabricCt, skeinPrice, stitchSpeed, smooth, smoothType, orphans, bsLines, done, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned, img]);
+}, [pat, pal, sW, sH, maxC, bri, con, sat, dith, skipBg, bgTh, bgCol, minSt, arLock, ar, fabricCt, skeinPrice, stitchSpeed, smooth, smoothType, orphans, bsLines, done, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned, img, halfStitches]);
 
 
 
@@ -449,6 +459,16 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, viewportRect=null, showOverlay
       if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
       ctx.strokeStyle=`rgba(0,0,0,${sAlpha})`;ctx.strokeRect(px,py,cSz,cSz);
     }
+    // Half stitch overlay for this cell
+    let hsEntry=halfStitches.get(idx);
+    if(hsEntry){
+      ["fwd","bck"].forEach(dir=>{let hs=hsEntry[dir];if(!hs)return;
+        let isHiHS=!hiId||hs.id===hiId;let dimHS=hiId&&!isHiHS;
+        let alpha=dimHS?0.04:0.12;drawHalfTriangle(ctx,px,py,cSz,dir,hs.rgb,alpha);
+        if(cSz>=5){let lAlpha=dimHS?0.15:0.7;drawHalfLine(ctx,px,py,cSz,dir,hs.rgb,lAlpha,Math.max(1,cSz*0.08));}
+        if(cSz>=10&&(view==="symbol"||view==="both")){let hInfo=cmap?cmap[hs.id]:null;if(hInfo){let col=dimHS?"rgba(0,0,0,0.08)":(view==="both"?(luminance(hs.rgb)>128?"#000":"#fff"):"#333");drawHalfSymbol(ctx,px,py,cSz,dir,hInfo.symbol,col,Math.max(6,cSz*0.4),"bold");}}
+      });
+    }
   }
   if(cSz>=3){ctx.strokeStyle="rgba(0,0,0,0.2)";ctx.lineWidth=cSz>=8?1.5:1;for(let gx=Math.floor(startX/10)*10;gx<=endX;gx+=10){ctx.beginPath();ctx.moveTo(gut+gx*cSz, Math.max(gut, viewportRect ? viewportRect.top : 0));ctx.lineTo(gut+gx*cSz, Math.min(gut+dH*cSz, viewportRect ? viewportRect.bottom : gut+dH*cSz));ctx.stroke();}for(let gy=Math.floor(startY/10)*10;gy<=endY;gy+=10){ctx.beginPath();ctx.moveTo(Math.max(gut, viewportRect ? viewportRect.left : 0), gut+gy*cSz);ctx.lineTo(Math.min(gut+dW*cSz, viewportRect ? viewportRect.right : gut+dW*cSz), gut+gy*cSz);ctx.stroke();}}
   if(showCtr){ctx.strokeStyle="rgba(200,60,60,0.3)";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);let cx2=Math.floor(sW/2)-offX,cy2=Math.floor(sH/2)-offY;if(cx2>=startX&&cx2<=endX){ctx.beginPath();ctx.moveTo(gut+cx2*cSz, Math.max(gut, viewportRect ? viewportRect.top : 0));ctx.lineTo(gut+cx2*cSz, Math.min(gut+dH*cSz, viewportRect ? viewportRect.bottom : gut+dH*cSz));ctx.stroke();}if(cy2>=startY&&cy2<=endY){ctx.beginPath();ctx.moveTo(Math.max(gut, viewportRect ? viewportRect.left : 0), gut+cy2*cSz);ctx.lineTo(Math.min(gut+dW*cSz, viewportRect ? viewportRect.right : gut+dW*cSz), gut+cy2*cSz);ctx.stroke();}ctx.setLineDash([]);}
@@ -522,10 +542,10 @@ const renderPattern=useCallback(()=>{if(!pat||!cmap||!pcRef.current||tab!=="patt
     };
   }
   drawPattern(canvas.getContext("2d"),0,0,sW,sH,cs,G, viewportRect, showOverlay && !!img, overlayOpacity);
-},[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab,hoverCoords,selectedColorId,showOverlay,overlayOpacity,img]);
+},[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab,hoverCoords,selectedColorId,showOverlay,overlayOpacity,img,halfStitches]);
 useEffect(()=>renderPattern(),[renderPattern]);
 
-const renderExport=useCallback(()=>{if(tab!=="export"||!expRef.current||!pat||!cmap)return;let epC=exportPage%pxX,epR=Math.floor(exportPage/pxX),eX0=epC*A4W,eY0=epR*A4H,eW=Math.min(A4W,sW-eX0),eH=Math.min(A4H,sH-eY0),dW2=pageMode?eW:sW,dH2=pageMode?eH:sH,oX2=pageMode?eX0:0,oY2=pageMode?eY0:0,expCs=Math.max(8,Math.min(20,Math.floor(750/Math.max(dW2,dH2))));expRef.current.width=dW2*expCs+G+2;expRef.current.height=dH2*expCs+G+2;drawPattern(expRef.current.getContext("2d"),oX2,oY2,dW2,dH2,expCs,G);},[tab,pat,cmap,sW,sH,pageMode,exportPage,pxX,view,hiId,showCtr,bsLines]);
+const renderExport=useCallback(()=>{if(tab!=="export"||!expRef.current||!pat||!cmap)return;let epC=exportPage%pxX,epR=Math.floor(exportPage/pxX),eX0=epC*A4W,eY0=epR*A4H,eW=Math.min(A4W,sW-eX0),eH=Math.min(A4H,sH-eY0),dW2=pageMode?eW:sW,dH2=pageMode?eH:sH,oX2=pageMode?eX0:0,oY2=pageMode?eY0:0,expCs=Math.max(8,Math.min(20,Math.floor(750/Math.max(dW2,dH2))));expRef.current.width=dW2*expCs+G+2;expRef.current.height=dH2*expCs+G+2;drawPattern(expRef.current.getContext("2d"),oX2,oY2,dW2,dH2,expCs,G);},[tab,pat,cmap,sW,sH,pageMode,exportPage,pxX,view,hiId,showCtr,bsLines,halfStitches]);
 useEffect(()=>renderExport(),[renderExport]);
 
 
@@ -831,6 +851,30 @@ function handlePatClick(e){
   if(!pcRef.current||!pat)return;
   let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch");
   if(!gc)return;let{gx,gy}=gc;
+  // Half stitch tool handling
+  if(halfStitchTool){
+    if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;
+    if(halfStitchTool==="erase"){
+      let hs=halfStitches.get(idx);if(!hs)return;
+      let nm=new Map(halfStitches);nm.delete(idx);setHalfStitches(nm);return;
+    }
+    let dir=halfStitchTool; // "fwd" or "bck"
+    let colorEntry=selectedColorId&&cmap?cmap[selectedColorId]:null;
+    if(!colorEntry){
+      // Use the cell's full stitch colour if no colour selected
+      let m=pat[idx];if(m&&m.id!=="__skip__"&&cmap)colorEntry=cmap[m.id];
+    }
+    if(!colorEntry)return;
+    let nm=new Map(halfStitches);let existing=nm.get(idx)||{};
+    if(existing[dir]&&existing[dir].id===colorEntry.id){
+      // Toggle off if same colour
+      let upd={...existing};delete upd[dir];
+      if(!upd.fwd&&!upd.bck)nm.delete(idx);else nm.set(idx,upd);
+    }else{
+      nm.set(idx,{...existing,[dir]:{id:colorEntry.id,rgb:colorEntry.rgb}});
+    }
+    setHalfStitches(nm);return;
+  }
   if((activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap){
     if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
     let pe=cmap[selectedColorId];if(!pe)return;let np=pat.slice();
@@ -1000,14 +1044,18 @@ return(
             <button onClick={()=>setTool("eraseBs")} style={tBtn(activeTool==="eraseBs")}>Erase line</button>
             <button onClick={()=>setTool("paint")} style={tBtn(activeTool==="paint")}>Paint</button>
             <button onClick={()=>setTool("fill")} style={tBtn(activeTool==="fill")}>Fill</button>
-            {(activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
+            <div style={{width:1,height:18,background:"#e4e4e7",margin:"0 2px"}}/>
+            <button onClick={()=>setHsTool("fwd")} title="Half stitch /" style={{...tBtn(halfStitchTool==="fwd"),padding:"3px 6px",position:"relative"}}><svg width="16" height="16" viewBox="0 0 16 16"><line x1="2" y1="14" x2="14" y2="2" stroke={halfStitchTool==="fwd"?"#0d9488":"#71717a"} strokeWidth="2" strokeLinecap="round"/></svg></button>
+            <button onClick={()=>setHsTool("bck")} title="Half stitch \" style={{...tBtn(halfStitchTool==="bck"),padding:"3px 6px",position:"relative"}}><svg width="16" height="16" viewBox="0 0 16 16"><line x1="2" y1="2" x2="14" y2="14" stroke={halfStitchTool==="bck"?"#0d9488":"#71717a"} strokeWidth="2" strokeLinecap="round"/></svg></button>
+            <button onClick={()=>setHsTool("erase")} title="Erase half stitch" style={{...tBtn(halfStitchTool==="erase"),padding:"3px 6px"}}><svg width="16" height="16" viewBox="0 0 16 16"><line x1="3" y1="13" x2="13" y2="3" stroke={halfStitchTool==="erase"?"#dc2626":"#71717a"} strokeWidth="1.5" strokeLinecap="round"/><line x1="3" y1="3" x2="13" y2="13" stroke={halfStitchTool==="erase"?"#dc2626":"#71717a"} strokeWidth="1.5" strokeLinecap="round"/><line x1="4" y1="8" x2="12" y2="8" stroke={halfStitchTool==="erase"?"#dc2626":"#71717a"} strokeWidth="2" strokeLinecap="round"/></svg></button>
+            {(activeTool==="paint"||activeTool==="fill"||halfStitchTool==="fwd"||halfStitchTool==="bck")&&selectedColorId&&cmap[selectedColorId]&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:8,background:"#f4f4f5"}}><span style={{width:12,height:12,borderRadius:3,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/> {selectedColorId}</span>}
             <div style={{marginLeft:"auto",display:"flex",gap:4}}>
               {editHistory.length>0&&<button onClick={()=>{let last=editHistory[editHistory.length-1],np=pat.slice();last.changes.forEach(c2=>np[c2.idx]={...c2.old});setPat(np);setEditHistory(prev=>prev.slice(0,-1));let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
               {hiId&&<button onClick={()=>setHiId(null)} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Clear ✕</button>}
             </div>
           </div>
-          <div ref={scrollRef} onScroll={() => requestAnimationFrame(renderPattern)} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:activeTool?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{if(activeTool==="backstitch"&&bsStart){e.preventDefault();setBsStart(null);}}}/></div>
-          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{pal.map(p=>{let ips=(activeTool==="paint"||activeTool==="fill")&&selectedColorId===p.id,ihs=hiId===p.id;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill")setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff"}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span></div>;})}</div></div>
+          <div ref={scrollRef} onScroll={() => requestAnimationFrame(renderPattern)} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(activeTool||halfStitchTool)?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{if(activeTool==="backstitch"&&bsStart){e.preventDefault();setBsStart(null);}}}/></div>
+          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{pal.map(p=>{let ips=(activeTool==="paint"||activeTool==="fill"||(halfStitchTool&&halfStitchTool!=="erase"))&&selectedColorId===p.id,ihs=hiId===p.id;return<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill"||(halfStitchTool&&halfStitchTool!=="erase"))setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?"2px solid #0d9488":ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?"#f0fdfa":ihs?"#fff7ed":"#fff"}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span></div>;})}</div></div>
         </div>}
 
         {/* ═══ PROJECT TAB ═══ */}

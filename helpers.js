@@ -89,3 +89,97 @@ async function clearProjectFromDB() {
     console.error("Failed to clear project from IndexedDB", err);
   }
 }
+
+// ═══ Half-stitch drawing helpers ═══
+
+// Draw a triangular fill for one half of a cell.
+// dir: "fwd" (/ bottom-left to top-right) or "bck" (\ top-left to bottom-right)
+// rgb: [r,g,b], alpha: 0-1
+function drawHalfTriangle(ctx, px, py, cSz, dir, rgb, alpha) {
+  if (alpha <= 0) return;
+  ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+  ctx.beginPath();
+  if (dir === "fwd") {
+    // / direction — triangle covers bottom-left half
+    ctx.moveTo(px, py);
+    ctx.lineTo(px, py + cSz);
+    ctx.lineTo(px + cSz, py + cSz);
+  } else {
+    // \ direction (bck) — triangle covers top-left half
+    ctx.moveTo(px, py);
+    ctx.lineTo(px + cSz, py);
+    ctx.lineTo(px, py + cSz);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+// Draw the complementary (opposite) triangle for a half stitch.
+function drawHalfTriangleComplement(ctx, px, py, cSz, dir, rgb, alpha) {
+  if (alpha <= 0) return;
+  ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+  ctx.beginPath();
+  if (dir === "fwd") {
+    // Complement of / = top-right triangle
+    ctx.moveTo(px, py);
+    ctx.lineTo(px + cSz, py);
+    ctx.lineTo(px + cSz, py + cSz);
+  } else {
+    // Complement of \ = bottom-right triangle
+    ctx.moveTo(px + cSz, py);
+    ctx.lineTo(px + cSz, py + cSz);
+    ctx.lineTo(px, py + cSz);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+// Draw a diagonal line for a half stitch.
+// dir: "fwd" (/) or "bck" (\)
+function drawHalfLine(ctx, px, py, cSz, dir, rgb, alpha, lineWidth) {
+  if (alpha <= 0) return;
+  ctx.strokeStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+  ctx.lineWidth = lineWidth;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  if (dir === "fwd") {
+    // / from bottom-left to top-right
+    ctx.moveTo(px + 1, py + cSz - 1);
+    ctx.lineTo(px + cSz - 1, py + 1);
+  } else {
+    // \ from top-left to bottom-right
+    ctx.moveTo(px + 1, py + 1);
+    ctx.lineTo(px + cSz - 1, py + cSz - 1);
+  }
+  ctx.stroke();
+}
+
+// Draw a half-stitch symbol centered on the triangle centroid.
+function drawHalfSymbol(ctx, px, py, cSz, dir, symbol, color, fontSize, fontWeight) {
+  ctx.fillStyle = color;
+  ctx.font = (fontWeight ? fontWeight + " " : "") + fontSize + "px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  let sx, sy;
+  if (dir === "fwd") {
+    sx = px + cSz * 0.33;
+    sy = py + cSz * 0.67;
+  } else {
+    sx = px + cSz * 0.33;
+    sy = py + cSz * 0.33;
+  }
+  ctx.fillText(symbol, sx, sy);
+}
+
+// Determine which half of a cell a click falls in.
+// Returns "fwd", "bck", or "ambiguous".
+function hitTestHalfStitch(localX, localY, cSz, ambiguousRadius) {
+  ambiguousRadius = ambiguousRadius || 8;
+  var cx = cSz / 2, cy = cSz / 2;
+  if (Math.abs(localX - cx) < ambiguousRadius && Math.abs(localY - cy) < ambiguousRadius) {
+    return "ambiguous";
+  }
+  // Above the / diagonal = fwd triangle, below = bck
+  var norm = localX / cSz + (1 - localY / cSz);
+  return norm < 1 ? "bck" : "fwd";
+}
