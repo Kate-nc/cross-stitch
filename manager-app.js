@@ -657,6 +657,10 @@ function ManagerApp() {
 }
 
 function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile }) {
+  function handleTrack() {
+    localStorage.setItem("crossstitch_handoff", JSON.stringify(pattern));
+    window.location.href = "stitch.html?source=manager";
+  }
   const [edited, setEdited] = useState({ ...pattern, threads: pattern.threads || [], fabric: pattern.fabric || "", project_overrides: pattern.project_overrides || null });
   const [threadInput, setThreadInput] = useState("");
   const [threadQty, setThreadQty] = useState(1);
@@ -946,6 +950,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
 
         <div style={{ padding: "16px 20px", borderTop: "1px solid #e4e4e7", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fafafa", borderRadius: "0 0 8px 8px" }}>
           <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #e4e4e7", background: "#fff", cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+          <button onClick={handleTrack} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#ea580c", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Start Tracking →</button>
           <button onClick={() => onSave(edited)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save Pattern</button>
         </div>
       </div>

@@ -336,6 +336,31 @@ function saveProject(){
   URL.revokeObjectURL(url);
 }
 
+function handleEditInCreator(){
+  if(!pat||!pal)return;
+  let project={version:8,page:"tracker",settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice:1.2,stitchSpeed:40,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:Array.from(done),parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:null};
+  try{
+    localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(project));
+    window.location.href = "index.html?source=tracker";
+  }catch(e){
+    try{
+      let str = JSON.stringify(project);
+      let compressed = pako.deflate(str);
+      let binaryStr = "";
+      for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
+      let b64 = btoa(binaryStr).replace(/\+/g, "-").replace(/\//g, "_");
+      if (b64.length > 8000) {
+          alert("Pattern too large for direct transfer. Please use Save Project (.json) instead and load it in the Creator.");
+          return;
+      }
+      window.location.href = "index.html#p=" + b64;
+    }catch(e2){
+      alert("Pattern is too large for direct transfer. Please save the file and open it in the Creator.");
+    }
+  }
+}
+
+
 function handleSymbolReassignment(oldColorId, newThread) {
   if (!pat || !pal || !cmap) return;
 
@@ -532,6 +557,17 @@ function loadProject(e){
 }
 
 useEffect(() => {
+  const handoff = localStorage.getItem('crossstitch_handoff');
+  if (handoff) {
+    try {
+      const projectData = JSON.parse(handoff);
+      localStorage.removeItem('crossstitch_handoff');
+      processLoadedProject(projectData);
+      return;
+    } catch (e) {
+      console.error("Failed to load handoff:", e);
+    }
+  }
     // Check URL hash for shared project
     const hash = window.location.hash.slice(1);
     if (hash.startsWith('p=')) {
@@ -1398,6 +1434,7 @@ return(
     </div>
 
     <div style={{marginTop:20, display:"flex", gap:10, justifyContent:"center", padding:"20px", borderTop:"0.5px solid #e4e4e7"}}>
+      <button onClick={handleEditInCreator} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#ea580c",color:"#fff",cursor:"pointer",fontWeight:600}}>Edit</button>
       <button onClick={saveProject} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save Project (.json)</button>
       <button onClick={()=>loadRef.current.click()} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Load Different Project</button>
     </div>
