@@ -36,6 +36,7 @@ const[sessionStartSnapshot,setSessionStartSnapshot]=useState(null);
 const[editModalColor,setEditModalColor]=useState(null);
 const[showExitEditModal,setShowExitEditModal]=useState(false);
 const[drawer,setDrawer]=useState(false),[focusColour,setFocusColour]=useState(null);
+const[showNavHelp,setShowNavHelp]=useState(false);
 const[highlightSkipDone,setHighlightSkipDone]=useState(true);
 const[advanceToast,setAdvanceToast]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
@@ -1073,9 +1074,9 @@ return(
 
       {!isEditMode && <>
       <div style={{width:1,height:20,background:"#e4e4e7"}}/>
-      <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}><button onClick={()=>setStitchMode("track")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchMode==="track" ? 500 : 400, background: stitchMode==="track" ? "#0d9488" : "transparent", borderRadius: 6, color: stitchMode==="track" ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchMode==="track" ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Track</button><button onClick={()=>setStitchMode("navigate")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchMode==="navigate" ? 500 : 400, background: stitchMode==="navigate" ? "#18181b" : "transparent", borderRadius: 6, color: stitchMode==="navigate" ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchMode==="navigate" ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Navigate</button></div>
+      <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}><button onClick={()=>setStitchMode("track")} title="Click or drag to mark stitches as done" style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchMode==="track" ? 500 : 400, background: stitchMode==="track" ? "#0d9488" : "transparent", borderRadius: 6, color: stitchMode==="track" ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchMode==="track" ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Track</button><button onClick={()=>setStitchMode("navigate")} title="Place a guide crosshair or park-marker for your current position" style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchMode==="navigate" ? 500 : 400, background: stitchMode==="navigate" ? "#18181b" : "transparent", borderRadius: 6, color: stitchMode==="navigate" ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchMode==="navigate" ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Navigate</button></div>
       <div style={{width:1,height:20,background:"#e4e4e7"}}/>
-      <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}>{[["symbol","Sym"],["colour","Col+Sym"],["highlight","Highlight"]].map(([k,l])=><button key={k} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}} style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchView===k ? 500 : 400, background: stitchView===k ? "#fff" : "transparent", borderRadius: 6, color: stitchView===k ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchView===k ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>{l}</button>)}</div>
+      <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}>{[["symbol","Sym","Show symbols only — best for stitching from the chart"],["colour","Col+Sym","Show thread colours with symbols overlaid"],["highlight","Highlight","Focus on one colour at a time — use [ ] or ◀ ▶ to cycle"]].map(([k,l,tip])=><button key={k} title={tip} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}} style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchView===k ? 500 : 400, background: stitchView===k ? "#fff" : "transparent", borderRadius: 6, color: stitchView===k ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchView===k ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>{l}</button>)}</div>
       <div style={{width:1,height:20,background:"#e4e4e7"}}/>
       {stitchView==="highlight"&&<>
         <div style={{display:"flex",alignItems:"center",gap:4}}>
@@ -1100,14 +1101,15 @@ return(
         <div style={{width:1,height:20,background:"#e4e4e7"}}/>
       </>}
       <span style={{fontSize:11,color:"#a1a1aa"}}>Zoom</span>
-      <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} style={{padding:"1px 7px",fontSize:15,border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer",lineHeight:1,fontWeight:600}}>−</button>
-      <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{width:55}}/>
-      <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} style={{padding:"1px 7px",fontSize:15,border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer",lineHeight:1,fontWeight:600}}>+</button>
-      <span style={{fontSize:11,minWidth:28}}>{Math.round(stitchZoom*100)}%</span><button onClick={fitSZ} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Fit</button>
+      <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} title="Zoom out (−0.25×)" style={{padding:"1px 7px",fontSize:15,border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer",lineHeight:1,fontWeight:600}}>−</button>
+      <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} title="Drag to zoom — or use Ctrl+scroll / pinch" onChange={e=>setStitchZoom(Number(e.target.value))} style={{width:55}}/>
+      <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} title="Zoom in (+0.25×)" style={{padding:"1px 7px",fontSize:15,border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer",lineHeight:1,fontWeight:600}}>+</button>
+      <span style={{fontSize:11,minWidth:28}}>{Math.round(stitchZoom*100)}%</span><button onClick={fitSZ} title="Fit entire pattern to the viewport" style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Fit</button>
       {stitchMode==="navigate"&&<><div style={{width:1,height:20,background:"#e4e4e7"}}/><span style={{fontSize:11,color:"#71717a"}}>📌</span><select value={selectedColorId||""} onChange={e=>setSelectedColorId(e.target.value||null)} style={{fontSize:11,padding:"3px 6px",borderRadius:6,border:"0.5px solid #e4e4e7"}}><option value="">No parking</option>{pal.map(p=><option key={p.id} value={p.id}>DMC {p.id}</option>)}</select>{parkMarkers.length>0&&<button onClick={()=>setParkMarkers([])} style={{fontSize:11,padding:"3px 8px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",color:"#d97706",cursor:"pointer"}}>Clear</button>}</>}
-      <div style={{marginLeft:"auto",display:"flex",gap:4}}>
-        {stitchMode==="track"&&trackHistory.length>0&&<button onClick={undoTrack} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo ({trackHistory.length})</button>}
+      <div style={{marginLeft:"auto",display:"flex",gap:4,alignItems:"center"}}>
+        {stitchMode==="track"&&trackHistory.length>0&&<button onClick={undoTrack} title={`Undo last ${trackHistory.length} stitch change${trackHistory.length>1?"s":""}`} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo ({trackHistory.length})</button>}
         {done&&doneCount>0&&<button onClick={()=>{if(confirm("Clear all progress?")){setDone(new Uint8Array(pat.length));setTrackHistory([]);}}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Reset</button>}
+        <button onClick={()=>setShowNavHelp(h=>!h)} title="Navigation help" style={{fontSize:12,padding:"2px 8px",border:showNavHelp?"1px solid #a5b4fc":"0.5px solid #e4e4e7",borderRadius:6,background:showNavHelp?"#eff6ff":"#fafafa",color:showNavHelp?"#4f46e5":"#71717a",cursor:"pointer",fontWeight:600,lineHeight:"18px"}}>?</button>
       </div>
       </>}
 
@@ -1173,6 +1175,37 @@ return(
         }} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Revert to Original</button>
       </div>}
     </div>
+    {showNavHelp&&!isEditMode&&(()=>{const isTouch=hasTouchRef.current;return(
+    <div style={{marginBottom:8,padding:"14px 16px",background:"#fff",border:"1px solid #a5b4fc",borderRadius:10,fontSize:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <span style={{fontWeight:700,fontSize:13,color:"#18181b"}}>Navigation &amp; Controls</span>
+        <button onClick={()=>setShowNavHelp(false)} style={{fontSize:12,background:"none",border:"none",color:"#a1a1aa",cursor:"pointer",padding:"0 4px",lineHeight:1}}>✕</button>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 24px"}}>
+        {[
+          ["Pan",isTouch?"Drag one finger across the canvas":"Hold Space + drag  ·  or middle-click drag"],
+          ["Zoom in / out",isTouch?"Pinch two fingers apart / together":"Ctrl + scroll  ·  or use − / + buttons"],
+          ["Zoom to fit","Tap the Fit button"],
+          ["Mark a stitch",isTouch?"Tap a cell":"Click a cell"],
+          ["Mark multiple",isTouch?"Tap, then drag across cells":"Click + drag across cells — all set to same state"],
+          ["Undo last marks","↩ Undo button (top right)"],
+          stitchView==="highlight"?["Cycle colours",isTouch?"Tap ◀ ▶ arrows in the toolbar":"[ or ] keys  ·  or ← → arrow keys"]:null,
+          stitchView==="highlight"?["Clear focus","Tap the colour pill to show all colours"]:null,
+          stitchMode==="navigate"?["Place crosshair","Click on any cell to drop a guide"]:null,
+          stitchMode==="navigate"?["Park marker","Select a colour, then click to place a marker"]:null,
+        ].filter(Boolean).map(([label,tip],i)=>(
+          <div key={i} style={{display:"contents"}}>
+            <div style={{color:"#71717a",fontWeight:600,paddingTop:1}}>{label}</div>
+            <div style={{color:"#18181b"}}>{tip}</div>
+          </div>
+        ))}
+      </div>
+      {!isTouch&&<div style={{marginTop:10,paddingTop:8,borderTop:"0.5px solid #f4f4f5",color:"#a1a1aa",fontSize:11}}>
+        Tip: on a trackpad, two-finger scroll pans the canvas without any modifier key.
+      </div>}
+    </div>
+    );})()}
+
     {scs < 6 && !isEditMode && (stitchView === "symbol" || stitchView === "colour") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
 
     {isEditMode && <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>}
