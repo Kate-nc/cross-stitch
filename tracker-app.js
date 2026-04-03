@@ -558,18 +558,21 @@ useEffect(() => {
 function drawStitch(ctx,cSz,viewportRect){
   let gut=G,dW=sW,dH=sH;
 
-  // Compute visible cell range — only draw what's inside the scroll viewport
+  // Clear full canvas — single fillRect is GPU-accelerated regardless of size,
+  // and avoids stale-cell jerk when scroll reveals previously undrawn areas.
+  ctx.fillStyle="#fff";
+  ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
+
+  // Compute cell draw range: viewport + overdraw buffer so cells just off-screen
+  // are pre-rendered before scrolling reveals them.
+  const OVERDRAW=400;
   let startX=0,startY=0,endX=dW,endY=dH;
   if(viewportRect){
-    startX=Math.max(0,Math.floor((viewportRect.left-gut)/cSz)-1);
-    startY=Math.max(0,Math.floor((viewportRect.top-gut)/cSz)-1);
-    endX=Math.min(dW,Math.ceil((viewportRect.right-gut)/cSz)+1);
-    endY=Math.min(dH,Math.ceil((viewportRect.bottom-gut)/cSz)+1);
+    startX=Math.max(0,Math.floor((viewportRect.left-gut-OVERDRAW)/cSz));
+    startY=Math.max(0,Math.floor((viewportRect.top-gut-OVERDRAW)/cSz));
+    endX=Math.min(dW,Math.ceil((viewportRect.right-gut+OVERDRAW)/cSz));
+    endY=Math.min(dH,Math.ceil((viewportRect.bottom-gut+OVERDRAW)/cSz));
   }
-
-  // Clear only the visible area (avoids writing megapixels of canvas that are off-screen)
-  ctx.fillStyle="#fff";
-  ctx.fillRect(gut+startX*cSz,gut+startY*cSz,(endX-startX)*cSz+2,(endY-startY)*cSz+2);
 
   // Hoist font strings — same for all cells at a given zoom level
   const fSym=`bold ${Math.max(7,cSz*0.65)}px monospace`;
