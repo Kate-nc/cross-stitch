@@ -26,6 +26,14 @@
 <script type="text/babel">
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
 
+function confettiTier(pct){
+  if(pct<2)return{color:"#16a34a",label:"Excellent"};
+  if(pct<5)return{color:"#65a30d",label:"Good"};
+  if(pct<8)return{color:"#d97706",label:"Moderate"};
+  if(pct<15)return{color:"#ea580c",label:"Challenging"};
+  return{color:"#dc2626",label:"High confetti"};
+}
+
 function App(){
 const[img,setImg]=useState(null),[sW,setSW]=useState(80),[sH,setSH]=useState(80),[arLock,setArLock]=useState(true),[ar,setAr]=useState(1);
 const[maxC,setMaxC]=useState(30),[bri,setBri]=useState(0),[con,setCon]=useState(0),[sat,setSat]=useState(0),[dith,setDith]=useState(false);
@@ -67,6 +75,7 @@ const[threadOwned,setThreadOwned]=useState({});
 
 const[previewUrl,setPreviewUrl]=useState(null);
 const[previewStats,setPreviewStats]=useState(null);
+const[confettiData,setConfettiData]=useState(null);
 const previewTimerRef=useRef(null);
 
 const pcRef=useRef(null),fRef=useRef(null),scrollRef=useRef(null),expRef=useRef(null),loadRef=useRef(null);
@@ -109,7 +118,9 @@ const generatePreview=useCallback(()=>{
   let p=quantize(raw,pw,ph,maxC);if(!p.length)return;
   let mapped=dith?doDither(raw,pw,ph,p):doMap(raw,pw,ph,p);
   if(skipBg){let bl=rgbToLab(bgCol[0],bgCol[1],bgCol[2]);for(let i=0;i<mapped.length;i++){if(dE(rgbToLab(raw[i*4],raw[i*4+1],raw[i*4+2]),bl)<bgTh)mapped[i]={type:"skip",id:"__skip__",rgb:[255,255,255]};}}
+  const confettiRaw=analyzeConfetti(mapped,pw,ph);
   if(orphans>0)mapped=removeOrphanStitches(mapped,pw,ph,orphans);
+  const confettiClean=orphans>0?analyzeConfetti(mapped,pw,ph):null;
 
   // Calculate preview statistics
   let stitchable=0;
@@ -137,7 +148,10 @@ const generatePreview=useCallback(()=>{
     stitchable: Math.round(stitchable*scaleFactor),
     skipped: Math.round(skipped*scaleFactor),
     uniqueColors,
-    estSkeins
+    estSkeins,
+    confettiPct: confettiRaw.pct,
+    confettiSingles: Math.round(confettiRaw.singles*scaleFactor),
+    confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles*scaleFactor) : null
   });
 
   let pc=document.createElement("canvas");let pcs=Math.max(3,Math.floor(260/pw));
@@ -161,6 +175,7 @@ function resetAll(){
   setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setExportPage(0);
   setDone(null);setParkMarkers([]);setHlRow(-1);setHlCol(-1);
   setTotalTime(0);setSessions([]);setThreadOwned({});
+  setConfettiData(null);
   setHasGenerated(false);
   setDimOpen(true);setPalOpen(true);setFabOpen(false);setAdjOpen(false);setBgOpen(false);
   setIsCropping(false);setCropRect(null);
@@ -636,7 +651,10 @@ const generate=useCallback(()=>{
     if(skipBg){let bl=rgbToLab(bgCol[0],bgCol[1],bgCol[2]);for(let i=0;i<mapped.length;i++){if(dE(rgbToLab(raw[i*4],raw[i*4+1],raw[i*4+2]),bl)<bgTh)mapped[i]={type:"skip",id:"__skip__",rgb:[255,255,255],lab:[100,0,0]};}}
     if(minSt>0){for(let pass=0;pass<3;pass++){let{pal:ep}=buildPalette(mapped);let rare=ep.filter(e=>e.count<minSt),keep=ep.filter(e=>e.count>=minSt);if(!rare.length||!keep.length)break;let rm2={};rare.forEach(r=>{let b=null,bd=1e9;keep.forEach(k=>{let d=dE(r.lab,k.lab);if(d<bd){bd=d;b=k.id;}});if(b)rm2[r.id]=b;});let changed=false;let keepMap={};keep.forEach(k=>{keepMap[k.id]=k;});for(let i=0;i<mapped.length;i++){if(mapped[i].id!=="__skip__"&&rm2[mapped[i].id]){mapped[i]={...keepMap[rm2[mapped[i].id]]};changed=true;}}if(!changed)break;}}
     for(let safe=0;safe<5;safe++){let ids=new Set();for(let i=0;i<mapped.length;i++){let m=mapped[i];if(m.id==="__skip__")continue;if(m.type==="blend"&&m.threads)m.threads.forEach(t=>ids.add(t.id));else ids.add(m.id);}if(ids.size<=maxC)break;let tu={};for(let i=0;i<mapped.length;i++){let m=mapped[i];if(m.id==="__skip__")continue;if(m.type==="blend"&&m.threads)m.threads.forEach(t=>{tu[t.id]=(tu[t.id]||0)+1;});else tu[m.id]=(tu[m.id]||0)+1;}let sorted=Object.entries(tu).sort((a,b)=>b[1]-a[1]);let ks=new Set(sorted.slice(0,maxC).map(e=>e[0]));let kp=p.filter(t=>ks.has(t.id));if(!kp.length)break;for(let i=0;i<mapped.length;i++){let m=mapped[i];if(m.id==="__skip__")continue;let nr=m.type==="blend"&&m.threads?m.threads.some(t=>!ks.has(t.id)):!ks.has(m.id);if(nr)mapped[i]=findSolid(m.lab||rgbToLab(raw[i*4],raw[i*4+1],raw[i*4+2]),kp);}}
+    const rawConfetti=analyzeConfetti(mapped,sW,sH);
     if(orphans>0)mapped=removeOrphanStitches(mapped,sW,sH,orphans);
+    const cleanConfetti=orphans>0?analyzeConfetti(mapped,sW,sH):rawConfetti;
+    setConfettiData({raw:rawConfetti,clean:cleanConfetti});
     let{pal:newPal,cmap:newCmap}=buildPalette(mapped);
     setPal(newPal);setCmap(newCmap);setPat(mapped);setDone(new Uint8Array(mapped.length));setParkMarkers([]);setTab("pattern");setThreadOwned({});
     if(!hasGenerated){
@@ -943,6 +961,26 @@ return(
               <span style={{fontSize:13,fontWeight:700,color:difficulty.color}}>{difficulty.label}</span>
               <span style={{fontSize:11,color:"#a1a1aa",marginLeft:"auto"}}>{pal.length} colours · {blendCount>0?blendCount+" blends · ":""}{totalStitchable.toLocaleString()} stitches</span>
             </div>}
+            {confettiData&&(()=>{
+              const cd=confettiData.clean;
+              const t=confettiTier(cd.pct);
+              const barW=Math.max(3,Math.min(100,Math.round(100-cd.pct*5)));
+              return(
+                <div style={{marginTop:8,padding:"8px 12px",background:"#fafafa",borderRadius:8,border:"0.5px solid #e4e4e7"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                    <div style={{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600}}>Stitchability</div>
+                    <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18",marginLeft:"auto"}}>{t.label}</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{flex:1,height:6,background:"#e4e4e7",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:barW+"%",background:t.color,borderRadius:3,transition:"width 0.4s"}}/>
+                    </div>
+                    <span style={{fontSize:12,fontWeight:600,color:t.color,flexShrink:0}}>{cd.singles.toLocaleString()} isolated ({cd.pct.toFixed(1)}%)</span>
+                  </div>
+                  {confettiData.raw.singles!==cd.singles&&<div style={{fontSize:10,color:"#a1a1aa",marginTop:4}}>{confettiData.raw.singles.toLocaleString()} before orphan removal</div>}
+                </div>
+              );
+            })()}
             {done&&doneCount>0&&<div style={{marginTop:8,padding:"8px 12px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0"}}>
               <div style={{fontSize:12,fontWeight:600,color:"#16a34a"}}>Progress: {progressPct}% — {doneCount.toLocaleString()} of {totalStitchable.toLocaleString()} stitches</div>
             </div>}
@@ -1028,7 +1066,7 @@ return(
             </select>
             <span style={{fontSize:11,color:"#a1a1aa"}}>Total skeins: {totalSkeins}</span>
           </div>
-          <div style={{overflow:"auto",maxHeight:540}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}><thead><tr style={{background:"#fafafa"}}>{["Sym","","DMC","Name","Type","Stitches","Skeins",done?"Done":""].filter(Boolean).map((h,i)=><th key={i} style={{padding:"8px 10px",textAlign:i>=5?"right":"left",borderBottom:"2px solid #e4e4e7",color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}}>{h}</th>)}</tr></thead><tbody>{pal.map((p,i)=>{let dc=colourDoneCounts[p.id]||{total:0,done:0};let sk=skeinEst(p.count,fabricCt);return<tr key={i} onClick={()=>{setHiId(hiId===p.id?null:p.id);setTab("pattern");}} style={{borderBottom:"0.5px solid #f4f4f5",cursor:"pointer",background:hiId===p.id?"#fff7ed":"transparent"}}><td style={{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}>{p.symbol}</td><td style={{padding:"6px 10px"}}><div style={{width:24,height:24,borderRadius:5,background:`rgb(${p.rgb})`,border:"0.5px solid #e4e4e7",display:"inline-block"}}/></td><td style={{padding:"6px 10px",fontWeight:600}}>{p.id}</td><td style={{padding:"6px 10px",fontSize:11,color:"#71717a"}}>{p.type==="blend"?p.threads[0].name+" + "+p.threads[1].name:p.name}</td><td style={{padding:"6px 10px"}}><span style={{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:p.type==="blend"?"#fff7ed":"#f0fdf4",color:p.type==="blend"?"#ea580c":"#16a34a"}}>{p.type==="blend"?"Blend":"Solid"}</span></td><td style={{padding:"6px 10px",textAlign:"right"}}>{p.count.toLocaleString()}</td><td style={{padding:"6px 10px",textAlign:"right",fontWeight:600}}>{sk}</td>{done&&<td style={{padding:"6px 10px",textAlign:"right"}}><span style={{color:dc.done>=dc.total?"#16a34a":"#71717a"}}>{dc.done}/{dc.total}</span></td>}</tr>;})}</tbody></table></div>
+          <div style={{overflow:"auto",maxHeight:540}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}><thead><tr style={{background:"#fafafa"}}>{["Sym","","DMC","Name","Type","Stitches","Skeins",done?"Done":""].filter(Boolean).map((h,i)=><th key={i} style={{padding:"8px 10px",textAlign:i>=5?"right":"left",borderBottom:"2px solid #e4e4e7",color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}}>{h}</th>)}</tr></thead><tbody>{pal.map((p,i)=>{let dc=colourDoneCounts[p.id]||{total:0,done:0};let sk=skeinEst(p.count,fabricCt);return<tr key={i} onClick={()=>{setHiId(hiId===p.id?null:p.id);setTab("pattern");}} style={{borderBottom:"0.5px solid #f4f4f5",cursor:"pointer",background:hiId===p.id?"#fff7ed":"transparent"}}><td style={{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}>{p.symbol}</td><td style={{padding:"6px 10px"}}><div style={{width:24,height:24,borderRadius:5,background:`rgb(${p.rgb})`,border:"0.5px solid #e4e4e7",display:"inline-block"}}/></td><td style={{padding:"6px 10px",fontWeight:600}}>{p.id}</td><td style={{padding:"6px 10px",fontSize:11,color:"#71717a"}}>{p.type==="blend"?p.threads[0].name+" + "+p.threads[1].name:p.name}{(()=>{const cc=confettiData?.clean?.colorConfetti?.[p.id];return cc?<span title={`${cc} isolated stitch${cc!==1?"es":""}`} style={{marginLeft:6,color:"#dc2626",fontSize:10,fontWeight:600,cursor:"default",whiteSpace:"nowrap"}}>● {cc}</span>:null;})()}</td><td style={{padding:"6px 10px"}}><span style={{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:p.type==="blend"?"#fff7ed":"#f0fdf4",color:p.type==="blend"?"#ea580c":"#16a34a"}}>{p.type==="blend"?"Blend":"Solid"}</span></td><td style={{padding:"6px 10px",textAlign:"right"}}>{p.count.toLocaleString()}</td><td style={{padding:"6px 10px",textAlign:"right",fontWeight:600}}>{sk}</td>{done&&<td style={{padding:"6px 10px",textAlign:"right"}}><span style={{color:dc.done>=dc.total?"#16a34a":"#71717a"}}>{dc.done}/{dc.total}</span></td>}</tr>;})}</tbody></table></div>
         </div>}
 
         {/* ═══ EXPORT TAB ═══ */}
@@ -1092,6 +1130,25 @@ return(
               <div><div style={{fontSize:10,color:"#a1a1aa"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{fmtTimeL(Math.round(previewStats.stitchable/stitchSpeed*3600))}</div></div>
               <div><div style={{fontSize:10,color:"#a1a1aa"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>£{(previewStats.estSkeins*skeinPrice).toFixed(2)}</div></div>
             </div>
+            {previewStats.confettiPct!=null&&(()=>{
+              const t=confettiTier(previewStats.confettiPct);
+              const tips={"Excellent":"Great stitch flow","Good":"Low confetti — pleasant to stitch","Moderate":"Some isolated stitches — try the Remove Orphans slider","Challenging":"High confetti — reduce colours or use Remove Orphans","High confetti":"Very tedious — strongly consider removing orphans"};
+              return(
+                <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #e4e4e7"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
+                    <span style={{fontSize:10,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
+                    <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18"}}>{t.label}</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{flex:1,height:5,background:"#e4e4e7",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:Math.min(100,previewStats.confettiPct*4)+"%",background:t.color,borderRadius:3}}/>
+                    </div>
+                    <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{previewStats.confettiSingles.toLocaleString()} ({previewStats.confettiPct.toFixed(1)}%)</span>
+                  </div>
+                  <div style={{fontSize:10,color:"#a1a1aa",marginTop:4}}>{tips[t.label]||""}{previewStats.confettiCleanSingles!=null&&previewStats.confettiCleanSingles<previewStats.confettiSingles?` · ${previewStats.confettiCleanSingles.toLocaleString()} after cleanup`:""}</div>
+                </div>
+              );
+            })()}
           </div>}
         </div>}
       </div>}
