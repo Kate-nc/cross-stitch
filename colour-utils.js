@@ -123,7 +123,7 @@ function doMap(data, w, h, pal) {
 function buildPalette(patArr){
   let usage={};
   for(let i=0;i<patArr.length;i++){
-    let m=patArr[i];if(m.id==="__skip__")continue;
+    let m=patArr[i];if(m.id==="__skip__"||m.id==="__empty__")continue;
     if(!usage[m.id])usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};
     usage[m.id].count++;
   }

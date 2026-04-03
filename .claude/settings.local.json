@@ -5,7 +5,8 @@
       "WebFetch(domain:stitchmate.app)",
       "WebSearch",
       "WebFetch(domain:lordlibidan.com)",
-      "WebFetch(domain:www.gathered.how)"
+      "WebFetch(domain:www.gathered.how)",
+      "Bash(node -e ':*)"
     ]
   }
 }

@@ -1,3 +1,34 @@
+function Tooltip({text,children,width=180}){
+  const[show,setShow]=React.useState(false);
+  const[pos,setPos]=React.useState({x:0,y:0});
+  return React.createElement("div",{
+    style:{position:"relative",display:"inline-flex"},
+    onMouseEnter:e=>{const r=e.currentTarget.getBoundingClientRect();setPos({x:r.left+r.width/2,y:r.top});setShow(true);},
+    onMouseLeave:()=>setShow(false)
+  },
+    children,
+    show&&ReactDOM.createPortal(
+      React.createElement("div",{style:{
+        position:"fixed",left:pos.x,top:pos.y-10,
+        transform:"translate(-50%,-100%)",
+        background:"#18181b",color:"#fff",fontSize:11,lineHeight:"1.45",
+        padding:"6px 10px",borderRadius:7,maxWidth:width,width:"max-content",
+        zIndex:9999,pointerEvents:"none",
+        boxShadow:"0 4px 16px rgba(0,0,0,0.22)",textAlign:"center"
+      }},
+        text,
+        React.createElement("div",{style:{
+          position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",
+          width:0,height:0,
+          borderLeft:"5px solid transparent",borderRight:"5px solid transparent",
+          borderTop:"5px solid #18181b"
+        }})
+      ),
+      document.body
+    )
+  );
+}
+
 function Section({title,children,isOpen,onToggle,defaultOpen=true,badge=null}){
   const[o,sO]=React.useState(defaultOpen);
 
