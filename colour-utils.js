@@ -392,4 +392,60 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize) {
   return mapped;
 }
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, removeOrphanStitches }; }
+// Analyses a mapped pattern and returns confetti stitch statistics without mutating the array.
+// "Confetti" = isolated stitches with no same-colour neighbours (component size 1) or tiny
+// clusters of 2-3 stitches. These are tedious to stitch because they require a separate thread pass.
+//
+// Returns: { singles, smallClusters, total, pct, colorConfetti }
+//   singles       — stitches in components of exactly 1 cell
+//   smallClusters — stitches in components of 2-3 cells
+//   total         — singles + smallClusters
+//   pct           — total / totalStitchable * 100
+//   colorConfetti — { [colorId]: count } mapping of confetti stitches per colour
+function analyzeConfetti(mapped, w, h) {
+  const len = mapped.length;
+  const vis = new Uint8Array(len);
+  const q = new Uint32Array(len);
+
+  let totalStitchable = 0;
+  let singles = 0;
+  let smallClusters = 0;
+  const colorConfetti = {};
+
+  for (let startIdx = 0; startIdx < len; startIdx++) {
+    if (vis[startIdx]) continue;
+    vis[startIdx] = 1;
+    const m = mapped[startIdx];
+    if (m.id === "__skip__" || m.id === "__empty__") continue;
+
+    const tid = m.id;
+    let head = 0, tail = 0;
+    q[tail++] = startIdx;
+
+    while (head < tail) {
+      const curr = q[head++];
+      totalStitchable++;
+      const cx = curr % w;
+      const cy = (curr / w) | 0;
+      if (cx > 0)   { const n = curr-1; if (!vis[n] && mapped[n].id === tid) { vis[n]=1; q[tail++]=n; } }
+      if (cx < w-1) { const n = curr+1; if (!vis[n] && mapped[n].id === tid) { vis[n]=1; q[tail++]=n; } }
+      if (cy > 0)   { const n = curr-w; if (!vis[n] && mapped[n].id === tid) { vis[n]=1; q[tail++]=n; } }
+      if (cy < h-1) { const n = curr+w; if (!vis[n] && mapped[n].id === tid) { vis[n]=1; q[tail++]=n; } }
+    }
+
+    const compSize = tail; // tail == cells added == component size
+    if (compSize === 1) {
+      singles++;
+      colorConfetti[tid] = (colorConfetti[tid] || 0) + 1;
+    } else if (compSize <= 3) {
+      smallClusters += compSize;
+      colorConfetti[tid] = (colorConfetti[tid] || 0) + compSize;
+    }
+  }
+
+  const total = singles + smallClusters;
+  const pct = totalStitchable > 0 ? (total / totalStitchable * 100) : 0;
+  return { singles, smallClusters, total, pct, colorConfetti };
+}
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, removeOrphanStitches, analyzeConfetti }; }

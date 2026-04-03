@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find /c/Users/katie/Documents/Code/cross-stitch -name \"*.js\" -exec grep -l \"function rgbToLab\\\\|function dE\\\\|rgbToLab.*=\" {} \\\\;)"
+      "Bash(find /c/Users/katie/Documents/Code/cross-stitch -name \"*.js\" -exec grep -l \"function rgbToLab\\\\|function dE\\\\|rgbToLab.*=\" {} \\\\;)",
+      "WebFetch(domain:stitchmate.app)",
+      "WebSearch",
+      "WebFetch(domain:lordlibidan.com)",
+      "WebFetch(domain:www.gathered.how)"
     ]
   }
 }
