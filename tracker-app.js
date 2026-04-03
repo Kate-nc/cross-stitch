@@ -298,6 +298,51 @@ function handleEditInCreator(){
   }
 }
 
+function handleEditInCreator(){
+  if(!pat||!pal)return;
+  const sseArr = [...singleStitchEdits.entries()];
+  let project={
+    version:8,
+    page:"tracker",
+    settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
+    pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),
+    bsLines,
+    done:done?Array.from(done):null,
+    parkMarkers,
+    totalTime:totalTime+(sessionActive?Math.floor((Date.now()-sessionStart)/1000):0),
+    sessions,
+    hlRow,
+    hlCol,
+    threadOwned,
+    originalPaletteState,
+    singleStitchEdits: sseArr
+  };
+  try{
+    localStorage.setItem('crossstitch_handoff', JSON.stringify(project));
+    window.location.href = 'index.html?source=tracker';
+  }catch(e){
+    try{
+      let pl = pat.map(m=>{
+          if (m.id==="__skip__") return ["__skip__", "k"];
+          return [m.id, m.type==="blend"?"b":"s"];
+      });
+      let minimal = { v: 8, w: sW, h: sH, fc: fabricCt, bs: bsLines, p: pl };
+      let str = JSON.stringify(minimal);
+      let compressed = pako.deflate(str);
+      let binaryStr = "";
+      for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
+      let b64 = btoa(binaryStr).replace(/\+/g, '-').replace(/\//g, '_');
+      if (b64.length > 8000) {
+          alert("Pattern too large for direct transfer. Please use Save Project (.json) instead and load it in the Creator.");
+          return;
+      }
+      window.location.href = 'index.html#p=' + b64;
+    }catch(e2){
+      alert('Pattern is too large for direct transfer. Please save the file and open it in the Creator.');
+    }
+  }
+}
+
 function saveProject(){
   if(!pat||!pal)return;
   // Serialise singleStitchEdits Map as array of [cellIdx, {originalId, currentId}] pairs

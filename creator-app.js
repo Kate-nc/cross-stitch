@@ -204,49 +204,6 @@ function applyCrop(){
   newImg.src=c.toDataURL();
 }
 
-      window.location.href = 'stitch.html#p=' + b64;
-    }catch(e2){
-      alert('Pattern is too large for direct transfer. Please save the file and open it in the Tracker.');
-    }
-  }
-}
-
-      window.location.href = 'stitch.html#p=' + b64;
-    }catch(e2){
-      alert('Pattern is too large for direct transfer. Please save the file and open it in the Tracker.');
-    }
-  }
-}
-
-function handleOpenInTracker(){
-  if(!pat||!pal)return;
-  let project={version:8,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
-  try{
-    localStorage.setItem('crossstitch_handoff', JSON.stringify(project));
-    window.location.href = 'stitch.html?source=creator';
-  }catch(e){
-    try{
-      let pl = pat.map(m=>{
-          if (m.id==="__skip__") return ["__skip__", "k"];
-          return [m.id, m.type==="blend"?"b":"s"];
-      });
-      let minimal = { v: 8, w: sW, h: sH, fc: fabricCt, bs: bsLines, p: pl };
-      let str = JSON.stringify(minimal);
-      let compressed = pako.deflate(str);
-      let binaryStr = "";
-      for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
-      let b64 = btoa(binaryStr).replace(/\+/g, '-').replace(/\//g, '_');
-      if (b64.length > 8000) {
-          alert("Pattern too large for direct transfer. Please use Save Project (.json) instead and load it in the tracker.");
-          return;
-      }
-      window.location.href = 'stitch.html#p=' + b64;
-    }catch(e2){
-      alert('Pattern is too large for direct transfer. Please save the file and open it in the Tracker.');
-    }
-  }
-}
-
 function handleOpenInTracker(){
   if(!pat||!pal)return;
   let project={version:8,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
@@ -279,6 +236,20 @@ function handleOpenInTracker(){
 function saveProject(){if(!pat||!pal)return;let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
 
 function processLoadedProject(project){
+  if(project.v===8 || project.p){
+    setSW(project.w||80);setSH(project.h||80);setBsLines(project.bs||[]);setFabricCt(project.fc||14);
+    let p = project.p.map(m => {
+        if(m[1] === 'k') return restoreStitch({id:"__skip__"});
+        if(m[1] === 'b') return restoreStitch({type:"blend",id:m[0]});
+        return restoreStitch({type:"solid",id:m[0]});
+    });
+    let{pal:newPal,cmap:newCmap}=buildPalette(p);
+    setPat(p);setPal(newPal);setCmap(newCmap);setTab("pattern");setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setSidebarOpen(true);
+    setDone(new Uint8Array(p.length));
+    setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/((project.w||80)*20)));setZoom(z);},100);
+    return;
+  }
+
   if(project.v===8 || project.p){
     setSW(project.w||80);setSH(project.h||80);setBsLines(project.bs||[]);setFabricCt(project.fc||14);
     let p = project.p.map(m => {
@@ -387,6 +358,7 @@ useEffect(() => {
 const autoCrop = useCallback(() => {
   if (!pat || !img) return;
   if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
+  if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
   if(doneCount>0&&!confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?"))return;
 
   let minX = sW, minY = sH, maxX = -1, maxY = -1;
@@ -442,6 +414,7 @@ const autoCrop = useCallback(() => {
 
 const generate=useCallback(()=>{
   if(!img)return;
+  if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
   if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
   if(doneCount>0&&!confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?"))return;
   setBusy(true);setHiId(null);setExportPage(0);
@@ -911,6 +884,7 @@ function handlePatClick(e){
   if(!gc)return;let{gx,gy}=gc;
   if((activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap){
     if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
+    if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
 
   if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
     let pe=cmap[selectedColorId];if(!pe)return;let np=pat.slice();
@@ -918,9 +892,10 @@ function handlePatClick(e){
     else{setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}]);np[idx]={...pe};}
     setPat(np);let{pal:np2,cmap:nc}=buildPalette(np);setPal(np2);setCmap(nc);return;
   }
-  if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return;if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
+  if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return; if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
   let pt={x:gx,y:gy};if(!bsStart)setBsStart(pt);else{setBsLines(prev=>[...prev,{x1:bsStart.x,y1:bsStart.y,x2:pt.x,y2:pt.y}]);setBsStart(bsContinuous?pt:null);}}
   if(activeTool==="eraseBs"){
+    if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
     if(done && done.some(v => v === 1) && !confirm("This pattern has tracking progress. Editing the pattern will reset your stitching progress. Continue?")) return;
 
   if(bsLines.length===0)return;
