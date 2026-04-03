@@ -1,6 +1,6 @@
-const { rgbToLab } = require('./dmc-data.js');
-const { DMC } = require('./dmc-data.js');
-const { findBest, doMap, buildPalette } = require('./colour-utils.js');
+const { rgbToLab } = require('../dmc-data.js');
+const { DMC } = require('../dmc-data.js');
+const { findBest, doMap, buildPalette } = require('../colour-utils.js');
 
 // Mock rgbToLab and findBest dependencies by setting them on global if needed
 global.rgbToLab = rgbToLab;
