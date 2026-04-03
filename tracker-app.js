@@ -22,6 +22,7 @@ const[sessionStitches,setSessionStitches]=useState(0),[totalTime,setTotalTime]=u
 const[sessionElapsed,setSessionElapsed]=useState(0),[sessions,setSessions]=useState([]);
 
 const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
+useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
 const[isEditMode,setIsEditMode]=useState(false);
 const[originalPaletteState,setOriginalPaletteState]=useState(null);
 // V2: single-level undo snapshot (replaces editHistory array)
@@ -52,6 +53,10 @@ const [hoverInfoCell, setHoverInfoCell] = useState(null);
 const[isPanning,setIsPanning]=useState(false);
 const panStart=useRef({x:0,y:0,scrollX:0,scrollY:0});
 const stitchScrollRef=useRef(null);
+const isSpaceDownRef=useRef(false);
+const touchStateRef=useRef({mode:"none",startX:0,startY:0,pinchDist:0,tapIdx:-1,tapVal:0,pinchAnchorCanvas:null,pinchAnchorScreen:null});
+const stitchZoomRef=useRef(1);
+const hasTouchRef=useRef(typeof window!=="undefined"&&"ontouchstart" in window);
 
 const[threadOwned,setThreadOwned]=useState({});
 
@@ -683,7 +688,7 @@ function drawCellDirectly(idx, nv) {
 
 function handleStitchMouseDown(e){
   if(!stitchRef.current||!pat)return;
-  if(e.button===1){e.preventDefault();startPan(e);return;}
+  if(e.button===1||isSpaceDownRef.current){e.preventDefault();startPan(e);return;}
   // Edit Mode: left-click on grid opens cell edit popover instead of any navigate/track action
   if(isEditMode){
     if(e.button!==0)return;
@@ -786,13 +791,136 @@ function doPan(e){
   stitchScrollRef.current.scrollTop=panStart.current.scrollY-dy;
 }
 
+function handleStitchWheel(e){
+  if(!e.ctrlKey)return;
+  e.preventDefault();
+  const container=stitchScrollRef.current;
+  if(!container)return;
+  const rect=container.getBoundingClientRect();
+  const mouseX=e.clientX-rect.left;
+  const mouseY=e.clientY-rect.top;
+  const canvasX=container.scrollLeft+mouseX;
+  const canvasY=container.scrollTop+mouseY;
+  const delta=-e.deltaY*0.005;
+  const oldZoom=stitchZoomRef.current;
+  const newZoom=Math.max(0.3,Math.min(4,oldZoom+delta));
+  const scale=newZoom/oldZoom;
+  setStitchZoom(newZoom);
+  requestAnimationFrame(()=>{
+    if(!container)return;
+    container.scrollLeft=canvasX*scale-mouseX;
+    container.scrollTop=canvasY*scale-mouseY;
+  });
+}
+
+function handleTouchStart(e){
+  if(!pat)return;
+  e.preventDefault();
+  const ts=touchStateRef.current;
+  if(e.touches.length===1){
+    const t=e.touches[0];
+    ts.startX=t.clientX; ts.startY=t.clientY;
+    ts.mode="tap"; ts.tapIdx=-1;
+    if(!isEditMode&&stitchMode==="track"&&done){
+      const gc=gridCoord(stitchRef,{clientX:t.clientX,clientY:t.clientY},scs,G,false);
+      if(gc&&gc.gx>=0&&gc.gx<sW&&gc.gy>=0&&gc.gy<sH){
+        const idx=gc.gy*sW+gc.gx;
+        if(pat[idx].id!=="__skip__"&&pat[idx].id!=="__empty__"){
+          ts.tapIdx=idx; ts.tapVal=done[idx]?0:1;
+        }
+      }
+    }
+  }else if(e.touches.length===2){
+    ts.mode="pinch"; ts.tapIdx=-1;
+    const dx=e.touches[1].clientX-e.touches[0].clientX;
+    const dy=e.touches[1].clientY-e.touches[0].clientY;
+    ts.pinchDist=Math.hypot(dx,dy);
+    const container=stitchScrollRef.current;
+    if(container){
+      const rect=container.getBoundingClientRect();
+      const midX=(e.touches[0].clientX+e.touches[1].clientX)/2-rect.left;
+      const midY=(e.touches[0].clientY+e.touches[1].clientY)/2-rect.top;
+      ts.pinchAnchorCanvas={x:container.scrollLeft+midX,y:container.scrollTop+midY};
+      ts.pinchAnchorScreen={x:midX,y:midY};
+    }
+    // End any active stitch drag
+    if(dragStateRef.current.isDragging&&dragChangesRef.current.length>0){
+      pushTrackHistory([...dragChangesRef.current]);
+      setDone(new Uint8Array(done)); dragChangesRef.current=[];
+    }
+    dragStateRef.current.isDragging=false;
+  }
+}
+
+const PAN_THRESHOLD=8;
+function handleTouchMove(e){
+  if(!pat)return;
+  e.preventDefault();
+  const ts=touchStateRef.current;
+  if(e.touches.length===1&&ts.mode!=="pinch"){
+    const t=e.touches[0];
+    const dx=t.clientX-ts.startX, dy=t.clientY-ts.startY;
+    if(ts.mode==="tap"&&(Math.abs(dx)>PAN_THRESHOLD||Math.abs(dy)>PAN_THRESHOLD)){
+      ts.mode="pan"; ts.tapIdx=-1;
+      if(stitchScrollRef.current){
+        panStart.current={x:ts.startX,y:ts.startY,scrollX:stitchScrollRef.current.scrollLeft,scrollY:stitchScrollRef.current.scrollTop};
+      }
+    }
+    if(ts.mode==="pan"&&stitchScrollRef.current){
+      stitchScrollRef.current.scrollLeft=panStart.current.scrollX-dx;
+      stitchScrollRef.current.scrollTop=panStart.current.scrollY-dy;
+    }
+  }else if(e.touches.length===2&&ts.mode==="pinch"){
+    const dx=e.touches[1].clientX-e.touches[0].clientX;
+    const dy=e.touches[1].clientY-e.touches[0].clientY;
+    const newDist=Math.hypot(dx,dy);
+    if(ts.pinchDist>0){
+      const scale=newDist/ts.pinchDist;
+      const newZoom=Math.max(0.3,Math.min(4,stitchZoomRef.current*scale));
+      const container=stitchScrollRef.current;
+      if(container&&ts.pinchAnchorCanvas){
+        const zRatio=newZoom/stitchZoomRef.current;
+        requestAnimationFrame(()=>{
+          container.scrollLeft=ts.pinchAnchorCanvas.x*zRatio-ts.pinchAnchorScreen.x;
+          container.scrollTop=ts.pinchAnchorCanvas.y*zRatio-ts.pinchAnchorScreen.y;
+        });
+      }
+      setStitchZoom(newZoom);
+    }
+    ts.pinchDist=newDist;
+  }
+}
+
+function handleTouchEnd(e){
+  if(!pat)return;
+  const ts=touchStateRef.current;
+  if(ts.mode==="tap"&&ts.tapIdx>=0&&done){
+    const idx=ts.tapIdx;
+    if(isEditMode){
+      const t=e.changedTouches[0];
+      const gc={gx:idx%sW,gy:Math.floor(idx/sW)};
+      setCellEditPopover({idx,row:gc.gy+1,col:gc.gx+1,x:t.clientX,y:t.clientY});
+    }else if(stitchMode==="track"){
+      const nv=ts.tapVal;
+      const nd=new Uint8Array(done);
+      nd[idx]=nv;
+      pushTrackHistory([{idx,oldVal:done[idx]}]);
+      setDone(nd);
+      drawCellDirectly(idx,nv);
+    }
+  }
+  ts.mode="none"; ts.tapIdx=-1; ts.pinchDist=0;
+}
+
 function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur===""?"owned":cur==="owned"?"tobuy":"";return{...prev,[id]:next};});}
 const ownedCount=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")==="owned").length,[skeinData,threadOwned]);
 const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned"),[skeinData,threadOwned]);
 
 useEffect(()=>{
   function handleKeyDown(e){
-    if(stitchView==="highlight"&&!isEditMode&&!["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName)){
+    if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName))return;
+    if(e.code==="Space"){e.preventDefault();isSpaceDownRef.current=true;return;}
+    if(stitchView==="highlight"&&!isEditMode){
       if(e.key==="ArrowRight"||e.key==="]"){
         e.preventDefault();
         setFocusColour(prev=>{
@@ -810,9 +938,33 @@ useEffect(()=>{
       }
     }
   }
+  function handleKeyUp(e){
+    if(e.code==="Space")isSpaceDownRef.current=false;
+  }
   window.addEventListener("keydown",handleKeyDown);
-  return()=>window.removeEventListener("keydown",handleKeyDown);
+  window.addEventListener("keyup",handleKeyUp);
+  return()=>{window.removeEventListener("keydown",handleKeyDown);window.removeEventListener("keyup",handleKeyUp);};
 },[stitchView,isEditMode,focusableColors]);
+
+useEffect(()=>{
+  const el=stitchScrollRef.current;
+  if(!el)return;
+  el.addEventListener("wheel",handleStitchWheel,{passive:false});
+  return()=>el.removeEventListener("wheel",handleStitchWheel);
+});
+
+useEffect(()=>{
+  const canvas=stitchRef.current;
+  if(!canvas||!pat)return;
+  canvas.addEventListener("touchstart",handleTouchStart,{passive:false});
+  canvas.addEventListener("touchmove",handleTouchMove,{passive:false});
+  canvas.addEventListener("touchend",handleTouchEnd,{passive:false});
+  return()=>{
+    canvas.removeEventListener("touchstart",handleTouchStart);
+    canvas.removeEventListener("touchmove",handleTouchMove);
+    canvas.removeEventListener("touchend",handleTouchEnd);
+  };
+},[pat,done,scs,sW,sH,stitchZoom,stitchMode,isEditMode]);
 
 return(
 <>
@@ -947,7 +1099,11 @@ return(
         </div>
         <div style={{width:1,height:20,background:"#e4e4e7"}}/>
       </>}
-      <span style={{fontSize:11,color:"#a1a1aa"}}>Zoom</span><input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{width:60}}/><span style={{fontSize:11,minWidth:28}}>{Math.round(stitchZoom*100)}%</span><button onClick={fitSZ} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Fit</button>
+      <span style={{fontSize:11,color:"#a1a1aa"}}>Zoom</span>
+      <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} style={{padding:"1px 7px",fontSize:15,border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer",lineHeight:1,fontWeight:600}}>−</button>
+      <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{width:55}}/>
+      <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} style={{padding:"1px 7px",fontSize:15,border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer",lineHeight:1,fontWeight:600}}>+</button>
+      <span style={{fontSize:11,minWidth:28}}>{Math.round(stitchZoom*100)}%</span><button onClick={fitSZ} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Fit</button>
       {stitchMode==="navigate"&&<><div style={{width:1,height:20,background:"#e4e4e7"}}/><span style={{fontSize:11,color:"#71717a"}}>📌</span><select value={selectedColorId||""} onChange={e=>setSelectedColorId(e.target.value||null)} style={{fontSize:11,padding:"3px 6px",borderRadius:6,border:"0.5px solid #e4e4e7"}}><option value="">No parking</option>{pal.map(p=><option key={p.id} value={p.id}>DMC {p.id}</option>)}</select>{parkMarkers.length>0&&<button onClick={()=>setParkMarkers([])} style={{fontSize:11,padding:"3px 8px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",color:"#d97706",cursor:"pointer"}}>Clear</button>}</>}
       <div style={{marginLeft:"auto",display:"flex",gap:4}}>
         {stitchMode==="track"&&trackHistory.length>0&&<button onClick={undoTrack} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo ({trackHistory.length})</button>}
@@ -1020,11 +1176,11 @@ return(
     {scs < 6 && !isEditMode && (stitchView === "symbol" || stitchView === "colour") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
 
     {isEditMode && <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>}
-    {!isEditMode && stitchMode==="track"&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>Click or drag to mark/unmark stitches · Middle-click drag to pan{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
+    {!isEditMode && stitchMode==="track"&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{hasTouchRef.current?"Tap to mark · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark · Space+drag or middle-click to pan · Ctrl+scroll to zoom"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
     {!isEditMode && stitchMode==="navigate"&&<div style={{fontSize:12,color:"#18181b",background:"#f4f4f5",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}</div>}
     {advanceToast&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #bbf7d0",fontWeight:600}}>✓ Complete! Next: {advanceToast}</div>}
 
-    <div ref={stitchScrollRef} onScroll={() => requestAnimationFrame(renderStitch)} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid #e4e4e7",borderRadius:"8px 8px 0 0",background:"#f4f4f5",cursor:isPanning?"grabbing":(!isEditMode&&stitchMode==="track"?"crosshair":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
+    <div ref={stitchScrollRef} onScroll={() => requestAnimationFrame(renderStitch)} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid #e4e4e7",borderRadius:"8px 8px 0 0",background:"#f4f4f5",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?"crosshair":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
       <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: '#fff', borderBottom: '1px solid #e4e4e7' }}>
         <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: '#fff', borderRight: '1px solid #e4e4e7', zIndex: 4 }}></div>
         {Array.from({length: sW}, (_, x) => {
@@ -1054,7 +1210,7 @@ return(
           })}
         </div>
         <div style={{ position: 'relative' }}>
-          <canvas ref={stitchRef} style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/>
+          <canvas ref={stitchRef} style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/>
 
           <>
             <div ref={el => hoverRefs.current.row = el} style={{
@@ -1086,7 +1242,7 @@ return(
 
     <button onClick={()=>setDrawer(!drawer)} style={{width:"100%",padding:"8px",borderRadius:"0 0 8px 8px",border:"0.5px solid #e4e4e7",borderTop:"none",background:drawer?"#fafafa":"#fff",cursor:"pointer",fontSize:12,fontWeight:600,color:"#0d9488",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:12}}><span style={{transform:drawer?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s",display:"inline-block"}}>▲</span>Colours ({pal.length}) — {Object.values(colourDoneCounts).filter(c=>c.done>=c.total).length} complete</button>
 
-    {drawer&&<div style={{border:"0.5px solid #e4e4e7",borderRadius:"10px",background:"#fff",maxHeight:280,overflow:"auto",padding:8,marginBottom:12}}>
+    {drawer&&<div style={{border:"0.5px solid #e4e4e7",borderRadius:"10px",background:"#fff",maxHeight:"min(280px, 40vh)",overflow:"auto",padding:8,marginBottom:12}}>
       <div style={{display:"flex",flexDirection:"column",gap:2}}>{pal.map(p=>{let dc=colourDoneCounts[p.id]||{total:0,done:0},pct=dc.total>0?Math.round(dc.done/dc.total*100):0,complete=dc.done>=dc.total,isFocused=focusColour===p.id;
         let sk=skeinEst(p.count,fabricCt);
         return<div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,background:isFocused?"#f0fdfa":complete?"#f0fdf4":"#fff",border:isFocused?"2px solid #0d9488":isEditMode?"1px solid #fde68a":"1px solid transparent",cursor:"pointer",opacity:complete&&!isFocused?0.6:1}} onClick={()=>{
