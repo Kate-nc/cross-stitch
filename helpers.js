@@ -179,7 +179,9 @@ function hitTestHalfStitch(localX, localY, cSz, ambiguousRadius) {
   if (Math.abs(localX - cx) < ambiguousRadius && Math.abs(localY - cy) < ambiguousRadius) {
     return "ambiguous";
   }
-  // Above the / diagonal = fwd triangle, below = bck
-  var norm = localX / cSz + (1 - localY / cSz);
-  return norm < 1 ? "bck" : "fwd";
+  // Classify relative to the / diagonal (bottom-left to top-right).
+  // localX + localY == cSz lies on the diagonal.
+  // Below the / diagonal = fwd triangle, above = bck.
+  var diag = localX + localY;
+  return diag > cSz ? "fwd" : "bck";
 }
