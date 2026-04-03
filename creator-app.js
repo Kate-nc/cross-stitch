@@ -284,7 +284,8 @@ function processLoadedProject(project){
   if(project.imgData&&typeof project.imgData==='string'&&project.imgData.startsWith('data:image/')){let li=new Image();li.onload=()=>{setImg(li);setOrigW(li.width);setOrigH(li.height);};li.src=project.imgData;}
   // Restore half stitches
   if(project.halfStitches&&Array.isArray(project.halfStitches)){
-    let hm=new Map();project.halfStitches.forEach(([idx,v])=>{let entry={};if(v.fwd)entry.fwd=restoreStitch(v.fwd);if(v.bck)entry.bck=restoreStitch(v.bck);if(entry.fwd||entry.bck)hm.set(idx,entry);});setHalfStitches(hm);
+    let restoreHalfStitch=(m)=>m?restoreStitch({...m,type:m.type||(typeof m.id==="string"&&m.id.includes("+")?"blend":"solid")}):m;
+    let hm=new Map();project.halfStitches.forEach(([idx,v])=>{let entry={};if(v.fwd)entry.fwd=restoreHalfStitch(v.fwd);if(v.bck)entry.bck=restoreHalfStitch(v.bck);if(entry.fwd||entry.bck)hm.set(idx,entry);});setHalfStitches(hm);
   }else{setHalfStitches(new Map());}
   setHalfStitchTool(null);
   setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/(s.sW*20)));setZoom(z);},100);
