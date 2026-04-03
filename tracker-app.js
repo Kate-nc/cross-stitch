@@ -973,14 +973,14 @@ touchStartHandlerRef.current=handleTouchStart;
 touchMoveHandlerRef.current=handleTouchMove;
 touchEndHandlerRef.current=handleTouchEnd;
 
-// Attach wheel listener once — wrapper always delegates to latest handler via ref
+// Attach wheel listener when pattern loads (stitchScrollRef is null before then)
 useEffect(()=>{
   const el=stitchScrollRef.current;
   if(!el)return;
   const handler=e=>wheelHandlerRef.current(e);
   el.addEventListener("wheel",handler,{passive:false});
   return()=>el.removeEventListener("wheel",handler);
-},[]);
+},[!!pat]);
 
 // Attach touch listeners once when pattern loads — wrapper delegates to latest handler
 useEffect(()=>{
