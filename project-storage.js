@@ -117,6 +117,7 @@ const ProjectStorage = (() => {
         });
       } catch (err) {
         console.error("ProjectStorage.delete failed:", err);
+        throw err;
       }
     },
 
