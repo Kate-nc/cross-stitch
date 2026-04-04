@@ -433,12 +433,29 @@ function ManagerApp() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              const usedIn = patternsUsingThread(d.id);
-                              if (usedIn.length > 0) {
-                                alert(`Thread DMC ${d.id} is used in:\n\n${usedIn.map(p => `- ${p.title} (needs ${p.threads.find(t=>t.id===d.id).qty})`).join('\n')}`);
-                              } else {
-                                alert(`Thread DMC ${d.id} is not currently used in any of your patterns.`);
-                              }
+                              const btn = e.currentTarget;
+                              btn.disabled = true;
+                              btn.textContent = "…";
+                              (typeof StashBridge !== "undefined"
+                                ? StashBridge.getProjectsUsingThread(d.id)
+                                : Promise.resolve(patternsUsingThread(d.id).map(p => ({ source: "library", name: p.title, type: "manual" })))
+                              ).then(usedIn => {
+                                if (usedIn.length > 0) {
+                                  alert(`Thread DMC ${d.id} is used in:\n\n${usedIn.map(p => `- ${p.name} (${p.type})`).join('\n')}`);
+                                } else {
+                                  alert(`Thread DMC ${d.id} is not currently used in any of your patterns or projects.`);
+                                }
+                              }).catch(() => {
+                                const usedIn = patternsUsingThread(d.id);
+                                if (usedIn.length > 0) {
+                                  alert(`Thread DMC ${d.id} is used in:\n\n${usedIn.map(p => `- ${p.title} (needs ${p.threads.find(t=>t.id===d.id).qty})`).join('\n')}`);
+                                } else {
+                                  alert(`Thread DMC ${d.id} is not currently used in any of your patterns.`);
+                                }
+                              }).finally(() => {
+                                btn.disabled = false;
+                                btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> Usage';
+                              });
                             }}
                             style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #e4e4e7", background: "#f4f4f5", color: "#71717a", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 11, width: "fit-content", marginTop: "auto" }}
                             title="What uses this thread?"
