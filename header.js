@@ -107,12 +107,13 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         }, '×∕× Cross Stitch'),
 
         // App-section navigation tabs
-        React.createElement('nav', { className: 'tb-app-nav' },
+        React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
           appSections.map(({ id, label, href }) =>
             React.createElement('a', {
               key: id,
               href,
               className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
+              ...(page === id ? { 'aria-current': 'page' } : {}),
             }, label)
           )
         ),
