@@ -940,8 +940,17 @@ const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned
 
 return(
 <>
-<Header page="creator" onNewProject={()=>{if(!pat||confirm("Start a new project? Unsaved progress will be lost.")){resetAll();setImg(null);}}} onExportPDF={pat ? exportPDF : null} setModal={setModal} />
-<div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
+<Header page="creator" tab={tab} onPageChange={setTab} onNewProject={()=>{if(!pat||confirm("Start a new project? Unsaved progress will be lost.")){resetAll();setImg(null);}}} onExportPDF={pat ? exportPDF : null} setModal={setModal} />
+{pat&&pal&&<ContextBar
+  name={sW + '×' + sH + ' pattern'}
+  dimensions={{width:sW,height:sH}}
+  palette={pal}
+  pct={null}
+  page="creator"
+  onTrack={handleOpenInTracker}
+  onSave={saveProject}
+/>}
+<div className="cs-page-content" style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   <div style={{marginBottom:12,display:"flex",justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap",gap:8}}>
     <div style={{display:"flex",gap:6}}><input ref={loadRef} type="file" accept=".json" onChange={loadProject} style={{display:"none"}}/><button onClick={()=>loadRef.current.click()} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fafafa",cursor:"pointer",color:"#71717a",fontWeight:500}}>Open</button>{pat&&pal&&<button onClick={saveProject} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:500}}>Save</button>}{pat&&pal&&<button onClick={handleOpenInTracker} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"none",background:"#ea580c",color:"#fff",cursor:"pointer",fontWeight:500}}>Track</button>}</div>
   </div>
