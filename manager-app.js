@@ -661,9 +661,17 @@ function ManagerApp() {
 
                     {p.tags && p.tags.length > 0 && (
                       <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
-                        {p.tags.map(tag => (
+                        {p.tags.filter(tag => tag !== "auto-synced").map(tag => (
                           <span key={tag} style={{ padding: "2px 6px", background: "#f4f4f5", color: "#71717a", borderRadius: 4, fontSize: 11 }}>{tag}</span>
                         ))}
+                        {p.tags.includes("auto-synced") && (
+                          <span style={{ padding: "2px 6px", background: "#f0fdfa", color: "#0d9488", borderRadius: 4, fontSize: 10, fontWeight: 600 }}>Auto-synced</span>
+                        )}
+                      </div>
+                    )}
+                    {p.linkedProjectId && (!p.tags || !p.tags.includes("auto-synced")) && (
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
+                        <span style={{ padding: "2px 6px", background: "#f0fdfa", color: "#0d9488", borderRadius: 4, fontSize: 10, fontWeight: 600 }}>Auto-synced</span>
                       </div>
                     )}
 

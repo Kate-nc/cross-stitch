@@ -99,6 +99,67 @@ const StashBridge = (() => {
         }
       } catch (e) { /* silent */ }
       return projects;
+    },
+
+    // Syncs a generated project's thread requirements into the manager's pattern library.
+    // Called after pattern generation and on project save.
+    async syncProjectToLibrary(projectId, projectName, skeinData, status) {
+      try {
+        const db = await openManagerDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readwrite");
+          const store = tx.objectStore("manager_state");
+          const req = store.get("patterns");
+          req.onsuccess = () => {
+            const patterns = req.result || [];
+            const existingIdx = patterns.findIndex(p => p.linkedProjectId === projectId);
+            const entry = {
+              id: existingIdx >= 0 ? patterns[existingIdx].id : Date.now().toString(),
+              linkedProjectId: projectId,
+              title: projectName,
+              designer: "",
+              status: status || "inprogress",
+              tags: ["auto-synced"],
+              threads: skeinData.map(d => ({
+                id: d.id,
+                name: d.name,
+                qty: d.stitches,
+                unit: "stitches",
+                brand: "DMC"
+              }))
+            };
+            if (existingIdx >= 0) patterns[existingIdx] = entry;
+            else patterns.push(entry);
+            store.put(patterns, "patterns");
+            tx.oncomplete = () => resolve();
+          };
+          req.onerror = () => reject(req.error);
+        });
+      } catch (e) {
+        console.error("StashBridge.syncProjectToLibrary failed:", e);
+      }
+    },
+
+    // Updates a single thread's tobuy flag in the global stash
+    async updateThreadToBuy(dmcId, toBuy) {
+      try {
+        const db = await openManagerDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readwrite");
+          const store = tx.objectStore("manager_state");
+          const req = store.get("threads");
+          req.onsuccess = () => {
+            const threads = req.result || {};
+            if (!threads[dmcId]) threads[dmcId] = { owned: 0, tobuy: false, partialStatus: null };
+            threads[dmcId].tobuy = toBuy;
+            store.put(threads, "threads");
+            tx.oncomplete = () => resolve();
+          };
+          req.onerror = () => reject(req.error);
+        });
+      } catch (e) {
+        console.error("StashBridge.updateThreadToBuy failed:", e);
+      }
     }
   };
 })();

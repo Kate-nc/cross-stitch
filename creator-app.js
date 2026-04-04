@@ -53,6 +53,7 @@ const[sessions,setSessions]=useState([]);
 // Thread organiser: {skeinId: "owned"|"tobuy"|""}
 const[threadOwned,setThreadOwned]=useState({});
 const[globalStash,setGlobalStash]=useState({});
+const[kittingResult,setKittingResult]=useState(null);
 
 const[previewUrl,setPreviewUrl]=useState(null);
 const[previewStats,setPreviewStats]=useState(null);
@@ -325,6 +326,14 @@ useEffect(() => {
         let project={version:9,id:projectIdRef.current,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,halfStitches:hsArr,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
         ProjectStorage.save(project).then(id => { ProjectStorage.setActiveProject(id); }).catch(err => console.error("ProjectStorage auto-save failed:", err));
+        if (typeof StashBridge !== "undefined" && skeinData.length > 0) {
+          StashBridge.syncProjectToLibrary(
+            projectIdRef.current,
+            `${sW}×${sH} pattern`,
+            skeinData,
+            "inprogress"
+          ).catch(err => console.error("Library sync failed:", err));
+        }
     }, 1000); // 1-second debounce
 
     return () => clearTimeout(saveTimer);
@@ -1185,10 +1194,49 @@ return(
                   <button onClick={()=>toggleOwned(d.id)} style={{fontSize:11,padding:"3px 10px",borderRadius:5,border:"1px solid "+(isOwned?"#bbf7d0":"#fed7aa"),background:isOwned?"#f0fdf4":"#fff7ed",color:isOwned?"#16a34a":"#ea580c",cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center"}}>{isOwned?"Owned":"To buy"}</button>
                 </div>;})}
             </div>
-            <div style={{display:"flex",gap:6,marginTop:10}}>
+            <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
               <button onClick={()=>{let txt=toBuyList.map(d=>`DMC ${d.id} ${d.name} × ${d.skeins}`).join("\n");copyText(txt,"shopping");}} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Copy To-Buy List</button>
               <button onClick={()=>{let txt=skeinData.map(d=>`DMC ${d.id} ${d.name} × ${d.skeins}`).join("\n");copyText(txt,"full");}} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Copy Full List</button>
+              <button onClick={()=>{
+                if(typeof StashBridge==="undefined")return;
+                StashBridge.getGlobalStash().then(stash=>{
+                  setGlobalStash(stash);
+                  const shopping=[];
+                  for(const d of skeinData){
+                    const gs=stash[d.id]||{owned:0};
+                    const deficit=d.skeins-gs.owned;
+                    if(deficit>0) shopping.push({id:d.id,name:d.name,rgb:d.rgb,needed:d.skeins,owned:gs.owned,toBuy:deficit});
+                  }
+                  setKittingResult(shopping);
+                }).catch(()=>{});
+              }} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #d8b4fe",background:"#faf5ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Kit This Project</button>
             </div>
+            {kittingResult&&<div style={{marginTop:10,padding:12,borderRadius:8,border:"1px solid #e9d5ff",background:"#faf5ff"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <span style={{fontSize:13,fontWeight:700,color:"#7c3aed"}}>{kittingResult.length===0?"Fully kitted! You own everything needed.":"Shopping list from stash diff"}</span>
+                <button onClick={()=>setKittingResult(null)} style={{background:"none",border:"none",color:"#a1a1aa",cursor:"pointer",fontSize:16}}>×</button>
+              </div>
+              {kittingResult.length>0&&<>
+                <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:200,overflow:"auto"}}>
+                  {kittingResult.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,background:"#fff",border:"1px solid #f4f4f5"}}>
+                    <span style={{width:14,height:14,borderRadius:3,background:`rgb(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]})`,border:"1px solid #d4d4d8",flexShrink:0}}/>
+                    <span style={{fontWeight:600,fontSize:12}}>DMC {d.id}</span>
+                    <span style={{fontSize:11,color:"#71717a",flex:1}}>{d.name}</span>
+                    <span style={{fontSize:11,color:"#a1a1aa"}}>need {d.needed}, own {d.owned}</span>
+                    <span style={{fontSize:11,fontWeight:700,color:"#7c3aed"}}>buy {d.toBuy}</span>
+                  </div>)}
+                </div>
+                <div style={{display:"flex",gap:6,marginTop:8}}>
+                  <button onClick={()=>{let txt=kittingResult.map(d=>`DMC ${d.id} ${d.name} × ${d.toBuy} skeins`).join("\n");copyText(txt,"kit");}} style={{padding:"6px 14px",fontSize:12,borderRadius:6,border:"none",background:"#7c3aed",color:"#fff",cursor:"pointer",fontWeight:600}}>Copy List</button>
+                  <button onClick={()=>{
+                    Promise.all(kittingResult.map(d=>StashBridge.updateThreadToBuy(d.id,true))).then(()=>{
+                      StashBridge.getGlobalStash().then(setGlobalStash).catch(()=>{});
+                      alert("Marked "+kittingResult.length+" threads as to-buy in your global stash.");
+                    }).catch(()=>{});
+                  }} style={{padding:"6px 14px",fontSize:12,borderRadius:6,border:"1px solid #d8b4fe",background:"#fff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Mark All To-Buy in Stash</button>
+                </div>
+              </>}
+            </div>}
             {copied&&<div style={{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}>Copied!</div>}
           </Section>
         </div>}
