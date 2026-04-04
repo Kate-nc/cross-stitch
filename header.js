@@ -36,7 +36,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
   );
 }
 
-function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, setModal, activeProject }) {
+function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, setModal, activeProject }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
   React.useEffect(() => {
@@ -163,13 +163,17 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('help') }, 'Help'),
 
         // File menu dropdown
-        (onOpen || onSave || onTrack || onExportPDF) &&
+        (onOpen || onSave || onTrack || onExportPDF || onNewProject) &&
           React.createElement('div', { ref: fileMenuRef, style: { position: 'relative', flexShrink: 0 } },
             React.createElement('button', { className: 'tb-page-btn', onClick: () => setFileMenuOpen(o => !o) },
               'File',
               React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 3 } }, '▾')
             ),
             fileMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 190 } },
+              onNewProject && React.createElement('button', {
+                className: 'tb-page-dropdown-item',
+                onClick: () => { onNewProject(); setFileMenuOpen(false); }
+              }, 'New Project'),
               onOpen && React.createElement('button', {
                 className: 'tb-page-dropdown-item',
                 onClick: () => { onOpen(); setFileMenuOpen(false); }

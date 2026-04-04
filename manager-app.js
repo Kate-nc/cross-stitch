@@ -627,15 +627,17 @@ function ManagerApp() {
               </button>
             </div>
 
-            {selectedPatternsForList.size > 0 && (
-              <div style={{ padding: "12px 16px", background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ padding: "12px 16px", background: selectedPatternsForList.size > 0 ? "#f0fdf4" : "#fafafa", borderRadius: 8, border: selectedPatternsForList.size > 0 ? "1px solid #bbf7d0" : "1px solid #e4e4e7", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              {selectedPatternsForList.size > 0 ? (
                 <div style={{ fontSize: 13, color: "#16a34a", fontWeight: 600 }}>{selectedPatternsForList.size} pattern(s) selected</div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button onClick={() => setSelectedPatternsForList(new Set())} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #bbf7d0", background: "#fff", cursor: "pointer", color: "#16a34a" }}>Clear</button>
-                  <button onClick={() => setShoppingListModalOpen(true)} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "none", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Generate Shopping List</button>
-                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "#a1a1aa" }}>Select patterns with checkboxes to generate a shopping list</div>
+              )}
+              <div style={{ display: "flex", gap: 10 }}>
+                {selectedPatternsForList.size > 0 && <button onClick={() => setSelectedPatternsForList(new Set())} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #bbf7d0", background: "#fff", cursor: "pointer", color: "#16a34a" }}>Clear</button>}
+                <button onClick={() => { if(selectedPatternsForList.size === 0) { alert("Select at least one pattern using the checkboxes on the pattern cards."); return; } setShoppingListModalOpen(true); }} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "none", background: selectedPatternsForList.size > 0 ? "#16a34a" : "#a1a1aa", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Generate Shopping List</button>
               </div>
-            )}
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
               {filteredPatterns.map(p => {

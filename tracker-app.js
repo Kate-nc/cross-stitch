@@ -1186,7 +1186,11 @@ function handleStitchMouseDown(e){
         _placeHalfStitch(idx,halfStitchTool,m);
       }
     } else {
-      // Use the selected colour
+      // Use the selected colour — but block placing on skip/empty cells
+      const m2=pat[idx];
+      if(m2&&(m2.id==="__skip__"||m2.id==="__empty__")){
+        e.preventDefault();return;
+      }
       const pe=cmap[selectedColorId];
       _placeHalfStitch(idx,halfStitchTool,pe);
     }
@@ -1567,7 +1571,7 @@ useEffect(()=>{
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat ? () => setModal("pdf_export") : null} setModal={setModal} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat ? () => setModal("pdf_export") : null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){localStorage.removeItem("crossstitch_active_project");window.location.reload();}}:null} setModal={setModal} />
 {pat&&pal&&<ContextBar
   name={pat ? (sW + '×' + sH + ' pattern') : null}
   dimensions={pat ? {width:sW, height:sH} : null}
