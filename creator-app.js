@@ -15,22 +15,6 @@ const[skipBg,setSkipBg]=useState(false),[bgTh,setBgTh]=useState(15),[bgCol,setBg
 const[smooth,setSmooth]=useState(0),[smoothType,setSmoothType]=useState("median"),[orphans,setOrphans]=useState(0);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null),[busy,setBusy]=useState(false);
 
-useEffect(() => {
-  const handoff = localStorage.getItem('crossstitch_handoff_to_creator');
-  if (handoff) {
-    try {
-      const projectData = JSON.parse(handoff);
-      localStorage.removeItem('crossstitch_handoff_to_creator');
-      processLoadedProject(projectData);
-      if (projectData.done && projectData.done.some(v => v === 1)) {
-          alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
-      }
-    } catch (e) {
-      console.error("Failed to load handoff to creator:", e);
-    }
-  }
-}, []);
-
 const[origW,setOrigW]=useState(0),[origH,setOrigH]=useState(0);
 const[fabricCt,setFabricCt]=useState(14);
 const[skeinPrice,setSkeinPrice]=useState(DEFAULT_SKEIN_PRICE);
@@ -74,6 +58,7 @@ const[confettiData,setConfettiData]=useState(null);
 const previewTimerRef=useRef(null);
 
 const pcRef=useRef(null),fRef=useRef(null),scrollRef=useRef(null),expRef=useRef(null),loadRef=useRef(null);
+const projectIdRef=useRef(null); // persists across renders without causing re-renders
 const G=28;
 
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__")c++;return c;},[pat]);
@@ -244,8 +229,10 @@ function saveProject(){if(!pat||!pal)return;let hsArr=[];halfStitches.forEach((v
 
 function handleOpenInTracker(){
   if(!pat||!pal)return;
+  if(!projectIdRef.current) projectIdRef.current="proj_"+Date.now();
   let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
-  let project={version:9,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,halfStitches:hsArr,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+  let project={version:9,id:projectIdRef.current,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,halfStitches:hsArr,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+  ProjectStorage.setActiveProject(projectIdRef.current);
   try{
     localStorage.setItem("crossstitch_handoff", JSON.stringify(project));
     window.location.href = "stitch.html?source=creator";
@@ -288,6 +275,7 @@ function processLoadedProject(project){
     let hm=new Map();project.halfStitches.forEach(([idx,v])=>{let entry={};if(v.fwd)entry.fwd=restoreHalfStitch(v.fwd);if(v.bck)entry.bck=restoreHalfStitch(v.bck);if(entry.fwd||entry.bck)hm.set(idx,entry);});setHalfStitches(hm);
   }else{setHalfStitches(new Map());}
   setHalfStitchTool(null);
+  projectIdRef.current = project.id || null;
   setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/(s.sW*20)));setZoom(z);},100);
 }
 
@@ -297,7 +285,24 @@ function loadProject(e){let f=e.target.files[0];if(!f)return;setLoadError(null);
 }catch(err){console.error(err);setLoadError("Could not load: "+err.message);setTimeout(()=>setLoadError(null),4000);}};rd.readAsText(f);if(loadRef.current)loadRef.current.value="";}
 
 useEffect(() => {
-    // Automatically load from IndexedDB on startup
+    // Handoff from Tracker takes priority; only fall back to auto-load when absent.
+    // Both used to be separate effects, which caused a race: the async IndexedDB
+    // load would resolve after the handoff was processed and overwrite it.
+    const handoff = localStorage.getItem('crossstitch_handoff_to_creator');
+    if (handoff) {
+      try {
+        const projectData = JSON.parse(handoff);
+        localStorage.removeItem('crossstitch_handoff_to_creator');
+        processLoadedProject(projectData);
+        if (projectData.done && projectData.done.some(v => v === 1)) {
+          alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
+        }
+      } catch (e) {
+        console.error("Failed to load handoff to creator:", e);
+      }
+      return;
+    }
+    // No handoff — restore the last auto-saved session from IndexedDB
     loadProjectFromDB().then(project => {
         if (project && project.pattern && project.settings) {
             processLoadedProject(project);
@@ -310,8 +315,10 @@ useEffect(() => {
     if (!pat || !pal) return;
     const saveTimer = setTimeout(() => {
         let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
-        let project={version:9,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,halfStitches:hsArr,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+        if(!projectIdRef.current) projectIdRef.current="proj_"+Date.now();
+        let project={version:9,id:projectIdRef.current,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,halfStitches:hsArr,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
+        ProjectStorage.save(project).then(id => { ProjectStorage.setActiveProject(id); }).catch(err => console.error("ProjectStorage auto-save failed:", err));
     }, 1000); // 1-second debounce
 
     return () => clearTimeout(saveTimer);

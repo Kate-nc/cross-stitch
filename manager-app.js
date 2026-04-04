@@ -36,6 +36,8 @@ function ManagerApp() {
   const [threads, setThreads] = useState({}); // { [id]: { owned: number, tobuy: boolean } }
   const [patterns, setPatterns] = useState([]); // Array of pattern objects
   const [activeProject, setActiveProject] = useState(null); // From Stitch Tracker IndexedDB
+  const [storedProjects, setStoredProjects] = useState([]); // Cross-stitch projects from ProjectStorage
+  const [storageUsage, setStorageUsage] = useState(null); // { used, quota } bytes
   const [searchQuery, setSearchQuery] = useState("");
   const [threadFilter, setThreadFilter] = useState("all"); // 'all', 'owned', 'tobuy', 'lowstock'
   const [patternFilter, setPatternFilter] = useState("all"); // 'all', 'wishlist', 'owned', 'inprogress', 'completed'
@@ -120,6 +122,9 @@ function ManagerApp() {
 
     loadManagerData();
     loadActiveProject();
+    // Load all named cross-stitch projects and storage usage estimate
+    ProjectStorage.listProjects().then(setStoredProjects).catch(err => console.error("Failed to list projects:", err));
+    ProjectStorage.getStorageEstimate().then(setStorageUsage).catch(() => {});
   }, []);
 
   // Auto-save Manager Data
@@ -505,6 +510,54 @@ function ManagerApp() {
                     </div>
                     <button onClick={() => window.open('stitch.html', '_blank')} style={{ padding: "6px 12px", fontSize: 13, fontWeight: 600, background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>Go to Tracker</button>
                 </div>
+            )}
+            {storedProjects.length > 0 && (
+              <div style={{ background: "#f8fafc", border: "1px solid #e4e4e7", borderRadius: 10, padding: "14px 16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#18181b" }}>Saved Cross-Stitch Projects ({storedProjects.length})</div>
+                  {storageUsage && (
+                    <div style={{ fontSize: 11, color: "#71717a" }}>
+                      Storage: {(storageUsage.used / 1024 / 1024).toFixed(1)} MB{storageUsage.quota ? ` / ~${(storageUsage.quota / 1024 / 1024).toFixed(0)} MB` : ""}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {storedProjects.map(p => {
+                    const pct = p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0;
+                    const isActive = ProjectStorage.getActiveProjectId() === p.id;
+                    return (
+                      <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: isActive ? "#f0fdf4" : "#fff", border: `1px solid ${isActive ? "#bbf7d0" : "#e4e4e7"}`, borderRadius: 8, padding: "10px 14px" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "#18181b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                          <div style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>
+                            {p.dimensions.width}×{p.dimensions.height} &middot; {pct}% done &middot; {p.source === "tracker" ? "Tracked" : "Created"} &middot; {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : ""}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
+                          <button
+                            onClick={() => { ProjectStorage.setActiveProject(p.id); window.location.href = "stitch.html?source=manager"; }}
+                            style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, background: "#ea580c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}
+                          >Track</button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete "${p.name}"? This cannot be undone.`)) {
+                                const activeProjectId = ProjectStorage.getActiveProjectId();
+                                ProjectStorage.delete(p.id).then(() => {
+                                  if (activeProjectId === p.id) {
+                                    ProjectStorage.clearActiveProject();
+                                  }
+                                  setStoredProjects(prev => prev.filter(x => x.id !== p.id));
+                                });
+                              }
+                            }}
+                            style={{ padding: "5px 10px", fontSize: 12, background: "none", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer" }}
+                          >Delete</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", flex: 1 }}>

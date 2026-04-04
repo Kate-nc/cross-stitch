@@ -19,6 +19,7 @@
 <script src="header.js"></script>
 <script src="modals.js"></script>
 <script src="threadCalc.js"></script>
+<script src="project-storage.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -40,21 +41,6 @@ const[maxC,setMaxC]=useState(30),[bri,setBri]=useState(0),[con,setCon]=useState(
 const[skipBg,setSkipBg]=useState(false),[bgTh,setBgTh]=useState(15),[bgCol,setBgCol]=useState([255,255,255]),[pickBg,setPickBg]=useState(false),[minSt,setMinSt]=useState(0);
 const[smooth,setSmooth]=useState(0),[smoothType,setSmoothType]=useState("median"),[orphans,setOrphans]=useState(0);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null),[busy,setBusy]=useState(false);
-  useEffect(() => {
-    const handoff = localStorage.getItem("crossstitch_handoff_to_creator");
-    if (handoff) {
-      try {
-        const projectData = JSON.parse(handoff);
-        localStorage.removeItem("crossstitch_handoff_to_creator");
-        processLoadedProject(projectData);
-        if (projectData.done && projectData.done.some(v => v === 1)) {
-          alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
-        }
-      } catch (e) {
-        console.error("Failed to load handoff to creator:", e);
-      }
-    }
-  }, []);
 const[origW,setOrigW]=useState(0),[origH,setOrigH]=useState(0);
 const[fabricCt,setFabricCt]=useState(14);
 const[skeinPrice,setSkeinPrice]=useState(DEFAULT_SKEIN_PRICE);
@@ -106,6 +92,7 @@ const previewTimerRef=useRef(null);
 
 const pcRef=useRef(null),fRef=useRef(null),scrollRef=useRef(null),expRef=useRef(null),loadRef=useRef(null);
 const prevSW=useRef(sW),prevSH=useRef(sH);
+const projectIdRef=useRef(null); // persists across renders without causing re-renders
 const G=28;
 
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__"&&pat[i].id!=="__empty__")c++;return c;},[pat]);
@@ -336,8 +323,10 @@ function saveProject(){if(!pat||!pal)return;let hsArr=[];halfStitches.forEach((v
 
 function handleOpenInTracker(){
   if(!pat||!pal)return;
+  if(!projectIdRef.current) projectIdRef.current="proj_"+Date.now();
   let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
-  let project={version:9,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
+  let project={version:9,id:projectIdRef.current,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
+  ProjectStorage.setActiveProject(projectIdRef.current);
   try{
     localStorage.setItem("crossstitch_handoff", JSON.stringify(project));
     window.location.href = "stitch.html?source=creator";
@@ -379,6 +368,7 @@ function processLoadedProject(project){
   }else{setHalfStitches(new Map());}
   setHalfStitchTool(null);
   if(project.imgData&&typeof project.imgData==='string'&&project.imgData.startsWith('data:image/')){let li=new Image();li.onload=()=>{setImg(li);setOrigW(li.width);setOrigH(li.height);};li.src=project.imgData;}else if(s.isScratchMode){setImg({src:null,w:s.sW,h:s.sH});}
+  projectIdRef.current = project.id || null;
   setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/(s.sW*20)));setZoom(z);},100);
 }
 
@@ -388,7 +378,24 @@ function loadProject(e){let f=e.target.files[0];if(!f)return;setLoadError(null);
 }catch(err){console.error(err);setLoadError("Could not load: "+err.message);setTimeout(()=>setLoadError(null),4000);}};rd.readAsText(f);if(loadRef.current)loadRef.current.value="";}
 
 useEffect(() => {
-    // Automatically load from IndexedDB on startup
+    // Handoff from Tracker takes priority; only fall back to auto-load when absent.
+    // Both used to be separate effects, which caused a race: the async IndexedDB
+    // load would resolve after the handoff was processed and overwrite it.
+    const handoff = localStorage.getItem("crossstitch_handoff_to_creator");
+    if (handoff) {
+      try {
+        const projectData = JSON.parse(handoff);
+        localStorage.removeItem("crossstitch_handoff_to_creator");
+        processLoadedProject(projectData);
+        if (projectData.done && projectData.done.some(v => v === 1)) {
+          alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
+        }
+      } catch (e) {
+        console.error("Failed to load handoff to creator:", e);
+      }
+      return;
+    }
+    // No handoff — restore the last auto-saved session from IndexedDB
     loadProjectFromDB().then(project => {
         if (project && project.pattern && project.settings) {
             processLoadedProject(project);
@@ -401,8 +408,10 @@ useEffect(() => {
     if (!pat || !pal) return;
     const saveTimer = setTimeout(() => {
         let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
-        let project={version:9,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
+        if(!projectIdRef.current) projectIdRef.current="proj_"+Date.now();
+        let project={version:9,id:projectIdRef.current,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
+        ProjectStorage.save(project).then(id => { ProjectStorage.setActiveProject(id); }).catch(err => console.error("ProjectStorage auto-save failed:", err));
     }, 1000); // 1-second debounce
 
     return () => clearTimeout(saveTimer);
@@ -1108,7 +1117,7 @@ return(
 <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
 
-  {!img&&<div style={{maxWidth:700, margin:"40px auto", textAlign:"center"}}>
+  {!img&&!pat&&<div style={{maxWidth:700, margin:"40px auto", textAlign:"center"}}>
     <h1 style={{fontSize:28, fontWeight:700, color:"#18181b", marginBottom:8}}>Welcome to Cross Stitch Pattern Generator</h1>
     <p style={{fontSize:15, color:"#71717a", marginBottom:32}}>Turn any photo into a detailed pattern, or continue working on an existing project.</p>
 
@@ -1138,7 +1147,7 @@ return(
   </div>}
   <input ref={fRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
 
-  {img&&<div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
+  {(img||pat)&&<div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
     {tab!=="stitch"&&<div style={{flex:sidebarOpen?"0 0 280px":"0 0 auto",display:"flex",flexDirection:"column",gap:sidebarOpen?10:0,overflow:"hidden"}}>
       {pat&&<button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{padding:"5px 10px",fontSize:12,fontWeight:500,background:"#f4f4f5",border:"0.5px solid #e4e4e7",borderRadius:8,cursor:"pointer",color:"#71717a",alignSelf:sidebarOpen?"flex-end":"flex-start",whiteSpace:"nowrap"}}>{sidebarOpen?"◀ Hide":"▶ Settings"}</button>}
       {sidebarOpen&&<>
