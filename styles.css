@@ -176,11 +176,6 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 /* Tool strip */
 .tb-strip{background:var(--surface-tertiary);border-bottom:0.5px solid var(--border);position:sticky;top:40px;z-index:99;height:38px;overflow:visible;}
 .tb-strip-inner{max-width:1300px;margin:0 auto;padding:0 16px;height:100%;display:flex;align-items:center;gap:3px;overflow:visible;}
-.tb-mode-grp{display:flex;gap:1px;background:var(--border);border-radius:7px;padding:1px;flex-shrink:0;}
-.tb-mode-btn{padding:3px 11px;font-size:11px;font-weight:400;border:none;border-radius:6px;background:transparent;color:var(--text-secondary);cursor:pointer;white-space:nowrap;font-family:inherit;}
-.tb-mode-btn:hover{filter:none;background:rgba(255,255,255,0.6);}
-.tb-mode-btn--edit{background:#1D9E75;color:#fff;font-weight:600;}
-.tb-mode-btn--track{background:#18181b;color:#fff;font-weight:600;}
 .tb-sdiv{width:1px;height:20px;background:var(--border);flex-shrink:0;margin:0 2px;}
 .tb-grp{display:flex;gap:1px;background:var(--surface);border:0.5px solid var(--border);border-radius:7px;padding:2px;flex-shrink:0;}
 .tb-btn{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;font-size:11px;font-weight:400;border:none;border-radius:5px;background:transparent;color:var(--text-secondary);cursor:pointer;white-space:nowrap;line-height:1.4;font-family:inherit;}

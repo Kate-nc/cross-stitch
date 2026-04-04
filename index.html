@@ -1051,12 +1051,6 @@ return(
 
 {/* ═══ TOOL STRIP ═══ */}
 {pat&&pal&&tab==="pattern"&&<div className="tb-strip"><div ref={stripRef} className="tb-strip-inner">
-  {/* Mode toggle: Edit = here, Track = stitch.html */}
-  <div className="tb-mode-grp">
-    <button className="tb-mode-btn tb-mode-btn--edit">Edit</button>
-    <button className="tb-mode-btn" onClick={pat&&pal?handleOpenInTracker:undefined} title="Open in Stitch Tracker">Track</button>
-  </div>
-  <div className="tb-sdiv"/>
   {/* Stitch type group */}
   <div className="tb-grp">
     <button className={'tb-btn'+(stitchType==='cross'?' tb-btn--green':'')} onClick={()=>selectStitchType('cross')} title="Cross stitch — paint full cells">

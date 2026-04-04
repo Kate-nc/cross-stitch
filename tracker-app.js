@@ -1535,11 +1535,6 @@ return(
 {pat&&pal&&<>
 {/* ═══ TRACKER TOOL STRIP ═══ */}
 <div className="tb-strip"><div ref={tStripRef} className="tb-strip-inner">
-  <div className="tb-mode-grp">
-    <button className="tb-mode-btn" onClick={handleEditInCreator} title="Go to Pattern Creator to edit this pattern">Edit</button>
-    <button className="tb-mode-btn tb-mode-btn--track">Track</button>
-  </div>
-  <div className="tb-sdiv"/>
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
     <button className={"tb-btn"+(stitchMode==="track"&&!halfStitchTool?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);}} title="Mark full cross stitches as done">
       <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Cross
