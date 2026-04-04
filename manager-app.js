@@ -539,7 +539,17 @@ function ManagerApp() {
                             style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, background: "#ea580c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}
                           >Track</button>
                           <button
-                            onClick={() => { if (confirm(`Delete "${p.name}"? This cannot be undone.`)) { ProjectStorage.delete(p.id).then(() => setStoredProjects(prev => prev.filter(x => x.id !== p.id))); } }}
+                            onClick={() => {
+                              if (confirm(`Delete "${p.name}"? This cannot be undone.`)) {
+                                const activeProjectId = ProjectStorage.getActiveProjectId();
+                                ProjectStorage.delete(p.id).then(() => {
+                                  if (activeProjectId === p.id) {
+                                    ProjectStorage.clearActiveProject();
+                                  }
+                                  setStoredProjects(prev => prev.filter(x => x.id !== p.id));
+                                });
+                              }
+                            }}
                             style={{ padding: "5px 10px", fontSize: 12, background: "none", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer" }}
                           >Delete</button>
                         </div>
