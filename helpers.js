@@ -32,11 +32,14 @@ const STORE_NAME = "projects";
 
 function getDB() {
   return new Promise((resolve, reject) => {
-    let request = indexedDB.open(DB_NAME, 1);
+    let request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = (e) => {
       let db = e.target.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
+      }
+      if (!db.objectStoreNames.contains("project_meta")) {
+        db.createObjectStore("project_meta");
       }
     };
     request.onsuccess = () => resolve(request.result);

@@ -6,15 +6,55 @@
 const ProjectStorage = (() => {
   const DB_NAME = "CrossStitchDB";
   const STORE_NAME = "projects";
+  const META_STORE = "project_meta";
   const ACTIVE_KEY = "crossstitch_active_project";
+
+  // Extract lightweight metadata from a full project object.
+  function buildMeta(p) {
+    const s = p.settings || {};
+    const totalSt = p.pattern
+      ? p.pattern.filter(c => c && c.id !== "__skip__" && c.id !== "__empty__").length
+      : 0;
+    const completedSt = p.done
+      ? p.done.reduce((count, val) => count + (val === 1 ? 1 : 0), 0)
+      : 0;
+    return {
+      id: p.id,
+      name: p.name || `${s.sW || "?"}×${s.sH || "?"} pattern`,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      dimensions: { width: s.sW || 0, height: s.sH || 0 },
+      totalStitches: totalSt,
+      completedStitches: completedSt,
+      source: p.source || p.page || "unknown",
+    };
+  }
 
   function getDB() {
     return new Promise((resolve, reject) => {
-      let request = indexedDB.open(DB_NAME, 1);
+      let request = indexedDB.open(DB_NAME, 2);
       request.onupgradeneeded = (e) => {
         let db = e.target.result;
+        let upgradeTx = e.target.transaction;
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME);
+        }
+        if (!db.objectStoreNames.contains(META_STORE)) {
+          let metaStore = db.createObjectStore(META_STORE);
+          // Migrate lightweight metadata from any existing proj_* entries.
+          if (e.oldVersion >= 1) {
+            let projectsStore = upgradeTx.objectStore(STORE_NAME);
+            let cursorReq = projectsStore.openCursor();
+            cursorReq.onsuccess = (evt) => {
+              let cursor = evt.target.result;
+              if (!cursor) return;
+              let p = cursor.value;
+              if (p && p.id && typeof p.id === "string" && p.id.startsWith("proj_")) {
+                metaStore.put(buildMeta(p), p.id);
+              }
+              cursor.continue();
+            };
+          }
         }
       };
       request.onsuccess = () => resolve(request.result);
@@ -34,11 +74,13 @@ const ProjectStorage = (() => {
       try {
         const db = await getDB();
         return new Promise((resolve, reject) => {
-          let tx = db.transaction(STORE_NAME, "readwrite");
+          let tx = db.transaction([STORE_NAME, META_STORE], "readwrite");
           let store = tx.objectStore(STORE_NAME);
-          let request = store.put(project, project.id);
-          request.onsuccess = () => resolve(project.id);
-          request.onerror = () => reject(request.error);
+          let metaStore = tx.objectStore(META_STORE);
+          store.put(project, project.id);
+          metaStore.put(buildMeta(project), project.id);
+          tx.oncomplete = () => resolve(project.id);
+          tx.onerror = () => reject(tx.error);
         });
       } catch (err) {
         console.error("ProjectStorage.save failed:", err);
@@ -64,39 +106,19 @@ const ProjectStorage = (() => {
     },
 
     // Return lightweight metadata for all named projects (those with IDs starting "proj_"),
-    // sorted newest-first. The full pattern data is excluded for performance.
+    // sorted newest-first. Reads from the dedicated metadata store — no pattern data is loaded.
     async listProjects() {
       try {
         const db = await getDB();
         const all = await new Promise((resolve, reject) => {
-          let tx = db.transaction(STORE_NAME, "readonly");
-          let store = tx.objectStore(STORE_NAME);
+          let tx = db.transaction(META_STORE, "readonly");
+          let store = tx.objectStore(META_STORE);
           let request = store.getAll();
           request.onsuccess = () => resolve(request.result || []);
           request.onerror = () => reject(request.error);
         });
         return all
           .filter(p => p && p.id && typeof p.id === "string" && p.id.startsWith("proj_"))
-          .map(p => {
-            const s = p.settings || {};
-            const doneArr = p.done;
-            const totalSt = p.pattern
-              ? p.pattern.filter(c => c && c.id !== "__skip__" && c.id !== "__empty__").length
-              : 0;
-            const completedSt = doneArr
-              ? doneArr.reduce((n, v) => n + (v === 1 ? 1 : 0), 0)
-              : 0;
-            return {
-              id: p.id,
-              name: p.name || `${s.sW || "?"}×${s.sH || "?"} pattern`,
-              createdAt: p.createdAt,
-              updatedAt: p.updatedAt,
-              dimensions: { width: s.sW || 0, height: s.sH || 0 },
-              totalStitches: totalSt,
-              completedStitches: completedSt,
-              source: p.source || p.page || "unknown",
-            };
-          })
           .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
       } catch (err) {
         console.error("ProjectStorage.listProjects failed:", err);
@@ -109,11 +131,13 @@ const ProjectStorage = (() => {
       try {
         const db = await getDB();
         return new Promise((resolve, reject) => {
-          let tx = db.transaction(STORE_NAME, "readwrite");
+          let tx = db.transaction([STORE_NAME, META_STORE], "readwrite");
           let store = tx.objectStore(STORE_NAME);
-          let request = store.delete(id);
-          request.onsuccess = () => resolve();
-          request.onerror = () => reject(request.error);
+          let metaStore = tx.objectStore(META_STORE);
+          store.delete(id);
+          metaStore.delete(id);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
         });
       } catch (err) {
         console.error("ProjectStorage.delete failed:", err);
