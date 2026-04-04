@@ -41,21 +41,6 @@ const[maxC,setMaxC]=useState(30),[bri,setBri]=useState(0),[con,setCon]=useState(
 const[skipBg,setSkipBg]=useState(false),[bgTh,setBgTh]=useState(15),[bgCol,setBgCol]=useState([255,255,255]),[pickBg,setPickBg]=useState(false),[minSt,setMinSt]=useState(0);
 const[smooth,setSmooth]=useState(0),[smoothType,setSmoothType]=useState("median"),[orphans,setOrphans]=useState(0);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null),[busy,setBusy]=useState(false);
-  useEffect(() => {
-    const handoff = localStorage.getItem("crossstitch_handoff_to_creator");
-    if (handoff) {
-      try {
-        const projectData = JSON.parse(handoff);
-        localStorage.removeItem("crossstitch_handoff_to_creator");
-        processLoadedProject(projectData);
-        if (projectData.done && projectData.done.some(v => v === 1)) {
-          alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
-        }
-      } catch (e) {
-        console.error("Failed to load handoff to creator:", e);
-      }
-    }
-  }, []);
 const[origW,setOrigW]=useState(0),[origH,setOrigH]=useState(0);
 const[fabricCt,setFabricCt]=useState(14);
 const[skeinPrice,setSkeinPrice]=useState(DEFAULT_SKEIN_PRICE);
@@ -393,7 +378,24 @@ function loadProject(e){let f=e.target.files[0];if(!f)return;setLoadError(null);
 }catch(err){console.error(err);setLoadError("Could not load: "+err.message);setTimeout(()=>setLoadError(null),4000);}};rd.readAsText(f);if(loadRef.current)loadRef.current.value="";}
 
 useEffect(() => {
-    // Automatically load from IndexedDB on startup
+    // Handoff from Tracker takes priority; only fall back to auto-load when absent.
+    // Both used to be separate effects, which caused a race: the async IndexedDB
+    // load would resolve after the handoff was processed and overwrite it.
+    const handoff = localStorage.getItem("crossstitch_handoff_to_creator");
+    if (handoff) {
+      try {
+        const projectData = JSON.parse(handoff);
+        localStorage.removeItem("crossstitch_handoff_to_creator");
+        processLoadedProject(projectData);
+        if (projectData.done && projectData.done.some(v => v === 1)) {
+          alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
+        }
+      } catch (e) {
+        console.error("Failed to load handoff to creator:", e);
+      }
+      return;
+    }
+    // No handoff — restore the last auto-saved session from IndexedDB
     loadProjectFromDB().then(project => {
         if (project && project.pattern && project.settings) {
             processLoadedProject(project);
