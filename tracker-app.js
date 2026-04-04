@@ -1457,20 +1457,13 @@ return(
 {/* ═══ TRACKER TOOL STRIP ═══ */}
 <div className="tb-strip"><div ref={tStripRef} className="tb-strip-inner">
   <div className="tb-mode-grp">
-    <button className={"tb-mode-btn"+(isEditMode?" tb-mode-btn--edit":"")} onClick={()=>{
-      if(Date.now()-modeToggleRef.current<300)return;modeToggleRef.current=Date.now();
-      setSessionStartSnapshot({pat:[...pat],pal:JSON.parse(JSON.stringify(pal)),threadOwned:JSON.parse(JSON.stringify(threadOwned)),singleStitchEdits:new Map(singleStitchEdits)});
-      setStitchMode("navigate");setFocusColour(null);setHoverInfo(null);setIsEditMode(true);setDrawer(true);
-    }}>Edit</button>
-    <button className={"tb-mode-btn"+(!isEditMode?" tb-mode-btn--track":"")} onClick={()=>{
-      if(Date.now()-modeToggleRef.current<300)return;modeToggleRef.current=Date.now();
-      if(isEditMode){if(undoSnapshot!==null){setShowExitEditModal(true);}else{setIsEditMode(false);setUndoSnapshot(null);setSessionStartSnapshot(null);}}
-    }}>Track</button>
+    <button className="tb-mode-btn" onClick={handleEditInCreator} title="Go to Pattern Creator to edit this pattern">Edit</button>
+    <button className="tb-mode-btn tb-mode-btn--track">Track</button>
   </div>
-  {!isEditMode&&<><div className="tb-sdiv"/>
-  <button className={"tb-btn"+(sessionActive?" tb-btn--red":" tb-btn--green")} onClick={toggleSession}>{sessionActive?"⏹ Stop":"▶ Start"}</button></>}
   <div className="tb-sdiv"/>
-  {!isEditMode&&<div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
+  <button className={"tb-btn"+(sessionActive?" tb-btn--red":" tb-btn--green")} onClick={toggleSession}>{sessionActive?"⏹ Stop":"▶ Start"}</button>
+  <div className="tb-sdiv"/>
+  <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
     <button className={"tb-btn"+(stitchMode==="track"&&!halfStitchTool?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);}} title="Mark full cross stitches as done">
       <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Cross
     </button>
@@ -1484,16 +1477,16 @@ return(
       <svg width="11" height="11" viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg>Erase
     </button>
     <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");setHalfStitchTool(null);}} title="Place guide crosshair or park marker">Nav</button>
-  </div>}
-  {!isEditMode&&(halfStitchTool==="fwd"||halfStitchTool==="bck")&&selectedColorId&&cmap&&cmap[selectedColorId]&&
+  </div>
+  {(halfStitchTool==="fwd"||halfStitchTool==="bck")&&selectedColorId&&cmap&&cmap[selectedColorId]&&
     <span style={{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,background:"#e0f2fe",flexShrink:0,border:"1px solid #7dd3fc"}}>
       <span style={{width:10,height:10,borderRadius:2,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/>{selectedColorId}
     </span>}
-  {!isEditMode&&<><div className="tb-sdiv"/>
+  <div className="tb-sdiv"/>
   <div className={"tb-grp"+(tStripCollapsed.view?" tb-hidden":"")}>
     {[['symbol','Sym'],['colour','Col+Sym'],['highlight','HL']].map(([k,l])=><button key={k} className={"tb-btn"+(stitchView===k?" tb-btn--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>)}
-  </div></>}
-  {!isEditMode&&stitchView==="highlight"&&<>
+  </div>
+  {stitchView==="highlight"&&<>
     <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fafafa",cursor:"pointer",lineHeight:1}} title="Previous colour">◀</button>
     {focusColour&&cmap&&cmap[focusColour]&&(()=>{const p=cmap[focusColour];const dc=colourDoneCounts[focusColour]||{done:0,total:0};return(
       <span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:6,background:"#f0fdfa",border:"1px solid #99f6e4",cursor:"pointer",flexShrink:0}} onClick={()=>setFocusColour(null)} title="Click to clear highlight">
@@ -1517,11 +1510,6 @@ return(
     <button className="tb-fit-btn" onClick={fitSZ}>Fit</button>
   </div>
   <div className="tb-sdiv"/>
-  {isEditMode&&<>
-    {undoSnapshot&&<button className="tb-btn" style={{borderColor:"#d97706",color:"#d97706"}} onClick={applyUndo}>↩ Undo</button>}
-    <button className="tb-btn tb-btn--red" onClick={handleRevertToOriginal} title="Revert to original PDF import">Revert</button>
-    <div className="tb-sdiv"/>
-  </>}
   <div className="tb-overflow-wrap" ref={tOverflowRef}>
     <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
     {tOverflowOpen&&<div className="tb-overflow-menu">
@@ -1551,8 +1539,14 @@ return(
       {isEditMode&&<>
         {undoSnapshot&&<button className="tb-ovf-item" style={{color:"#d97706"}} onClick={()=>{applyUndo();setTOverflowOpen(false);}}>↩ Undo Edit</button>}
         <button className="tb-ovf-item" style={{color:"#dc2626"}} onClick={()=>{handleRevertToOriginal();setTOverflowOpen(false);}}>Revert to Original</button>
+        <button className="tb-ovf-item" onClick={()=>{if(undoSnapshot!==null){setShowExitEditModal(true);}else{setIsEditMode(false);setUndoSnapshot(null);setSessionStartSnapshot(null);}setTOverflowOpen(false);}}>← Exit correction mode</button>
         <div className="tb-ovf-sep"/>
       </>}
+      {!isEditMode&&<><button className="tb-ovf-item" style={{color:"#71717a"}} onClick={()=>{
+        setSessionStartSnapshot({pat:[...pat],pal:JSON.parse(JSON.stringify(pal)),threadOwned:JSON.parse(JSON.stringify(threadOwned)),singleStitchEdits:new Map(singleStitchEdits)});
+        setStitchMode("navigate");setFocusColour(null);setHoverInfo(null);setIsEditMode(true);setDrawer(true);setTOverflowOpen(false);
+      }} title="Correct individual stitch colours — for imported patterns">Correct pattern colours…</button><div className="tb-ovf-sep"/></>
+      }
       <button className="tb-ovf-item" onClick={()=>{setShowNavHelp(h=>!h);setTOverflowOpen(false);}}>{showNavHelp?"Hide":"Show"} controls help</button>
       {(sessionActive||totalTime>0)&&<>
         <div className="tb-ovf-sep"/>
@@ -1836,7 +1830,6 @@ return(
     </div>
 
     <div style={{marginTop:20, display:"flex", gap:10, justifyContent:"center", padding:"20px", borderTop:"0.5px solid #e4e4e7"}}>
-      <button onClick={handleEditInCreator} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#ea580c",color:"#fff",cursor:"pointer",fontWeight:600}}>Edit</button>
       <button onClick={saveProject} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save Project (.json)</button>
       <button onClick={()=>loadRef.current.click()} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Load Different Project</button>
     </div>
