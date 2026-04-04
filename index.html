@@ -5,21 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self';">
 <title>Cross Stitch Pattern Generator</title>
+<!-- Flag set before any Babel scripts so TrackerApp's guard fires correctly -->
+<script>window.__UNIFIED__=true;</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<!-- pdf.js + importer needed by TrackerApp's PDF import feature -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="pdf-importer.js"></script>
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
 <script src="colour-utils.js"></script>
 <script src="helpers.js"></script>
+<script src="import-formats.js"></script>
 <script src="components.js"></script>
 <script src="header.js"></script>
 <script src="modals.js"></script>
 <script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
+<!-- TrackerApp loaded here so it is defined by the time inline script runs -->
+<script type="text/babel" src="tracker-app.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -35,7 +43,7 @@ function confettiTier(pct){
   return{color:"#dc2626",label:"High confetti"};
 }
 
-function App(){
+function CreatorApp({onSwitchToTrack=null, isActive=true}={}){
 const[img,setImg]=useState(null),[sW,setSW]=useState(80),[sH,setSH]=useState(80),[arLock,setArLock]=useState(true),[ar,setAr]=useState(1);
 const[maxC,setMaxC]=useState(30),[bri,setBri]=useState(0),[con,setCon]=useState(0),[sat,setSat]=useState(0),[dith,setDith]=useState(false);
 const[skipBg,setSkipBg]=useState(false),[bgTh,setBgTh]=useState(15),[bgCol,setBgCol]=useState([255,255,255]),[pickBg,setPickBg]=useState(false),[minSt,setMinSt]=useState(0);
@@ -52,6 +60,7 @@ const[view,setView]=useState("color"),[zoom,setZoom]=useState(1),[hiId,setHiId]=
 const[showOverlay,setShowOverlay]=useState(false),[overlayOpacity,setOverlayOpacity]=useState(0.3);
 
 const[dimOpen,setDimOpen]=useState(true),[palOpen,setPalOpen]=useState(true),[fabOpen,setFabOpen]=useState(false),[adjOpen,setAdjOpen]=useState(false),[bgOpen,setBgOpen]=useState(false);
+const[palAdvanced,setPalAdvanced]=useState(false);
 const[hasGenerated,setHasGenerated]=useState(false);
 const[isCropping,setIsCropping]=useState(false),[cropRect,setCropRect]=useState(null);
 const cropStartRef=useRef(null);
@@ -326,6 +335,13 @@ function handleOpenInTracker(){
   if(!projectIdRef.current) projectIdRef.current="proj_"+Date.now();
   let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
   let project={version:9,id:projectIdRef.current,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
+  if(onSwitchToTrack){
+    // Unified app: save in background and pass project directly (bypasses DB read race)
+    saveProjectToDB(project).catch(()=>{});
+    ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(()=>{});
+    onSwitchToTrack({project, key: Date.now()});
+    return;
+  }
   ProjectStorage.setActiveProject(projectIdRef.current);
   try{
     localStorage.setItem("crossstitch_handoff", JSON.stringify(project));
@@ -1014,6 +1030,7 @@ function handlePatMouseMove(e){
 function handlePatMouseLeave(){setHoverCoords(null);}
 
 useEffect(()=>{
+  if(!isActive)return;
   function handleKeyDown(e){
     if(e.key==="Escape" && activeTool==="backstitch" && bsStart){
       setBsStart(null);
@@ -1021,7 +1038,7 @@ useEffect(()=>{
   }
   window.addEventListener("keydown",handleKeyDown);
   return ()=>window.removeEventListener("keydown",handleKeyDown);
-},[activeTool,bsStart]);
+},[activeTool,bsStart,isActive]);
 
 // Thread organiser helpers
 function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur===""?"owned":cur==="owned"?"tobuy":"";return{...prev,[id]:next};});}
@@ -1050,12 +1067,6 @@ return(
 
 {/* ═══ TOOL STRIP ═══ */}
 {pat&&pal&&tab==="pattern"&&<div className="tb-strip"><div ref={stripRef} className="tb-strip-inner">
-  {/* Mode toggle: Edit = here, Track = stitch.html */}
-  <div className="tb-mode-grp">
-    <button className="tb-mode-btn tb-mode-btn--edit">Edit</button>
-    <button className="tb-mode-btn" onClick={pat&&pal?handleOpenInTracker:undefined} title="Open in Stitch Tracker">Track</button>
-  </div>
-  <div className="tb-sdiv"/>
   {/* Stitch type group */}
   <div className="tb-grp">
     <button className={'tb-btn'+(stitchType==='cross'?' tb-btn--green':'')} onClick={()=>selectStitchType('cross')} title="Cross stitch — paint full cells">
@@ -1222,7 +1233,7 @@ return(
         </div>}
       </Section>
 
-      {!isScratchMode&&<Section title="Palette" isOpen={palOpen} onToggle={setPalOpen}><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div><div style={{marginTop:8}}><SliderRow label="Remove Orphans" value={orphans} min={0} max={3} onChange={setOrphans} format={v=>v===0?"Off":v}/></div><div style={{display:"flex",gap:6,marginTop:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setDith(false)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !dith ? 500 : 400, background: !dith ? "#fff" : "transparent", borderRadius: 6, color: !dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: !dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Direct</button><button onClick={()=>setDith(true)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: dith ? 500 : 400, background: dith ? "#fff" : "transparent", borderRadius: 6, color: dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Dithered</button></div></div></Section>}
+      {!isScratchMode&&<Section title="Palette" isOpen={palOpen} onToggle={setPalOpen}><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div><button onClick={()=>setPalAdvanced(o=>!o)} style={{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#71717a",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}}><span style={{fontSize:9,display:"inline-block",transform:palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}>▶</span>Advanced{(orphans>0||dith)?<span style={{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block",marginLeft:2}}/>:null}</button>{palAdvanced&&<><div style={{marginTop:6}}><SliderRow label="Remove Orphans" value={orphans} min={0} max={3} onChange={setOrphans} format={v=>v===0?"Off":v}/></div><div style={{display:"flex",gap:6,marginTop:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setDith(false)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !dith ? 500 : 400, background: !dith ? "#fff" : "transparent", borderRadius: 6, color: !dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: !dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Direct</button><button onClick={()=>setDith(true)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: dith ? 500 : 400, background: dith ? "#fff" : "transparent", borderRadius: 6, color: dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Dithered</button></div></div></>}</Section>}
 
       <Section title="Fabric & Floss" isOpen={fabOpen} onToggle={setFabOpen} badge={<span style={{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}>{fabricCt}ct</span>}>
         <div style={{marginTop:8}}>
@@ -1234,7 +1245,7 @@ return(
         </div>
       </Section>
 
-      {!isScratchMode&&<Section title="Adjustments" isOpen={adjOpen} onToggle={setAdjOpen} badge={(bri||con||sat||smooth)?<span style={{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}/>:null}><div style={{marginTop:8}}><div style={{display:"flex",gap:6,marginBottom:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setSmoothType("median")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: smoothType==="median" ? 500 : 400, background: smoothType==="median" ? "#fff" : "transparent", borderRadius: 6, color: smoothType==="median" ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: smoothType==="median" ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Median</button><button onClick={()=>setSmoothType("gaussian")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: smoothType==="gaussian" ? 500 : 400, background: smoothType==="gaussian" ? "#fff" : "transparent", borderRadius: 6, color: smoothType==="gaussian" ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: smoothType==="gaussian" ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Gaussian</button></div></div><SliderRow label="Smooth (Noise Reduction)" value={smooth} min={0} max={4} step={0.1} onChange={setSmooth} format={v=>v===0?"Off":v.toFixed(1)}/><SliderRow label="Brightness" value={bri} min={-50} max={50} onChange={setBri} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Contrast" value={con} min={-50} max={50} onChange={setCon} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Saturation" value={sat} min={-50} max={50} onChange={setSat} format={v=>(v>0?"+":"")+v+"%"}/></div></Section>}
+      {!isScratchMode&&<Section title="Adjustments" isOpen={adjOpen} onToggle={setAdjOpen} badge={(bri||con||sat||smooth)?<span style={{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}/>:null}><div style={{marginTop:8}}><SliderRow label="Smooth (Noise Reduction)" value={smooth} min={0} max={4} step={0.1} onChange={setSmooth} format={v=>v===0?"Off":v.toFixed(1)}/>{smooth===0&&<div style={{fontSize:11,color:"#a1a1aa",marginTop:2}}>Try 1–2 for noisy or low-resolution photos</div>}{smooth>0&&<div style={{display:"flex",gap:6,margin:"6px 0"}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setSmoothType("median")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: smoothType==="median" ? 500 : 400, background: smoothType==="median" ? "#fff" : "transparent", borderRadius: 6, color: smoothType==="median" ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: smoothType==="median" ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Median</button><button onClick={()=>setSmoothType("gaussian")} style={{ padding: "5px 12px", fontSize: 12, fontWeight: smoothType==="gaussian" ? 500 : 400, background: smoothType==="gaussian" ? "#fff" : "transparent", borderRadius: 6, color: smoothType==="gaussian" ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: smoothType==="gaussian" ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Gaussian</button></div></div>}<SliderRow label="Brightness" value={bri} min={-50} max={50} onChange={setBri} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Contrast" value={con} min={-50} max={50} onChange={setCon} format={v=>(v>0?"+":"")+v+"%"}/><SliderRow label="Saturation" value={sat} min={-50} max={50} onChange={setSat} format={v=>(v>0?"+":"")+v+"%"}/></div></Section>}
       {!isScratchMode&&<Section title="Background" isOpen={bgOpen} onToggle={setBgOpen} badge={skipBg?<span style={{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}/>:null}>
         <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}}><input type="checkbox" checked={skipBg} onChange={e=>setSkipBg(e.target.checked)}/>Skip background</label>
         {skipBg&&<div style={{marginTop:10}}>
@@ -1404,20 +1415,6 @@ return(
 
           <button onClick={handleOpenInTracker} style={{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none", display:"flex", alignItems:"center", justifyContent:"center", gap:8}}>🧵 Open in Stitch Tracker →</button>
 
-          <button onClick={async ()=>{
-              if(!pat||!pal)return;
-              let project={version:7,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
-              try {
-                  await saveProjectToDB(project);
-                  window.open("stitch.html", "_blank");
-                  setCopied("Opened in Stitch Tracker");
-                  setTimeout(()=>setCopied(null), 3000);
-              } catch(e) {
-                  console.error("Failed to save to DB", e);
-                  alert("Failed to save project state.");
-              }
-          }} style={{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none", display:"flex", alignItems:"center", justifyContent:"center", gap:8}}>🧵 Open in Stitch Tracker →</button>
-
           <Section title="PDF Export"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Multi-page PDF with legend and chart.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={exportPDF} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none"}}>Download Pattern PDF</button><button onClick={exportCoverSheet} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}}>Cover Sheet PDF</button></div><p style={{fontSize:11,color:"#a1a1aa",marginTop:8}}>The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes — perfect for tucking into your project bag.</p></Section>
           <Section title="PNG Chart"><div style={{display:"flex",gap:8,alignItems:"center",marginTop:8,marginBottom:8}}><label style={{display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer"}}><input type="checkbox" checked={pageMode} onChange={e=>{setPageMode(e.target.checked);setExportPage(0);}}/>A4 pages</label>{pageMode&&<><button onClick={()=>setExportPage(Math.max(0,exportPage-1))} disabled={exportPage===0} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}}>◀</button><span style={{fontSize:12}}>Page {exportPage+1}/{totPg}</span><button onClick={()=>setExportPage(Math.min(totPg-1,exportPage+1))} disabled={exportPage>=totPg-1} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}}>▶</button></>}</div><div style={{overflow:"auto",maxHeight:400,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#fff"}}><canvas ref={expRef} style={{display:"block"}}/></div></Section>
           <Section title="Save / Load"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Saves pattern for later editing or opening in Stitch Tracker.</p><div style={{display:"flex",gap:8}}><button onClick={saveProject} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save (.json)</button><button onClick={()=>loadRef.current.click()} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Load</button></div></Section>
@@ -1492,7 +1489,68 @@ return(
 </div>
 </>);
 }
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+
+function UnifiedApp(){
+  const[mode,setMode]=React.useState(()=>{
+    const p=new URLSearchParams(window.location.search);
+    return p.get('mode')==='track'?'track':'design';
+  });
+  // Lazy-mount TrackerApp on first switch; keep it alive after that.
+  const[trackerMounted,setTrackerMounted]=React.useState(()=>{
+    const p=new URLSearchParams(window.location.search);
+    return p.get('mode')==='track';
+  });
+  const[trackerReady,setTrackerReady]=React.useState(typeof window.TrackerApp!=='undefined');
+  // Holds the project object forwarded from Creator → Tracker to avoid DB round trip.
+  const pendingTrackerProject=React.useRef(null);
+
+  React.useEffect(()=>{
+    if(trackerReady)return;
+    const poll=setInterval(()=>{if(typeof window.TrackerApp!=='undefined'){setTrackerReady(true);clearInterval(poll);}},50);
+    return()=>clearInterval(poll);
+  },[trackerReady]);
+
+  // switchToTrack accepts an optional {project, key} object from handleOpenInTracker.
+  const switchToTrack=React.useCallback((incomingProject)=>{
+    if(incomingProject) pendingTrackerProject.current=incomingProject;
+    setTrackerMounted(true);
+    window.history.replaceState({},'','?mode=track');
+    setMode('track');
+  },[]);
+  const switchToDesign=React.useCallback(()=>{
+    window.history.replaceState({},'',window.location.pathname);
+    setMode('design');
+  },[]);
+
+  React.useEffect(()=>{
+    window.__switchToTrack=switchToTrack;
+    window.__switchToDesign=switchToDesign;
+    return()=>{delete window.__switchToTrack;delete window.__switchToDesign;};
+  },[switchToTrack,switchToDesign]);
+
+  const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
+  return <>
+    <div style={{display:mode==='design'?'':'none'}}>
+      <CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/>
+    </div>
+    <div style={{display:mode==='track'?'':'none'}}>
+      {trackerMounted&&!trackerReady&&(
+        <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:12,color:'#71717a',fontSize:14}}>
+          <div style={{width:28,height:28,border:'2.5px solid #e4e4e7',borderTopColor:'#0d9488',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
+          Loading Stitch Tracker…
+        </div>
+      )}
+      {trackerMounted&&trackerReady&&T&&<T
+        onSwitchToDesign={switchToDesign}
+        isActive={mode==='track'}
+        incomingProject={pendingTrackerProject.current}
+      />}
+    </div>
+  </>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<UnifiedApp/>);
 </script>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </body>
 </html>

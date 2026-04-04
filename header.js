@@ -46,6 +46,15 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     return () => document.removeEventListener('mousedown', close);
   }, [pageDrop]);
 
+  const [fileMenuOpen, setFileMenuOpen] = React.useState(false);
+  const fileMenuRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!fileMenuOpen) return;
+    function close(e) { if (fileMenuRef.current && !fileMenuRef.current.contains(e.target)) setFileMenuOpen(false); }
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [fileMenuOpen]);
+
   const creatorPages = [['pattern','Pattern'],['project','Project'],['legend','Threads'],['export','Export']];
   const activeLabel = creatorPages.find(p => p[0] === tab)?.[1] || 'Pattern';
 
@@ -113,6 +122,11 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               key: id,
               href,
               className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
+              onClick: id === 'tracker' && window.__switchToTrack
+                ? (e) => { e.preventDefault(); window.__switchToTrack(); }
+                : id === 'creator' && window.__switchToDesign
+                  ? (e) => { e.preventDefault(); window.__switchToDesign(); }
+                  : undefined,
               ...(page === id ? { 'aria-current': 'page' } : {}),
             }, label)
           )
@@ -148,20 +162,32 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('calculator') }, 'Calculator'),
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('help') }, 'Help'),
 
-        React.createElement('div', { className: 'tb-sep' }),
-
-        onOpen &&
-          React.createElement('button', { className: 'tb-action-btn', onClick: onOpen }, 'Open'),
-        onSave &&
-          React.createElement('button', { className: 'tb-action-btn tb-action-btn--green', onClick: onSave }, 'Save'),
-        page === 'creator' && onTrack &&
-          React.createElement('button', {
-            className: 'tb-action-btn',
-            onClick: onTrack,
-            style: { background: '#ea580c', color: '#fff', borderColor: '#ea580c' }
-          }, 'Track ›'),
-        onExportPDF &&
-          React.createElement('button', { className: 'tb-action-btn tb-action-btn--orange', onClick: onExportPDF }, 'Export PDF')
+        // File menu dropdown
+        (onOpen || onSave || onTrack || onExportPDF) &&
+          React.createElement('div', { ref: fileMenuRef, style: { position: 'relative', flexShrink: 0 } },
+            React.createElement('button', { className: 'tb-page-btn', onClick: () => setFileMenuOpen(o => !o) },
+              'File',
+              React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 3 } }, '▾')
+            ),
+            fileMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 190 } },
+              onOpen && React.createElement('button', {
+                className: 'tb-page-dropdown-item',
+                onClick: () => { onOpen(); setFileMenuOpen(false); }
+              }, 'Open…'),
+              onSave && React.createElement('button', {
+                className: 'tb-page-dropdown-item',
+                onClick: () => { onSave(); setFileMenuOpen(false); }
+              }, 'Save (.json)'),
+              page === 'creator' && onTrack && React.createElement('button', {
+                className: 'tb-page-dropdown-item',
+                onClick: () => { onTrack(); setFileMenuOpen(false); }
+              }, 'Open in Stitch Tracker'),
+              onExportPDF && React.createElement('button', {
+                className: 'tb-page-dropdown-item',
+                onClick: () => { onExportPDF(); setFileMenuOpen(false); }
+              }, 'Export PDF…')
+            )
+          )
       )
     )
   );
