@@ -64,7 +64,7 @@ const G=28;
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__")c++;return c;},[pat]);
 const cs=useMemo(()=>Math.max(2,Math.round(20*zoom)),[zoom]);
 const fitZ=useCallback(()=>setZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
-const pxX=Math.ceil(sW/A4W),pxY=Math.ceil(sH/A4H),totPg=pxX*pxY;
+const pxX=Math.ceil(sW/window.A4W),pxY=Math.ceil(sH/window.A4H),totPg=pxX*pxY;
 
 // Derived: all individual skein IDs and their stitch counts
 const skeinData=useMemo(()=>{
@@ -553,7 +553,7 @@ const renderPattern=useCallback(()=>{if(!pat||!cmap||!pcRef.current||tab!=="patt
 },[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab,hoverCoords,selectedColorId,showOverlay,overlayOpacity,img,halfStitches]);
 useEffect(()=>renderPattern(),[renderPattern]);
 
-const renderExport=useCallback(()=>{if(tab!=="export"||!expRef.current||!pat||!cmap)return;let epC=exportPage%pxX,epR=Math.floor(exportPage/pxX),eX0=epC*A4W,eY0=epR*A4H,eW=Math.min(A4W,sW-eX0),eH=Math.min(A4H,sH-eY0),dW2=pageMode?eW:sW,dH2=pageMode?eH:sH,oX2=pageMode?eX0:0,oY2=pageMode?eY0:0,expCs=Math.max(8,Math.min(20,Math.floor(750/Math.max(dW2,dH2))));expRef.current.width=dW2*expCs+G+2;expRef.current.height=dH2*expCs+G+2;drawPattern(expRef.current.getContext("2d"),oX2,oY2,dW2,dH2,expCs,G);},[tab,pat,cmap,sW,sH,pageMode,exportPage,pxX,view,hiId,showCtr,bsLines,halfStitches]);
+const renderExport=useCallback(()=>{if(modal!=="export"||!expRef.current||!pat||!cmap)return;let epC=exportPage%pxX,epR=Math.floor(exportPage/pxX),eX0=epC*window.A4W,eY0=epR*window.A4H,eW=Math.min(window.A4W,sW-eX0),eH=Math.min(window.A4H,sH-eY0),dW2=pageMode?eW:sW,dH2=pageMode?eH:sH,oX2=pageMode?eX0:0,oY2=pageMode?eY0:0,expCs=Math.max(8,Math.min(20,Math.floor(750/Math.max(dW2,dH2))));expRef.current.width=dW2*expCs+window.G+2;expRef.current.height=dH2*expCs+window.G+2;drawPattern(expRef.current.getContext("2d"),oX2,oY2,dW2,dH2,expCs,window.G);},[modal,pat,cmap,sW,sH,pageMode,exportPage,pxX,view,hiId,showCtr,bsLines,halfStitches]);
 useEffect(()=>renderExport(),[renderExport]);
 
 
@@ -940,11 +940,8 @@ const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned
 
 return(
 <>
-<Header page="creator" onNewProject={()=>{if(!pat||confirm("Start a new project? Unsaved progress will be lost.")){resetAll();setImg(null);}}} onExportPDF={pat ? exportPDF : null} setModal={setModal} />
+<Header page="creator" tab={tab} onPageChange={setTab} onNewProject={()=>{if(!pat||confirm("Start a new project? Unsaved progress will be lost.")){resetAll();setImg(null);}}} onOpen={()=>loadRef.current.click()} onSave={pat&&pal?saveProject:null} onTrack={pat&&pal?handleOpenInTracker:null} setModal={setModal} />
 <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
-  <div style={{marginBottom:12,display:"flex",justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap",gap:8}}>
-    <div style={{display:"flex",gap:6}}><input ref={loadRef} type="file" accept=".json" onChange={loadProject} style={{display:"none"}}/><button onClick={()=>loadRef.current.click()} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fafafa",cursor:"pointer",color:"#71717a",fontWeight:500}}>Open</button>{pat&&pal&&<button onClick={saveProject} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:500}}>Save</button>}{pat&&pal&&<button onClick={handleOpenInTracker} style={{padding:"5px 12px",fontSize:12,borderRadius:8,border:"none",background:"#ea580c",color:"#fff",cursor:"pointer",fontWeight:500}}>Track</button>}</div>
-  </div>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
 
   {!img&&<div style={{maxWidth:700, margin:"40px auto", textAlign:"center"}}>
@@ -1034,7 +1031,7 @@ return(
 
     <div style={{flex:1,minWidth:0}}>
       {pat&&pal&&<div>
-        <div style={{display:"flex",gap:0,marginBottom:12,borderBottom:"2px solid #f4f4f5"}}>{[["pattern","Pattern"],["project","Project"],["legend","Threads"],["export","Export"]].map(it=><button className="tab-button" key={it[0]} onClick={()=>setTab(it[0])} style={tabSt(tab===it[0])}>{it[1]}</button>)}</div>
+        <div style={{display:"flex",gap:0,marginBottom:12,borderBottom:"2px solid #f4f4f5"}}>{[["pattern","Pattern"],["project","Project"],["legend","Threads"]].map(it=><button className="tab-button" key={it[0]} onClick={()=>setTab(it[0])} style={tabSt(tab===it[0])}>{it[1]}</button>)}</div>
 
         {/* ═══ PATTERN TAB ═══ */}
         {tab==="pattern"&&<div>
@@ -1187,38 +1184,6 @@ return(
           <div style={{overflow:"auto",maxHeight:540}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}><thead><tr style={{background:"#fafafa"}}>{["Sym","","DMC","Name","Type","Stitches","Skeins",done?"Done":""].filter(Boolean).map((h,i)=><th key={i} style={{padding:"8px 10px",textAlign:i>=5?"right":"left",borderBottom:"2px solid #e4e4e7",color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}}>{h}</th>)}</tr></thead><tbody>{pal.map((p,i)=>{let dc=colourDoneCounts[p.id]||{total:0,done:0};let sk=skeinEst(p.count,fabricCt);return<tr key={i} onClick={()=>{setHiId(hiId===p.id?null:p.id);setTab("pattern");}} style={{borderBottom:"0.5px solid #f4f4f5",cursor:"pointer",background:hiId===p.id?"#fff7ed":"transparent"}}><td style={{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}>{p.symbol}</td><td style={{padding:"6px 10px"}}><div style={{width:24,height:24,borderRadius:5,background:`rgb(${p.rgb})`,border:"0.5px solid #e4e4e7",display:"inline-block"}}/></td><td style={{padding:"6px 10px",fontWeight:600}}>{p.id}</td><td style={{padding:"6px 10px",fontSize:11,color:"#71717a"}}>{p.type==="blend"?p.threads[0].name+" + "+p.threads[1].name:p.name}{(()=>{const cc=confettiData?.clean?.colorConfetti?.[p.id];return cc?<span title={`${cc} confetti stitch${cc!==1?"es":""}`} style={{marginLeft:5,color:"#dc2626",fontSize:11,cursor:"default"}}>●&thinsp;{cc}</span>:null;})()}</td><td style={{padding:"6px 10px"}}><span style={{padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:p.type==="blend"?"#fff7ed":"#f0fdf4",color:p.type==="blend"?"#ea580c":"#16a34a"}}>{p.type==="blend"?"Blend":"Solid"}</span></td><td style={{padding:"6px 10px",textAlign:"right"}}>{p.count.toLocaleString()}</td><td style={{padding:"6px 10px",textAlign:"right",fontWeight:600}}>{sk}</td>{done&&<td style={{padding:"6px 10px",textAlign:"right"}}><span style={{color:dc.done>=dc.total?"#16a34a":"#71717a"}}>{dc.done}/{dc.total}</span></td>}</tr>;})}</tbody></table></div>
         </div>}
 
-        {/* ═══ EXPORT TAB ═══ */}
-        {tab==="export"&&<div style={{display:"flex",flexDirection:"column",gap:12}}>
-          {copied&&<div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600}}>Copied!</div>}
-
-          <button onClick={handleOpenInTracker} style={{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none", display:"flex", alignItems:"center", justifyContent:"center", gap:8}}>🧵 Open in Stitch Tracker →</button>
-
-          <button onClick={()=>{
-              let pl = pat.map(m=>{
-                  if (m.id==="__skip__") return ["__skip__", "k"];
-                  return [m.id, m.type==="blend"?"b":"s"];
-              });
-              let minimal = { v: 8, w: sW, h: sH, fc: fabricCt, bs: bsLines, p: pl };
-              try {
-                  let str = JSON.stringify(minimal);
-                  let compressed = pako.deflate(str);
-                  let binaryStr = "";
-                  for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
-                  let b64 = btoa(binaryStr).replace(/\+/g, '-').replace(/\//g, '_');
-                  if (b64.length > 8000) {
-                      alert("Pattern too large for link sharing. Please use Save Project (.json) instead.");
-                      return;
-                  }
-                  window.open("stitch.html#p=" + b64, "_blank");
-                  setCopied("Opened in Stitch Tracker");
-                  setTimeout(()=>setCopied(null), 3000);
-              } catch(e) { console.error("Compression failed", e); }
-          }} style={{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none", display:"flex", alignItems:"center", justifyContent:"center", gap:8}}>🧵 Open in Stitch Tracker →</button>
-
-          <Section title="PDF Export"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Multi-page PDF with legend and chart.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={exportPDF} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none"}}>Download Pattern PDF</button><button onClick={exportCoverSheet} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}}>Cover Sheet PDF</button></div><p style={{fontSize:11,color:"#a1a1aa",marginTop:8}}>The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes — perfect for tucking into your project bag.</p></Section>
-          <Section title="PNG Chart"><div style={{display:"flex",gap:8,alignItems:"center",marginTop:8,marginBottom:8}}><label style={{display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer"}}><input type="checkbox" checked={pageMode} onChange={e=>{setPageMode(e.target.checked);setExportPage(0);}}/>A4 pages</label>{pageMode&&<><button onClick={()=>setExportPage(Math.max(0,exportPage-1))} disabled={exportPage===0} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}}>◀</button><span style={{fontSize:12}}>Page {exportPage+1}/{totPg}</span><button onClick={()=>setExportPage(Math.min(totPg-1,exportPage+1))} disabled={exportPage>=totPg-1} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}}>▶</button></>}</div><div style={{overflow:"auto",maxHeight:400,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#fff"}}><canvas ref={expRef} style={{display:"block"}}/></div></Section>
-          <Section title="Save / Load"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Saves pattern for later editing or opening in Stitch Tracker.</p><div style={{display:"flex",gap:8}}><button onClick={saveProject} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save (.json)</button><button onClick={()=>loadRef.current.click()} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Load</button></div></Section>
-        </div>}
       </div>}
       {!pat&&img&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:20}}>
         <div className="card">
@@ -1278,6 +1243,27 @@ return(
   {modal==="calculator"&&<SharedModals.Calculator onClose={()=>setModal(null)} />}
   {modal==="calculator_batch"&&<SharedModals.Calculator onClose={()=>setModal(null)} initialPatterns={pal} />}
   {modal==="pdf_export"&&<SharedModals.PdfExport onClose={()=>setModal(null)} initialSettings={pdfSettings} sW={sW} sH={sH} hasTrackingData={doneCount > 0} hasBackstitch={bsLines.length > 0} pal={pal} onExport={(s)=>{setPdfSettings(s);setModal(null);generatePDF({pat, pal, cmap, sW, sH, done, totalStitchable, fabricCt, skeinData, blendCount, totalSkeins, difficulty, stitchSpeed, totalTime, sessions, threadOwned, bsLines, imgData:img?img.src:null}, s);}} />}
+  {modal==="export"&&<SharedModals.Export onClose={()=>setModal(null)} exportPDF={() => setModal("pdf_export")} exportCoverSheet={exportCoverSheet} pageMode={pageMode} setPageMode={setPageMode} exportPage={exportPage} setExportPage={setExportPage} totPg={totPg} expRef={expRef} onShareLink={() => {
+    let pl = pat.map(m=>{
+        if (m.id==="__skip__") return ["__skip__", "k"];
+        return [m.id, m.type==="blend"?"b":"s"];
+    });
+    let minimal = { v: 8, w: sW, h: sH, fc: fabricCt, bs: bsLines, p: pl };
+    try {
+        let str = JSON.stringify(minimal);
+        let compressed = pako.deflate(str);
+        let binaryStr = "";
+        for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
+        let b64 = btoa(binaryStr).replace(/\+/g, '-').replace(/\//g, '_');
+        if (b64.length > 8000) {
+            alert("Pattern too large for link sharing. Please use Save Project (.json) instead.");
+            return false;
+        }
+        let url = window.location.href.replace(/index\.html.*/, "") + "stitch.html#p=" + b64;
+        navigator.clipboard.writeText(url);
+        return true;
+    } catch(e) { console.error("Compression failed", e); return false; }
+  }} />}
 </div>
 </>);
 }

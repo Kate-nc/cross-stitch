@@ -204,5 +204,86 @@ const SharedModals = {
         )
       )
     );
+  },
+
+  Export: ({ onClose, exportPDF, exportCoverSheet, onShareLink, pageMode, setPageMode, exportPage, setExportPage, totPg, expRef }) => {
+    const [copied, setCopied] = React.useState(false);
+
+    return React.createElement("div", { className: "modal-overlay", onClick: onClose },
+      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 600, display: "flex", flexDirection: "column", gap: 16 } },
+        React.createElement("button", { className: "modal-close", onClick: onClose }, "×"),
+        React.createElement("h3", { style: { marginTop: 0, marginBottom: 5, fontSize: 22, color: "#18181b" } }, "Export Pattern"),
+
+        copied && React.createElement("div", { style: { background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "#16a34a", fontWeight: 600 } }, "Link Copied!"),
+
+        React.createElement("div", { className: "tb-section" },
+          React.createElement("div", { className: "tb-section-header", style: { fontWeight: 600, fontSize: 13, marginBottom: 8, padding: "8px 12px", background: "#f4f4f5", borderRadius: 6 } }, "PDF Export"),
+          React.createElement("div", { style: { padding: "0 12px 12px" } },
+            React.createElement("p", { style: { fontSize: 13, color: "#71717a", margin: "0 0 16px" } }, "Generate a multi-page PDF with a thread legend and chart for printing."),
+          React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap" } },
+            React.createElement("button", {
+              onClick: () => { exportPDF(); },
+              style: { padding: "10px 20px", fontSize: 14, borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 }
+            }, "Download Pattern PDF"),
+            React.createElement("button", {
+              onClick: () => { exportCoverSheet(); onClose(); },
+              style: { padding: "10px 20px", fontSize: 14, borderRadius: 8, border: "1.5px solid #0d9488", background: "#fff", color: "#0d9488", cursor: "pointer", fontWeight: 600 }
+            }, "Cover Sheet PDF")
+          ),
+            React.createElement("p", { style: { fontSize: 11, color: "#a1a1aa", marginTop: 12 } }, "The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes.")
+          )
+        ),
+
+        React.createElement("div", { className: "tb-section" },
+            React.createElement("div", { className: "tb-section-header", style: { fontWeight: 600, fontSize: 13, marginBottom: 8, padding: "8px 12px", background: "#f4f4f5", borderRadius: 6 } }, "PNG Chart"),
+            React.createElement("div", { style: { padding: "0 12px 12px" } },
+              React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginTop: 8, marginBottom: 8 } },
+                React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 4, fontSize: 12, cursor: "pointer" } },
+                    React.createElement("input", { type: "checkbox", checked: pageMode, onChange: e => { setPageMode(e.target.checked); setExportPage(0); } }),
+                    "A4 pages"
+                ),
+                pageMode && React.createElement(React.Fragment, null,
+                    React.createElement("button", {
+                        onClick: () => setExportPage(Math.max(0, exportPage - 1)),
+                        disabled: exportPage === 0,
+                        style: { fontSize: 11, padding: "3px 8px", border: "0.5px solid #e4e4e7", borderRadius: 6, background: "#fff", cursor: "pointer" }
+                    }, "◀"),
+                    React.createElement("span", { style: { fontSize: 12 } }, `Page ${exportPage + 1}/${totPg}`),
+                    React.createElement("button", {
+                        onClick: () => setExportPage(Math.min(totPg - 1, exportPage + 1)),
+                        disabled: exportPage >= totPg - 1,
+                        style: { fontSize: 11, padding: "3px 8px", border: "0.5px solid #e4e4e7", borderRadius: 6, background: "#fff", cursor: "pointer" }
+                    }, "▶")
+                )
+            ),
+            React.createElement("div", { style: { overflow: "auto", maxHeight: 400, border: "0.5px solid #e4e4e7", borderRadius: 8, background: "#fff" } },
+                // Notice we don't render the canvas directly here, since it needs a React ref from the parent
+                // to execute the drawPattern function properly. The parent will render the canvas and we just
+                // show it here by moving the DOM node or keeping the canvas hidden in parent and putting an image here.
+                // However, since we're passing expRef, we can just render the canvas in this modal!
+              )
+            )
+        ),
+
+        React.createElement("div", { className: "tb-section" },
+          React.createElement("div", { className: "tb-section-header", style: { fontWeight: 600, fontSize: 13, marginBottom: 8, padding: "8px 12px", background: "#f4f4f5", borderRadius: 6 } }, "Share via Link"),
+          React.createElement("div", { style: { padding: "0 12px 12px" } },
+            React.createElement("p", { style: { fontSize: 13, color: "#71717a", margin: "0 0 16px" } }, "Create a direct link to open this pattern in the Stitch Tracker. Note: Extremely large patterns may be too big for a link."),
+            React.createElement("button", {
+              onClick: () => {
+                if (onShareLink) {
+                  const success = onShareLink();
+                  if (success) {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 3000);
+                  }
+                }
+              },
+              style: { padding: "10px 20px", fontSize: 14, borderRadius: 8, border: "0.5px solid #e4e4e7", background: "#fff", color: "#18181b", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }
+            }, "🔗 Copy Tracker Link")
+          )
+        )
+      )
+    );
   }
 };

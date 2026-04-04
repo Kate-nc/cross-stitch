@@ -23,6 +23,10 @@ const[sessionElapsed,setSessionElapsed]=useState(0),[sessions,setSessions]=useSt
 
 const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
 useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
+const[exportPage,setExportPage]=useState(0),[pageMode,setPageMode]=useState(false);
+const expRef=useRef(null);
+const pxX=Math.ceil(sW/window.A4W),pxY=Math.ceil(sH/window.A4H),totPg=pxX*pxY;
+
 const[isEditMode,setIsEditMode]=useState(false);
 const[originalPaletteState,setOriginalPaletteState]=useState(null);
 // V2: single-level undo snapshot (replaces editHistory array)
@@ -352,6 +356,96 @@ function applyUndo() {
     const curB = pal.find(p => p.id === snap.entryB.id);
     if (curA && curB) _applySwap(curA, curB);
   }
+}
+
+function generatePatternThumbnail(pat, sW, sH) {
+  let c = document.createElement("canvas");
+  c.width = sW;
+  c.height = sH;
+  let ctx = c.getContext("2d");
+  let imgData = ctx.createImageData(sW, sH);
+  let d = imgData.data;
+  for (let i = 0; i < pat.length; i++) {
+    let m = pat[i];
+    let idx = i * 4;
+    if (!m || m.id === "__skip__" || m.id === "__empty__") {
+      d[idx] = 255; d[idx+1] = 255; d[idx+2] = 255; d[idx+3] = 255;
+    } else {
+      d[idx] = m.rgb[0]; d[idx+1] = m.rgb[1]; d[idx+2] = m.rgb[2]; d[idx+3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+  return c.toDataURL("image/jpeg", 0.85);
+}
+
+function exportCoverSheet(){
+  if(!pat||!pal||!cmap)return;
+  const{jsPDF}=window.jspdf;const pdf=new jsPDF("portrait","mm","a4");const mg=15;
+  let y=mg;
+  // Title
+  pdf.setFontSize(26);pdf.setTextColor(30,30,30);pdf.text("Cross Stitch Project",mg,y+10);y+=18;
+  pdf.setDrawColor(91,123,179);pdf.setLineWidth(0.8);pdf.line(mg,y,195,y);y+=10;
+
+  let thumbData = generatePatternThumbnail(pat, sW, sH);
+  let thumbW = 60;
+  let thumbH = (sH / sW) * thumbW;
+  if (thumbH > 80) {
+    thumbH = 80;
+    thumbW = (sW / sH) * thumbH;
+  }
+  let thumbX = (210 - thumbW) / 2;
+  pdf.addImage(thumbData, 'JPEG', thumbX, y, thumbW, thumbH);
+  y += thumbH + 10;
+
+  // Pattern info
+  pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("PATTERN SUMMARY",mg,y);y+=7;
+  pdf.setFontSize(10);pdf.setTextColor(40);
+  let div2=fabricCt===28?14:fabricCt;let wIn2=sW/div2,hIn2=sH/div2;
+  let infoLines=[
+    ["Pattern size",`${sW} × ${sH} stitches`],
+    ["Stitchable stitches",totalStitchable.toLocaleString()],
+    ["Colours",`${pal.length} (${blendCount} blend${blendCount!==1?"s":""})`],
+    ["Skeins needed",`${totalSkeins}`],
+    ["Fabric",`${fabricCt} count`],
+    ["Finished size",`${wIn2.toFixed(1)}″ × ${hIn2.toFixed(1)}″ (${(wIn2*2.54).toFixed(1)} × ${(hIn2*2.54).toFixed(1)} cm)`],
+    ["With 1″ margin",`${(wIn2+2).toFixed(0)}″ × ${(hIn2+2).toFixed(0)}″`],
+    ["Est. time",fmtTimeL(Math.round(totalStitchable/stitchSpeed*3600))+` (at ${stitchSpeed} st/hr)`],
+    ["Difficulty",difficulty?difficulty.label:"—"],
+    ["Est. thread cost",`£${(totalSkeins*skeinPrice).toFixed(2)} (at £${skeinPrice.toFixed(2)}/skein)`],
+  ];
+  infoLines.forEach(([l,v])=>{pdf.setTextColor(120);pdf.text(l+":",mg,y);pdf.setTextColor(40);pdf.text(v,mg+50,y);y+=5.5;});
+  y+=6;
+
+  // Progress if any
+  if(done&&totalStitchable>0){
+    let localDoneCount=0;for(let i=0;i<done.length;i++)if(done[i])localDoneCount++;
+    if(localDoneCount>0){
+      let localProgressPct=Math.round(localDoneCount/totalStitchable*1000)/10;
+      pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("PROGRESS",mg,y);y+=7;pdf.setFontSize(10);pdf.setTextColor(40);pdf.text(`${localProgressPct}% complete — ${localDoneCount.toLocaleString()} of ${totalStitchable.toLocaleString()} stitches`,mg,y);y+=8;if(totalTime>0){pdf.text(`Time stitched: ${fmtTimeL(totalTime)} (${sessions.length} session${sessions.length!==1?"s":""})`,mg,y);y+=5.5;let actualSpeed=Math.round(localDoneCount/(totalTime/3600));pdf.text(`Actual speed: ${actualSpeed} stitches/hr`,mg,y);y+=5.5;}y+=4;
+    }
+  }
+
+  // Thread list
+  pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("THREAD LIST",mg,y);y+=7;
+  pdf.setFontSize(8);pdf.setTextColor(80);pdf.text("DMC",mg,y);pdf.text("Name",mg+20,y);pdf.text("Skeins",mg+100,y);pdf.text("Status",mg+120,y);y+=2;
+  pdf.setDrawColor(200);pdf.line(mg,y,180,y);y+=4;
+  pdf.setFontSize(9);
+  skeinData.forEach(d=>{
+    if(y>275){pdf.addPage();y=mg+8;}
+    pdf.setFillColor(d.rgb[0],d.rgb[1],d.rgb[2]);pdf.circle(mg+3,y-1.2,1.8,"F");
+    pdf.setTextColor(40);pdf.text(d.id,mg+8,y);pdf.text(d.name,mg+20,y);pdf.text(String(d.skeins),mg+104,y);
+    let st=threadOwned[d.id]||"";
+    if(st==="owned"){pdf.setTextColor(22,163,74);pdf.text("Owned",mg+120,y);}
+    else{pdf.setTextColor(234,88,12);pdf.text("To buy",mg+120,y);}
+    pdf.setTextColor(40);
+    y+=5;
+  });
+  y+=6;
+
+  // Notes section
+  if(y<240){pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("NOTES",mg,y);y+=4;pdf.setDrawColor(220);for(let nl=0;nl<8;nl++){y+=7;pdf.line(mg,y,180,y);}}
+
+  pdf.save("cross-stitch-cover-sheet.pdf");
 }
 
 function handleRevertToOriginal(){
@@ -960,6 +1054,9 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
 },[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom]);
 useEffect(()=>renderStitch(),[renderStitch]);
 
+const renderExport=useCallback(()=>{if(modal!=="export"||!expRef.current||!pat||!cmap)return;let pxX=Math.ceil(sW/window.A4W),pxY=Math.ceil(sH/window.A4H),epC=exportPage%pxX,epR=Math.floor(exportPage/pxX),eX0=epC*window.A4W,eY0=epR*window.A4H,eW=Math.min(window.A4W,sW-eX0),eH=Math.min(window.A4H,sH-eY0),dW2=pageMode?eW:sW,dH2=pageMode?eH:sH,oX2=pageMode?eX0:0,oY2=pageMode?eY0:0,expCs=Math.max(8,Math.min(20,Math.floor(750/Math.max(dW2,dH2))));expRef.current.width=dW2*expCs+window.G+2;expRef.current.height=dH2*expCs+window.G+2;let ctx=expRef.current.getContext("2d");ctx.save();ctx.translate(-oX2*expCs,-oY2*expCs);drawStitch(ctx,expCs,null);ctx.restore();},[modal,pat,cmap,sW,sH,pageMode,exportPage,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone]);
+useEffect(()=>renderExport(),[renderExport]);
+
 const updateHoverOverlay = (gc) => {
   if (gc && gc.gx >= 0 && gc.gx < sW && gc.gy >= 0 && gc.gy < sH) {
     if (hoverRefs.current.row) {
@@ -1513,7 +1610,7 @@ useEffect(()=>{
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat ? () => setModal("pdf_export") : null} setModal={setModal} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} setModal={setModal} />
 {pat&&pal&&<>
 {/* ═══ TRACKER TOOL STRIP ═══ */}
 <div className="tb-strip"><div ref={tStripRef} className="tb-strip-inner">
@@ -1972,6 +2069,27 @@ return(
   {modal==="calculator"&&<SharedModals.Calculator onClose={()=>setModal(null)} />}
   {modal==="calculator_batch"&&<SharedModals.Calculator onClose={()=>setModal(null)} initialPatterns={pal} />}
   {modal==="pdf_export"&&<SharedModals.PdfExport onClose={()=>setModal(null)} initialSettings={pdfSettings} sW={sW} sH={sH} hasTrackingData={doneCount > 0} hasBackstitch={bsLines.length > 0} pal={pal} onExport={(s)=>{setPdfSettings(s);setModal(null);generatePDF({pat, pal, cmap, sW, sH, done, totalStitchable, fabricCt, skeinData, blendCount, totalSkeins, difficulty:null, stitchSpeed, totalTime, sessions, threadOwned, bsLines, imgData:null}, s);}} />}
+  {modal==="export"&&<SharedModals.Export onClose={()=>setModal(null)} exportPDF={() => setModal("pdf_export")} exportCoverSheet={exportCoverSheet} pageMode={pageMode} setPageMode={setPageMode} exportPage={exportPage} setExportPage={setExportPage} totPg={totPg} expRef={expRef} onShareLink={() => {
+    let pl = pat.map(m=>{
+        if (m.id==="__skip__") return ["__skip__", "k"];
+        return [m.id, m.type==="blend"?"b":"s"];
+    });
+    let minimal = { v: 8, w: sW, h: sH, fc: fabricCt, bs: bsLines, p: pl };
+    try {
+        let str = JSON.stringify(minimal);
+        let compressed = pako.deflate(str);
+        let binaryStr = "";
+        for (let i=0; i<compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
+        let b64 = btoa(binaryStr).replace(/\+/g, '-').replace(/\//g, '_');
+        if (b64.length > 8000) {
+            alert("Pattern too large for link sharing. Please use Save Project (.json) instead.");
+            return false;
+        }
+        let url = window.location.href.split('#')[0] + "#p=" + b64;
+        navigator.clipboard.writeText(url);
+        return true;
+    } catch(e) { console.error("Compression failed", e); return false; }
+  }} />}
 
   {cellEditPopover && isEditMode && (()=>{
     const cell = pat[cellEditPopover.idx];
