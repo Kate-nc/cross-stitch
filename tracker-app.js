@@ -1,8 +1,9 @@
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
 
-function TrackerApp({onSwitchToDesign=null}={}){
+function TrackerApp({onSwitchToDesign=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80),[sH,setSH]=useState(80);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null);
+const incomingProjectRef=useRef(incomingProject);
 const[fabricCt,setFabricCt]=useState(14);
 const[skeinPrice,setSkeinPrice]=useState(DEFAULT_SKEIN_PRICE);
 const[stitchSpeed,setStitchSpeed]=useState(40);
@@ -432,7 +433,7 @@ function handleEditInCreator(){
       saveProjectToDB(project).catch(()=>{});
       ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(()=>{});
     }
-    setTimeout(onSwitchToDesign,30);
+    onSwitchToDesign();
     return;
   }
   let project={version:8,page:"tracker",settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice:1.2,stitchSpeed:40,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:Array.from(done),parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:null};
@@ -679,7 +680,19 @@ function loadProject(e){
   if(loadRef.current)loadRef.current.value="";
 }
 
+// When incomingProject prop changes (keepAlive: Creator passed a new project), reload.
+useEffect(()=>{
+  if(!incomingProject||incomingProject===incomingProjectRef.current)return;
+  incomingProjectRef.current=incomingProject;
+  processLoadedProject(incomingProject.project);
+},[incomingProject]);
+
 useEffect(() => {
+  // If a project was passed directly on first mount, use it (no DB read needed).
+  if(incomingProjectRef.current){
+    processLoadedProject(incomingProjectRef.current.project);
+    return;
+  }
   const handoff = localStorage.getItem('crossstitch_handoff');
   if (handoff) {
     try {
@@ -1466,10 +1479,11 @@ useEffect(()=>{
   function handleKeyUp(e){
     if(e.code==="Space")isSpaceDownRef.current=false;
   }
+  if(!isActive)return;
   window.addEventListener("keydown",handleKeyDown);
   window.addEventListener("keyup",handleKeyUp);
   return()=>{window.removeEventListener("keydown",handleKeyDown);window.removeEventListener("keyup",handleKeyUp);};
-},[stitchView,isEditMode,focusableColors]);
+},[stitchView,isEditMode,focusableColors,isActive]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
