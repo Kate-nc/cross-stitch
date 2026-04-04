@@ -746,10 +746,16 @@ useEffect(() => {
     halfStitches, halfDone, singleStitchEdits, sessionActive, sessionStart,
     sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState]);
 
-// Save the freshest snapshot before the page unloads (fire-and-forget).
+// Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 useEffect(() => {
   const handleBeforeUnload = () => {
-    if (lastSnapshotRef.current) saveProjectToDB(lastSnapshotRef.current);
+    const project = lastSnapshotRef.current;
+    if (!project) return;
+    ProjectStorage.save(project)
+      .then(id => ProjectStorage.setActiveProject(id))
+      .catch(err => console.error("Tracker unload auto-save failed:", err));
+    saveProjectToDB(project)
+      .catch(err => console.error("Tracker DB unload auto-save failed:", err));
   };
   window.addEventListener("beforeunload", handleBeforeUnload);
   return () => window.removeEventListener("beforeunload", handleBeforeUnload);
