@@ -1038,6 +1038,15 @@ return(
   onTrack={pat&&pal?handleOpenInTracker:null}
   onExportPDF={pat?exportPDF:null}
   setModal={setModal} />
+{pat&&pal&&<ContextBar
+  name={sW + '×' + sH + ' pattern'}
+  dimensions={{width:sW,height:sH}}
+  palette={pal}
+  pct={null}
+  page="creator"
+  onTrack={handleOpenInTracker}
+  onSave={saveProject}
+/>}
 
 {/* ═══ TOOL STRIP ═══ */}
 {pat&&pal&&tab==="pattern"&&<div className="tb-strip"><div ref={stripRef} className="tb-strip-inner">
@@ -1114,7 +1123,7 @@ return(
   </div>
 </div></div>}
 
-<div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
+<div className="cs-page-content" style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
 
   {!img&&!pat&&<div style={{maxWidth:700, margin:"40px auto", textAlign:"center"}}>

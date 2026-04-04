@@ -1514,6 +1514,15 @@ return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
 <Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat ? () => setModal("pdf_export") : null} setModal={setModal} />
+{pat&&pal&&<ContextBar
+  name={pat ? (sW + '×' + sH + ' pattern') : null}
+  dimensions={pat ? {width:sW, height:sH} : null}
+  palette={pal}
+  pct={totalStitchable>0 ? Math.round(doneCount/totalStitchable*100) : 0}
+  page="tracker"
+  onEdit={handleEditInCreator}
+  onSave={saveProject}
+/>}
 {pat&&pal&&<>
 {/* ═══ TRACKER TOOL STRIP ═══ */}
 <div className="tb-strip"><div ref={tStripRef} className="tb-strip-inner">
@@ -1626,7 +1635,7 @@ return(
   <span className="tb-progress-rem">{progressPct>=100?"Complete!":Math.ceil(combinedTotal-combinedDone).toLocaleString()+" remaining"}</span>
 </div></div>}
 </>}
-<div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
+<div className="cs-page-content" style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
   {importSuccess && (
     <div style={{

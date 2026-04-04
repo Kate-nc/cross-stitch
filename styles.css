@@ -216,3 +216,34 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tb-status{padding:4px 16px;font-size:11px;color:var(--text-secondary);background:var(--surface-secondary);border-top:0.5px solid var(--border);}
 /* Collapse hidden groups */
 .tb-hidden{display:none!important;}
+
+/* ═══ STAGE 3: UNIFIED NAVIGATION ═══ */
+/* App-section tabs (Create / Track / Stash) */
+.tb-app-nav{display:flex;align-items:center;gap:2px;margin-left:4px;flex-shrink:0;}
+.tb-app-tab{font-size:12px;font-weight:500;color:var(--text-secondary);text-decoration:none;padding:4px 10px;border-radius:var(--radius-md);border:none;background:transparent;cursor:pointer;white-space:nowrap;font-family:inherit;transition:background 0.12s,color 0.12s;}
+.tb-app-tab:hover{background:var(--surface-tertiary);color:var(--text-primary);filter:none;}
+.tb-app-tab--active{background:#f0fdf4;color:#1D9E75;font-weight:700;}
+
+/* Active project badge */
+.tb-proj-badge{display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;background:#f0fdf4;border:1px solid #bbf7d0;flex-shrink:1;min-width:0;max-width:260px;overflow:hidden;}
+.tb-proj-badge-name{font-size:11px;font-weight:600;color:#15803d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.tb-proj-badge-pct{font-size:10px;font-weight:500;color:#16a34a;flex-shrink:0;background:#dcfce7;padding:1px 5px;border-radius:8px;white-space:nowrap;}
+
+/* Active project context bar (below the topbar) */
+.tb-context-bar{background:#fafafa;border-bottom:0.5px solid var(--border);padding:0 20px;height:36px;display:flex;align-items:center;gap:12px;}
+.tb-context-bar-inner{max-width:1300px;margin:0 auto;width:100%;display:flex;align-items:center;gap:10px;}
+.tb-context-name{font-size:12px;font-weight:600;color:#18181b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;}
+.tb-context-meta{font-size:11px;color:var(--text-secondary);white-space:nowrap;flex-shrink:0;}
+.tb-context-pct{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;}
+.tb-context-pct-bar{width:60px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+.tb-context-pct-fill{height:100%;background:#1D9E75;border-radius:2px;transition:width 0.3s ease;}
+.tb-context-pct-lbl{font-size:11px;color:#15803d;font-weight:600;white-space:nowrap;}
+.tb-context-actions{display:flex;gap:4px;flex-shrink:0;margin-left:auto;}
+.tb-context-btn{padding:3px 9px;font-size:11px;font-weight:500;border-radius:5px;border:0.5px solid var(--border);background:var(--surface);color:var(--text-secondary);cursor:pointer;white-space:nowrap;font-family:inherit;}
+.tb-context-btn:hover{background:var(--surface-tertiary);filter:none;}
+.tb-context-btn--primary{background:#1D9E75;color:#fff;border-color:#1D9E75;}
+.tb-context-btn--primary:hover{background:#178a64;filter:none;}
+
+/* Page fade-in */
+@keyframes cs-fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+.cs-page-content{animation:cs-fadein 0.18s ease-out both;}

@@ -1,4 +1,42 @@
-function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onNewProject, onExportPDF, setModal }) {
+// Context bar shown below the header when a project is loaded.
+// Props:
+//   name        – project name string
+//   dimensions  – { width, height } or null
+//   palette     – palette array (for colour count) or null
+//   pct         – 0-100 completion percentage or null
+//   page        – 'creator' | 'tracker'
+//   onEdit      – callback to navigate to creator (tracker page only)
+//   onTrack     – callback to navigate to tracker (creator page only)
+//   onSave      – callback to download JSON
+function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onSave }) {
+  if (!name) return null;
+  const dimStr = dimensions ? `${dimensions.width}×${dimensions.height}` : null;
+  const colStr = palette ? `${palette.length} colour${palette.length !== 1 ? 's' : ''}` : null;
+  const meta = [dimStr, colStr].filter(Boolean).join(' · ');
+
+  return React.createElement('div', { className: 'tb-context-bar' },
+    React.createElement('div', { className: 'tb-context-bar-inner' },
+      React.createElement('span', { className: 'tb-context-name' }, name),
+      meta && React.createElement('span', { className: 'tb-context-meta' }, meta),
+      pct !== null && React.createElement('span', { className: 'tb-context-pct' },
+        React.createElement('span', { className: 'tb-context-pct-bar' },
+          React.createElement('span', { className: 'tb-context-pct-fill', style: { width: pct + '%' } })
+        ),
+        React.createElement('span', { className: 'tb-context-pct-lbl' }, pct + '%')
+      ),
+      React.createElement('div', { className: 'tb-context-actions' },
+        page === 'tracker' && onEdit &&
+          React.createElement('button', { className: 'tb-context-btn', onClick: onEdit }, '✏ Edit Pattern'),
+        page === 'creator' && onTrack &&
+          React.createElement('button', { className: 'tb-context-btn tb-context-btn--primary', onClick: onTrack }, 'Track ›'),
+        onSave &&
+          React.createElement('button', { className: 'tb-context-btn', onClick: onSave }, 'Save')
+      )
+    )
+  );
+}
+
+function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, setModal, activeProject }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
   React.useEffect(() => {
@@ -8,52 +46,114 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onNewProject
     return () => document.removeEventListener('mousedown', close);
   }, [pageDrop]);
 
-  const pages = [['pattern','Pattern'],['project','Project'],['legend','Threads'],['export','Export']];
-  const activeLabel = pages.find(p => p[0] === tab)?.[1] || 'Pattern';
+  const creatorPages = [['pattern','Pattern'],['project','Project'],['legend','Threads'],['export','Export']];
+  const activeLabel = creatorPages.find(p => p[0] === tab)?.[1] || 'Pattern';
 
-  return React.createElement('header', { className: 'tb-topbar' },
-    React.createElement('div', { className: 'tb-topbar-inner' },
-      React.createElement('span', {
-        className: 'tb-logo',
-        onClick: () => { if (page==='creator') window.scrollTo(0,0); else window.location.href='index.html'; }
-      }, '×∕× Cross Stitch'),
+  // App-section nav tabs
+  const appSections = [
+    { id: 'creator', label: 'Create', href: 'index.html' },
+    { id: 'tracker', label: 'Track',  href: 'stitch.html' },
+    { id: 'manager', label: 'Stash',  href: 'manager.html' },
+  ];
 
-      page === 'creator' && React.createElement('div', { ref: dropRef, style: { position:'relative', flexShrink:0 } },
-        React.createElement('button', { className: 'tb-page-btn', onClick: () => setPageDrop(o => !o) },
-          activeLabel,
-          React.createElement('span', { style: { fontSize:9, opacity:0.6, marginLeft:1 } }, '▾')
-        ),
-        pageDrop && React.createElement('div', { className: 'tb-page-dropdown' },
-          pages.map(([id, label]) =>
-            React.createElement('button', {
+  // Active project summary for the badge (consumed from prop or read from ProjectStorage if available)
+  const [projSummary, setProjSummary] = React.useState(null);
+  React.useEffect(() => {
+    // Prefer the passed-in activeProject prop; fall back to ProjectStorage if available
+    if (activeProject) {
+      setProjSummary(activeProject);
+      return;
+    }
+    if (typeof ProjectStorage !== 'undefined') {
+      ProjectStorage.getActiveProject().then(p => {
+        if (p) setProjSummary(p);
+      }).catch(() => {});
+    }
+  }, [activeProject]);
+
+  const pct = projSummary && projSummary.settings
+    ? (() => {
+        const total = projSummary.pattern
+          ? projSummary.pattern.filter(c => c && c.id !== '__skip__' && c.id !== '__empty__').length
+          : 0;
+        const done = projSummary.done
+          ? projSummary.done.reduce((n, v) => n + (v === 1 ? 1 : 0), 0)
+          : 0;
+        return total > 0 ? Math.round(done / total * 100) : 0;
+      })()
+    : null;
+
+  const projName = projSummary
+    ? (projSummary.name || (projSummary.settings
+        ? `${projSummary.settings.sW}×${projSummary.settings.sH}`
+        : 'Project'))
+    : null;
+
+  return React.createElement(React.Fragment, null,
+    React.createElement('header', { className: 'tb-topbar' },
+      React.createElement('div', { className: 'tb-topbar-inner' },
+        // Logo
+        React.createElement('span', {
+          className: 'tb-logo',
+          onClick: () => { if (page === 'creator') window.scrollTo(0, 0); else window.location.href = 'index.html'; }
+        }, '×∕× Cross Stitch'),
+
+        // App-section navigation tabs
+        React.createElement('nav', { className: 'tb-app-nav' },
+          appSections.map(({ id, label, href }) =>
+            React.createElement('a', {
               key: id,
-              className: 'tb-page-dropdown-item' + (tab === id ? ' tb-page-dropdown-item--on' : ''),
-              onClick: () => { onPageChange(id); setPageDrop(false); }
+              href,
+              className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
             }, label)
           )
-        )
-      ),
+        ),
 
-      React.createElement('div', { className: 'tb-hgap' }),
+        // Creator sub-page dropdown (only on creator)
+        page === 'creator' && React.createElement('div', { ref: dropRef, style: { position: 'relative', flexShrink: 0, marginLeft: 6 } },
+          React.createElement('button', { className: 'tb-page-btn', onClick: () => setPageDrop(o => !o) },
+            activeLabel,
+            React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 1 } }, '▾')
+          ),
+          pageDrop && React.createElement('div', { className: 'tb-page-dropdown' },
+            creatorPages.map(([id, label]) =>
+              React.createElement('button', {
+                key: id,
+                className: 'tb-page-dropdown-item' + (tab === id ? ' tb-page-dropdown-item--on' : ''),
+                onClick: () => { onPageChange(id); setPageDrop(false); }
+              }, label)
+            )
+          )
+        ),
 
-      React.createElement('a', { className: 'tb-nav-link', href: 'manager.html' }, 'Stash'),
-      React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('calculator') }, 'Calculator'),
-      React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('help') }, 'Help'),
+        React.createElement('div', { className: 'tb-hgap' }),
 
-      React.createElement('div', { className: 'tb-sep' }),
+        // Active project badge
+        projName && React.createElement('div', { className: 'tb-proj-badge' },
+          React.createElement('span', { className: 'tb-proj-badge-name' }, projName),
+          pct !== null && React.createElement('span', { className: 'tb-proj-badge-pct' }, pct + '%')
+        ),
 
-      onOpen &&
-        React.createElement('button', { className: 'tb-action-btn', onClick: onOpen }, 'Open'),
-      onSave &&
-        React.createElement('button', { className: 'tb-action-btn tb-action-btn--green', onClick: onSave }, 'Save'),
-      page === 'creator' && onTrack &&
-        React.createElement('button', {
-          className: 'tb-action-btn',
-          onClick: onTrack,
-          style: { background:'#ea580c', color:'#fff', borderColor:'#ea580c' }
-        }, 'Track'),
-      onExportPDF &&
-        React.createElement('button', { className: 'tb-action-btn tb-action-btn--orange', onClick: onExportPDF }, 'Export PDF')
+        React.createElement('div', { className: 'tb-sep' }),
+
+        React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('calculator') }, 'Calculator'),
+        React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('help') }, 'Help'),
+
+        React.createElement('div', { className: 'tb-sep' }),
+
+        onOpen &&
+          React.createElement('button', { className: 'tb-action-btn', onClick: onOpen }, 'Open'),
+        onSave &&
+          React.createElement('button', { className: 'tb-action-btn tb-action-btn--green', onClick: onSave }, 'Save'),
+        page === 'creator' && onTrack &&
+          React.createElement('button', {
+            className: 'tb-action-btn',
+            onClick: onTrack,
+            style: { background: '#ea580c', color: '#fff', borderColor: '#ea580c' }
+          }, 'Track ›'),
+        onExportPDF &&
+          React.createElement('button', { className: 'tb-action-btn tb-action-btn--orange', onClick: onExportPDF }, 'Export PDF')
+      )
     )
   );
 }
