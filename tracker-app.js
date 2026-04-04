@@ -101,8 +101,10 @@ const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunl
 const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
 const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});
+const[halfMenuOpen,setHalfMenuOpen]=useState(false);
 const tStripRef=useRef(null);
 const tOverflowRef=useRef(null);
+const halfMenuRef=useRef(null);
 
 useEffect(()=>{
   if(sessionActive){
@@ -1499,6 +1501,13 @@ useEffect(()=>{
   document.addEventListener('mousedown',close);
   return()=>document.removeEventListener('mousedown',close);
 },[tOverflowOpen]);
+// Half-stitch menu close on outside click
+useEffect(()=>{
+  if(!halfMenuOpen)return;
+  function close(e){if(halfMenuRef.current&&!halfMenuRef.current.contains(e.target))setHalfMenuOpen(false);}
+  document.addEventListener('mousedown',close);
+  return()=>document.removeEventListener('mousedown',close);
+},[halfMenuOpen]);
 // ResizeObserver — collapse stitch/view groups when toolbar is narrow
 useEffect(()=>{
   if(!tStripRef.current)return;
@@ -1531,21 +1540,26 @@ return(
     <button className="tb-mode-btn tb-mode-btn--track">Track</button>
   </div>
   <div className="tb-sdiv"/>
-  <button className={"tb-btn"+(sessionActive?" tb-btn--red":" tb-btn--green")} onClick={toggleSession}>{sessionActive?"⏹ Stop":"▶ Start"}</button>
-  <div className="tb-sdiv"/>
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
     <button className={"tb-btn"+(stitchMode==="track"&&!halfStitchTool?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);}} title="Mark full cross stitches as done">
       <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Cross
     </button>
-    <button className={"tb-btn"+(halfStitchTool==="fwd"?" tb-btn--blue":"")} onClick={()=>{if(halfStitchTool==="fwd"){setHalfStitchTool(null);setStitchMode("track");}else{setHalfStitchTool("fwd");setStitchMode("track");if(!halfOnboardingDone&&!showHalfOnboarding){setShowHalfOnboarding(true);setHalfOnboardingStep(0);}}}} title="Place / half stitch">
-      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/></svg>Half /
-    </button>
-    <button className={"tb-btn"+(halfStitchTool==="bck"?" tb-btn--blue":"")} onClick={()=>{if(halfStitchTool==="bck"){setHalfStitchTool(null);setStitchMode("track");}else{setHalfStitchTool("bck");setStitchMode("track");if(!halfOnboardingDone&&!showHalfOnboarding){setShowHalfOnboarding(true);setHalfOnboardingStep(0);}}}} title="Place \\ half stitch">
-      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Half \
-    </button>
-    <button className={"tb-btn"+(halfStitchTool==="erase"?" tb-btn--red":"")} onClick={()=>{if(halfStitchTool==="erase"){setHalfStitchTool(null);setStitchMode("track");}else{setHalfStitchTool("erase");setStitchMode("track");}}} title="Erase half stitches">
-      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg>Erase
-    </button>
+    <div ref={halfMenuRef} style={{position:"relative",display:"inline-flex"}}>
+      <button className={"tb-btn"+((halfStitchTool==="fwd"||halfStitchTool==="bck"||halfStitchTool==="erase")?" tb-btn--blue":"")} onClick={()=>setHalfMenuOpen(o=>!o)} title="Half stitch tools">
+        <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/></svg>Half{halfStitchTool&&halfStitchTool!=="erase"?(halfStitchTool==="fwd"?" /":"\\"):" ▾"}
+      </button>
+      {halfMenuOpen&&<div className="tb-page-dropdown" style={{top:"calc(100% + 4px)",left:0,minWidth:130,zIndex:202}}>
+        <button className={"tb-page-dropdown-item"+(halfStitchTool==="fwd"?" tb-page-dropdown-item--on":"")} onClick={()=>{if(halfStitchTool==="fwd"){setHalfStitchTool(null);setStitchMode("track");}else{setHalfStitchTool("fwd");setStitchMode("track");if(!halfOnboardingDone&&!showHalfOnboarding){setShowHalfOnboarding(true);setHalfOnboardingStep(0);}}setHalfMenuOpen(false);}}>
+          <svg width="10" height="10" viewBox="0 0 12 12" style={{marginRight:4,verticalAlign:"middle"}}><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/></svg>Half /
+        </button>
+        <button className={"tb-page-dropdown-item"+(halfStitchTool==="bck"?" tb-page-dropdown-item--on":"")} onClick={()=>{if(halfStitchTool==="bck"){setHalfStitchTool(null);setStitchMode("track");}else{setHalfStitchTool("bck");setStitchMode("track");if(!halfOnboardingDone&&!showHalfOnboarding){setShowHalfOnboarding(true);setHalfOnboardingStep(0);}}setHalfMenuOpen(false);}}>
+          <svg width="10" height="10" viewBox="0 0 12 12" style={{marginRight:4,verticalAlign:"middle"}}><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Half \
+        </button>
+        <button className={"tb-page-dropdown-item"+(halfStitchTool==="erase"?" tb-page-dropdown-item--on":"")} onClick={()=>{if(halfStitchTool==="erase"){setHalfStitchTool(null);setStitchMode("track");}else{setHalfStitchTool("erase");setStitchMode("track");}setHalfMenuOpen(false);}}>
+          <svg width="10" height="10" viewBox="0 0 12 12" style={{marginRight:4,verticalAlign:"middle"}}><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg>Erase half
+        </button>
+      </div>}
+    </div>
     <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");setHalfStitchTool(null);}} title="Place guide crosshair or park marker">Nav</button>
   </div>
   {(halfStitchTool==="fwd"||halfStitchTool==="bck")&&selectedColorId&&cmap&&cmap[selectedColorId]&&
@@ -1579,6 +1593,10 @@ return(
     <span className="tb-zoom-pct">{Math.round(stitchZoom*100)}%</span>
     <button className="tb-fit-btn" onClick={fitSZ}>Fit</button>
   </div>
+  <div className="tb-sdiv"/>
+  <button className={"tb-btn"+(sessionActive?" tb-btn--red":" tb-btn--green")} onClick={toggleSession} title={sessionActive?"Stop session timer":"Start session timer"} style={{flexShrink:0}}>
+    {sessionActive?<>⏹ {fmtTime(sessionElapsed)}</>:"▶ Start"}
+  </button>
   <div className="tb-sdiv"/>
   <div className="tb-overflow-wrap" ref={tOverflowRef}>
     <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
