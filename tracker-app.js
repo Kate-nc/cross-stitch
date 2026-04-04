@@ -96,6 +96,8 @@ const [importArLock, setImportArLock] = useState(true);
 const prevDoneCount=useRef(0);
 const modeToggleRef=useRef(0);
 const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
+const projectIdRef=useRef(null);    // current project's storage ID
+const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunload
 const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
 const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});
@@ -581,6 +583,7 @@ function processLoadedProject(project){
   setSessions(project.sessions||[]);
   if(project.hlRow>=0)setHlRow(project.hlRow);
   if(project.hlCol>=0)setHlCol(project.hlCol);
+  projectIdRef.current = project.id || null;
 
   setTimeout(()=>{
     let z=Math.min(3,Math.max(0.05,750/((project.w||s.sW||80)*20)));
@@ -671,6 +674,10 @@ useEffect(() => {
     try {
       const projectData = JSON.parse(handoff);
       localStorage.removeItem('crossstitch_handoff');
+      // Persist the incoming project so it survives beyond this one-shot key
+      if (projectData.id) {
+        ProjectStorage.save(projectData).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("ProjectStorage save failed:", err));
+      }
       processLoadedProject(projectData);
       return;
     } catch (e) {
@@ -693,12 +700,60 @@ useEffect(() => {
             const project = JSON.parse(decompressed);
             processLoadedProject(project);
             window.location.hash = ''; // Clear hash after loading
+            return;
         } catch (err) {
             console.error("Failed to load from URL:", err);
             setLoadError("Failed to load pattern from link.");
         }
     }
+  // No handoff and no URL — restore last active project from ProjectStorage
+  ProjectStorage.getActiveProject().then(project => {
+    if (project && project.pattern && project.settings) {
+      processLoadedProject(project);
+    }
+  }).catch(err => console.error("Failed to load active project:", err));
 }, []);
+
+// ═══ Tracker auto-save ═══
+// Builds a fresh snapshot on every relevant state change (synchronous, no delay).
+// The actual DB write is debounced 5 seconds to avoid hammering storage.
+// lastSnapshotRef is always up-to-date, so beforeunload can use it safely.
+useEffect(() => {
+  if (!pat || !pal) return;
+  if (!projectIdRef.current) projectIdRef.current = "proj_" + Date.now();
+  const sseArr = [...singleStitchEdits.entries()];
+  const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
+    fwd: hs.fwd ? { id: hs.fwd.id, rgb: hs.fwd.rgb } : undefined,
+    bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb } : undefined
+  }]);
+  const hdArr = [...halfDone.entries()];
+  const project = {
+    version: 9, id: projectIdRef.current, page: "tracker",
+    settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
+    pattern: pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb }),
+    bsLines, done: done ? Array.from(done) : null, parkMarkers,
+    totalTime: totalTime + (sessionActive ? Math.floor((Date.now() - sessionStart) / 1000) : 0),
+    sessions, hlRow, hlCol, threadOwned, originalPaletteState,
+    singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr
+  };
+  lastSnapshotRef.current = project;
+  const saveTimer = setTimeout(() => {
+    ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Tracker auto-save failed:", err));
+    saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err));
+  }, 5000);
+  return () => clearTimeout(saveTimer);
+}, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
+    halfStitches, halfDone, singleStitchEdits, sessionActive, sessionStart,
+    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState]);
+
+// Save the freshest snapshot before the page unloads (fire-and-forget).
+useEffect(() => {
+  const handleBeforeUnload = () => {
+    if (lastSnapshotRef.current) saveProjectToDB(lastSnapshotRef.current);
+  };
+  window.addEventListener("beforeunload", handleBeforeUnload);
+  return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+}, []); // intentionally empty: handler always reads from the ref, never stale
 
 // ═══ Half-stitch cell rendering ═══
 // Renders half-stitch triangle fills, diagonal lines, and symbols for one cell.

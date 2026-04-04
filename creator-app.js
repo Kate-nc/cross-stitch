@@ -74,6 +74,7 @@ const[confettiData,setConfettiData]=useState(null);
 const previewTimerRef=useRef(null);
 
 const pcRef=useRef(null),fRef=useRef(null),scrollRef=useRef(null),expRef=useRef(null),loadRef=useRef(null);
+const projectIdRef=useRef(null); // persists across renders without causing re-renders
 const G=28;
 
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__")c++;return c;},[pat]);
@@ -244,8 +245,10 @@ function saveProject(){if(!pat||!pal)return;let hsArr=[];halfStitches.forEach((v
 
 function handleOpenInTracker(){
   if(!pat||!pal)return;
+  if(!projectIdRef.current) projectIdRef.current="proj_"+Date.now();
   let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
-  let project={version:9,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,halfStitches:hsArr,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+  let project={version:9,id:projectIdRef.current,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,halfStitches:hsArr,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+  ProjectStorage.setActiveProject(projectIdRef.current);
   try{
     localStorage.setItem("crossstitch_handoff", JSON.stringify(project));
     window.location.href = "stitch.html?source=creator";
@@ -288,6 +291,7 @@ function processLoadedProject(project){
     let hm=new Map();project.halfStitches.forEach(([idx,v])=>{let entry={};if(v.fwd)entry.fwd=restoreHalfStitch(v.fwd);if(v.bck)entry.bck=restoreHalfStitch(v.bck);if(entry.fwd||entry.bck)hm.set(idx,entry);});setHalfStitches(hm);
   }else{setHalfStitches(new Map());}
   setHalfStitchTool(null);
+  projectIdRef.current = project.id || null;
   setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/(s.sW*20)));setZoom(z);},100);
 }
 
@@ -310,8 +314,10 @@ useEffect(() => {
     if (!pat || !pal) return;
     const saveTimer = setTimeout(() => {
         let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
-        let project={version:9,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,halfStitches:hsArr,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
+        if(!projectIdRef.current) projectIdRef.current="proj_"+Date.now();
+        let project={version:9,id:projectIdRef.current,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,halfStitches:hsArr,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
+        ProjectStorage.save(project).then(id => { ProjectStorage.setActiveProject(id); }).catch(err => console.error("ProjectStorage auto-save failed:", err));
     }, 1000); // 1-second debounce
 
     return () => clearTimeout(saveTimer);
