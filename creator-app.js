@@ -940,7 +940,7 @@ const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned
 
 return(
 <>
-<Header page="creator" onNewProject={()=>{if(!pat||confirm("Start a new project? Unsaved progress will be lost.")){resetAll();setImg(null);}}} onExportPDF={pat ? exportPDF : null} setModal={setModal} />
+<Header page="creator" tab={tab} onPageChange={setTab} onNewProject={()=>{if(!pat||confirm("Start a new project? Unsaved progress will be lost.")){resetAll();setImg(null);}}} onExportPDF={pat ? exportPDF : null} setModal={setModal} />
 {pat&&pal&&<ContextBar
   name={sW + '×' + sH + ' pattern'}
   dimensions={{width:sW,height:sH}}
