@@ -47,6 +47,20 @@ const scrollRafRef=useRef(null);
 
 const[selectedColorId,setSelectedColorId]=useState(null);
 
+// ═══ Half-stitch state ═══
+// Sparse map: cellIdx → { fwd?: {id,rgb,lab,name,type,symbol}, bck?: {id,rgb,lab,name,type,symbol} }
+const[halfStitches,setHalfStitches]=useState(new Map());
+// Sparse map: cellIdx → { fwd?: 0|1, bck?: 0|1 }
+const[halfDone,setHalfDone]=useState(new Map());
+const[halfStitchTool,setHalfStitchTool]=useState(null); // null, "fwd", "bck", "erase"
+const[halfStitchTooltipDismissed,setHalfStitchTooltipDismissed]=useState(false);
+const[halfOnboardingDone,setHalfOnboardingDone]=useState(false);
+const[halfOnboardingStep,setHalfOnboardingStep]=useState(0);
+const[showHalfOnboarding,setShowHalfOnboarding]=useState(false);
+const[halfDisambig,setHalfDisambig]=useState(null); // {x, y, idx} for popup
+const halfEverPlaced=useRef(false);
+const[halfToast,setHalfToast]=useState(null);
+
 const[hoverInfo,setHoverInfo]=useState(null);
 const hoverRefs = useRef({ row: null, col: null });
 const hoverCellRef = useRef(null);
@@ -83,6 +97,10 @@ const prevDoneCount=useRef(0);
 const modeToggleRef=useRef(0);
 const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
 const G=28;
+const[tOverflowOpen,setTOverflowOpen]=useState(false);
+const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});
+const tStripRef=useRef(null);
+const tOverflowRef=useRef(null);
 
 useEffect(()=>{
   if(sessionActive){
@@ -96,9 +114,38 @@ useEffect(()=>{
 
 const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id!=="__skip__"&&id!=="__empty__")c++;}return c;},[pat]);
-const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
+
+// Half-stitch counts
+const halfStitchCounts=useMemo(()=>{
+  let total=0,dn=0;
+  halfStitches.forEach((hs,idx)=>{
+    if(hs.fwd)total++;
+    if(hs.bck)total++;
+  });
+  halfDone.forEach((hd)=>{
+    if(hd.fwd)dn++;
+    if(hd.bck)dn++;
+  });
+  return{total,done:dn};
+},[halfStitches,halfDone]);
+
+// Combined progress: full stitches + half stitches weighted at 0.5
+const combinedTotal=totalStitchable+halfStitchCounts.total*0.5;
+const combinedDone=doneCount+halfStitchCounts.done*0.5;
+const progressPct=combinedTotal>0?Math.round(combinedDone/combinedTotal*1000)/10:0;
+
 useEffect(()=>{if(sessionActive&&done){let diff=doneCount-prevDoneCount.current;if(diff>0)setSessionStitches(p=>p+diff);}prevDoneCount.current=doneCount;},[doneCount,sessionActive,done]);
-const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id==="__skip__"||id==="__empty__")continue;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+const colourDoneCounts=useMemo(()=>{
+  if(!pat||!done)return{};
+  let c={};
+  for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id==="__skip__"||id==="__empty__")continue;if(!c[id])c[id]={total:0,done:0,halfTotal:0,halfDone:0};c[id].total++;if(done[i])c[id].done++;}
+  // Count half stitches per colour
+  halfStitches.forEach((hs,idx)=>{
+    if(hs.fwd){const id=hs.fwd.id;if(!c[id])c[id]={total:0,done:0,halfTotal:0,halfDone:0};c[id].halfTotal++;const hd=halfDone.get(idx);if(hd&&hd.fwd)c[id].halfDone++;}
+    if(hs.bck){const id=hs.bck.id;if(!c[id])c[id]={total:0,done:0,halfTotal:0,halfDone:0};c[id].halfTotal++;const hd=halfDone.get(idx);if(hd&&hd.bck)c[id].halfDone++;}
+  });
+  return c;
+},[pat,done,halfStitches,halfDone]);
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
@@ -305,12 +352,47 @@ function applyUndo() {
   }
 }
 
+function handleRevertToOriginal(){
+  if(!confirm("Revert all symbol assignments to the original PDF import? Your tracking progress will be kept, but all colour corrections will be lost."))return;
+  const previousPal=originalPaletteState;
+  const previousMap={};
+  previousPal.forEach(p=>{previousMap[p.symbol]=p;});
+  const newPat=pat.map(cell=>{
+    if(cell.id==="__skip__")return cell;
+    const currentEntry=cmap[cell.id];
+    const originalThread=currentEntry?previousMap[currentEntry.symbol]:null;
+    if(originalThread){return{...cell,id:originalThread.id,name:originalThread.name,rgb:originalThread.rgb,lab:originalThread.lab};}
+    return cell;
+  });
+  const newCmap={};
+  previousPal.forEach(p=>{newCmap[p.id]=p;});
+  const newThreadOwned={...threadOwned};
+  Object.keys(newThreadOwned).forEach(threadId=>{if(!previousPal.find(p=>p.id===threadId))delete newThreadOwned[threadId];});
+  let revertedPat=newPat;
+  if(singleStitchEdits.size>0){
+    revertedPat=[...newPat];
+    singleStitchEdits.forEach((entry,cellIdx)=>{
+      const originalCell=revertedPat[cellIdx];
+      const origEntry=previousPal.find(p=>p.id===entry.originalId);
+      if(origEntry){revertedPat[cellIdx]={...originalCell,id:origEntry.id,name:origEntry.name,rgb:origEntry.rgb,lab:origEntry.lab};}
+      else{revertedPat[cellIdx]={...originalCell,id:entry.originalId};}
+    });
+  }
+  setPat(revertedPat);setPal(previousPal);setCmap(newCmap);setThreadOwned(newThreadOwned);setSingleStitchEdits(new Map());setUndoSnapshot(null);
+}
+
 function saveProject(){
   if(!pat||!pal)return;
   // Serialise singleStitchEdits Map as array of [cellIdx, {originalId, currentId}] pairs
   const sseArr = [...singleStitchEdits.entries()];
+  // Serialise half stitch data as arrays of [cellIdx, {fwd?, bck?}] pairs
+  const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
+    fwd: hs.fwd ? { id: hs.fwd.id, rgb: hs.fwd.rgb } : undefined,
+    bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb } : undefined
+  }]);
+  const hdArr = [...halfDone.entries()];
   let project={
-    version:8,
+    version:9,
     page:"tracker",
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
     pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),
@@ -323,7 +405,9 @@ function saveProject(){
     hlCol,
     threadOwned,
     originalPaletteState,
-    singleStitchEdits: sseArr
+    singleStitchEdits: sseArr,
+    halfStitches: hsArr,
+    halfDone: hdArr
   };
   let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
   let url=URL.createObjectURL(blob);
@@ -461,6 +545,31 @@ function processLoadedProject(project){
   if (project.singleStitchEdits && project.singleStitchEdits.length > 0) {
     setSingleStitchEdits(new Map(project.singleStitchEdits));
   }
+  // V9: restore half stitch data
+  if (project.halfStitches && project.halfStitches.length > 0) {
+    const hsMap = new Map();
+    project.halfStitches.forEach(([idx, hs]) => {
+      const entry = {};
+      if (hs.fwd) {
+        const restored = restoreStitch({ id: hs.fwd.id, type: hs.fwd.id.includes('+') ? 'blend' : 'solid', rgb: hs.fwd.rgb });
+        entry.fwd = { id: restored.id, rgb: restored.rgb, lab: restored.lab, name: restored.name, type: restored.type };
+      }
+      if (hs.bck) {
+        const restored = restoreStitch({ id: hs.bck.id, type: hs.bck.id.includes('+') ? 'blend' : 'solid', rgb: hs.bck.rgb });
+        entry.bck = { id: restored.id, rgb: restored.rgb, lab: restored.lab, name: restored.name, type: restored.type };
+      }
+      hsMap.set(idx, entry);
+    });
+    setHalfStitches(hsMap);
+  } else {
+    setHalfStitches(new Map());
+  }
+  if (project.halfDone && project.halfDone.length > 0) {
+    setHalfDone(new Map(project.halfDone));
+  } else {
+    setHalfDone(new Map());
+  }
+  setHalfStitchTool(null);
   setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);
   if(project.settings && project.settings.pdfSettings) setPdfSettings(project.settings.pdfSettings);
   setThreadOwned(project.threadOwned||{});
@@ -591,6 +700,91 @@ useEffect(() => {
     }
 }, []);
 
+// ═══ Half-stitch cell rendering ═══
+// Renders half-stitch triangle fills, diagonal lines, and symbols for one cell.
+// Called from inside drawStitch and drawCellDirectly.
+function _drawHalfStitchCell(ctx, px, py, cSz, hs, hd, cmap, view, focusColour, dimmed, lowZoom, medZoom, highZoom) {
+  const dirs = ["fwd", "bck"];
+  for (let di = 0; di < dirs.length; di++) {
+    const dir = dirs[di];
+    const stitch = hs[dir];
+    if (!stitch) continue;
+    const info = cmap ? cmap[stitch.id] : null;
+    const isDn = hd[dir] ? true : false;
+    const rgb = stitch.rgb;
+    const isFiltered = view === "highlight" && focusColour;
+    const matchesFilter = isFiltered && stitch.id === focusColour;
+    const nonMatch = isFiltered && !matchesFilter;
+
+    // Determine opacities based on view mode and done state
+    let triAlpha, lineAlpha, lineWidth, showSymbol, symAlpha, symColor;
+
+    if (view === "highlight" && isFiltered) {
+      // Colour filter active
+      if (matchesFilter) {
+        triAlpha = 0.20;
+        lineAlpha = 1.0;
+        lineWidth = 2.5;
+        showSymbol = true;
+        symAlpha = 1.0;
+        symColor = luminance(rgb) > 140 ? "rgba(0,0,0,0.9)" : "rgba(255,255,255,0.95)";
+      } else {
+        triAlpha = 0.04;
+        lineAlpha = 0.10;
+        lineWidth = 1;
+        showSymbol = false;
+        symAlpha = 0;
+        symColor = "rgba(161,161,170,0.1)";
+      }
+    } else if (view === "highlight" && !isFiltered) {
+      // Highlight mode, no filter — treat as tracker unmarked
+      triAlpha = isDn ? 0.40 : 0.06;
+      lineAlpha = isDn ? 1.0 : 0.28;
+      lineWidth = isDn ? 2.5 : 1.5;
+      showSymbol = !isDn;
+      symAlpha = isDn ? 0 : 0.3;
+      symColor = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.3)`;
+    } else if (view === "colour" || view === "symbol") {
+      // Pattern chart view (designing/reading) — also used as tracker symbol/colour views
+      triAlpha = isDn ? 0.40 : 0.12;
+      lineAlpha = isDn ? 1.0 : 1.0;
+      lineWidth = isDn ? 2.5 : 2;
+      showSymbol = !isDn && view === "symbol";
+      symAlpha = 1.0;
+      symColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    } else {
+      // Default fallback
+      triAlpha = 0.12;
+      lineAlpha = 1.0;
+      lineWidth = 2;
+      showSymbol = true;
+      symAlpha = 1.0;
+      symColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    }
+
+    // Apply greying for non-matching in highlight
+    const drawRgb = nonMatch ? [161,161,170] : rgb;
+
+    // Zoom-level thresholds
+    if (lowZoom) {
+      // Triangle fill only
+      drawHalfTriangle(ctx, px, py, cSz, dir, drawRgb, triAlpha);
+    } else if (medZoom) {
+      // Triangle fill + diagonal line
+      drawHalfTriangle(ctx, px, py, cSz, dir, drawRgb, triAlpha);
+      drawHalfLine(ctx, px, py, cSz, dir, drawRgb, lineAlpha, lineWidth);
+    } else {
+      // Full detail: triangle + line + symbol
+      drawHalfTriangle(ctx, px, py, cSz, dir, drawRgb, triAlpha);
+      drawHalfLine(ctx, px, py, cSz, dir, drawRgb, lineAlpha, lineWidth);
+      if (showSymbol && info && cSz >= 8) {
+        const fs = Math.max(7, cSz * 0.45);
+        drawHalfSymbol(ctx, px, py, cSz, dir, info.symbol, symColor, fs, "500");
+      }
+    }
+  }
+}
+
 function drawStitch(ctx,cSz,viewportRect){
   let gut=G,dW=sW,dH=sH;
 
@@ -617,6 +811,12 @@ function drawStitch(ctx,cSz,viewportRect){
   const fHlFocus=`bold ${Math.max(7,cSz*0.7)}px monospace`;
   ctx.textAlign="center";ctx.textBaseline="middle";
 
+  // Zoom thresholds for half-stitch rendering detail
+  const zoomPct = stitchZoom * 100;
+  const hsLowZoom = zoomPct < 40;
+  const hsMedZoom = zoomPct >= 40 && zoomPct <= 80;
+  const hsHighZoom = zoomPct > 80;
+
   for(let y=startY;y<endY;y++){
     for(let x=startX;x<endX;x++){
       let idx=y*sW+x,m=pat[idx];if(!m)continue;
@@ -624,7 +824,15 @@ function drawStitch(ctx,cSz,viewportRect){
       let px=gut+x*cSz,py=gut+y*cSz;
       let isDn=done&&done[idx];
       let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__"&&m.id!=="__empty__";
-      if(m.id==="__skip__"||m.id==="__empty__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}continue;}
+      if(m.id==="__skip__"||m.id==="__empty__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}
+        // Half stitches on skip/empty cells
+        let hs=halfStitches.get(idx);
+        if(hs){
+          let hd=halfDone.get(idx)||{};
+          _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,hsLowZoom,hsMedZoom,hsHighZoom);
+        }
+        continue;
+      }
       if(stitchView==="symbol"){
         if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
         else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
@@ -635,6 +843,12 @@ function drawStitch(ctx,cSz,viewportRect){
         if(isDn){ctx.fillStyle=dimmed?"#f4f4f5":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
         else if(dimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
         else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=fHlFocus;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+      }
+      // Render half stitches on top of full-stitch cells
+      let hs=halfStitches.get(idx);
+      if(hs){
+        let hd=halfDone.get(idx)||{};
+        _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,dimmed,hsLowZoom,hsMedZoom,hsHighZoom);
       }
       if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
     }
@@ -682,7 +896,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom]);
 useEffect(()=>renderStitch(),[renderStitch]);
 
 const updateHoverOverlay = (gc) => {
@@ -738,6 +952,13 @@ function drawCellDirectly(idx, nv) {
       ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";
       ctx.strokeRect(px,py,cSz,cSz);
     }
+    // Half stitches on skip/empty cells in direct draw
+    let hs=halfStitches.get(idx);
+    if(hs){
+      let hd=halfDone.get(idx)||{};
+      let zp=stitchZoom*100;
+      _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,zp<40,zp>=40&&zp<=80,zp>80);
+    }
     return;
   }
 
@@ -752,7 +973,71 @@ function drawCellDirectly(idx, nv) {
     else if(dimmed){ctx.fillStyle="#f4f4f5";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,cSz*0.45)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
     else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#18181b";ctx.font=`bold ${Math.max(7,cSz*0.7)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
   }
+  // Half stitches on full-stitch cells in direct draw
+  let hs=halfStitches.get(idx);
+  if(hs){
+    let hd=halfDone.get(idx)||{};
+    let zp=stitchZoom*100;
+    _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,dimmed,zp<40,zp>=40&&zp<=80,zp>80);
+  }
   if(cSz>=4){ctx.strokeStyle=dimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+}
+
+// ═══ Half-stitch placement & marking helpers ═══
+function _placeHalfStitch(idx, dir, colorEntry) {
+  const m = pat[idx];
+  // Block placing on full cross if full cross exists and is not skip/empty
+  if (m && m.id !== "__skip__" && m.id !== "__empty__") {
+    // Check if it already has a full stitch and half tool is being used to place on it
+    // This is allowed — half stitches overlay full stitches
+  }
+
+  const newHs = new Map(halfStitches);
+  const existing = newHs.get(idx) || {};
+
+  // If same direction already exists with same colour, remove it (toggle)
+  if (existing[dir] && existing[dir].id === colorEntry.id) {
+    const entry = { ...existing };
+    delete entry[dir];
+    if (!entry.fwd && !entry.bck) newHs.delete(idx);
+    else newHs.set(idx, entry);
+    setHalfStitches(newHs);
+    renderStitch();
+    return;
+  }
+
+  // Check if placing two same-colour halves (would equal a full cross)
+  const otherDir = dir === "fwd" ? "bck" : "fwd";
+  if (existing[otherDir] && existing[otherDir].id === colorEntry.id) {
+    setHalfToast({ idx, msg: "This equals a full cross stitch. Convert?", colorId: colorEntry.id, dir });
+    // Still place it, but show toast
+  }
+
+  existing[dir] = { id: colorEntry.id, rgb: colorEntry.rgb, lab: colorEntry.lab, name: colorEntry.name, type: colorEntry.type || "solid" };
+  newHs.set(idx, { ...existing });
+  setHalfStitches(newHs);
+
+  // Mark that user has placed a half stitch
+  if (!halfEverPlaced.current) {
+    halfEverPlaced.current = true;
+  }
+
+  renderStitch();
+}
+
+function _toggleHalfDone(idx, dir) {
+  const newHd = new Map(halfDone);
+  const hd = { ...(newHd.get(idx) || {}) };
+  hd[dir] = hd[dir] ? 0 : 1;
+  if (!hd.fwd && !hd.bck) newHd.delete(idx);
+  else newHd.set(idx, hd);
+  setHalfDone(newHd);
+  renderStitch();
+}
+
+function _markHalfDoneFromDisambig(idx, dir) {
+  _toggleHalfDone(idx, dir);
+  setHalfDisambig(null);
 }
 
 function handleStitchMouseDown(e){
@@ -781,7 +1066,93 @@ function handleStitchMouseDown(e){
     return;
   }
   if(gx<0||gx>=sW||gy<0||gy>=sH||!done)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
+  let idx=gy*sW+gx;
+
+  // ═══ Half Stitch Tool handling ═══
+  if(halfStitchTool&&halfStitchTool!=="erase"&&stitchMode==="track"){
+    // Placing a half stitch — need a selected colour
+    if(!selectedColorId||!cmap||!cmap[selectedColorId]){
+      // If no color selected, use the colour of the cell beneath
+      const m=pat[idx];
+      if(m&&m.id!=="__skip__"&&m.id!=="__empty__"&&cmap&&cmap[m.id]){
+        // Place half stitch using the cell's own colour
+        _placeHalfStitch(idx,halfStitchTool,m);
+      }
+    } else {
+      // Use the selected colour
+      const pe=cmap[selectedColorId];
+      _placeHalfStitch(idx,halfStitchTool,pe);
+    }
+    e.preventDefault();
+    return;
+  }
+  if(halfStitchTool==="erase"&&stitchMode==="track"){
+    // Erasing: remove the half stitch in this cell for active direction
+    const hs=halfStitches.get(idx);
+    if(hs){
+      const newHs=new Map(halfStitches);
+      const entry={...hs};
+      // Try to determine which direction to erase based on click position
+      const rect=stitchRef.current.getBoundingClientRect();
+      const localX=e.clientX-rect.left-G-gx*scs;
+      const localY=e.clientY-rect.top-G-gy*scs;
+      const hitDir=hitTestHalfStitch(localX,localY,scs,6);
+      if(hitDir==="ambiguous"){
+        // Erase both if ambiguous
+        newHs.delete(idx);
+        const newHd=new Map(halfDone);
+        newHd.delete(idx);
+        setHalfDone(newHd);
+      } else {
+        delete entry[hitDir];
+        if(!entry.fwd&&!entry.bck) newHs.delete(idx);
+        else newHs.set(idx,entry);
+        const newHd=new Map(halfDone);
+        const hd=newHd.get(idx)||{};
+        delete hd[hitDir];
+        if(!hd.fwd&&!hd.bck) newHd.delete(idx);
+        else newHd.set(idx,hd);
+        setHalfDone(newHd);
+      }
+      setHalfStitches(newHs);
+      renderStitch();
+    }
+    e.preventDefault();
+    return;
+  }
+
+  // ═══ Tracker: Marking half stitches as done (no tool, track mode) ═══
+  // If cell has half stitches and NO full stitch (or full is done), handle half marking
+  const cellHasHalf=halfStitches.has(idx);
+  const m2=pat[idx];
+  const isFullCell=m2&&m2.id!=="__skip__"&&m2.id!=="__empty__";
+
+  if(cellHasHalf&&(!isFullCell||(done&&done[idx]))&&!halfStitchTool){
+    const hs=halfStitches.get(idx);
+    const hasBoth=hs.fwd&&hs.bck;
+    if(hasBoth){
+      // Two halves: hit-test which triangle was tapped
+      const rect=stitchRef.current.getBoundingClientRect();
+      const localX=e.clientX-rect.left-G-gx*scs;
+      const localY=e.clientY-rect.top-G-gy*scs;
+      const hitDir=hitTestHalfStitch(localX,localY,scs,8);
+      if(hitDir==="ambiguous"){
+        // Show disambiguation popup
+        setHalfDisambig({idx,x:e.clientX,y:e.clientY});
+        e.preventDefault();
+        return;
+      }
+      _toggleHalfDone(idx,hitDir);
+    } else {
+      // Single half: toggle it
+      const dir=hs.fwd?"fwd":"bck";
+      _toggleHalfDone(idx,dir);
+    }
+    e.preventDefault();
+    return;
+  }
+
+  if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
   let nv=done[idx]?0:1;
   dragStateRef.current = { isDragging: true, dragVal: nv };
   dragChangesRef.current=[{idx,oldVal:done[idx]}];
@@ -1060,9 +1431,140 @@ useEffect(()=>{
   };
 },[!!pat]);
 
+// Overflow close on outside click
+useEffect(()=>{
+  if(!tOverflowOpen)return;
+  function close(e){if(tOverflowRef.current&&!tOverflowRef.current.contains(e.target))setTOverflowOpen(false);}
+  document.addEventListener('mousedown',close);
+  return()=>document.removeEventListener('mousedown',close);
+},[tOverflowOpen]);
+// ResizeObserver — collapse stitch/view groups when toolbar is narrow
+useEffect(()=>{
+  if(!tStripRef.current)return;
+  const ro=new ResizeObserver(entries=>{
+    const w=entries[0].contentRect.width;
+    requestAnimationFrame(()=>setTStripCollapsed({view:w<860,stitch:w<600}));
+  });
+  ro.observe(tStripRef.current);
+  return()=>ro.disconnect();
+},[]);
+
 return(
 <>
-<Header page="tracker" onExportPDF={pat ? () => setModal("pdf_export") : null} setModal={setModal} />
+<input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat ? () => setModal("pdf_export") : null} setModal={setModal} />
+{pat&&pal&&<>
+{/* ═══ TRACKER TOOL STRIP ═══ */}
+<div className="tb-strip"><div ref={tStripRef} className="tb-strip-inner">
+  <div className="tb-mode-grp">
+    <button className="tb-mode-btn" onClick={handleEditInCreator} title="Go to Pattern Creator to edit this pattern">Edit</button>
+    <button className="tb-mode-btn tb-mode-btn--track">Track</button>
+  </div>
+  <div className="tb-sdiv"/>
+  <button className={"tb-btn"+(sessionActive?" tb-btn--red":" tb-btn--green")} onClick={toggleSession}>{sessionActive?"⏹ Stop":"▶ Start"}</button>
+  <div className="tb-sdiv"/>
+  <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
+    <button className={"tb-btn"+(stitchMode==="track"&&!halfStitchTool?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);}} title="Mark full cross stitches as done">
+      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Cross
+    </button>
+    <button className={"tb-btn"+(halfStitchTool==="fwd"?" tb-btn--blue":"")} onClick={()=>{if(halfStitchTool==="fwd"){setHalfStitchTool(null);setStitchMode("track");}else{setHalfStitchTool("fwd");setStitchMode("track");if(!halfOnboardingDone&&!showHalfOnboarding){setShowHalfOnboarding(true);setHalfOnboardingStep(0);}}}} title="Place / half stitch">
+      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/></svg>Half /
+    </button>
+    <button className={"tb-btn"+(halfStitchTool==="bck"?" tb-btn--blue":"")} onClick={()=>{if(halfStitchTool==="bck"){setHalfStitchTool(null);setStitchMode("track");}else{setHalfStitchTool("bck");setStitchMode("track");if(!halfOnboardingDone&&!showHalfOnboarding){setShowHalfOnboarding(true);setHalfOnboardingStep(0);}}}} title="Place \\ half stitch">
+      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Half \
+    </button>
+    <button className={"tb-btn"+(halfStitchTool==="erase"?" tb-btn--red":"")} onClick={()=>{if(halfStitchTool==="erase"){setHalfStitchTool(null);setStitchMode("track");}else{setHalfStitchTool("erase");setStitchMode("track");}}} title="Erase half stitches">
+      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg>Erase
+    </button>
+    <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");setHalfStitchTool(null);}} title="Place guide crosshair or park marker">Nav</button>
+  </div>
+  {(halfStitchTool==="fwd"||halfStitchTool==="bck")&&selectedColorId&&cmap&&cmap[selectedColorId]&&
+    <span style={{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,background:"#e0f2fe",flexShrink:0,border:"1px solid #7dd3fc"}}>
+      <span style={{width:10,height:10,borderRadius:2,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #d4d4d8",display:"inline-block"}}/>{selectedColorId}
+    </span>}
+  <div className="tb-sdiv"/>
+  <div className={"tb-grp"+(tStripCollapsed.view?" tb-hidden":"")}>
+    {[['symbol','Sym'],['colour','Col+Sym'],['highlight','HL']].map(([k,l])=><button key={k} className={"tb-btn"+(stitchView===k?" tb-btn--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>)}
+  </div>
+  {stitchView==="highlight"&&<>
+    <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fafafa",cursor:"pointer",lineHeight:1}} title="Previous colour">◀</button>
+    {focusColour&&cmap&&cmap[focusColour]&&(()=>{const p=cmap[focusColour];const dc=colourDoneCounts[focusColour]||{done:0,total:0};return(
+      <span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:6,background:"#f0fdfa",border:"1px solid #99f6e4",cursor:"pointer",flexShrink:0}} onClick={()=>setFocusColour(null)} title="Click to clear highlight">
+        <span style={{width:10,height:10,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/>
+        <span style={{fontFamily:"monospace",fontWeight:700,fontSize:11}}>{focusColour}</span>
+        <span style={{fontSize:11,color:"#0d9488",fontWeight:600}}>{dc.done}/{dc.total}</span>
+      </span>
+    );})()}
+    <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fafafa",cursor:"pointer",lineHeight:1}} title="Next colour">▶</button>
+    <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#71717a",cursor:"pointer",whiteSpace:"nowrap",userSelect:"none"}}>
+      <input type="checkbox" checked={highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{cursor:"pointer"}}/>Skip done
+    </label>
+  </>}
+  <div className="tb-flex"/>
+  <div className="tb-zoom-grp">
+    <span className="tb-zoom-lbl">Zoom</span>
+    <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} title="Zoom out" style={{padding:"0 5px",fontSize:15,border:"0.5px solid #e4e4e7",borderRadius:4,background:"#fafafa",cursor:"pointer",lineHeight:"22px",fontWeight:600}}>−</button>
+    <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{width:55}}/>
+    <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} title="Zoom in" style={{padding:"0 5px",fontSize:15,border:"0.5px solid #e4e4e7",borderRadius:4,background:"#fafafa",cursor:"pointer",lineHeight:"22px",fontWeight:600}}>+</button>
+    <span className="tb-zoom-pct">{Math.round(stitchZoom*100)}%</span>
+    <button className="tb-fit-btn" onClick={fitSZ}>Fit</button>
+  </div>
+  <div className="tb-sdiv"/>
+  <div className="tb-overflow-wrap" ref={tOverflowRef}>
+    <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
+    {tOverflowOpen&&<div className="tb-overflow-menu">
+      {!isEditMode&&<>
+        {tStripCollapsed.stitch&&<><span className="tb-ovf-lbl">Stitch</span>
+          <button className={"tb-ovf-item"+(stitchMode==="track"&&!halfStitchTool?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);setTOverflowOpen(false);}}>Cross{stitchMode==="track"&&!halfStitchTool?" ✓":""}</button>
+          <button className={"tb-ovf-item"+(halfStitchTool==="fwd"?" tb-ovf-item--on":"")} onClick={()=>{setHalfStitchTool("fwd");setStitchMode("track");setTOverflowOpen(false);}}>Half /{halfStitchTool==="fwd"?" ✓":""}</button>
+          <button className={"tb-ovf-item"+(halfStitchTool==="bck"?" tb-ovf-item--on":"")} onClick={()=>{setHalfStitchTool("bck");setStitchMode("track");setTOverflowOpen(false);}}>Half \{halfStitchTool==="bck"?" ✓":""}</button>
+          <button className={"tb-ovf-item"+(stitchMode==="navigate"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("navigate");setHalfStitchTool(null);setTOverflowOpen(false);}}>Navigate{stitchMode==="navigate"?" ✓":""}</button>
+          <div className="tb-ovf-sep"/>
+        </>}
+        {tStripCollapsed.view&&<><span className="tb-ovf-lbl">View</span>
+          {[['symbol','Symbol'],['colour','Col+Symbol'],['highlight','Highlight']].map(([k,l])=><button key={k} className={"tb-ovf-item"+(stitchView===k?" tb-ovf-item--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}setTOverflowOpen(false);}}>{l}{stitchView===k?" ✓":""}</button>)}
+          <div className="tb-ovf-sep"/>
+        </>}
+        {stitchMode==="navigate"&&<><span className="tb-ovf-lbl">Parking</span>
+          <div style={{padding:"4px 14px 6px"}}><select value={selectedColorId||""} onChange={e=>setSelectedColorId(e.target.value||null)} style={{fontSize:11,padding:"4px 8px",borderRadius:6,border:"0.5px solid #e4e4e7",width:"100%"}}>
+            <option value="">No parking colour</option>{pal.map(p=><option key={p.id} value={p.id}>DMC {p.id} — {p.name.slice(0,20)}</option>)}
+          </select></div>
+          {parkMarkers.length>0&&<button className="tb-ovf-item" onClick={()=>{setParkMarkers([]);setTOverflowOpen(false);}}>Clear park markers</button>}
+          <div className="tb-ovf-sep"/>
+        </>}
+        {stitchMode==="track"&&trackHistory.length>0&&<button className="tb-ovf-item" onClick={()=>{undoTrack();setTOverflowOpen(false);}}>↩ Undo ({trackHistory.length})</button>}
+        {done&&doneCount>0&&<button className="tb-ovf-item" style={{color:"#dc2626"}} onClick={()=>{if(confirm("Clear all progress?")){setDone(new Uint8Array(pat.length));setTrackHistory([]);}setTOverflowOpen(false);}}>Reset progress</button>}
+        <div className="tb-ovf-sep"/>
+      </>}
+      {isEditMode&&<>
+        {undoSnapshot&&<button className="tb-ovf-item" style={{color:"#d97706"}} onClick={()=>{applyUndo();setTOverflowOpen(false);}}>↩ Undo Edit</button>}
+        <button className="tb-ovf-item" style={{color:"#dc2626"}} onClick={()=>{handleRevertToOriginal();setTOverflowOpen(false);}}>Revert to Original</button>
+        <button className="tb-ovf-item" onClick={()=>{if(undoSnapshot!==null){setShowExitEditModal(true);}else{setIsEditMode(false);setUndoSnapshot(null);setSessionStartSnapshot(null);}setTOverflowOpen(false);}}>← Exit correction mode</button>
+        <div className="tb-ovf-sep"/>
+      </>}
+      {!isEditMode&&<><button className="tb-ovf-item" style={{color:"#71717a"}} onClick={()=>{
+        setSessionStartSnapshot({pat:[...pat],pal:JSON.parse(JSON.stringify(pal)),threadOwned:JSON.parse(JSON.stringify(threadOwned)),singleStitchEdits:new Map(singleStitchEdits)});
+        setStitchMode("navigate");setFocusColour(null);setHoverInfo(null);setIsEditMode(true);setDrawer(true);setTOverflowOpen(false);
+      }} title="Correct individual stitch colours — for imported patterns">Correct pattern colours…</button><div className="tb-ovf-sep"/></>
+      }
+      <button className="tb-ovf-item" onClick={()=>{setShowNavHelp(h=>!h);setTOverflowOpen(false);}}>{showNavHelp?"Hide":"Show"} controls help</button>
+      {(sessionActive||totalTime>0)&&<>
+        <div className="tb-ovf-sep"/>
+        <span className="tb-ovf-lbl">Session</span>
+        <div style={{padding:"4px 14px 2px",fontSize:11,color:"#71717a"}}>
+          {sessionActive?<><span style={{color:"#dc2626"}}>● </span>{fmtTime(sessionElapsed)} · {sessionStitches} stitches this session</>:<>Total: {fmtTime(totalTime)}</>}
+          {estCompletion&&<div style={{fontSize:10,color:"#a1a1aa",marginTop:2}}>~{fmtTime(estCompletion)} remaining</div>}
+        </div>
+      </>}
+    </div>}
+  </div>
+</div></div>
+{!isEditMode&&<div className="tb-progress"><div className="tb-progress-inner">
+  <span className="tb-progress-txt">{doneCount.toLocaleString()} / {totalStitchable.toLocaleString()}{halfStitchCounts.total>0?` + ${halfStitchCounts.done}/${halfStitchCounts.total}△`:""} ({progressPct.toFixed(1)}%){progressPct>=100?" 🎉":""}</span>
+  <div className="tb-progress-bar"><div className={progressPct>=100?"tb-progress-fill tb-progress-fill--done":"tb-progress-fill"} style={{width:Math.min(progressPct,100)+"%"}}/></div>
+  <span className="tb-progress-rem">{progressPct>=100?"Complete!":Math.ceil(combinedTotal-combinedDone).toLocaleString()+" remaining"}</span>
+</div></div>}
+</>}
 <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
   {importSuccess && (
@@ -1073,7 +1575,6 @@ return(
       ✓ {importSuccess}
     </div>
   )}
-  <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
 
   {!pat&&<div style={{maxWidth:500, margin:"40px auto", textAlign:"center"}}>
     <div className="card" style={{padding:"30px"}}>
@@ -1116,158 +1617,6 @@ return(
   </div>}
 
   {pat&&pal&&<div>
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,padding:"8px 14px",background:"#fff",border:"0.5px solid #e4e4e7",borderRadius:10,flexWrap:"wrap"}}>
-      <button onClick={toggleSession} style={{padding:"5px 16px",fontSize:13,borderRadius:8,border:"none",background:sessionActive?"#dc2626":"#16a34a",color:"#fff",cursor:"pointer",fontWeight:700,minWidth:100}}>{sessionActive?"⏹ Stop":"▶ Start"}</button>
-      <div style={{flex:1,minWidth:100}}>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
-          <span style={{fontWeight:700,color:progressPct>=100?"#16a34a":"#0d9488"}}>
-            {doneCount.toLocaleString()} / {totalStitchable.toLocaleString()} stitches ({progressPct.toFixed(1)}%){progressPct>=100?" 🎉":""}
-          </span>
-          <span style={{color:"#71717a"}}>{(totalStitchable - doneCount).toLocaleString()} remaining</span>
-        </div>
-        <div style={{height:6,background:"#e4e4e7",borderRadius:3,overflow:"hidden"}}>
-          <div style={{height:"100%",width:Math.min(progressPct,100)+"%",background:progressPct>=100?"#16a34a":"#0d9488",borderRadius:3,transition:"width 0.3s"}}/>
-        </div>
-      </div>
-      {(sessionActive||totalTime>0)&&<div style={{fontSize:11,color:"#71717a",textAlign:"right",minWidth:90}}>{sessionActive?<><span style={{color:"#dc2626"}}>● </span>{fmtTime(sessionElapsed)} · {sessionStitches} st</>:<>Total: {fmtTime(totalTime)}</>}{estCompletion&&<div style={{fontSize:10,color:"#a1a1aa"}}>~{fmtTime(estCompletion)} left</div>}</div>}
-    </div>
-
-    <div style={{display:"flex",gap:6,marginBottom:6,alignItems:"center",flexWrap:"wrap", padding: "6px 10px", background: isEditMode ? "#fffbeb" : "#fff", border: isEditMode ? "1px solid #fde68a" : "0.5px solid #e4e4e7", borderRadius: 10}}>
-      <div style={{ display: "flex", gap: 2, background: isEditMode ? "#fef3c7" : "#f4f4f5", borderRadius: 8, padding: 2 }}>
-        <button onClick={()=>{
-          if (Date.now() - modeToggleRef.current < 300) return;
-          modeToggleRef.current = Date.now();
-          if (isEditMode) {
-            if (undoSnapshot !== null) {
-              setShowExitEditModal(true);
-            } else {
-              setIsEditMode(false);
-              setUndoSnapshot(null);
-              setSessionStartSnapshot(null);
-            }
-          }
-        }} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !isEditMode ? 500 : 400, background: !isEditMode ? "#0d9488" : "transparent", borderRadius: 6, color: !isEditMode ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: !isEditMode ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Tracking Mode</button>
-        <button onClick={()=>{
-          if (Date.now() - modeToggleRef.current < 300) return;
-          modeToggleRef.current = Date.now();
-          // Snapshot current state so Discard can restore it
-          setSessionStartSnapshot({
-            pat: [...pat],
-            pal: JSON.parse(JSON.stringify(pal)),
-            threadOwned: JSON.parse(JSON.stringify(threadOwned)),
-            singleStitchEdits: new Map(singleStitchEdits)
-          });
-          setStitchMode("navigate");
-          setFocusColour(null);
-          setHoverInfo(null);
-          setIsEditMode(true);
-          setDrawer(true);
-        }} style={{ padding: "5px 12px", fontSize: 12, fontWeight: isEditMode ? 500 : 400, background: isEditMode ? "#d97706" : "transparent", borderRadius: 6, color: isEditMode ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: isEditMode ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Edit Mode</button>
-      </div>
-
-      {!isEditMode && <>
-      <div style={{width:1,height:20,background:"#e4e4e7"}}/>
-      <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}><button onClick={()=>setStitchMode("track")} title="Click or drag to mark stitches as done" style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchMode==="track" ? 500 : 400, background: stitchMode==="track" ? "#0d9488" : "transparent", borderRadius: 6, color: stitchMode==="track" ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchMode==="track" ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Track</button><button onClick={()=>setStitchMode("navigate")} title="Place a guide crosshair or park-marker for your current position" style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchMode==="navigate" ? 500 : 400, background: stitchMode==="navigate" ? "#18181b" : "transparent", borderRadius: 6, color: stitchMode==="navigate" ? "#fff" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchMode==="navigate" ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>Navigate</button></div>
-      <div style={{width:1,height:20,background:"#e4e4e7"}}/>
-      <div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }}>{[["symbol","Sym","Show symbols only — best for stitching from the chart"],["colour","Col+Sym","Show thread colours with symbols overlaid"],["highlight","Highlight","Focus on one colour at a time — use [ ] or ◀ ▶ to cycle"]].map(([k,l,tip])=><button key={k} title={tip} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}} style={{ padding: "5px 12px", fontSize: 12, fontWeight: stitchView===k ? 500 : 400, background: stitchView===k ? "#fff" : "transparent", borderRadius: 6, color: stitchView===k ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: stitchView===k ? "0 1px 2px rgba(0,0,0,0.04)" : "none" }}>{l}</button>)}</div>
-      <div style={{width:1,height:20,background:"#e4e4e7"}}/>
-      {stitchView==="highlight"&&<>
-        <div style={{display:"flex",alignItems:"center",gap:4}}>
-          <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} style={{fontSize:13,padding:"2px 7px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fafafa",cursor:"pointer",lineHeight:1}} title="Previous colour ([ or ←)">◀</button>
-          {focusColour&&cmap&&cmap[focusColour]
-            ?(()=>{const p=cmap[focusColour];const dc=colourDoneCounts[focusColour]||{done:0,total:0};const idx=focusableColors.findIndex(fp=>fp.id===focusColour);const label=p.type==="blend"?(p.threads[0].name+"+"+p.threads[1].name):p.name;return(
-              <div style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:6,background:"#f0fdfa",border:"1px solid #99f6e4",cursor:"pointer"}} onClick={()=>setFocusColour(null)} title="Click to clear highlight">
-                <span style={{width:14,height:14,borderRadius:3,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",flexShrink:0}}/>
-                <span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:"#18181b"}}>{focusColour}</span>
-                <span style={{fontSize:11,color:"#71717a",maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{label}</span>
-                <span style={{fontSize:11,color:"#0d9488",fontWeight:600,whiteSpace:"nowrap"}}>{dc.done}/{dc.total}</span>
-                {focusableColors.length>1&&<span style={{fontSize:10,color:"#a1a1aa",whiteSpace:"nowrap"}}>{idx>=0?idx+1:"?"}/{focusableColors.length}</span>}
-              </div>
-            );})()
-            :<button onClick={()=>{const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}} style={{fontSize:11,padding:"3px 10px",borderRadius:6,border:"1px solid #fde68a",background:"#fffbeb",color:"#d97706",cursor:"pointer"}}>Pick colour →</button>
-          }
-          <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} style={{fontSize:13,padding:"2px 7px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fafafa",cursor:"pointer",lineHeight:1}} title="Next colour (] or →)">▶</button>
-          <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#71717a",cursor:"pointer",whiteSpace:"nowrap",userSelect:"none"}}>
-            <input type="checkbox" checked={highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{cursor:"pointer"}}/>Skip done
-          </label>
-        </div>
-        <div style={{width:1,height:20,background:"#e4e4e7"}}/>
-      </>}
-      <span style={{fontSize:11,color:"#a1a1aa"}}>Zoom</span>
-      <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} title="Zoom out (−0.25×)" style={{padding:"1px 7px",fontSize:15,border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer",lineHeight:1,fontWeight:600}}>−</button>
-      <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} title="Drag to zoom — or use Ctrl+scroll / pinch" onChange={e=>setStitchZoom(Number(e.target.value))} style={{width:55}}/>
-      <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} title="Zoom in (+0.25×)" style={{padding:"1px 7px",fontSize:15,border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer",lineHeight:1,fontWeight:600}}>+</button>
-      <span style={{fontSize:11,minWidth:28}}>{Math.round(stitchZoom*100)}%</span><button onClick={fitSZ} title="Fit entire pattern to the viewport" style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}}>Fit</button>
-      {stitchMode==="navigate"&&<><div style={{width:1,height:20,background:"#e4e4e7"}}/><span style={{fontSize:11,color:"#71717a"}}>📌</span><select value={selectedColorId||""} onChange={e=>setSelectedColorId(e.target.value||null)} style={{fontSize:11,padding:"3px 6px",borderRadius:6,border:"0.5px solid #e4e4e7"}}><option value="">No parking</option>{pal.map(p=><option key={p.id} value={p.id}>DMC {p.id}</option>)}</select>{parkMarkers.length>0&&<button onClick={()=>setParkMarkers([])} style={{fontSize:11,padding:"3px 8px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",color:"#d97706",cursor:"pointer"}}>Clear</button>}</>}
-      <div style={{marginLeft:"auto",display:"flex",gap:4,alignItems:"center"}}>
-        {stitchMode==="track"&&trackHistory.length>0&&<button onClick={undoTrack} title={`Undo last ${trackHistory.length} stitch change${trackHistory.length>1?"s":""}`} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo ({trackHistory.length})</button>}
-        {done&&doneCount>0&&<button onClick={()=>{if(confirm("Clear all progress?")){setDone(new Uint8Array(pat.length));setTrackHistory([]);}}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Reset</button>}
-        <button onClick={()=>setShowNavHelp(h=>!h)} title="Navigation help" style={{fontSize:12,padding:"2px 8px",border:showNavHelp?"1px solid #a5b4fc":"0.5px solid #e4e4e7",borderRadius:6,background:showNavHelp?"#eff6ff":"#fafafa",color:showNavHelp?"#4f46e5":"#71717a",cursor:"pointer",fontWeight:600,lineHeight:"18px"}}>?</button>
-      </div>
-      </>}
-
-      {isEditMode && <div style={{marginLeft:"auto",display:"flex",gap:4}}>
-        {undoSnapshot&&<button onClick={applyUndo} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fde68a",borderRadius:6,background:"#fffbeb",color:"#d97706",cursor:"pointer"}} title={undoSnapshot.type==="removal"?`Undo: stitch removal at Row ${undoSnapshot.cellIdx!==undefined?Math.floor(undoSnapshot.cellIdx/sW)+1:"?"}, Col ${undoSnapshot.cellIdx!==undefined?(undoSnapshot.cellIdx%sW)+1:"?"}`:undoSnapshot.type==="single_stitch_edit"?`Undo: single stitch edit at Row ${undoSnapshot.cellIdx!==undefined?Math.floor(undoSnapshot.cellIdx/sW)+1:"?"}, Col ${undoSnapshot.cellIdx!==undefined?(undoSnapshot.cellIdx%sW)+1:"?"}`:undoSnapshot.type==="swap"?"Undo: symbol swap":"Undo: bulk reassignment"}>↩ Undo Edit</button>}
-        <button onClick={()=>{
-          if(confirm("Revert all symbol assignments to the original PDF import? Your tracking progress will be kept, but all colour corrections will be lost.")){
-            const previousPal = originalPaletteState;
-            const previousMap = {};
-            previousPal.forEach(p => { previousMap[p.symbol] = p; });
-
-            const newPat = pat.map(cell => {
-              if (cell.id === "__skip__") return cell;
-              // Use cmap to find the symbol for this cell (symbols live in palette, not cells)
-              const currentEntry = cmap[cell.id];
-              const originalThread = currentEntry ? previousMap[currentEntry.symbol] : null;
-              if (originalThread) {
-                return {
-                  ...cell,
-                  id: originalThread.id,
-                  name: originalThread.name,
-                  rgb: originalThread.rgb,
-                  lab: originalThread.lab
-                };
-              }
-              return cell;
-            });
-
-            const newCmap = {};
-            previousPal.forEach(p => { newCmap[p.id] = p; });
-
-            // Clean up threadOwned for threads that no longer exist
-            const newThreadOwned = {...threadOwned};
-            Object.keys(newThreadOwned).forEach(threadId => {
-              if (!previousPal.find(p => p.id === threadId)) {
-                delete newThreadOwned[threadId];
-              }
-            });
-
-            // V2: also restore single-stitch edits using the sparse diff
-            let revertedPat = newPat;
-            if (singleStitchEdits.size > 0) {
-              revertedPat = [...newPat];
-              singleStitchEdits.forEach((entry, cellIdx) => {
-                const originalCell = revertedPat[cellIdx];
-                const origEntry = previousPal.find(p => p.id === entry.originalId);
-                if (origEntry) {
-                  revertedPat[cellIdx] = { ...originalCell, id:origEntry.id, name:origEntry.name, rgb:origEntry.rgb, lab:origEntry.lab };
-                } else {
-                  // originalId not in pal (shouldn't happen) — restore using originalId directly
-                  revertedPat[cellIdx] = { ...originalCell, id:entry.originalId };
-                }
-              });
-            }
-
-            setPat(revertedPat);
-            setPal(previousPal);
-            setCmap(newCmap);
-            setThreadOwned(newThreadOwned);
-            setSingleStitchEdits(new Map());
-            setUndoSnapshot(null);
-          }
-        }} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Revert to Original</button>
-      </div>}
-    </div>
     {showNavHelp&&!isEditMode&&(()=>{const isTouch=hasTouchRef.current;return(
     <div style={{marginBottom:8,padding:"14px 16px",background:"#fff",border:"1px solid #a5b4fc",borderRadius:10,fontSize:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -1302,9 +1651,48 @@ return(
     {scs < 6 && !isEditMode && (stitchView === "symbol" || stitchView === "colour") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
 
     {isEditMode && <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>}
-    {!isEditMode && stitchMode==="track"&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{hasTouchRef.current?"Tap to mark · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark · Space+drag or middle-click to pan · Ctrl+scroll to zoom"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
+    {!isEditMode && stitchMode==="track"&&!halfStitchTool&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag or middle-click to pan · Ctrl+scroll to zoom"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
+    {!isEditMode && halfStitchTool&&halfStitchTool!=="erase"&&<div style={{fontSize:12,color:"#0284c7",background:"#e0f2fe",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #7dd3fc"}}>
+      <strong>Half stitch {halfStitchTool==="fwd"?"/":"\\"}</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to place{selectedColorId&&cmap&&cmap[selectedColorId]?` using DMC ${selectedColorId}`:" using cell colour"}. {hasTouchRef.current?"Tap":"Click"} again to remove. Counts as 0.5 stitch.
+    </div>}
+    {!isEditMode && halfStitchTool==="erase"&&<div style={{fontSize:12,color:"#dc2626",background:"#fef2f2",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #fecaca"}}><strong>Erase mode</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to remove all half stitches from it.</div>}
     {!isEditMode && stitchMode==="navigate"&&<div style={{fontSize:12,color:"#18181b",background:"#f4f4f5",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}</div>}
     {advanceToast&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #bbf7d0",fontWeight:600}}>✓ Complete! Next: {advanceToast}</div>}
+
+    {/* Half stitch onboarding walkthrough */}
+    {showHalfOnboarding&&!halfOnboardingDone&&<div className="hs-scale-in" style={{fontSize:12,background:"#e0f2fe",padding:"10px 14px",borderRadius:8,marginBottom:6,border:"1px solid #7dd3fc"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        <span style={{fontWeight:700,color:"#0284c7"}}>Half Stitch Tool — Step {halfOnboardingStep+1} of 3</span>
+        <button onClick={()=>{setShowHalfOnboarding(false);setHalfOnboardingDone(true);}} style={{background:"none",border:"none",color:"#0284c7",cursor:"pointer",fontSize:11,fontWeight:600}}>Got it</button>
+      </div>
+      <div style={{color:"#0c4a6e"}}>
+        {halfOnboardingStep===0&&"Select a half stitch direction — / or \\"}
+        {halfOnboardingStep===1&&"Tap a cell to place. The coloured triangle shows which half is covered."}
+        {halfOnboardingStep===2&&"Tap again to remove. You can place both directions in one cell."}
+      </div>
+      {halfOnboardingStep<2&&<button onClick={()=>setHalfOnboardingStep(s=>s+1)} style={{marginTop:6,fontSize:11,padding:"3px 12px",borderRadius:6,border:"1px solid #7dd3fc",background:"#f0f9ff",color:"#0284c7",cursor:"pointer",fontWeight:600}}>Next →</button>}
+      {halfOnboardingStep===2&&<button onClick={()=>{setShowHalfOnboarding(false);setHalfOnboardingDone(true);}} style={{marginTop:6,fontSize:11,padding:"3px 12px",borderRadius:6,border:"1px solid #7dd3fc",background:"#0284c7",color:"#fff",cursor:"pointer",fontWeight:600}}>Got it</button>}
+    </div>}
+
+    {/* Half stitch same-colour toast */}
+    {halfToast&&<div className="hs-scale-in" style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a",display:"flex",alignItems:"center",gap:8}}>
+      <span>{halfToast.msg}</span>
+      <button onClick={()=>{
+        // Convert two halves to a full cross
+        const newHs=new Map(halfStitches);
+        newHs.delete(halfToast.idx);
+        setHalfStitches(newHs);
+        setHalfDone(prev=>{
+          const newHd=new Map(prev);
+          newHd.delete(halfToast.idx);
+          return newHd;
+        });
+        // The cell already has the full stitch colour from pat[]
+        setHalfToast(null);
+        renderStitch();
+      }} style={{fontSize:11,padding:"2px 10px",borderRadius:6,border:"1px solid #fde68a",background:"#fff",color:"#d97706",cursor:"pointer",fontWeight:600}}>Convert</button>
+      <button onClick={()=>setHalfToast(null)} style={{fontSize:11,padding:"2px 10px",borderRadius:6,border:"1px solid #e4e4e7",background:"#fff",color:"#71717a",cursor:"pointer"}}>Keep</button>
+    </div>}
 
     <div ref={stitchScrollRef} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitch();scrollRafRef.current=null;})}}} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid #e4e4e7",borderRadius:"8px 8px 0 0",background:"#f4f4f5",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?"crosshair":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
       <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: '#fff', borderBottom: '1px solid #e4e4e7' }}>
@@ -1369,13 +1757,19 @@ return(
     <button onClick={()=>setDrawer(!drawer)} style={{width:"100%",padding:"8px",borderRadius:"0 0 8px 8px",border:"0.5px solid #e4e4e7",borderTop:"none",background:drawer?"#fafafa":"#fff",cursor:"pointer",fontSize:12,fontWeight:600,color:"#0d9488",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:12}}><span style={{transform:drawer?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s",display:"inline-block"}}>▲</span>Colours ({pal.length}) — {Object.values(colourDoneCounts).filter(c=>c.done>=c.total).length} complete</button>
 
     {drawer&&<div style={{border:"0.5px solid #e4e4e7",borderRadius:"10px",background:"#fff",maxHeight:"min(280px, 40vh)",overflow:"auto",padding:8,marginBottom:12}}>
-      <div style={{display:"flex",flexDirection:"column",gap:2}}>{pal.map(p=>{let dc=colourDoneCounts[p.id]||{total:0,done:0},pct=dc.total>0?Math.round(dc.done/dc.total*100):0,complete=dc.done>=dc.total,isFocused=focusColour===p.id;
+      <div style={{display:"flex",flexDirection:"column",gap:2}}>{pal.map(p=>{let dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
+        let totalWithHalf=dc.total+dc.halfTotal*0.5;
+        let doneWithHalf=dc.done+dc.halfDone*0.5;
+        let pct=totalWithHalf>0?Math.round(doneWithHalf/totalWithHalf*100):0;
+        let complete=doneWithHalf>=totalWithHalf&&totalWithHalf>0;
+        let isFocused=focusColour===p.id;
         let sk=skeinEst(p.count,fabricCt);
         return<div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,background:isFocused?"#f0fdfa":complete?"#f0fdf4":"#fff",border:isFocused?"2px solid #0d9488":isEditMode?"1px solid #fde68a":"1px solid transparent",cursor:"pointer",opacity:complete&&!isFocused?0.6:1}} onClick={()=>{
           if (isEditMode) {
             setEditModalColor(p);
           } else {
-            if(stitchView==="highlight"){setFocusColour(focusColour===p.id?null:p.id);}
+            if(halfStitchTool&&halfStitchTool!=="erase"){setSelectedColorId(selectedColorId===p.id?null:p.id);}
+            else if(stitchView==="highlight"){setFocusColour(focusColour===p.id?null:p.id);}
             else{setStitchView("highlight");setFocusColour(p.id);}
           }
         }}>
@@ -1386,11 +1780,13 @@ return(
           {!isEditMode && <>
           <span style={{fontSize:10,color:"#a1a1aa",flexShrink:0}}>{sk}sk</span>
           <div style={{width:60,height:5,background:"#e4e4e7",borderRadius:3,overflow:"hidden",flexShrink:0}}><div style={{height:"100%",width:pct+"%",background:complete?"#16a34a":"#0d9488",borderRadius:3}}/></div>
-          <span style={{fontSize:11,color:complete?"#16a34a":"#71717a",fontWeight:complete?600:400,minWidth:50,textAlign:"right"}}>{dc.done}/{dc.total}</span>
+          <span style={{fontSize:11,color:complete?"#16a34a":"#71717a",fontWeight:complete?600:400,minWidth:50,textAlign:"right"}}>
+            {dc.done}/{dc.total}{dc.halfTotal>0?<span style={{color:"#0284c7"}}> +{dc.halfDone}△/{dc.halfTotal}△</span>:""}
+          </span>
           <button onClick={e2=>{e2.stopPropagation();markColourDone(p.id,!complete);}} style={{fontSize:10,padding:"2px 8px",borderRadius:5,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{complete?"Undo":"All ✓"}</button>
           </>}
           {isEditMode && <>
-            <span style={{fontSize:11,color:"#a1a1aa",flexShrink:0}}>{p.count} st</span>
+            <span style={{fontSize:11,color:"#a1a1aa",flexShrink:0}}>{p.count} st{dc.halfTotal>0?` + ${dc.halfTotal}△`:""}</span>
             <span style={{fontSize:11,color:"#d97706",fontWeight:600}}>✎ Edit</span>
           </>}
         </div>;})}</div>
@@ -1434,7 +1830,6 @@ return(
     </div>
 
     <div style={{marginTop:20, display:"flex", gap:10, justifyContent:"center", padding:"20px", borderTop:"0.5px solid #e4e4e7"}}>
-      <button onClick={handleEditInCreator} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#ea580c",color:"#fff",cursor:"pointer",fontWeight:600}}>Edit</button>
       <button onClick={saveProject} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save Project (.json)</button>
       <button onClick={()=>loadRef.current.click()} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Load Different Project</button>
     </div>
@@ -1634,6 +2029,30 @@ return(
       </div>
     </div>
   )}
+
+  {/* Half stitch disambiguation popup */}
+  {halfDisambig&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:10001}} onClick={()=>setHalfDisambig(null)}>
+    <div className="hs-scale-in" style={{
+      position:"fixed",left:halfDisambig.x-50,top:halfDisambig.y-60,
+      background:"#fff",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.2)",padding:"6px 8px",
+      display:"flex",flexDirection:"column",gap:4,border:"1px solid #e4e4e7",minWidth:100
+    }} onClick={e=>e.stopPropagation()}>
+      <button onClick={()=>_markHalfDoneFromDisambig(halfDisambig.idx,"fwd")} style={{
+        display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,border:"none",
+        background:"#f0f9ff",cursor:"pointer",fontSize:12,fontWeight:500,color:"#0c4a6e"
+      }}>
+        <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="0,0 0,14 14,14" fill="#7dd3fc"/></svg>
+        Mark /
+      </button>
+      <button onClick={()=>_markHalfDoneFromDisambig(halfDisambig.idx,"bck")} style={{
+        display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,border:"none",
+        background:"#f0f9ff",cursor:"pointer",fontSize:12,fontWeight:500,color:"#0c4a6e"
+      }}>
+        <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="0,0 14,0 0,14" fill="#7dd3fc"/></svg>
+        Mark \
+      </button>
+    </div>
+  </div>}
 
 </div>
 </>);
