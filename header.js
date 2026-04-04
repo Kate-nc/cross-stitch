@@ -71,18 +71,26 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     }
   }, [activeProject]);
 
-  const pct = projSummary && projSummary.settings
-    ? (() => {
-        const total = projSummary.pattern
-          ? projSummary.pattern.filter(c => c && c.id !== '__skip__' && c.id !== '__empty__').length
-          : 0;
-        const done = projSummary.done
-          ? projSummary.done.reduce((n, v) => n + (v === 1 ? 1 : 0), 0)
-          : 0;
-        return total > 0 ? Math.round(done / total * 100) : 0;
-      })()
-    : null;
+  const pct = React.useMemo(() => {
+    if (!projSummary || !projSummary.settings) return null;
 
+    let total = 0;
+    if (projSummary.pattern) {
+      for (let i = 0; i < projSummary.pattern.length; i += 1) {
+        const c = projSummary.pattern[i];
+        if (c && c.id !== '__skip__' && c.id !== '__empty__') total += 1;
+      }
+    }
+
+    let done = 0;
+    if (projSummary.done) {
+      for (let i = 0; i < projSummary.done.length; i += 1) {
+        if (projSummary.done[i] === 1) done += 1;
+      }
+    }
+
+    return total > 0 ? Math.round(done / total * 100) : 0;
+  }, [projSummary]);
   const projName = projSummary
     ? (projSummary.name || (projSummary.settings
         ? `${projSummary.settings.sW}×${projSummary.settings.sH}`
