@@ -122,6 +122,11 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               key: id,
               href,
               className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
+              onClick: id === 'tracker' && window.__switchToTrack
+                ? (e) => { e.preventDefault(); window.__switchToTrack(); }
+                : id === 'creator' && window.__switchToDesign
+                  ? (e) => { e.preventDefault(); window.__switchToDesign(); }
+                  : undefined,
               ...(page === id ? { 'aria-current': 'page' } : {}),
             }, label)
           )

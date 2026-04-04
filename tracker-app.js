@@ -1,6 +1,6 @@
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
 
-function App(){
+function TrackerApp({onSwitchToDesign=null}={}){
 const[sW,setSW]=useState(80),[sH,setSH]=useState(80);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null);
 const[fabricCt,setFabricCt]=useState(14);
@@ -426,6 +426,15 @@ function saveProject(){
 
 function handleEditInCreator(){
   if(!pat||!pal)return;
+  if(onSwitchToDesign){
+    const project=lastSnapshotRef.current;
+    if(project){
+      saveProjectToDB(project).catch(()=>{});
+      ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(()=>{});
+    }
+    setTimeout(onSwitchToDesign,30);
+    return;
+  }
   let project={version:8,page:"tracker",settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice:1.2,stitchSpeed:40,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:Array.from(done),parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:null};
   try{
     localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(project));
@@ -1837,9 +1846,11 @@ return(
     </div>
 
 
+    {doneCount===0&&totalStitchable>0&&stitchMode==="track"&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:6,padding:"6px 10px",marginBottom:8,textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
     <button onClick={()=>setDrawer(!drawer)} style={{width:"100%",padding:"8px",borderRadius:"0 0 8px 8px",border:"0.5px solid #e4e4e7",borderTop:"none",background:drawer?"#fafafa":"#fff",cursor:"pointer",fontSize:12,fontWeight:600,color:"#0d9488",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:12}}><span style={{transform:drawer?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s",display:"inline-block"}}>▲</span>Colours ({pal.length}) — {Object.values(colourDoneCounts).filter(c=>c.done>=c.total).length} complete</button>
 
     {drawer&&<div style={{border:"0.5px solid #e4e4e7",borderRadius:"10px",background:"#fff",maxHeight:"min(280px, 40vh)",overflow:"auto",padding:8,marginBottom:12}}>
+      {stitchView==="highlight"&&!focusColour&&<div style={{fontSize:11,color:"#71717a",background:"#f0fdfa",border:"1px solid #ccfbf1",borderRadius:6,padding:"6px 10px",marginBottom:6,textAlign:"center"}}>Tap a colour to highlight its stitches on the grid</div>}
       <div style={{display:"flex",flexDirection:"column",gap:2}}>{pal.map(p=>{let dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
         let totalWithHalf=dc.total+dc.halfTotal*0.5;
         let doneWithHalf=dc.done+dc.halfDone*0.5;
@@ -2140,4 +2151,5 @@ return(
 </div>
 </>);
 }
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+window.TrackerApp=TrackerApp;
+if(!window.__UNIFIED__)ReactDOM.createRoot(document.getElementById("root")).render(<TrackerApp/>);
