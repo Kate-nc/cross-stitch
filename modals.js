@@ -206,3 +206,40 @@ const SharedModals = {
     );
   }
 };
+
+// Prompt modal for naming a project before first save.
+// Props: defaultName, onConfirm(name), onCancel
+function NamePromptModal({ defaultName, onConfirm, onCancel }) {
+  const [value, setValue] = React.useState(defaultName || '');
+  const inputRef = React.useRef(null);
+  React.useEffect(() => { if (inputRef.current) { inputRef.current.focus(); inputRef.current.select(); } }, []);
+  function submit() {
+    const trimmed = (value || '').trim().slice(0, 60);
+    onConfirm(trimmed || defaultName || 'Untitled');
+  }
+  return React.createElement('div', { className: 'modal-overlay', onClick: onCancel },
+    React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 400, padding: 24 } },
+      React.createElement('h3', { style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: '#18181b' } }, 'Name your project'),
+      React.createElement('p', { style: { margin: '0 0 16px', color: '#71717a', fontSize: 13 } }, 'Give your project a name so you can find it later.'),
+      React.createElement('input', {
+        ref: inputRef,
+        type: 'text',
+        value: value,
+        maxLength: 60,
+        onChange: e => setValue(e.target.value),
+        onKeyDown: e => { if (e.key === 'Enter') submit(); else if (e.key === 'Escape') onCancel(); },
+        style: { width: '100%', padding: '8px 10px', fontSize: 14, borderRadius: 8, border: '1px solid #e4e4e7', boxSizing: 'border-box', marginBottom: 16 }
+      }),
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
+        React.createElement('button', {
+          onClick: () => { onConfirm(defaultName || 'Untitled'); },
+          style: { padding: '7px 14px', borderRadius: 8, border: '0.5px solid #e4e4e7', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#71717a' }
+        }, 'Skip'),
+        React.createElement('button', {
+          onClick: submit,
+          style: { padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--accent, #0d9488)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }
+        }, 'Save')
+      )
+    )
+  );
+}

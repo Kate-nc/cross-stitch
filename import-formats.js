@@ -15,11 +15,12 @@ function parseHexColor(hex) {
   return null;
 }
 
-function importResultToProject(result, fabricCt = 14) {
+function importResultToProject(result, fabricCt = 14, name = "") {
   return {
     v: 8,
     w: result.width,
     h: result.height,
+    name: name || "",
     settings: { sW: result.width, sH: result.height, fabricCt: fabricCt },
     pattern: result.pattern.map(m => {
       if (m.id === "__skip__") return { id: "__skip__" };

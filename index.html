@@ -155,6 +155,9 @@ const userActedRef=useRef(false); // set to true the first time user uploads/loa
 const pcRef=useRef(null),fRef=useRef(null),scrollRef=useRef(null),expRef=useRef(null),loadRef=useRef(null);
 const prevSW=useRef(sW),prevSH=useRef(sH);
 const projectIdRef=useRef(null); // persists across renders without causing re-renders
+const[projectName,setProjectName]=useState("");
+const[namePromptOpen,setNamePromptOpen]=useState(false);
+const namePromptResolveRef=useRef(null);
 const G=28;
 
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__"&&pat[i].id!=="__empty__")c++;return c;},[pat]);
@@ -381,13 +384,32 @@ function applyCrop(){
   newImg.src=c.toDataURL();
 }
 
-function saveProject(){if(!pat||!pal)return;let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));let project={version:9,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};let blob=new Blob([JSON.stringify(project)],{type:"application/json"});let url=URL.createObjectURL(blob);let a=document.createElement("a");a.href=url;a.download="cross-stitch-project.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+function doSaveProject(finalName){
+  if(!pat||!pal)return;
+  let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
+  let project={version:9,page:"creator",name:finalName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
+  let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
+  let url=URL.createObjectURL(blob);
+  let a=document.createElement("a");
+  a.href=url;
+  const safeName=(finalName||'cross-stitch-project').replace(/[^a-zA-Z0-9_\- ]/g,'').trim()||'cross-stitch-project';
+  a.download=safeName+".json";
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+function saveProject(){
+  if(!pat||!pal)return;
+  if(!projectName){
+    setNamePromptOpen(true);
+    return;
+  }
+  doSaveProject(projectName);
+}
 
 function handleOpenInTracker(){
   if(!pat||!pal)return;
   if(!projectIdRef.current) projectIdRef.current="proj_"+Date.now();
   let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
-  let project={version:9,id:projectIdRef.current,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
+  let project={version:9,id:projectIdRef.current,page:"creator",name:projectName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
   if(onSwitchToTrack){
     // Unified app: save in background and pass project directly (bypasses DB read race)
     saveProjectToDB(project).catch(()=>{});
@@ -437,6 +459,7 @@ function processLoadedProject(project){
   }else{setHalfStitches(new Map());}
   setHalfStitchTool(null);
   if(project.imgData&&typeof project.imgData==='string'&&project.imgData.startsWith('data:image/')){let li=new Image();li.onload=()=>{if(!userActedRef.current){setImg(li);setOrigW(li.width);setOrigH(li.height);}};li.src=project.imgData;}else if(s.isScratchMode){setImg({src:null,w:s.sW,h:s.sH});}
+  setProjectName(project.name||"");
   projectIdRef.current = project.id || null;
   setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/(s.sW*20)));setZoom(z);},100);
 }
@@ -526,14 +549,14 @@ useEffect(() => {
     const saveTimer = setTimeout(() => {
         let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
         if(!projectIdRef.current) projectIdRef.current="proj_"+Date.now();
-        let project={version:9,id:projectIdRef.current,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
+        let project={version:9,id:projectIdRef.current,page:"creator",name:projectName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
         ProjectStorage.save(project).then(id => { ProjectStorage.setActiveProject(id); }).catch(err => console.error("ProjectStorage auto-save failed:", err));
-        if(typeof StashBridge!=="undefined") StashBridge.syncProjectToLibrary(projectIdRef.current,`${sW}×${sH} pattern`,skeinData,"inprogress");
+        if(typeof StashBridge!=="undefined") StashBridge.syncProjectToLibrary(projectIdRef.current,projectName||`${sW}×${sH} pattern`,skeinData,"inprogress");
     }, 1000); // 1-second debounce
 
     return () => clearTimeout(saveTimer);
-}, [pat, pal, sW, sH, maxC, bri, con, sat, dith, skipBg, bgTh, bgCol, minSt, arLock, ar, fabricCt, skeinPrice, stitchSpeed, smooth, smoothType, orphans, bsLines, done, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned, img, halfStitches]);
+}, [pat, pal, sW, sH, maxC, bri, con, sat, dith, skipBg, bgTh, bgCol, minSt, arLock, ar, fabricCt, skeinPrice, stitchSpeed, smooth, smoothType, orphans, bsLines, done, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned, img, halfStitches, projectName]);
 
 // Resize scratch-mode grid: preserve existing stitches, fill new cells with __empty__
 useEffect(()=>{
@@ -1160,13 +1183,19 @@ return(
   onNewProject={()=>{if(!pat||confirm("Start a new project? Unsaved changes will be lost."))resetAll();}}
   setModal={setModal} />
 {pat&&pal&&<ContextBar
-  name={sW + '×' + sH + ' pattern'}
+  name={projectName || (sW + '×' + sH + ' pattern')}
   dimensions={{width:sW,height:sH}}
   palette={pal}
   pct={null}
   page="creator"
   onTrack={handleOpenInTracker}
   onSave={saveProject}
+  onNameChange={n=>setProjectName(n)}
+/>}
+{namePromptOpen&&<NamePromptModal
+  defaultName={projectName || (sW+'×'+sH+' pattern')}
+  onConfirm={name=>{setProjectName(name);setNamePromptOpen(false);doSaveProject(name);}}
+  onCancel={()=>setNamePromptOpen(false)}
 />}
 
 {/* ═══ TOOL STRIP ═══ */}

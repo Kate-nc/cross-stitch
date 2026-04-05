@@ -112,12 +112,16 @@ const [importMaxColours, setImportMaxColours] = useState(30);
 const [importSkipBg, setImportSkipBg] = useState(false);
 const [importBgThreshold, setImportBgThreshold] = useState(15);
 const [importArLock, setImportArLock] = useState(true);
+const [importName, setImportName] = useState("");
+const [importFabricCt, setImportFabricCt] = useState(14);
 
 const prevDoneCount=useRef(0);
 const modeToggleRef=useRef(0);
 const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
 const projectIdRef=useRef(null);    // current project's storage ID
 const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunload
+const[projectName,setProjectName]=useState("");
+const[namePromptOpen,setNamePromptOpen]=useState(false);
 const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
 const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});
@@ -557,7 +561,7 @@ function handleRevertToOriginal(){
   setPat(revertedPat);setPal(previousPal);setCmap(newCmap);setThreadOwned(newThreadOwned);setSingleStitchEdits(new Map());setUndoSnapshot(null);
 }
 
-function saveProject(){
+function doSaveProject(finalName){
   if(!pat||!pal)return;
   // Serialise singleStitchEdits Map as array of [cellIdx, {originalId, currentId}] pairs
   const sseArr = [...singleStitchEdits.entries()];
@@ -570,6 +574,7 @@ function saveProject(){
   let project={
     version:9,
     page:"tracker",
+    name:finalName,
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
     pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),
     bsLines,
@@ -591,11 +596,21 @@ function saveProject(){
   let url=URL.createObjectURL(blob);
   let a=document.createElement("a");
   a.href=url;
-  a.download="cross-stitch-project.json";
+  const safeName=(finalName||'cross-stitch-project').replace(/[^a-zA-Z0-9_\- ]/g,'').trim()||'cross-stitch-project';
+  a.download=safeName+".json";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function saveProject(){
+  if(!pat||!pal)return;
+  if(!projectName){
+    setNamePromptOpen(true);
+    return;
+  }
+  doSaveProject(projectName);
 }
 
 function handleEditInCreator(){
@@ -609,7 +624,7 @@ function handleEditInCreator(){
     onSwitchToDesign();
     return;
   }
-  let project={version:8,page:"tracker",settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice:1.2,stitchSpeed:40,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:Array.from(done),parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:null,statsSessions,statsSettings};
+  let project={version:8,page:"tracker",name:projectName,settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice:1.2,stitchSpeed:40,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:Array.from(done),parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:null,statsSessions,statsSettings};
   try{
     localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(project));
     window.location.href = "index.html?source=tracker";
@@ -779,6 +794,7 @@ function processLoadedProject(project){
   prevAutoCountRef.current={done:-1,halfDone:-1};
   if(project.hlRow>=0)setHlRow(project.hlRow);
   if(project.hlCol>=0)setHlCol(project.hlCol);
+  setProjectName(project.name||"");
   projectIdRef.current = project.id || null;
 
   setTimeout(()=>{
@@ -793,6 +809,7 @@ function loadProject(e){
   setImportSuccess(null);
 
   const format = detectImportFormat(f);
+  const baseName = f.name ? f.name.replace(/\.[^.]+$/, '') : '';
 
   if (format === "json") {
     let rd=new FileReader();
@@ -813,9 +830,11 @@ function loadProject(e){
     rd.onload=ev=>{
       try{
         let result = parseOXS(ev.target.result);
-        let project = importResultToProject(result);
+        let project = importResultToProject(result, 14, baseName);
+        project.id = "proj_" + Date.now();
         processLoadedProject(project);
-        setImportSuccess(`Imported ${result.width}x${result.height} pattern with ${result.paletteSize} colours and ${result.stitchCount} stitches.`);
+        ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Import save failed:", err));
+        setImportSuccess(`Imported "${baseName || 'pattern'}" \u2014 ${result.width}\u00d7${result.height}, ${result.paletteSize} colours, ${result.stitchCount} stitches`);
       }catch(err){
         console.error(err);
         setLoadError("Could not load OXS: "+err.message);
@@ -835,6 +854,8 @@ function loadProject(e){
       let img = new Image();
       img.onload = () => {
         setImportImage(img);
+        setImportName(baseName);
+        setImportFabricCt(14);
         setImportDialog("image");
       };
       img.onerror = () => {
@@ -852,9 +873,15 @@ function loadProject(e){
       const importer = new PatternKeeperImporter();
       return importer.import(f);
     }).then(project => {
+      if (!project.name) project.name = baseName;
+      if (!project.id) project.id = "proj_" + Date.now();
       processLoadedProject(project);
+      ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Import save failed:", err));
       setLoadError(null);
-      setImportSuccess(`Imported PDF chart successfully.`);
+      const s = project.settings || {};
+      const palCount = project.pattern ? new Set(project.pattern.filter(m => m && m.id !== '__skip__' && m.id !== '__empty__').map(m => m.id)).size : 0;
+      const stitchCount = project.pattern ? project.pattern.filter(m => m && m.id !== '__skip__' && m.id !== '__empty__').length : 0;
+      setImportSuccess(`Imported "${baseName || 'PDF chart'}" \u2014 ${s.sW||'?'}\u00d7${s.sH||'?'}, ${palCount} colours, ${stitchCount} stitches`);
     }).catch(err => {
       console.error(err);
       setLoadError("Could not load PDF: " + err.message);
@@ -949,7 +976,7 @@ useEffect(() => {
   }]);
   const hdArr = [...halfDone.entries()];
   const project = {
-    version: 9, id: projectIdRef.current, page: "tracker",
+    version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
     settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
     pattern: pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb }),
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
@@ -965,7 +992,7 @@ useEffect(() => {
     if (typeof StashBridge !== "undefined" && skeinData.length > 0) {
       StashBridge.syncProjectToLibrary(
         projectIdRef.current,
-        `${sW}×${sH} pattern`,
+        projectName || `${sW}×${sH} pattern`,
         skeinData,
         combinedDone >= combinedTotal && combinedTotal > 0 ? "completed" : "inprogress"
       ).catch(err => console.error("Library sync failed:", err));
@@ -974,7 +1001,7 @@ useEffect(() => {
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
     halfStitches, halfDone, singleStitchEdits, sessionActive, sessionStart,
-    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings]);
+    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 useEffect(() => {
@@ -1760,7 +1787,7 @@ return(
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
 <Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat ? () => setModal("pdf_export") : null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} />
 {pat&&pal&&<ContextBar
-  name={pat ? (sW + '×' + sH + ' pattern') : null}
+  name={projectName || (sW + '×' + sH + ' pattern')}
   dimensions={pat ? {width:sW, height:sH} : null}
   palette={pal}
   pct={totalStitchable>0 ? Math.round(doneCount/totalStitchable*100) : 0}
@@ -1768,6 +1795,12 @@ return(
   onEdit={handleEditInCreator}
   onSave={saveProject}
   onHome={()=>{if(onGoHome){onGoHome();}else if(typeof window.__goHome!=='undefined'){window.__goHome();}else if(typeof window.__switchToDesign!=='undefined'){window.__switchToDesign();}else{window.location.href='index.html';}}}
+  onNameChange={n=>setProjectName(n)}
+/>}
+{namePromptOpen&&<NamePromptModal
+  defaultName={projectName || (sW+'×'+sH+' pattern')}
+  onConfirm={name=>{setProjectName(name);setNamePromptOpen(false);doSaveProject(name);}}
+  onCancel={()=>setNamePromptOpen(false)}
 />}
 {pat&&pal&&<>
 {/* ═══ TRACKER TOOL STRIP ═══ */}
@@ -1893,13 +1926,18 @@ return(
   {importSuccess && (
     <div style={{
       background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8,
-      padding: "8px 14px", fontSize: 12, color: "#16a34a", fontWeight: 600, marginBottom: 12
+      padding: "8px 14px", fontSize: 12, color: "#16a34a", fontWeight: 600, marginBottom: 12,
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12
     }}>
-      ✓ {importSuccess}
+      <span>{'\u2713'} {importSuccess}</span>
+      <button onClick={()=>setImportSuccess(null)} style={{
+        padding: "3px 10px", borderRadius: 6, border: "1px solid #bbf7d0", background: "#fff",
+        cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#16a34a", flexShrink: 0
+      }}>Dismiss</button>
     </div>
   )}
 
-  {statsView&&pat&&<StatsDashboard statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={sW+'\u00D7'+sH+' pattern'} palette={pal} colourDoneCounts={colourDoneCounts}/>}
+  {statsView&&pat&&<StatsDashboard statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts}/>}
 
   {!statsView&&!pat&&<div style={{maxWidth:500, margin:"40px auto", textAlign:"center"}}>
     <div className="card" style={{padding:"30px"}}>
@@ -2211,6 +2249,13 @@ return(
     <div className="modal-content" style={{maxWidth:600}} onClick={e=>e.stopPropagation()}>
       <button className="modal-close" onClick={()=>{setImportDialog(null);setImportImage(null);}}>×</button>
       <h3 style={{marginTop:0,marginBottom:15}}>Import Image Pattern</h3>
+      <div style={{display:"flex", flexDirection:"column", gap:12, marginBottom:16}}>
+        <div style={{display:"flex", flexDirection:"column", gap:4}}>
+          <label style={{fontSize:12, fontWeight:600, color:"#71717a"}}>Project Name</label>
+          <input type="text" maxLength={60} value={importName} onChange={e=>setImportName(e.target.value)}
+            placeholder="e.g. Rose Garden" style={{padding:"6px 10px", borderRadius:6, border:"0.5px solid #e4e4e7", fontSize:13}}/>
+        </div>
+      </div>
       <div style={{display:"flex", gap:20, flexWrap:"wrap"}}>
         <div style={{width:140, display:"flex", flexDirection:"column", gap:8}}>
           <div style={{width:140, height:140, background:"#fafafa", border:"0.5px solid #e4e4e7", borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden"}}>
@@ -2243,6 +2288,14 @@ return(
             <input type="checkbox" checked={importArLock} onChange={e=>setImportArLock(e.target.checked)}/> Lock aspect ratio
           </label>
 
+          <div style={{display:"flex", flexDirection:"column", gap:4}}>
+            <label style={{fontSize:12, fontWeight:600, color:"#71717a"}}>Fabric Count</label>
+            <select value={importFabricCt} onChange={e=>setImportFabricCt(Number(e.target.value))}
+              style={{padding:"6px 10px", borderRadius:6, border:"0.5px solid #e4e4e7", fontSize:13, background:"#fff"}}>
+              {FABRIC_COUNTS.map(fc=><option key={fc.ct} value={fc.ct}>{fc.label}</option>)}
+            </select>
+          </div>
+
           <SliderRow label="Max Colours" val={importMaxColours} setVal={setImportMaxColours} min={5} max={40} />
 
           <label style={{display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#18181b", cursor:"pointer"}}>
@@ -2261,9 +2314,12 @@ return(
               maxWidth: importMaxW, maxHeight: importMaxH,
               maxColours: importMaxColours, skipWhiteBg: importSkipBg, bgThreshold: importBgThreshold
             });
-            let project = importResultToProject(result);
+            const finalName = (importName || '').trim().slice(0, 60);
+            let project = importResultToProject(result, importFabricCt, finalName);
+            project.id = "proj_" + Date.now();
             processLoadedProject(project);
-            setImportSuccess(`Imported image as ${result.width}x${result.height} pattern with ${result.paletteSize} colours and ${result.stitchCount} stitches.`);
+            ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Import save failed:", err));
+            setImportSuccess(`Imported "${finalName || 'image'}" \u2014 ${result.width}\u00d7${result.height}, ${result.paletteSize} colours, ${result.stitchCount} stitches`);
             setImportDialog(null);
             setImportImage(null);
           } catch(err) {
