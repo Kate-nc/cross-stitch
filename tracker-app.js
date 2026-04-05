@@ -707,6 +707,15 @@ useEffect(()=>{
 },[incomingProject]);
 
 useEffect(() => {
+  // Handle pending import file from HomeScreen
+  if (window.__pendingTrackerImportFile) {
+    const file = window.__pendingTrackerImportFile;
+    delete window.__pendingTrackerImportFile;
+    // Simulate a file input event for the existing loadProject handler
+    const fakeEvt = { target: { files: [file] } };
+    loadProject(fakeEvt);
+    return;
+  }
   // If a project was passed directly on first mount, use it (no DB read needed).
   if(incomingProjectRef.current){
     processLoadedProject(incomingProjectRef.current.project);
