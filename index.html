@@ -50,21 +50,24 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_v2';
+var TRACKER_CACHE_KEY = 'babel_tracker_v4';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
+  // Clear stale cache from previous versions
+  try { localStorage.removeItem('babel_tracker_v2'); localStorage.removeItem('babel_tracker_v3'); } catch(e) {}
   var cached = null;
   try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch(e) {}
+  // Wrap in IIFE so const/let declarations don't collide with the inline Babel script
   if (cached) {
-    var s = document.createElement('script'); s.textContent = cached; document.head.appendChild(s); return;
+    var s = document.createElement('script'); s.textContent = '(function(){' + cached + '})();'; document.head.appendChild(s); return;
   }
   fetch('tracker-app.js').then(function(r) {
     return r.ok ? r.text() : Promise.reject('fetch failed');
   }).then(function(src) {
     var compiled = Babel.transform(src, { presets: ['react'], filename: 'tracker-app.js' }).code;
     try { localStorage.setItem(TRACKER_CACHE_KEY, compiled); } catch(e) {}
-    var s = document.createElement('script'); s.textContent = compiled; document.head.appendChild(s);
+    var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
   }).catch(function() {
     /* file:// or network error — fall back to Babel MutationObserver path */
     window.__trackerLoading = false;

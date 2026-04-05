@@ -22,6 +22,21 @@ const[sessionActive,setSessionActive]=useState(false),[sessionStart,setSessionSt
 const[sessionStitches,setSessionStitches]=useState(0),[totalTime,setTotalTime]=useState(0);
 const[sessionElapsed,setSessionElapsed]=useState(0),[sessions,setSessions]=useState([]);
 
+const[statsSessions,setStatsSessions]=useState([]);
+const[statsSettings,setStatsSettings]=useState({dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null});
+const[statsView,setStatsView]=useState(false);
+const[celebration,setCelebration]=useState(null);
+const celebratedRef=useRef(new Set());
+const currentAutoSessionRef=useRef(null);
+const pendingColoursRef=useRef(new Set());
+const pendingMilestonesRef=useRef([]);
+const lastStitchActivityRef=useRef(null);
+const autoIdleTimerRef=useRef(null);
+const prevAutoCountRef=useRef({done:0,halfDone:0});
+const autoStatsRef=useRef({doneCount:0,totalStitchable:0});
+const finaliseAutoSessionRef=useRef(null);
+const IDLE_THRESHOLD_MS=15*60*1000;
+
 const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
 useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
 const[isEditMode,setIsEditMode]=useState(false);
@@ -221,11 +236,152 @@ const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal])
 const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable):null,[pal,blendCount,totalStitchable]);
 
 function toggleSession(){if(sessionActive){let el=Math.floor((Date.now()-sessionStart)/1000);setTotalTime(p=>p+el);setSessions(p=>[...p,{stitches:sessionStitches,time:el,date:Date.now()}]);setSessionActive(false);setSessionStart(null);setSessionStitches(0);setSessionElapsed(0);}else{setSessionActive(true);setSessionStart(Date.now());setSessionStitches(0);setSessionElapsed(0);prevDoneCount.current=doneCount;}}
+
+// ═══ Auto-session recording ═══
+function getStitchingDateLocal(now){
+  try{
+    const d=new Date(now);
+    const deh=(statsSettings&&statsSettings.dayEndHour)||0;
+    if(deh>0&&d.getHours()<deh)d.setDate(d.getDate()-1);
+    const y=d.getFullYear(),m=('0'+(d.getMonth()+1)).slice(-2),day=('0'+d.getDate()).slice(-2);
+    return y+'-'+m+'-'+day;
+  }catch(e){console.warn('Stats: getStitchingDateLocal error',e);const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+}
+function recordAutoActivity(completed,undone){
+  try{
+    const now=new Date();
+    lastStitchActivityRef.current=now;
+    if(!currentAutoSessionRef.current){
+      currentAutoSessionRef.current={
+        id:'sess_'+Date.now(),
+        date:getStitchingDateLocal(now),
+        startTime:now.toISOString(),
+        stitchesCompleted:0,
+        stitchesUndone:0,
+        coloursWorked:new Set(),
+      };
+    }
+    currentAutoSessionRef.current.stitchesCompleted+=completed;
+    currentAutoSessionRef.current.stitchesUndone+=undone;
+    // Merge any pending colour IDs into the session
+    if(pendingColoursRef.current.size>0){
+      pendingColoursRef.current.forEach(c=>currentAutoSessionRef.current.coloursWorked.add(c));
+      pendingColoursRef.current.clear();
+    }
+    clearTimeout(autoIdleTimerRef.current);
+    autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){console.warn('Stats: idle finalise error',e);}},IDLE_THRESHOLD_MS);
+  }catch(e){console.warn('Stats: recordAutoActivity error',e);}
+}
+function finaliseAutoSession(){
+  try{
+    const session=currentAutoSessionRef.current;
+    if(!session||session.stitchesCompleted+session.stitchesUndone===0){
+      currentAutoSessionRef.current=null;
+      return;
+    }
+    const endTime=lastStitchActivityRef.current||new Date();
+    const startTime=new Date(session.startTime);
+    const activeDurationMs=endTime-startTime;
+    const ref=autoStatsRef.current||{doneCount:0,totalStitchable:0};
+    const tc=ref.doneCount||0,ts=ref.totalStitchable||0;
+    const finalised={
+      id:session.id,
+      date:session.date,
+      startTime:session.startTime,
+      endTime:endTime.toISOString(),
+      durationMinutes:Math.max(1,Math.round(activeDurationMs/60000)),
+      stitchesCompleted:session.stitchesCompleted,
+      stitchesUndone:session.stitchesUndone,
+      netStitches:session.stitchesCompleted-session.stitchesUndone,
+      totalAtEnd:tc,
+      percentAtEnd:ts>0?Math.round((tc/ts)*1000)/10:0,
+      note:'',
+      coloursWorked:session.coloursWorked?[...session.coloursWorked]:[],
+    };
+    if(pendingMilestonesRef.current.length>0){
+      finalised.milestones=pendingMilestonesRef.current.slice();
+      pendingMilestonesRef.current=[];
+    }
+    setStatsSessions(prev=>[...(prev||[]),finalised]);
+    currentAutoSessionRef.current=null;
+    clearTimeout(autoIdleTimerRef.current);
+  }catch(e){console.warn('Stats: finaliseAutoSession error',e);currentAutoSessionRef.current=null;}
+}
+finaliseAutoSessionRef.current=finaliseAutoSession;
+// Keep autoStatsRef fresh
+useEffect(()=>{autoStatsRef.current={doneCount,totalStitchable};},[doneCount,totalStitchable]);
+// Auto-detect stitch activity from doneCount & halfDone changes
+useEffect(()=>{
+  try{
+    if(!pat||!done)return;
+    const curDone=doneCount;
+    const curHalf=(halfStitchCounts&&halfStitchCounts.done)||0;
+    const prev=prevAutoCountRef.current||{done:0,halfDone:0};
+    const prevDone=prev.done;
+    const prevHalf=prev.halfDone;
+    // Skip initial load or project load (sentinel value -1)
+    if(prevDone<0||prevHalf<0){
+      prevAutoCountRef.current={done:curDone,halfDone:curHalf};
+      return;
+    }
+    const doneDiff=curDone-prevDone;
+    const halfDiff=curHalf-prevHalf;
+    if(doneDiff!==0||halfDiff!==0){
+      const completed=Math.max(0,doneDiff)+Math.max(0,halfDiff);
+      const undone=Math.max(0,-doneDiff)+Math.max(0,-halfDiff);
+      if(completed>0||undone>0)recordAutoActivity(completed,undone);
+      // Milestone detection
+      if(completed>0&&totalStitchable>0){
+        const prevTotal=prevDone+prevHalf;
+        const newTotal=curDone+curHalf;
+        try{
+          const hits=checkMilestones(prevTotal,newTotal,totalStitchable);
+          if(hits&&hits.length>0){
+            const best=hits[hits.length-1];
+            const key=best.pct!=null?('pct_'+best.pct):best.label;
+            if(!celebratedRef.current.has(key)){
+              celebratedRef.current.add(key);
+              setCelebration(best);
+            }
+            for(let h=0;h<hits.length;h++){pendingMilestonesRef.current.push(hits[h]);}
+          }
+        }catch(me){console.warn('Stats: milestone check error',me);}
+      }
+    }
+    prevAutoCountRef.current={done:curDone,halfDone:curHalf};
+  }catch(e){console.warn('Stats: auto-detect effect error',e);}
+},[doneCount,halfStitchCounts.done]);
+// Finalise auto-session before page unload
+useEffect(()=>{
+  const handleUnload=()=>{
+    try{
+      const finalisedSession=finaliseAutoSessionRef.current?finaliseAutoSessionRef.current():null;
+      if(finalisedSession&&lastSnapshotRef.current){
+        const snapshot=lastSnapshotRef.current||{};
+        const existingSessions=Array.isArray(snapshot.statsSessions)?snapshot.statsSessions:[];
+        const hasSession=existingSessions.some(s=>s&&finalisedSession&&s.id===finalisedSession.id);
+        const nextSnapshot=hasSession?snapshot:Object.assign({},snapshot,{statsSessions:[...existingSessions,finalisedSession]});
+        lastSnapshotRef.current=nextSnapshot;
+        try{
+          if(typeof ProjectStorage!=='undefined'&&ProjectStorage&&typeof ProjectStorage.saveProjectToDB==='function')ProjectStorage.saveProjectToDB(nextSnapshot);
+        }catch(saveErr){console.warn('Stats: beforeunload save error',saveErr);}
+      }
+    }catch(e){console.warn('Stats: beforeunload error',e);}
+  };
+  window.addEventListener('beforeunload',handleUnload);
+  return()=>window.removeEventListener('beforeunload',handleUnload);
+},[]);
+// Edit session note
+function editSessionNote(sessionId,noteText){
+  try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){console.warn('Stats: editSessionNote error',e);}
+}
 function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0)pushTrackHistory(changes);setDone(nd);}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 
 function pushTrackHistory(changes){
   if(!changes||!changes.length)return;
+  // Track colours for auto-session
+  if(pat){for(let i=0;i<changes.length;i++){const id=pat[changes[i].idx]&&pat[changes[i].idx].id;if(id&&id!=='__skip__'&&id!=='__empty__')pendingColoursRef.current.add(id);}}
   setTrackHistory(prev=>{let n=[...prev,changes];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
 }
 function undoTrack(){
@@ -427,7 +583,9 @@ function saveProject(){
     originalPaletteState,
     singleStitchEdits: sseArr,
     halfStitches: hsArr,
-    halfDone: hdArr
+    halfDone: hdArr,
+    statsSessions,
+    statsSettings
   };
   let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
   let url=URL.createObjectURL(blob);
@@ -451,7 +609,7 @@ function handleEditInCreator(){
     onSwitchToDesign();
     return;
   }
-  let project={version:8,page:"tracker",settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice:1.2,stitchSpeed:40,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:Array.from(done),parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:null};
+  let project={version:8,page:"tracker",settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice:1.2,stitchSpeed:40,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:Array.from(done),parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:null,statsSessions,statsSettings};
   try{
     localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(project));
     window.location.href = "index.html?source=tracker";
@@ -608,6 +766,17 @@ function processLoadedProject(project){
   setParkMarkers(project.parkMarkers||[]);
   setTotalTime(project.totalTime||0);
   setSessions(project.sessions||[]);
+  setStatsSessions(project.statsSessions||[]);
+  setStatsSettings(project.statsSettings||{dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null});
+  setStatsView(false);
+  setCelebration(null);
+  celebratedRef.current=new Set();
+  pendingMilestonesRef.current=[];
+  currentAutoSessionRef.current=null;
+  clearTimeout(autoIdleTimerRef.current);
+  // Reset auto-session count refs so loading doesn't trigger a spurious session
+  // (will be set accurately after next render via the doneCount/halfDone effects)
+  prevAutoCountRef.current={done:-1,halfDone:-1};
   if(project.hlRow>=0)setHlRow(project.hlRow);
   if(project.hlCol>=0)setHlCol(project.hlCol);
   projectIdRef.current = project.id || null;
@@ -786,7 +955,8 @@ useEffect(() => {
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
     totalTime: totalTime + (sessionActive ? Math.floor((Date.now() - sessionStart) / 1000) : 0),
     sessions, hlRow, hlCol, threadOwned, originalPaletteState,
-    singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr
+    singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
+    statsSessions, statsSettings
   };
   lastSnapshotRef.current = project;
   const saveTimer = setTimeout(() => {
@@ -804,7 +974,7 @@ useEffect(() => {
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
     halfStitches, halfDone, singleStitchEdits, sessionActive, sessionStart,
-    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState]);
+    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 useEffect(() => {
@@ -1152,6 +1322,9 @@ function _toggleHalfDone(idx, dir) {
   hd[dir] = hd[dir] ? 0 : 1;
   if (!hd.fwd && !hd.bck) newHd.delete(idx);
   else newHd.set(idx, hd);
+  // Track colour for auto-session
+  const hs=halfStitches.get(idx);
+  if(hs&&hs[dir]&&hs[dir].id)pendingColoursRef.current.add(hs[dir].id);
   setHalfDone(newHd);
   renderStitch();
 }
@@ -1657,6 +1830,8 @@ return(
     {sessionActive?<>⏹ {fmtTime(sessionElapsed)}</>:"▶ Start"}
   </button>
   <div className="tb-sdiv"/>
+  <button className={"tb-btn"+(statsView?" tb-btn--on":"")} onClick={()=>{finaliseAutoSession();setStatsView(v=>!v);}} title="Stats dashboard" style={{flexShrink:0}}>📊 Stats</button>
+  <div className="tb-sdiv"/>
   <div className="tb-overflow-wrap" ref={tOverflowRef}>
     <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
     {tOverflowOpen&&<div className="tb-overflow-menu">
@@ -1711,6 +1886,7 @@ return(
   <div className="tb-progress-bar"><div className={progressPct>=100?"tb-progress-fill tb-progress-fill--done":"tb-progress-fill"} style={{width:Math.min(progressPct,100)+"%"}}/></div>
   <span className="tb-progress-rem">{progressPct>=100?"Complete!":Math.ceil(combinedTotal-combinedDone).toLocaleString()+" remaining"}</span>
 </div></div>}
+{!isEditMode&&<MiniStatsBar statsSessions={statsSessions} totalCompleted={doneCount} totalStitches={totalStitchable} statsSettings={statsSettings} onOpenStats={()=>{finaliseAutoSession();setStatsView(true);}} currentAutoSession={currentAutoSessionRef.current}/>}
 </>}
 <div className="cs-page-content" style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
@@ -1723,7 +1899,9 @@ return(
     </div>
   )}
 
-  {!pat&&<div style={{maxWidth:500, margin:"40px auto", textAlign:"center"}}>
+  {statsView&&pat&&<StatsDashboard statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={sW+'\u00D7'+sH+' pattern'} palette={pal} colourDoneCounts={colourDoneCounts}/>}
+
+  {!statsView&&!pat&&<div style={{maxWidth:500, margin:"40px auto", textAlign:"center"}}>
     <div className="card" style={{padding:"30px"}}>
       <h2 style={{fontSize:24, fontWeight:700, color:"#18181b", marginBottom:8}}>🧵 Stitch Tracker</h2>
       <p style={{fontSize:15, color:"#71717a", marginBottom:24}}>Track your cross stitch progress</p>
@@ -1763,7 +1941,7 @@ return(
     </div>
   </div>}
 
-  {pat&&pal&&<div>
+  {!statsView&&pat&&pal&&<div>
     {showNavHelp&&!isEditMode&&(()=>{const isTouch=hasTouchRef.current;return(
     <div style={{marginBottom:8,padding:"14px 16px",background:"#fff",border:"1px solid #a5b4fc",borderRadius:10,fontSize:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -2282,6 +2460,7 @@ return(
     </div>
   </div>}
 
+{celebration&&<MilestoneCelebration milestone={celebration} onDismiss={()=>setCelebration(null)}/>}
 </div>
 </>);
 }

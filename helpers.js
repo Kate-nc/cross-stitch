@@ -174,6 +174,411 @@ function drawHalfSymbol(ctx, px, py, cSz, dir, symbol, color, fontSize, fontWeig
   ctx.fillText(symbol, sx, sy);
 }
 
+// ═══ Stats helpers ═══
+
+function getStitchingDate(now, dayEndHour) {
+  var d = new Date(now);
+  if (dayEndHour > 0 && d.getHours() < dayEndHour) {
+    d.setDate(d.getDate() - 1);
+  }
+  var y = d.getFullYear();
+  var m = ('0' + (d.getMonth() + 1)).slice(-2);
+  var day = ('0' + d.getDate()).slice(-2);
+  return y + '-' + m + '-' + day;
+}
+
+function computeOverviewStats(statsSessions, totalCompleted, totalStitches) {
+  const totalMinutes = statsSessions.reduce(function(sum, s) { return sum + s.durationMinutes; }, 0);
+  const totalHours = totalMinutes / 60;
+  var totalNetStitches = statsSessions.reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+  var stitchesPerHour = totalHours > 0 ? Math.round(totalNetStitches / totalHours) : 0;
+  var uniqueDays = new Set(statsSessions.map(function(s) { return s.date; })).size;
+  var avgPerDay = uniqueDays > 0 ? Math.round(totalNetStitches / uniqueDays) : 0;
+  var remaining = totalStitches - totalCompleted;
+  var daysRemaining = avgPerDay > 0 ? Math.ceil(remaining / avgPerDay) : null;
+  var estimatedDate = daysRemaining ? new Date(Date.now() + daysRemaining * 86400000) : null;
+  return {
+    percent: totalStitches > 0 ? Math.round((totalCompleted / totalStitches) * 1000) / 10 : 0,
+    stitchesPerHour: stitchesPerHour,
+    totalTimeFormatted: formatStatsDuration(totalMinutes),
+    estimatedCompletion: estimatedDate
+      ? estimatedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '—',
+    daysRemaining: daysRemaining,
+    avgPerDay: avgPerDay,
+    totalMinutes: totalMinutes,
+    uniqueDays: uniqueDays
+  };
+}
+
+function getStatsTodayStitches(sessions, dayEndHour) {
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+}
+
+function getStatsTodayMinutes(sessions, dayEndHour) {
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + s.durationMinutes; }, 0);
+}
+
+function groupSessionsByDate(sessions) {
+  var grouped = {};
+  for (var i = 0; i < sessions.length; i++) {
+    var s = sessions[i];
+    if (!grouped[s.date]) grouped[s.date] = [];
+    grouped[s.date].push(s);
+  }
+  return grouped;
+}
+
+function formatStatsDuration(minutes) {
+  if (minutes < 1) return '0m';
+  if (minutes < 60) return minutes + 'm';
+  var h = Math.floor(minutes / 60);
+  var m = minutes % 60;
+  return m > 0 ? h + 'h ' + m + 'm' : h + 'h';
+}
+
+function formatLocalDateYYYYMMDD(date) {
+  var year = date.getFullYear();
+  var month = String(date.getMonth() + 1).padStart(2, '0');
+  var day = String(date.getDate()).padStart(2, '0');
+  return year + '-' + month + '-' + day;
+}
+
+function formatRelativeDate(dateStr, dayEndHour) {
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  var todayDate = new Date(today + 'T12:00:00');
+  todayDate.setDate(todayDate.getDate() - 1);
+  var yesterdayStr = formatLocalDateYYYYMMDD(todayDate);
+  if (dateStr === today) return 'Today';
+  if (dateStr === yesterdayStr) return 'Yesterday';
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatTimeRange(startISO, endISO) {
+  var fmt = function(iso) { return new Date(iso).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' }); };
+  return fmt(startISO) + ' – ' + fmt(endISO);
+}
+
+function formatCompact(n) {
+  if (n >= 1000) return Math.round(n / 1000) + 'k';
+  return String(Math.round(n));
+}
+
+function formatShortDate(dateStr) {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+function getCumulativeProgressData(sessions) {
+  if (!sessions || sessions.length === 0) return [];
+  var sorted = sessions.slice().sort(function(a, b) { return new Date(a.startTime) - new Date(b.startTime); });
+  var dailyTotals = {};
+  for (var i = 0; i < sorted.length; i++) {
+    dailyTotals[sorted[i].date] = sorted[i].totalAtEnd;
+  }
+  var dates = Object.keys(dailyTotals).sort();
+  if (dates.length === 0) return [];
+  var firstDate = new Date(dates[0] + 'T12:00:00');
+  var lastDate = new Date(dates[dates.length - 1] + 'T12:00:00');
+  var result = [];
+  var lastTotal = 0;
+  for (var d = new Date(firstDate); d <= lastDate; d.setDate(d.getDate() + 1)) {
+    var y = d.getFullYear();
+    var m = ('0' + (d.getMonth() + 1)).slice(-2);
+    var day = ('0' + d.getDate()).slice(-2);
+    var dateStr = y + '-' + m + '-' + day;
+    if (dailyTotals[dateStr] !== undefined) {
+      lastTotal = dailyTotals[dateStr];
+    }
+    result.push({ date: dateStr, total: lastTotal });
+  }
+  return result;
+}
+
+function getDailyStitchData(sessions, daysToShow, dayEndHour) {
+  daysToShow = daysToShow || 14;
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  var data = [];
+  for (var i = daysToShow - 1; i >= 0; i--) {
+    var d = new Date();
+    d.setDate(d.getDate() - i);
+    var y = d.getFullYear();
+    var m = ('0' + (d.getMonth() + 1)).slice(-2);
+    var day = ('0' + d.getDate()).slice(-2);
+    var dateStr = y + '-' + m + '-' + day;
+    var dayStitches = 0;
+    if (sessions) {
+      for (var j = 0; j < sessions.length; j++) {
+        if (sessions[j].date === dateStr) dayStitches += sessions[j].netStitches;
+      }
+    }
+    data.push({ date: dateStr, stitches: dayStitches, isToday: dateStr === today });
+  }
+  return data;
+}
+
+function getMilestones(sessions, totalCompleted, totalStitches, avgPerDay) {
+  var percentages = [10, 25, 50, 75, 100];
+  var sorted = (sessions && sessions.length > 0)
+    ? sessions.slice().sort(function(a, b) { return new Date(a.startTime) - new Date(b.startTime); })
+    : [];
+  return percentages.map(function(pct) {
+    var threshold = Math.floor(totalStitches * pct / 100);
+    var achieved = totalCompleted >= threshold && totalStitches > 0;
+    var achievedDate = null;
+    if (achieved && sorted.length > 0) {
+      for (var i = 0; i < sorted.length; i++) {
+        if (sorted[i].totalAtEnd >= threshold) {
+          achievedDate = sorted[i].date;
+          break;
+        }
+      }
+    }
+    var estimatedDate = null;
+    if (!achieved && avgPerDay > 0) {
+      var remaining = threshold - totalCompleted;
+      var daysNeeded = Math.ceil(remaining / avgPerDay);
+      var est = new Date();
+      est.setDate(est.getDate() + daysNeeded);
+      var ey = est.getFullYear();
+      var em = ('0' + (est.getMonth() + 1)).slice(-2);
+      var ed = ('0' + est.getDate()).slice(-2);
+      estimatedDate = ey + '-' + em + '-' + ed;
+    }
+    var isNext = !achieved;
+    if (isNext) {
+      for (var k = 0; k < percentages.length; k++) {
+        if (totalCompleted < Math.floor(totalStitches * percentages[k] / 100)) {
+          isNext = (pct === percentages[k]);
+          break;
+        }
+      }
+    }
+    return { percent: pct, threshold: threshold, achieved: achieved, achievedDate: achievedDate, estimatedDate: estimatedDate, isNext: isNext };
+  });
+}
+
+// ═══ Phase C helpers ═══
+
+function computeStreaks(sessions, dayEndHour) {
+  if (!sessions || sessions.length === 0) return { current: 0, longest: 0 };
+  var dates = [];
+  var seen = {};
+  for (var i = 0; i < sessions.length; i++) {
+    var d = sessions[i].date;
+    if (d && !seen[d]) { seen[d] = true; dates.push(d); }
+  }
+  dates.sort();
+  if (dates.length === 0) return { current: 0, longest: 0 };
+
+  var longest = 1;
+  var streakCount = 1;
+  for (var j = 1; j < dates.length; j++) {
+    var prev = new Date(dates[j - 1] + 'T12:00:00');
+    var curr = new Date(dates[j] + 'T12:00:00');
+    var diffDays = Math.round((curr - prev) / 86400000);
+    if (diffDays === 1) {
+      streakCount++;
+      if (streakCount > longest) longest = streakCount;
+    } else {
+      streakCount = 1;
+    }
+  }
+
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  var yesterdayD = new Date();
+  yesterdayD.setDate(yesterdayD.getDate() - 1);
+  var ey = yesterdayD.getFullYear();
+  var em = ('0' + (yesterdayD.getMonth() + 1)).slice(-2);
+  var ed2 = ('0' + yesterdayD.getDate()).slice(-2);
+  var yesterdayStr = ey + '-' + em + '-' + ed2;
+  var lastDate = dates[dates.length - 1];
+  var currentStreak = 0;
+
+  if (lastDate === today || lastDate === yesterdayStr) {
+    currentStreak = 1;
+    for (var k = dates.length - 2; k >= 0; k--) {
+      var p = new Date(dates[k] + 'T12:00:00');
+      var c = new Date(dates[k + 1] + 'T12:00:00');
+      if (Math.round((c - p) / 86400000) === 1) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+  }
+
+  return { current: currentStreak, longest: longest };
+}
+
+function findBestDay(sessions) {
+  if (!sessions || sessions.length === 0) return null;
+  var dailyTotals = {};
+  for (var i = 0; i < sessions.length; i++) {
+    var s = sessions[i];
+    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + s.netStitches;
+  }
+  var bestDate = null;
+  var bestCount = 0;
+  for (var date in dailyTotals) {
+    if (dailyTotals[date] > bestCount) {
+      bestDate = date;
+      bestCount = dailyTotals[date];
+    }
+  }
+  return bestDate ? { date: bestDate, stitches: bestCount } : null;
+}
+
+function checkMilestones(prevTotal, newTotal, totalStitches) {
+  var milestones = [];
+  var thresholds = [
+    { pct: 10, label: '10%' },
+    { pct: 25, label: '25%' },
+    { pct: 50, label: 'Halfway there!' },
+    { pct: 75, label: '75%' },
+    { pct: 90, label: 'Almost done!' },
+    { pct: 100, label: 'Complete!' }
+  ];
+  for (var i = 0; i < thresholds.length; i++) {
+    var t = thresholds[i];
+    var threshold = Math.floor(totalStitches * t.pct / 100);
+    if (prevTotal < threshold && newTotal >= threshold) {
+      milestones.push(t);
+    }
+  }
+  var prevK = Math.floor(prevTotal / 1000);
+  var newK = Math.floor(newTotal / 1000);
+  if (newK > prevK) {
+    milestones.push({ pct: null, label: (newK * 1000) + ' stitches!' });
+  }
+  return milestones;
+}
+
+function getRequiredPace(remaining, targetDate) {
+  var days = Math.ceil((new Date(targetDate) - new Date()) / 86400000);
+  return days > 0 ? Math.ceil(remaining / days) : null;
+}
+
+// ═══ Phase D: Sharing & Export helpers ═══
+
+function generateShareText(projectName, stats, sessions, totalCompleted, totalStitches, dayEndHour) {
+  var streaks = computeStreaks(sessions, dayEndHour);
+  var bestDay = findBestDay(sessions);
+  var percent = totalStitches > 0
+    ? (totalCompleted / totalStitches * 100).toFixed(1)
+    : '0.0';
+
+  var lines = [
+    '\uD83E\uDDF5 ' + (projectName || 'Cross Stitch Project') + ' \u2014 Progress Update',
+    '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+    '\u2705 ' + totalCompleted.toLocaleString() + ' / ' + totalStitches.toLocaleString() + ' stitches (' + percent + '%)',
+    '\u23F1\uFE0F ' + formatStatsDuration(stats.totalMinutes) + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),
+    '\uD83D\uDCC8 ' + stats.stitchesPerHour + ' stitches/hour \u00B7 ' + stats.avgPerDay + '/day average'
+  ];
+
+  if (streaks.current > 0 || streaks.longest > 0) {
+    lines.push('\uD83D\uDD25 Current streak: ' + streaks.current + ' day' + (streaks.current !== 1 ? 's' : '') + ' (longest: ' + streaks.longest + ')');
+  }
+
+  if (bestDay) {
+    lines.push('\uD83C\uDFC6 Best day: ' + bestDay.stitches + ' stitches (' + formatShortDate(bestDay.date) + ')');
+  }
+
+  if (stats.estimatedCompletion && stats.estimatedCompletion !== '\u2014') {
+    lines.push('\uD83D\uDCC5 Est. completion: ' + stats.estimatedCompletion);
+  }
+
+  lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
+  lines.push('Tracked with Cross Stitch Studio');
+
+  return lines.join('\n');
+}
+
+function generateSessionCSV(sessions) {
+  var headers = [
+    'Date', 'Start Time', 'End Time', 'Duration (min)',
+    'Stitches Completed', 'Stitches Undone', 'Net Stitches',
+    'Cumulative Total', 'Percent Complete', 'Note'
+  ];
+  var rows = [];
+  var sorted = (sessions || []).slice().sort(function(a, b) {
+    return new Date(a.startTime) - new Date(b.startTime);
+  });
+  for (var i = 0; i < sorted.length; i++) {
+    var s = sorted[i];
+    var startT = new Date(s.startTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    var endT = new Date(s.endTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    var note = (s.note || '').replace(/"/g, '""');
+    rows.push([
+      s.date, startT, endT, s.durationMinutes,
+      s.stitchesCompleted, s.stitchesUndone, s.netStitches,
+      s.totalAtEnd, s.percentAtEnd, '"' + note + '"'
+    ].join(','));
+  }
+  return [headers.join(',')].concat(rows).join('\n');
+}
+
+function downloadCSV(sessions, projectName) {
+  var csv = generateSessionCSV(sessions);
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  var safeName = (projectName || 'cross-stitch').replace(/[^a-zA-Z0-9]/g, '_');
+  a.download = safeName + '_sessions.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ═══ Phase E: Speed Trends & Colour Timeline ═══
+
+function getSpeedTrendData(sessions) {
+  if (!sessions || sessions.length === 0) return [];
+  var sorted = sessions.slice().sort(function(a, b) {
+    return new Date(a.startTime) - new Date(b.startTime);
+  });
+  return sorted
+    .filter(function(s) { return s.durationMinutes >= 10 && s.netStitches > 0; })
+    .map(function(s) {
+      return {
+        date: s.date,
+        speed: Math.round(s.netStitches / (s.durationMinutes / 60))
+      };
+    });
+}
+
+function getRollingAverage(data, window) {
+  window = window || 7;
+  return data.map(function(d, i) {
+    var start = Math.max(0, i - window + 1);
+    var windowSlice = data.slice(start, i + 1);
+    var avg = Math.round(windowSlice.reduce(function(sum, x) { return sum + x.speed; }, 0) / windowSlice.length);
+    return { date: d.date, speed: d.speed, smoothedSpeed: avg };
+  });
+}
+
+function getColourTimeline(sessions) {
+  var timeline = {};
+  if (!sessions) return timeline;
+  for (var i = 0; i < sessions.length; i++) {
+    var session = sessions[i];
+    if (!session.coloursWorked || session.coloursWorked.length === 0) continue;
+    for (var j = 0; j < session.coloursWorked.length; j++) {
+      var colour = session.coloursWorked[j];
+      if (!timeline[colour]) {
+        timeline[colour] = { firstDate: session.date, lastDate: session.date, sessionCount: 0, activeDates: {} };
+      }
+      timeline[colour].lastDate = session.date;
+      timeline[colour].sessionCount++;
+      timeline[colour].activeDates[session.date] = true;
+    }
+  }
+  return timeline;
+}
+
 // Determine which half of a cell a click falls in.
 // Returns "fwd", "bck", or "ambiguous".
 function hitTestHalfStitch(localX, localY, cSz, ambiguousRadius) {

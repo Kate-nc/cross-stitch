@@ -550,3 +550,686 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 @media (prefers-reduced-motion: reduce){
   .cs-page-content{animation:none;}
 }
+
+/* ═══ Stats: Mini Stats Bar ═══ */
+.mini-stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  background: #fafafa;
+  border: 0.5px solid #e4e4e7;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+.mini-stats-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mini-stats-count {
+  font-weight: 600;
+  color: #18181b;
+}
+.mini-stats-time {
+  color: #71717a;
+  font-size: 12px;
+}
+.mini-stats-goal-badge {
+  font-size: 11px;
+  background: #fffbeb;
+  color: #d97706;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #fde68a;
+  white-space: nowrap;
+}
+.mini-stats-goal-met {
+  font-size: 11px;
+  background: #f0fdf4;
+  color: #16a34a;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #bbf7d0;
+  white-space: nowrap;
+}
+.mini-stats-btn {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 14px;
+  border-radius: 6px;
+  border: 1px solid #0d9488;
+  background: #f0fdfa;
+  color: #0d9488;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mini-stats-btn:hover {
+  background: #ccfbf1;
+}
+
+/* ═══ Stats: Progress Ring ═══ */
+.progress-ring {
+  position: relative;
+  flex-shrink: 0;
+}
+.progress-ring-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 9px;
+  font-weight: 600;
+  color: #18181b;
+}
+
+/* ═══ Stats: Overview Cards ═══ */
+.stats-overview {
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  padding: 20px;
+}
+.stats-overview-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.stats-big-number {
+  font-size: 28px;
+  font-weight: 700;
+  color: #18181b;
+}
+.stats-label {
+  font-size: 12px;
+  color: #71717a;
+  display: block;
+}
+.stats-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #18181b;
+  display: block;
+  margin-top: 2px;
+}
+.stats-overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid #f4f4f5;
+}
+
+/* ═══ Stats: Session Timeline ═══ */
+.session-timeline {
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  padding: 20px;
+}
+.timeline-track {
+  border-left: 2px solid #e4e4e7;
+  margin-left: 8px;
+  padding-left: 16px;
+}
+.timeline-entry {
+  position: relative;
+  padding-bottom: 16px;
+}
+.timeline-entry:last-child {
+  padding-bottom: 0;
+}
+.timeline-dot {
+  position: absolute;
+  left: -23px;
+  top: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #0d9488;
+  border: 2px solid #fff;
+}
+.timeline-content {
+  min-height: 20px;
+}
+.timeline-date {
+  font-size: 12px;
+  color: #71717a;
+  display: block;
+  margin-bottom: 2px;
+}
+.timeline-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.timeline-stitches {
+  font-size: 14px;
+  font-weight: 600;
+  color: #18181b;
+}
+.timeline-duration {
+  font-size: 12px;
+  color: #71717a;
+}
+.timeline-note {
+  font-size: 12px;
+  color: #71717a;
+  font-style: italic;
+  margin: 4px 0 0;
+}
+.timeline-add-note {
+  font-size: 11px;
+  color: #a1a1aa;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.timeline-add-note:hover {
+  color: #0d9488;
+}
+.timeline-show-all {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0d9488;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+}
+.timeline-show-all:hover {
+  background: #ccfbf1;
+}
+.note-editor {
+  margin-top: 4px;
+}
+
+/* ═══ Stats: Dashboard ═══ */
+.stats-dashboard {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+/* ═══ Stats: Charts ═══ */
+.chart-section {
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  padding: 16px;
+}
+.chart-container {
+  margin-top: 4px;
+}
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.chart-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #18181b;
+}
+.chart-subtitle {
+  font-size: 12px;
+  color: #a1a1aa;
+}
+.chart-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid #e4e4e7;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.chart-toggle-btn {
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  border: none;
+  background: #fff;
+  color: #71717a;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.chart-toggle-btn:not(:last-child) {
+  border-right: 1px solid #e4e4e7;
+}
+.chart-toggle-btn.active {
+  background: #534AB7;
+  color: #fff;
+  font-weight: 600;
+}
+.chart-x-labels {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0 0;
+  font-size: 10px;
+  color: #a1a1aa;
+}
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #71717a;
+}
+.chart-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-line {
+  display: inline-block;
+  width: 18px;
+  height: 0;
+  vertical-align: middle;
+}
+.legend-line.solid {
+  border-top: 2.5px solid #534AB7;
+}
+.legend-line.dashed {
+  border-top: 1.5px dashed #d4d4d8;
+}
+.stats-empty {
+  font-size: 13px;
+  color: #a1a1aa;
+  text-align: center;
+  padding: 24px 0;
+}
+
+/* ═══ Stats: Milestones ═══ */
+.milestones {
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  padding: 16px;
+}
+.stats-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #18181b;
+  margin: 0 0 10px;
+}
+.milestone-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+.milestone-badge {
+  flex: 1 0 0;
+  min-width: 70px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: center;
+  border: 1.5px solid transparent;
+}
+.milestone-badge.achieved {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.milestone-badge.achieved .milestone-percent {
+  color: #16a34a;
+  font-weight: 700;
+}
+.milestone-badge.achieved .milestone-date {
+  color: #16a34a;
+}
+.milestone-badge.next {
+  background: #f5f3ff;
+  border-color: #c4b5fd;
+}
+.milestone-badge.next .milestone-percent {
+  color: #534AB7;
+  font-weight: 700;
+}
+.milestone-badge.next .milestone-date {
+  color: #7c3aed;
+}
+.milestone-badge.future {
+  background: #fafafa;
+  opacity: 0.55;
+}
+.milestone-badge.future .milestone-percent {
+  color: #a1a1aa;
+}
+.milestone-badge.future .milestone-date {
+  color: #d4d4d8;
+}
+.milestone-percent {
+  font-size: 16px;
+  font-weight: 600;
+  display: block;
+  color: #18181b;
+}
+.milestone-date {
+  font-size: 10px;
+  display: block;
+  margin-top: 2px;
+  color: #71717a;
+}
+
+/* ═══ Stats: Phase C — Goals, Streaks, Celebrations ═══ */
+.stats-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 600px) {
+  .stats-two-col { grid-template-columns: 1fr; }
+}
+.goal-tracker-panel,
+.streaks-panel {
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  padding: 16px;
+}
+.goal-setting,
+.target-setting {
+  margin-bottom: 4px;
+}
+.goal-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #18181b;
+  display: block;
+  margin-bottom: 6px;
+}
+.goal-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.goal-input {
+  flex: 1;
+  font-size: 13px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid #e4e4e7;
+  background: #fff;
+  color: #18181b;
+  min-width: 0;
+}
+.goal-set-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid #0d9488;
+  background: #f0fdfa;
+  color: #0d9488;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.goal-set-btn:hover {
+  background: #ccfbf1;
+}
+.goal-presets {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.goal-preset-btn {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid #e4e4e7;
+  background: #fafafa;
+  color: #71717a;
+  cursor: pointer;
+}
+.goal-preset-btn.active,
+.goal-preset-btn:hover {
+  border-color: #0d9488;
+  background: #f0fdfa;
+  color: #0d9488;
+}
+.goal-suggestion {
+  font-size: 12px;
+  color: #71717a;
+  margin: 6px 0 0;
+}
+.goal-progress {
+  margin-top: 10px;
+}
+.goal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+}
+.goal-row-label {
+  font-size: 12px;
+  color: #71717a;
+}
+.goal-row-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #18181b;
+}
+.goal-row-value.met {
+  color: #16a34a;
+}
+.goal-row-value.pending {
+  color: #d97706;
+}
+.goal-bar-container {
+  height: 6px;
+  background: #f4f4f5;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.goal-bar-fill {
+  height: 100%;
+  background: #0d9488;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.stat-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+.stat-row-label {
+  font-size: 12px;
+  color: #71717a;
+}
+.stat-row-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #18181b;
+}
+.mini-stats-streak-badge {
+  font-size: 11px;
+  background: #fff7ed;
+  color: #c2410c;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #fed7aa;
+  white-space: nowrap;
+}
+.timeline-milestone-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  background: #f5f3ff;
+  color: #7c3aed;
+  padding: 2px 10px;
+  border-radius: 6px;
+  border: 1px solid #c4b5fd;
+  margin-bottom: 4px;
+}
+.milestone-celebration {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: #fff;
+  border: 1.5px solid #c4b5fd;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  z-index: 200;
+  animation: celebrationSlideUp 0.3s ease, celebrationFadeOut 0.5s ease 3.5s forwards;
+}
+@keyframes celebrationSlideUp {
+  from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+  to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+@keyframes celebrationFadeOut {
+  to { opacity: 0; pointer-events: none; }
+}
+.celebration-icon {
+  font-size: 16px;
+}
+.celebration-text {
+  font-weight: 500;
+  font-size: 14px;
+  color: #18181b;
+}
+.celebration-subtext {
+  font-size: 12px;
+  color: #71717a;
+}
+
+/* ═══ Stats: Phase D — Sharing & Export ═══ */
+.stats-export-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.stats-export-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 1px solid #e4e4e7;
+  background: #fafafa;
+  color: #71717a;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.stats-export-btn:hover {
+  background: #f4f4f5;
+  border-color: #d4d4d8;
+  color: #3f3f46;
+}
+.stats-export-btn--share {
+  border-color: #0d9488;
+  background: #f0fdfa;
+  color: #0d9488;
+}
+.stats-export-btn--share:hover {
+  background: #ccfbf1;
+}
+
+/* ═══ Phase E: Colour Timeline ═══ */
+
+.colour-timeline {
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.colour-tl-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.colour-tl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f4f4f5;
+}
+
+.colour-tl-row:last-child {
+  border-bottom: none;
+}
+
+.colour-tl-row.complete {
+  opacity: 0.55;
+}
+
+.colour-tl-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.colour-tl-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #18181b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.colour-tl-dates {
+  font-size: 10px;
+  color: #a1a1aa;
+}
+
+.colour-tl-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  width: 100px;
+}
+
+.colour-tl-bar {
+  flex: 1;
+  height: 6px;
+  background: #f4f4f5;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.colour-tl-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.colour-tl-pct {
+  font-size: 11px;
+  font-weight: 600;
+  color: #71717a;
+  min-width: 28px;
+  text-align: right;
+}
