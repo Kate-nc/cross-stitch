@@ -760,3 +760,164 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   max-width: 700px;
   margin: 0 auto;
 }
+
+/* ═══ Stats: Charts ═══ */
+.chart-section {
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  padding: 16px;
+}
+.chart-container {
+  margin-top: 4px;
+}
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.chart-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #18181b;
+}
+.chart-subtitle {
+  font-size: 12px;
+  color: #a1a1aa;
+}
+.chart-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid #e4e4e7;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.chart-toggle-btn {
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  border: none;
+  background: #fff;
+  color: #71717a;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.chart-toggle-btn:not(:last-child) {
+  border-right: 1px solid #e4e4e7;
+}
+.chart-toggle-btn.active {
+  background: #534AB7;
+  color: #fff;
+  font-weight: 600;
+}
+.chart-x-labels {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0 0;
+  font-size: 10px;
+  color: #a1a1aa;
+}
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #71717a;
+}
+.chart-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-line {
+  display: inline-block;
+  width: 18px;
+  height: 0;
+  vertical-align: middle;
+}
+.legend-line.solid {
+  border-top: 2.5px solid #534AB7;
+}
+.legend-line.dashed {
+  border-top: 1.5px dashed #d4d4d8;
+}
+.stats-empty {
+  font-size: 13px;
+  color: #a1a1aa;
+  text-align: center;
+  padding: 24px 0;
+}
+
+/* ═══ Stats: Milestones ═══ */
+.milestones {
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  padding: 16px;
+}
+.stats-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #18181b;
+  margin: 0 0 10px;
+}
+.milestone-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+.milestone-badge {
+  flex: 1 0 0;
+  min-width: 70px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: center;
+  border: 1.5px solid transparent;
+}
+.milestone-badge.achieved {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.milestone-badge.achieved .milestone-percent {
+  color: #16a34a;
+  font-weight: 700;
+}
+.milestone-badge.achieved .milestone-date {
+  color: #16a34a;
+}
+.milestone-badge.next {
+  background: #f5f3ff;
+  border-color: #c4b5fd;
+}
+.milestone-badge.next .milestone-percent {
+  color: #534AB7;
+  font-weight: 700;
+}
+.milestone-badge.next .milestone-date {
+  color: #7c3aed;
+}
+.milestone-badge.future {
+  background: #fafafa;
+  opacity: 0.55;
+}
+.milestone-badge.future .milestone-percent {
+  color: #a1a1aa;
+}
+.milestone-badge.future .milestone-date {
+  color: #d4d4d8;
+}
+.milestone-percent {
+  font-size: 16px;
+  font-weight: 600;
+  display: block;
+  color: #18181b;
+}
+.milestone-date {
+  font-size: 10px;
+  display: block;
+  margin-top: 2px;
+  color: #71717a;
+}

@@ -191,14 +191,157 @@ function SessionTimeline({sessions, statsSettings, onEditNote}){
   } catch(e) { console.warn('Stats: SessionTimeline render error', e); return React.createElement("p", {style:{color:'#a1a1aa',fontSize:13}}, "Could not load timeline."); }
 }
 
-function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose}){
+// ═══ Phase B: Charts & Milestones ═══
+
+function CumulativeChart({sessions, totalStitches}){
   try {
+  var data = getCumulativeProgressData(sessions);
+  if (data.length < 2) return React.createElement("p", {className:"stats-empty"}, "Start stitching to see your progress chart");
+  var width = 600, height = 130;
+  var pl = 36, pr = 8, pt = 8, pb = 4;
+  var cW = width - pl - pr, cH = height - pt - pb;
+  var maxY = Math.max(totalStitches, 1);
+  var xS = function(i){ return pl + (i / (data.length - 1)) * cW; };
+  var yS = function(v){ return pt + cH - (v / maxY) * cH; };
+  var pts = [];
+  for (var i = 0; i < data.length; i++) pts.push(xS(i) + ',' + yS(data[i].total));
+  var points = pts.join(' ');
+  var fillPoints = points + ' ' + xS(data.length - 1) + ',' + yS(0) + ' ' + xS(0) + ',' + yS(0);
+  var last = data[data.length - 1];
+  var mid = data[Math.floor(data.length / 2)];
+  return React.createElement("div", {className:"chart-container"},
+    React.createElement("svg", {viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
+      // Y-axis labels
+      React.createElement("text", {x:pl - 4, y:pt + 6, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, formatCompact(totalStitches)),
+      React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, formatCompact(totalStitches / 2)),
+      React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, "0"),
+      // Midpoint gridline
+      React.createElement("line", {x1:pl, y1:pt + cH / 2, x2:width - pr, y2:pt + cH / 2, stroke:"#e4e4e7", strokeWidth:"0.5", strokeDasharray:"4 4"}),
+      // On-pace line
+      React.createElement("line", {x1:xS(0), y1:yS(0), x2:xS(data.length - 1), y2:yS(totalStitches), stroke:"#d4d4d8", strokeWidth:"1", strokeDasharray:"4 4"}),
+      // Fill area
+      React.createElement("polygon", {points:fillPoints, fill:"#534AB7", opacity:"0.08"}),
+      // Actual progress line
+      React.createElement("polyline", {points:points, fill:"none", stroke:"#534AB7", strokeWidth:"2.5", strokeLinecap:"round", strokeLinejoin:"round"}),
+      // Current position dot
+      React.createElement("circle", {cx:xS(data.length - 1), cy:yS(last.total), r:"4", fill:"#534AB7"}),
+      // X-axis line
+      React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"#e4e4e7", strokeWidth:"0.5"})
+    ),
+    React.createElement("div", {className:"chart-x-labels"},
+      React.createElement("span", null, formatShortDate(data[0].date)),
+      React.createElement("span", null, formatShortDate(mid.date)),
+      React.createElement("span", null, formatShortDate(last.date))
+    ),
+    React.createElement("div", {className:"chart-legend"},
+      React.createElement("span", null, React.createElement("span", {className:"legend-line solid"}), "Actual"),
+      React.createElement("span", null, React.createElement("span", {className:"legend-line dashed"}), "On pace")
+    )
+  );
+  } catch(e) { console.warn('Stats: CumulativeChart render error', e); return null; }
+}
+
+function DailyBarChart({sessions, dailyGoal, daysToShow, dayEndHour}){
+  try {
+  daysToShow = daysToShow || 14;
+  var data = getDailyStitchData(sessions, daysToShow, dayEndHour);
+  var maxVal = 1;
+  for (var i = 0; i < data.length; i++) { if (data[i].stitches > maxVal) maxVal = data[i].stitches; }
+  if (dailyGoal && dailyGoal > maxVal) maxVal = dailyGoal;
+  var width = 600, height = 120;
+  var barGap = 4;
+  var barW = Math.max(4, (width - barGap * data.length) / data.length);
+  var yS = function(v){ return (v / maxVal) * (height - 20); };
+  var barElements = [];
+  for (var j = 0; j < data.length; j++) {
+    var d = data[j];
+    var barH = yS(d.stitches);
+    var x = j * (barW + barGap);
+    var op = d.stitches === 0 ? 0.1 : 0.4 + 0.6 * (d.stitches / maxVal);
+    barElements.push(
+      React.createElement("rect", {key:d.date, x:x, y:height - barH, width:barW, height:Math.max(barH, 0),
+        fill:d.isToday ? '#5DCAA5' : '#1D9E75',
+        opacity:d.isToday ? 1 : op,
+        rx:"2", stroke:d.isToday ? '#1D9E75' : 'none', strokeWidth:d.isToday ? 1 : 0},
+        React.createElement("title", null, formatShortDate(d.date) + ': ' + d.stitches + ' stitches')
+      )
+    );
+  }
+  var mid = data[Math.floor(data.length / 2)];
+  var svgChildren = [];
+  if (dailyGoal) {
+    svgChildren.push(React.createElement("line", {key:"goal", x1:0, y1:height - yS(dailyGoal), x2:width, y2:height - yS(dailyGoal), stroke:"#D85A30", strokeWidth:"2", strokeDasharray:"4 4", opacity:"0.4"}));
+    svgChildren.push(React.createElement("text", {key:"goal-lbl", x:width - 4, y:height - yS(dailyGoal) - 4, textAnchor:"end", fontSize:"10", fill:"#D85A30"}, "Goal: " + dailyGoal));
+  }
+  svgChildren = svgChildren.concat(barElements);
+  return React.createElement("div", {className:"chart-container"},
+    React.createElement("div", {style:{position:'relative'}},
+      React.createElement("svg", {viewBox:"0 0 " + width + " " + height, width:"100%", preserveAspectRatio:"none", style:{display:'block'}}, svgChildren)
+    ),
+    React.createElement("div", {className:"chart-x-labels"},
+      React.createElement("span", null, formatShortDate(data[0].date)),
+      React.createElement("span", null, formatShortDate(mid.date)),
+      React.createElement("span", null, "Today")
+    )
+  );
+  } catch(e) { console.warn('Stats: DailyBarChart render error', e); return null; }
+}
+
+function StatsChartSection({statsSessions, statsSettings, totalStitches, chartView, setChartView}){
+  var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
+  var dailyGoal = statsSettings && statsSettings.dailyGoal;
+  return React.createElement("div", {className:"chart-section"},
+    React.createElement("div", {className:"chart-header"},
+      React.createElement("span", {className:"chart-title"}, chartView === 'cumulative' ? 'Progress over time' : 'Stitches per day'),
+      React.createElement("div", {className:"chart-toggle"},
+        React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'daily' ? ' active' : ''), onClick:function(){ setChartView('daily'); }}, "Daily"),
+        React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'cumulative' ? ' active' : ''), onClick:function(){ setChartView('cumulative'); }}, "Cumulative")
+      )
+    ),
+    chartView === 'cumulative'
+      ? React.createElement(CumulativeChart, {sessions:statsSessions, totalStitches:totalStitches})
+      : React.createElement(DailyBarChart, {sessions:statsSessions, dailyGoal:dailyGoal, dayEndHour:dayEndHour})
+  );
+}
+
+function MilestoneTracker({milestones}){
+  if (!milestones || milestones.length === 0) return null;
+  var badges = [];
+  for (var i = 0; i < milestones.length; i++) {
+    var m = milestones[i];
+    var cls = 'milestone-badge ' + (m.achieved ? 'achieved' : m.isNext ? 'next' : 'future');
+    var dateLabel = m.achieved
+      ? (m.achievedDate ? formatShortDate(m.achievedDate) : '✓')
+      : (m.estimatedDate ? '~' + formatShortDate(m.estimatedDate) : '—');
+    badges.push(React.createElement("div", {key:m.percent, className:cls},
+      React.createElement("span", {className:"milestone-percent"}, m.percent + '%'),
+      React.createElement("span", {className:"milestone-date"}, dateLabel)
+    ));
+  }
+  return React.createElement("div", {className:"milestones"},
+    React.createElement("h3", {className:"stats-section-title"}, "Milestones"),
+    React.createElement("div", {className:"milestone-row"}, badges)
+  );
+}
+
+function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose}){
+  var chartSt = React.useState('cumulative');
+  var chartView = chartSt[0], setChartView = chartSt[1];
+  try {
+  var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches);
+  var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.avgPerDay);
   return React.createElement("div", {className:"stats-dashboard"},
     React.createElement("div", {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}},
       React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'#18181b', margin:0}}, "📊 Stats"),
       React.createElement("button", {onClick:onClose, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #e4e4e7', background:'#fafafa', cursor:'pointer', color:'#71717a'}}, "← Back to grid")
     ),
     React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches}),
+    React.createElement("div", {style:{marginTop:20}},
+      React.createElement(StatsChartSection, {statsSessions:statsSessions, statsSettings:statsSettings, totalStitches:totalStitches, chartView:chartView, setChartView:setChartView})
+    ),
+    React.createElement("div", {style:{marginTop:20}},
+      React.createElement(MilestoneTracker, {milestones:milestones})
+    ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote})
     ),

@@ -254,6 +254,104 @@ function formatTimeRange(startISO, endISO) {
   return fmt(startISO) + ' – ' + fmt(endISO);
 }
 
+function formatCompact(n) {
+  if (n >= 1000) return Math.round(n / 1000) + 'k';
+  return String(Math.round(n));
+}
+
+function formatShortDate(dateStr) {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+function getCumulativeProgressData(sessions) {
+  if (!sessions || sessions.length === 0) return [];
+  var sorted = sessions.slice().sort(function(a, b) { return new Date(a.startTime) - new Date(b.startTime); });
+  var dailyTotals = {};
+  for (var i = 0; i < sorted.length; i++) {
+    dailyTotals[sorted[i].date] = sorted[i].totalAtEnd;
+  }
+  var dates = Object.keys(dailyTotals).sort();
+  if (dates.length === 0) return [];
+  var firstDate = new Date(dates[0] + 'T12:00:00');
+  var lastDate = new Date(dates[dates.length - 1] + 'T12:00:00');
+  var result = [];
+  var lastTotal = 0;
+  for (var d = new Date(firstDate); d <= lastDate; d.setDate(d.getDate() + 1)) {
+    var y = d.getFullYear();
+    var m = ('0' + (d.getMonth() + 1)).slice(-2);
+    var day = ('0' + d.getDate()).slice(-2);
+    var dateStr = y + '-' + m + '-' + day;
+    if (dailyTotals[dateStr] !== undefined) {
+      lastTotal = dailyTotals[dateStr];
+    }
+    result.push({ date: dateStr, total: lastTotal });
+  }
+  return result;
+}
+
+function getDailyStitchData(sessions, daysToShow, dayEndHour) {
+  daysToShow = daysToShow || 14;
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  var data = [];
+  for (var i = daysToShow - 1; i >= 0; i--) {
+    var d = new Date();
+    d.setDate(d.getDate() - i);
+    var y = d.getFullYear();
+    var m = ('0' + (d.getMonth() + 1)).slice(-2);
+    var day = ('0' + d.getDate()).slice(-2);
+    var dateStr = y + '-' + m + '-' + day;
+    var dayStitches = 0;
+    if (sessions) {
+      for (var j = 0; j < sessions.length; j++) {
+        if (sessions[j].date === dateStr) dayStitches += sessions[j].netStitches;
+      }
+    }
+    data.push({ date: dateStr, stitches: dayStitches, isToday: dateStr === today });
+  }
+  return data;
+}
+
+function getMilestones(sessions, totalCompleted, totalStitches, avgPerDay) {
+  var percentages = [10, 25, 50, 75, 100];
+  var sorted = (sessions && sessions.length > 0)
+    ? sessions.slice().sort(function(a, b) { return new Date(a.startTime) - new Date(b.startTime); })
+    : [];
+  return percentages.map(function(pct) {
+    var threshold = Math.floor(totalStitches * pct / 100);
+    var achieved = totalCompleted >= threshold && totalStitches > 0;
+    var achievedDate = null;
+    if (achieved && sorted.length > 0) {
+      for (var i = 0; i < sorted.length; i++) {
+        if (sorted[i].totalAtEnd >= threshold) {
+          achievedDate = sorted[i].date;
+          break;
+        }
+      }
+    }
+    var estimatedDate = null;
+    if (!achieved && avgPerDay > 0) {
+      var remaining = threshold - totalCompleted;
+      var daysNeeded = Math.ceil(remaining / avgPerDay);
+      var est = new Date();
+      est.setDate(est.getDate() + daysNeeded);
+      var ey = est.getFullYear();
+      var em = ('0' + (est.getMonth() + 1)).slice(-2);
+      var ed = ('0' + est.getDate()).slice(-2);
+      estimatedDate = ey + '-' + em + '-' + ed;
+    }
+    var isNext = !achieved;
+    if (isNext) {
+      for (var k = 0; k < percentages.length; k++) {
+        if (totalCompleted < Math.floor(totalStitches * percentages[k] / 100)) {
+          isNext = (pct === percentages[k]);
+          break;
+        }
+      }
+    }
+    return { percent: pct, threshold: threshold, achieved: achieved, achievedDate: achievedDate, estimatedDate: estimatedDate, isNext: isNext };
+  });
+}
+
 // Determine which half of a cell a click falls in.
 // Returns "fwd", "bck", or "ambiguous".
 function hitTestHalfStitch(localX, localY, cSz, ambiguousRadius) {
