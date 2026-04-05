@@ -1,6 +1,6 @@
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
 
-function TrackerApp({onSwitchToDesign=null, isActive=true, incomingProject=null}={}){
+function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80),[sH,setSH]=useState(80);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null);
 const incomingProjectRef=useRef(incomingProject);
@@ -1572,7 +1572,7 @@ useEffect(()=>{
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat ? () => setModal("pdf_export") : null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){localStorage.removeItem("crossstitch_active_project");window.location.reload();}}:null} setModal={setModal} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat ? () => setModal("pdf_export") : null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} />
 {pat&&pal&&<ContextBar
   name={pat ? (sW + '×' + sH + ' pattern') : null}
   dimensions={pat ? {width:sW, height:sH} : null}
@@ -1581,6 +1581,7 @@ return(
   page="tracker"
   onEdit={handleEditInCreator}
   onSave={saveProject}
+  onHome={()=>{if(onGoHome){onGoHome();}else if(typeof window.__goHome!=='undefined'){window.__goHome();}else if(typeof window.__switchToDesign!=='undefined'){window.__switchToDesign();}else{window.location.href='index.html';}}}
 />}
 {pat&&pal&&<>
 {/* ═══ TRACKER TOOL STRIP ═══ */}

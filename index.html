@@ -102,6 +102,7 @@ const[previewUrl,setPreviewUrl]=useState(null);
 const[previewStats,setPreviewStats]=useState(null);
 const[confettiData,setConfettiData]=useState(null);
 const previewTimerRef=useRef(null);
+const userActedRef=useRef(false); // set to true the first time user uploads/loads a file
 
 const pcRef=useRef(null),fRef=useRef(null),scrollRef=useRef(null),expRef=useRef(null),loadRef=useRef(null);
 const prevSW=useRef(sW),prevSH=useRef(sH);
@@ -270,7 +271,7 @@ function removeScratchColour(id){
   setCmap(prev=>{if(!prev)return prev;let n={...prev};delete n[id];return n;});
 }
 
-function handleFile(e){let f=e.target.files[0];if(!f)return;const MAX_FILE_SIZE = 5 * 1024 * 1024; if(f.size>MAX_FILE_SIZE){alert("File is too large. Please select an image under 5MB.");return;}let rd=new FileReader();rd.onload=ev=>{let i=new Image();i.onload=()=>{setOrigW(i.width);setOrigH(i.height);let a=i.width/i.height;setAr(a);setSW(80);setSH(Math.round(80/a));setImg(i);resetAll();};i.src=ev.target.result;};rd.readAsDataURL(f);}
+function handleFile(e){let f=e.target.files[0];if(!f)return;const MAX_FILE_SIZE = 5 * 1024 * 1024; if(f.size>MAX_FILE_SIZE){alert("File is too large. Please select an image under 5MB.");return;}let rd=new FileReader();rd.onload=ev=>{let i=new Image();const proceed=()=>{userActedRef.current=true;setOrigW(i.width);setOrigH(i.height);let a=i.width/i.height;setAr(a);setSW(80);setSH(Math.round(80/a));setImg(i);resetAll();};if(typeof i.decode==='function'){i.src=ev.target.result;i.decode().then(proceed).catch(()=>{i.onload=proceed;});}else{i.onload=proceed;i.src=ev.target.result;}};rd.readAsDataURL(f);}
 
 function chgW(v){let w=Math.max(10,Math.min(300,parseInt(v)||10));setSW(w);if(arLock)setSH(Math.max(10,Math.round(w/ar)));}
 function chgH(v){let h=Math.max(10,Math.min(300,parseInt(v)||10));setSH(h);if(arLock)setSW(Math.max(10,Math.round(h*ar)));}
@@ -387,7 +388,7 @@ function processLoadedProject(project){
     let hm=new Map();project.halfStitches.forEach(([idx,v])=>{let entry={};if(v.fwd)entry.fwd=restoreStitch({...v.fwd,type:v.fwd.type||(typeof v.fwd.id==="string"&&v.fwd.id.includes("+")?"blend":"solid")});if(v.bck)entry.bck=restoreStitch({...v.bck,type:v.bck.type||(typeof v.bck.id==="string"&&v.bck.id.includes("+")?"blend":"solid")});hm.set(idx,entry);});setHalfStitches(hm);
   }else{setHalfStitches(new Map());}
   setHalfStitchTool(null);
-  if(project.imgData&&typeof project.imgData==='string'&&project.imgData.startsWith('data:image/')){let li=new Image();li.onload=()=>{setImg(li);setOrigW(li.width);setOrigH(li.height);};li.src=project.imgData;}else if(s.isScratchMode){setImg({src:null,w:s.sW,h:s.sH});}
+  if(project.imgData&&typeof project.imgData==='string'&&project.imgData.startsWith('data:image/')){let li=new Image();li.onload=()=>{if(!userActedRef.current){setImg(li);setOrigW(li.width);setOrigH(li.height);}};li.src=project.imgData;}else if(s.isScratchMode){setImg({src:null,w:s.sW,h:s.sH});}
   projectIdRef.current = project.id || null;
   setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/(s.sW*20)));setZoom(z);},100);
 }
@@ -417,7 +418,7 @@ useEffect(() => {
     }
     // No handoff — restore the last auto-saved session from IndexedDB
     loadProjectFromDB().then(project => {
-        if (project && project.pattern && project.settings) {
+        if (project && project.pattern && project.settings && !userActedRef.current) {
             processLoadedProject(project);
         }
     });
@@ -1520,6 +1521,8 @@ function UnifiedApp(){
     const p=new URLSearchParams(window.location.search);
     return p.get('mode')==='track'?'track':'design';
   });
+  // Increment to force-remount CreatorApp (clears its state for "go home")
+  const[creatorResetKey,setCreatorResetKey]=React.useState(0);
   // Lazy-mount TrackerApp on first switch; keep it alive after that.
   const[trackerMounted,setTrackerMounted]=React.useState(()=>{
     const p=new URLSearchParams(window.location.search);
@@ -1546,16 +1549,24 @@ function UnifiedApp(){
     window.history.replaceState({},'',window.location.pathname);
     setMode('design');
   },[]);
+  // goHome: clears active project, remounts Creator fresh, switches to design view
+  const goHome=React.useCallback(()=>{
+    if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
+    window.history.replaceState({},'',window.location.pathname);
+    setCreatorResetKey(k=>k+1);
+    setMode('design');
+  },[]);
 
   React.useEffect(()=>{
     window.__switchToTrack=switchToTrack;
     window.__switchToDesign=switchToDesign;
-    return()=>{delete window.__switchToTrack;delete window.__switchToDesign;};
-  },[switchToTrack,switchToDesign]);
+    window.__goHome=goHome;
+    return()=>{delete window.__switchToTrack;delete window.__switchToDesign;delete window.__goHome;};
+  },[switchToTrack,switchToDesign,goHome]);
 
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
   return <>
-    <div style={{display:mode==='design'?'':'none'}}>
+    <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
       <CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/>
     </div>
     <div style={{display:mode==='track'?'':'none'}}>
@@ -1567,6 +1578,7 @@ function UnifiedApp(){
       )}
       {trackerMounted&&trackerReady&&T&&<T
         onSwitchToDesign={switchToDesign}
+        onGoHome={goHome}
         isActive={mode==='track'}
         incomingProject={pendingTrackerProject.current}
       />}
