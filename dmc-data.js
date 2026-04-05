@@ -5,8 +5,9 @@ function rgbToLab(r,g,b){let key=(r<<16)|(g<<8)|b;let c=_labCache.get(key);if(c)
 function dE(a,b){return Math.sqrt((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2);}
 function dE2(a,b){return (a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;}
 const DMC=DMC_RAW.map(d=>({id:d[0],name:d[1],rgb:[d[2],d[3],d[4]],lab:rgbToLab(d[2],d[3],d[4])}));
+const DMC_MAP=new Map(DMC.map(d=>[d.id,d]));
 const SYMS="●◆■▲★♦♥♣♠◄►▼○◇□△☆♢♡♧♤◁▷▽⊕⊗⊞⊠⊡⊘⊙⊚⊛⊜⊝⬡⬢⬣⬥⬦⬧⬨⬩".split("");
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { rgbToLab, dE, dE2, DMC, SYMS };
+  module.exports = { rgbToLab, dE, dE2, DMC, DMC_MAP, SYMS };
 }

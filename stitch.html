@@ -37,6 +37,24 @@ window.loadPdfStack = function() {
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel" src="tracker-app.js"></script>
+<script>
+/* Compile tracker-app.js via Babel and cache the result in localStorage.
+   On repeat visits the cached JS is injected directly — no re-compilation needed. */
+(function(){
+  var CACHE_KEY='babel_tracker_v3';
+  function inject(code){var s=document.createElement('script');s.textContent=code;document.head.appendChild(s);}
+  var cached;try{cached=localStorage.getItem(CACHE_KEY);}catch(e){}
+  if(cached){inject(cached);return;}
+  fetch('tracker-app.js').then(function(r){return r.ok?r.text():Promise.reject('fetch failed');})
+  .then(function(src){
+    var compiled=Babel.transform(src,{presets:['react'],filename:'tracker-app.js'}).code;
+    try{localStorage.setItem(CACHE_KEY,compiled);}catch(e){}
+    inject(compiled);
+  }).catch(function(){
+    /* Fallback for file:// or fetch failure */
+    var s=document.createElement('script');s.type='text/babel';s.src='tracker-app.js';document.head.appendChild(s);
+  });
+})();
+</script>
 </body>
 </html>

@@ -1404,7 +1404,7 @@ function handleStitchMouseMove(e){
       if(cell.type==="blend"){
         name=cell.threads[0].name+"+"+cell.threads[1].name;
       }else{
-        let t=DMC.find(d=>d.id===cell.id);
+        let t=DMC_MAP.get(cell.id);
         if(t) name=t.name;
       }
       setHoverInfo({row:gc.gy+1, col:gc.gx+1, id:cell.id, name:name, x:e.clientX, y:e.clientY});
