@@ -590,7 +590,9 @@ function doSaveProject(finalName){
     halfStitches: hsArr,
     halfDone: hdArr,
     statsSessions,
-    statsSettings
+    statsSettings,
+    savedZoom: stitchZoom,
+    savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
   };
   let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
   let url=URL.createObjectURL(blob);
@@ -797,10 +799,22 @@ function processLoadedProject(project){
   setProjectName(project.name||"");
   projectIdRef.current = project.id || null;
 
-  setTimeout(()=>{
-    let z=Math.min(3,Math.max(0.05,750/((project.w||s.sW||80)*20)));
-    setStitchZoom(z);
-  },100);
+  if(project.savedZoom!=null){
+    setTimeout(()=>{
+      setStitchZoom(project.savedZoom);
+      if(project.savedScroll&&stitchScrollRef.current){
+        requestAnimationFrame(()=>{
+          stitchScrollRef.current.scrollLeft=project.savedScroll.left;
+          stitchScrollRef.current.scrollTop=project.savedScroll.top;
+        });
+      }
+    },100);
+  }else{
+    setTimeout(()=>{
+      let z=Math.min(3,Math.max(0.05,750/((project.w||s.sW||80)*20)));
+      setStitchZoom(z);
+    },100);
+  }
 }
 
 function loadProject(e){
@@ -983,7 +997,9 @@ useEffect(() => {
     totalTime: totalTime + (sessionActive ? Math.floor((Date.now() - sessionStart) / 1000) : 0),
     sessions, hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
-    statsSessions, statsSettings
+    statsSessions, statsSettings,
+    savedZoom: stitchZoom,
+    savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
   };
   lastSnapshotRef.current = project;
   const saveTimer = setTimeout(() => {
@@ -1697,6 +1713,30 @@ const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned
 useEffect(()=>{
   function handleKeyDown(e){
     if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName))return;
+    // Ctrl+Z / Cmd+Z — undo
+    if((e.ctrlKey||e.metaKey)&&e.key==="z"){
+      e.preventDefault();
+      if(isEditMode){applyUndo();}else{undoTrack();}
+      return;
+    }
+    // Ctrl+S / Cmd+S — save
+    if((e.ctrlKey||e.metaKey)&&e.key==="s"){
+      e.preventDefault();
+      saveProject();
+      return;
+    }
+    // Escape — dismiss UI in priority order
+    if(e.key==="Escape"){
+      if(namePromptOpen){setNamePromptOpen(false);return;}
+      if(modal){setModal(null);return;}
+      if(showExitEditModal){setShowExitEditModal(false);return;}
+      if(cellEditPopover){setCellEditPopover(null);return;}
+      if(importDialog){setImportDialog(null);return;}
+      if(halfMenuOpen){setHalfMenuOpen(false);return;}
+      if(tOverflowOpen){setTOverflowOpen(false);return;}
+      if(drawer){setDrawer(false);return;}
+      return;
+    }
     if(e.code==="Space"){e.preventDefault();isSpaceDownRef.current=true;return;}
     if(stitchView==="highlight"&&!isEditMode){
       if(e.key==="ArrowRight"||e.key==="]"){
@@ -1723,7 +1763,7 @@ useEffect(()=>{
   window.addEventListener("keydown",handleKeyDown);
   window.addEventListener("keyup",handleKeyUp);
   return()=>{window.removeEventListener("keydown",handleKeyDown);window.removeEventListener("keyup",handleKeyUp);};
-},[stitchView,isEditMode,focusableColors,isActive]);
+},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,halfMenuOpen,tOverflowOpen,drawer]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;

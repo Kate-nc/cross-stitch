@@ -387,7 +387,7 @@ function applyCrop(){
 function doSaveProject(finalName){
   if(!pat||!pal)return;
   let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
-  let project={version:9,page:"creator",name:finalName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
+  let project={version:9,page:"creator",name:finalName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr,savedZoom:zoom,savedScroll:scrollRef.current?{left:scrollRef.current.scrollLeft,top:scrollRef.current.scrollTop}:null};
   let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
   let url=URL.createObjectURL(blob);
   let a=document.createElement("a");
@@ -461,7 +461,11 @@ function processLoadedProject(project){
   if(project.imgData&&typeof project.imgData==='string'&&project.imgData.startsWith('data:image/')){let li=new Image();li.onload=()=>{if(!userActedRef.current){setImg(li);setOrigW(li.width);setOrigH(li.height);}};li.src=project.imgData;}else if(s.isScratchMode){setImg({src:null,w:s.sW,h:s.sH});}
   setProjectName(project.name||"");
   projectIdRef.current = project.id || null;
-  setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/(s.sW*20)));setZoom(z);},100);
+  if(project.savedZoom!=null){
+    setTimeout(()=>{setZoom(project.savedZoom);if(project.savedScroll&&scrollRef.current){requestAnimationFrame(()=>{scrollRef.current.scrollLeft=project.savedScroll.left;scrollRef.current.scrollTop=project.savedScroll.top;});}},100);
+  }else{
+    setTimeout(()=>{let z=Math.min(3,Math.max(0.05,750/(s.sW*20)));setZoom(z);},100);
+  }
 }
 
 function loadProject(e){let f=e.target.files[0];if(!f)return;setLoadError(null);let rd=new FileReader();rd.onload=ev=>{try{
@@ -549,7 +553,7 @@ useEffect(() => {
     const saveTimer = setTimeout(() => {
         let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
         if(!projectIdRef.current) projectIdRef.current="proj_"+Date.now();
-        let project={version:9,id:projectIdRef.current,page:"creator",name:projectName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
+        let project={version:9,id:projectIdRef.current,page:"creator",name:projectName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr,savedZoom:zoom,savedScroll:scrollRef.current?{left:scrollRef.current.scrollLeft,top:scrollRef.current.scrollTop}:null};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
         ProjectStorage.save(project).then(id => { ProjectStorage.setActiveProject(id); }).catch(err => console.error("ProjectStorage auto-save failed:", err));
         if(typeof StashBridge!=="undefined") StashBridge.syncProjectToLibrary(projectIdRef.current,projectName||`${sW}×${sH} pattern`,skeinData,"inprogress");
@@ -1158,13 +1162,39 @@ function handlePatMouseLeave(){setHoverCoords(null);}
 useEffect(()=>{
   if(!isActive)return;
   function handleKeyDown(e){
-    if(e.key==="Escape" && activeTool==="backstitch" && bsStart){
-      setBsStart(null);
+    if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName))return;
+    // Ctrl+Z / Cmd+Z — undo
+    if((e.ctrlKey||e.metaKey)&&e.key==="z"){
+      e.preventDefault();
+      if(editHistory.length>0){
+        let last=editHistory[editHistory.length-1],np=pat.slice();
+        last.changes.forEach(c2=>np[c2.idx]={...c2.old});
+        setPat(np);setEditHistory(prev=>prev.slice(0,-1));
+        let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);
+        setPal(np2);setCmap(nc);
+      }
+      return;
+    }
+    // Ctrl+S / Cmd+S — save
+    if((e.ctrlKey||e.metaKey)&&e.key==="s"){
+      e.preventDefault();
+      saveProject();
+      return;
+    }
+    // Escape — dismiss UI in priority order
+    if(e.key==="Escape"){
+      if(namePromptOpen){setNamePromptOpen(false);return;}
+      if(modal){setModal(null);return;}
+      if(overflowOpen){setOverflowOpen(false);return;}
+      if(activeTool==="backstitch"&&bsStart){setBsStart(null);return;}
+      if(activeTool){setActiveTool(null);return;}
+      if(selectedColorId){setSelectedColorId(null);return;}
+      return;
     }
   }
   window.addEventListener("keydown",handleKeyDown);
   return ()=>window.removeEventListener("keydown",handleKeyDown);
-},[activeTool,bsStart,isActive]);
+},[activeTool,bsStart,isActive,editHistory,pat,namePromptOpen,modal,overflowOpen,selectedColorId]);
 
 // Thread organiser helpers
 function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur===""?"owned":cur==="owned"?"tobuy":"";return{...prev,[id]:next};});}
