@@ -8,7 +8,7 @@
 //   onEdit      – callback to navigate to creator (tracker page only)
 //   onTrack     – callback to navigate to tracker (creator page only)
 //   onSave      – callback to download JSON
-function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onSave }) {
+function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onSave, onHome }) {
   if (!name) return null;
   const dimStr = dimensions ? `${dimensions.width}×${dimensions.height}` : null;
   const colStr = palette ? `${palette.length} colour${palette.length !== 1 ? 's' : ''}` : null;
@@ -16,13 +16,18 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
 
   return React.createElement('div', { className: 'tb-context-bar' },
     React.createElement('div', { className: 'tb-context-bar-inner' },
-      React.createElement('span', { className: 'tb-context-name' }, name),
-      meta && React.createElement('span', { className: 'tb-context-meta' }, meta),
-      pct !== null && React.createElement('span', { className: 'tb-context-pct' },
-        React.createElement('span', { className: 'tb-context-pct-bar' },
-          React.createElement('span', { className: 'tb-context-pct-fill', style: { width: pct + '%' } })
-        ),
-        React.createElement('span', { className: 'tb-context-pct-lbl' }, pct + '%')
+      React.createElement('div', {
+        onClick: onHome || undefined,
+        style: { display:'flex', alignItems:'center', gap:6, flex:1, cursor: onHome ? 'pointer' : 'default', minWidth:0 }
+      },
+        React.createElement('span', { className: 'tb-context-name' }, name),
+        meta && React.createElement('span', { className: 'tb-context-meta' }, meta),
+        pct !== null && React.createElement('span', { className: 'tb-context-pct' },
+          React.createElement('span', { className: 'tb-context-pct-bar' },
+            React.createElement('span', { className: 'tb-context-pct-fill', style: { width: pct + '%' } })
+          ),
+          React.createElement('span', { className: 'tb-context-pct-lbl' }, pct + '%')
+        )
       ),
       React.createElement('div', { className: 'tb-context-actions' },
         page === 'tracker' && onEdit &&
@@ -36,7 +41,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
   );
 }
 
-function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, setModal, activeProject }) {
+function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, setModal, activeProject }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
   React.useEffect(() => {
@@ -163,13 +168,17 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('help') }, 'Help'),
 
         // File menu dropdown
-        (onOpen || onSave || onTrack || onExportPDF) &&
+        (onOpen || onSave || onTrack || onExportPDF || onNewProject) &&
           React.createElement('div', { ref: fileMenuRef, style: { position: 'relative', flexShrink: 0 } },
             React.createElement('button', { className: 'tb-page-btn', onClick: () => setFileMenuOpen(o => !o) },
               'File',
               React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 3 } }, '▾')
             ),
             fileMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 190 } },
+              onNewProject && React.createElement('button', {
+                className: 'tb-page-dropdown-item',
+                onClick: () => { onNewProject(); setFileMenuOpen(false); }
+              }, 'New Project'),
               onOpen && React.createElement('button', {
                 className: 'tb-page-dropdown-item',
                 onClick: () => { onOpen(); setFileMenuOpen(false); }

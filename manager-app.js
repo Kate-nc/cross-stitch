@@ -47,6 +47,9 @@ function ManagerApp() {
   const [selectedPatternsForList, setSelectedPatternsForList] = useState(new Set());
   const [shoppingListModalOpen, setShoppingListModalOpen] = useState(false);
   const [expandedThread, setExpandedThread] = useState(null);
+  const [conflicts, setConflicts] = useState(null);
+  const [readyToStart, setReadyToStart] = useState(null);
+  const [lowStockAlerts, setLowStockAlerts] = useState(null);
   const [userProfile, setUserProfile] = useState({
     fabric_count: 14,
     strands_used: 2,
@@ -81,24 +84,32 @@ function ManagerApp() {
 
         let finalThreads = threadsData;
 
-        if (threadsData && versionData !== 2) {
+        if (threadsData && versionData !== 2 && versionData !== 3) {
           // Backup
           store.put(threadsData, "threads_backup_v1");
 
-          // Migrate
+          // Migrate v1 → v3
           finalThreads = {};
           for (const [id, t] of Object.entries(threadsData)) {
-            finalThreads[id] = { ...t, partialStatus: null };
+            finalThreads[id] = { ...t, partialStatus: t.partialStatus || null, min_stock: 0 };
           }
           store.put(finalThreads, "threads");
-          store.put(2, "stashDataVersion");
+          store.put(3, "stashDataVersion");
+        } else if (threadsData && versionData === 2) {
+          // Migrate v2 → v3: add min_stock
+          finalThreads = {};
+          for (const [id, t] of Object.entries(threadsData)) {
+            finalThreads[id] = { ...t, min_stock: t.min_stock || 0 };
+          }
+          store.put(finalThreads, "threads");
+          store.put(3, "stashDataVersion");
         } else if (!threadsData) {
           finalThreads = {};
           DMC.forEach(d => {
-              finalThreads[d.id] = { owned: 0, tobuy: false, partialStatus: null };
+              finalThreads[d.id] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
           });
           store.put(finalThreads, "threads");
-          store.put(2, "stashDataVersion");
+          store.put(3, "stashDataVersion");
         }
 
         setThreads(finalThreads);
@@ -143,6 +154,24 @@ function ManagerApp() {
     }, 1000);
     return () => clearTimeout(saveTimer);
   }, [threads, patterns, userProfile]);
+
+  // Smart Stash Hub: refresh conflicts, ready-to-start, and low-stock alerts
+  useEffect(() => {
+    if (typeof StashBridge === "undefined") return;
+    StashBridge.detectConflicts().then(setConflicts).catch(() => {});
+    StashBridge.whatCanIStart().then(setReadyToStart).catch(() => {});
+    // Low-stock: threads where owned > 0 but below min_stock
+    const alerts = [];
+    for (const [id, t] of Object.entries(threads)) {
+      const minStock = t.min_stock || 0;
+      if (minStock > 0 && t.owned < minStock) {
+        const info = DMC.find(d => d.id === id);
+        alerts.push({ id, name: info ? info.name : id, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: minStock });
+      }
+    }
+    alerts.sort((a, b) => (a.min_stock - a.owned) - (b.min_stock - b.owned));
+    setLowStockAlerts(alerts);
+  }, [threads, patterns]);
 
   function openManagerDB() {
     return new Promise((resolve, reject) => {
@@ -337,6 +366,44 @@ function ManagerApp() {
               </div>
             </div>
 
+            {/* Smart Hub: Conflicts */}
+            {conflicts && conflicts.length > 0 && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#dc2626", marginBottom: 8 }}>⚠ Thread Conflicts ({conflicts.length})</div>
+                <div style={{ fontSize: 12, color: "#71717a", marginBottom: 10 }}>These threads are needed by multiple patterns but you don't have enough.</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflow: "auto" }}>
+                  {conflicts.map(c => (
+                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fecaca" }}>
+                      <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`, border: "1px solid #d4d4d8", flexShrink: 0 }} />
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {c.id}</span>
+                      <span style={{ fontSize: 11, color: "#71717a", flex: 1 }}>{c.name}</span>
+                      <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 600 }}>own {c.owned}, need {c.totalNeeded}</span>
+                      <span style={{ fontSize: 10, color: "#a1a1aa" }}>{c.patterns.map(p => p.title).join(", ")}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Smart Hub: Low-Stock Alerts */}
+            {lowStockAlerts && lowStockAlerts.length > 0 && (
+              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "14px 16px" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#b45309", marginBottom: 8 }}>📦 Low Stock ({lowStockAlerts.length})</div>
+                <div style={{ fontSize: 12, color: "#71717a", marginBottom: 10 }}>Threads below your minimum stock level. Set min stock on any thread's expanded panel.</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
+                  {lowStockAlerts.map(a => (
+                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fde68a" }}>
+                      <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`, border: "1px solid #d4d4d8", flexShrink: 0 }} />
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {a.id}</span>
+                      <span style={{ fontSize: 11, color: "#71717a", flex: 1 }}>{a.name}</span>
+                      <span style={{ fontSize: 11, color: "#b45309", fontWeight: 600 }}>have {a.owned}, min {a.min_stock}</span>
+                      <button onClick={() => { updateThread(a.id, "tobuy", true); }} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, border: "1px solid #fed7aa", background: "#fff7ed", color: "#ea580c", cursor: "pointer", fontWeight: 600 }}>Add to buy</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 10 }}>
               {filteredThreads.map(d => {
                 const state = threads[d.id] || { owned: 0, tobuy: false, partialStatus: null };
@@ -433,12 +500,29 @@ function ManagerApp() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              const usedIn = patternsUsingThread(d.id);
-                              if (usedIn.length > 0) {
-                                alert(`Thread DMC ${d.id} is used in:\n\n${usedIn.map(p => `- ${p.title} (needs ${p.threads.find(t=>t.id===d.id).qty})`).join('\n')}`);
-                              } else {
-                                alert(`Thread DMC ${d.id} is not currently used in any of your patterns.`);
-                              }
+                              const btn = e.currentTarget;
+                              btn.disabled = true;
+                              btn.textContent = "…";
+                              (typeof StashBridge !== "undefined"
+                                ? StashBridge.getProjectsUsingThread(d.id)
+                                : Promise.resolve(patternsUsingThread(d.id).map(p => ({ source: "library", name: p.title, type: "manual" })))
+                              ).then(usedIn => {
+                                if (usedIn.length > 0) {
+                                  alert(`Thread DMC ${d.id} is used in:\n\n${usedIn.map(p => `- ${p.name} (${p.type})`).join('\n')}`);
+                                } else {
+                                  alert(`Thread DMC ${d.id} is not currently used in any of your patterns or projects.`);
+                                }
+                              }).catch(() => {
+                                const usedIn = patternsUsingThread(d.id);
+                                if (usedIn.length > 0) {
+                                  alert(`Thread DMC ${d.id} is used in:\n\n${usedIn.map(p => `- ${p.title} (needs ${p.threads.find(t=>t.id===d.id).qty})`).join('\n')}`);
+                                } else {
+                                  alert(`Thread DMC ${d.id} is not currently used in any of your patterns.`);
+                                }
+                              }).finally(() => {
+                                btn.disabled = false;
+                                btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> Usage';
+                              });
                             }}
                             style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #e4e4e7", background: "#f4f4f5", color: "#71717a", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 11, width: "fit-content", marginTop: "auto" }}
                             title="What uses this thread?"
@@ -448,6 +532,17 @@ function ManagerApp() {
                             </svg>
                             Usage
                           </button>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                            <label style={{ fontSize: 10, color: "#a1a1aa", whiteSpace: "nowrap" }}>Min stock:</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={state.min_stock || 0}
+                              onClick={e => e.stopPropagation()}
+                              onChange={e => { e.stopPropagation(); updateThread(d.id, "min_stock", Math.max(0, parseInt(e.target.value) || 0)); }}
+                              style={{ width: 48, padding: "3px 6px", borderRadius: 4, border: "1px solid #e4e4e7", fontSize: 12, textAlign: "center" }}
+                            />
+                          </div>
                         </div>
 
                         {/* Opened Skein Col */}
@@ -510,6 +605,28 @@ function ManagerApp() {
                     </div>
                     <button onClick={() => window.open('stitch.html', '_blank')} style={{ padding: "6px 12px", fontSize: 13, fontWeight: 600, background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>Go to Tracker</button>
                 </div>
+            )}
+            {/* Smart Hub: Ready to Start */}
+            {readyToStart && readyToStart.length > 0 && (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "14px 16px" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#16a34a", marginBottom: 8 }}>✓ Ready to Start</div>
+                <div style={{ fontSize: 12, color: "#71717a", marginBottom: 10 }}>Patterns you can fully kit from your current stash.</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 200, overflow: "auto" }}>
+                  {readyToStart.map(r => (
+                    <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "#fff", border: "1px solid " + (r.pct === 100 ? "#bbf7d0" : "#e4e4e7") }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#18181b" }}>{r.title || "Untitled"}</div>
+                        <div style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>{r.totalThreads} threads, {r.coveredThreads} covered ({r.pct}%)</div>
+                      </div>
+                      {r.pct === 100 ? (
+                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#dcfce7", color: "#16a34a" }}>100% kitted</span>
+                      ) : (
+                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#fff7ed", color: "#ea580c" }}>{r.pct}% — {r.missing.length} missing</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
             {storedProjects.length > 0 && (
               <div style={{ background: "#f8fafc", border: "1px solid #e4e4e7", borderRadius: 10, padding: "14px 16px" }}>
@@ -610,15 +727,17 @@ function ManagerApp() {
               </button>
             </div>
 
-            {selectedPatternsForList.size > 0 && (
-              <div style={{ padding: "12px 16px", background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ padding: "12px 16px", background: selectedPatternsForList.size > 0 ? "#f0fdf4" : "#fafafa", borderRadius: 8, border: selectedPatternsForList.size > 0 ? "1px solid #bbf7d0" : "1px solid #e4e4e7", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              {selectedPatternsForList.size > 0 ? (
                 <div style={{ fontSize: 13, color: "#16a34a", fontWeight: 600 }}>{selectedPatternsForList.size} pattern(s) selected</div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button onClick={() => setSelectedPatternsForList(new Set())} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #bbf7d0", background: "#fff", cursor: "pointer", color: "#16a34a" }}>Clear</button>
-                  <button onClick={() => setShoppingListModalOpen(true)} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "none", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Generate Shopping List</button>
-                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "#a1a1aa" }}>Select patterns with checkboxes to generate a shopping list</div>
+              )}
+              <div style={{ display: "flex", gap: 10 }}>
+                {selectedPatternsForList.size > 0 && <button onClick={() => setSelectedPatternsForList(new Set())} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #bbf7d0", background: "#fff", cursor: "pointer", color: "#16a34a" }}>Clear</button>}
+                <button onClick={() => { if(selectedPatternsForList.size === 0) { alert("Select at least one pattern using the checkboxes on the pattern cards."); return; } setShoppingListModalOpen(true); }} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "none", background: selectedPatternsForList.size > 0 ? "#16a34a" : "#a1a1aa", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Generate Shopping List</button>
               </div>
-            )}
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
               {filteredPatterns.map(p => {
@@ -644,9 +763,17 @@ function ManagerApp() {
 
                     {p.tags && p.tags.length > 0 && (
                       <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
-                        {p.tags.map(tag => (
+                        {p.tags.filter(tag => tag !== "auto-synced").map(tag => (
                           <span key={tag} style={{ padding: "2px 6px", background: "#f4f4f5", color: "#71717a", borderRadius: 4, fontSize: 11 }}>{tag}</span>
                         ))}
+                        {p.tags.includes("auto-synced") && (
+                          <span style={{ padding: "2px 6px", background: "#f0fdfa", color: "#0d9488", borderRadius: 4, fontSize: 10, fontWeight: 600 }}>Auto-synced</span>
+                        )}
+                      </div>
+                    )}
+                    {p.linkedProjectId && (!p.tags || !p.tags.includes("auto-synced")) && (
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
+                        <span style={{ padding: "2px 6px", background: "#f0fdfa", color: "#0d9488", borderRadius: 4, fontSize: 10, fontWeight: 600 }}>Auto-synced</span>
                       </div>
                     )}
 

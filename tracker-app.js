@@ -1,6 +1,6 @@
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
 
-function TrackerApp({onSwitchToDesign=null, isActive=true, incomingProject=null}={}){
+function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80),[sH,setSH]=useState(80);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null);
 const incomingProjectRef=useRef(incomingProject);
@@ -83,6 +83,10 @@ const wheelHandlerRef=useRef(null);
 const zoomRafRef=useRef(null);
 
 const[threadOwned,setThreadOwned]=useState({});
+const[globalStash,setGlobalStash]=useState({});
+const[kittingResult,setKittingResult]=useState(null);
+const[stashDeducted,setStashDeducted]=useState(false);
+const[altOpen,setAltOpen]=useState(null);
 
 const [importDialog, setImportDialog] = useState(null);
 const [importImage, setImportImage] = useState(null);
@@ -200,6 +204,17 @@ const skeinData=useMemo(()=>{
   });
   return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{let t=DMC.find(d=>d.id===id);return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
 },[pal,fabricCt]);
+
+useEffect(()=>{
+  if(typeof StashBridge!=="undefined"){StashBridge.getGlobalStash().then(setGlobalStash).catch(()=>{});}
+},[]);
+
+// Detect project completion and offer stash deduction
+useEffect(()=>{
+  if(progressPct>=100 && !stashDeducted && combinedTotal>0 && typeof StashBridge!=="undefined"){
+    setModal("deduct_prompt");
+  }
+},[progressPct]);
 
 const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData]);
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
@@ -661,9 +676,13 @@ function loadProject(e){
     };
     rd.readAsDataURL(f);
   } else if (format === "pdf") {
-    setLoadError("Parsing PDF chart... This may take a moment.");
-    const importer = new PatternKeeperImporter();
-    importer.import(f).then(project => {
+    setLoadError("Loading PDF library\u2026");
+    const pdfReady = typeof window.loadPdfStack === 'function' ? window.loadPdfStack() : Promise.resolve();
+    pdfReady.then(() => {
+      setLoadError("Parsing PDF chart\u2026 This may take a moment.");
+      const importer = new PatternKeeperImporter();
+      return importer.import(f);
+    }).then(project => {
       processLoadedProject(project);
       setLoadError(null);
       setImportSuccess(`Imported PDF chart successfully.`);
@@ -764,6 +783,14 @@ useEffect(() => {
   const saveTimer = setTimeout(() => {
     ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Tracker auto-save failed:", err));
     saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err));
+    if (typeof StashBridge !== "undefined" && skeinData.length > 0) {
+      StashBridge.syncProjectToLibrary(
+        projectIdRef.current,
+        `${sW}×${sH} pattern`,
+        skeinData,
+        combinedDone >= combinedTotal && combinedTotal > 0 ? "completed" : "inprogress"
+      ).catch(err => console.error("Library sync failed:", err));
+    }
   }, 5000);
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
@@ -1164,7 +1191,11 @@ function handleStitchMouseDown(e){
         _placeHalfStitch(idx,halfStitchTool,m);
       }
     } else {
-      // Use the selected colour
+      // Use the selected colour — but block placing on skip/empty cells
+      const m2=pat[idx];
+      if(m2&&(m2.id==="__skip__"||m2.id==="__empty__")){
+        e.preventDefault();return;
+      }
       const pe=cmap[selectedColorId];
       _placeHalfStitch(idx,halfStitchTool,pe);
     }
@@ -1545,7 +1576,7 @@ useEffect(()=>{
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat ? () => setModal("pdf_export") : null} setModal={setModal} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat ? () => setModal("pdf_export") : null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} />
 {pat&&pal&&<ContextBar
   name={pat ? (sW + '×' + sH + ' pattern') : null}
   dimensions={pat ? {width:sW, height:sH} : null}
@@ -1554,6 +1585,7 @@ return(
   page="tracker"
   onEdit={handleEditInCreator}
   onSave={saveProject}
+  onHome={()=>{if(onGoHome){onGoHome();}else if(typeof window.__goHome!=='undefined'){window.__goHome();}else if(typeof window.__switchToDesign!=='undefined'){window.__switchToDesign();}else{window.location.href='index.html';}}}
 />}
 {pat&&pal&&<>
 {/* ═══ TRACKER TOOL STRIP ═══ */}
@@ -1915,18 +1947,63 @@ return(
           {skeinData.map(d=>{
             let st=threadOwned[d.id]||"";
             let isOwned=st==="owned";
-            return<div key={d.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,background:isOwned?"#f0fdf4":"#fff",border:"1px solid "+(isOwned?"#bbf7d0":"#f4f4f5")}}>
+            let gs=globalStash[d.id]||{owned:0};
+            let hasStash=gs.owned>0;
+            return<React.Fragment key={d.id}><div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,background:isOwned?"#f0fdf4":"#fff",border:"1px solid "+(isOwned?"#bbf7d0":"#f4f4f5")}}>
               <span style={{width:16,height:16,borderRadius:3,background:`rgb(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]})`,border:"1px solid #d4d4d8",flexShrink:0}}/>
               <span style={{fontWeight:700,fontSize:13,minWidth:44}}>DMC {d.id}</span>
               <span style={{fontSize:11,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
               <span style={{fontSize:11,color:"#a1a1aa",flexShrink:0}}>{d.skeins}sk</span>
+              <span className={"stash-badge"+(hasStash?" stash-badge--in":" stash-badge--out")} title={hasStash?`${gs.owned} in global stash`:"Not in global stash"}>{hasStash?`●${gs.owned}`:"○0"}</span>
               <button onClick={()=>toggleOwned(d.id)} style={{fontSize:11,padding:"3px 10px",borderRadius:5,border:"1px solid "+(isOwned?"#bbf7d0":"#fed7aa"),background:isOwned?"#f0fdf4":"#fff7ed",color:isOwned?"#16a34a":"#ea580c",cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center"}}>{isOwned?"Owned":"To buy"}</button>
-            </div>;})}
+              {typeof StashBridge!=="undefined"&&<button onClick={(e)=>{e.stopPropagation();setAltOpen(altOpen===d.id?null:d.id);}} style={{fontSize:10,padding:"2px 6px",borderRadius:4,border:"1px solid #e0e7ff",background:altOpen===d.id?"#e0e7ff":"#fff",color:"#4338ca",cursor:"pointer",fontWeight:600}} title="Show similar threads from stash">≈</button>}
+            </div>
+            {altOpen===d.id&&(()=>{const alts=StashBridge.suggestAlternatives(d.id,5,globalStash);return alts.length>0?<div style={{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}}><span style={{color:"#71717a",fontWeight:600}}>Similar in stash:</span>{alts.map(a=><span key={a.id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}}><span style={{width:10,height:10,borderRadius:2,background:`rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`,border:"1px solid #d4d4d8"}}/><span style={{fontWeight:600}}>DMC {a.id}</span><span style={{color:"#71717a"}}>{a.name}</span><span style={{color:"#a1a1aa"}}>ΔE {a.deltaE}</span><span style={{color:"#4338ca"}}>{a.owned}sk</span></span>)}</div>:<div style={{padding:"6px 12px 8px 36px",fontSize:11,color:"#a1a1aa"}}>No similar threads found in your stash.</div>;})()}
+            </React.Fragment>;})}
         </div>
-        <div style={{display:"flex",gap:6,marginTop:10}}>
+        <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
           <button onClick={()=>{let txt=toBuyList.map(d=>`DMC ${d.id} ${d.name} × ${d.skeins}`).join("\n");copyText(txt,"shopping");}} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Copy To-Buy List</button>
           <button onClick={()=>{let txt=skeinData.map(d=>`DMC ${d.id} ${d.name} × ${d.skeins}`).join("\n");copyText(txt,"full");}} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Copy Full List</button>
+          <button onClick={()=>{
+            if(typeof StashBridge==="undefined")return;
+            StashBridge.getGlobalStash().then(stash=>{
+              setGlobalStash(stash);
+              const shopping=[];
+              for(const d of skeinData){
+                const gs=stash[d.id]||{owned:0};
+                const deficit=d.skeins-gs.owned;
+                if(deficit>0) shopping.push({id:d.id,name:d.name,rgb:d.rgb,needed:d.skeins,owned:gs.owned,toBuy:deficit});
+              }
+              setKittingResult(shopping);
+            }).catch(()=>{});
+          }} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #d8b4fe",background:"#faf5ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Kit This Project</button>
         </div>
+        {kittingResult&&<div style={{marginTop:10,padding:12,borderRadius:8,border:"1px solid #e9d5ff",background:"#faf5ff"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <span style={{fontSize:13,fontWeight:700,color:"#7c3aed"}}>{kittingResult.length===0?"Fully kitted! You own everything needed.":"Shopping list from stash diff"}</span>
+            <button onClick={()=>setKittingResult(null)} style={{background:"none",border:"none",color:"#a1a1aa",cursor:"pointer",fontSize:16}}>×</button>
+          </div>
+          {kittingResult.length>0&&<>
+            <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:200,overflow:"auto"}}>
+              {kittingResult.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,background:"#fff",border:"1px solid #f4f4f5"}}>
+                <span style={{width:14,height:14,borderRadius:3,background:`rgb(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]})`,border:"1px solid #d4d4d8",flexShrink:0}}/>
+                <span style={{fontWeight:600,fontSize:12}}>DMC {d.id}</span>
+                <span style={{fontSize:11,color:"#71717a",flex:1}}>{d.name}</span>
+                <span style={{fontSize:11,color:"#a1a1aa"}}>need {d.needed}, own {d.owned}</span>
+                <span style={{fontSize:11,fontWeight:700,color:"#7c3aed"}}>buy {d.toBuy}</span>
+              </div>)}
+            </div>
+            <div style={{display:"flex",gap:6,marginTop:8}}>
+              <button onClick={()=>{let txt=kittingResult.map(d=>`DMC ${d.id} ${d.name} × ${d.toBuy} skeins`).join("\n");copyText(txt,"kit");}} style={{padding:"6px 14px",fontSize:12,borderRadius:6,border:"none",background:"#7c3aed",color:"#fff",cursor:"pointer",fontWeight:600}}>Copy List</button>
+              <button onClick={()=>{
+                Promise.all(kittingResult.map(d=>StashBridge.updateThreadToBuy(d.id,true))).then(()=>{
+                  StashBridge.getGlobalStash().then(setGlobalStash).catch(()=>{});
+                  alert("Marked "+kittingResult.length+" threads as to-buy in your global stash.");
+                }).catch(()=>{});
+              }} style={{padding:"6px 14px",fontSize:12,borderRadius:6,border:"1px solid #d8b4fe",background:"#fff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Mark All To-Buy in Stash</button>
+            </div>
+          </>}
+        </div>}
         {copied&&<div style={{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}>Copied!</div>}
       </Section>
 
@@ -2019,6 +2096,40 @@ return(
   {modal==="calculator"&&<SharedModals.Calculator onClose={()=>setModal(null)} />}
   {modal==="calculator_batch"&&<SharedModals.Calculator onClose={()=>setModal(null)} initialPatterns={pal} />}
   {modal==="pdf_export"&&<SharedModals.PdfExport onClose={()=>setModal(null)} initialSettings={pdfSettings} sW={sW} sH={sH} hasTrackingData={doneCount > 0} hasBackstitch={bsLines.length > 0} pal={pal} onExport={(s)=>{setPdfSettings(s);setModal(null);generatePDF({pat, pal, cmap, sW, sH, done, totalStitchable, fabricCt, skeinData, blendCount, totalSkeins, difficulty:null, stitchSpeed, totalTime, sessions, threadOwned, bsLines, imgData:null}, s);}} />}
+
+  {modal==="deduct_prompt"&&<div className="modal-overlay" onClick={()=>{setModal(null);setStashDeducted(true);}}>
+    <div className="modal-content" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
+      <button className="modal-close" onClick={()=>{setModal(null);setStashDeducted(true);}}>×</button>
+      <h3 style={{marginTop:0,fontSize:20,color:"#18181b"}}>Project Complete!</h3>
+      <p style={{fontSize:14,color:"#71717a",marginBottom:16}}>Deduct the thread used from your global stash?</p>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <button onClick={()=>{
+          (async()=>{
+            const stash=await StashBridge.getGlobalStash();
+            for(const d of skeinData){
+              const gs=stash[d.id]||{owned:0};
+              const newOwned=Math.max(0,gs.owned-d.skeins);
+              await StashBridge.updateThreadOwned(d.id,newOwned);
+            }
+            setGlobalStash(await StashBridge.getGlobalStash());
+          })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
+        }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#7c3aed",color:"#fff",cursor:"pointer",fontWeight:600}}>Deduct Full Skeins</button>
+        <button onClick={()=>{
+          (async()=>{
+            const stash=await StashBridge.getGlobalStash();
+            for(const d of skeinData){
+              const gs=stash[d.id]||{owned:0};
+              const deduct=Math.max(0,d.skeins-1);
+              const newOwned=Math.max(0,gs.owned-deduct);
+              await StashBridge.updateThreadOwned(d.id,newOwned);
+            }
+            setGlobalStash(await StashBridge.getGlobalStash());
+          })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
+        }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1px solid #d8b4fe",background:"#faf5ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Deduct Partial (keep 1 per colour)</button>
+        <button onClick={()=>{setStashDeducted(true);setModal(null);}} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",color:"#71717a",cursor:"pointer",fontWeight:500}}>Skip</button>
+      </div>
+    </div>
+  </div>}
 
   {cellEditPopover && isEditMode && (()=>{
     const cell = pat[cellEditPopover.idx];

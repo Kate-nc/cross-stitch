@@ -5,12 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self';">
 <title>Stitch Tracker</title>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="pdf-importer.js"></script>
+<!-- pdf.js + pdf-importer are lazy-loaded on first PDF import -->
+<script>
+window.loadScript = function(src) {
+  if (document.querySelector('script[src="' + src + '"]')) return Promise.resolve();
+  return new Promise(function(res, rej) { var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+};
+window.loadPdfStack = function() {
+  return window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
+    .then(function() { if (typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js'; return window.loadScript('pdf-importer.js'); });
+};
+</script>
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
@@ -22,6 +33,7 @@
 <script src="modals.js"></script>
 <script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
+<script src="stash-bridge.js"></script>
 </head>
 <body>
 <div id="root"></div>
