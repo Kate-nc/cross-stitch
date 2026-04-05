@@ -239,11 +239,18 @@ function formatStatsDuration(minutes) {
   return m > 0 ? h + 'h ' + m + 'm' : h + 'h';
 }
 
+function formatLocalDateYYYYMMDD(date) {
+  var year = date.getFullYear();
+  var month = String(date.getMonth() + 1).padStart(2, '0');
+  var day = String(date.getDate()).padStart(2, '0');
+  return year + '-' + month + '-' + day;
+}
+
 function formatRelativeDate(dateStr, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
   var todayDate = new Date(today + 'T12:00:00');
   todayDate.setDate(todayDate.getDate() - 1);
-  var yesterdayStr = todayDate.toISOString().slice(0, 10);
+  var yesterdayStr = formatLocalDateYYYYMMDD(todayDate);
   if (dateStr === today) return 'Today';
   if (dateStr === yesterdayStr) return 'Yesterday';
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
