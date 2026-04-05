@@ -353,7 +353,21 @@ useEffect(()=>{
 },[doneCount,halfStitchCounts.done]);
 // Finalise auto-session before page unload
 useEffect(()=>{
-  const handleUnload=()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){console.warn('Stats: beforeunload error',e);}};
+  const handleUnload=()=>{
+    try{
+      const finalisedSession=finaliseAutoSessionRef.current?finaliseAutoSessionRef.current():null;
+      if(finalisedSession&&lastSnapshotRef.current){
+        const snapshot=lastSnapshotRef.current||{};
+        const existingSessions=Array.isArray(snapshot.statsSessions)?snapshot.statsSessions:[];
+        const hasSession=existingSessions.some(s=>s&&finalisedSession&&s.id===finalisedSession.id);
+        const nextSnapshot=hasSession?snapshot:Object.assign({},snapshot,{statsSessions:[...existingSessions,finalisedSession]});
+        lastSnapshotRef.current=nextSnapshot;
+        try{
+          if(typeof ProjectStorage!=='undefined'&&ProjectStorage&&typeof ProjectStorage.saveProjectToDB==='function')ProjectStorage.saveProjectToDB(nextSnapshot);
+        }catch(saveErr){console.warn('Stats: beforeunload save error',saveErr);}
+      }
+    }catch(e){console.warn('Stats: beforeunload error',e);}
+  };
   window.addEventListener('beforeunload',handleUnload);
   return()=>window.removeEventListener('beforeunload',handleUnload);
 },[]);
