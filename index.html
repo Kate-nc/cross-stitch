@@ -62,6 +62,9 @@ window.loadTrackerApp = function() {
   fetch('tracker-app.js').then(function(r) {
     return r.ok ? r.text() : Promise.reject('fetch failed');
   }).then(function(src) {
+    /* Yield to browser so the loading spinner renders before the main thread blocks on Babel */
+    return new Promise(function(res) { setTimeout(function() { res(src); }, 100); });
+  }).then(function(src) {
     var compiled = Babel.transform(src, { presets: ['react'], filename: 'tracker-app.js' }).code;
     try { localStorage.setItem(TRACKER_CACHE_KEY, compiled); } catch(e) {}
     var s = document.createElement('script'); s.textContent = compiled; document.head.appendChild(s);
@@ -1633,15 +1636,19 @@ function UnifiedApp(){
     if(trackerReady)return;
     // If opened directly in track mode, start loading TrackerApp immediately
     if(mode==='track'&&typeof window.loadTrackerApp==='function') window.loadTrackerApp();
+    // Check immediately — cache hit path defines TrackerApp synchronously
+    if(typeof window.TrackerApp!=='undefined'){setTrackerReady(true);return;}
     const poll=setInterval(()=>{if(typeof window.TrackerApp!=='undefined'){setTrackerReady(true);clearInterval(poll);}},50);
     return()=>clearInterval(poll);
-  },[trackerReady]);
+  },[trackerReady,trackerMounted]);
 
   // switchToTrack accepts an optional {project, key} object from handleOpenInTracker.
   const switchToTrack=React.useCallback((incomingProject)=>{
     if(incomingProject) pendingTrackerProject.current=incomingProject;
     if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
     setTrackerMounted(true);
+    // If the cache was hit, TrackerApp is already defined — mark ready immediately so no spinner flash
+    if(typeof window.TrackerApp!=='undefined') setTrackerReady(true);
     window.history.replaceState({},'','?mode=track');
     setMode('track');
   },[]);
@@ -1694,6 +1701,7 @@ function UnifiedApp(){
       window.__pendingTrackerImportFile=file;
       if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
       setTrackerMounted(true);
+      if(typeof window.TrackerApp!=='undefined') setTrackerReady(true);
       window.history.replaceState({},'','?mode=track');
       setMode('track');
     } else if(ext==='png'||ext==='jpg'||ext==='jpeg'){
@@ -1709,6 +1717,7 @@ function UnifiedApp(){
     window.__pendingTrackerImportFile=file;
     if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
     setTrackerMounted(true);
+    if(typeof window.TrackerApp!=='undefined') setTrackerReady(true);
     window.history.replaceState({},'','?mode=track');
     setMode('track');
   },[]);

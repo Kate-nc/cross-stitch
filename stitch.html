@@ -36,7 +36,7 @@ window.loadPdfStack = function() {
 <script src="stash-bridge.js"></script>
 </head>
 <body>
-<div id="root"></div>
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:12px;color:#71717a;font-family:system-ui,sans-serif;font-size:14px"><div style="width:28px;height:28px;border:2.5px solid #e4e4e7;border-top-color:#0d9488;border-radius:50%;animation:ld-spin 0.8s linear infinite"></div><span id="ld-msg">Loading…</span></div><style>@keyframes ld-spin{to{transform:rotate(360deg)}}</style></div>
 <script>
 /* Compile tracker-app.js via Babel and cache the result in localStorage.
    On repeat visits the cached JS is injected directly — no re-compilation needed. */
@@ -47,6 +47,10 @@ window.loadPdfStack = function() {
   if(cached){inject(cached);return;}
   fetch('tracker-app.js').then(function(r){return r.ok?r.text():Promise.reject('fetch failed');})
   .then(function(src){
+    var el=document.getElementById('ld-msg');if(el)el.textContent='Compiling (first launch only)…';
+    /* Yield to browser so the message renders before the main thread blocks */
+    return new Promise(function(res){setTimeout(function(){res(src);},100);});
+  }).then(function(src){
     var compiled=Babel.transform(src,{presets:['react'],filename:'tracker-app.js'}).code;
     try{localStorage.setItem(CACHE_KEY,compiled);}catch(e){}
     inject(compiled);
