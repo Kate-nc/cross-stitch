@@ -5,16 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self';">
 <title>Cross Stitch Pattern Generator</title>
+<!-- Preconnect so CDN requests start immediately -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<!-- Prefetch lazy-loaded assets in the background at idle time -->
+<link rel="prefetch" href="tracker-app.js">
+<link rel="prefetch" href="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
 <!-- Flag set before any Babel scripts so TrackerApp's guard fires correctly -->
 <script>window.__UNIFIED__=true;</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- pako needed at startup (project data uses deflate/inflate) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-<!-- pdf.js + importer needed by TrackerApp's PDF import feature -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="pdf-importer.js"></script>
+<!-- jsPDF, pdf.js and pdf-importer are lazy-loaded on first use -->
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
@@ -27,8 +31,48 @@
 <script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
 <script src="stash-bridge.js"></script>
-<!-- TrackerApp loaded here so it is defined by the time inline script runs -->
-<script type="text/babel" src="tracker-app.js"></script>
+<!-- Lazy-load helpers — available to both regular and Babel scripts -->
+<script>
+window.loadScript = function(src) {
+  if (document.querySelector('script[src="' + src + '"]')) return Promise.resolve();
+  return new Promise(function(res, rej) {
+    var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+};
+window.loadPdfStack = function() {
+  return window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
+    .then(function() {
+      if (typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+      return window.loadScript('pdf-importer.js');
+    });
+};
+/* Loads TrackerApp via Babel, caching compiled output in localStorage.
+   Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
+var TRACKER_CACHE_KEY = 'babel_tracker_v1';
+window.loadTrackerApp = function() {
+  if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
+  window.__trackerLoading = true;
+  var cached = null;
+  try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch(e) {}
+  if (cached) {
+    var s = document.createElement('script'); s.textContent = cached; document.head.appendChild(s); return;
+  }
+  fetch('tracker-app.js').then(function(r) {
+    return r.ok ? r.text() : Promise.reject('fetch failed');
+  }).then(function(src) {
+    var compiled = Babel.transform(src, { presets: ['react'], filename: 'tracker-app.js' }).code;
+    try { localStorage.setItem(TRACKER_CACHE_KEY, compiled); } catch(e) {}
+    var s = document.createElement('script'); s.textContent = compiled; document.head.appendChild(s);
+  }).catch(function() {
+    /* file:// or network error — fall back to Babel MutationObserver path */
+    window.__trackerLoading = false;
+    var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'tracker-app.js';
+    document.head.appendChild(s);
+  });
+};
+</script>
+<!-- TrackerApp is lazy-loaded (above) the first time the user switches to Track mode -->
 </head>
 <body>
 <div id="root"></div>
@@ -476,7 +520,7 @@ function generatePatternThumbnail(pat, sW, sH) {
   return c.toDataURL("image/jpeg", 0.85);
 }
 
-function exportPDF(){if(!pat||!pal||!cmap)return;const{jsPDF}=window.jspdf;const pdf=new jsPDF("portrait","mm","a4");const mg=12,cW2=186;
+async function exportPDF(){if(!pat||!pal||!cmap)return;if(!window.jspdf)await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');const{jsPDF}=window.jspdf;const pdf=new jsPDF("portrait","mm","a4");const mg=12,cW2=186;
 
   // --- Cover Sheet Generation ---
   (function(){
@@ -683,8 +727,9 @@ function exportPDF(){if(!pat||!pal||!cmap)return;const{jsPDF}=window.jspdf;const
   pdf.save("cross-stitch-pattern.pdf");
 }
 
-function exportCoverSheet(){
+async function exportCoverSheet(){
   if(!pat||!pal||!cmap)return;
+  if(!window.jspdf)await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   const{jsPDF}=window.jspdf;const pdf=new jsPDF("portrait","mm","a4");const mg=15;
   let y=mg;
   // Title
@@ -1534,6 +1579,8 @@ function UnifiedApp(){
 
   React.useEffect(()=>{
     if(trackerReady)return;
+    // If opened directly in track mode, start loading TrackerApp immediately
+    if(mode==='track'&&typeof window.loadTrackerApp==='function') window.loadTrackerApp();
     const poll=setInterval(()=>{if(typeof window.TrackerApp!=='undefined'){setTrackerReady(true);clearInterval(poll);}},50);
     return()=>clearInterval(poll);
   },[trackerReady]);
@@ -1541,6 +1588,7 @@ function UnifiedApp(){
   // switchToTrack accepts an optional {project, key} object from handleOpenInTracker.
   const switchToTrack=React.useCallback((incomingProject)=>{
     if(incomingProject) pendingTrackerProject.current=incomingProject;
+    if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
     setTrackerMounted(true);
     window.history.replaceState({},'','?mode=track');
     setMode('track');

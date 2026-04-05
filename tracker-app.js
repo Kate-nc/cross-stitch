@@ -676,9 +676,13 @@ function loadProject(e){
     };
     rd.readAsDataURL(f);
   } else if (format === "pdf") {
-    setLoadError("Parsing PDF chart... This may take a moment.");
-    const importer = new PatternKeeperImporter();
-    importer.import(f).then(project => {
+    setLoadError("Loading PDF library\u2026");
+    const pdfReady = typeof window.loadPdfStack === 'function' ? window.loadPdfStack() : Promise.resolve();
+    pdfReady.then(() => {
+      setLoadError("Parsing PDF chart\u2026 This may take a moment.");
+      const importer = new PatternKeeperImporter();
+      return importer.import(f);
+    }).then(project => {
       processLoadedProject(project);
       setLoadError(null);
       setImportSuccess(`Imported PDF chart successfully.`);
