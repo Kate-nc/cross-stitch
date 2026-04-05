@@ -31,6 +31,7 @@
 <script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
 <script src="stash-bridge.js"></script>
+<script src="home-screen.js"></script>
 <!-- Lazy-load helpers — available to both regular and Babel scripts -->
 <script>
 window.loadScript = function(src) {
@@ -49,7 +50,7 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_v1';
+var TRACKER_CACHE_KEY = 'babel_tracker_v2';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -443,6 +444,42 @@ function loadProject(e){let f=e.target.files[0];if(!f)return;setLoadError(null);
 }catch(err){console.error(err);setLoadError("Could not load: "+err.message);setTimeout(()=>setLoadError(null),4000);}};rd.readAsText(f);if(loadRef.current)loadRef.current.value="";}
 
 useEffect(() => {
+    // Handle pending actions from HomeScreen
+    if (window.__pendingCreatorAction === 'scratch') {
+      delete window.__pendingCreatorAction;
+      startScratch();
+      return;
+    }
+    if (window.__pendingCreatorFile) {
+      const file = window.__pendingCreatorFile;
+      delete window.__pendingCreatorFile;
+      // Simulate file input by reading the file as an image
+      const MAX_FILE_SIZE = 5 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) { alert("File is too large. Please select an image under 5MB."); return; }
+      const rd = new FileReader();
+      rd.onload = ev => {
+        const i = new Image();
+        const proceed = () => { userActedRef.current = true; setOrigW(i.width); setOrigH(i.height); let a = i.width / i.height; setAr(a); setSW(80); setSH(Math.round(80 / a)); setImg(i); resetAll(); };
+        if (typeof i.decode === 'function') { i.src = ev.target.result; i.decode().then(proceed).catch(() => { i.onload = proceed; i.src = ev.target.result; }); }
+        else { i.onload = proceed; i.src = ev.target.result; }
+      };
+      rd.readAsDataURL(file);
+      return;
+    }
+    if (window.__pendingCreatorJsonFile) {
+      const file = window.__pendingCreatorJsonFile;
+      delete window.__pendingCreatorJsonFile;
+      const rd = new FileReader();
+      rd.onload = ev => {
+        try {
+          const project = JSON.parse(ev.target.result);
+          if (!project.pattern || !project.settings) throw new Error("Invalid");
+          processLoadedProject(project);
+        } catch (err) { console.error(err); setLoadError("Could not load: " + err.message); setTimeout(() => setLoadError(null), 4000); }
+      };
+      rd.readAsText(file);
+      return;
+    }
     // Handoff from Tracker takes priority; only fall back to auto-load when absent.
     // Both used to be separate effects, which caused a race: the async IndexedDB
     // load would resolve after the handoff was processed and overwrite it.
@@ -460,7 +497,18 @@ useEffect(() => {
       }
       return;
     }
-    // No handoff — restore the last auto-saved session from IndexedDB
+    // No handoff — check for active project first, then fall back to auto-saved session
+    if (typeof ProjectStorage !== 'undefined') {
+      const activeId = ProjectStorage.getActiveProjectId();
+      if (activeId) {
+        ProjectStorage.get(activeId).then(project => {
+          if (project && project.pattern && project.settings && !userActedRef.current) {
+            processLoadedProject(project);
+          }
+        });
+        return;
+      }
+    }
     loadProjectFromDB().then(project => {
         if (project && project.pattern && project.settings && !userActedRef.current) {
             processLoadedProject(project);
@@ -1564,7 +1612,9 @@ return(
 function UnifiedApp(){
   const[mode,setMode]=React.useState(()=>{
     const p=new URLSearchParams(window.location.search);
-    return p.get('mode')==='track'?'track':'design';
+    if(p.get('mode')==='track') return 'track';
+    // Start on home screen by default
+    return 'home';
   });
   // Increment to force-remount CreatorApp (clears its state for "go home")
   const[creatorResetKey,setCreatorResetKey]=React.useState(0);
@@ -1576,6 +1626,8 @@ function UnifiedApp(){
   const[trackerReady,setTrackerReady]=React.useState(typeof window.TrackerApp!=='undefined');
   // Holds the project object forwarded from Creator → Tracker to avoid DB round trip.
   const pendingTrackerProject=React.useRef(null);
+  // Increment to force HomeScreen remount (refreshes data after project work)
+  const[homeKey,setHomeKey]=React.useState(0);
 
   React.useEffect(()=>{
     if(trackerReady)return;
@@ -1597,12 +1649,11 @@ function UnifiedApp(){
     window.history.replaceState({},'',window.location.pathname);
     setMode('design');
   },[]);
-  // goHome: clears active project, remounts Creator fresh, switches to design view
+  // goHome: shows the home screen, preserving project in auto-save
   const goHome=React.useCallback(()=>{
-    if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
     window.history.replaceState({},'',window.location.pathname);
-    setCreatorResetKey(k=>k+1);
-    setMode('design');
+    setHomeKey(k=>k+1);
+    setMode('home');
   },[]);
 
   React.useEffect(()=>{
@@ -1612,8 +1663,95 @@ function UnifiedApp(){
     return()=>{delete window.__switchToTrack;delete window.__switchToDesign;delete window.__goHome;};
   },[switchToTrack,switchToDesign,goHome]);
 
+  // --- HomeScreen action handlers ---
+  const handleHomeOpenCreatorWithImage=React.useCallback((file)=>{
+    // Set the file onto a global so CreatorApp can pick it up on mount
+    window.__pendingCreatorFile=file;
+    if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
+    setCreatorResetKey(k=>k+1);
+    window.history.replaceState({},'',window.location.pathname);
+    setMode('design');
+  },[]);
+
+  const handleHomeOpenCreatorBlank=React.useCallback(()=>{
+    window.__pendingCreatorAction='scratch';
+    if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
+    setCreatorResetKey(k=>k+1);
+    window.history.replaceState({},'',window.location.pathname);
+    setMode('design');
+  },[]);
+
+  const handleHomeOpenFile=React.useCallback((file)=>{
+    const ext=file.name.split('.').pop().toLowerCase();
+    if(ext==='json'){
+      // Open in Creator (it handles JSON)
+      window.__pendingCreatorJsonFile=file;
+      setCreatorResetKey(k=>k+1);
+      window.history.replaceState({},'',window.location.pathname);
+      setMode('design');
+    } else if(ext==='oxs'||ext==='pdf'){
+      // Route to tracker import
+      window.__pendingTrackerImportFile=file;
+      if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
+      setTrackerMounted(true);
+      window.history.replaceState({},'','?mode=track');
+      setMode('track');
+    } else if(ext==='png'||ext==='jpg'||ext==='jpeg'){
+      window.__pendingCreatorFile=file;
+      if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
+      setCreatorResetKey(k=>k+1);
+      window.history.replaceState({},'',window.location.pathname);
+      setMode('design');
+    }
+  },[]);
+
+  const handleHomeImportPattern=React.useCallback((file)=>{
+    window.__pendingTrackerImportFile=file;
+    if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
+    setTrackerMounted(true);
+    window.history.replaceState({},'','?mode=track');
+    setMode('track');
+  },[]);
+
+  const handleHomeOpenProject=React.useCallback((projectMeta, targetMode)=>{
+    if(!projectMeta||!projectMeta.id) return;
+    ProjectStorage.setActiveProject(projectMeta.id);
+    if(targetMode==='tracker'){
+      ProjectStorage.get(projectMeta.id).then(fullProject=>{
+        if(fullProject){
+          switchToTrack({project:fullProject, key:Date.now()});
+        }
+      });
+    } else {
+      // Creator: set active, remount, it will auto-load from IndexedDB
+      setCreatorResetKey(k=>k+1);
+      window.history.replaceState({},'',window.location.pathname);
+      setMode('design');
+    }
+  },[switchToTrack]);
+
+  const handleHomeNavigateToStash=React.useCallback(()=>{
+    window.location.href='manager.html';
+  },[]);
+
+  const[homeModal,setHomeModal]=React.useState(null);
+
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
   return <>
+    {mode==='home'&&<div>
+      <Header page="home" tab="" onPageChange={()=>{}} setModal={setHomeModal} />
+      <HomeScreen
+        key={homeKey}
+        onOpenCreatorWithImage={handleHomeOpenCreatorWithImage}
+        onOpenCreatorBlank={handleHomeOpenCreatorBlank}
+        onOpenFile={handleHomeOpenFile}
+        onImportPattern={handleHomeImportPattern}
+        onOpenProject={handleHomeOpenProject}
+        onNavigateToStash={handleHomeNavigateToStash}
+      />
+      {homeModal==='help'&&<SharedModals.Help onClose={()=>setHomeModal(null)} />}
+      {homeModal==='calculator'&&<SharedModals.Calculator onClose={()=>setHomeModal(null)} />}
+    </div>}
     <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
       <CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/>
     </div>

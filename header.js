@@ -117,7 +117,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         // Logo
         React.createElement('span', {
           className: 'tb-logo',
-          onClick: () => { if (page === 'creator') window.scrollTo(0, 0); else window.location.href = 'index.html'; }
+          onClick: () => { if (typeof window.__goHome === 'function') { window.__goHome(); } else if (page === 'creator') { window.scrollTo(0, 0); } else { window.location.href = 'index.html'; } }
         }, '×∕× Cross Stitch'),
 
         // App-section navigation tabs
