@@ -94,12 +94,14 @@ function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettin
       var elapsed = Math.round((Date.now() - new Date(currentAutoSession.startTime).getTime()) / 60000);
       liveTodayMinutes += elapsed;
     }
+    var streaks = computeStreaks(statsSessions || [], dayEndHour);
     return React.createElement("div", {className:"mini-stats-bar"},
       React.createElement(ProgressRing, {percent:percent, size:36}),
       React.createElement("div", {className:"mini-stats-text"},
         React.createElement("span", {className:"mini-stats-count"}, liveTodayStitches + " stitches today"),
         React.createElement("span", {className:"mini-stats-time"}, formatStatsDuration(liveTodayMinutes))
       ),
+      streaks.current > 0 && React.createElement("span", {className:"mini-stats-streak-badge"}, "\uD83D\uDD25 " + streaks.current + "d"),
       dailyGoal && liveTodayStitches < dailyGoal && React.createElement("span", {className:"mini-stats-goal-badge"}, (dailyGoal - liveTodayStitches) + " to goal"),
       dailyGoal && liveTodayStitches >= dailyGoal && React.createElement("span", {className:"mini-stats-goal-met"}, "Goal reached!"),
       React.createElement("button", {className:"mini-stats-btn", onClick:onOpenStats}, "Stats")
@@ -172,6 +174,9 @@ function SessionTimeline({sessions, statsSettings, onEditNote}){
       if (editingId === session.id) {
         contentChildren.push(React.createElement(NoteEditor, {key:"note-edit", sessionId:session.id, currentNote:session.note, onSave:function(id, text){ onEditNote(id, text); setEditingId(null); }}));
       } else {
+        if (session.milestones && session.milestones.length > 0) {
+          contentChildren.push(React.createElement("div", {key:"ms-badge", className:"timeline-milestone-badge"}, session.milestones[0].label));
+        }
         if (session.note) contentChildren.push(React.createElement("p", {key:"note", className:"timeline-note"}, '"' + session.note + '"'));
         var sid = session.id;
         contentChildren.push(React.createElement("button", {key:"add-note", className:"timeline-add-note", onClick:(function(id){ return function(){ setEditingId(id); }; })(sid)}, session.note ? 'Edit note' : 'Add note'));
@@ -193,7 +198,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote}){
 
 // ═══ Phase B: Charts & Milestones ═══
 
-function CumulativeChart({sessions, totalStitches}){
+function CumulativeChart({sessions, totalStitches, targetDate}){
   try {
   var data = getCumulativeProgressData(sessions);
   if (data.length < 2) return React.createElement("p", {className:"stats-empty"}, "Start stitching to see your progress chart");
@@ -209,23 +214,39 @@ function CumulativeChart({sessions, totalStitches}){
   var fillPoints = points + ' ' + xS(data.length - 1) + ',' + yS(0) + ' ' + xS(0) + ',' + yS(0);
   var last = data[data.length - 1];
   var mid = data[Math.floor(data.length / 2)];
+  // On-pace line: use targetDate if set, otherwise linear from 0 to totalStitches
+  var paceEndX = xS(data.length - 1);
+  var paceEndY = yS(totalStitches);
+  if (targetDate && data.length > 1) {
+    var firstD = new Date(data[0].date + 'T12:00:00');
+    var lastD = new Date(data[data.length - 1].date + 'T12:00:00');
+    var targetD = new Date(targetDate + 'T12:00:00');
+    var totalSpan = lastD - firstD;
+    if (totalSpan > 0 && targetD > firstD) {
+      var targetRatio = (targetD - firstD) / totalSpan;
+      if (targetRatio >= 1) {
+        paceEndX = xS((data.length - 1) * Math.min(targetRatio, 2));
+      }
+      // For on-pace: daily rate to hit totalStitches by targetDate
+      var daysToTarget = (targetD - firstD) / 86400000;
+      if (daysToTarget > 0) {
+        var lastDayIndex = data.length - 1;
+        var paceAtEnd = (lastDayIndex / daysToTarget) * totalStitches;
+        paceEndY = yS(Math.min(paceAtEnd, totalStitches));
+      }
+    }
+  }
+  var paceLabel = targetDate ? 'Target pace' : 'On pace';
   return React.createElement("div", {className:"chart-container"},
     React.createElement("svg", {viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
-      // Y-axis labels
       React.createElement("text", {x:pl - 4, y:pt + 6, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, formatCompact(totalStitches)),
       React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, formatCompact(totalStitches / 2)),
       React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, "0"),
-      // Midpoint gridline
       React.createElement("line", {x1:pl, y1:pt + cH / 2, x2:width - pr, y2:pt + cH / 2, stroke:"#e4e4e7", strokeWidth:"0.5", strokeDasharray:"4 4"}),
-      // On-pace line
-      React.createElement("line", {x1:xS(0), y1:yS(0), x2:xS(data.length - 1), y2:yS(totalStitches), stroke:"#d4d4d8", strokeWidth:"1", strokeDasharray:"4 4"}),
-      // Fill area
+      React.createElement("line", {x1:xS(0), y1:yS(0), x2:paceEndX, y2:paceEndY, stroke:"#d4d4d8", strokeWidth:"1", strokeDasharray:"4 4"}),
       React.createElement("polygon", {points:fillPoints, fill:"#534AB7", opacity:"0.08"}),
-      // Actual progress line
       React.createElement("polyline", {points:points, fill:"none", stroke:"#534AB7", strokeWidth:"2.5", strokeLinecap:"round", strokeLinejoin:"round"}),
-      // Current position dot
       React.createElement("circle", {cx:xS(data.length - 1), cy:yS(last.total), r:"4", fill:"#534AB7"}),
-      // X-axis line
       React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"#e4e4e7", strokeWidth:"0.5"})
     ),
     React.createElement("div", {className:"chart-x-labels"},
@@ -235,7 +256,7 @@ function CumulativeChart({sessions, totalStitches}){
     ),
     React.createElement("div", {className:"chart-legend"},
       React.createElement("span", null, React.createElement("span", {className:"legend-line solid"}), "Actual"),
-      React.createElement("span", null, React.createElement("span", {className:"legend-line dashed"}), "On pace")
+      React.createElement("span", null, React.createElement("span", {className:"legend-line dashed"}), paceLabel)
     )
   );
   } catch(e) { console.warn('Stats: CumulativeChart render error', e); return null; }
@@ -290,6 +311,7 @@ function DailyBarChart({sessions, dailyGoal, daysToShow, dayEndHour}){
 function StatsChartSection({statsSessions, statsSettings, totalStitches, chartView, setChartView}){
   var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
   var dailyGoal = statsSettings && statsSettings.dailyGoal;
+  var targetDate = statsSettings && statsSettings.targetDate;
   return React.createElement("div", {className:"chart-section"},
     React.createElement("div", {className:"chart-header"},
       React.createElement("span", {className:"chart-title"}, chartView === 'cumulative' ? 'Progress over time' : 'Stitches per day'),
@@ -299,7 +321,7 @@ function StatsChartSection({statsSessions, statsSettings, totalStitches, chartVi
       )
     ),
     chartView === 'cumulative'
-      ? React.createElement(CumulativeChart, {sessions:statsSessions, totalStitches:totalStitches})
+      ? React.createElement(CumulativeChart, {sessions:statsSessions, totalStitches:totalStitches, targetDate:targetDate})
       : React.createElement(DailyBarChart, {sessions:statsSessions, dailyGoal:dailyGoal, dayEndHour:dayEndHour})
   );
 }
@@ -324,16 +346,160 @@ function MilestoneTracker({milestones}){
   );
 }
 
+// ═══ Phase C: Goals, Motivation & Celebrations ═══
+
+function DailyGoalSetting({currentGoal, avgPerDay, remaining, onSet}){
+  var st = React.useState(currentGoal != null ? String(currentGoal) : '');
+  var value = st[0], setValue = st[1];
+  React.useEffect(function(){ setValue(currentGoal != null ? String(currentGoal) : ''); }, [currentGoal]);
+
+  var avg = avgPerDay || 0;
+  var presets = avg > 0 ? [
+    { label: 'Easy', value: Math.max(50, Math.floor(avg / 50) * 50) },
+    { label: 'Moderate', value: Math.max(50, Math.round(avg * 1.25 / 50) * 50) },
+    { label: 'Ambitious', value: Math.max(50, Math.round(avg * 1.5 / 50) * 50) }
+  ] : [];
+
+  return React.createElement("div", {className:"goal-setting"},
+    React.createElement("label", {className:"goal-label"}, "Daily stitch goal"),
+    React.createElement("div", {className:"goal-input-row"},
+      React.createElement("input", {type:"number", min:"0", max:"9999", step:"50", value:value,
+        onChange:function(e){ setValue(e.target.value); },
+        placeholder:"e.g. 300", className:"goal-input"}),
+      React.createElement("button", {className:"goal-set-btn", onClick:function(){
+        var v = parseInt(value);
+        onSet(v > 0 ? v : null);
+      }}, value && parseInt(value) > 0 ? 'Set goal' : 'Clear goal')
+    ),
+    presets.length > 0 && React.createElement("div", {className:"goal-presets"},
+      presets.map(function(p){ return React.createElement("button", {key:p.label, className:"goal-preset-btn" + (currentGoal === p.value ? ' active' : ''), onClick:function(){ setValue(String(p.value)); onSet(p.value); }}, p.label + ' (' + p.value + ')'); })
+    ),
+    currentGoal && remaining > 0 && React.createElement("p", {className:"goal-suggestion"},
+      "At " + currentGoal + "/day, you\u2019d finish in ~" + Math.ceil(remaining / currentGoal) + " stitching days")
+  );
+}
+
+function TargetDateSetting({currentTarget, remaining, avgPerDay, onSet}){
+  var st = React.useState(currentTarget || '');
+  var date = st[0], setDate = st[1];
+  React.useEffect(function(){ setDate(currentTarget || ''); }, [currentTarget]);
+
+  var paceNeeded = date ? getRequiredPace(remaining, date) : null;
+  var todayStr = new Date().toISOString().slice(0, 10);
+
+  return React.createElement("div", {className:"target-setting"},
+    React.createElement("label", {className:"goal-label"}, "Target completion date"),
+    React.createElement("div", {className:"goal-input-row"},
+      React.createElement("input", {type:"date", value:date, min:todayStr,
+        onChange:function(e){ setDate(e.target.value); },
+        className:"goal-input"}),
+      React.createElement("button", {className:"goal-set-btn", onClick:function(){ onSet(date || null); }},
+        date ? 'Set target' : 'Clear target')
+    ),
+    paceNeeded && React.createElement("p", {className:"goal-suggestion"},
+      "You\u2019d need ", React.createElement("strong", null, paceNeeded + " stitches/day"), " to finish by then")
+  );
+}
+
+function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitches, overviewStats, onUpdateSettings}){
+  var dailyGoal = statsSettings && statsSettings.dailyGoal;
+  var targetDate = statsSettings && statsSettings.targetDate;
+  var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
+  var todayStitches = getStatsTodayStitches(statsSessions || [], dayEndHour);
+  var remaining = totalStitches - totalCompleted;
+  var requiredPace = targetDate ? getRequiredPace(remaining, targetDate) : null;
+  var avgPerDay = overviewStats ? overviewStats.avgPerDay : 0;
+
+  return React.createElement("div", {className:"goal-tracker-panel"},
+    React.createElement("h3", {className:"stats-section-title"}, "Goals"),
+    React.createElement(DailyGoalSetting, {currentGoal:dailyGoal, avgPerDay:avgPerDay, remaining:remaining,
+      onSet:function(v){ onUpdateSettings(Object.assign({}, statsSettings, {dailyGoal:v})); }}),
+    dailyGoal && React.createElement("div", {className:"goal-progress"},
+      React.createElement("div", {className:"goal-row"},
+        React.createElement("span", {className:"goal-row-label"}, "Today so far"),
+        React.createElement("span", {className:"goal-row-value" + (todayStitches >= dailyGoal ? ' met' : ' pending')},
+          todayStitches + " / " + dailyGoal)
+      ),
+      React.createElement("div", {className:"goal-bar-container"},
+        React.createElement("div", {className:"goal-bar-fill", style:{width:Math.min(100, (todayStitches / dailyGoal) * 100) + '%'}})
+      )
+    ),
+    React.createElement("div", {style:{marginTop:16}}),
+    React.createElement(TargetDateSetting, {currentTarget:targetDate, remaining:remaining, avgPerDay:avgPerDay,
+      onSet:function(v){ onUpdateSettings(Object.assign({}, statsSettings, {targetDate:v})); }}),
+    targetDate && requiredPace && React.createElement("div", {className:"goal-progress", style:{marginTop:8}},
+      React.createElement("div", {className:"goal-row"},
+        React.createElement("span", {className:"goal-row-label"}, "Target date"),
+        React.createElement("span", {className:"goal-row-value"}, formatShortDate(targetDate))
+      ),
+      React.createElement("div", {className:"goal-row"},
+        React.createElement("span", {className:"goal-row-label"}, "Pace needed"),
+        React.createElement("span", {className:"goal-row-value"}, requiredPace + "/day")
+      ),
+      React.createElement("div", {className:"goal-row"},
+        React.createElement("span", {className:"goal-row-label"}, "Status"),
+        React.createElement("span", {className:"goal-row-value" + (avgPerDay >= requiredPace ? ' met' : ' pending')},
+          avgPerDay >= requiredPace ? 'On track' : 'Behind pace')
+      )
+    )
+  );
+}
+
+function StreaksPanel({sessions, dayEndHour}){
+  var streaks = computeStreaks(sessions, dayEndHour);
+  var bestDay = findBestDay(sessions);
+  var avgSession = sessions && sessions.length > 0
+    ? Math.round(sessions.reduce(function(sum, s){ return sum + s.durationMinutes; }, 0) / sessions.length)
+    : 0;
+
+  return React.createElement("div", {className:"streaks-panel"},
+    React.createElement("h3", {className:"stats-section-title"}, "Streaks"),
+    React.createElement("div", {className:"stat-rows"},
+      React.createElement("div", {className:"stat-row"},
+        React.createElement("span", {className:"stat-row-label"}, "Current streak"),
+        React.createElement("span", {className:"stat-row-value"}, streaks.current + " day" + (streaks.current !== 1 ? 's' : ''))
+      ),
+      React.createElement("div", {className:"stat-row"},
+        React.createElement("span", {className:"stat-row-label"}, "Longest streak"),
+        React.createElement("span", {className:"stat-row-value"}, streaks.longest + " day" + (streaks.longest !== 1 ? 's' : ''))
+      ),
+      React.createElement("div", {className:"stat-row"},
+        React.createElement("span", {className:"stat-row-label"}, "Best day"),
+        React.createElement("span", {className:"stat-row-value"},
+          bestDay ? bestDay.stitches + ' (' + formatShortDate(bestDay.date) + ')' : '\u2014')
+      ),
+      React.createElement("div", {className:"stat-row"},
+        React.createElement("span", {className:"stat-row-label"}, "Avg session"),
+        React.createElement("span", {className:"stat-row-value"}, formatStatsDuration(avgSession))
+      )
+    )
+  );
+}
+
+function MilestoneCelebration({milestone, onDismiss}){
+  React.useEffect(function(){
+    var timer = setTimeout(onDismiss, 4000);
+    return function(){ clearTimeout(timer); };
+  }, []);
+
+  return React.createElement("div", {className:"milestone-celebration"},
+    React.createElement("span", {className:"celebration-icon"}, "\u2728"),
+    React.createElement("span", {className:"celebration-text"}, milestone.label),
+    milestone.pct && React.createElement("span", {className:"celebration-subtext"}, milestone.pct + '% complete')
+  );
+}
+
 function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose}){
   var chartSt = React.useState('cumulative');
   var chartView = chartSt[0], setChartView = chartSt[1];
   try {
   var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches);
   var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.avgPerDay);
+  var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
   return React.createElement("div", {className:"stats-dashboard"},
     React.createElement("div", {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}},
-      React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'#18181b', margin:0}}, "📊 Stats"),
-      React.createElement("button", {onClick:onClose, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #e4e4e7', background:'#fafafa', cursor:'pointer', color:'#71717a'}}, "← Back to grid")
+      React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'#18181b', margin:0}}, "\uD83D\uDCCA Stats"),
+      React.createElement("button", {onClick:onClose, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #e4e4e7', background:'#fafafa', cursor:'pointer', color:'#71717a'}}, "\u2190 Back to grid")
     ),
     React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches}),
     React.createElement("div", {style:{marginTop:20}},
@@ -342,6 +508,10 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(MilestoneTracker, {milestones:milestones})
     ),
+    React.createElement("div", {className:"stats-two-col", style:{marginTop:20}},
+      React.createElement(GoalTracker, {statsSettings:statsSettings, statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, overviewStats:overviewStats, onUpdateSettings:onUpdateSettings}),
+      React.createElement(StreaksPanel, {sessions:statsSessions, dayEndHour:dayEndHour})
+    ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote})
     ),
@@ -349,7 +519,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       React.createElement("h4", {style:{fontSize:14, fontWeight:600, color:'#18181b', marginTop:0, marginBottom:8}}, "Settings"),
       React.createElement("label", {style:{display:'flex', alignItems:'center', gap:8, fontSize:13, color:'#71717a'}},
         "Day ends at:",
-        React.createElement("select", {value:(statsSettings&&statsSettings.dayEndHour)||0, onChange:function(e){ onUpdateSettings(Object.assign({}, statsSettings, {dayEndHour:parseInt(e.target.value)})); }, style:{fontSize:12, padding:'4px 8px', borderRadius:6, border:'1px solid #e4e4e7'}},
+        React.createElement("select", {value:dayEndHour, onChange:function(e){ onUpdateSettings(Object.assign({}, statsSettings, {dayEndHour:parseInt(e.target.value)})); }, style:{fontSize:12, padding:'4px 8px', borderRadius:6, border:'1px solid #e4e4e7'}},
           React.createElement("option", {value:0}, "Midnight"),
           React.createElement("option", {value:1}, "1:00 AM"),
           React.createElement("option", {value:2}, "2:00 AM"),
@@ -357,10 +527,11 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
           React.createElement("option", {value:4}, "4:00 AM"),
           React.createElement("option", {value:5}, "5:00 AM")
         )
-      )
+      ),
+      React.createElement("p", {style:{fontSize:11, color:'#a1a1aa', margin:'4px 0 0'}}, "Stitches after this time count for the previous day")
     )
   );
-  } catch(e) { console.warn('Stats: StatsDashboard render error', e); return React.createElement("p", {style:{color:'#dc2626',fontSize:13}}, "Stats error — see console."); }
+  } catch(e) { console.warn('Stats: StatsDashboard render error', e); return React.createElement("p", {style:{color:'#dc2626',fontSize:13}}, "Stats error \u2014 see console."); }
 }
 
 const pill=a=>({padding:"5px 14px",fontSize:12,borderRadius:8,cursor:"pointer",border:a?"1px solid #99f6e4":"0.5px solid #e4e4e7",background:a?"#f0fdfa":"#fff",fontWeight:a?600:400,color:a?"#0d9488":"#71717a"});

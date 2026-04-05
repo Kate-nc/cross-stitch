@@ -25,7 +25,10 @@ const[sessionElapsed,setSessionElapsed]=useState(0),[sessions,setSessions]=useSt
 const[statsSessions,setStatsSessions]=useState([]);
 const[statsSettings,setStatsSettings]=useState({dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null});
 const[statsView,setStatsView]=useState(false);
+const[celebration,setCelebration]=useState(null);
+const celebratedRef=useRef(new Set());
 const currentAutoSessionRef=useRef(null);
+const pendingMilestonesRef=useRef([]);
 const lastStitchActivityRef=useRef(null);
 const autoIdleTimerRef=useRef(null);
 const prevAutoCountRef=useRef({done:0,halfDone:0});
@@ -289,6 +292,10 @@ function finaliseAutoSession(){
       note:'',
       coloursWorked:session.coloursWorked?[...session.coloursWorked]:[],
     };
+    if(pendingMilestonesRef.current.length>0){
+      finalised.milestones=pendingMilestonesRef.current.slice();
+      pendingMilestonesRef.current=[];
+    }
     setStatsSessions(prev=>[...(prev||[]),finalised]);
     currentAutoSessionRef.current=null;
     clearTimeout(autoIdleTimerRef.current);
@@ -317,6 +324,23 @@ useEffect(()=>{
       const completed=Math.max(0,doneDiff)+Math.max(0,halfDiff);
       const undone=Math.max(0,-doneDiff)+Math.max(0,-halfDiff);
       if(completed>0||undone>0)recordAutoActivity(completed,undone);
+      // Milestone detection
+      if(completed>0&&totalStitchable>0){
+        const prevTotal=prevDone+prevHalf;
+        const newTotal=curDone+curHalf;
+        try{
+          const hits=checkMilestones(prevTotal,newTotal,totalStitchable);
+          if(hits&&hits.length>0){
+            const best=hits[hits.length-1];
+            const key=best.pct!=null?('pct_'+best.pct):best.label;
+            if(!celebratedRef.current.has(key)){
+              celebratedRef.current.add(key);
+              setCelebration(best);
+            }
+            for(let h=0;h<hits.length;h++){pendingMilestonesRef.current.push(hits[h]);}
+          }
+        }catch(me){console.warn('Stats: milestone check error',me);}
+      }
     }
     prevAutoCountRef.current={done:curDone,halfDone:curHalf};
   }catch(e){console.warn('Stats: auto-detect effect error',e);}
@@ -723,6 +747,9 @@ function processLoadedProject(project){
   setStatsSessions(project.statsSessions||[]);
   setStatsSettings(project.statsSettings||{dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null});
   setStatsView(false);
+  setCelebration(null);
+  celebratedRef.current=new Set();
+  pendingMilestonesRef.current=[];
   currentAutoSessionRef.current=null;
   clearTimeout(autoIdleTimerRef.current);
   // Reset auto-session count refs so loading doesn't trigger a spurious session
@@ -1778,6 +1805,8 @@ return(
     {sessionActive?<>⏹ {fmtTime(sessionElapsed)}</>:"▶ Start"}
   </button>
   <div className="tb-sdiv"/>
+  <button className={"tb-btn"+(statsView?" tb-btn--on":"")} onClick={()=>{finaliseAutoSession();setStatsView(v=>!v);}} title="Stats dashboard" style={{flexShrink:0}}>📊 Stats</button>
+  <div className="tb-sdiv"/>
   <div className="tb-overflow-wrap" ref={tOverflowRef}>
     <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
     {tOverflowOpen&&<div className="tb-overflow-menu">
@@ -2406,6 +2435,7 @@ return(
     </div>
   </div>}
 
+{celebration&&<MilestoneCelebration milestone={celebration} onDismiss={()=>setCelebration(null)}/>}
 </div>
 </>);
 }

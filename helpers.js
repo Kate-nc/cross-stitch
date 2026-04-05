@@ -352,6 +352,107 @@ function getMilestones(sessions, totalCompleted, totalStitches, avgPerDay) {
   });
 }
 
+// ═══ Phase C helpers ═══
+
+function computeStreaks(sessions, dayEndHour) {
+  if (!sessions || sessions.length === 0) return { current: 0, longest: 0 };
+  var dates = [];
+  var seen = {};
+  for (var i = 0; i < sessions.length; i++) {
+    var d = sessions[i].date;
+    if (d && !seen[d]) { seen[d] = true; dates.push(d); }
+  }
+  dates.sort();
+  if (dates.length === 0) return { current: 0, longest: 0 };
+
+  var longest = 1;
+  var streakCount = 1;
+  for (var j = 1; j < dates.length; j++) {
+    var prev = new Date(dates[j - 1] + 'T12:00:00');
+    var curr = new Date(dates[j] + 'T12:00:00');
+    var diffDays = Math.round((curr - prev) / 86400000);
+    if (diffDays === 1) {
+      streakCount++;
+      if (streakCount > longest) longest = streakCount;
+    } else {
+      streakCount = 1;
+    }
+  }
+
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  var yesterdayD = new Date();
+  yesterdayD.setDate(yesterdayD.getDate() - 1);
+  var ey = yesterdayD.getFullYear();
+  var em = ('0' + (yesterdayD.getMonth() + 1)).slice(-2);
+  var ed2 = ('0' + yesterdayD.getDate()).slice(-2);
+  var yesterdayStr = ey + '-' + em + '-' + ed2;
+  var lastDate = dates[dates.length - 1];
+  var currentStreak = 0;
+
+  if (lastDate === today || lastDate === yesterdayStr) {
+    currentStreak = 1;
+    for (var k = dates.length - 2; k >= 0; k--) {
+      var p = new Date(dates[k] + 'T12:00:00');
+      var c = new Date(dates[k + 1] + 'T12:00:00');
+      if (Math.round((c - p) / 86400000) === 1) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+  }
+
+  return { current: currentStreak, longest: longest };
+}
+
+function findBestDay(sessions) {
+  if (!sessions || sessions.length === 0) return null;
+  var dailyTotals = {};
+  for (var i = 0; i < sessions.length; i++) {
+    var s = sessions[i];
+    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + s.netStitches;
+  }
+  var bestDate = null;
+  var bestCount = 0;
+  for (var date in dailyTotals) {
+    if (dailyTotals[date] > bestCount) {
+      bestDate = date;
+      bestCount = dailyTotals[date];
+    }
+  }
+  return bestDate ? { date: bestDate, stitches: bestCount } : null;
+}
+
+function checkMilestones(prevTotal, newTotal, totalStitches) {
+  var milestones = [];
+  var thresholds = [
+    { pct: 10, label: '10%' },
+    { pct: 25, label: '25%' },
+    { pct: 50, label: 'Halfway there!' },
+    { pct: 75, label: '75%' },
+    { pct: 90, label: 'Almost done!' },
+    { pct: 100, label: 'Complete!' }
+  ];
+  for (var i = 0; i < thresholds.length; i++) {
+    var t = thresholds[i];
+    var threshold = Math.floor(totalStitches * t.pct / 100);
+    if (prevTotal < threshold && newTotal >= threshold) {
+      milestones.push(t);
+    }
+  }
+  var prevK = Math.floor(prevTotal / 1000);
+  var newK = Math.floor(newTotal / 1000);
+  if (newK > prevK) {
+    milestones.push({ pct: null, label: (newK * 1000) + ' stitches!' });
+  }
+  return milestones;
+}
+
+function getRequiredPace(remaining, targetDate) {
+  var days = Math.ceil((new Date(targetDate) - new Date()) / 86400000);
+  return days > 0 ? Math.ceil(remaining / days) : null;
+}
+
 // Determine which half of a cell a click falls in.
 // Returns "fwd", "bck", or "ambiguous".
 function hitTestHalfStitch(localX, localY, cSz, ambiguousRadius) {
