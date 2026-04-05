@@ -235,90 +235,101 @@ function toggleSession(){if(sessionActive){let el=Math.floor((Date.now()-session
 
 // ═══ Auto-session recording ═══
 function getStitchingDateLocal(now){
-  const adjusted=new Date(now);
-  const deh=statsSettings.dayEndHour||0;
-  if(deh>0&&adjusted.getHours()<deh)adjusted.setDate(adjusted.getDate()-1);
-  return adjusted.toISOString().slice(0,10);
+  try{
+    const d=new Date(now);
+    const deh=(statsSettings&&statsSettings.dayEndHour)||0;
+    if(deh>0&&d.getHours()<deh)d.setDate(d.getDate()-1);
+    const y=d.getFullYear(),m=('0'+(d.getMonth()+1)).slice(-2),day=('0'+d.getDate()).slice(-2);
+    return y+'-'+m+'-'+day;
+  }catch(e){console.warn('Stats: getStitchingDateLocal error',e);const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
 }
 function recordAutoActivity(completed,undone){
-  const now=new Date();
-  lastStitchActivityRef.current=now;
-  if(!currentAutoSessionRef.current){
-    currentAutoSessionRef.current={
-      id:'sess_'+Date.now(),
-      date:getStitchingDateLocal(now),
-      startTime:now.toISOString(),
-      stitchesCompleted:0,
-      stitchesUndone:0,
-      coloursWorked:new Set(),
-    };
-  }
-  currentAutoSessionRef.current.stitchesCompleted+=completed;
-  currentAutoSessionRef.current.stitchesUndone+=undone;
-  clearTimeout(autoIdleTimerRef.current);
-  autoIdleTimerRef.current=setTimeout(()=>{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();},IDLE_THRESHOLD_MS);
+  try{
+    const now=new Date();
+    lastStitchActivityRef.current=now;
+    if(!currentAutoSessionRef.current){
+      currentAutoSessionRef.current={
+        id:'sess_'+Date.now(),
+        date:getStitchingDateLocal(now),
+        startTime:now.toISOString(),
+        stitchesCompleted:0,
+        stitchesUndone:0,
+        coloursWorked:new Set(),
+      };
+    }
+    currentAutoSessionRef.current.stitchesCompleted+=completed;
+    currentAutoSessionRef.current.stitchesUndone+=undone;
+    clearTimeout(autoIdleTimerRef.current);
+    autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){console.warn('Stats: idle finalise error',e);}},IDLE_THRESHOLD_MS);
+  }catch(e){console.warn('Stats: recordAutoActivity error',e);}
 }
 function finaliseAutoSession(){
-  const session=currentAutoSessionRef.current;
-  if(!session||session.stitchesCompleted+session.stitchesUndone===0){
+  try{
+    const session=currentAutoSessionRef.current;
+    if(!session||session.stitchesCompleted+session.stitchesUndone===0){
+      currentAutoSessionRef.current=null;
+      return;
+    }
+    const endTime=lastStitchActivityRef.current||new Date();
+    const startTime=new Date(session.startTime);
+    const activeDurationMs=endTime-startTime;
+    const ref=autoStatsRef.current||{doneCount:0,totalStitchable:0};
+    const tc=ref.doneCount||0,ts=ref.totalStitchable||0;
+    const finalised={
+      id:session.id,
+      date:session.date,
+      startTime:session.startTime,
+      endTime:endTime.toISOString(),
+      durationMinutes:Math.max(1,Math.round(activeDurationMs/60000)),
+      stitchesCompleted:session.stitchesCompleted,
+      stitchesUndone:session.stitchesUndone,
+      netStitches:session.stitchesCompleted-session.stitchesUndone,
+      totalAtEnd:tc,
+      percentAtEnd:ts>0?Math.round((tc/ts)*1000)/10:0,
+      note:'',
+      coloursWorked:session.coloursWorked?[...session.coloursWorked]:[],
+    };
+    setStatsSessions(prev=>[...(prev||[]),finalised]);
     currentAutoSessionRef.current=null;
-    return;
-  }
-  const endTime=lastStitchActivityRef.current||new Date();
-  const startTime=new Date(session.startTime);
-  const activeDurationMs=endTime-startTime;
-  const{doneCount:tc,totalStitchable:ts}=autoStatsRef.current;
-  const finalised={
-    id:session.id,
-    date:session.date,
-    startTime:session.startTime,
-    endTime:endTime.toISOString(),
-    durationMinutes:Math.max(1,Math.round(activeDurationMs/60000)),
-    stitchesCompleted:session.stitchesCompleted,
-    stitchesUndone:session.stitchesUndone,
-    netStitches:session.stitchesCompleted-session.stitchesUndone,
-    totalAtEnd:tc,
-    percentAtEnd:ts>0?Math.round((tc/ts)*1000)/10:0,
-    note:'',
-    coloursWorked:[...session.coloursWorked],
-  };
-  setStatsSessions(prev=>[...prev,finalised]);
-  currentAutoSessionRef.current=null;
-  clearTimeout(autoIdleTimerRef.current);
+    clearTimeout(autoIdleTimerRef.current);
+  }catch(e){console.warn('Stats: finaliseAutoSession error',e);currentAutoSessionRef.current=null;}
 }
 finaliseAutoSessionRef.current=finaliseAutoSession;
 // Keep autoStatsRef fresh
 useEffect(()=>{autoStatsRef.current={doneCount,totalStitchable};},[doneCount,totalStitchable]);
 // Auto-detect stitch activity from doneCount & halfDone changes
 useEffect(()=>{
-  if(!pat||!done)return;
-  const curDone=doneCount;
-  const curHalf=halfStitchCounts.done;
-  const prevDone=prevAutoCountRef.current.done;
-  const prevHalf=prevAutoCountRef.current.halfDone;
-  // Skip initial load or project load (sentinel value -1)
-  if(prevDone<0||prevHalf<0){
+  try{
+    if(!pat||!done)return;
+    const curDone=doneCount;
+    const curHalf=(halfStitchCounts&&halfStitchCounts.done)||0;
+    const prev=prevAutoCountRef.current||{done:0,halfDone:0};
+    const prevDone=prev.done;
+    const prevHalf=prev.halfDone;
+    // Skip initial load or project load (sentinel value -1)
+    if(prevDone<0||prevHalf<0){
+      prevAutoCountRef.current={done:curDone,halfDone:curHalf};
+      return;
+    }
+    const doneDiff=curDone-prevDone;
+    const halfDiff=curHalf-prevHalf;
+    if(doneDiff!==0||halfDiff!==0){
+      const completed=Math.max(0,doneDiff)+Math.max(0,halfDiff);
+      const undone=Math.max(0,-doneDiff)+Math.max(0,-halfDiff);
+      if(completed>0||undone>0)recordAutoActivity(completed,undone);
+    }
     prevAutoCountRef.current={done:curDone,halfDone:curHalf};
-    return;
-  }
-  const doneDiff=curDone-prevDone;
-  const halfDiff=curHalf-prevHalf;
-  if(doneDiff!==0||halfDiff!==0){
-    const completed=Math.max(0,doneDiff)+Math.max(0,halfDiff);
-    const undone=Math.max(0,-doneDiff)+Math.max(0,-halfDiff);
-    if(completed>0||undone>0)recordAutoActivity(completed,undone);
-  }
-  prevAutoCountRef.current={done:curDone,halfDone:curHalf};
+  }catch(e){console.warn('Stats: auto-detect effect error',e);}
 },[doneCount,halfStitchCounts.done]);
 // Finalise auto-session before page unload
 useEffect(()=>{
-  const handleUnload=()=>{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();};
+  const handleUnload=()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){console.warn('Stats: beforeunload error',e);}};
   window.addEventListener('beforeunload',handleUnload);
   return()=>window.removeEventListener('beforeunload',handleUnload);
 },[]);
 // Edit session note
 function editSessionNote(sessionId,noteText){
-  setStatsSessions(prev=>prev.map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));
+  try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){console.warn('Stats: editSessionNote error',e);}
 }
 function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0)pushTrackHistory(changes);setDone(nd);}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}

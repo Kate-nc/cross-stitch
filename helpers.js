@@ -177,11 +177,14 @@ function drawHalfSymbol(ctx, px, py, cSz, dir, symbol, color, fontSize, fontWeig
 // ═══ Stats helpers ═══
 
 function getStitchingDate(now, dayEndHour) {
-  const adjusted = new Date(now);
-  if (dayEndHour > 0 && adjusted.getHours() < dayEndHour) {
-    adjusted.setDate(adjusted.getDate() - 1);
+  var d = new Date(now);
+  if (dayEndHour > 0 && d.getHours() < dayEndHour) {
+    d.setDate(d.getDate() - 1);
   }
-  return adjusted.toISOString().slice(0, 10);
+  var y = d.getFullYear();
+  var m = ('0' + (d.getMonth() + 1)).slice(-2);
+  var day = ('0' + d.getDate()).slice(-2);
+  return y + '-' + m + '-' + day;
 }
 
 function computeOverviewStats(statsSessions, totalCompleted, totalStitches) {
@@ -238,9 +241,9 @@ function formatStatsDuration(minutes) {
 
 function formatRelativeDate(dateStr, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
-  var yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  var yesterdayStr = yesterday.toISOString().slice(0, 10);
+  var todayDate = new Date(today + 'T12:00:00');
+  todayDate.setDate(todayDate.getDate() - 1);
+  var yesterdayStr = todayDate.toISOString().slice(0, 10);
   if (dateStr === today) return 'Today';
   if (dateStr === yesterdayStr) return 'Yesterday';
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });

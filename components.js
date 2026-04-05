@@ -81,28 +81,30 @@ function ProgressRing({percent, size}){
 }
 
 function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettings, onOpenStats, currentAutoSession}){
-  var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
-  var todayStitches = getStatsTodayStitches(statsSessions || [], dayEndHour);
-  var todayMinutes = getStatsTodayMinutes(statsSessions || [], dayEndHour);
-  var dailyGoal = statsSettings && statsSettings.dailyGoal;
-  var percent = totalStitches > 0 ? Math.round((totalCompleted / totalStitches) * 1000) / 10 : 0;
-  var liveTodayStitches = todayStitches;
-  var liveTodayMinutes = todayMinutes;
-  if (currentAutoSession) {
-    liveTodayStitches += (currentAutoSession.stitchesCompleted - currentAutoSession.stitchesUndone);
-    var elapsed = Math.round((Date.now() - new Date(currentAutoSession.startTime).getTime()) / 60000);
-    liveTodayMinutes += elapsed;
-  }
-  return React.createElement("div", {className:"mini-stats-bar"},
-    React.createElement(ProgressRing, {percent:percent, size:36}),
-    React.createElement("div", {className:"mini-stats-text"},
-      React.createElement("span", {className:"mini-stats-count"}, liveTodayStitches + " stitches today"),
-      React.createElement("span", {className:"mini-stats-time"}, formatStatsDuration(liveTodayMinutes))
-    ),
-    dailyGoal && liveTodayStitches < dailyGoal && React.createElement("span", {className:"mini-stats-goal-badge"}, (dailyGoal - liveTodayStitches) + " to goal"),
-    dailyGoal && liveTodayStitches >= dailyGoal && React.createElement("span", {className:"mini-stats-goal-met"}, "Goal reached!"),
-    React.createElement("button", {className:"mini-stats-btn", onClick:onOpenStats}, "Stats")
-  );
+  try {
+    var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
+    var todayStitches = getStatsTodayStitches(statsSessions || [], dayEndHour);
+    var todayMinutes = getStatsTodayMinutes(statsSessions || [], dayEndHour);
+    var dailyGoal = statsSettings && statsSettings.dailyGoal;
+    var percent = totalStitches > 0 ? Math.round((totalCompleted / totalStitches) * 1000) / 10 : 0;
+    var liveTodayStitches = todayStitches;
+    var liveTodayMinutes = todayMinutes;
+    if (currentAutoSession) {
+      liveTodayStitches += ((currentAutoSession.stitchesCompleted||0) - (currentAutoSession.stitchesUndone||0));
+      var elapsed = Math.round((Date.now() - new Date(currentAutoSession.startTime).getTime()) / 60000);
+      liveTodayMinutes += elapsed;
+    }
+    return React.createElement("div", {className:"mini-stats-bar"},
+      React.createElement(ProgressRing, {percent:percent, size:36}),
+      React.createElement("div", {className:"mini-stats-text"},
+        React.createElement("span", {className:"mini-stats-count"}, liveTodayStitches + " stitches today"),
+        React.createElement("span", {className:"mini-stats-time"}, formatStatsDuration(liveTodayMinutes))
+      ),
+      dailyGoal && liveTodayStitches < dailyGoal && React.createElement("span", {className:"mini-stats-goal-badge"}, (dailyGoal - liveTodayStitches) + " to goal"),
+      dailyGoal && liveTodayStitches >= dailyGoal && React.createElement("span", {className:"mini-stats-goal-met"}, "Goal reached!"),
+      React.createElement("button", {className:"mini-stats-btn", onClick:onOpenStats}, "Stats")
+    );
+  } catch(e) { console.warn('Stats: MiniStatsBar render error', e); return null; }
 }
 
 function OverviewCards({statsSessions, totalCompleted, totalStitches}){
@@ -126,14 +128,15 @@ function OverviewCards({statsSessions, totalCompleted, totalStitches}){
 
 function NoteEditor({sessionId, currentNote, onSave}){
   var ref = React.useRef(null);
+  var cancelledRef = React.useRef(false);
   var st = React.useState(currentNote || '');
   var text = st[0], setText = st[1];
   React.useEffect(function(){ if(ref.current) ref.current.focus(); }, []);
-  var handleSave = function(){ onSave(sessionId, text.trim()); };
+  var handleSave = function(){ if(!cancelledRef.current) onSave(sessionId, text.trim()); };
   return React.createElement("div", {className:"note-editor"},
     React.createElement("input", {ref:ref, type:"text", value:text,
       onChange:function(e){ setText(e.target.value); },
-      onKeyDown:function(e){ if(e.key==='Enter') handleSave(); if(e.key==='Escape') onSave(sessionId, currentNote||''); },
+      onKeyDown:function(e){ if(e.key==='Enter') handleSave(); if(e.key==='Escape'){ cancelledRef.current=true; onSave(sessionId, currentNote||''); } },
       onBlur:handleSave, placeholder:"Add a note about this session...", maxLength:200,
       style:{width:'100%', fontSize:12, padding:'4px 8px', borderRadius:6, border:'1px solid #e4e4e7'}})
   );
@@ -144,6 +147,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote}){
   var showAll = showSt[0], setShowAll = showSt[1];
   var editSt = React.useState(null);
   var editingId = editSt[0], setEditingId = editSt[1];
+  try {
   var grouped = groupSessionsByDate(sessions || []);
   var sortedDates = Object.keys(grouped).sort().reverse();
   var displayDates = showAll ? sortedDates : sortedDates.slice(0, 10);
@@ -184,9 +188,11 @@ function SessionTimeline({sessions, statsSettings, onEditNote}){
     React.createElement("div", {className:"timeline-track"}, timelineEntries),
     !showAll && sessions && sessions.length > 10 && React.createElement("button", {className:"timeline-show-all", onClick:function(){ setShowAll(true); }}, "View all " + sessions.length + " sessions")
   );
+  } catch(e) { console.warn('Stats: SessionTimeline render error', e); return React.createElement("p", {style:{color:'#a1a1aa',fontSize:13}}, "Could not load timeline."); }
 }
 
 function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose}){
+  try {
   return React.createElement("div", {className:"stats-dashboard"},
     React.createElement("div", {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}},
       React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'#18181b', margin:0}}, "📊 Stats"),
@@ -211,6 +217,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       )
     )
   );
+  } catch(e) { console.warn('Stats: StatsDashboard render error', e); return React.createElement("p", {style:{color:'#dc2626',fontSize:13}}, "Stats error — see console."); }
 }
 
 const pill=a=>({padding:"5px 14px",fontSize:12,borderRadius:8,cursor:"pointer",border:a?"1px solid #99f6e4":"0.5px solid #e4e4e7",background:a?"#f0fdfa":"#fff",fontWeight:a?600:400,color:a?"#0d9488":"#71717a"});
