@@ -49,7 +49,7 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_v1';
+var TRACKER_CACHE_KEY = 'babel_tracker_v2';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -76,6 +76,8 @@ window.loadTrackerApp = function() {
 </head>
 <body>
 <div id="root"></div>
+<!-- HomeScreen dashboard — loaded eagerly, available before UnifiedApp renders -->
+<script src="home-screen.js"></script>
 
 <script type="text/babel">
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
@@ -443,7 +445,27 @@ function loadProject(e){let f=e.target.files[0];if(!f)return;setLoadError(null);
 }catch(err){console.error(err);setLoadError("Could not load: "+err.message);setTimeout(()=>setLoadError(null),4000);}};rd.readAsText(f);if(loadRef.current)loadRef.current.value="";}
 
 useEffect(() => {
-    // Handoff from Tracker takes priority; only fall back to auto-load when absent.
+    // 1. Check for action queued by HomeScreen (takes highest priority).
+    if (window.__pendingCreatorAction) {
+      const action = window.__pendingCreatorAction;
+      window.__pendingCreatorAction = null;
+      if (action.type === 'image' && action.dataUrl) {
+        const i = new Image();
+        i.onload = () => {
+          userActedRef.current = true;
+          setOrigW(i.width); setOrigH(i.height);
+          const a = i.width / i.height;
+          setAr(a); setSW(80); setSH(Math.max(10, Math.round(80 / a)));
+          setImg(i); resetAll();
+        };
+        i.src = action.dataUrl;
+        return;
+      } else if (action.type === 'scratch') {
+        startScratch();
+        return;
+      }
+    }
+    // 2. Handoff from Tracker takes priority over auto-load.
     // Both used to be separate effects, which caused a race: the async IndexedDB
     // load would resolve after the handoff was processed and overwrite it.
     const handoff = localStorage.getItem("crossstitch_handoff_to_creator");
@@ -460,7 +482,7 @@ useEffect(() => {
       }
       return;
     }
-    // No handoff — restore the last auto-saved session from IndexedDB
+    // 3. No handoff — restore the last auto-saved session from IndexedDB
     loadProjectFromDB().then(project => {
         if (project && project.pattern && project.settings && !userActedRef.current) {
             processLoadedProject(project);
@@ -1566,7 +1588,11 @@ function UnifiedApp(){
     const p=new URLSearchParams(window.location.search);
     return p.get('mode')==='track'?'track':'design';
   });
-  // Increment to force-remount CreatorApp (clears its state for "go home")
+  // Show home screen on initial load when no active project, or on logo click.
+  const[showHome,setShowHome]=React.useState(()=>{
+    try { return typeof ProjectStorage!=='undefined'&&!ProjectStorage.getActiveProjectId(); } catch(e){ return false; }
+  });
+  // Increment to force-remount CreatorApp (clears its state when opening a new project from home).
   const[creatorResetKey,setCreatorResetKey]=React.useState(0);
   // Lazy-mount TrackerApp on first switch; keep it alive after that.
   const[trackerMounted,setTrackerMounted]=React.useState(()=>{
@@ -1597,12 +1623,86 @@ function UnifiedApp(){
     window.history.replaceState({},'',window.location.pathname);
     setMode('design');
   },[]);
-  // goHome: clears active project, remounts Creator fresh, switches to design view
+  // goHome: show the dashboard without disturbing Creator/Tracker state.
   const goHome=React.useCallback(()=>{
-    if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
     window.history.replaceState({},'',window.location.pathname);
+    setShowHome(true);
+  },[]);
+
+  // ── HomeScreen action callbacks ──────────────────────────────────────────
+
+  const handleHomeOpenCreatorBlank=React.useCallback(()=>{
+    window.__pendingCreatorAction={type:'scratch'};
     setCreatorResetKey(k=>k+1);
+    window.history.replaceState({},'',window.location.pathname);
     setMode('design');
+    setShowHome(false);
+  },[]);
+
+  const handleHomeOpenCreatorWithImage=React.useCallback((dataUrl)=>{
+    window.__pendingCreatorAction={type:'image',dataUrl};
+    setCreatorResetKey(k=>k+1);
+    window.history.replaceState({},'',window.location.pathname);
+    setMode('design');
+    setShowHome(false);
+  },[]);
+
+  const handleHomeOpenFile=React.useCallback((project)=>{
+    if(!project)return;
+    const destMode=(project.page==='tracker'||project.page==='track')?'track':'design';
+    if(destMode==='track'){
+      pendingTrackerProject.current={project,key:Date.now()};
+      if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
+      setTrackerMounted(true);
+      window.history.replaceState({},'','?mode=track');
+      setMode('track');
+    } else {
+      try{ localStorage.setItem('crossstitch_handoff_to_creator',JSON.stringify(project)); }catch(e){}
+      setCreatorResetKey(k=>k+1);
+      window.history.replaceState({},'',window.location.pathname);
+      setMode('design');
+    }
+    setShowHome(false);
+  },[]);
+
+  const handleHomeImportFile=React.useCallback((file)=>{
+    if(!file)return;
+    if(typeof window.__triggerTrackerLoad==='function'){
+      window.__triggerTrackerLoad(file);
+    } else {
+      window.__pendingTrackerFile=file;
+    }
+    if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
+    setTrackerMounted(true);
+    window.history.replaceState({},'','?mode=track');
+    setMode('track');
+    setShowHome(false);
+  },[]);
+
+  const handleHomeOpenProject=React.useCallback(async (projectId,preferredMode)=>{
+    try{
+      const project=await ProjectStorage.get(projectId);
+      if(!project)return;
+      ProjectStorage.setActiveProject(projectId);
+      const destMode=preferredMode||(project.page==='tracker'?'track':'design');
+      if(destMode==='track'){
+        pendingTrackerProject.current={project,key:Date.now()};
+        if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
+        setTrackerMounted(true);
+        window.history.replaceState({},'','?mode=track');
+        setMode('track');
+      } else {
+        try{ localStorage.setItem('crossstitch_handoff_to_creator',JSON.stringify(project)); }catch(e){}
+        setCreatorResetKey(k=>k+1);
+        window.history.replaceState({},'',window.location.pathname);
+        setMode('design');
+      }
+      setShowHome(false);
+    }catch(e){ console.error('HomeScreen open project failed:',e); }
+  },[]);
+
+  const handleHomeNavigateToStash=React.useCallback(()=>{
+    window.location.href='manager.html';
   },[]);
 
   React.useEffect(()=>{
@@ -1613,11 +1713,20 @@ function UnifiedApp(){
   },[switchToTrack,switchToDesign,goHome]);
 
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
+  const HS=typeof window.HomeScreen!=='undefined'?window.HomeScreen:null;
   return <>
-    <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
-      <CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/>
+    {showHome&&HS&&React.createElement(HS,{
+      onOpenCreatorBlank:handleHomeOpenCreatorBlank,
+      onOpenCreatorWithImage:handleHomeOpenCreatorWithImage,
+      onOpenFile:handleHomeOpenFile,
+      onImportFile:handleHomeImportFile,
+      onOpenProject:handleHomeOpenProject,
+      onNavigateToStash:handleHomeNavigateToStash,
+    })}
+    <div key={creatorResetKey} style={{display:!showHome&&mode==='design'?'':'none'}}>
+      <CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'&&!showHome}/>
     </div>
-    <div style={{display:mode==='track'?'':'none'}}>
+    <div style={{display:!showHome&&mode==='track'?'':'none'}}>
       {trackerMounted&&!trackerReady&&(
         <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:12,color:'#71717a',fontSize:14}}>
           <div style={{width:28,height:28,border:'2.5px solid #e4e4e7',borderTopColor:'#0d9488',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
@@ -1627,7 +1736,7 @@ function UnifiedApp(){
       {trackerMounted&&trackerReady&&T&&<T
         onSwitchToDesign={switchToDesign}
         onGoHome={goHome}
-        isActive={mode==='track'}
+        isActive={mode==='track'&&!showHome}
         incomingProject={pendingTrackerProject.current}
       />}
     </div>

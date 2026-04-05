@@ -103,6 +103,7 @@ const modeToggleRef=useRef(0);
 const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
 const projectIdRef=useRef(null);    // current project's storage ID
 const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunload
+const[pendingFileLoad,setPendingFileLoad]=useState(null);
 const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
 const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});
@@ -618,8 +619,8 @@ function processLoadedProject(project){
   },100);
 }
 
-function loadProject(e){
-  let f=e.target.files[0];if(!f)return;
+function processFile(f){
+  if(!f)return;
   setLoadError(null);
   setImportSuccess(null);
 
@@ -695,9 +696,35 @@ function loadProject(e){
     setLoadError("Unsupported file format. Please load .json, .oxs, .xml, .pdf, or image files.");
     setTimeout(()=>setLoadError(null),4000);
   }
+}
 
+function loadProject(e){
+  let f=e.target.files[0];if(!f)return;
+  processFile(f);
   if(loadRef.current)loadRef.current.value="";
 }
+
+// Register global trigger so HomeScreen can pass a File directly to TrackerApp.
+useEffect(()=>{
+  window.__triggerTrackerLoad=(file)=>setPendingFileLoad(file);
+  return()=>{delete window.__triggerTrackerLoad;};
+},[]);
+
+// Process a file passed via state (triggered by HomeScreen or programmatic callers).
+useEffect(()=>{
+  if(!pendingFileLoad)return;
+  const f=pendingFileLoad;
+  setPendingFileLoad(null);
+  processFile(f);
+},[pendingFileLoad]);
+
+// When TrackerApp becomes active, check for a file queued by HomeScreen.
+useEffect(()=>{
+  if(!isActive||!window.__pendingTrackerFile)return;
+  const f=window.__pendingTrackerFile;
+  window.__pendingTrackerFile=null;
+  setPendingFileLoad(f);
+},[isActive]);
 
 // When incomingProject prop changes (keepAlive: Creator passed a new project), reload.
 useEffect(()=>{
