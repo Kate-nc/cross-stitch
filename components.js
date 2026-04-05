@@ -308,21 +308,124 @@ function DailyBarChart({sessions, dailyGoal, daysToShow, dayEndHour}){
   } catch(e) { console.warn('Stats: DailyBarChart render error', e); return null; }
 }
 
+// ═══ Phase E: Speed Trend Chart ═══
+
+function SpeedTrendChart({sessions}){
+  try {
+  var raw = getSpeedTrendData(sessions);
+  if (raw.length < 3) return React.createElement("p", {className:"stats-empty"}, "Need more sessions (≥10 min each) to show speed trend");
+  var data = getRollingAverage(raw);
+  var width = 600, height = 130;
+  var pl = 42, pr = 8, pt = 8, pb = 4;
+  var cW = width - pl - pr, cH = height - pt - pb;
+  var maxY = 1;
+  for (var i = 0; i < data.length; i++) { if (data[i].speed > maxY) maxY = data[i].speed; }
+  maxY = Math.ceil(maxY * 1.15);
+  var xS = function(i){ return pl + (i / (data.length - 1)) * cW; };
+  var yS = function(v){ return pt + cH - (v / maxY) * cH; };
+  // Raw dots
+  var dots = [];
+  for (var j = 0; j < data.length; j++) {
+    dots.push(React.createElement("circle", {key:'d'+j, cx:xS(j), cy:yS(data[j].speed), r:"3", fill:"#1D9E75", opacity:"0.3"},
+      React.createElement("title", null, formatShortDate(data[j].date) + ': ' + data[j].speed + ' st/hr')));
+  }
+  // Smoothed line (only if 3+ points)
+  var linePts = [];
+  for (var k = 0; k < data.length; k++) linePts.push(xS(k) + ',' + yS(data[k].smoothedSpeed));
+  var mid = data[Math.floor(data.length / 2)];
+  var last = data[data.length - 1];
+  // Y-axis labels
+  var yMid = Math.round(maxY / 2);
+  return React.createElement("div", {className:"chart-container"},
+    React.createElement("svg", {viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
+      React.createElement("text", {x:pl - 4, y:pt + 6, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, maxY + '/hr'),
+      React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, yMid + '/hr'),
+      React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, "0"),
+      React.createElement("line", {x1:pl, y1:pt + cH / 2, x2:width - pr, y2:pt + cH / 2, stroke:"#e4e4e7", strokeWidth:"0.5", strokeDasharray:"4 4"}),
+      React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"#e4e4e7", strokeWidth:"0.5"}),
+      dots,
+      React.createElement("polyline", {points:linePts.join(' '), fill:"none", stroke:"#1D9E75", strokeWidth:"2.5", strokeLinecap:"round", strokeLinejoin:"round"}),
+      React.createElement("circle", {cx:xS(data.length - 1), cy:yS(last.smoothedSpeed), r:"4", fill:"#1D9E75"})
+    ),
+    React.createElement("div", {className:"chart-x-labels"},
+      React.createElement("span", null, formatShortDate(data[0].date)),
+      React.createElement("span", null, formatShortDate(mid.date)),
+      React.createElement("span", null, formatShortDate(last.date))
+    ),
+    React.createElement("div", {className:"chart-legend"},
+      React.createElement("span", null, React.createElement("span", {style:{display:'inline-block', width:8, height:8, borderRadius:'50%', background:'#1D9E75', opacity:0.3, verticalAlign:'middle', marginRight:4}}), "Per session"),
+      React.createElement("span", null, React.createElement("span", {className:"legend-line solid", style:{borderColor:'#1D9E75'}}), "7-session avg")
+    )
+  );
+  } catch(e) { console.warn('Stats: SpeedTrendChart render error', e); return null; }
+}
+
+// ═══ Phase E: Colour Timeline ═══
+
+function ColourTimeline({sessions, palette, colourDoneCounts}){
+  try {
+  var timeline = getColourTimeline(sessions);
+  if (!palette || palette.length === 0) return null;
+  var hasAnyData = false;
+  for (var k in timeline) { hasAnyData = true; break; }
+  var rows = [];
+  for (var i = 0; i < palette.length; i++) {
+    var p = palette[i];
+    if (p.id === '__skip__' || p.id === '__empty__') continue;
+    var tl = timeline[p.id];
+    var counts = (colourDoneCounts && colourDoneCounts[p.id]) || {total:0, done:0, halfTotal:0, halfDone:0};
+    var totalForColour = counts.total + counts.halfTotal;
+    var doneForColour = counts.done + counts.halfDone;
+    var isComplete = totalForColour > 0 && doneForColour >= totalForColour;
+    var pctDone = totalForColour > 0 ? Math.round((doneForColour / totalForColour) * 100) : 0;
+    var rgb = p.rgb || [128, 128, 128];
+    var swatchStyle = {width:14, height:14, borderRadius:3, border:'1px solid #d4d4d8', flexShrink:0,
+      background:'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')'};
+    var nameLabel = p.name || p.id;
+    var dateInfo = tl
+      ? formatShortDate(tl.firstDate) + (tl.lastDate !== tl.firstDate ? ' – ' + formatShortDate(tl.lastDate) : '') + ' · ' + tl.sessionCount + ' session' + (tl.sessionCount !== 1 ? 's' : '')
+      : 'No session data';
+    rows.push(React.createElement("div", {key:p.id, className:"colour-tl-row" + (isComplete ? ' complete' : '')},
+      React.createElement("div", {className:"colour-tl-swatch", style:swatchStyle}),
+      React.createElement("div", {className:"colour-tl-info"},
+        React.createElement("span", {className:"colour-tl-name"}, nameLabel),
+        React.createElement("span", {className:"colour-tl-dates"}, dateInfo)
+      ),
+      React.createElement("div", {className:"colour-tl-progress"},
+        React.createElement("div", {className:"colour-tl-bar"},
+          React.createElement("div", {className:"colour-tl-bar-fill", style:{width:pctDone + '%', background:'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')'}})
+        ),
+        React.createElement("span", {className:"colour-tl-pct"}, isComplete ? '✓' : pctDone + '%')
+      )
+    ));
+  }
+  return React.createElement("div", {className:"colour-timeline"},
+    React.createElement("h3", {className:"stats-section-title"}, "Colour Timeline"),
+    !hasAnyData && React.createElement("p", {className:"stats-empty", style:{marginTop:8}}, "Colour tracking data will appear as you stitch"),
+    React.createElement("div", {className:"colour-tl-list"}, rows)
+  );
+  } catch(e) { console.warn('Stats: ColourTimeline render error', e); return null; }
+}
+
 function StatsChartSection({statsSessions, statsSettings, totalStitches, chartView, setChartView}){
   var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
   var dailyGoal = statsSettings && statsSettings.dailyGoal;
   var targetDate = statsSettings && statsSettings.targetDate;
+  var chartTitles = {cumulative: 'Progress over time', daily: 'Stitches per day', speed: 'Speed trend'};
   return React.createElement("div", {className:"chart-section"},
     React.createElement("div", {className:"chart-header"},
-      React.createElement("span", {className:"chart-title"}, chartView === 'cumulative' ? 'Progress over time' : 'Stitches per day'),
+      React.createElement("span", {className:"chart-title"}, chartTitles[chartView] || ''),
       React.createElement("div", {className:"chart-toggle"},
         React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'daily' ? ' active' : ''), onClick:function(){ setChartView('daily'); }}, "Daily"),
-        React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'cumulative' ? ' active' : ''), onClick:function(){ setChartView('cumulative'); }}, "Cumulative")
+        React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'cumulative' ? ' active' : ''), onClick:function(){ setChartView('cumulative'); }}, "Cumulative"),
+        React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'speed' ? ' active' : ''), onClick:function(){ setChartView('speed'); }}, "Speed")
       )
     ),
     chartView === 'cumulative'
       ? React.createElement(CumulativeChart, {sessions:statsSessions, totalStitches:totalStitches, targetDate:targetDate})
-      : React.createElement(DailyBarChart, {sessions:statsSessions, dailyGoal:dailyGoal, dayEndHour:dayEndHour})
+      : chartView === 'speed'
+        ? React.createElement(SpeedTrendChart, {sessions:statsSessions})
+        : React.createElement(DailyBarChart, {sessions:statsSessions, dailyGoal:dailyGoal, dayEndHour:dayEndHour})
   );
 }
 
@@ -489,19 +592,57 @@ function MilestoneCelebration({milestone, onDismiss}){
   );
 }
 
-function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose}){
+function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts}){
   var chartSt = React.useState('cumulative');
   var chartView = chartSt[0], setChartView = chartSt[1];
+  var copiedSt = React.useState(false);
+  var copied = copiedSt[0], setCopied = copiedSt[1];
   try {
   var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches);
   var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.avgPerDay);
   var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
+
+  function handleShare(){
+    var text = generateShareText(projectName, overviewStats, statsSessions || [], totalCompleted, totalStitches, dayEndHour);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function(){
+        setCopied(true); setTimeout(function(){ setCopied(false); }, 2500);
+      }).catch(function(){
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text){
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+    setCopied(true); setTimeout(function(){ setCopied(false); }, 2500);
+  }
+
+  function handleCSV(){
+    downloadCSV(statsSessions || [], projectName);
+  }
+
   return React.createElement("div", {className:"stats-dashboard"},
     React.createElement("div", {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}},
       React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'#18181b', margin:0}}, "\uD83D\uDCCA Stats"),
       React.createElement("button", {onClick:onClose, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #e4e4e7', background:'#fafafa', cursor:'pointer', color:'#71717a'}}, "\u2190 Back to grid")
     ),
     React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches}),
+    React.createElement("div", {className:"stats-export-bar"},
+      React.createElement("button", {className:"stats-export-btn stats-export-btn--share", onClick:handleShare},
+        copied ? '\u2705 Copied!' : '\uD83D\uDCCB Copy progress summary'),
+      React.createElement("button", {className:"stats-export-btn", onClick:handleCSV},
+        '\uD83D\uDCC4 Export sessions (CSV)')
+    ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(StatsChartSection, {statsSessions:statsSessions, statsSettings:statsSettings, totalStitches:totalStitches, chartView:chartView, setChartView:setChartView})
     ),
@@ -511,6 +652,9 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     React.createElement("div", {className:"stats-two-col", style:{marginTop:20}},
       React.createElement(GoalTracker, {statsSettings:statsSettings, statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, overviewStats:overviewStats, onUpdateSettings:onUpdateSettings}),
       React.createElement(StreaksPanel, {sessions:statsSessions, dayEndHour:dayEndHour})
+    ),
+    React.createElement("div", {style:{marginTop:20}},
+      React.createElement(ColourTimeline, {sessions:statsSessions, palette:palette, colourDoneCounts:colourDoneCounts})
     ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote})

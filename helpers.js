@@ -453,6 +453,125 @@ function getRequiredPace(remaining, targetDate) {
   return days > 0 ? Math.ceil(remaining / days) : null;
 }
 
+// ═══ Phase D: Sharing & Export helpers ═══
+
+function generateShareText(projectName, stats, sessions, totalCompleted, totalStitches, dayEndHour) {
+  var streaks = computeStreaks(sessions, dayEndHour);
+  var bestDay = findBestDay(sessions);
+  var percent = totalStitches > 0
+    ? (totalCompleted / totalStitches * 100).toFixed(1)
+    : '0.0';
+
+  var lines = [
+    '\uD83E\uDDF5 ' + (projectName || 'Cross Stitch Project') + ' \u2014 Progress Update',
+    '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+    '\u2705 ' + totalCompleted.toLocaleString() + ' / ' + totalStitches.toLocaleString() + ' stitches (' + percent + '%)',
+    '\u23F1\uFE0F ' + formatStatsDuration(stats.totalMinutes) + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),
+    '\uD83D\uDCC8 ' + stats.stitchesPerHour + ' stitches/hour \u00B7 ' + stats.avgPerDay + '/day average'
+  ];
+
+  if (streaks.current > 0 || streaks.longest > 0) {
+    lines.push('\uD83D\uDD25 Current streak: ' + streaks.current + ' day' + (streaks.current !== 1 ? 's' : '') + ' (longest: ' + streaks.longest + ')');
+  }
+
+  if (bestDay) {
+    lines.push('\uD83C\uDFC6 Best day: ' + bestDay.stitches + ' stitches (' + formatShortDate(bestDay.date) + ')');
+  }
+
+  if (stats.estimatedCompletion && stats.estimatedCompletion !== '\u2014') {
+    lines.push('\uD83D\uDCC5 Est. completion: ' + stats.estimatedCompletion);
+  }
+
+  lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
+  lines.push('Tracked with Cross Stitch Studio');
+
+  return lines.join('\n');
+}
+
+function generateSessionCSV(sessions) {
+  var headers = [
+    'Date', 'Start Time', 'End Time', 'Duration (min)',
+    'Stitches Completed', 'Stitches Undone', 'Net Stitches',
+    'Cumulative Total', 'Percent Complete', 'Note'
+  ];
+  var rows = [];
+  var sorted = (sessions || []).slice().sort(function(a, b) {
+    return new Date(a.startTime) - new Date(b.startTime);
+  });
+  for (var i = 0; i < sorted.length; i++) {
+    var s = sorted[i];
+    var startT = new Date(s.startTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    var endT = new Date(s.endTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    var note = (s.note || '').replace(/"/g, '""');
+    rows.push([
+      s.date, startT, endT, s.durationMinutes,
+      s.stitchesCompleted, s.stitchesUndone, s.netStitches,
+      s.totalAtEnd, s.percentAtEnd, '"' + note + '"'
+    ].join(','));
+  }
+  return [headers.join(',')].concat(rows).join('\n');
+}
+
+function downloadCSV(sessions, projectName) {
+  var csv = generateSessionCSV(sessions);
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  var safeName = (projectName || 'cross-stitch').replace(/[^a-zA-Z0-9]/g, '_');
+  a.download = safeName + '_sessions.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ═══ Phase E: Speed Trends & Colour Timeline ═══
+
+function getSpeedTrendData(sessions) {
+  if (!sessions || sessions.length === 0) return [];
+  var sorted = sessions.slice().sort(function(a, b) {
+    return new Date(a.startTime) - new Date(b.startTime);
+  });
+  return sorted
+    .filter(function(s) { return s.durationMinutes >= 10 && s.netStitches > 0; })
+    .map(function(s) {
+      return {
+        date: s.date,
+        speed: Math.round(s.netStitches / (s.durationMinutes / 60))
+      };
+    });
+}
+
+function getRollingAverage(data, window) {
+  window = window || 7;
+  return data.map(function(d, i) {
+    var start = Math.max(0, i - window + 1);
+    var windowSlice = data.slice(start, i + 1);
+    var avg = Math.round(windowSlice.reduce(function(sum, x) { return sum + x.speed; }, 0) / windowSlice.length);
+    return { date: d.date, speed: d.speed, smoothedSpeed: avg };
+  });
+}
+
+function getColourTimeline(sessions) {
+  var timeline = {};
+  if (!sessions) return timeline;
+  for (var i = 0; i < sessions.length; i++) {
+    var session = sessions[i];
+    if (!session.coloursWorked || session.coloursWorked.length === 0) continue;
+    for (var j = 0; j < session.coloursWorked.length; j++) {
+      var colour = session.coloursWorked[j];
+      if (!timeline[colour]) {
+        timeline[colour] = { firstDate: session.date, lastDate: session.date, sessionCount: 0, activeDates: {} };
+      }
+      timeline[colour].lastDate = session.date;
+      timeline[colour].sessionCount++;
+      timeline[colour].activeDates[session.date] = true;
+    }
+  }
+  return timeline;
+}
+
 // Determine which half of a cell a click falls in.
 // Returns "fwd", "bck", or "ambiguous".
 function hitTestHalfStitch(localX, localY, cSz, ambiguousRadius) {

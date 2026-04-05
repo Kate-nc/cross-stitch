@@ -1115,3 +1115,121 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   font-size: 12px;
   color: #71717a;
 }
+
+/* ═══ Stats: Phase D — Sharing & Export ═══ */
+.stats-export-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.stats-export-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 1px solid #e4e4e7;
+  background: #fafafa;
+  color: #71717a;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.stats-export-btn:hover {
+  background: #f4f4f5;
+  border-color: #d4d4d8;
+  color: #3f3f46;
+}
+.stats-export-btn--share {
+  border-color: #0d9488;
+  background: #f0fdfa;
+  color: #0d9488;
+}
+.stats-export-btn--share:hover {
+  background: #ccfbf1;
+}
+
+/* ═══ Phase E: Colour Timeline ═══ */
+
+.colour-timeline {
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.colour-tl-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.colour-tl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f4f4f5;
+}
+
+.colour-tl-row:last-child {
+  border-bottom: none;
+}
+
+.colour-tl-row.complete {
+  opacity: 0.55;
+}
+
+.colour-tl-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.colour-tl-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #18181b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.colour-tl-dates {
+  font-size: 10px;
+  color: #a1a1aa;
+}
+
+.colour-tl-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  width: 100px;
+}
+
+.colour-tl-bar {
+  flex: 1;
+  height: 6px;
+  background: #f4f4f5;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.colour-tl-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.colour-tl-pct {
+  font-size: 11px;
+  font-weight: 600;
+  color: #71717a;
+  min-width: 28px;
+  text-align: right;
+}

@@ -28,6 +28,7 @@ const[statsView,setStatsView]=useState(false);
 const[celebration,setCelebration]=useState(null);
 const celebratedRef=useRef(new Set());
 const currentAutoSessionRef=useRef(null);
+const pendingColoursRef=useRef(new Set());
 const pendingMilestonesRef=useRef([]);
 const lastStitchActivityRef=useRef(null);
 const autoIdleTimerRef=useRef(null);
@@ -262,6 +263,11 @@ function recordAutoActivity(completed,undone){
     }
     currentAutoSessionRef.current.stitchesCompleted+=completed;
     currentAutoSessionRef.current.stitchesUndone+=undone;
+    // Merge any pending colour IDs into the session
+    if(pendingColoursRef.current.size>0){
+      pendingColoursRef.current.forEach(c=>currentAutoSessionRef.current.coloursWorked.add(c));
+      pendingColoursRef.current.clear();
+    }
     clearTimeout(autoIdleTimerRef.current);
     autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){console.warn('Stats: idle finalise error',e);}},IDLE_THRESHOLD_MS);
   }catch(e){console.warn('Stats: recordAutoActivity error',e);}
@@ -360,6 +366,8 @@ function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);s
 
 function pushTrackHistory(changes){
   if(!changes||!changes.length)return;
+  // Track colours for auto-session
+  if(pat){for(let i=0;i<changes.length;i++){const id=pat[changes[i].idx]&&pat[changes[i].idx].id;if(id&&id!=='__skip__'&&id!=='__empty__')pendingColoursRef.current.add(id);}}
   setTrackHistory(prev=>{let n=[...prev,changes];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
 }
 function undoTrack(){
@@ -1300,6 +1308,9 @@ function _toggleHalfDone(idx, dir) {
   hd[dir] = hd[dir] ? 0 : 1;
   if (!hd.fwd && !hd.bck) newHd.delete(idx);
   else newHd.set(idx, hd);
+  // Track colour for auto-session
+  const hs=halfStitches.get(idx);
+  if(hs&&hs[dir]&&hs[dir].id)pendingColoursRef.current.add(hs[dir].id);
   setHalfDone(newHd);
   renderStitch();
 }
@@ -1874,7 +1885,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsDashboard statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)}/>}
+  {statsView&&pat&&<StatsDashboard statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={sW+'\u00D7'+sH+' pattern'} palette={pal} colourDoneCounts={colourDoneCounts}/>}
 
   {!statsView&&!pat&&<div style={{maxWidth:500, margin:"40px auto", textAlign:"center"}}>
     <div className="card" style={{padding:"30px"}}>
