@@ -174,6 +174,83 @@ function drawHalfSymbol(ctx, px, py, cSz, dir, symbol, color, fontSize, fontWeig
   ctx.fillText(symbol, sx, sy);
 }
 
+// ═══ Stats helpers ═══
+
+function getStitchingDate(now, dayEndHour) {
+  const adjusted = new Date(now);
+  if (dayEndHour > 0 && adjusted.getHours() < dayEndHour) {
+    adjusted.setDate(adjusted.getDate() - 1);
+  }
+  return adjusted.toISOString().slice(0, 10);
+}
+
+function computeOverviewStats(statsSessions, totalCompleted, totalStitches) {
+  const totalMinutes = statsSessions.reduce(function(sum, s) { return sum + s.durationMinutes; }, 0);
+  const totalHours = totalMinutes / 60;
+  var totalNetStitches = statsSessions.reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+  var stitchesPerHour = totalHours > 0 ? Math.round(totalNetStitches / totalHours) : 0;
+  var uniqueDays = new Set(statsSessions.map(function(s) { return s.date; })).size;
+  var avgPerDay = uniqueDays > 0 ? Math.round(totalNetStitches / uniqueDays) : 0;
+  var remaining = totalStitches - totalCompleted;
+  var daysRemaining = avgPerDay > 0 ? Math.ceil(remaining / avgPerDay) : null;
+  var estimatedDate = daysRemaining ? new Date(Date.now() + daysRemaining * 86400000) : null;
+  return {
+    percent: totalStitches > 0 ? Math.round((totalCompleted / totalStitches) * 1000) / 10 : 0,
+    stitchesPerHour: stitchesPerHour,
+    totalTimeFormatted: formatStatsDuration(totalMinutes),
+    estimatedCompletion: estimatedDate
+      ? estimatedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '—',
+    daysRemaining: daysRemaining,
+    avgPerDay: avgPerDay,
+    totalMinutes: totalMinutes,
+    uniqueDays: uniqueDays
+  };
+}
+
+function getStatsTodayStitches(sessions, dayEndHour) {
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+}
+
+function getStatsTodayMinutes(sessions, dayEndHour) {
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + s.durationMinutes; }, 0);
+}
+
+function groupSessionsByDate(sessions) {
+  var grouped = {};
+  for (var i = 0; i < sessions.length; i++) {
+    var s = sessions[i];
+    if (!grouped[s.date]) grouped[s.date] = [];
+    grouped[s.date].push(s);
+  }
+  return grouped;
+}
+
+function formatStatsDuration(minutes) {
+  if (minutes < 1) return '0m';
+  if (minutes < 60) return minutes + 'm';
+  var h = Math.floor(minutes / 60);
+  var m = minutes % 60;
+  return m > 0 ? h + 'h ' + m + 'm' : h + 'h';
+}
+
+function formatRelativeDate(dateStr, dayEndHour) {
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  var yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  var yesterdayStr = yesterday.toISOString().slice(0, 10);
+  if (dateStr === today) return 'Today';
+  if (dateStr === yesterdayStr) return 'Yesterday';
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatTimeRange(startISO, endISO) {
+  var fmt = function(iso) { return new Date(iso).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' }); };
+  return fmt(startISO) + ' – ' + fmt(endISO);
+}
+
 // Determine which half of a cell a click falls in.
 // Returns "fwd", "bck", or "ambiguous".
 function hitTestHalfStitch(localX, localY, cSz, ambiguousRadius) {
