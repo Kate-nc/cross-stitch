@@ -140,6 +140,97 @@ const StashBridge = (() => {
       }
     },
 
+    // Detects conflicts: threads where total demand across active patterns > owned supply.
+    // Returns [ { id, name, rgb, owned, totalNeeded, patterns: [{title, qty}] } ]
+    async detectConflicts() {
+      try {
+        const db = await openManagerDB();
+        const tx = db.transaction("manager_state", "readonly");
+        const store = tx.objectStore("manager_state");
+        const [threadsData, patternsData] = await Promise.all([
+          new Promise((r, j) => { const q = store.get("threads"); q.onsuccess = () => r(q.result || {}); q.onerror = () => j(q.error); }),
+          new Promise((r, j) => { const q = store.get("patterns"); q.onsuccess = () => r(q.result || []); q.onerror = () => j(q.error); })
+        ]);
+        // Only consider active patterns (owned, inprogress, wishlist — exclude completed)
+        const active = patternsData.filter(p => p.status !== "completed");
+        const demand = {}; // { dmcId: { total, patterns: [{title, qty}] } }
+        for (const pat of active) {
+          if (!pat.threads) continue;
+          for (const t of pat.threads) {
+            if (!demand[t.id]) demand[t.id] = { total: 0, patterns: [] };
+            const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, 14) : Math.ceil(t.qty / 200)) : t.qty;
+            demand[t.id].total += skeins;
+            demand[t.id].patterns.push({ title: pat.title, qty: skeins });
+          }
+        }
+        const conflicts = [];
+        for (const [id, d] of Object.entries(demand)) {
+          const owned = (threadsData[id] || {}).owned || 0;
+          if (d.total > owned) {
+            const info = typeof DMC !== "undefined" ? DMC.find(x => x.id === id) : null;
+            conflicts.push({ id, name: info ? info.name : id, rgb: info ? info.rgb : [128,128,128], owned, totalNeeded: d.total, deficit: d.total - owned, patterns: d.patterns });
+          }
+        }
+        conflicts.sort((a, b) => b.deficit - a.deficit);
+        return conflicts;
+      } catch (e) {
+        console.error("StashBridge.detectConflicts failed:", e);
+        return [];
+      }
+    },
+
+    // Returns patterns you can fully start with your current stash.
+    // Each result: { id, title, status, totalThreads, coveredThreads, missing }
+    async whatCanIStart() {
+      try {
+        const db = await openManagerDB();
+        const tx = db.transaction("manager_state", "readonly");
+        const store = tx.objectStore("manager_state");
+        const [threadsData, patternsData] = await Promise.all([
+          new Promise((r, j) => { const q = store.get("threads"); q.onsuccess = () => r(q.result || {}); q.onerror = () => j(q.error); }),
+          new Promise((r, j) => { const q = store.get("patterns"); q.onsuccess = () => r(q.result || []); q.onerror = () => j(q.error); })
+        ]);
+        const notStarted = patternsData.filter(p => p.status !== "completed" && p.status !== "inprogress");
+        const results = [];
+        for (const pat of notStarted) {
+          if (!pat.threads || pat.threads.length === 0) continue;
+          let covered = 0, missing = [];
+          for (const t of pat.threads) {
+            const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, 14) : Math.ceil(t.qty / 200)) : t.qty;
+            const owned = (threadsData[t.id] || {}).owned || 0;
+            if (owned >= skeins) covered++;
+            else missing.push({ id: t.id, name: t.name, need: skeins, have: owned });
+          }
+          results.push({ id: pat.id, title: pat.title, status: pat.status, totalThreads: pat.threads.length, coveredThreads: covered, missing, pct: Math.round(covered / pat.threads.length * 100) });
+        }
+        results.sort((a, b) => b.pct - a.pct);
+        return results;
+      } catch (e) {
+        console.error("StashBridge.whatCanIStart failed:", e);
+        return [];
+      }
+    },
+
+    // Finds similar DMC colours to a given DMC ID from your owned stash.
+    // Returns top N alternatives sorted by colour distance (deltaE).
+    suggestAlternatives(dmcId, maxResults = 5, ownedThreads = {}) {
+      if (typeof DMC === "undefined" || typeof rgbToLab === "undefined" || typeof dE === "undefined") return [];
+      const target = DMC.find(d => d.id === dmcId);
+      if (!target) return [];
+      const targetLab = rgbToLab(target.rgb[0], target.rgb[1], target.rgb[2]);
+      const candidates = [];
+      for (const [id, state] of Object.entries(ownedThreads)) {
+        if (id === dmcId || !state.owned || state.owned <= 0) continue;
+        const info = DMC.find(d => d.id === id);
+        if (!info) continue;
+        const lab = rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]);
+        const dist = dE(targetLab, lab);
+        candidates.push({ id, name: info.name, rgb: info.rgb, owned: state.owned, deltaE: Math.round(dist * 10) / 10 });
+      }
+      candidates.sort((a, b) => a.deltaE - b.deltaE);
+      return candidates.slice(0, maxResults);
+    },
+
     // Updates a single thread's tobuy flag in the global stash
     async updateThreadToBuy(dmcId, toBuy) {
       try {
