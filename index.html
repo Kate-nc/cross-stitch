@@ -94,6 +94,8 @@ const[halfStitchTool,setHalfStitchTool]=useState(null);
 
 // Thread organiser: {skeinId: "owned"|"tobuy"|""}
 const[threadOwned,setThreadOwned]=useState({});
+const[globalStash,setGlobalStash]=useState({});
+const[kittingResult,setKittingResult]=useState(null);
 
 const[previewUrl,setPreviewUrl]=useState(null);
 const[previewStats,setPreviewStats]=useState(null);
@@ -420,6 +422,7 @@ useEffect(() => {
     });
 }, []);
 
+useEffect(()=>{ typeof StashBridge!=="undefined"&&StashBridge.getGlobalStash().then(setGlobalStash).catch(()=>{}); },[]);
 // Auto-save effect
 useEffect(() => {
     if (!pat || !pal) return;
@@ -429,6 +432,7 @@ useEffect(() => {
         let project={version:9,id:projectIdRef.current,page:"creator",settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
         ProjectStorage.save(project).then(id => { ProjectStorage.setActiveProject(id); }).catch(err => console.error("ProjectStorage auto-save failed:", err));
+        if(typeof StashBridge!=="undefined") StashBridge.syncProjectToLibrary(projectIdRef.current,`${sW}×${sH} pattern`,skeinData,"inprogress");
     }, 1000); // 1-second debounce
 
     return () => clearTimeout(saveTimer);
@@ -1055,6 +1059,7 @@ return(
   onSave={pat&&pal?saveProject:null}
   onTrack={pat&&pal?handleOpenInTracker:null}
   onExportPDF={pat?exportPDF:null}
+  onNewProject={()=>{if(!pat||confirm("Start a new project? Unsaved changes will be lost."))resetAll();}}
   setModal={setModal} />
 {pat&&pal&&<ContextBar
   name={sW + '×' + sH + ' pattern'}
@@ -1388,8 +1393,23 @@ return(
                   <span style={{fontSize:11,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
                   <span style={{fontSize:11,color:"#a1a1aa",flexShrink:0}}>{d.skeins}sk</span>
                   <button onClick={()=>toggleOwned(d.id)} style={{fontSize:11,padding:"3px 10px",borderRadius:5,border:"1px solid "+(isOwned?"#bbf7d0":"#fed7aa"),background:isOwned?"#f0fdf4":"#fff7ed",color:isOwned?"#16a34a":"#ea580c",cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center"}}>{isOwned?"Owned":"To buy"}</button>
+                  {(()=>{let gs=globalStash[d.id]||{};let owned=(gs.owned||0);let enough=owned>=d.skeins;return<span className={"stash-badge "+(enough?"stash-badge--in":"stash-badge--out")}>{owned}/{d.skeins} in stash</span>;})()}
                 </div>;})}
             </div>
+            <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap",alignItems:"center"}}>
+              <button onClick={()=>{if(typeof StashBridge==="undefined"){alert("Stash bridge not loaded.");return;}StashBridge.getGlobalStash().then(stash=>{let missing=[];let short=[];skeinData.forEach(d=>{let owned=(stash[d.id]||{}).owned||0;if(owned===0)missing.push(`DMC ${d.id} (need ${d.skeins}sk)`);else if(owned<d.skeins)short.push(`DMC ${d.id} (have ${owned}, need ${d.skeins}sk)`);});setKittingResult({missing,short,total:skeinData.length});});}} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Kit This Project</button>
+            </div>
+            {kittingResult&&<div style={{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e4e4e7",background:"#fafafa",fontSize:12}}>
+              <div style={{fontWeight:700,marginBottom:4}}>Kitting check ({kittingResult.total} colours)</div>
+              {kittingResult.missing.length===0&&kittingResult.short.length===0&&<div style={{color:"#16a34a",fontWeight:600}}>✓ You have everything!</div>}
+              {kittingResult.missing.length>0&&<div><div style={{color:"#dc2626",fontWeight:600,marginBottom:2}}>Missing ({kittingResult.missing.length}):</div>{kittingResult.missing.map((m,i)=><div key={i} style={{color:"#dc2626",marginLeft:8}}>{m}</div>)}</div>}
+              {kittingResult.short.length>0&&<div style={{marginTop:4}}><div style={{color:"#d97706",fontWeight:600,marginBottom:2}}>Low stock ({kittingResult.short.length}):</div>{kittingResult.short.map((m,i)=><div key={i} style={{color:"#d97706",marginLeft:8}}>{m}</div>)}</div>}
+              <div style={{display:"flex",gap:6,marginTop:8}}>
+                <button onClick={()=>{let lines=[...kittingResult.missing,...kittingResult.short];copyText(lines.join("\n"),"kit");}} style={{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer"}}>Copy gaps</button>
+                <button onClick={()=>{if(typeof StashBridge==="undefined")return;let toBuy=[...kittingResult.missing,...kittingResult.short].map(l=>{let m=l.match(/DMC (\S+)/);return m?m[1]:null;}).filter(Boolean);Promise.all(toBuy.map(id=>StashBridge.updateThreadToBuy(id,true))).then(()=>alert("Marked "+toBuy.length+" thread(s) as To Buy in Stash Manager."));}} style={{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #fed7aa",background:"#fff7ed",color:"#ea580c",cursor:"pointer",fontWeight:600}}>Mark all To Buy</button>
+                <button onClick={()=>setKittingResult(null)} style={{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",marginLeft:"auto"}}>Dismiss</button>
+              </div>
+            </div>}
             <div style={{display:"flex",gap:6,marginTop:10}}>
               <button onClick={()=>{let txt=toBuyList.map(d=>`DMC ${d.id} ${d.name} × ${d.skeins}`).join("\n");copyText(txt,"shopping");}} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Copy To-Buy List</button>
               <button onClick={()=>{let txt=skeinData.map(d=>`DMC ${d.id} ${d.name} × ${d.skeins}`).join("\n");copyText(txt,"full");}} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Copy Full List</button>
