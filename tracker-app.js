@@ -381,6 +381,24 @@ function editSessionNote(sessionId,noteText){
 }
 function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0)pushTrackHistory(changes);setDone(nd);}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
+function copyProgressSummary(){
+  let t=totalTime+(sessionActive?Math.floor((Date.now()-sessionStart)/1000):0);
+  let coloursComplete=Object.values(colourDoneCounts).filter(c=>c.done>=c.total&&c.total>0).length;
+  let totalColours=pal?pal.length:0;
+  let stPerHr=t>=60&&doneCount>0?Math.round(doneCount/(t/3600)):null;
+  let estRem=t>=60&&doneCount>0?Math.round((totalStitchable-doneCount)*(t/doneCount)):null;
+  let lines=["\u{1F9F5} Cross Stitch Progress Update"];
+  lines.push("Project: "+(projectName||sW+"\u00D7"+sH+" pattern"));
+  lines.push("Progress: "+doneCount+"/"+totalStitchable+" stitches ("+progressPct.toFixed(1)+"%)");
+  if(halfStitchCounts.total>0)lines.push("Half stitches: "+halfStitchCounts.done+"/"+halfStitchCounts.total);
+  lines.push("Colours: "+coloursComplete+"/"+totalColours+" colours complete");
+  if(t>=60)lines.push("Time stitched: "+fmtTime(t)+" ("+sessions.length+" sessions)");
+  else lines.push("Time stitched: Not tracked yet");
+  if(stPerHr)lines.push("Speed: "+stPerHr+" stitches/hour");
+  if(estRem)lines.push("Est. remaining: "+fmtTime(estRem));
+  lines.push("Pattern: "+sW+"\u00D7"+sH+", "+totalColours+" colours, "+fabricCt+"ct");
+  copyText(lines.join("\n"),"progress");
+}
 
 function pushTrackHistory(changes){
   if(!changes||!changes.length)return;
@@ -1929,6 +1947,7 @@ return(
         </>}
         {stitchMode==="track"&&trackHistory.length>0&&<button className="tb-ovf-item" onClick={()=>{undoTrack();setTOverflowOpen(false);}}>↩ Undo ({trackHistory.length})</button>}
         {done&&doneCount>0&&<button className="tb-ovf-item" style={{color:"#dc2626"}} onClick={()=>{if(confirm("Clear all progress?")){setDone(new Uint8Array(pat.length));setTrackHistory([]);}setTOverflowOpen(false);}}>Reset progress</button>}
+        {pat&&pal&&<button className="tb-ovf-item" onClick={()=>{copyProgressSummary();setTOverflowOpen(false);}}>📋 Copy Progress Summary</button>}
         <div className="tb-ovf-sep"/>
       </>}
       {isEditMode&&<>
@@ -1963,6 +1982,7 @@ return(
 </>}
 <div className="cs-page-content" style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
+  {copied==="progress"&&<div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600,marginBottom:12}}>✓ Progress summary copied to clipboard!</div>}
   {importSuccess && (
     <div style={{
       background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8,
@@ -2188,7 +2208,7 @@ return(
           <span style={{fontSize:11,color:complete?"#16a34a":"#71717a",fontWeight:complete?600:400,minWidth:50,textAlign:"right"}}>
             {dc.done}/{dc.total}{dc.halfTotal>0?<span style={{color:"#0284c7"}}> +{dc.halfDone}△/{dc.halfTotal}△</span>:""}
           </span>
-          <button onClick={e2=>{e2.stopPropagation();markColourDone(p.id,!complete);}} style={{fontSize:10,padding:"2px 8px",borderRadius:5,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{complete?"Undo":"All ✓"}</button>
+          <button onClick={e2=>{e2.stopPropagation();if(!complete){let unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:10,padding:"2px 8px",borderRadius:5,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{complete?"Undo":"All ✓"}</button>
           </>}
           {isEditMode && <>
             <span style={{fontSize:11,color:"#a1a1aa",flexShrink:0}}>{p.count} st{dc.halfTotal>0?` + ${dc.halfTotal}△`:""}</span>
@@ -2204,8 +2224,8 @@ return(
           <div style={{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}}><span style={{fontWeight:700,color:"#ea580c"}}>{toBuyList.length}</span> <span style={{color:"#71717a"}}>to buy</span></div>
           <div style={{marginLeft:"auto",display:"flex",gap:4}}>
             <button onClick={()=>setModal("calculator_batch")} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>Calculate thread needed</button>
-            <button onClick={()=>{let n={};skeinData.forEach(d=>{n[d.id]="owned";});setThreadOwned(n);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #bbf7d0",borderRadius:6,background:"#f0fdf4",color:"#16a34a",cursor:"pointer"}}>Own all</button>
-            <button onClick={()=>setThreadOwned({})} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",color:"#71717a",cursor:"pointer"}}>Clear</button>
+            <button onClick={()=>{if(!confirm("Mark all "+skeinData.length+" threads as owned?"))return;let n={};skeinData.forEach(d=>{n[d.id]="owned";});setThreadOwned(n);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #bbf7d0",borderRadius:6,background:"#f0fdf4",color:"#16a34a",cursor:"pointer"}}>Own all</button>
+            <button onClick={()=>{if(!confirm("Clear all thread ownership status?"))return;setThreadOwned({});}} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",color:"#71717a",cursor:"pointer"}}>Clear</button>
           </div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:320,overflow:"auto"}}>
