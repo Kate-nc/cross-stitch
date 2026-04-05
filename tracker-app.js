@@ -21,6 +21,16 @@ const TRACK_HISTORY_MAX=50;
 const[sessionActive,setSessionActive]=useState(false),[sessionStart,setSessionStart]=useState(null);
 const[sessionStitches,setSessionStitches]=useState(0),[totalTime,setTotalTime]=useState(0);
 const[sessionElapsed,setSessionElapsed]=useState(0),[sessions,setSessions]=useState([]);
+const[statsSettings,setStatsSettings]=useState({dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null});
+const[editingNoteId,setEditingNoteId]=useState(null);
+const[showAllSessions,setShowAllSessions]=useState(false);
+const currentSessionRef=useRef(null);
+const lastActivityRef=useRef(null);
+const idleTimerRef=useRef(null);
+const doneCountRef=useRef(0);
+const totalStitchableRef=useRef(0);
+const sessionsRef=useRef([]);
+const IDLE_THRESHOLD_MS=15*60*1000;
 
 const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
 useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
@@ -143,7 +153,9 @@ const combinedTotal=totalStitchable+halfStitchCounts.total*0.5;
 const combinedDone=doneCount+halfStitchCounts.done*0.5;
 const progressPct=combinedTotal>0?Math.round(combinedDone/combinedTotal*1000)/10:0;
 
-useEffect(()=>{if(sessionActive&&done){let diff=doneCount-prevDoneCount.current;if(diff>0)setSessionStitches(p=>p+diff);}prevDoneCount.current=doneCount;},[doneCount,sessionActive,done]);
+useEffect(()=>{if(sessionActive&&done){let diff=doneCount-prevDoneCount.current;if(diff>0)setSessionStitches(p=>p+diff);}prevDoneCount.current=doneCount;doneCountRef.current=doneCount;},[doneCount,sessionActive,done]);
+useEffect(()=>{totalStitchableRef.current=totalStitchable;},[totalStitchable]);
+useEffect(()=>{sessionsRef.current=sessions;},[sessions]);
 const colourDoneCounts=useMemo(()=>{
   if(!pat||!done)return{};
   let c={};
@@ -220,8 +232,85 @@ const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData])
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
 const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable):null,[pal,blendCount,totalStitchable]);
 
-function toggleSession(){if(sessionActive){let el=Math.floor((Date.now()-sessionStart)/1000);setTotalTime(p=>p+el);setSessions(p=>[...p,{stitches:sessionStitches,time:el,date:Date.now()}]);setSessionActive(false);setSessionStart(null);setSessionStitches(0);setSessionElapsed(0);}else{setSessionActive(true);setSessionStart(Date.now());setSessionStitches(0);setSessionElapsed(0);prevDoneCount.current=doneCount;}}
-function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0)pushTrackHistory(changes);setDone(nd);}
+function toggleSession(){if(sessionActive){let el=Math.floor((Date.now()-sessionStart)/1000);setTotalTime(p=>p+el);setSessionActive(false);setSessionStart(null);setSessionStitches(0);setSessionElapsed(0);}else{setSessionActive(true);setSessionStart(Date.now());setSessionStitches(0);setSessionElapsed(0);prevDoneCount.current=doneCount;}}
+function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){recordStitchActivity(md?changes.length:0,md?0:changes.length,cid);pushTrackHistory(changes);}setDone(nd);}
+
+// ═══ Stats: auto-session recording ═══
+function getStitchingDate(now){
+  const adj=new Date(now);
+  const deh=statsSettings.dayEndHour||0;
+  if(deh>0&&adj.getHours()<deh)adj.setDate(adj.getDate()-1);
+  return adj.toISOString().slice(0,10);
+}
+function recordStitchActivity(completedCount,undoneCount,colourId){
+  if((completedCount+undoneCount)===0)return;
+  const now=new Date();
+  lastActivityRef.current=now;
+  if(!currentSessionRef.current){
+    currentSessionRef.current={
+      id:'sess_'+Date.now(),
+      date:getStitchingDate(now),
+      startTime:now.toISOString(),
+      stitchesCompleted:0,
+      stitchesUndone:0,
+      coloursWorked:new Set(),
+    };
+  }
+  currentSessionRef.current.stitchesCompleted+=completedCount;
+  currentSessionRef.current.stitchesUndone+=undoneCount;
+  if(colourId&&colourId!=='__skip__'&&colourId!=='__empty__'){
+    currentSessionRef.current.coloursWorked.add(colourId);
+  }
+  clearTimeout(idleTimerRef.current);
+  idleTimerRef.current=setTimeout(()=>finaliseSession(),IDLE_THRESHOLD_MS);
+}
+function finaliseSession(){
+  const session=currentSessionRef.current;
+  if(!session||(session.stitchesCompleted+session.stitchesUndone===0)){
+    currentSessionRef.current=null;
+    return;
+  }
+  const endTime=lastActivityRef.current||new Date();
+  const startTime=new Date(session.startTime);
+  const finalisedSession={
+    id:session.id,
+    date:session.date,
+    startTime:session.startTime,
+    endTime:endTime.toISOString(),
+    durationMinutes:Math.max(1,Math.round((endTime-startTime)/60000)),
+    stitchesCompleted:session.stitchesCompleted,
+    stitchesUndone:session.stitchesUndone,
+    netStitches:session.stitchesCompleted-session.stitchesUndone,
+    totalAtEnd:doneCountRef.current,
+    percentAtEnd:totalStitchableRef.current>0?Math.round((doneCountRef.current/totalStitchableRef.current)*1000)/10:0,
+    note:'',
+    coloursWorked:[...session.coloursWorked],
+  };
+  setSessions(prev=>[...prev,finalisedSession]);
+  currentSessionRef.current=null;
+  clearTimeout(idleTimerRef.current);
+}
+function buildFinalisedSessionsSync(){
+  // Used in beforeunload — builds sessions array with any in-flight session, without React state update
+  const cur=currentSessionRef.current;
+  if(!cur||(cur.stitchesCompleted+cur.stitchesUndone===0))return sessionsRef.current;
+  const endTime=lastActivityRef.current||new Date();
+  const startTime=new Date(cur.startTime);
+  const fs={
+    id:cur.id,date:cur.date,startTime:cur.startTime,endTime:endTime.toISOString(),
+    durationMinutes:Math.max(1,Math.round((endTime-startTime)/60000)),
+    stitchesCompleted:cur.stitchesCompleted,stitchesUndone:cur.stitchesUndone,
+    netStitches:cur.stitchesCompleted-cur.stitchesUndone,
+    totalAtEnd:doneCountRef.current,
+    percentAtEnd:totalStitchableRef.current>0?Math.round((doneCountRef.current/totalStitchableRef.current)*1000)/10:0,
+    note:'',coloursWorked:[...cur.coloursWorked],
+  };
+  return[...sessionsRef.current,fs];
+}
+function updateSessionNote(sessionId,text){
+  setSessions(prev=>prev.map(s=>s.id===sessionId?{...s,note:text.trim()}:s));
+  setEditingNoteId(null);
+}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 
 function pushTrackHistory(changes){
@@ -420,7 +509,8 @@ function saveProject(){
     done:done?Array.from(done):null,
     parkMarkers,
     totalTime:totalTime+(sessionActive?Math.floor((Date.now()-sessionStart)/1000):0),
-    sessions,
+    sessions:buildFinalisedSessionsSync(),
+    statsSettings,
     hlRow,
     hlCol,
     threadOwned,
@@ -608,6 +698,9 @@ function processLoadedProject(project){
   setParkMarkers(project.parkMarkers||[]);
   setTotalTime(project.totalTime||0);
   setSessions(project.sessions||[]);
+  setStatsSettings(project.statsSettings||{dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null});
+  currentSessionRef.current=null;
+  clearTimeout(idleTimerRef.current);
   if(project.hlRow>=0)setHlRow(project.hlRow);
   if(project.hlCol>=0)setHlCol(project.hlCol);
   projectIdRef.current = project.id || null;
@@ -785,7 +878,7 @@ useEffect(() => {
     pattern: pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb }),
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
     totalTime: totalTime + (sessionActive ? Math.floor((Date.now() - sessionStart) / 1000) : 0),
-    sessions, hlRow, hlCol, threadOwned, originalPaletteState,
+    sessions, statsSettings, hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr
   };
   lastSnapshotRef.current = project;
@@ -802,15 +895,20 @@ useEffect(() => {
     }
   }, 5000);
   return () => clearTimeout(saveTimer);
-}, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
+}, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, statsSettings, hlRow, hlCol, threadOwned,
     halfStitches, halfDone, singleStitchEdits, sessionActive, sessionStart,
     sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
+// Also finalises any in-flight stats session synchronously.
 useEffect(() => {
   const handleBeforeUnload = () => {
-    const project = lastSnapshotRef.current;
-    if (!project) return;
+    const baseProject = lastSnapshotRef.current;
+    if (!baseProject) return;
+    const finalSessions = buildFinalisedSessionsSync();
+    const project = finalSessions !== sessionsRef.current
+      ? { ...baseProject, sessions: finalSessions }
+      : baseProject;
     ProjectStorage.save(project)
       .then(id => ProjectStorage.setActiveProject(id))
       .catch(err => console.error("Tracker unload auto-save failed:", err));
@@ -819,7 +917,7 @@ useEffect(() => {
   };
   window.addEventListener("beforeunload", handleBeforeUnload);
   return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-}, []); // intentionally empty: handler always reads from the ref, never stale
+}, []); // intentionally empty: handler reads from refs, never stale
 
 // ═══ Half-stitch cell rendering ═══
 // Renders half-stitch triangle fills, diagonal lines, and symbols for one cell.
@@ -1336,6 +1434,14 @@ function handleStitchMouseLeave(){
 function handleMouseUp(){
   if(isPanning){setIsPanning(false);return;}
   if(dragStateRef.current.isDragging&&dragChangesRef.current.length>0){
+    const dVal=dragStateRef.current.dragVal;
+    const n=dragChangesRef.current.length;
+    if(n>0&&stitchMode==="track"){
+      const firstIdx=dragChangesRef.current[0].idx;
+      const colourId=pat&&pat[firstIdx]?pat[firstIdx].id:null;
+      if(dVal===1)recordStitchActivity(n,0,colourId);
+      else recordStitchActivity(0,n,colourId);
+    }
     pushTrackHistory([...dragChangesRef.current]);
     let nd = new Uint8Array(done);
     setDone(nd);
@@ -1582,6 +1688,238 @@ useEffect(()=>{
   return()=>ro.disconnect();
 },[]);
 
+// ═══ Stats helpers ═══
+function _richSessions(ss){return ss.filter(s=>s&&s.id&&s.id.startsWith('sess_'));}
+function _statsTodayStitches(ss){
+  const today=getStitchingDate(new Date());
+  return _richSessions(ss).filter(s=>s.date===today).reduce((sum,s)=>sum+(s.netStitches||0),0);
+}
+function _statsTodayMinutes(ss){
+  const today=getStitchingDate(new Date());
+  return _richSessions(ss).filter(s=>s.date===today).reduce((sum,s)=>sum+(s.durationMinutes||0),0);
+}
+function _statsCompute(ss,totalCompleted,totalStitches){
+  const rs=_richSessions(ss);
+  const totalMinutes=rs.reduce((sum,s)=>sum+(s.durationMinutes||0),0);
+  const totalHours=totalMinutes/60;
+  const stitchesPerHour=totalHours>0.01?Math.round(totalCompleted/totalHours):0;
+  const uniqueDays=new Set(rs.map(s=>s.date)).size;
+  const avgPerDay=uniqueDays>0?Math.round(totalCompleted/uniqueDays):0;
+  const remaining=totalStitches-totalCompleted;
+  const daysRemaining=avgPerDay>0?Math.ceil(remaining/avgPerDay):null;
+  const estimatedDate=daysRemaining?new Date(Date.now()+daysRemaining*86400000):null;
+  return{
+    percent:totalStitches>0?Math.round((totalCompleted/totalStitches)*1000)/10:0,
+    stitchesPerHour,
+    totalTimeFormatted:_fmtDuration(totalMinutes),
+    estimatedCompletion:estimatedDate?estimatedDate.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'—',
+    daysRemaining,avgPerDay,totalMinutes,uniqueDays,
+  };
+}
+function _fmtDuration(minutes){
+  if(!minutes||minutes<1)return '0m';
+  if(minutes<60)return `${minutes}m`;
+  const h=Math.floor(minutes/60),m=minutes%60;
+  return m>0?`${h}h ${m}m`:`${h}h`;
+}
+function _fmtRelDate(dateStr){
+  const today=getStitchingDate(new Date());
+  const yest=new Date();yest.setDate(yest.getDate()-1);
+  const yesterdayStr=getStitchingDate(yest);
+  if(dateStr===today)return'Today';
+  if(dateStr===yesterdayStr)return'Yesterday';
+  try{return new Date(dateStr+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}
+  catch(e){return dateStr;}
+}
+function _fmtTimeRange(startISO,endISO){
+  try{
+    const fmt=iso=>new Date(iso).toLocaleTimeString('en-GB',{hour:'numeric',minute:'2-digit'});
+    return`${fmt(startISO)} – ${fmt(endISO)}`;
+  }catch(e){return'';}
+}
+function _groupByDate(ss){
+  const grouped={};
+  for(const s of ss){if(!grouped[s.date])grouped[s.date]=[];grouped[s.date].push(s);}
+  return grouped;
+}
+
+// ═══ Stats UI components (defined inside TrackerApp to access state) ═══
+function ProgressRing({percent,size=56}){
+  const r=(size/2)-4;
+  const circumference=2*Math.PI*r;
+  const offset=circumference*(1-Math.min(100,Math.max(0,percent))/100);
+  return(
+    <div className="stat-ring" style={{width:size,height:size,position:'relative',flexShrink:0}}>
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{display:'block'}}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--border)" strokeWidth="3"/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#534AB7" strokeWidth="3"
+          strokeDasharray={circumference} strokeDashoffset={offset}
+          transform={`rotate(-90 ${size/2} ${size/2})`} strokeLinecap="round"/>
+      </svg>
+      <span className="stat-ring-label" style={{fontSize:size<=36?8:9}}>{Math.round(percent)}%</span>
+    </div>
+  );
+}
+function MiniStatsBar({sessions:ss,totalCompleted,totalStitches,statsSettings:cfg,onOpenStats,isStatsOpen}){
+  const todaySt=_statsTodayStitches(ss);
+  const todayMin=_statsTodayMinutes(ss);
+  const percent=totalStitches>0?Math.round((totalCompleted/totalStitches)*1000)/10:0;
+  const goal=cfg&&cfg.dailyGoal;
+  return(
+    <div className="mini-stats-bar">
+      <ProgressRing percent={percent} size={36}/>
+      <div className="mini-stats-text">
+        <span className="mini-stats-count">{todaySt.toLocaleString()} stitches today</span>
+        {todayMin>0&&<span className="mini-stats-time">{_fmtDuration(todayMin)}</span>}
+      </div>
+      {goal&&todaySt<goal&&<span className="mini-stats-goal-badge">{(goal-todaySt).toLocaleString()} to goal</span>}
+      {goal&&todaySt>=goal&&<span className="mini-stats-goal-met">Goal reached!</span>}
+      <button className="mini-stats-btn" onClick={onOpenStats} style={{marginLeft:'auto'}}>
+        {isStatsOpen?'← Back':'Stats →'}
+      </button>
+    </div>
+  );
+}
+function OverviewCards({sessions:ss,totalCompleted,totalStitches}){
+  const stats=_statsCompute(ss,totalCompleted,totalStitches);
+  return(
+    <div className="stats-overview">
+      <div className="stats-overview-main">
+        <ProgressRing percent={stats.percent} size={56}/>
+        <div>
+          <div className="stats-big-number">{totalCompleted.toLocaleString()}</div>
+          <div className="stats-label">of {totalStitches.toLocaleString()} stitches</div>
+        </div>
+      </div>
+      <div className="stats-overview-grid">
+        <div className="stats-card"><span className="stats-label">Speed</span><span className="stats-value">{stats.stitchesPerHour>0?`${stats.stitchesPerHour.toLocaleString()}/hr`:'—'}</span></div>
+        <div className="stats-card"><span className="stats-label">Time stitched</span><span className="stats-value">{stats.totalMinutes>0?stats.totalTimeFormatted:'—'}</span></div>
+        <div className="stats-card"><span className="stats-label">Est. finish</span><span className="stats-value">{stats.estimatedCompletion}</span></div>
+        <div className="stats-card"><span className="stats-label">Sessions</span><span className="stats-value">{_richSessions(ss).length}</span></div>
+      </div>
+    </div>
+  );
+}
+function NoteEditor({sessionId,currentNote,onSave}){
+  const[text,setText]=React.useState(currentNote||'');
+  const inputRef=React.useRef(null);
+  React.useEffect(()=>{inputRef.current&&inputRef.current.focus();},[]);
+  return(
+    <div className="note-editor">
+      <input ref={inputRef} type="text" value={text}
+        onChange={e=>setText(e.target.value)}
+        onKeyDown={e=>{if(e.key==='Enter')onSave(sessionId,text);else if(e.key==='Escape')onSave(sessionId,currentNote||'');}}
+        onBlur={()=>onSave(sessionId,text)}
+        placeholder="Add a note about this session…"
+        maxLength={200}
+      />
+    </div>
+  );
+}
+function SessionTimeline({sessions:ss,editingNoteId:eId,setEditingNoteId,onUpdateNote,showAll,setShowAll}){
+  const rich=_richSessions(ss);
+  const sorted=[...rich].sort((a,b)=>b.startTime.localeCompare(a.startTime));
+  const shown=showAll?sorted:sorted.slice(0,10);
+  if(rich.length===0){
+    return(
+      <div className="timeline-empty">
+        <p style={{fontSize:13,color:'var(--text-secondary)',textAlign:'center',margin:'24px 0'}}>
+          No sessions recorded yet.<br/>Mark some stitches to start your journal!
+        </p>
+      </div>
+    );
+  }
+  const grouped=_groupByDate(shown);
+  return(
+    <div className="session-timeline">
+      <div className="timeline-track">
+        {Object.entries(grouped).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,daySessions])=>(
+          <React.Fragment key={date}>
+            <div className="timeline-date-label">{_fmtRelDate(date)}</div>
+            {daySessions.map(session=>(
+              <div key={session.id} className="timeline-entry">
+                <div className="timeline-dot"/>
+                <div className="timeline-content">
+                  <div className="timeline-header">
+                    <span className="timeline-time">{_fmtTimeRange(session.startTime,session.endTime)}</span>
+                  </div>
+                  <div className="timeline-stats">
+                    <span className="timeline-stitches">{session.netStitches>0?`+${session.netStitches.toLocaleString()}`:session.netStitches.toLocaleString()} stitches</span>
+                    {session.durationMinutes>0&&<span className="timeline-duration">{_fmtDuration(session.durationMinutes)}</span>}
+                    {session.stitchesUndone>0&&<span className="timeline-undone">({session.stitchesUndone} frogged)</span>}
+                  </div>
+                  {eId===session.id
+                    ?<NoteEditor sessionId={session.id} currentNote={session.note} onSave={(id,txt)=>onUpdateNote(id,txt)}/>
+                    :session.note
+                      ?<p className="timeline-note">"{session.note}"</p>
+                      :null
+                  }
+                  {eId!==session.id&&<button className="timeline-add-note" onClick={()=>setEditingNoteId(session.id)}>
+                    {session.note?'Edit note':'+ Add note'}
+                  </button>}
+                </div>
+              </div>
+            ))}
+          </React.Fragment>
+        ))}
+      </div>
+      {rich.length>10&&!showAll&&<button className="timeline-show-all" onClick={()=>setShowAll(true)}>View all {rich.length} sessions</button>}
+      {showAll&&rich.length>10&&<button className="timeline-show-all" onClick={()=>setShowAll(false)}>Show less</button>}
+    </div>
+  );
+}
+function StatsSettings({statsSettings:cfg,onUpdate}){
+  return(
+    <div className="stats-settings">
+      <h3 style={{fontSize:14,fontWeight:600,marginBottom:12,color:'var(--text-primary)'}}>Settings</h3>
+      <div className="stats-settings-grid">
+        <label className="stats-settings-label">
+          Daily goal
+          <input type="number" min={0} max={9999} placeholder="e.g. 300"
+            value={cfg.dailyGoal||''} onChange={e=>{const v=parseInt(e.target.value);onUpdate({dailyGoal:v>0?v:null});}}
+            style={{width:90,padding:'4px 8px',borderRadius:6,border:'0.5px solid var(--border)',fontSize:12}}
+          />
+        </label>
+        <label className="stats-settings-label">
+          Target finish date
+          <input type="date" value={cfg.targetDate||''} onChange={e=>onUpdate({targetDate:e.target.value||null})}
+            style={{padding:'4px 8px',borderRadius:6,border:'0.5px solid var(--border)',fontSize:12}}
+          />
+        </label>
+        <label className="stats-settings-label">
+          Day ends at
+          <select value={cfg.dayEndHour||0} onChange={e=>onUpdate({dayEndHour:parseInt(e.target.value)})}
+            style={{padding:'4px 8px',borderRadius:6,border:'0.5px solid var(--border)',fontSize:12}}>
+            <option value={0}>Midnight (default)</option>
+            <option value={1}>1:00 AM</option>
+            <option value={2}>2:00 AM</option>
+            <option value={3}>3:00 AM</option>
+            <option value={4}>4:00 AM</option>
+            <option value={5}>5:00 AM</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  );
+}
+function StatsDashboard({sessions:ss,totalCompleted,totalStitches,statsSettings:cfg,onUpdateSettings,editingNoteId,setEditingNoteId,onUpdateNote,showAllSessions,setShowAllSessions}){
+  return(
+    <div className="stats-dashboard">
+      <OverviewCards sessions={ss} totalCompleted={totalCompleted} totalStitches={totalStitches}/>
+      <h3 className="stats-section-heading">Session journal</h3>
+      <SessionTimeline
+        sessions={ss}
+        editingNoteId={editingNoteId}
+        setEditingNoteId={setEditingNoteId}
+        onUpdateNote={onUpdateNote}
+        showAll={showAllSessions}
+        setShowAll={setShowAllSessions}
+      />
+      <StatsSettings statsSettings={cfg} onUpdate={onUpdateSettings}/>
+    </div>
+  );
+}
+
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
@@ -1628,6 +1966,7 @@ return(
   <div className="tb-sdiv"/>
   <div className={"tb-grp"+(tStripCollapsed.view?" tb-hidden":"")}>
     {[['symbol','Sym'],['colour','Col+Sym'],['highlight','HL']].map(([k,l])=><button key={k} className={"tb-btn"+(stitchView===k?" tb-btn--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>)}
+    <button className={"tb-btn"+(stitchView==="stats"?" tb-btn--on":"")} onClick={()=>{if(stitchView!=="stats")finaliseSession();setStitchView("stats");setFocusColour(null);}} title="Stats &amp; session journal">Stats</button>
   </div>
   {stitchView==="highlight"&&<>
     <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fafafa",cursor:"pointer",lineHeight:1}} title="Previous colour">◀</button>
@@ -1670,6 +2009,7 @@ return(
         </>}
         {tStripCollapsed.view&&<><span className="tb-ovf-lbl">View</span>
           {[['symbol','Symbol'],['colour','Col+Symbol'],['highlight','Highlight']].map(([k,l])=><button key={k} className={"tb-ovf-item"+(stitchView===k?" tb-ovf-item--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}setTOverflowOpen(false);}}>{l}{stitchView===k?" ✓":""}</button>)}
+          <button className={"tb-ovf-item"+(stitchView==="stats"?" tb-ovf-item--on":"")} onClick={()=>{if(stitchView!=="stats")finaliseSession();setStitchView("stats");setFocusColour(null);setTOverflowOpen(false);}}>Stats{stitchView==="stats"?" ✓":""}</button>
           <div className="tb-ovf-sep"/>
         </>}
         {stitchMode==="navigate"&&<><span className="tb-ovf-lbl">Parking</span>
@@ -1711,6 +2051,14 @@ return(
   <div className="tb-progress-bar"><div className={progressPct>=100?"tb-progress-fill tb-progress-fill--done":"tb-progress-fill"} style={{width:Math.min(progressPct,100)+"%"}}/></div>
   <span className="tb-progress-rem">{progressPct>=100?"Complete!":Math.ceil(combinedTotal-combinedDone).toLocaleString()+" remaining"}</span>
 </div></div>}
+{pat&&pal&&!isEditMode&&<MiniStatsBar
+  sessions={sessions}
+  totalCompleted={doneCount}
+  totalStitches={totalStitchable}
+  statsSettings={statsSettings}
+  onOpenStats={()=>{finaliseSession();setStitchView("stats");}}
+  isStatsOpen={stitchView==="stats"}
+/>}
 </>}
 <div className="cs-page-content" style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
@@ -1841,6 +2189,20 @@ return(
       <button onClick={()=>setHalfToast(null)} style={{fontSize:11,padding:"2px 10px",borderRadius:6,border:"1px solid #e4e4e7",background:"#fff",color:"#71717a",cursor:"pointer"}}>Keep</button>
     </div>}
 
+    {stitchView==="stats"
+      ? <StatsDashboard
+          sessions={sessions}
+          totalCompleted={doneCount}
+          totalStitches={totalStitchable}
+          statsSettings={statsSettings}
+          onUpdateSettings={updates=>setStatsSettings(prev=>({...prev,...updates}))}
+          editingNoteId={editingNoteId}
+          setEditingNoteId={setEditingNoteId}
+          onUpdateNote={updateSessionNote}
+          showAllSessions={showAllSessions}
+          setShowAllSessions={setShowAllSessions}
+        />
+      : <>
     <div ref={stitchScrollRef} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitch();scrollRafRef.current=null;})}}} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid #e4e4e7",borderRadius:"8px 8px 0 0",background:"#f4f4f5",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?"crosshair":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
       <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: '#fff', borderBottom: '1px solid #e4e4e7' }}>
         <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: '#fff', borderRight: '1px solid #e4e4e7', zIndex: 4 }}></div>
@@ -1940,6 +2302,7 @@ return(
           </>}
         </div>;})}</div>
     </div>}
+    </>}
 
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <Section title="Thread Organiser">
