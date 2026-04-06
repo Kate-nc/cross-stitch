@@ -10,12 +10,14 @@ const[stitchSpeed,setStitchSpeed]=useState(40);
 
 const[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
+const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
 const [pdfSettings, setPdfSettings] = useState({ chartStyle: 'symbols', cellSize: 3, paper: 'a4', orientation: 'portrait', gridInterval: 10, gridNumbers: true, centerMarks: true, legendLocation: 'separate', legendColumns: 2, coverPage: true, progressOverlay: false, separateBackstitch: false });
 const showCtr=true;
 const[bsLines,setBsLines]=useState([]);
 
 const[done,setDone]=useState(null);
 const[trackHistory,setTrackHistory]=useState([]);
+const[redoStack,setRedoStack]=useState([]);
 const TRACK_HISTORY_MAX=50;
 
 const[sessionActive,setSessionActive]=useState(false),[sessionStart,setSessionStart]=useState(null);
@@ -86,6 +88,8 @@ const[isPanning,setIsPanning]=useState(false);
 const panStart=useRef({x:0,y:0,scrollX:0,scrollY:0});
 const stitchScrollRef=useRef(null);
 const isSpaceDownRef=useRef(false);
+const spaceDownTimeRef=useRef(0);
+const spacePannedRef=useRef(false);
 const touchStateRef=useRef({mode:"none",startX:0,startY:0,pinchDist:0,tapIdx:-1,tapVal:0,pinchAnchorCanvas:null,pinchAnchorScreen:null});
 const stitchZoomRef=useRef(1);
 const hasTouchRef=useRef(typeof window!=="undefined"&&"ontouchstart" in window);
@@ -405,14 +409,27 @@ function pushTrackHistory(changes){
   // Track colours for auto-session
   if(pat){for(let i=0;i<changes.length;i++){const id=pat[changes[i].idx]&&pat[changes[i].idx].id;if(id&&id!=='__skip__'&&id!=='__empty__')pendingColoursRef.current.add(id);}}
   setTrackHistory(prev=>{let n=[...prev,changes];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  setRedoStack([]);
 }
 function undoTrack(){
   if(!trackHistory.length||!done)return;
   let last=trackHistory[trackHistory.length-1];
   let nd=new Uint8Array(done);
+  let redoEntry=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
   setDone(nd);
   setTrackHistory(prev=>prev.slice(0,-1));
+  setRedoStack(prev=>{let n=[...prev,redoEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+}
+function redoTrack(){
+  if(!redoStack.length||!done)return;
+  let last=redoStack[redoStack.length-1];
+  let nd=new Uint8Array(done);
+  let undoEntry=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
+  for(let c of last)nd[c.idx]=c.oldVal;
+  setDone(nd);
+  setRedoStack(prev=>prev.slice(0,-1));
+  setTrackHistory(prev=>{let n=[...prev,undoEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
 }
 
 // --- V2 Edit functions ---
@@ -792,7 +809,7 @@ function processLoadedProject(project){
     setHalfDone(new Map());
   }
   setHalfStitchTool(null);
-  setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);
+  setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);setRedoStack([]);
   if(project.settings && project.settings.pdfSettings) setPdfSettings(project.settings.pdfSettings);
   setThreadOwned(project.threadOwned||{});
   if(project.done&&project.done.length===restored.length)setDone(new Uint8Array(project.done));
@@ -1582,6 +1599,7 @@ function handleMouseUp(){
 function startPan(e){
   if(!stitchScrollRef.current)return;
   setIsPanning(true);
+  if(isSpaceDownRef.current)spacePannedRef.current=true;
   panStart.current={x:e.clientX,y:e.clientY,scrollX:stitchScrollRef.current.scrollLeft,scrollY:stitchScrollRef.current.scrollTop};
 }
 function doPan(e){
@@ -1731,58 +1749,61 @@ const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned
 
 useEffect(()=>{
   function handleKeyDown(e){
-    if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName))return;
-    // Ctrl+Z / Cmd+Z — undo
-    if((e.ctrlKey||e.metaKey)&&e.key==="z"){
-      e.preventDefault();
-      if(isEditMode){applyUndo();}else{undoTrack();}
-      return;
-    }
-    // Ctrl+S / Cmd+S — save
-    if((e.ctrlKey||e.metaKey)&&e.key==="s"){
-      e.preventDefault();
-      saveProject();
-      return;
-    }
-    // Escape — dismiss UI in priority order
+    if(["INPUT","SELECT","TEXTAREA","BUTTON","A"].includes(document.activeElement?.tagName)||document.activeElement?.isContentEditable)return;
+    const mod=e.ctrlKey||e.metaKey;
+    if(mod&&!e.shiftKey&&e.key==="z"){e.preventDefault();if(isEditMode&&undoSnapshot){applyUndo();}else if(!isEditMode){undoTrack();}return;}
+    if((mod&&e.key==="y")||(mod&&e.shiftKey&&e.key==="z")){e.preventDefault();if(!isEditMode)redoTrack();return;}
+    if(mod&&e.key==="s"){e.preventDefault();if(pat&&pal)saveProject();return;}
+    if(mod)return;
+    if(e.code==="Space"){e.preventDefault();if(!isSpaceDownRef.current){isSpaceDownRef.current=true;spaceDownTimeRef.current=Date.now();spacePannedRef.current=false;}return;}
     if(e.key==="Escape"){
+      if(halfDisambig){setHalfDisambig(null);return;}
       if(namePromptOpen){setNamePromptOpen(false);return;}
       if(modal){setModal(null);return;}
       if(showExitEditModal){setShowExitEditModal(false);return;}
       if(cellEditPopover){setCellEditPopover(null);return;}
       if(importDialog){setImportDialog(null);return;}
       if(halfMenuOpen){setHalfMenuOpen(false);return;}
+      if(halfStitchTool){setHalfStitchTool(null);return;}
+      if(halfToast){setHalfToast(null);return;}
       if(tOverflowOpen){setTOverflowOpen(false);return;}
+      if(focusColour&&stitchView==="highlight"){setFocusColour(null);return;}
       if(drawer){setDrawer(false);return;}
       return;
     }
-    if(e.code==="Space"){e.preventDefault();isSpaceDownRef.current=true;return;}
+    if(e.key==="?"){setModal(m=>m==="shortcuts"?null:"shortcuts");return;}
+    if(!isEditMode){
+      if(e.key==="t"||e.key==="T"){setStitchMode("track");setHalfStitchTool(null);return;}
+      if(e.key==="n"||e.key==="N"){setStitchMode("navigate");setHalfStitchTool(null);return;}
+      if(e.key==="v"||e.key==="V"){
+        const nextView=stitchView==="symbol"?"colour":stitchView==="colour"?"highlight":"symbol";
+        setStitchView(nextView);
+        if(nextView==="highlight"&&!focusColour){const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];if(first)setFocusColour(first.id);}
+        return;
+      }
+    }
+    if(e.key==="d"||e.key==="D"){setDrawer(d=>!d);return;}
+    if(e.key==="="||e.key==="+"){setStitchZoom(z=>Math.min(4,+(z+0.1).toFixed(2)));return;}
+    if(e.key==="-"){setStitchZoom(z=>Math.max(0.3,+(z-0.1).toFixed(2)));return;}
+    if(e.key==="0"){fitSZ();return;}
     if(stitchView==="highlight"&&!isEditMode){
       if(e.key==="ArrowRight"||e.key==="]"){
         e.preventDefault();
-        setFocusColour(prev=>{
-          if(!focusableColors.length)return prev;
-          const idx=focusableColors.findIndex(p=>p.id===prev);
-          return focusableColors[(idx+1)%focusableColors.length].id;
-        });
+        setFocusColour(prev=>{if(!focusableColors.length)return prev;const idx=focusableColors.findIndex(p=>p.id===prev);return focusableColors[(idx+1)%focusableColors.length].id;});
       }else if(e.key==="ArrowLeft"||e.key==="["){
         e.preventDefault();
-        setFocusColour(prev=>{
-          if(!focusableColors.length)return prev;
-          const idx=focusableColors.findIndex(p=>p.id===prev);
-          return focusableColors[(idx<=0?focusableColors.length:idx)-1].id;
-        });
+        setFocusColour(prev=>{if(!focusableColors.length)return prev;const idx=focusableColors.findIndex(p=>p.id===prev);return focusableColors[(idx<=0?focusableColors.length:idx)-1].id;});
       }
     }
   }
   function handleKeyUp(e){
-    if(e.code==="Space")isSpaceDownRef.current=false;
+    if(e.code==="Space"){isSpaceDownRef.current=false;if(!spacePannedRef.current&&Date.now()-spaceDownTimeRef.current<300)toggleSession();spacePannedRef.current=false;}
   }
   if(!isActive)return;
   window.addEventListener("keydown",handleKeyDown);
   window.addEventListener("keyup",handleKeyUp);
   return()=>{window.removeEventListener("keydown",handleKeyDown);window.removeEventListener("keyup",handleKeyUp);};
-},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,halfMenuOpen,tOverflowOpen,drawer]);
+},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,halfMenuOpen,tOverflowOpen,drawer,halfDisambig,halfStitchTool,halfToast,focusColour,pat,pal,undoSnapshot,colourDoneCounts,trackHistory,redoStack]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
@@ -1865,7 +1886,7 @@ return(
 {/* ═══ TRACKER TOOL STRIP ═══ */}
 <div className="tb-strip"><div ref={tStripRef} className="tb-strip-inner">
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
-    <button className={"tb-btn"+(stitchMode==="track"&&!halfStitchTool?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);}} title="Mark full cross stitches as done">
+    <button className={"tb-btn"+(stitchMode==="track"&&!halfStitchTool?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);}} title="Cross stitch (T)">
       <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Cross
     </button>
     <div ref={halfMenuRef} style={{position:"relative",display:"inline-flex"}}>
@@ -1884,7 +1905,7 @@ return(
         </button>
       </div>}
     </div>
-    <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");setHalfStitchTool(null);}} title="Place guide crosshair or park marker">Nav</button>
+    <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");setHalfStitchTool(null);}} title="Navigate (N)">Nav</button>
   </div>
   {(halfStitchTool==="fwd"||halfStitchTool==="bck")&&selectedColorId&&cmap&&cmap[selectedColorId]&&
     <span style={{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,background:"#e0f2fe",flexShrink:0,border:"1px solid #7dd3fc"}}>
@@ -1892,7 +1913,7 @@ return(
     </span>}
   <div className="tb-sdiv"/>
   <div className={"tb-grp"+(tStripCollapsed.view?" tb-hidden":"")}>
-    {[['symbol','Sym'],['colour','Col+Sym'],['highlight','HL']].map(([k,l])=><button key={k} className={"tb-btn"+(stitchView===k?" tb-btn--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>)}
+    {[['symbol','Sym'],['colour','Col+Sym'],['highlight','HL']].map(([k,l])=><button key={k} className={"tb-btn"+(stitchView===k?" tb-btn--on":"")} title="Cycle view (V)" onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>)}
   </div>
   {stitchView==="highlight"&&<>
     <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fafafa",cursor:"pointer",lineHeight:1}} title="Previous colour">◀</button>
@@ -1923,6 +1944,11 @@ return(
   </button>
   <div className="tb-sdiv"/>
   <button className={"tb-btn"+(statsView?" tb-btn--on":"")} onClick={()=>{finaliseAutoSession();setStatsView(v=>!v);}} title="Stats dashboard" style={{flexShrink:0}}>📊 Stats</button>
+  {stitchMode==="track"&&!isEditMode&&(trackHistory.length>0||redoStack.length>0)&&<>
+    <div className="tb-sdiv"/>
+    <button className="tb-btn" onClick={undoTrack} disabled={!trackHistory.length} title="Undo (Ctrl+Z)" style={{opacity:trackHistory.length?1:0.3}}>↩</button>
+    <button className="tb-btn" onClick={redoTrack} disabled={!redoStack.length} title="Redo (Ctrl+Y)" style={{opacity:redoStack.length?1:0.3}}>↪</button>
+  </>}
   <div className="tb-sdiv"/>
   <div className="tb-overflow-wrap" ref={tOverflowRef}>
     <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
@@ -1947,7 +1973,8 @@ return(
           <div className="tb-ovf-sep"/>
         </>}
         {stitchMode==="track"&&trackHistory.length>0&&<button className="tb-ovf-item" onClick={()=>{undoTrack();setTOverflowOpen(false);}}>↩ Undo ({trackHistory.length})</button>}
-        {done&&doneCount>0&&<button className="tb-ovf-item" style={{color:"#dc2626"}} onClick={()=>{if(confirm("Clear all progress?")){setDone(new Uint8Array(pat.length));setTrackHistory([]);}setTOverflowOpen(false);}}>Reset progress</button>}
+        {stitchMode==="track"&&redoStack.length>0&&<button className="tb-ovf-item" onClick={()=>{redoTrack();setTOverflowOpen(false);}}>↪ Redo ({redoStack.length})</button>}
+        {done&&doneCount>0&&<button className="tb-ovf-item" style={{color:"#dc2626"}} onClick={()=>{if(confirm("Clear all progress?")){setDone(new Uint8Array(pat.length));setTrackHistory([]);setRedoStack([]);}setTOverflowOpen(false);}}>Reset progress</button>}
         {pat&&pal&&<button className="tb-ovf-item" onClick={()=>{copyProgressSummary();setTOverflowOpen(false);}}>📋 Copy Progress Summary</button>}
         <div className="tb-ovf-sep"/>
       </>}
@@ -2075,12 +2102,13 @@ return(
     {scs < 6 && !isEditMode && (stitchView === "symbol" || stitchView === "colour") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
 
     {isEditMode && <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>}
-    {!isEditMode && stitchMode==="track"&&!halfStitchTool&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag or middle-click to pan · Ctrl+scroll to zoom"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
+    {!shortcutsHintDismissed&&pat&&!isEditMode&&<div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>💡 Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>}
+    {!isEditMode && stitchMode==="track"&&!halfStitchTool&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
     {!isEditMode && halfStitchTool&&halfStitchTool!=="erase"&&<div style={{fontSize:12,color:"#0284c7",background:"#e0f2fe",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #7dd3fc"}}>
       <strong>Half stitch {halfStitchTool==="fwd"?"/":"\\"}</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to place{selectedColorId&&cmap&&cmap[selectedColorId]?` using DMC ${selectedColorId}`:" using cell colour"}. {hasTouchRef.current?"Tap":"Click"} again to remove. Counts as 0.5 stitch.
     </div>}
     {!isEditMode && halfStitchTool==="erase"&&<div style={{fontSize:12,color:"#dc2626",background:"#fef2f2",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #fecaca"}}><strong>Erase mode</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to remove all half stitches from it.</div>}
-    {!isEditMode && stitchMode==="navigate"&&<div style={{fontSize:12,color:"#18181b",background:"#f4f4f5",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}</div>}
+    {!isEditMode && stitchMode==="navigate"&&<div style={{fontSize:12,color:"#18181b",background:"#f4f4f5",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>}
     {advanceToast&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #bbf7d0",fontWeight:600}}>✓ Complete! Next: {advanceToast}</div>}
 
     {/* Half stitch onboarding walkthrough */}
@@ -2398,6 +2426,7 @@ return(
 
   {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
+  {modal==="shortcuts"&&<SharedModals.Shortcuts onClose={()=>setModal(null)} page="tracker" />}
 
 
   {modal==="deduct_prompt"&&<div className="modal-overlay" onClick={()=>{setModal(null);setStashDeducted(true);}}>
