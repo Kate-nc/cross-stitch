@@ -157,7 +157,6 @@ const prevSW=useRef(sW),prevSH=useRef(sH);
 const projectIdRef=useRef(null); // persists across renders without causing re-renders
 const[projectName,setProjectName]=useState("");
 const[namePromptOpen,setNamePromptOpen]=useState(false);
-const namePromptResolveRef=useRef(null);
 const G=28;
 
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++)if(pat[i].id!=="__skip__"&&pat[i].id!=="__empty__")c++;return c;},[pat]);
