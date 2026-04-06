@@ -908,7 +908,6 @@ function loadProject(e){
       return importer.import(f);
     }).then(project => {
       if (!project.name) project.name = baseName;
-      if (!project.id) project.id = "proj_" + Date.now();
       processLoadedProject(project);
       ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Import save failed:", err));
       setLoadError(null);
