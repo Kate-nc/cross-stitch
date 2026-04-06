@@ -16,7 +16,7 @@ const STITCHES = [
   { id:"stemstitch",name:"Stem",desc:"Outline stitch",color:"#64748b"},
 ];
 
-const DMC=[
+const EMB_COLORS=[
   {c:"310",n:"Black",h:"#000000"},{c:"blanc",n:"White",h:"#FFFFFF"},
   {c:"321",n:"Red",h:"#CC3333"},{c:"666",n:"Bright Red",h:"#E30000"},
   {c:"498",n:"Dark Red",h:"#880022"},{c:"815",n:"Garnet",h:"#771133"},
@@ -46,7 +46,7 @@ const DMC=[
 ];
 
 const hex2rgb=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
-function closestDMC(r,g,b){let best=DMC[0],bd=1e9;for(const c of DMC){const[cr,cg,cb]=hex2rgb(c.h);const d=(r-cr)**2+(g-cg)**2+(b-cb)**2;if(d<bd){bd=d;best=c;}}return best;}
+function closestDMC(r,g,b){let best=EMB_COLORS[0],bd=1e9;for(const c of EMB_COLORS){const[cr,cg,cb]=hex2rgb(c.h);const d=(r-cr)**2+(g-cg)**2+(b-cb)**2;if(d<bd){bd=d;best=c;}}return best;}
 function suggestStitch(a){if(a<500)return"frenchknot";if(a<2500)return"satin";if(a<8000)return"longshort";return"chainstitch";}
 function ptIn(pts,px,py){let ins=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const[xi,yi]=pts[i],[xj,yj]=pts[j];if((yi>py)!==(yj>py)&&px<(xj-xi)*(py-yi)/(yj-yi)+xi)ins=!ins;}return ins;}
 function pArea(pts){let a=0;for(let i=0,j=pts.length-1;i<pts.length;j=i++)a+=(pts[j][0]+pts[i][0])*(pts[j][1]-pts[i][1]);return Math.abs(a/2);}
@@ -443,7 +443,7 @@ function EmbroideryApp(){
             <div>
               <label className="emb-label">DMC Thread</label>
               <div className="emb-dmc-grid">
-                {DMC.filter(c=>{const[cr,cg,cb]=hex2rgb(c.h);return(sel.avgColor[0]-cr)**2+(sel.avgColor[1]-cg)**2+(sel.avgColor[2]-cb)**2<28000;}).slice(0,14).map(c=>(
+                {EMB_COLORS.filter(c=>{const[cr,cg,cb]=hex2rgb(c.h);return(sel.avgColor[0]-cr)**2+(sel.avgColor[1]-cg)**2+(sel.avgColor[2]-cb)**2<28000;}).slice(0,14).map(c=>(
                   <button key={c.c} onClick={()=>updateR(sel.id,{dmc:c})} title={`DMC ${c.c} — ${c.n}`}
                     className={'emb-dmc-swatch'+(sel.dmc.c===c.c?' emb-dmc-swatch--active':'')} style={{background:c.h}}/>))}
               </div>
