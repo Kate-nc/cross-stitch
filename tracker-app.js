@@ -16,6 +16,7 @@ const[bsLines,setBsLines]=useState([]);
 
 const[done,setDone]=useState(null);
 const[trackHistory,setTrackHistory]=useState([]);
+const[redoStack,setRedoStack]=useState([]);
 const TRACK_HISTORY_MAX=50;
 
 const[sessionActive,setSessionActive]=useState(false),[sessionStart,setSessionStart]=useState(null);
@@ -405,14 +406,27 @@ function pushTrackHistory(changes){
   // Track colours for auto-session
   if(pat){for(let i=0;i<changes.length;i++){const id=pat[changes[i].idx]&&pat[changes[i].idx].id;if(id&&id!=='__skip__'&&id!=='__empty__')pendingColoursRef.current.add(id);}}
   setTrackHistory(prev=>{let n=[...prev,changes];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  setRedoStack([]);
 }
 function undoTrack(){
   if(!trackHistory.length||!done)return;
   let last=trackHistory[trackHistory.length-1];
   let nd=new Uint8Array(done);
+  let redoEntry=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
   setDone(nd);
   setTrackHistory(prev=>prev.slice(0,-1));
+  setRedoStack(prev=>{let n=[...prev,redoEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+}
+function redoTrack(){
+  if(!redoStack.length||!done)return;
+  let last=redoStack[redoStack.length-1];
+  let nd=new Uint8Array(done);
+  let undoEntry=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
+  for(let c of last)nd[c.idx]=c.oldVal;
+  setDone(nd);
+  setRedoStack(prev=>prev.slice(0,-1));
+  setTrackHistory(prev=>{let n=[...prev,undoEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
 }
 
 // --- V2 Edit functions ---
@@ -1923,6 +1937,11 @@ return(
   </button>
   <div className="tb-sdiv"/>
   <button className={"tb-btn"+(statsView?" tb-btn--on":"")} onClick={()=>{finaliseAutoSession();setStatsView(v=>!v);}} title="Stats dashboard" style={{flexShrink:0}}>📊 Stats</button>
+  {stitchMode==="track"&&!isEditMode&&(trackHistory.length>0||redoStack.length>0)&&<>
+    <div className="tb-sdiv"/>
+    <button className="tb-btn" onClick={undoTrack} disabled={!trackHistory.length} title="Undo (Ctrl+Z)" style={{opacity:trackHistory.length?1:0.3}}>↩</button>
+    <button className="tb-btn" onClick={redoTrack} disabled={!redoStack.length} title="Redo (Ctrl+Y)" style={{opacity:redoStack.length?1:0.3}}>↪</button>
+  </>}
   <div className="tb-sdiv"/>
   <div className="tb-overflow-wrap" ref={tOverflowRef}>
     <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
@@ -1947,7 +1966,8 @@ return(
           <div className="tb-ovf-sep"/>
         </>}
         {stitchMode==="track"&&trackHistory.length>0&&<button className="tb-ovf-item" onClick={()=>{undoTrack();setTOverflowOpen(false);}}>↩ Undo ({trackHistory.length})</button>}
-        {done&&doneCount>0&&<button className="tb-ovf-item" style={{color:"#dc2626"}} onClick={()=>{if(confirm("Clear all progress?")){setDone(new Uint8Array(pat.length));setTrackHistory([]);}setTOverflowOpen(false);}}>Reset progress</button>}
+        {stitchMode==="track"&&redoStack.length>0&&<button className="tb-ovf-item" onClick={()=>{redoTrack();setTOverflowOpen(false);}}>↪ Redo ({redoStack.length})</button>}
+        {done&&doneCount>0&&<button className="tb-ovf-item" style={{color:"#dc2626"}} onClick={()=>{if(confirm("Clear all progress?")){setDone(new Uint8Array(pat.length));setTrackHistory([]);setRedoStack([]);}setTOverflowOpen(false);}}>Reset progress</button>}
         {pat&&pal&&<button className="tb-ovf-item" onClick={()=>{copyProgressSummary();setTOverflowOpen(false);}}>📋 Copy Progress Summary</button>}
         <div className="tb-ovf-sep"/>
       </>}

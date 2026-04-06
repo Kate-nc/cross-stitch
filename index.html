@@ -120,6 +120,7 @@ const[bsContinuous,setBsContinuous]=useState(false);
 const[selectedColorId,setSelectedColorId]=useState(null);
 const[hoverCoords,setHoverCoords]=useState(null);
 const[editHistory,setEditHistory]=useState([]);
+const[redoHistory,setRedoHistory]=useState([]);
 const[brushMode,setBrushMode]=useState('paint'); // persists paint/fill across stitch type switches
 const[overflowOpen,setOverflowOpen]=useState(false);
 const[stripCollapsed,setStripCollapsed]=useState({view:false,brush:false,bs:false});
@@ -269,7 +270,7 @@ function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);s
 
 function resetAll(){
   setPat(null);setPal(null);setCmap(null);setHiId(null);setBsLines([]);setBsStart(null);
-  setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setExportPage(0);
+  setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setRedoHistory([]);setExportPage(0);
   setDone(null);setParkMarkers([]);setHlRow(-1);setHlCol(-1);
   setTotalTime(0);setSessions([]);setThreadOwned({});
   setConfettiData(null);
@@ -447,7 +448,7 @@ function processLoadedProject(project){
   if(s.stitchSpeed)setStitchSpeed(s.stitchSpeed);
   let restored=project.pattern.map(restoreStitch);
   let{pal:newPal,cmap:newCmap}=buildPalette(restored);
-  setPat(restored);setPal(newPal);setCmap(newCmap);setTab("pattern");setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setSidebarOpen(true);
+  setPat(restored);setPal(newPal);setCmap(newCmap);setTab("pattern");setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setRedoHistory([]);setSidebarOpen(true);
   setThreadOwned(project.threadOwned||{});
   if(project.done&&project.done.length===restored.length)setDone(new Uint8Array(project.done));else setDone(new Uint8Array(restored.length));
   setParkMarkers(project.parkMarkers||[]);setTotalTime(project.totalTime||0);setSessions(project.sessions||[]);
@@ -946,7 +947,7 @@ const generate=useCallback(()=>{
     const cleanConfetti=orphans>0?analyzeConfetti(mapped,sW,sH):rawConfetti;
     setConfettiData({raw:rawConfetti,clean:cleanConfetti});
     let{pal:newPal,cmap:newCmap}=buildPalette(mapped);
-    setPal(newPal);setCmap(newCmap);setPat(mapped);setDone(new Uint8Array(mapped.length));setParkMarkers([]);setTab("pattern");setThreadOwned({});
+    setPal(newPal);setCmap(newCmap);setPat(mapped);setDone(new Uint8Array(mapped.length));setParkMarkers([]);setTab("pattern");setThreadOwned({});setEditHistory([]);setRedoHistory([]);
     if(!hasGenerated){
       setDimOpen(false);setPalOpen(false);setFabOpen(false);setAdjOpen(false);setBgOpen(false);
       setHasGenerated(true);
@@ -1122,8 +1123,8 @@ function handlePatClick(e){
   if((activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap){
     if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
     let pe=cmap[selectedColorId];if(!pe)return;let np=pat.slice();
-    if(activeTool==="fill"){let ch=[],vis=new Set(),q=[idx],tid=pat[idx].id;if(tid===pe.id)return;while(q.length){let id2=q.pop();if(vis.has(id2))continue;vis.add(id2);if(pat[id2].id!==tid)continue;ch.push({idx:id2,old:{...pat[id2]}});let x2=id2%sW,y2=Math.floor(id2/sW);if(x2>0)q.push(id2-1);if(x2<sW-1)q.push(id2+1);if(y2>0)q.push(id2-sW);if(y2<sH-1)q.push(id2+sW);}if(!ch.length)return;setEditHistory(prev=>[...prev,{type:"fill",changes:ch}]);ch.forEach(c2=>np[c2.idx]={...pe});}
-    else{setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}]);np[idx]={...pe};}
+    if(activeTool==="fill"){let ch=[],vis=new Set(),q=[idx],tid=pat[idx].id;if(tid===pe.id)return;while(q.length){let id2=q.pop();if(vis.has(id2))continue;vis.add(id2);if(pat[id2].id!==tid)continue;ch.push({idx:id2,old:{...pat[id2]}});let x2=id2%sW,y2=Math.floor(id2/sW);if(x2>0)q.push(id2-1);if(x2<sW-1)q.push(id2+1);if(y2>0)q.push(id2-sW);if(y2<sH-1)q.push(id2+sW);}if(!ch.length)return;setEditHistory(prev=>[...prev,{type:"fill",changes:ch}]);setRedoHistory([]);ch.forEach(c2=>np[c2.idx]={...pe});}
+    else{setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}]);setRedoHistory([]);np[idx]={...pe};}
     setPat(np);let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);setPal(np2);setCmap(nc);return;
   }
   if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return;let pt={x:gx,y:gy};if(!bsStart)setBsStart(pt);else{setBsLines(prev=>[...prev,{x1:bsStart.x,y1:bsStart.y,x2:pt.x,y2:pt.y}]);setBsStart(bsContinuous?pt:null);}}
@@ -1158,20 +1159,43 @@ function handlePatMouseMove(e){
 
 function handlePatMouseLeave(){setHoverCoords(null);}
 
+function undoEdit(){
+  if(!editHistory.length)return;
+  let last=editHistory[editHistory.length-1];
+  let np=pat.slice();
+  let redoChanges=last.changes.map(c=>({idx:c.idx,old:{...np[c.idx]}}));
+  last.changes.forEach(c=>np[c.idx]={...c.old});
+  setPat(np);setEditHistory(prev=>prev.slice(0,-1));
+  setRedoHistory(prev=>[...prev,{type:last.type,changes:redoChanges}]);
+  let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);
+  setPal(np2);setCmap(nc);
+}
+function redoEdit(){
+  if(!redoHistory.length)return;
+  let last=redoHistory[redoHistory.length-1];
+  let np=pat.slice();
+  let undoChanges=last.changes.map(c=>({idx:c.idx,old:{...np[c.idx]}}));
+  last.changes.forEach(c=>np[c.idx]={...c.old});
+  setPat(np);setRedoHistory(prev=>prev.slice(0,-1));
+  setEditHistory(prev=>[...prev,{type:last.type,changes:undoChanges}]);
+  let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);
+  setPal(np2);setCmap(nc);
+}
+
 useEffect(()=>{
   if(!isActive)return;
   function handleKeyDown(e){
     if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName))return;
     // Ctrl+Z / Cmd+Z — undo
-    if((e.ctrlKey||e.metaKey)&&e.key==="z"){
+    if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==="z"){
       e.preventDefault();
-      if(editHistory.length>0){
-        let last=editHistory[editHistory.length-1],np=pat.slice();
-        last.changes.forEach(c2=>np[c2.idx]={...c2.old});
-        setPat(np);setEditHistory(prev=>prev.slice(0,-1));
-        let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);
-        setPal(np2);setCmap(nc);
-      }
+      undoEdit();
+      return;
+    }
+    // Ctrl+Y / Cmd+Y or Ctrl+Shift+Z — redo
+    if(((e.ctrlKey||e.metaKey)&&e.key==="y")||((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key==="z")||(e.ctrlKey&&e.shiftKey&&e.key==="Z")){
+      e.preventDefault();
+      redoEdit();
       return;
     }
     // Ctrl+S / Cmd+S — save
@@ -1435,7 +1459,8 @@ return(
           <div ref={scrollRef} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(activeTool||halfStitchTool)?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{if(activeTool==="backstitch"&&bsStart){e.preventDefault();setBsStart(null);}}}/></div>
           <div className="tb-status">{stitchType==="cross"?`Cross stitch — ${brushMode==="fill"?"fill":"paint"} mode. Select a colour chip below.`:stitchType==="half-fwd"?"Half stitch / — click cells to place.":stitchType==="half-bck"?"Half stitch \\ — click cells to place.":stitchType==="backstitch"?"Backstitch — click grid intersections. Right-click to cancel.":stitchType==="erase"?"Erase — click to remove stitches and backstitch lines.":"Select a colour chip below, then choose a stitch type above."}</div>
           <div style={{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}}>
-            {editHistory.length>0&&<button onClick={()=>{let last=editHistory[editHistory.length-1],np=pat.slice();last.changes.forEach(c2=>np[c2.idx]={...c2.old});setPat(np);setEditHistory(prev=>prev.slice(0,-1));let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);setPal(np2);setCmap(nc);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
+            {editHistory.length>0&&<button onClick={undoEdit} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
+            {redoHistory.length>0&&<button onClick={redoEdit} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↪ Redo</button>}
             {hiId&&<button onClick={()=>setHiId(null)} style={{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}}>Clear ✕</button>}
           </div>
           {isScratchMode&&(activeTool==="paint"||activeTool==="fill")&&!selectedColorId&&displayPal&&displayPal.length>0&&(
