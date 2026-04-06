@@ -371,7 +371,7 @@ useEffect(()=>{
         const nextSnapshot=hasSession?snapshot:Object.assign({},snapshot,{statsSessions:[...existingSessions,finalisedSession]});
         lastSnapshotRef.current=nextSnapshot;
         try{
-          if(typeof ProjectStorage!=='undefined'&&ProjectStorage&&typeof ProjectStorage.saveProjectToDB==='function')ProjectStorage.saveProjectToDB(nextSnapshot);
+          if(typeof ProjectStorage!=='undefined'&&ProjectStorage&&typeof ProjectStorage.save==='function')ProjectStorage.save(nextSnapshot).catch(function(e){console.warn('Stats: beforeunload save error',e);});
         }catch(saveErr){console.warn('Stats: beforeunload save error',saveErr);}
       }
     }catch(e){console.warn('Stats: beforeunload error',e);}
@@ -608,6 +608,7 @@ function doSaveProject(finalName){
   const hdArr = [...halfDone.entries()];
   let project={
     version:9,
+    id:projectIdRef.current||undefined,
     page:"tracker",
     name:finalName,
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
@@ -1053,7 +1054,7 @@ useEffect(() => {
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
     halfStitches, halfDone, singleStitchEdits, sessionActive, sessionStart,
-    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName]);
+    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 useEffect(() => {

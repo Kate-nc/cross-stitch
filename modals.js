@@ -265,3 +265,30 @@ const SharedModals = {
   },
 
 };
+
+// ═══ Name Prompt Modal ═══
+// Simple modal that asks the user to name their project before the first save.
+function NamePromptModal({ defaultName, onConfirm, onCancel }) {
+  const [name, setName] = React.useState(defaultName || '');
+  const inputRef = React.useRef(null);
+  React.useEffect(() => { if (inputRef.current) inputRef.current.select(); }, []);
+  const handleSubmit = () => { const trimmed = name.trim(); onConfirm(trimmed || defaultName || 'cross-stitch-project'); };
+  return React.createElement('div', { className: 'modal-overlay', onClick: onCancel },
+    React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 400 } },
+      React.createElement('button', { className: 'modal-close', onClick: onCancel }, '×'),
+      React.createElement('h3', { style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: '#18181b' } }, 'Name Your Project'),
+      React.createElement('p', { style: { margin: '0 0 12px', fontSize: 13, color: '#71717a' } }, 'Give your project a name before saving.'),
+      React.createElement('input', {
+        ref: inputRef, type: 'text', maxLength: 60, value: name,
+        onChange: e => setName(e.target.value),
+        onKeyDown: e => { if (e.key === 'Enter') handleSubmit(); if (e.key === 'Escape') onCancel(); },
+        placeholder: 'e.g. Rose Garden',
+        style: { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #e4e4e7', fontSize: 14, boxSizing: 'border-box' }
+      }),
+      React.createElement('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 } },
+        React.createElement('button', { onClick: onCancel, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid #e4e4e7', background: '#fff', cursor: 'pointer' } }, 'Cancel'),
+        React.createElement('button', { onClick: handleSubmit, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#0d9488', color: '#fff', cursor: 'pointer', fontWeight: 600 } }, 'Save')
+      )
+    )
+  );
+}
