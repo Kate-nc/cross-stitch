@@ -1298,6 +1298,11 @@ return(
     <span className="tb-zoom-pct">{Math.round(zoom*100)}%</span>
     <button className="tb-fit-btn" onClick={fitZ}>Fit</button>
   </div>
+  {(editHistory.length>0||redoHistory.length>0)&&<>
+    <div className="tb-sdiv"/>
+    <button className="tb-btn" onClick={undoEdit} disabled={!editHistory.length} title="Undo (Ctrl+Z)" style={{opacity:editHistory.length?1:0.3}}>↩</button>
+    <button className="tb-btn" onClick={redoEdit} disabled={!redoHistory.length} title="Redo (Ctrl+Y)" style={{opacity:redoHistory.length?1:0.3}}>↪</button>
+  </>}
   <div className="tb-sdiv"/>
   {/* Overflow menu */}
   <div className="tb-overflow-wrap" ref={overflowRef}>
