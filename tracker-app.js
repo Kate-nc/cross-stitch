@@ -863,7 +863,9 @@ function loadProject(e){
       try{
         let result = parseOXS(ev.target.result);
         let project = importResultToProject(result, 14, baseName);
-        project.id = "proj_" + Date.now();
+        const importedAt = Date.now();
+        project.id = "proj_" + importedAt;
+        if(!project.createdAt) project.createdAt = importedAt;
         processLoadedProject(project);
         ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Import save failed:", err));
         setImportSuccess(`Imported "${baseName || 'pattern'}" \u2014 ${result.width}\u00d7${result.height}, ${result.paletteSize} colours, ${result.stitchCount} stitches`);
