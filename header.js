@@ -49,11 +49,17 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
               },
               onClick: function(e) { e.stopPropagation(); }
             })
-          : React.createElement('span', {
-              className: 'tb-context-name' + (onNameChange ? ' tb-context-name--editable' : ''),
-              onClick: onNameChange ? function(e) { e.stopPropagation(); setEditing(true); } : undefined,
-              title: onNameChange ? 'Click to rename' : undefined
-            }, name),
+          : onNameChange
+            ? React.createElement('button', {
+                type: 'button',
+                className: 'tb-context-name tb-context-name--editable',
+                onClick: function(e) { e.stopPropagation(); setEditing(true); },
+                title: 'Click to rename'
+              }, name)
+            : React.createElement('span', {
+                className: 'tb-context-name',
+                title: undefined
+              }, name),
         meta && React.createElement('span', { className: 'tb-context-meta' }, meta),
         pct !== null && React.createElement('span', { className: 'tb-context-pct' },
           React.createElement('span', { className: 'tb-context-pct-bar' },
