@@ -26,7 +26,26 @@ const MIME = {
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
-  let filePath = path.join(ROOT, decodeURIComponent(url.pathname));
+
+  let decoded;
+  try {
+    decoded = decodeURIComponent(url.pathname);
+  } catch (_) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('400 Bad Request');
+    return;
+  }
+
+  const resolvedRoot = path.resolve(ROOT);
+  const filePathResolved = path.resolve(ROOT, decoded.replace(/^\//, ''));
+
+  if (!filePathResolved.startsWith(resolvedRoot + path.sep) && filePathResolved !== resolvedRoot) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('403 Forbidden');
+    return;
+  }
+
+  let filePath = filePathResolved;
 
   // Directory → index.html
   if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
