@@ -22,7 +22,7 @@ function stitchesToSkeins({
   const skeinLengthCm = skeinLengthM * 100;
 
   if (!isBlended) {
-    const usablePerSkeinCm = skeinLengthCm * (6 / strandsUsed) * (1 - wasteFactor);
+    const usablePerSkeinCm = skeinLengthCm * 6 * (1 - wasteFactor);
     const skeinsExact = totalThreadCm / usablePerSkeinCm;
     return {
       skeinsExact: Math.round(skeinsExact * 100) / 100,
@@ -35,8 +35,8 @@ function stitchesToSkeins({
   const [strandsA, strandsB] = blendRatio || [1, 1];
   const threadA_cm = totalThreadCm * (strandsA / strandsUsed);
   const threadB_cm = totalThreadCm * (strandsB / strandsUsed);
-  const usableA_cm = skeinLengthCm * (6 / strandsA) * (1 - wasteFactor);
-  const usableB_cm = skeinLengthCm * (6 / strandsB) * (1 - wasteFactor);
+  const usableA_cm = skeinLengthCm * 6 * (1 - wasteFactor);
+  const usableB_cm = skeinLengthCm * 6 * (1 - wasteFactor);
 
   const skeinsA = threadA_cm / usableA_cm;
   const skeinsB = threadB_cm / usableB_cm;
@@ -64,7 +64,7 @@ function skeinsToStitches({
   const holePitchCm = 2.54 / fabricCount;
   const threadPerStitchCm = holePitchCm * 4.8 * strandsUsed;
   const skeinLengthCm = skeinLengthM * 100;
-  const usablePerSkeinCm = skeinLengthCm * (6 / strandsUsed) * (1 - wasteFactor);
+  const usablePerSkeinCm = skeinLengthCm * 6 * (1 - wasteFactor);
   const totalUsableCm = skeinCount * usablePerSkeinCm;
   const stitches = Math.floor(totalUsableCm / threadPerStitchCm);
 
