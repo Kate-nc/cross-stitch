@@ -190,4 +190,78 @@ const SharedModals = {
     );
   },
 
+  Shortcuts: ({ onClose, page }) => {
+    const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform || navigator.userAgent || '');
+    const mod = isMac ? '⌘' : 'Ctrl';
+
+    function kbList(keys) {
+      const out = [];
+      keys.forEach((k, i) => {
+        if (i > 0) out.push(React.createElement('span', { key: 'sl'+i, style: { margin: '0 3px', color: '#a1a1aa', fontSize: 10 } }, '/'));
+        out.push(React.createElement('kbd', { key: 'k'+i }, k));
+      });
+      return React.createElement('span', { style: { whiteSpace: 'nowrap' } }, ...out);
+    }
+
+    function shRow(keys, desc) {
+      return React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 12, padding: '4px 0', borderBottom: '0.5px solid #f4f4f5' } },
+        React.createElement('div', { style: { minWidth: 130, flexShrink: 0 } }, kbList(keys)),
+        React.createElement('div', { style: { fontSize: 13, color: '#71717a' } }, desc)
+      );
+    }
+
+    function section(title, rows) {
+      return React.createElement('div', { style: { marginBottom: 16 } },
+        React.createElement('div', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#a1a1aa', letterSpacing: '0.07em', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid #e4e4e7' } }, title),
+        ...rows
+      );
+    }
+
+    const general = section('General', [
+      shRow([mod+'+Z'], 'Undo'),
+      shRow([mod+'+Y', mod+'+⇧Z'], 'Redo'),
+      shRow([mod+'+S'], 'Save project'),
+      shRow(['Esc'], 'Deselect / dismiss'),
+      shRow(['?'], 'Toggle this help'),
+    ]);
+
+    const pageSection = page === 'creator'
+      ? section('Pattern Editor', [
+          shRow(['1'], 'Cross stitch'),
+          shRow(['2'], 'Half stitch /'),
+          shRow(['3'], 'Half stitch \\'),
+          shRow(['4'], 'Backstitch'),
+          shRow(['5'], 'Erase'),
+          shRow(['P'], 'Paint brush'),
+          shRow(['F'], 'Fill bucket'),
+          shRow(['V'], 'Cycle view mode'),
+          shRow(['+', '−'], 'Zoom in / out'),
+          shRow(['0'], 'Zoom to fit'),
+        ])
+      : section('Stitch Tracker', [
+          shRow(['T'], 'Track mode'),
+          shRow(['N'], 'Navigate mode'),
+          shRow(['Space'], 'Start / stop timer (tap)'),
+          shRow(['V'], 'Cycle view mode'),
+          shRow(['[', ']'], 'Previous / next colour'),
+          shRow(['D'], 'Toggle colour drawer'),
+          shRow(['+', '−'], 'Zoom in / out'),
+          shRow(['0'], 'Zoom to fit'),
+          shRow(['Hold Space + drag'], 'Pan canvas'),
+          shRow([mod+'+scroll'], 'Zoom canvas'),
+        ]);
+
+    return React.createElement('div', { className: 'modal-overlay', onClick: onClose },
+      React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 420, maxHeight: '80vh', overflowY: 'auto' } },
+        React.createElement('button', { className: 'modal-close', onClick: onClose }, '×'),
+        React.createElement('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 20, color: '#18181b' } }, 'Keyboard Shortcuts'),
+        general,
+        pageSection,
+        React.createElement('p', { style: { margin: '8px 0 0', fontSize: 12, color: '#a1a1aa', textAlign: 'center' } },
+          'Press ', React.createElement('kbd', null, '?'), ' anytime to toggle this panel'
+        )
+      )
+    );
+  },
+
 };
