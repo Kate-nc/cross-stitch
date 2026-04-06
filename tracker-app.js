@@ -1844,7 +1844,7 @@ useEffect(()=>{
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat ? () => setModal("pdf_export") : null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} />
 {pat&&pal&&<ContextBar
   name={projectName || (sW + '×' + sH + ' pattern')}
   dimensions={pat ? {width:sW, height:sH} : null}
@@ -2398,9 +2398,7 @@ return(
 
   {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
-  {modal==="calculator"&&<SharedModals.Calculator onClose={()=>setModal(null)} />}
-  {modal==="calculator_batch"&&<SharedModals.Calculator onClose={()=>setModal(null)} initialPatterns={pal} />}
-  {modal==="pdf_export"&&<SharedModals.PdfExport onClose={()=>setModal(null)} initialSettings={pdfSettings} sW={sW} sH={sH} hasTrackingData={doneCount > 0} hasBackstitch={bsLines.length > 0} pal={pal} onExport={(s)=>{setPdfSettings(s);setModal(null);generatePDF({pat, pal, cmap, sW, sH, done, totalStitchable, fabricCt, skeinData, blendCount, totalSkeins, difficulty:null, stitchSpeed, totalTime, sessions, threadOwned, bsLines, imgData:null}, s);}} />}
+
 
   {modal==="deduct_prompt"&&<div className="modal-overlay" onClick={()=>{setModal(null);setStashDeducted(true);}}>
     <div className="modal-content" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>

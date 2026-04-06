@@ -831,7 +831,7 @@ function ManagerApp() {
       )}
       {modal === "help" && <SharedModals.Help onClose={() => setModal(null)} />}
       {modal === "about" && <SharedModals.About onClose={() => setModal(null)} />}
-      {modal === "calculator" && <SharedModals.Calculator onClose={() => setModal(null)} />}
+
     </>
   );
 }

@@ -203,7 +203,6 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
         React.createElement('div', { className: 'tb-sep' }),
 
-        React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('calculator') }, 'Calculator'),
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('help') }, 'Help'),
 
         // File menu dropdown
