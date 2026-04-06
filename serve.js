@@ -40,11 +40,27 @@ const server = http.createServer((req, res) => {
   }
 
   const ext = path.extname(filePath).toLowerCase();
-  res.writeHead(200, {
+  const headers = {
     'Content-Type': MIME[ext] || 'application/octet-stream',
     'Cache-Control': 'no-cache',
+  };
+  const stream = fs.createReadStream(filePath);
+
+  stream.on('open', () => {
+    res.writeHead(200, headers);
+    stream.pipe(res);
   });
-  fs.createReadStream(filePath).pipe(res);
+
+  stream.on('error', (err) => {
+    if (!res.headersSent) {
+      const statusCode = err && err.code === 'ENOENT' ? 404 : 500;
+      res.writeHead(statusCode, { 'Content-Type': 'text/plain' });
+      res.end(statusCode === 404 ? '404 Not Found' : '500 Internal Server Error');
+      return;
+    }
+
+    res.destroy(err);
+  });
 });
 
 server.listen(PORT, () => {
