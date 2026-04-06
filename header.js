@@ -8,19 +8,58 @@
 //   onEdit      – callback to navigate to creator (tracker page only)
 //   onTrack     – callback to navigate to tracker (creator page only)
 //   onSave      – callback to download JSON
-function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onSave, onHome }) {
+//   onNameChange – callback(newName) when user edits the inline name
+function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onSave, onHome, onNameChange }) {
   if (!name) return null;
   const dimStr = dimensions ? `${dimensions.width}×${dimensions.height}` : null;
   const colStr = palette ? `${palette.length} colour${palette.length !== 1 ? 's' : ''}` : null;
   const meta = [dimStr, colStr].filter(Boolean).join(' · ');
 
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(name);
+  const inputRef = React.useRef(null);
+
+  React.useEffect(() => { setDraft(name); }, [name]);
+  React.useEffect(() => { if (editing && inputRef.current) inputRef.current.focus(); }, [editing]);
+
+  function commitName() {
+    setEditing(false);
+    const trimmed = (draft || '').trim().slice(0, 60);
+    if (trimmed && trimmed !== name && onNameChange) onNameChange(trimmed);
+    else setDraft(name);
+  }
+
   return React.createElement('div', { className: 'tb-context-bar' },
     React.createElement('div', { className: 'tb-context-bar-inner' },
       React.createElement('div', {
-        onClick: onHome || undefined,
-        style: { display:'flex', alignItems:'center', gap:6, flex:1, cursor: onHome ? 'pointer' : 'default', minWidth:0 }
+        onClick: !editing ? (onHome || undefined) : undefined,
+        style: { display:'flex', alignItems:'center', gap:6, flex:1, cursor: !editing && onHome ? 'pointer' : 'default', minWidth:0 }
       },
-        React.createElement('span', { className: 'tb-context-name' }, name),
+        editing
+          ? React.createElement('input', {
+              ref: inputRef,
+              className: 'tb-context-name-input',
+              value: draft,
+              maxLength: 60,
+              onChange: function(e) { setDraft(e.target.value); },
+              onBlur: commitName,
+              onKeyDown: function(e) {
+                if (e.key === 'Enter') { e.target.blur(); }
+                else if (e.key === 'Escape') { setDraft(name); setEditing(false); }
+              },
+              onClick: function(e) { e.stopPropagation(); }
+            })
+          : onNameChange
+            ? React.createElement('button', {
+                type: 'button',
+                className: 'tb-context-name tb-context-name--editable',
+                onClick: function(e) { e.stopPropagation(); setEditing(true); },
+                title: 'Click to rename'
+              }, name)
+            : React.createElement('span', {
+                className: 'tb-context-name',
+                title: undefined
+              }, name),
         meta && React.createElement('span', { className: 'tb-context-meta' }, meta),
         pct !== null && React.createElement('span', { className: 'tb-context-pct' },
           React.createElement('span', { className: 'tb-context-pct-bar' },

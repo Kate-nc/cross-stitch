@@ -234,6 +234,9 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tb-context-bar{background:#fafafa;border-bottom:0.5px solid var(--border);padding:0 20px;height:36px;display:flex;align-items:center;gap:12px;}
 .tb-context-bar-inner{max-width:1300px;margin:0 auto;width:100%;display:flex;align-items:center;gap:10px;}
 .tb-context-name{font-size:12px;font-weight:600;color:#18181b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;}
+.tb-context-name--editable{cursor:text;border-bottom:1px dashed transparent;transition:border-color 0.15s;}
+.tb-context-name--editable:hover{border-bottom-color:var(--text-secondary);}
+.tb-context-name-input{font-size:12px;font-weight:600;color:#18181b;border:1px solid var(--accent);border-radius:4px;padding:1px 4px;outline:none;background:#fff;width:220px;max-width:40vw;}
 .tb-context-meta{font-size:11px;color:var(--text-secondary);white-space:nowrap;flex-shrink:0;}
 .tb-context-pct{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;}
 .tb-context-pct-bar{width:60px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
