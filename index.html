@@ -121,7 +121,8 @@ const[selectedColorId,setSelectedColorId]=useState(null);
 const[hoverCoords,setHoverCoords]=useState(null);
 const[editHistory,setEditHistory]=useState([]);
 const[redoHistory,setRedoHistory]=useState([]);
-const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>!!localStorage.getItem("shortcuts_hint_dismissed"));
+const EDIT_HISTORY_MAX=50;
+const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
 const[brushMode,setBrushMode]=useState('paint'); // persists paint/fill across stitch type switches
 const[overflowOpen,setOverflowOpen]=useState(false);
 const[stripCollapsed,setStripCollapsed]=useState({view:false,brush:false,bs:false});
@@ -1124,8 +1125,8 @@ function handlePatClick(e){
   if((activeTool==="paint"||activeTool==="fill")&&selectedColorId&&cmap){
     if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
     let pe=cmap[selectedColorId];if(!pe)return;let np=pat.slice();
-    if(activeTool==="fill"){let ch=[],vis=new Set(),q=[idx],tid=pat[idx].id;if(tid===pe.id)return;while(q.length){let id2=q.pop();if(vis.has(id2))continue;vis.add(id2);if(pat[id2].id!==tid)continue;ch.push({idx:id2,old:{...pat[id2]}});let x2=id2%sW,y2=Math.floor(id2/sW);if(x2>0)q.push(id2-1);if(x2<sW-1)q.push(id2+1);if(y2>0)q.push(id2-sW);if(y2<sH-1)q.push(id2+sW);}if(!ch.length)return;setEditHistory(prev=>[...prev,{type:"fill",changes:ch}]);setRedoHistory([]);ch.forEach(c2=>np[c2.idx]={...pe});}
-    else{setEditHistory(prev=>[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}]);setRedoHistory([]);np[idx]={...pe};}
+    if(activeTool==="fill"){let ch=[],vis=new Set(),q=[idx],tid=pat[idx].id;if(tid===pe.id)return;while(q.length){let id2=q.pop();if(vis.has(id2))continue;vis.add(id2);if(pat[id2].id!==tid)continue;ch.push({idx:id2,old:{...pat[id2]}});let x2=id2%sW,y2=Math.floor(id2/sW);if(x2>0)q.push(id2-1);if(x2<sW-1)q.push(id2+1);if(y2>0)q.push(id2-sW);if(y2<sH-1)q.push(id2+sW);}if(!ch.length)return;setEditHistory(prev=>{let n=[...prev,{type:"fill",changes:ch}];if(n.length>EDIT_HISTORY_MAX)n=n.slice(n.length-EDIT_HISTORY_MAX);return n;});setRedoHistory([]);ch.forEach(c2=>np[c2.idx]={...pe});}
+    else{setEditHistory(prev=>{let n=[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}];if(n.length>EDIT_HISTORY_MAX)n=n.slice(n.length-EDIT_HISTORY_MAX);return n;});setRedoHistory([]);np[idx]={...pe};}
     setPat(np);let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);setPal(np2);setCmap(nc);return;
   }
   if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return;let pt={x:gx,y:gy};if(!bsStart)setBsStart(pt);else{setBsLines(prev=>[...prev,{x1:bsStart.x,y1:bsStart.y,x2:pt.x,y2:pt.y}]);setBsStart(bsContinuous?pt:null);}}
@@ -1167,7 +1168,7 @@ function undoEdit(){
   let redoChanges=last.changes.map(c=>({idx:c.idx,old:{...np[c.idx]}}));
   last.changes.forEach(c=>np[c.idx]={...c.old});
   setPat(np);setEditHistory(prev=>prev.slice(0,-1));
-  setRedoHistory(prev=>[...prev,{type:last.type,changes:redoChanges}]);
+  setRedoHistory(prev=>{let n=[...prev,{type:last.type,changes:redoChanges}];if(n.length>EDIT_HISTORY_MAX)n=n.slice(n.length-EDIT_HISTORY_MAX);return n;});
   let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);
   setPal(np2);setCmap(nc);
 }
@@ -1178,7 +1179,7 @@ function redoEdit(){
   let undoChanges=last.changes.map(c=>({idx:c.idx,old:{...np[c.idx]}}));
   last.changes.forEach(c=>np[c.idx]={...c.old});
   setPat(np);setRedoHistory(prev=>prev.slice(0,-1));
-  setEditHistory(prev=>[...prev,{type:last.type,changes:undoChanges}]);
+  setEditHistory(prev=>{let n=[...prev,{type:last.type,changes:undoChanges}];if(n.length>EDIT_HISTORY_MAX)n=n.slice(n.length-EDIT_HISTORY_MAX);return n;});
   let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);
   setPal(np2);setCmap(nc);
 }

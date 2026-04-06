@@ -10,7 +10,7 @@ const[stitchSpeed,setStitchSpeed]=useState(40);
 
 const[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
-const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>!!localStorage.getItem("shortcuts_hint_dismissed"));
+const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
 const [pdfSettings, setPdfSettings] = useState({ chartStyle: 'symbols', cellSize: 3, paper: 'a4', orientation: 'portrait', gridInterval: 10, gridNumbers: true, centerMarks: true, legendLocation: 'separate', legendColumns: 2, coverPage: true, progressOverlay: false, separateBackstitch: false });
 const showCtr=true;
 const[bsLines,setBsLines]=useState([]);
@@ -89,6 +89,7 @@ const panStart=useRef({x:0,y:0,scrollX:0,scrollY:0});
 const stitchScrollRef=useRef(null);
 const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
+const spacePannedRef=useRef(false);
 const touchStateRef=useRef({mode:"none",startX:0,startY:0,pinchDist:0,tapIdx:-1,tapVal:0,pinchAnchorCanvas:null,pinchAnchorScreen:null});
 const stitchZoomRef=useRef(1);
 const hasTouchRef=useRef(typeof window!=="undefined"&&"ontouchstart" in window);
@@ -808,7 +809,7 @@ function processLoadedProject(project){
     setHalfDone(new Map());
   }
   setHalfStitchTool(null);
-  setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);
+  setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);setRedoStack([]);
   if(project.settings && project.settings.pdfSettings) setPdfSettings(project.settings.pdfSettings);
   setThreadOwned(project.threadOwned||{});
   if(project.done&&project.done.length===restored.length)setDone(new Uint8Array(project.done));
@@ -1598,6 +1599,7 @@ function handleMouseUp(){
 function startPan(e){
   if(!stitchScrollRef.current)return;
   setIsPanning(true);
+  if(isSpaceDownRef.current)spacePannedRef.current=true;
   panStart.current={x:e.clientX,y:e.clientY,scrollX:stitchScrollRef.current.scrollLeft,scrollY:stitchScrollRef.current.scrollTop};
 }
 function doPan(e){
@@ -1747,13 +1749,13 @@ const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned
 
 useEffect(()=>{
   function handleKeyDown(e){
-    if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName))return;
+    if(["INPUT","SELECT","TEXTAREA","BUTTON","A"].includes(document.activeElement?.tagName)||document.activeElement?.isContentEditable)return;
     const mod=e.ctrlKey||e.metaKey;
     if(mod&&!e.shiftKey&&e.key==="z"){e.preventDefault();if(isEditMode&&undoSnapshot){applyUndo();}else if(!isEditMode){undoTrack();}return;}
     if((mod&&e.key==="y")||(mod&&e.shiftKey&&e.key==="z")){e.preventDefault();if(!isEditMode)redoTrack();return;}
     if(mod&&e.key==="s"){e.preventDefault();if(pat&&pal)saveProject();return;}
     if(mod)return;
-    if(e.code==="Space"){e.preventDefault();if(!isSpaceDownRef.current){isSpaceDownRef.current=true;spaceDownTimeRef.current=Date.now();}return;}
+    if(e.code==="Space"){e.preventDefault();if(!isSpaceDownRef.current){isSpaceDownRef.current=true;spaceDownTimeRef.current=Date.now();spacePannedRef.current=false;}return;}
     if(e.key==="Escape"){
       if(halfDisambig){setHalfDisambig(null);return;}
       if(namePromptOpen){setNamePromptOpen(false);return;}
@@ -1795,7 +1797,7 @@ useEffect(()=>{
     }
   }
   function handleKeyUp(e){
-    if(e.code==="Space"){isSpaceDownRef.current=false;if(Date.now()-spaceDownTimeRef.current<300)toggleSession();}
+    if(e.code==="Space"){isSpaceDownRef.current=false;if(!spacePannedRef.current&&Date.now()-spaceDownTimeRef.current<300)toggleSession();spacePannedRef.current=false;}
   }
   if(!isActive)return;
   window.addEventListener("keydown",handleKeyDown);
