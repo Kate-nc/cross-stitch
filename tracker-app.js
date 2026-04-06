@@ -2378,6 +2378,7 @@ return(
             const finalName = (importName || '').trim().slice(0, 60);
             let project = importResultToProject(result, importFabricCt, finalName);
             project.id = "proj_" + Date.now();
+            project.createdAt = project.createdAt || new Date().toISOString();
             processLoadedProject(project);
             ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Import save failed:", err));
             setImportSuccess(`Imported "${finalName || 'image'}" \u2014 ${result.width}\u00d7${result.height}, ${result.paletteSize} colours, ${result.stitchCount} stitches`);
