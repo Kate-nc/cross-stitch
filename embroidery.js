@@ -147,6 +147,13 @@ function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,
   return{mergedLabels,nMerged:nextCId,avgColors};
 }
 
+// ============================================================
+// Magic Wand Tool
+// ============================================================
+
+function sobelMag(data,w,h){const m=new Float32Array(w*h);for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const p=(dx,dy)=>{const i=((y+dy)*w+(x+dx))*4;return 0.2126*data[i]+0.7152*data[i+1]+0.0722*data[i+2];};const gx=-p(-1,-1)-2*p(-1,0)-p(-1,1)+p(1,-1)+2*p(1,0)+p(1,1),gy=-p(-1,-1)-2*p(0,-1)-p(1,-1)+p(-1,1)+2*p(0,1)+p(1,1);m[y*w+x]=Math.sqrt(gx*gx+gy*gy);}return m;}
+function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,occupiedMask){const{data,width:w,height:h}=imageData,N=w*h,thresh=tolerance*2.55;let sr=0,sg=0,sb=0,sc=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const nx=seedX+dx,ny=seedY+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const i=(ny*w+nx)*4;if(data[i+3]<=30)continue;sr+=data[i];sg+=data[i+1];sb+=data[i+2];sc++;}if(!sc)return new Uint8Array(N);sr/=sc;sg/=sc;sb/=sc;const edgeMag=useEdgeSnap?sobelMag(data,w,h):null,mask=new Uint8Array(N),visited=new Uint8Array(N),queue=new Int32Array(N);let head=0,tail=0;const seed=seedY*w+seedX;if(seed<0||seed>=N||data[seed*4+3]<=30||occupiedMask[seed])return mask;visited[seed]=1;queue[tail++]=seed;let sumR=sr,sumG=sg,sumB=sb,cnt=1;while(head<tail){const p=queue[head++],px=p%w,py=(p/w)|0;mask[p]=1;for(const[ddx,ddy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=px+ddx,ny=py+ddy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const ni=ny*w+nx;if(visited[ni]||occupiedMask[ni]||data[ni*4+3]<=30)continue;visited[ni]=1;const r=data[ni*4],g=data[ni*4+1],b=data[ni*4+2],dSeed=Math.sqrt((r-sr)**2+(g-sg)**2+(b-sb)**2),aR=sumR/cnt,aG=sumG/cnt,aB=sumB/cnt,dAvg=Math.sqrt((r-aR)**2+(g-aG)**2+(b-aB)**2);let et=thresh;if(useEdgeSnap&&edgeMag){const eStr=Math.min(1,edgeMag[ni]/180);et=thresh/(1+eStr*edgeFactor);}if(Math.min(dSeed,dAvg)<et){sumR+=r;sumG+=g;sumB+=b;cnt++;queue[tail++]=ni;}}}return mask;}
+
 function autoSegment(imageData,numColors,compactness=10){
   const data=imageData.data;
   // Downscale to max 200px for processing
@@ -221,6 +228,8 @@ function EmbroideryApp(){
   const[dismissed,setDismissed]=useState(new Set());
   const[dragNode,setDragNode]=useState(null); // { regionId, nodeIdx }
   const[compactness,setCompactness]=useState(10);
+  const[wandTolerance,setWandTolerance]=useState(35);
+  const[wandEdgeSnap,setWandEdgeSnap]=useState(true);
 
   const mainC=useRef(null),imgC=useRef(null),fileRef=useRef(null);
   const imgRef=useRef(null),imgDataRef=useRef(null),isDraw=useRef(false);
@@ -241,6 +250,8 @@ function EmbroideryApp(){
 
   const finishDraw=useCallback(()=>{const result=makeRegion(curPts);isDraw.current=false;setCurPts([]);if(!result)return;
     setRegions(p=>[...p,{id:nextId,label:`Region ${nextId}`,...result}]);setNextId(n=>n+1);},[curPts,nextId,makeRegion]);
+
+  const runWand=useCallback((mx,my)=>{if(!imgDataRef.current)return;const sx=Math.max(0,Math.min(CW-1,Math.round(mx))),sy=Math.max(0,Math.min(CH-1,Math.round(my)));const occ=new Uint8Array(CW*CH);for(const r of regions){const b=r.bounds;for(let py=Math.max(0,b.y|0);py<Math.min(CH,(b.y+b.h+1)|0);py++)for(let px=Math.max(0,b.x|0);px<Math.min(CW,(b.x+b.w+1)|0);px++)if(ptIn(r.points,px,py))occ[py*CW+px]=1;}const mask=magicWandFill(imgDataRef.current,sx,sy,wandTolerance,wandEdgeSnap,3.0,occ);const bp=extractBoundary(mask,CW,CH);if(bp.length<10)return;const ord=orderBoundary(bp);if(ord.length<10)return;const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(bp.length)/3)));const ds=downsample(ord,tp);if(ds.length<4)return;let sm=catmull(ds,3);sm=simplify(sm,2);if(sm.length<4)return;let ar=0,ag=0,ab=0,ac=0;const d=imgDataRef.current.data;for(let i=0;i<CW*CH;i++){if(!mask[i])continue;ar+=d[i*4];ag+=d[i*4+1];ab+=d[i*4+2];ac++;}const avgC=ac>0?[Math.round(ar/ac),Math.round(ag/ac),Math.round(ab/ac)]:[180,180,180];const area=pArea(sm),bounds=pBounds(sm);if(bounds.w<8||bounds.h<8)return;const nodes=pointsToNodes(sm,Math.min(20,Math.max(6,Math.floor(Math.sqrt(area)/6))));const curve=buildCurve(nodes);const nid=nextId;setRegions(p=>[...p,{id:nid,label:`Region ${nid}`,nodes,points:curve,bounds:pBounds(curve),avgColor:avgC,dmc:closestDMC(...avgC),stitch:suggestStitch(area),direction:0,area:pArea(curve)}]);setNextId(n=>n+1);setSelId(nid);setEditMode("select");},[regions,wandTolerance,wandEdgeSnap,nextId]);
 
   // Canvas render
   useEffect(()=>{
@@ -337,13 +348,16 @@ function EmbroideryApp(){
       return;
     }
 
+    // Wand mode
+    if(editMode==="wand"){e.preventDefault();runWand(mx,my);return;}
+
     // Draw mode
     if(editMode==="draw"){e.preventDefault();isDraw.current=true;setCurPts([getPos(e)]);return;}
 
     // Select mode — click to select region
     for(let i=regions.length-1;i>=0;i--)if(ptIn(regions[i].points,mx,my)){setSelId(regions[i].id);return;}
     setSelId(null);
-  },[editMode,selId,regions,rebuildRegionCurve]);
+  },[editMode,selId,regions,rebuildRegionCurve,runWand]);
 
   const onMove=useCallback(e=>{
     if(dragNode){
@@ -479,10 +493,24 @@ function EmbroideryApp(){
             ◇ Edit Shape</button>}
           <button className={'tb-btn'+(editMode==="draw"?' tb-btn--on':'')} onClick={()=>{setEditMode("draw");setSelId(null);setDragNode(null);}}>
             ✏️ Add</button>
+          <button className={'tb-btn'+(editMode==="wand"?' tb-btn--on':'')} onClick={()=>{setEditMode("wand");setSelId(null);setDragNode(null);}}>
+            🪄 Wand</button>
         </div>
 
         {/* Context hints */}
         {editMode==="draw"&&<div className="emb-hint emb-hint--teal">Drag on the canvas to draw a new region.</div>}
+        {editMode==="wand"&&<div className="emb-hint emb-hint--teal" style={{marginBottom:6}}>
+          Click anywhere on the image to fill a colour region.
+          <div style={{marginTop:6}}>
+            <label className="emb-label">Tolerance: {wandTolerance}</label>
+            <input type="range" min={0} max={100} value={wandTolerance} onChange={e=>setWandTolerance(+e.target.value)} style={{width:"100%"}}/>
+            <div className="emb-range-labels"><span>Exact</span><span>Loose</span></div>
+          </div>
+          <label style={{display:"flex",alignItems:"center",gap:6,marginTop:6,cursor:"pointer",fontSize:12}}>
+            <input type="checkbox" checked={wandEdgeSnap} onChange={e=>setWandEdgeSnap(e.target.checked)}/>
+            Edge snap
+          </label>
+        </div>}
         {isNodeEdit&&<div className="emb-hint emb-hint--amber">
           <strong>Drag nodes</strong> to reshape. Click a <strong>+</strong> midpoint or any edge to add a node. Double-click a node to remove it (min 3).
         </div>}
@@ -504,7 +532,7 @@ function EmbroideryApp(){
               for(let i=0;i<sel.nodes.length;i++){
                 if((mx-sel.nodes[i][0])**2+(my-sel.nodes[i][1])**2<NODE_HIT**2){
                   deleteNode(sel.id,i);return;}}}}
-            style={{width:"100%",display:"block",cursor:editMode==="draw"?"crosshair":isNodeEdit?"default":"pointer"}}/>
+            style={{width:"100%",display:"block",cursor:(editMode==="draw"||editMode==="wand")?"crosshair":isNodeEdit?"default":"pointer"}}/>          
         </div>
 
         {/* Region editor */}
