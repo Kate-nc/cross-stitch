@@ -7,7 +7,24 @@ const ACCENT_DARK = '#0f766e';
 const ACCENT_LIGHT = '#f0fdfa';
 const ACCENT_BORDER = '#99f6e4';
 
-// Module-level Sobel edge cache: set by autoSegment, reused by magicWandFill
+// ============================================================
+// Pipeline constants
+// ============================================================
+// Bilateral filter (pre-processing, edge-preserving smooth)
+const BILATERAL_KERNEL_RADIUS = 5;    // half-width of 11×11 window
+const BILATERAL_SIGMA_SPATIAL = 10.0; // spatial Gaussian σ (pixels)
+const BILATERAL_SIGMA_RANGE   = 30.0; // range Gaussian σ (0–255 colour scale)
+// Canny edge detection
+const CANNY_BLUR_SIGMA        = 1.4;  // pre-Canny Gaussian σ
+const CANNY_THRESHOLD_LOW     = 30;   // hysteresis low threshold (0–255)
+const CANNY_THRESHOLD_HIGH    = 80;   // hysteresis high threshold (0–255)
+// SLIC cross-edge distance penalty multiplier
+const EDGE_PENALTY_MULTIPLIER = 10.0;
+// Morphological kernel size (must be odd)
+const MORPH_KERNEL_SIZE       = 3;
+
+// Module-level edge caches: set by autoSegment, reused by magicWandFill
+// _wandEdgeCache: {mag: Float32Array (Sobel), canny: Uint8Array, w, h} — full canvas res
 let _wandEdgeCache = null;
 
 const STITCHES = [
@@ -97,13 +114,253 @@ function pointsToNodes(pts, targetN) {
 }
 
 // ============================================================
+// Pre-processing helpers
+// ============================================================
+
+/**
+ * Separable Gaussian blur on a Float32 greyscale plane.
+ * Returns a new Float32Array of the same length.
+ */
+function gaussianBlur(data, w, h, sigma) {
+  const r = Math.ceil(3 * sigma) | 0;
+  const klen = 2 * r + 1;
+  const kernel = new Float32Array(klen);
+  let sum = 0;
+  for (let i = 0; i < klen; i++) {
+    const d = i - r;
+    kernel[i] = Math.exp(-d * d / (2 * sigma * sigma));
+    sum += kernel[i];
+  }
+  for (let i = 0; i < klen; i++) kernel[i] /= sum;
+
+  const tmp = new Float32Array(w * h);
+  const out = new Float32Array(w * h);
+
+  // Horizontal pass
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let v = 0;
+      for (let k = 0; k < klen; k++) {
+        const nx = Math.max(0, Math.min(w - 1, x + k - r));
+        v += data[y * w + nx] * kernel[k];
+      }
+      tmp[y * w + x] = v;
+    }
+  }
+  // Vertical pass
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let v = 0;
+      for (let k = 0; k < klen; k++) {
+        const ny = Math.max(0, Math.min(h - 1, y + k - r));
+        v += tmp[ny * w + x] * kernel[k];
+      }
+      out[y * w + x] = v;
+    }
+  }
+  return out;
+}
+
+/**
+ * Bilateral filter on RGBA image data (Uint8ClampedArray or Uint8Array).
+ * Preserves high-contrast edges while suppressing texture/noise.
+ * Uses a range-weight lookup table for performance.
+ * Returns a new Uint8ClampedArray at the same resolution.
+ */
+function bilateralFilter(data, w, h) {
+  const R    = BILATERAL_KERNEL_RADIUS;
+  const sigS2 = 2 * BILATERAL_SIGMA_SPATIAL * BILATERAL_SIGMA_SPATIAL;
+  const sigR2 = 2 * BILATERAL_SIGMA_RANGE   * BILATERAL_SIGMA_RANGE;
+
+  // Precompute spatial weights (constant per kernel offset)
+  const kd = 2 * R + 1;
+  const spatialW = new Float32Array(kd * kd);
+  for (let ky = -R; ky <= R; ky++) {
+    for (let kx = -R; kx <= R; kx++) {
+      spatialW[(ky + R) * kd + (kx + R)] = Math.exp(-(kx * kx + ky * ky) / sigS2);
+    }
+  }
+
+  // Range-weight lookup table (indexed by quantised squared colour distance)
+  // Max squared RGB dist = 3 × 255² ≈ 195 075; map to 1024 buckets
+  const LUT_N  = 1024;
+  const LUT_SC = 195075 / (LUT_N - 1);
+  const rangeLUT = new Float32Array(LUT_N);
+  for (let i = 0; i < LUT_N; i++) rangeLUT[i] = Math.exp(-(i * LUT_SC) / sigR2);
+
+  const out = new Uint8ClampedArray(data.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const ci = (y * w + x) * 4;
+      const cr = data[ci], cg = data[ci + 1], cb = data[ci + 2];
+      let sr = 0, sg = 0, sb = 0, wSum = 0;
+      for (let ky = -R; ky <= R; ky++) {
+        const ny = Math.max(0, Math.min(h - 1, y + ky));
+        for (let kx = -R; kx <= R; kx++) {
+          const nx = Math.max(0, Math.min(w - 1, x + kx));
+          const ni  = (ny * w + nx) * 4;
+          const dr  = data[ni] - cr, dg = data[ni + 1] - cg, db = data[ni + 2] - cb;
+          const rid = Math.min(LUT_N - 1, (dr * dr + dg * dg + db * db) / LUT_SC) | 0;
+          const wt  = spatialW[(ky + R) * kd + (kx + R)] * rangeLUT[rid];
+          sr += data[ni] * wt;  sg += data[ni + 1] * wt;  sb += data[ni + 2] * wt;
+          wSum += wt;
+        }
+      }
+      out[ci]     = sr / wSum;
+      out[ci + 1] = sg / wSum;
+      out[ci + 2] = sb / wSum;
+      out[ci + 3] = data[ci + 3];
+    }
+  }
+  return out;
+}
+
+/**
+ * Canny edge detection on RGBA image data (any typed array with 4-channel layout).
+ * Returns a binary Uint8Array (1 = edge, 0 = non-edge) at the same w×h resolution.
+ */
+function cannyEdges(data, w, h) {
+  const N = w * h;
+
+  // Grayscale
+  const gray = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const idx = i * 4;
+    gray[i] = 0.2126 * data[idx] + 0.7152 * data[idx + 1] + 0.0722 * data[idx + 2];
+  }
+
+  // Gaussian blur (separable, σ = CANNY_BLUR_SIGMA)
+  const blurred = gaussianBlur(gray, w, h, CANNY_BLUR_SIGMA);
+
+  // Sobel gradient magnitude + quantised direction
+  const mag   = new Float32Array(N);
+  const angle = new Uint8Array(N); // 0=horiz, 1=diag45, 2=vert, 3=diag135
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const p = (dx, dy) => blurred[(y + dy) * w + (x + dx)];
+      const gx = -p(-1,-1) - 2*p(-1,0) - p(-1,1) + p(1,-1) + 2*p(1,0) + p(1,1);
+      const gy = -p(-1,-1) - 2*p(0,-1) - p(1,-1) + p(-1,1) + 2*p(0,1) + p(1,1);
+      mag[y * w + x] = Math.sqrt(gx * gx + gy * gy);
+      const a = Math.abs(Math.atan2(gy, gx) * 180 / Math.PI);
+      angle[y * w + x] = a < 22.5 || a >= 157.5 ? 0 : a < 67.5 ? 1 : a < 112.5 ? 2 : 3;
+    }
+  }
+
+  // Non-maximum suppression
+  const nms = new Float32Array(N);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const m = mag[y * w + x];
+      if (!m) continue;
+      let p, q;
+      switch (angle[y * w + x]) {
+        case 0: p = mag[y * w + x - 1];         q = mag[y * w + x + 1];         break;
+        case 1: p = mag[(y - 1) * w + x + 1];   q = mag[(y + 1) * w + x - 1];   break;
+        case 2: p = mag[(y - 1) * w + x];        q = mag[(y + 1) * w + x];        break;
+        default:p = mag[(y - 1) * w + x - 1];   q = mag[(y + 1) * w + x + 1];   break;
+      }
+      nms[y * w + x] = (m >= p && m >= q) ? m : 0;
+    }
+  }
+
+  // Hysteresis thresholding: strong edges (≥HIGH), weak edges (≥LOW)
+  const STRONG = 2, WEAK = 1;
+  const edge = new Uint8Array(N);
+  for (let i = 0; i < N; i++) {
+    if      (nms[i] >= CANNY_THRESHOLD_HIGH) edge[i] = STRONG;
+    else if (nms[i] >= CANNY_THRESHOLD_LOW)  edge[i] = WEAK;
+  }
+  // BFS: promote weak pixels connected to strong ones (8-connectivity)
+  const bfsQ = new Int32Array(N); let head = 0, tail = 0;
+  for (let i = 0; i < N; i++) if (edge[i] === STRONG) bfsQ[tail++] = i;
+  while (head < tail) {
+    const p = bfsQ[head++], px = p % w, py = (p / w) | 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue;
+      const nx = px + dx, ny = py + dy;
+      if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+      const ni = ny * w + nx;
+      if (edge[ni] === WEAK) { edge[ni] = STRONG; bfsQ[tail++] = ni; }
+    }
+  }
+  const out = new Uint8Array(N);
+  for (let i = 0; i < N; i++) out[i] = edge[i] === STRONG ? 1 : 0;
+  return out;
+}
+
+/**
+ * Morphological erosion: a pixel survives only if every pixel in the
+ * kSize×kSize structuring element neighbourhood is also set.
+ */
+function morphErode(mask, w, h, kSize) {
+  const r = (kSize - 1) >> 1;
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!mask[y * w + x]) continue;
+      let all = 1;
+      for (let dy = -r; dy <= r && all; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h) { all = 0; break; }
+        for (let dx = -r; dx <= r && all; dx++) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= w || !mask[ny * w + nx]) all = 0;
+        }
+      }
+      out[y * w + x] = all;
+    }
+  }
+  return out;
+}
+
+/**
+ * Morphological dilation: a pixel is set if any pixel in the
+ * kSize×kSize structuring element neighbourhood is set.
+ */
+function morphDilate(mask, w, h, kSize) {
+  const r = (kSize - 1) >> 1;
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let any = 0;
+      for (let dy = -r; dy <= r && !any; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h) continue;
+        for (let dx = -r; dx <= r && !any; dx++) {
+          const nx = x + dx;
+          if (nx >= 0 && nx < w && mask[ny * w + nx]) any = 1;
+        }
+      }
+      out[y * w + x] = any;
+    }
+  }
+  return out;
+}
+
+/**
+ * Returns true if 4 interior samples along the line from (x0,y0)→(x1,y1)
+ * land on a pixel marked in edgeMask. Used by SLIC to detect cluster-boundary
+ * crossings without a full per-pixel Bresenham walk.
+ */
+function lineHitsEdge(x0, y0, x1, y1, edgeMask, w) {
+  const dx = x1 - x0, dy = y1 - y0;
+  for (let t = 1; t <= 3; t++) {
+    const f  = t / 4;
+    const mx = Math.round(x0 + dx * f);
+    const my = Math.round(y0 + dy * f);
+    if (edgeMask[my * w + mx]) return true;
+  }
+  return false;
+}
+
+// ============================================================
 // SLIC Superpixel Segmentation
 // ============================================================
 
 function rgb2lab(r,g,b){let R=r/255,G=g/255,B=b/255;R=R>.04045?((R+.055)/1.055)**2.4:R/12.92;G=G>.04045?((G+.055)/1.055)**2.4:G/12.92;B=B>.04045?((B+.055)/1.055)**2.4:B/12.92;let X=(R*.4124+G*.3576+B*.1805)/.95047,Y=R*.2126+G*.7152+B*.0722,Z=(R*.0193+G*.1192+B*.9505)/1.08883;const f=t=>t>.008856?Math.cbrt(t):7.787*t+16/116;return[116*f(Y)-16,500*(f(X)-f(Y)),200*(f(Y)-f(Z))];}
 function lab2rgb(L,a,b){const fy=(L+16)/116,fx=a/500+fy,fz=fy-b/200;const f=t=>t>.20690?t*t*t:(t-16/116)/7.787;let X=f(fx)*.95047,Y=f(fy),Z=f(fz)*1.08883;let R=X*3.2406+Y*-1.5372+Z*-.4986,G=X*-.9689+Y*1.8758+Z*.0415,Bv=X*.0557+Y*-.2040+Z*1.0570;const gm=c=>Math.max(0,Math.min(255,Math.round((c>.0031308?1.055*c**(1/2.4)-.055:12.92*c)*255)));return[gm(R),gm(G),gm(Bv)];}
 
-function slicSegment(data,w,h,k,compactness,iters){
+function slicSegment(data,w,h,k,compactness,iters,edgeMask=null){
   const N=w*h,labL=new Float32Array(N),labA=new Float32Array(N),labBv=new Float32Array(N);
   for(let i=0;i<N;i++){const idx=i*4;if(data[idx+3]<=30){labL[i]=-1;continue;}const[lv,av,bv]=rgb2lab(data[idx],data[idx+1],data[idx+2]);labL[i]=lv;labA[i]=av;labBv[i]=bv;}
   // Grid init — nudge centres to lowest gradient in 3×3 neighbourhood
@@ -120,7 +377,15 @@ function slicSegment(data,w,h,k,compactness,iters){
     for(let ci=0;ci<nC;ci++){
       const[cL,cA,cB,cx,cy]=centres[ci],r=Math.ceil(2*S)|0;
       const x0=Math.max(0,cx-r|0),x1=Math.min(w-1,cx+r|0),y0=Math.max(0,cy-r|0),y1=Math.min(h-1,cy+r|0);
-      for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const pi=y*w+x;if(labL[pi]<0)continue;const D=(labL[pi]-cL)**2+(labA[pi]-cA)**2+(labBv[pi]-cB)**2+((x-cx)**2+(y-cy)**2)/S2*m*m;if(D<dist[pi]){dist[pi]=D;labels[pi]=ci;}}
+      const icx=Math.round(cx),icy=Math.round(cy);
+      for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+        const pi=y*w+x;if(labL[pi]<0)continue;
+        let D=(labL[pi]-cL)**2+(labA[pi]-cA)**2+(labBv[pi]-cB)**2+((x-cx)**2+(y-cy)**2)/S2*m*m;
+        // If the straight-line path to the cluster centre crosses a detected edge,
+        // inflate the distance so the cluster refuses to absorb this pixel
+        if(edgeMask&&lineHitsEdge(icx,icy,x,y,edgeMask,w))D*=EDGE_PENALTY_MULTIPLIER;
+        if(D<dist[pi]){dist[pi]=D;labels[pi]=ci;}
+      }
     }
     const sL=new Float64Array(nC),sA=new Float64Array(nC),sB=new Float64Array(nC),sX=new Float64Array(nC),sY=new Float64Array(nC),cnt=new Int32Array(nC);
     for(let i=0;i<N;i++){const c=labels[i];if(c<0)continue;sL[c]+=labL[i];sA[c]+=labA[i];sB[c]+=labBv[i];sX[c]+=i%w;sY[c]+=(i/w)|0;cnt[c]++;}
@@ -254,7 +519,7 @@ function sobelMagLAB(labL,labA,labB,w,h){
   return m;
 }
 
-function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,occupiedMask){
+function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,occupiedMask,edgeMask=null){
   const{data,width:w,height:h}=imageData,N=w*h;
   // LAB threshold: tolerance 0-100 maps to deltaE 0-80 (perceptual range)
   const thresh=tolerance*0.8,maxDrift=thresh*1.5;
@@ -280,7 +545,10 @@ function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,oc
     const p=queue[head++],px=p%w,py=(p/w)|0;mask[p]=1;
     for(const[ddx,ddy]of[[1,0],[-1,0],[0,1],[0,-1]]){
       const nx=px+ddx,ny=py+ddy;if(nx<0||nx>=w||ny<0||ny>=h)continue;
-      const ni=ny*w+nx;if(visited[ni]||occupiedMask[ni]||pL[ni]<0)continue;visited[ni]=1;
+      const ni=ny*w+nx;if(visited[ni]||occupiedMask[ni]||pL[ni]<0)continue;
+      // Hard Canny boundary: treat edge pixels as impassable walls
+      if(edgeMask&&edgeMask[ni]){visited[ni]=1;continue;}
+      visited[ni]=1;
       // DeltaE from seed
       const dSeed=Math.sqrt((pL[ni]-sL)**2+(pA[ni]-sA)**2+(pB[ni]-sB)**2);
       // DeltaE from running average with drift cap
@@ -288,7 +556,7 @@ function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,oc
       const avgDrift=Math.sqrt((aL-sL)**2+(aA2-sA)**2+(aB2-sB)**2);
       const dAvg=avgDrift<maxDrift?Math.sqrt((pL[ni]-aL)**2+(pA[ni]-aA2)**2+(pB[ni]-aB2)**2):Infinity;
       let et=thresh;
-      if(useEdgeSnap&&edgeMag){const eStr=Math.min(1,edgeMag[ni]/200);et=thresh/(1+eStr*edgeFactor);}
+      if(useEdgeSnap&&edgeMagSnap){const eStr=Math.min(1,edgeMagSnap[ni]/200);et=thresh/(1+eStr*edgeFactor);}
       if(Math.min(dSeed,dAvg)<et){sumL+=pL[ni];sumA2+=pA[ni];sumB2+=pB[ni];cnt++;queue[tail++]=ni;}
     }
   }
@@ -313,27 +581,20 @@ function autoSegment(imageData,numColors,compactness=10){
   const tmpC=document.createElement('canvas');tmpC.width=CW;tmpC.height=CH;tmpC.getContext('2d').putImageData(imageData,0,0);
   const scC=document.createElement('canvas');scC.width=pw;scC.height=ph;scC.getContext('2d').drawImage(tmpC,0,0,CW,CH,0,0,pw,ph);
   const scaledD=scC.getContext('2d').getImageData(0,0,pw,ph);
-  // Bilateral filter: edge-preserving smooth — reduces noise while keeping colour boundaries sharp
-  const sd=scaledD.data,smoothed=new Uint8ClampedArray(sd.length);
-  const bSigS=2,bSigC=25,bR=2,bSigS2=2*bSigS*bSigS,bSigC2=2*bSigC*bSigC;
-  for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){
-    let sr=0,sg=0,sb=0,sa=0,wSum=0;const ci=(y*pw+x)*4;
-    for(let ky=-bR;ky<=bR;ky++)for(let kx=-bR;kx<=bR;kx++){
-      const ny=Math.max(0,Math.min(ph-1,y+ky)),nx=Math.max(0,Math.min(pw-1,x+kx)),ni=(ny*pw+nx)*4;
-      const cD=(sd[ci]-sd[ni])**2+(sd[ci+1]-sd[ni+1])**2+(sd[ci+2]-sd[ni+2])**2;
-      const wt=Math.exp(-(kx*kx+ky*ky)/bSigS2-cD/bSigC2);
-      sr+=sd[ni]*wt;sg+=sd[ni+1]*wt;sb+=sd[ni+2]*wt;sa+=sd[ni+3]*wt;wSum+=wt;
-    }const oi=(y*pw+x)*4;smoothed[oi]=sr/wSum;smoothed[oi+1]=sg/wSum;smoothed[oi+2]=sb/wSum;smoothed[oi+3]=sa/wSum;}
-  // Compute Sobel edge map on smoothed data: used for adaptive nSP and contour snapping
+  // [1] Bilateral filter: edge-preserving smooth using module-level constants
+  const smoothed=bilateralFilter(scaledD.data,pw,ph);
+  // [2] Canny edge mask — binary hard boundaries at downscaled resolution
+  const edgeMask=cannyEdges(smoothed,pw,ph);
+  // Sobel magnitude map retained for adaptive superpixel count + boundary snap
   const sMag=sobelMag(smoothed,pw,ph);
   // Edge complexity: (mean + std) of Sobel magnitudes, normalised to a 0.5–2× scale factor
   const complexity=(()=>{const eN=pw*ph;let eS=0,eS2=0;for(let i=0;i<eN;i++){const v=sMag[i];eS+=v;eS2+=v*v;}const eMn=eS/eN,eStd=Math.sqrt(Math.max(0,eS2/eN-eMn*eMn));return Math.min(2,Math.max(0.5,(eMn+eStd)/(eMn+1)));})();
-  // Cache full-resolution LAB Sobel for magic wand reuse (computed once per image load)
-  try{const D=imageData.data,N=CW*CH,fL=new Float32Array(N),fA=new Float32Array(N),fB=new Float32Array(N);for(let i=0;i<N;i++){const idx=i*4;if(D[idx+3]<=30)continue;const[l,a,b]=rgb2lab(D[idx],D[idx+1],D[idx+2]);fL[i]=l;fA[i]=a;fB[i]=b;}_wandEdgeCache={mag:sobelMagLAB(fL,fA,fB,CW,CH),w:CW,h:CH};}catch(e){_wandEdgeCache=null;}
-  // SLIC superpixel segmentation + agglomerative merge (on smoothed data)
+  // Cache full-resolution bilateral+Canny+Sobel for magic wand reuse (once per image load)
+  try{const D=imageData.data,N=CW*CH,fL=new Float32Array(N),fA=new Float32Array(N),fB=new Float32Array(N);for(let i=0;i<N;i++){const idx=i*4;if(D[idx+3]<=30)continue;const[l,a,b]=rgb2lab(D[idx],D[idx+1],D[idx+2]);fL[i]=l;fA[i]=a;fB[i]=b;}const fullSmoothed=bilateralFilter(D,CW,CH);_wandEdgeCache={mag:sobelMagLAB(fL,fA,fB,CW,CH),canny:cannyEdges(fullSmoothed,CW,CH),w:CW,h:CH};}catch(e){_wandEdgeCache=null;}
+  // [3] SLIC superpixel segmentation + agglomerative merge (on bilaterally filtered data, Canny-aware clusters)
   // More superpixels at higher sensitivity and more complex images
   const nSP=Math.max(numColors,Math.min(Math.floor(numColors*25*(1+edgeW)*complexity),Math.floor(pw*ph/4)));
-  const{labels:spLabels,labL,labA,labBv,nC}=slicSegment(smoothed,pw,ph,nSP,slicM,10);
+  const{labels:spLabels,labL,labA,labBv,nC}=slicSegment(smoothed,pw,ph,nSP,slicM,10,edgeMask);
   const{mergedLabels,avgColors}=mergeSuperpixels(spLabels,labL,labA,labBv,pw,ph,nC,numColors,data,CW,CH,smoothed,edgeW);
   // Connected components on merged label map
   const PN=pw*ph,visited=new Uint8Array(PN),minSize=Math.max(6,Math.floor(PN/400)),components=[];
@@ -360,11 +621,11 @@ function autoSegment(imageData,numColors,compactness=10){
   for(const comp of components){
     if(comp.size>bgT&&!regions.length)continue;
     const mask=new Uint8Array(PN);for(const p of comp.pixels)mask[p]=1;
-    // Morphological opening: erode then dilate to remove thin noise spurs
-    const eroded=new Uint8Array(PN);
-    for(let y=1;y<ph-1;y++)for(let x=1;x<pw-1;x++){if(mask[y*pw+x]&&mask[(y-1)*pw+x]&&mask[(y+1)*pw+x]&&mask[y*pw+x-1]&&mask[y*pw+x+1])eroded[y*pw+x]=1;}
-    const opened=new Uint8Array(PN);
-    for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){if(eroded[y*pw+x]){opened[y*pw+x]=1;continue;}let hit=false;for(let dy=-1;dy<=1&&!hit;dy++)for(let dx=-1;dx<=1&&!hit;dx++){const ny=y+dy,nx=x+dx;if(ny>=0&&ny<ph&&nx>=0&&nx<pw&&eroded[ny*pw+nx])hit=true;}if(hit)opened[y*pw+x]=1;}
+    // [4] Morphological clean-up before boundary extraction
+    // Step 1 — Closing (dilate→erode): fills holes and smooths concave gaps in the interior
+    const closed=morphErode(morphDilate(mask,pw,ph,MORPH_KERNEL_SIZE),pw,ph,MORPH_KERNEL_SIZE);
+    // Step 2 — Opening (erode→dilate): removes thin protrusions and single-pixel spurs
+    const opened=morphDilate(morphErode(closed,pw,ph,MORPH_KERNEL_SIZE),pw,ph,MORPH_KERNEL_SIZE);
     // Fall back to original mask if opening erased too much (small regions)
     const useMask=opened.reduce((s,v)=>s+v,0)>=comp.pixels.length*0.3?opened:mask;
     const bMask=new Uint8Array(PN);for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){if(!useMask[y*pw+x])continue;if(x===0||!useMask[y*pw+x-1]||x===pw-1||!useMask[y*pw+x+1]||y===0||!useMask[(y-1)*pw+x]||y===ph-1||!useMask[(y+1)*pw+x])bMask[y*pw+x]=1;}
@@ -448,7 +709,36 @@ function EmbroideryApp(){
   const finishDraw=useCallback(()=>{const result=makeRegion(curPts);isDraw.current=false;setCurPts([]);if(!result)return;
     setRegions(p=>[...p,{id:nextId,label:`Region ${nextId}`,...result}]);setNextId(n=>n+1);},[curPts,nextId,makeRegion]);
 
-  const runWand=useCallback((mx,my)=>{if(!imgDataRef.current)return;const sx=Math.max(0,Math.min(CW-1,Math.round(mx))),sy=Math.max(0,Math.min(CH-1,Math.round(my)));const occ=new Uint8Array(CW*CH);for(const r of regions){const b=r.bounds;for(let py=Math.max(0,b.y|0);py<Math.min(CH,(b.y+b.h+1)|0);py++)for(let px=Math.max(0,b.x|0);px<Math.min(CW,(b.x+b.w+1)|0);px++)if(ptIn(r.points,px,py))occ[py*CW+px]=1;}const mask=magicWandFill(imgDataRef.current,sx,sy,wandTolerance,wandEdgeSnap,3.0,occ);const bMask=new Uint8Array(CW*CH);for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){if(!mask[y*CW+x])continue;if(x===0||!mask[y*CW+x-1]||x===CW-1||!mask[y*CW+x+1]||y===0||!mask[(y-1)*CW+x]||y===CH-1||!mask[(y+1)*CW+x])bMask[y*CW+x]=1;}const contour=traceContour(bMask,CW,CH);if(contour.length<10)return;const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(contour.length)/3)));const ds=downsample(contour,tp);if(ds.length<4)return;let sm=catmull(ds,3);sm=simplify(sm,2);sm=smoothContourAngles(sm);if(sm.length<4)return;let ar=0,ag=0,ab=0,ac=0;const d=imgDataRef.current.data;for(let i=0;i<CW*CH;i++){if(!mask[i])continue;ar+=d[i*4];ag+=d[i*4+1];ab+=d[i*4+2];ac++;}const avgC=ac>0?[Math.round(ar/ac),Math.round(ag/ac),Math.round(ab/ac)]:[180,180,180];const area=pArea(sm),bounds=pBounds(sm);if(bounds.w<8||bounds.h<8)return;const nodes=pointsToNodes(sm,Math.min(20,Math.max(6,Math.floor(Math.sqrt(area)/6))));const curve=buildCurve(nodes);const nid=nextId;setRegions(p=>[...p,{id:nid,label:`Region ${nid}`,nodes,points:curve,bounds:pBounds(curve),avgColor:avgC,dmc:closestDMC(...avgC),stitch:suggestStitch(area),direction:0,area:pArea(curve)}]);setNextId(n=>n+1);setSelId(nid);setEditMode("select");},[regions,wandTolerance,wandEdgeSnap,nextId]);
+  const runWand=useCallback((mx,my)=>{
+    if(!imgDataRef.current)return;
+    const sx=Math.max(0,Math.min(CW-1,Math.round(mx))),sy=Math.max(0,Math.min(CH-1,Math.round(my)));
+    // Build occupied mask from existing regions
+    const occ=new Uint8Array(CW*CH);
+    for(const r of regions){const b=r.bounds;for(let py=Math.max(0,b.y|0);py<Math.min(CH,(b.y+b.h+1)|0);py++)for(let px=Math.max(0,b.x|0);px<Math.min(CW,(b.x+b.w+1)|0);px++)if(ptIn(r.points,px,py))occ[py*CW+px]=1;}
+    // Use cached Canny edge mask (set by autoSegment) as hard boundaries for the wand
+    const wandCanny=(_wandEdgeCache&&_wandEdgeCache.canny&&_wandEdgeCache.w===CW&&_wandEdgeCache.h===CH)?_wandEdgeCache.canny:null;
+    const rawMask=magicWandFill(imgDataRef.current,sx,sy,wandTolerance,wandEdgeSnap,3.0,occ,wandCanny);
+    // [4] Morphological clean-up on wand fill mask (closing then opening)
+    const closed=morphErode(morphDilate(rawMask,CW,CH,MORPH_KERNEL_SIZE),CW,CH,MORPH_KERNEL_SIZE);
+    const opened=morphDilate(morphErode(closed,CW,CH,MORPH_KERNEL_SIZE),CW,CH,MORPH_KERNEL_SIZE);
+    // Fall back to raw mask if morphology erased too much (very small fill regions)
+    const rawCount=rawMask.reduce((s,v)=>s+v,0);
+    const mask=opened.reduce((s,v)=>s+v,0)>=rawCount*0.3?opened:rawMask;
+    // Derive boundary mask then trace contour
+    const bMask=new Uint8Array(CW*CH);
+    for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){if(!mask[y*CW+x])continue;if(x===0||!mask[y*CW+x-1]||x===CW-1||!mask[y*CW+x+1]||y===0||!mask[(y-1)*CW+x]||y===CH-1||!mask[(y+1)*CW+x])bMask[y*CW+x]=1;}
+    const contour=traceContour(bMask,CW,CH);if(contour.length<10)return;
+    const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(contour.length)/3)));const ds=downsample(contour,tp);if(ds.length<4)return;
+    let sm=catmull(ds,3);sm=simplify(sm,2);sm=smoothContourAngles(sm);if(sm.length<4)return;
+    let ar=0,ag=0,ab=0,ac=0;const d=imgDataRef.current.data;
+    for(let i=0;i<CW*CH;i++){if(!mask[i])continue;ar+=d[i*4];ag+=d[i*4+1];ab+=d[i*4+2];ac++;}
+    const avgC=ac>0?[Math.round(ar/ac),Math.round(ag/ac),Math.round(ab/ac)]:[180,180,180];
+    const area=pArea(sm),bounds=pBounds(sm);if(bounds.w<8||bounds.h<8)return;
+    const nodes=pointsToNodes(sm,Math.min(20,Math.max(6,Math.floor(Math.sqrt(area)/6))));
+    const curve=buildCurve(nodes);const nid=nextId;
+    setRegions(p=>[...p,{id:nid,label:`Region ${nid}`,nodes,points:curve,bounds:pBounds(curve),avgColor:avgC,dmc:closestDMC(...avgC),stitch:suggestStitch(area),direction:0,area:pArea(curve)}]);
+    setNextId(n=>n+1);setSelId(nid);setEditMode("select");
+  },[regions,wandTolerance,wandEdgeSnap,nextId]);
 
   // Canvas render
   useEffect(()=>{
