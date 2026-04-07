@@ -47,6 +47,12 @@ const LASSO_DEBOUNCE_MS       = 30;   // min ms between path recalculations on m
 const LASSO_MIN_ANCHOR_DISTANCE = 8;  // ignore clicks within this many px of last anchor
 const LASSO_CLOSE_RADIUS      = 12;   // px to start anchor — triggers close indicator
 
+// --- Zoom & Pan ---
+const ZOOM_MIN         = 0.25;  // minimum zoom level
+const ZOOM_MAX         = 10.0;  // maximum zoom level
+const ZOOM_STEP_BUTTON = 0.25;  // per toolbar button click
+const ZOOM_STEP_SCROLL = 0.1;   // per scroll tick
+
 const STITCHES = [
   { id:"satin",name:"Satin",desc:"Smooth parallel fill",color:"#0d9488"},
   { id:"longshort",name:"Long & Short",desc:"Blended shading fill",color:"#0f766e"},
@@ -864,9 +870,26 @@ function EmbroideryApp(){
   const[lassoPreview,setLassoPreview]=useState([]);   // live path from last anchor to cursor
   const[lassoNearClose,setLassoNearClose]=useState(false);
   const lassoLastMsRef=useRef(0);                     // timestamp for mousemove debounce
+  // Zoom & pan state
+  const[zoom,setZoom]=useState(1);
+  const[pan,setPan]=useState({x:0,y:0});
+  // Refs for use inside callbacks (always current, no stale-closure issue)
+  const zoomRef=useRef(1);         // mirrors zoom state
+  const panRef=useRef({x:0,y:0}); // mirrors pan state
+  const isPanningRef=useRef(false); // true while spacebar held
+  const panStateRef=useRef({active:false,startX:0,startY:0,startPanX:0,startPanY:0});
+  const touchRef=useRef({count:0,lastDist:0,lastMidX:0,lastMidY:0});
 
   const mainC=useRef(null),imgC=useRef(null),fileRef=useRef(null);
   const imgRef=useRef(null),imgDataRef=useRef(null),isDraw=useRef(false);
+
+  // Keep refs in sync with state on every render (avoids stale closure in callbacks)
+  zoomRef.current=zoom;panRef.current=pan;
+
+  const clampPanFn=(px,py,z)=>({
+    x:Math.max(CW*0.5-CW*z, Math.min(CW*0.5, px)),
+    y:Math.max(CH*0.5-CH*z, Math.min(CH*0.5, py)),
+  });
 
   const rebuildRegionCurve = useCallback((r) => {
     const curve = buildCurve(r.nodes);
@@ -945,87 +968,115 @@ function EmbroideryApp(){
     resetLasso();
   },[lassoAnchors,lassoSegments,nextId]);
 
+  // Fit: reset zoom=1, pan=centre (content fills buffer at zoom=1)
+  const doFit=useCallback(()=>{
+    const np={x:0,y:0};
+    setZoom(1);setPan(np);zoomRef.current=1;panRef.current=np;
+  },[]);
+
   // Canvas render
   useEffect(()=>{
-    if(!mainC.current)return;const canvas=mainC.current;canvas.width=CW;canvas.height=CH;const ctx=canvas.getContext("2d");
+    if(!mainC.current)return;
+    const canvas=mainC.current;canvas.width=CW;canvas.height=CH;
+    const ctx=canvas.getContext("2d");
+    const z=zoom,p=pan;
+    // Background (no transform — fills entire buffer)
     ctx.fillStyle="#f5f0eb";ctx.fillRect(0,0,CW,CH);
-    if(imgRef.current&&(view==="original"||view==="overlay")){const img=imgRef.current,s=Math.min(CW/img.width,CH/img.height);ctx.globalAlpha=view==="overlay"?.35:1;ctx.drawImage(img,(CW-img.width*s)/2,(CH-img.height*s)/2,img.width*s,img.height*s);ctx.globalAlpha=1;}
-    if(view!=="original"){
-      for(const r of regions){ctx.save();ctx.beginPath();ctx.moveTo(r.points[0][0],r.points[0][1]);for(let i=1;i<r.points.length;i++)ctx.lineTo(r.points[i][0],r.points[i][1]);ctx.closePath();ctx.fillStyle=r.dmc.h+(view==="overlay"?"88":"cc");ctx.fill();ctx.restore();renderStitch(ctx,r.points,r.bounds,r.stitch,r.direction);}
-      for(const r of regions){const isSel=selId===r.id;ctx.save();ctx.beginPath();ctx.moveTo(r.points[0][0],r.points[0][1]);for(let i=1;i<r.points.length;i++)ctx.lineTo(r.points[i][0],r.points[i][1]);ctx.closePath();ctx.strokeStyle=isSel?ACCENT:"rgba(255,255,255,0.7)";ctx.lineWidth=isSel?3:1.5;if(isSel){ctx.shadowColor=ACCENT;ctx.shadowBlur=6;}ctx.stroke();ctx.restore();
-        if(r.bounds.w>18&&r.bounds.h>18)renderArrow(ctx,r.bounds,r.direction);
-        // Rec badge
-        if(editMode==="select"){const recs=getRecommendations(r,regions).filter(rc=>!dismissed.has(`${r.id}-${rc.msg.slice(0,20)}`));if(recs.length>0){const hw=recs.some(rc=>rc.type==="warning");ctx.save();ctx.beginPath();ctx.arc(r.bounds.x+r.bounds.w-4,r.bounds.y+6,5,0,Math.PI*2);ctx.fillStyle=hw?"#f59e0b":"#60a5fa";ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle="#fff";ctx.font="bold 8px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(recs.length.toString(),r.bounds.x+r.bounds.w-4,r.bounds.y+6.5);ctx.restore();}}}
-      // Draw nodes for selected region in editNodes mode
-      if(editMode==="editNodes"&&selId){
-        const sr=regions.find(r=>r.id===selId);
-        if(sr&&sr.nodes){
-          const nodes=sr.nodes;
-          // Draw edges between nodes
-          ctx.save();ctx.strokeStyle=ACCENT+'66';ctx.lineWidth=1;ctx.setLineDash([3,3]);
-          ctx.beginPath();ctx.moveTo(nodes[0][0],nodes[0][1]);
-          for(let i=1;i<nodes.length;i++)ctx.lineTo(nodes[i][0],nodes[i][1]);
-          ctx.closePath();ctx.stroke();ctx.setLineDash([]);ctx.restore();
-          // Midpoints (add-node handles)
-          for(let i=0;i<nodes.length;i++){
-            const j=(i+1)%nodes.length;
-            const mx=(nodes[i][0]+nodes[j][0])/2, my=(nodes[i][1]+nodes[j][1])/2;
-            ctx.save();ctx.beginPath();ctx.arc(mx,my,4,0,Math.PI*2);
-            ctx.fillStyle=ACCENT+'44';ctx.fill();ctx.strokeStyle=ACCENT;ctx.lineWidth=1;ctx.stroke();ctx.restore();
-            // Plus sign
-            ctx.save();ctx.strokeStyle=ACCENT;ctx.lineWidth=1.2;
-            ctx.beginPath();ctx.moveTo(mx-2,my);ctx.lineTo(mx+2,my);ctx.stroke();
-            ctx.beginPath();ctx.moveTo(mx,my-2);ctx.lineTo(mx,my+2);ctx.stroke();ctx.restore();
-          }
-          // Nodes
-          for(let i=0;i<nodes.length;i++){
-            const[nx,ny]=nodes[i];
-            const isActive=dragNode&&dragNode.regionId===selId&&dragNode.nodeIdx===i;
-            ctx.save();ctx.beginPath();ctx.arc(nx,ny,NODE_R,0,Math.PI*2);
-            ctx.fillStyle=isActive?ACCENT:"#fff";ctx.fill();
-            ctx.strokeStyle=ACCENT;ctx.lineWidth=2;ctx.stroke();ctx.restore();
-          }
+    // === Content layer: zoom/pan transform ===
+    ctx.save();ctx.translate(p.x,p.y);ctx.scale(z,z);
+    try{
+      if(imgRef.current&&(view==="original"||view==="overlay")){const img=imgRef.current,s=Math.min(CW/img.width,CH/img.height);ctx.globalAlpha=view==="overlay"?.35:1;ctx.drawImage(img,(CW-img.width*s)/2,(CH-img.height*s)/2,img.width*s,img.height*s);ctx.globalAlpha=1;}
+      if(view!=="original"){
+        for(const r of regions){ctx.save();ctx.beginPath();ctx.moveTo(r.points[0][0],r.points[0][1]);for(let i=1;i<r.points.length;i++)ctx.lineTo(r.points[i][0],r.points[i][1]);ctx.closePath();ctx.fillStyle=r.dmc.h+(view==="overlay"?"88":"cc");ctx.fill();ctx.restore();renderStitch(ctx,r.points,r.bounds,r.stitch,r.direction);}
+        for(const r of regions){const isSel=selId===r.id;ctx.save();ctx.beginPath();ctx.moveTo(r.points[0][0],r.points[0][1]);for(let i=1;i<r.points.length;i++)ctx.lineTo(r.points[i][0],r.points[i][1]);ctx.closePath();ctx.strokeStyle=isSel?ACCENT:"rgba(255,255,255,0.7)";ctx.lineWidth=(isSel?3:1.5)/z;if(isSel){ctx.shadowColor=ACCENT;ctx.shadowBlur=6/z;}ctx.stroke();ctx.restore();
+          if(r.bounds.w>18&&r.bounds.h>18)renderArrow(ctx,r.bounds,r.direction);}
+      }
+    }finally{ctx.restore();}
+    // === Overlay layer: buffer-space, zoom-invariant sizes ===
+    const cb=(cx,cy)=>[cx*z+p.x,cy*z+p.y];
+    // Rec badges
+    if(view!=="original"&&editMode==="select"){for(const r of regions){const recs=getRecommendations(r,regions).filter(rc=>!dismissed.has(`${r.id}-${rc.msg.slice(0,20)}`));if(recs.length>0){const hw=recs.some(rc=>rc.type==="warning");const[bx,by]=cb(r.bounds.x+r.bounds.w-4,r.bounds.y+6);ctx.save();ctx.beginPath();ctx.arc(bx,by,5,0,Math.PI*2);ctx.fillStyle=hw?"#f59e0b":"#60a5fa";ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle="#fff";ctx.font="bold 8px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(recs.length.toString(),bx,by+0.5);ctx.restore();}}}
+    // Node editing overlays
+    if(editMode==="editNodes"&&selId){
+      const sr=regions.find(r=>r.id===selId);
+      if(sr&&sr.nodes){
+        const nodes=sr.nodes;
+        ctx.save();ctx.strokeStyle=ACCENT+"66";ctx.lineWidth=1;ctx.setLineDash([3,3]);
+        const[n0x,n0y]=cb(nodes[0][0],nodes[0][1]);ctx.beginPath();ctx.moveTo(n0x,n0y);
+        for(let i=1;i<nodes.length;i++){const[nbx,nby]=cb(nodes[i][0],nodes[i][1]);ctx.lineTo(nbx,nby);}
+        ctx.closePath();ctx.stroke();ctx.setLineDash([]);ctx.restore();
+        for(let i=0;i<nodes.length;i++){
+          const j=(i+1)%nodes.length;
+          const midCX=(nodes[i][0]+nodes[j][0])/2,midCY=(nodes[i][1]+nodes[j][1])/2;
+          const[mbx,mby]=cb(midCX,midCY);
+          ctx.save();ctx.beginPath();ctx.arc(mbx,mby,4,0,Math.PI*2);ctx.fillStyle=ACCENT+"44";ctx.fill();ctx.strokeStyle=ACCENT;ctx.lineWidth=1;ctx.stroke();ctx.restore();
+          ctx.save();ctx.strokeStyle=ACCENT;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(mbx-2,mby);ctx.lineTo(mbx+2,mby);ctx.stroke();ctx.beginPath();ctx.moveTo(mbx,mby-2);ctx.lineTo(mbx,mby+2);ctx.stroke();ctx.restore();
+        }
+        for(let i=0;i<nodes.length;i++){
+          const[nnx,nny]=cb(nodes[i][0],nodes[i][1]);
+          const isActive=dragNode&&dragNode.regionId===selId&&dragNode.nodeIdx===i;
+          ctx.save();ctx.beginPath();ctx.arc(nnx,nny,NODE_R,0,Math.PI*2);ctx.fillStyle=isActive?ACCENT:"#fff";ctx.fill();ctx.strokeStyle=ACCENT;ctx.lineWidth=2;ctx.stroke();ctx.restore();
         }
       }
     }
-    // Freehand drawing preview
-    if(isDraw.current&&curPts.length>1){ctx.save();ctx.beginPath();ctx.moveTo(curPts[0][0],curPts[0][1]);for(let i=1;i<curPts.length;i++)ctx.lineTo(curPts[i][0],curPts[i][1]);ctx.strokeStyle="#14b8a6";ctx.lineWidth=2.5;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();ctx.setLineDash([4,4]);ctx.strokeStyle="#14b8a688";ctx.beginPath();ctx.moveTo(curPts[curPts.length-1][0],curPts[curPts.length-1][1]);ctx.lineTo(curPts[0][0],curPts[0][1]);ctx.stroke();ctx.setLineDash([]);ctx.beginPath();ctx.arc(curPts[0][0],curPts[0][1],6,0,Math.PI*2);ctx.fillStyle="#14b8a6";ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();ctx.restore();}
-    // Magnetic lasso overlay
+    // Freehand drawing preview (buffer-space)
+    if(isDraw.current&&curPts.length>1){
+      ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
+      const[bx0,by0]=cb(curPts[0][0],curPts[0][1]);ctx.beginPath();ctx.moveTo(bx0,by0);
+      for(let i=1;i<curPts.length;i++){const[bxi,byi]=cb(curPts[i][0],curPts[i][1]);ctx.lineTo(bxi,byi);}
+      ctx.strokeStyle="#14b8a6";ctx.lineWidth=2.5;ctx.stroke();
+      const[bxL,byL]=cb(curPts[curPts.length-1][0],curPts[curPts.length-1][1]);
+      ctx.setLineDash([4,4]);ctx.strokeStyle="#14b8a688";ctx.beginPath();ctx.moveTo(bxL,byL);ctx.lineTo(bx0,by0);ctx.stroke();ctx.setLineDash([]);
+      ctx.beginPath();ctx.arc(bx0,by0,6,0,Math.PI*2);ctx.fillStyle="#14b8a6";ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();
+      ctx.restore();
+    }
+    // Magnetic lasso overlay (buffer-space)
     if(editMode==="lasso"&&lassoAnchors.length>0){
-      // Build full confirmed path for display
-      const conPath=[lassoAnchors[0]];
-      for(const seg of lassoSegments)for(const pt of seg)conPath.push(pt);
-      // Draw confirmed segments
-      if(conPath.length>1){
-        ctx.save();
-        ctx.lineCap="round";ctx.lineJoin="round";
-        ctx.strokeStyle="#000";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(conPath[0][0],conPath[0][1]);for(let i=1;i<conPath.length;i++)ctx.lineTo(conPath[i][0],conPath[i][1]);ctx.stroke();
-        ctx.strokeStyle="#00ffff";ctx.lineWidth=2;ctx.stroke();
-        ctx.restore();
-      }
-      // Draw live preview segment
-      if(lassoPreview.length>1){
-        ctx.save();
-        ctx.lineCap="round";ctx.lineJoin="round";ctx.setLineDash([6,4]);
-        ctx.strokeStyle="#000";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(lassoPreview[0][0],lassoPreview[0][1]);for(let i=1;i<lassoPreview.length;i++)ctx.lineTo(lassoPreview[i][0],lassoPreview[i][1]);ctx.stroke();
-        ctx.strokeStyle="#00ffff";ctx.lineWidth=1.5;ctx.stroke();
-        ctx.setLineDash([]);ctx.restore();
-      }
-      // Draw anchor dots
+      const conBuf=[cb(lassoAnchors[0][0],lassoAnchors[0][1])];
+      for(const seg of lassoSegments)for(const pt of seg)conBuf.push(cb(pt[0],pt[1]));
+      if(conBuf.length>1){ctx.save();ctx.lineCap="round";ctx.lineJoin="round";ctx.strokeStyle="#000";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(conBuf[0][0],conBuf[0][1]);for(let i=1;i<conBuf.length;i++)ctx.lineTo(conBuf[i][0],conBuf[i][1]);ctx.stroke();ctx.strokeStyle="#00ffff";ctx.lineWidth=2;ctx.stroke();ctx.restore();}
+      if(lassoPreview.length>1){ctx.save();ctx.lineCap="round";ctx.lineJoin="round";ctx.setLineDash([6,4]);const[lp0x,lp0y]=cb(lassoPreview[0][0],lassoPreview[0][1]);ctx.strokeStyle="#000";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(lp0x,lp0y);for(let i=1;i<lassoPreview.length;i++){const[lpx,lpy]=cb(lassoPreview[i][0],lassoPreview[i][1]);ctx.lineTo(lpx,lpy);}ctx.stroke();ctx.strokeStyle="#00ffff";ctx.lineWidth=1.5;ctx.stroke();ctx.setLineDash([]);ctx.restore();}
       for(let i=0;i<lassoAnchors.length;i++){
-        const[ax,ay]=lassoAnchors[i],isFirst=i===0;
+        const[abx,aby]=cb(lassoAnchors[i][0],lassoAnchors[i][1]),isFirst=i===0;
         ctx.save();
-        if(isFirst){
-          ctx.beginPath();ctx.arc(ax,ay,lassoNearClose?12:9,0,Math.PI*2);
-          ctx.strokeStyle=lassoNearClose?"#22ff44":"#00ffff";ctx.lineWidth=2;ctx.stroke();
-        }
-        ctx.beginPath();ctx.arc(ax,ay,6,0,Math.PI*2);
-        ctx.fillStyle=isFirst&&lassoNearClose?"#22ff44":"#00ffff";ctx.fill();
-        ctx.strokeStyle="#000";ctx.lineWidth=1.5;ctx.stroke();
-        ctx.restore();
+        if(isFirst){ctx.beginPath();ctx.arc(abx,aby,lassoNearClose?12:9,0,Math.PI*2);ctx.strokeStyle=lassoNearClose?"#22ff44":"#00ffff";ctx.lineWidth=2;ctx.stroke();}
+        ctx.beginPath();ctx.arc(abx,aby,6,0,Math.PI*2);ctx.fillStyle=isFirst&&lassoNearClose?"#22ff44":"#00ffff";ctx.fill();ctx.strokeStyle="#000";ctx.lineWidth=1.5;ctx.stroke();ctx.restore();
       }
     }
-  },[regions,selId,view,curPts,editMode,dismissed,dragNode,lassoAnchors,lassoSegments,lassoPreview,lassoNearClose]);
+  },[regions,selId,view,curPts,editMode,dismissed,dragNode,lassoAnchors,lassoSegments,lassoPreview,lassoNearClose,zoom,pan]);
+
+  // Spacebar pan: set/clear isPanningRef, update cursor
+  useEffect(()=>{
+    if(phase!=="edit")return;
+    const kd=e=>{
+      if(e.code==="Space"&&!e.target.closest("input,textarea,select")){e.preventDefault();if(!isPanningRef.current){isPanningRef.current=true;if(mainC.current)mainC.current.style.cursor="grab";}}
+    };
+    const ku=e=>{
+      if(e.code==="Space"){isPanningRef.current=false;if(mainC.current)mainC.current.style.cursor="";}
+    };
+    document.addEventListener("keydown",kd);document.addEventListener("keyup",ku);
+    return()=>{document.removeEventListener("keydown",kd);document.removeEventListener("keyup",ku);};
+  },[phase]);
+
+  // Scroll wheel zoom (non-passive, attached imperatively to avoid passive-listener warning)
+  useEffect(()=>{
+    const el=mainC.current;if(!el||phase!=="edit")return;
+    const wh=e=>{
+      e.preventDefault();
+      const dz=ZOOM_STEP_SCROLL*-Math.sign(e.deltaY);
+      const newZ=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,zoomRef.current+dz));
+      const rect=el.getBoundingClientRect();
+      const bufX=(e.clientX-rect.left)*(CW/rect.width);
+      const bufY=(e.clientY-rect.top)*(CH/rect.height);
+      const np={x:bufX-(bufX-panRef.current.x)*(newZ/zoomRef.current),y:bufY-(bufY-panRef.current.y)*(newZ/zoomRef.current)};
+      const cz=zoomRef.current;// use current before update to avoid stale
+      const cpx=CW*0.5-CW*newZ,cpy=CH*0.5-CH*newZ;
+      const clampedNp={x:Math.max(cpx,Math.min(CW*0.5,np.x)),y:Math.max(cpy,Math.min(CH*0.5,np.y))};
+      setZoom(newZ);setPan(clampedNp);zoomRef.current=newZ;panRef.current=clampedNp;
+    };
+    el.addEventListener("wheel",wh,{passive:false});
+    return()=>el.removeEventListener("wheel",wh);
+  },[phase]);
 
   // Keyboard: Ctrl/Cmd+Z in lasso mode removes last anchor
   useEffect(()=>{
@@ -1043,19 +1094,41 @@ function EmbroideryApp(){
     return()=>document.removeEventListener('keydown',handler);
   },[editMode,lassoAnchors.length]);
 
-    const getPos=e=>{const rect=mainC.current.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return[(t.clientX-rect.left)*(CW/rect.width),(t.clientY-rect.top)*(CH/rect.height)];};
+    const getPos=e=>{
+      const rect=mainC.current.getBoundingClientRect();
+      const t=e.touches?e.touches[0]:e;
+      const bufX=(t.clientX-rect.left)*(CW/rect.width);
+      const bufY=(t.clientY-rect.top)*(CH/rect.height);
+      return[(bufX-panRef.current.x)/zoomRef.current,(bufY-panRef.current.y)/zoomRef.current];
+    };
 
   const onDown=useCallback(e=>{
     const[mx,my]=getPos(e);
 
+    // Middle mouse OR spacebar: start pan
+    if(e.button===1||(e.button===0&&isPanningRef.current)){
+      e.preventDefault();
+      panStateRef.current={active:true,startX:e.clientX,startY:e.clientY,startPanX:panRef.current.x,startPanY:panRef.current.y};
+      if(mainC.current)mainC.current.style.cursor="grabbing";
+      return;
+    }
+    // Two-finger touch: start pinch/pan tracking
+    if(e.touches&&e.touches.length===2){
+      e.preventDefault();
+      const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;
+      const midX=(e.touches[0].clientX+e.touches[1].clientX)/2,midY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+      touchRef.current={count:2,lastDist:Math.sqrt(dx*dx+dy*dy),lastMidX:midX,lastMidY:midY};
+      return;
+    }
     // Node editing mode
     if(editMode==="editNodes"&&selId){
       e.preventDefault();
       const sr=regions.find(r=>r.id===selId);
       if(!sr||!sr.nodes)return;
       // Check if clicking a node
+      const zHit=NODE_HIT/zoomRef.current;
       for(let i=0;i<sr.nodes.length;i++){
-        if((mx-sr.nodes[i][0])**2+(my-sr.nodes[i][1])**2<NODE_HIT**2){
+        if((mx-sr.nodes[i][0])**2+(my-sr.nodes[i][1])**2<zHit**2){
           setDragNode({regionId:selId,nodeIdx:i});return;
         }
       }
@@ -1063,7 +1136,7 @@ function EmbroideryApp(){
       for(let i=0;i<sr.nodes.length;i++){
         const j=(i+1)%sr.nodes.length;
         const midX=(sr.nodes[i][0]+sr.nodes[j][0])/2, midY=(sr.nodes[i][1]+sr.nodes[j][1])/2;
-        if((mx-midX)**2+(my-midY)**2<NODE_HIT**2){
+        if((mx-midX)**2+(my-midY)**2<zHit**2){
           // Insert new node after i
           const newNodes=[...sr.nodes];
           newNodes.splice(i+1,0,[midX,midY]);
@@ -1077,7 +1150,7 @@ function EmbroideryApp(){
       for(let i=0;i<sr.nodes.length;i++){
         const j=(i+1)%sr.nodes.length;
         const d=distToSeg(mx,my,sr.nodes[i][0],sr.nodes[i][1],sr.nodes[j][0],sr.nodes[j][1]);
-        if(d<EDGE_HIT){
+        if(d<EDGE_HIT/zoomRef.current){
           const newNodes=[...sr.nodes];
           newNodes.splice(i+1,0,[mx,my]);
           const updated=rebuildRegionCurve({...sr,nodes:newNodes});
@@ -1117,9 +1190,45 @@ function EmbroideryApp(){
     // Select mode — click to select region
     for(let i=regions.length-1;i>=0;i--)if(ptIn(regions[i].points,mx,my)){setSelId(regions[i].id);return;}
     setSelId(null);
-  },[editMode,selId,regions,rebuildRegionCurve,runWand,lassoAnchors,lassoSegments,lassoNearClose,finishLasso]);
+  },[editMode,selId,regions,rebuildRegionCurve,runWand,lassoAnchors,lassoSegments,lassoNearClose,finishLasso,zoom]);
 
   const onMove=useCallback(e=>{
+    // Active pan drag (spacebar/middle-mouse)
+    if(panStateRef.current.active){
+      e.preventDefault();
+      const rect=mainC.current.getBoundingClientRect();
+      const sc=CW/rect.width;
+      const dx=(e.clientX-panStateRef.current.startX)*sc;
+      const dy=(e.clientY-panStateRef.current.startY)*sc;
+      const rawX=panStateRef.current.startPanX+dx;
+      const rawY=panStateRef.current.startPanY+dy;
+      const cz=zoomRef.current;
+      const np={x:Math.max(CW*0.5-CW*cz,Math.min(CW*0.5,rawX)),y:Math.max(CH*0.5-CH*cz,Math.min(CH*0.5,rawY))};
+      setPan(np);panRef.current=np;
+      return;
+    }
+    // Two-finger pinch/pan
+    if(e.touches&&e.touches.length===2&&touchRef.current.count===2){
+      e.preventDefault();
+      const tr=touchRef.current;
+      const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;
+      const newDist=Math.sqrt(dx*dx+dy*dy);
+      const newMidX=(e.touches[0].clientX+e.touches[1].clientX)/2;
+      const newMidY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+      const rect=mainC.current.getBoundingClientRect();
+      const sc=CW/rect.width;
+      if(tr.lastDist>0){
+        const newZ=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,zoomRef.current*(newDist/tr.lastDist)));
+        const midBufX=(newMidX-rect.left)*sc;
+        const midBufY=(newMidY-rect.top)*sc;
+        const np0={x:midBufX-(midBufX-panRef.current.x)*(newZ/zoomRef.current),y:midBufY-(midBufY-panRef.current.y)*(newZ/zoomRef.current)};
+        const panDx=(newMidX-tr.lastMidX)*sc,panDy=(newMidY-tr.lastMidY)*sc;
+        const np={x:Math.max(CW*0.5-CW*newZ,Math.min(CW*0.5,np0.x+panDx)),y:Math.max(CH*0.5-CH*newZ,Math.min(CH*0.5,np0.y+panDy))};
+        setZoom(newZ);setPan(np);zoomRef.current=newZ;panRef.current=np;
+      }
+      touchRef.current={count:2,lastDist:newDist,lastMidX:newMidX,lastMidY:newMidY};
+      return;
+    }
     // Lasso live path preview
     if(editMode==="lasso"&&lassoAnchors.length>0){
       e.preventDefault();
@@ -1152,6 +1261,8 @@ function EmbroideryApp(){
   },[dragNode,rebuildRegionCurve,editMode,lassoAnchors]);
 
   const onUp=useCallback(e=>{
+    if(panStateRef.current.active){e?.preventDefault();panStateRef.current.active=false;if(mainC.current)mainC.current.style.cursor=isPanningRef.current?"grab":"";return;}
+    if(e&&e.touches&&e.touches.length<2)touchRef.current={count:0,lastDist:0,lastMidX:0,lastMidY:0};
     if(dragNode){e?.preventDefault();setDragNode(null);return;}
     if(isDraw.current){e?.preventDefault();finishDraw();}
   },[dragNode,finishDraw]);
@@ -1257,7 +1368,7 @@ function EmbroideryApp(){
       <div className="emb-container">
         <div className="emb-nav-row" style={{justifyContent:"space-between"}}>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <button className="emb-back-btn" onClick={()=>{setPhase("segment");setRegions([]);setSelId(null);setCurPts([]);isDraw.current=false;setEditMode("select");setDragNode(null);resetLasso();}}>←</button>
+            <button className="emb-back-btn" onClick={()=>{setPhase("segment");setRegions([]);setSelId(null);setCurPts([]);isDraw.current=false;setEditMode("select");setDragNode(null);resetLasso();setZoom(1);setPan({x:0,y:0});zoomRef.current=1;panRef.current={x:0,y:0};}}>←</button>
             <h2 className="emb-heading">Edit Pattern</h2>
           </div>
           {totalRecs>0&&editMode==="select"&&<div className="emb-suggestion-badge">{totalRecs} suggestion{totalRecs>1?"s":""}</div>}
@@ -1277,6 +1388,13 @@ function EmbroideryApp(){
             🧲 Lasso</button>
         </div>
 
+        {/* Zoom toolbar */}
+        <div className="tb-grp" style={{width:"100%",marginBottom:6,gap:2}}>
+          <button className="tb-btn" onClick={()=>{const nz=Math.max(ZOOM_MIN,zoom-ZOOM_STEP_BUTTON);const np={x:CW*(1-nz)/2,y:CH*(1-nz)/2};setZoom(nz);setPan(np);zoomRef.current=nz;panRef.current=np;}} style={{width:28,flexShrink:0}}>−</button>
+          <span style={{fontSize:11,minWidth:38,textAlign:"center",color:"#64748b",padding:"0 2px"}}>{Math.round(zoom*100)}%</span>
+          <button className="tb-btn" onClick={()=>{const nz=Math.min(ZOOM_MAX,zoom+ZOOM_STEP_BUTTON);const np={x:CW*(1-nz)/2,y:CH*(1-nz)/2};setZoom(nz);setPan(np);zoomRef.current=nz;panRef.current=np;}} style={{width:28,flexShrink:0}}>+</button>
+          <button className="tb-btn" onClick={doFit} style={{marginLeft:4}}>Fit</button>
+        </div>
         {/* Context hints */}
         {editMode==="draw"&&<div className="emb-hint emb-hint--teal">Drag on the canvas to draw a new region.</div>}
         {editMode==="wand"&&<div className="emb-hint emb-hint--teal" style={{marginBottom:6}}>
@@ -1306,6 +1424,7 @@ function EmbroideryApp(){
         <div className="card" style={{marginBottom:8,touchAction:"none"}}>
           <canvas ref={mainC} width={CW} height={CH}
             onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+            onContextMenu={e=>{if(e.button===1)e.preventDefault();}}
             onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
             onDoubleClick={e=>{
               if(editMode==="lasso"&&lassoAnchors.length>=3){finishLasso();return;}
