@@ -112,7 +112,7 @@ function slicSegment(data,w,h,k,compactness,iters){
   return{labels,labL,labA,labBv,nC};
 }
 
-function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,oCH,scaledData){
+function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,oCH,scaledData,edgeW=0.3){
   const PN=pw*ph,spL=new Float64Array(nSP),spA=new Float64Array(nSP),spBv=new Float64Array(nSP),spCnt=new Int32Array(nSP);
   // Compute LAB-based Sobel edge magnitudes for border penalty
   const eMag=scaledData?sobelMag(scaledData,pw,ph):null;
@@ -126,10 +126,9 @@ function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,
   const adjRaw=new Map();
   for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){const i=y*pw+x,li=labels[i];if(li<0)continue;const addEdge=(oi)=>{const lo=labels[oi];if(lo>=0&&lo!==li){const a=Math.min(li,lo),b=Math.max(li,lo),key=a*nSP+b;if(!adjRaw.has(key))adjRaw.set(key,{a,b,eSum:0,eCnt:0});if(eMag){const e=adjRaw.get(key);e.eSum+=eMag[i]+eMag[oi];e.eCnt+=2;}}};if(x<pw-1)addEdge(i+1);if(y<ph-1)addEdge(i+pw);}
   // Persistent edge penalty map keyed by (min,max) of root pair
-  const EDGE_W=0.4;
   const edgeKey=(a,b)=>Math.min(a,b)*nSP+Math.max(a,b);
   const edgePenalty=new Map();
-  for(const[,e]of adjRaw){if(!spCnt[e.a]||!spCnt[e.b])continue;const ep=e.eCnt>0?(e.eSum/e.eCnt)*EDGE_W:0;edgePenalty.set(edgeKey(e.a,e.b),ep*ep);}
+  for(const[,e]of adjRaw){if(!spCnt[e.a]||!spCnt[e.b])continue;const ep=e.eCnt>0?(e.eSum/e.eCnt)*edgeW:0;edgePenalty.set(edgeKey(e.a,e.b),ep*ep);}
   // Build initial adjacency list
   const mergeCost=(a,b)=>{const cd=(clL[a]-clL[b])**2+(clA[a]-clA[b])**2+(clBv[a]-clBv[b])**2;const ep=edgePenalty.get(edgeKey(a,b))||0;return cd+ep;};
   let adjList=[];
@@ -231,6 +230,11 @@ function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,oc
 
 function autoSegment(imageData,numColors,compactness=10){
   const data=imageData.data;
+  // compactness: 1=high edge sensitivity, 20=low edge sensitivity
+  // Derive stable SLIC compactness — values below 8 cause degenerate non-spatial clustering
+  const slicM=Math.max(8,compactness+5);
+  // Derive edge penalty weight for merge (high sens → strong edge preservation, low sens → free merge)
+  const edgeW=(21-compactness)/40; // range 0.025 (low sens) to 0.5 (high sens)
   // Downscale to max 300px for processing (higher res = better detail)
   const PROC_MAX=300,scale=Math.min(1,PROC_MAX/Math.max(CW,CH));
   const pw=Math.max(2,Math.round(CW*scale)),ph=Math.max(2,Math.round(CH*scale));
@@ -246,9 +250,10 @@ function autoSegment(imageData,numColors,compactness=10){
       sr+=sd[idx]*w;sg+=sd[idx+1]*w;sb+=sd[idx+2]*w;sa+=sd[idx+3]*w;
     }const oi=(y*pw+x)*4;smoothed[oi]=sr/gs;smoothed[oi+1]=sg/gs;smoothed[oi+2]=sb/gs;smoothed[oi+3]=sa/gs;}
   // SLIC superpixel segmentation + agglomerative merge (on smoothed data)
-  const nSP=Math.max(numColors,Math.min(numColors*25,Math.floor(pw*ph/4)));
-  const{labels:spLabels,labL,labA,labBv,nC}=slicSegment(smoothed,pw,ph,nSP,compactness,10);
-  const{mergedLabels,avgColors}=mergeSuperpixels(spLabels,labL,labA,labBv,pw,ph,nC,numColors,data,CW,CH,smoothed);
+  // More superpixels at higher sensitivity for finer initial clustering
+  const nSP=Math.max(numColors,Math.min(Math.floor(numColors*25*(1+edgeW)),Math.floor(pw*ph/4)));
+  const{labels:spLabels,labL,labA,labBv,nC}=slicSegment(smoothed,pw,ph,nSP,slicM,10);
+  const{mergedLabels,avgColors}=mergeSuperpixels(spLabels,labL,labA,labBv,pw,ph,nC,numColors,data,CW,CH,smoothed,edgeW);
   // Connected components on merged label map
   const PN=pw*ph,visited=new Uint8Array(PN),minSize=Math.max(6,Math.floor(PN/400)),components=[];
   for(let i=0;i<PN;i++){
@@ -258,8 +263,8 @@ function autoSegment(imageData,numColors,compactness=10){
     if(pix.length>=minSize)components.push({pixels:pix,col:avgColors[col]||[180,180,180],size:pix.length});
   }
   components.sort((a,b)=>b.size-a.size);
-  // Skip background: largest component only if it covers >45% of image
-  const bgT=PN*0.45,invSc=CW/pw,regions=[];
+  // Skip background: largest component only if it covers >50% of image
+  const bgT=PN*0.5,invSc=CW/pw,regions=[];
   for(const comp of components){
     if(comp.size>bgT&&!regions.length)continue;
     const mask=new Uint8Array(PN);for(const p of comp.pixels)mask[p]=1;
