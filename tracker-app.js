@@ -20,9 +20,8 @@ const[trackHistory,setTrackHistory]=useState([]);
 const[redoStack,setRedoStack]=useState([]);
 const TRACK_HISTORY_MAX=50;
 
-const[sessionActive,setSessionActive]=useState(false),[sessionStart,setSessionStart]=useState(null);
-const[sessionStitches,setSessionStitches]=useState(0),[totalTime,setTotalTime]=useState(0);
-const[sessionElapsed,setSessionElapsed]=useState(0),[sessions,setSessions]=useState([]);
+const[totalTime,setTotalTime]=useState(0);
+const[sessions,setSessions]=useState([]);
 
 const[statsSessions,setStatsSessions]=useState([]);
 const[statsSettings,setStatsSettings]=useState({dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null});
@@ -37,7 +36,15 @@ const autoIdleTimerRef=useRef(null);
 const prevAutoCountRef=useRef({done:0,halfDone:0});
 const autoStatsRef=useRef({doneCount:0,totalStitchable:0});
 const finaliseAutoSessionRef=useRef(null);
-const IDLE_THRESHOLD_MS=15*60*1000;
+const IDLE_THRESHOLD_MS=10*60*1000;
+
+// Variables for auto-session visibility auto-pause
+const [liveAutoElapsed, setLiveAutoElapsed] = useState(0);
+const [liveAutoStitches, setLiveAutoStitches] = useState(0);
+const [liveAutoIsPaused, setLiveAutoIsPaused] = useState(false);
+const autoSessionDisplayTimerRef = useRef(null);
+const documentHiddenRef = useRef(false);
+const lastPauseTimeRef = useRef(null);
 
 const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
 useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
@@ -134,16 +141,6 @@ const tStripRef=useRef(null);
 const tOverflowRef=useRef(null);
 const halfMenuRef=useRef(null);
 
-useEffect(()=>{
-  if(sessionActive){
-    timerRef.current=setInterval(()=>setSessionElapsed(Math.floor((Date.now()-sessionStart)/1000)),1000);
-    const onBlur=()=>{clearInterval(timerRef.current);};
-    const onFocus=()=>{timerRef.current=setInterval(()=>setSessionElapsed(Math.floor((Date.now()-sessionStart)/1000)),1000);};
-    window.addEventListener("blur",onBlur);window.addEventListener("focus",onFocus);
-    return()=>{clearInterval(timerRef.current);window.removeEventListener("blur",onBlur);window.removeEventListener("focus",onFocus);};
-  }else{clearInterval(timerRef.current);}
-},[sessionActive,sessionStart]);
-
 const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id!=="__skip__"&&id!=="__empty__")c++;}return c;},[pat]);
 
@@ -166,7 +163,6 @@ const combinedTotal=totalStitchable+halfStitchCounts.total*0.5;
 const combinedDone=doneCount+halfStitchCounts.done*0.5;
 const progressPct=combinedTotal>0?Math.round(combinedDone/combinedTotal*1000)/10:0;
 
-useEffect(()=>{if(sessionActive&&done){let diff=doneCount-prevDoneCount.current;if(diff>0)setSessionStitches(p=>p+diff);}prevDoneCount.current=doneCount;},[doneCount,sessionActive,done]);
 const colourDoneCounts=useMemo(()=>{
   if(!pat||!done)return{};
   let c={};
@@ -214,7 +210,7 @@ useEffect(()=>{
   prevFocusDoneRef.current=isNowComplete;
 },[colourDoneCounts,focusColour,stitchView,highlightSkipDone,pal]);
 
-const estCompletion=useMemo(()=>{let t=totalTime+(sessionActive?sessionElapsed:0);if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,sessionElapsed,sessionActive,doneCount,totalStitchable]);
+const estCompletion=useMemo(()=>{let t=totalTime+liveAutoElapsed;if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,liveAutoElapsed,doneCount,totalStitchable]);
 const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
 const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
 
@@ -243,7 +239,6 @@ const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData])
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
 const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable):null,[pal,blendCount,totalStitchable]);
 
-function toggleSession(){if(sessionActive){let el=Math.floor((Date.now()-sessionStart)/1000);setTotalTime(p=>p+el);setSessions(p=>[...p,{stitches:sessionStitches,time:el,date:Date.now()}]);setSessionActive(false);setSessionStart(null);setSessionStitches(0);setSessionElapsed(0);}else{setSessionActive(true);setSessionStart(Date.now());setSessionStitches(0);setSessionElapsed(0);prevDoneCount.current=doneCount;}}
 
 // ═══ Auto-session recording ═══
 function getStitchingDateLocal(now){
@@ -267,10 +262,15 @@ function recordAutoActivity(completed,undone){
         stitchesCompleted:0,
         stitchesUndone:0,
         coloursWorked:new Set(),
+        totalPausedMs:0
       };
+      setLiveAutoStitches(0);
+      setLiveAutoElapsed(0);
+      setLiveAutoIsPaused(document.hidden);
     }
     currentAutoSessionRef.current.stitchesCompleted+=completed;
     currentAutoSessionRef.current.stitchesUndone+=undone;
+    setLiveAutoStitches(currentAutoSessionRef.current.stitchesCompleted);
     // Merge any pending colour IDs into the session
     if(pendingColoursRef.current.size>0){
       pendingColoursRef.current.forEach(c=>currentAutoSessionRef.current.coloursWorked.add(c));
@@ -289,7 +289,8 @@ function finaliseAutoSession(){
     }
     const endTime=lastStitchActivityRef.current||new Date();
     const startTime=new Date(session.startTime);
-    const activeDurationMs=endTime-startTime;
+    let activeDurationMs=endTime-startTime-(session.totalPausedMs||0);
+    if(activeDurationMs<0) activeDurationMs=0;
     const ref=autoStatsRef.current||{doneCount:0,totalStitchable:0};
     const tc=ref.doneCount||0,ts=ref.totalStitchable||0;
     const finalised={
@@ -311,11 +312,47 @@ function finaliseAutoSession(){
       pendingMilestonesRef.current=[];
     }
     setStatsSessions(prev=>[...(prev||[]),finalised]);
+    setTotalTime(prev => prev + Math.floor(activeDurationMs / 1000));
     currentAutoSessionRef.current=null;
     clearTimeout(autoIdleTimerRef.current);
+    setLiveAutoElapsed(0);
+    setLiveAutoStitches(0);
   }catch(e){console.warn('Stats: finaliseAutoSession error',e);currentAutoSessionRef.current=null;}
 }
 finaliseAutoSessionRef.current=finaliseAutoSession;
+
+useEffect(() => {
+  function handleVisibilityChange() {
+    const isHidden = document.hidden;
+    documentHiddenRef.current = isHidden;
+    setLiveAutoIsPaused(isHidden);
+
+    if (isHidden) {
+      lastPauseTimeRef.current = Date.now();
+    } else {
+      if (lastPauseTimeRef.current && currentAutoSessionRef.current) {
+        const pausedMs = Date.now() - lastPauseTimeRef.current;
+        currentAutoSessionRef.current.totalPausedMs = (currentAutoSessionRef.current.totalPausedMs || 0) + pausedMs;
+      }
+      lastPauseTimeRef.current = null;
+    }
+  }
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+}, []);
+
+useEffect(() => {
+  autoSessionDisplayTimerRef.current = setInterval(() => {
+    if (!currentAutoSessionRef.current) return;
+    if (documentHiddenRef.current) return;
+    const now = Date.now();
+    const start = new Date(currentAutoSessionRef.current.startTime).getTime();
+    const paused = currentAutoSessionRef.current.totalPausedMs || 0;
+    const elapsedMs = Math.max(0, now - start - paused);
+    setLiveAutoElapsed(Math.floor(elapsedMs / 1000));
+  }, 1000);
+  return () => clearInterval(autoSessionDisplayTimerRef.current);
+}, []);
 // Keep autoStatsRef fresh
 useEffect(()=>{autoStatsRef.current={doneCount,totalStitchable};},[doneCount,totalStitchable]);
 // Auto-detect stitch activity from doneCount & halfDone changes
@@ -386,7 +423,7 @@ function editSessionNote(sessionId,noteText){
 function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0)pushTrackHistory(changes);setDone(nd);}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 function copyProgressSummary(){
-  let t=totalTime+(sessionActive?Math.floor((Date.now()-sessionStart)/1000):0);
+  let t=totalTime+liveAutoElapsed;
   let coloursComplete=Object.values(colourDoneCounts).filter(c=>c.done>=c.total&&c.total>0).length;
   let totalColours=pal?pal.length:0;
   let stPerHr=t>=60&&doneCount>0?Math.round(doneCount/(t/3600)):null;
@@ -616,7 +653,7 @@ function doSaveProject(finalName){
     bsLines,
     done:done?Array.from(done):null,
     parkMarkers,
-    totalTime:totalTime+(sessionActive?Math.floor((Date.now()-sessionStart)/1000):0),
+    totalTime:totalTime+liveAutoElapsed,
     sessions,
     hlRow,
     hlCol,
@@ -1031,7 +1068,7 @@ useEffect(() => {
     settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
     pattern: pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb }),
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
-    totalTime: totalTime + (sessionActive ? Math.floor((Date.now() - sessionStart) / 1000) : 0),
+    totalTime: totalTime + liveAutoElapsed,
     sessions, hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
     statsSessions, statsSettings,
@@ -1053,7 +1090,7 @@ useEffect(() => {
   }, 5000);
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
-    halfStitches, halfDone, singleStitchEdits, sessionActive, sessionStart,
+    halfStitches, halfDone, singleStitchEdits, liveAutoElapsed,
     sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
@@ -1798,7 +1835,7 @@ useEffect(()=>{
     }
   }
   function handleKeyUp(e){
-    if(e.code==="Space"){isSpaceDownRef.current=false;if(!spacePannedRef.current&&Date.now()-spaceDownTimeRef.current<300)toggleSession();spacePannedRef.current=false;}
+    if(e.code==="Space"){isSpaceDownRef.current=false;spacePannedRef.current=false;}
   }
   if(!isActive)return;
   window.addEventListener("keydown",handleKeyDown);
@@ -1940,9 +1977,11 @@ return(
     <button className="tb-fit-btn" onClick={fitSZ}>Fit</button>
   </div>
   <div className="tb-sdiv"/>
-  <button className={"tb-btn"+(sessionActive?" tb-btn--red":" tb-btn--green")} onClick={toggleSession} title={sessionActive?"Stop session timer":"Start session timer"} style={{flexShrink:0}}>
-    {sessionActive?<>⏹ {fmtTime(sessionElapsed)}</>:"▶ Start"}
-  </button>
+  {liveAutoStitches > 0 && (
+    <div className="tb-btn" style={{flexShrink:0, background: liveAutoIsPaused ? '#fef3c7' : '#f0fdf4', border: '1px solid ' + (liveAutoIsPaused ? '#fde68a' : '#bbf7d0'), color: liveAutoIsPaused ? '#b45309' : '#16a34a', cursor: 'default'}} title="Session is automatically tracked">
+      {liveAutoIsPaused ? '⏸ Paused' : `🟢 ${fmtTime(liveAutoElapsed)} · ${liveAutoStitches} st`}
+    </div>
+  )}
   <div className="tb-sdiv"/>
   <button className={"tb-btn"+(statsView?" tb-btn--on":"")} onClick={()=>{finaliseAutoSession();setStatsView(v=>!v);}} title="Stats dashboard" style={{flexShrink:0}}>📊 Stats</button>
   {stitchMode==="track"&&!isEditMode&&(trackHistory.length>0||redoStack.length>0)&&<>
@@ -1991,11 +2030,11 @@ return(
       }} title="Correct individual stitch colours — for imported patterns">Correct pattern colours…</button><div className="tb-ovf-sep"/></>
       }
       <button className="tb-ovf-item" onClick={()=>{setShowNavHelp(h=>!h);setTOverflowOpen(false);}}>{showNavHelp?"Hide":"Show"} controls help</button>
-      {(sessionActive||totalTime>0)&&<>
+      {(liveAutoStitches>0||totalTime>0)&&<>
         <div className="tb-ovf-sep"/>
-        <span className="tb-ovf-lbl">Session</span>
+        <span className="tb-ovf-lbl">Time Tracked</span>
         <div style={{padding:"4px 14px 2px",fontSize:11,color:"#71717a"}}>
-          {sessionActive?<><span style={{color:"#dc2626"}}>● </span>{fmtTime(sessionElapsed)} · {sessionStitches} stitches this session</>:<>Total: {fmtTime(totalTime)}</>}
+          {liveAutoStitches>0?<><span style={{color:"#16a34a"}}>● </span>{fmtTime(liveAutoElapsed)} · {liveAutoStitches} stitches active</>:<>Total: {fmtTime(totalTime)}</>}
           {estCompletion&&<div style={{fontSize:10,color:"#a1a1aa",marginTop:2}}>~{fmtTime(estCompletion)} remaining</div>}
         </div>
       </>}
