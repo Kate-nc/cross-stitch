@@ -70,12 +70,122 @@ function pointsToNodes(pts, targetN) {
   return downsample(pts, n).map(p => [Math.round(p[0]*10)/10, Math.round(p[1]*10)/10]);
 }
 
-function autoSegment(imageData,numColors){const data=imageData.data,N=CW*CH;const{labels,centroids}=kMeans(data,CW,CH,numColors);const visited=new Uint8Array(N),minSize=Math.max(150,N/200),components=[];for(let i=0;i<N;i++){if(visited[i]||labels[i]<0)continue;const col=labels[i],stack=[i];visited[i]=1;const pix=[];while(stack.length){const p=stack.pop();pix.push(p);const px=p%CW,py=(p/CW)|0;for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=px+dx,ny=py+dy;if(nx>=0&&nx<CW&&ny>=0&&ny<CH){const ni=ny*CW+nx;if(!visited[ni]&&labels[ni]===col){visited[ni]=1;stack.push(ni);}}}}if(pix.length>=minSize){const c=centroids[col];components.push({pixels:pix,col:[Math.round(c[0]),Math.round(c[1]),Math.round(c[2])],size:pix.length});}}components.sort((a,b)=>b.size-a.size);const bgT=N*0.35,regions=[];for(const comp of components){if(comp.size>bgT&&!regions.length)continue;const mask=new Uint8Array(N);for(const p of comp.pixels)mask[p]=1;const bp=extractBoundary(mask,CW,CH);if(bp.length<10)continue;const ord=orderBoundary(bp);if(ord.length<10)continue;const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(comp.size)/3)));const ds=downsample(ord,tp);if(ds.length<4)continue;let sm=catmull(ds,3);sm=simplify(sm,2);if(sm.length<4)continue;const dmc=closestDMC(...comp.col),area=pArea(sm),bounds=pBounds(sm);if(bounds.w<8||bounds.h<8)continue;
-    // Store control nodes (fewer points for editing) + smooth curve for rendering
-    const nodes = pointsToNodes(sm, Math.min(20, Math.max(6, Math.floor(Math.sqrt(comp.size)/8))));
-    const curve = buildCurve(nodes);
-    regions.push({id:0,label:"",nodes,points:curve,bounds:pBounds(curve),avgColor:comp.col,dmc,stitch:suggestStitch(area),direction:0,area:pArea(curve)});}
-  return regions.slice(0,20).map((r,i)=>({...r,id:i+1,label:`Region ${i+1}`}));}
+// ============================================================
+// SLIC Superpixel Segmentation
+// ============================================================
+
+function rgb2lab(r,g,b){let R=r/255,G=g/255,B=b/255;R=R>.04045?((R+.055)/1.055)**2.4:R/12.92;G=G>.04045?((G+.055)/1.055)**2.4:G/12.92;B=B>.04045?((B+.055)/1.055)**2.4:B/12.92;let X=(R*.4124+G*.3576+B*.1805)/.95047,Y=R*.2126+G*.7152+B*.0722,Z=(R*.0193+G*.1192+B*.9505)/1.08883;const f=t=>t>.008856?Math.cbrt(t):7.787*t+16/116;return[116*f(Y)-16,500*(f(X)-f(Y)),200*(f(Y)-f(Z))];}
+function lab2rgb(L,a,b){const fy=(L+16)/116,fx=a/500+fy,fz=fy-b/200;const f=t=>t>.20690?t*t*t:(t-16/116)/7.787;let X=f(fx)*.95047,Y=f(fy),Z=f(fz)*1.08883;let R=X*3.2406+Y*-1.5372+Z*-.4986,G=X*-.9689+Y*1.8758+Z*.0415,Bv=X*.0557+Y*-.2040+Z*1.0570;const gm=c=>Math.max(0,Math.min(255,Math.round((c>.0031308?1.055*c**(1/2.4)-.055:12.92*c)*255)));return[gm(R),gm(G),gm(Bv)];}
+
+function slicSegment(data,w,h,k,compactness,iters){
+  const N=w*h,labL=new Float32Array(N),labA=new Float32Array(N),labBv=new Float32Array(N);
+  for(let i=0;i<N;i++){const idx=i*4;if(data[idx+3]<=30){labL[i]=-1;continue;}const[lv,av,bv]=rgb2lab(data[idx],data[idx+1],data[idx+2]);labL[i]=lv;labA[i]=av;labBv[i]=bv;}
+  // Grid init — nudge centres to lowest gradient in 3×3 neighbourhood
+  const S=Math.sqrt(N/k),rows=Math.ceil(h/S),cols=Math.ceil(w/S),centres=[];
+  for(let gy=0;gy<rows&&centres.length<k;gy++)for(let gx=0;gx<cols&&centres.length<k;gx++){
+    let cx=Math.min(w-1,Math.round((gx+.5)*S)),cy=Math.min(h-1,Math.round((gy+.5)*S)),bestG=1e9;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const nx=cx+dx,ny=cy+dy;if(nx<1||nx>=w-1||ny<1||ny>=h-1)continue;const pi=ny*w+nx;if(labL[pi]<0)continue;const g=(labL[pi+1]-labL[pi-1])**2+(labL[(ny+1)*w+nx]-labL[(ny-1)*w+nx])**2;if(g<bestG){bestG=g;cx=nx;cy=ny;}}
+    const ci=cy*w+cx;if(labL[ci]<0)continue;centres.push([labL[ci],labA[ci],labBv[ci],cx,cy]);
+  }
+  const nC=centres.length,labels=new Int32Array(N).fill(-1),dist=new Float32Array(N),m=compactness,S2=S*S;
+  // SLIC assignment / update iterations
+  for(let iter=0;iter<iters;iter++){
+    dist.fill(1e9);
+    for(let ci=0;ci<nC;ci++){
+      const[cL,cA,cB,cx,cy]=centres[ci],r=Math.ceil(2*S)|0;
+      const x0=Math.max(0,cx-r|0),x1=Math.min(w-1,cx+r|0),y0=Math.max(0,cy-r|0),y1=Math.min(h-1,cy+r|0);
+      for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const pi=y*w+x;if(labL[pi]<0)continue;const D=(labL[pi]-cL)**2+(labA[pi]-cA)**2+(labBv[pi]-cB)**2+((x-cx)**2+(y-cy)**2)/S2*m*m;if(D<dist[pi]){dist[pi]=D;labels[pi]=ci;}}
+    }
+    const sL=new Float64Array(nC),sA=new Float64Array(nC),sB=new Float64Array(nC),sX=new Float64Array(nC),sY=new Float64Array(nC),cnt=new Int32Array(nC);
+    for(let i=0;i<N;i++){const c=labels[i];if(c<0)continue;sL[c]+=labL[i];sA[c]+=labA[i];sB[c]+=labBv[i];sX[c]+=i%w;sY[c]+=(i/w)|0;cnt[c]++;}
+    for(let ci=0;ci<nC;ci++){if(!cnt[ci])continue;centres[ci]=[sL[ci]/cnt[ci],sA[ci]/cnt[ci],sB[ci]/cnt[ci],sX[ci]/cnt[ci],sY[ci]/cnt[ci]];}
+  }
+  // Enforce connectivity: BFS from each centre, then spread labels to orphans
+  const connected=new Uint8Array(N),reachQ=[];
+  for(let ci=0;ci<nC;ci++){const cx=Math.round(centres[ci][3]),cy=Math.round(centres[ci][4]),seed=cy*w+cx;if(seed<0||seed>=N||labels[seed]!==ci)continue;connected[seed]=1;reachQ.push(seed);}
+  for(let head=0;head<reachQ.length;head++){const p=reachQ[head],px=p%w,py=(p/w)|0;for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=px+dx,ny=py+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const ni=ny*w+nx;if(!connected[ni]&&labels[ni]===labels[p]){connected[ni]=1;reachQ.push(ni);}}}
+  const spreadQ=[];
+  for(let i=0;i<N;i++){if(labels[i]>=0&&!connected[i])labels[i]=-2;else if(connected[i])spreadQ.push(i);}
+  for(let head=0;head<spreadQ.length;head++){const p=spreadQ[head],px=p%w,py=(p/w)|0;for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=px+dx,ny=py+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const ni=ny*w+nx;if(labels[ni]===-2&&labL[ni]>=0){labels[ni]=labels[p];spreadQ.push(ni);}}}
+  return{labels,labL,labA,labBv,nC};
+}
+
+function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,oCH){
+  const PN=pw*ph,spL=new Float64Array(nSP),spA=new Float64Array(nSP),spBv=new Float64Array(nSP),spCnt=new Int32Array(nSP);
+  for(let i=0;i<PN;i++){const l=labels[i];if(l<0||l>=nSP)continue;spL[l]+=labL[i];spA[l]+=labA[i];spBv[l]+=labBv[i];spCnt[l]++;}
+  for(let s=0;s<nSP;s++)if(spCnt[s]){spL[s]/=spCnt[s];spA[s]/=spCnt[s];spBv[s]/=spCnt[s];}
+  // Union-find
+  const parent=new Int32Array(nSP);for(let s=0;s<nSP;s++)parent[s]=s;
+  const find=x=>{while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x];}return x;};
+  const clL=Array.from(spL),clA=Array.from(spA),clBv=Array.from(spBv),clCnt=Array.from(spCnt);
+  // Build adjacency edge list
+  const adjSet=new Set();
+  for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){const i=y*pw+x,li=labels[i];if(li<0)continue;if(x<pw-1){const lr=labels[i+1];if(lr>=0&&lr!==li){const a=Math.min(li,lr),b=Math.max(li,lr);adjSet.add(a*nSP+b);}}if(y<ph-1){const lb=labels[i+pw];if(lb>=0&&lb!==li){const a=Math.min(li,lb),b=Math.max(li,lb);adjSet.add(a*nSP+b);}}}
+  let adjList=[];
+  for(const code of adjSet){const a=(code/nSP)|0,b=code%nSP;if(!spCnt[a]||!spCnt[b])continue;adjList.push({d:(spL[a]-spL[b])**2+(spA[a]-spA[b])**2+(spBv[a]-spBv[b])**2,a,b});}
+  adjList.sort((x,y)=>x.d-y.d);
+  let nClusters=0;for(let s=0;s<nSP;s++)if(spCnt[s])nClusters++;
+  // Agglomerative merge until targetK clusters remain
+  while(nClusters>targetK&&adjList.length){
+    let fi=-1;for(let i=0;i<adjList.length;i++){if(find(adjList[i].a)!==find(adjList[i].b)){fi=i;break;}}
+    if(fi<0)break;
+    const{a,b}=adjList[fi],ra=find(a),rb=find(b),tc=clCnt[ra]+clCnt[rb];
+    clL[ra]=(clL[ra]*clCnt[ra]+clL[rb]*clCnt[rb])/tc;clA[ra]=(clA[ra]*clCnt[ra]+clA[rb]*clCnt[rb])/tc;clBv[ra]=(clBv[ra]*clCnt[ra]+clBv[rb]*clCnt[rb])/tc;
+    clCnt[ra]=tc;parent[rb]=ra;nClusters--;
+    const newN=new Set();
+    for(let i=0;i<adjList.length;i++){const e=adjList[i],fa=find(e.a),fb=find(e.b);if(fa===ra||fb===ra){if(fa!==fb)newN.add(fa===ra?fb:fa);e.d=Infinity;}}
+    for(const nc of newN){if(!clCnt[nc])continue;adjList.push({d:(clL[ra]-clL[nc])**2+(clA[ra]-clA[nc])**2+(clBv[ra]-clBv[nc])**2,a:ra,b:nc});}
+    if(adjList.filter(e=>e.d===Infinity).length>adjList.length>>1)adjList=adjList.filter(e=>e.d<Infinity);
+    adjList.sort((x,y)=>x.d-y.d);
+  }
+  // Remap to contiguous IDs, sample avg RGB from original image
+  const invSc=oCW/pw,clusterMap=new Map();let nextCId=0;
+  const mergedLabels=new Int32Array(PN).fill(-1);
+  for(let i=0;i<PN;i++){const l=labels[i];if(l<0)continue;const r=find(l);if(!clusterMap.has(r))clusterMap.set(r,{id:nextCId++,sr:0,sg:0,sb:0,cnt:0,lab:[clL[r],clA[r],clBv[r]]});const cl=clusterMap.get(r);mergedLabels[i]=cl.id;const ox=Math.min(oCW-1,Math.round((i%pw)*invSc)),oy=Math.min(oCH-1,Math.round(((i/pw)|0)*invSc)),oidx=(oy*oCW+ox)*4;if(origData[oidx+3]>30){cl.sr+=origData[oidx];cl.sg+=origData[oidx+1];cl.sb+=origData[oidx+2];cl.cnt++;}}
+  const avgColors=new Array(nextCId);
+  for(const cl of clusterMap.values())avgColors[cl.id]=cl.cnt?[Math.round(cl.sr/cl.cnt),Math.round(cl.sg/cl.cnt),Math.round(cl.sb/cl.cnt)]:lab2rgb(...cl.lab);
+  return{mergedLabels,nMerged:nextCId,avgColors};
+}
+
+function autoSegment(imageData,numColors,compactness=10){
+  const data=imageData.data;
+  // Downscale to max 200px for processing
+  const PROC_MAX=200,scale=Math.min(1,PROC_MAX/Math.max(CW,CH));
+  const pw=Math.max(2,Math.round(CW*scale)),ph=Math.max(2,Math.round(CH*scale));
+  const tmpC=document.createElement('canvas');tmpC.width=CW;tmpC.height=CH;tmpC.getContext('2d').putImageData(imageData,0,0);
+  const scC=document.createElement('canvas');scC.width=pw;scC.height=ph;scC.getContext('2d').drawImage(tmpC,0,0,CW,CH,0,0,pw,ph);
+  const scaledD=scC.getContext('2d').getImageData(0,0,pw,ph);
+  // SLIC superpixel segmentation + agglomerative merge
+  const nSP=Math.max(numColors,Math.min(numColors*20,Math.floor(pw*ph/4)));
+  const{labels:spLabels,labL,labA,labBv,nC}=slicSegment(scaledD.data,pw,ph,nSP,compactness,10);
+  const{mergedLabels,avgColors}=mergeSuperpixels(spLabels,labL,labA,labBv,pw,ph,nC,numColors,data,CW,CH);
+  // Connected components on merged label map
+  const PN=pw*ph,visited=new Uint8Array(PN),minSize=Math.max(4,PN/200),components=[];
+  for(let i=0;i<PN;i++){
+    if(visited[i]||mergedLabels[i]<0)continue;
+    const col=mergedLabels[i],stack=[i];visited[i]=1;const pix=[];
+    while(stack.length){const p=stack.pop();pix.push(p);const px=p%pw,py=(p/pw)|0;for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=px+dx,ny=py+dy;if(nx>=0&&nx<pw&&ny>=0&&ny<ph){const ni=ny*pw+nx;if(!visited[ni]&&mergedLabels[ni]===col){visited[ni]=1;stack.push(ni);}}}}
+    if(pix.length>=minSize)components.push({pixels:pix,col:avgColors[col]||[180,180,180],size:pix.length});
+  }
+  components.sort((a,b)=>b.size-a.size);
+  const bgT=PN*0.35,invSc=CW/pw,regions=[];
+  for(const comp of components){
+    if(comp.size>bgT&&!regions.length)continue;
+    const mask=new Uint8Array(PN);for(const p of comp.pixels)mask[p]=1;
+    const bp=extractBoundary(mask,pw,ph);if(bp.length<6)continue;
+    const ord=orderBoundary(bp);if(ord.length<6)continue;
+    const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(comp.size)/3)));
+    const ds=downsample(ord,tp);if(ds.length<4)continue;
+    let sm=catmull(ds,3);sm=simplify(sm,1.5);if(sm.length<4)continue;
+    const sc=sm.map(([x,y])=>[x*invSc,y*invSc]);
+    const dmc=closestDMC(...comp.col),area=pArea(sc),bounds=pBounds(sc);
+    if(bounds.w<8||bounds.h<8)continue;
+    const nodes=pointsToNodes(sc,Math.min(20,Math.max(6,Math.floor(Math.sqrt(comp.size*invSc*invSc)/8))));
+    const curve=buildCurve(nodes);
+    regions.push({id:0,label:"",nodes,points:curve,bounds:pBounds(curve),avgColor:comp.col,dmc,stitch:suggestStitch(area),direction:0,area:pArea(curve)});
+  }
+  return regions.slice(0,20).map((r,i)=>({...r,id:i+1,label:`Region ${i+1}`}));
+}
 
 function drawSampleFlower(ctx){ctx.fillStyle="#D4E8CB";ctx.fillRect(0,0,CW,CH);ctx.strokeStyle="#2D7A24";ctx.lineWidth=10;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(200,190);ctx.bezierCurveTo(198,250,195,310,200,380);ctx.stroke();ctx.fillStyle="#3B8F30";ctx.beginPath();ctx.moveTo(194,265);ctx.bezierCurveTo(155,245,115,255,110,272);ctx.bezierCurveTo(115,290,155,282,192,275);ctx.closePath();ctx.fill();ctx.fillStyle="#4BA23E";ctx.beginPath();ctx.moveTo(206,305);ctx.bezierCurveTo(245,285,285,295,290,310);ctx.bezierCurveTo(285,325,245,318,208,312);ctx.closePath();ctx.fill();const petals=[{cx:200,cy:95,rx:44,ry:65,rot:-.2,col:"#D93B5B"},{cx:248,cy:125,rx:42,ry:60,rot:.55,col:"#E8506A"},{cx:152,cy:125,rx:42,ry:60,rot:-.55,col:"#C72E4E"},{cx:232,cy:168,rx:40,ry:56,rot:.95,col:"#F06888"},{cx:168,cy:168,rx:40,ry:56,rot:-.95,col:"#B52545"}];for(const p of petals){ctx.save();ctx.translate(p.cx,p.cy);ctx.rotate(p.rot);ctx.fillStyle=p.col;ctx.beginPath();ctx.ellipse(0,0,p.rx,p.ry,0,0,Math.PI*2);ctx.fill();ctx.restore();}ctx.fillStyle="#F5C622";ctx.beginPath();ctx.arc(200,150,28,0,Math.PI*2);ctx.fill();ctx.fillStyle="#D4A010";for(let i=0;i<14;i++){const a=(i/14)*Math.PI*2,r=8+(i%3)*5;ctx.beginPath();ctx.arc(200+Math.cos(a)*r,150+Math.sin(a)*r,2.5,0,Math.PI*2);ctx.fill();}}
 function drawSampleButterfly(ctx){ctx.fillStyle="#EDE4D8";ctx.fillRect(0,0,CW,CH);ctx.fillStyle="#1E1208";ctx.beginPath();ctx.ellipse(200,205,9,58,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(200,144,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#1E1208";ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(195,138);ctx.bezierCurveTo(178,108,168,96,162,90);ctx.stroke();ctx.beginPath();ctx.moveTo(205,138);ctx.bezierCurveTo(222,108,232,96,238,90);ctx.stroke();ctx.fillStyle="#1E1208";ctx.beginPath();ctx.arc(162,90,4,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(238,90,4,0,Math.PI*2);ctx.fill();const uW=f=>{ctx.save();ctx.translate(200,178);if(f)ctx.scale(-1,1);ctx.fillStyle="#E06820";ctx.beginPath();ctx.moveTo(2,0);ctx.bezierCurveTo(42,-82,125,-92,150,-32);ctx.bezierCurveTo(155,-10,135,22,85,32);ctx.bezierCurveTo(42,38,12,16,2,0);ctx.closePath();ctx.fill();ctx.fillStyle="#F5A830";ctx.beginPath();ctx.moveTo(22,-10);ctx.bezierCurveTo(52,-58,95,-65,112,-28);ctx.bezierCurveTo(100,-4,62,12,28,6);ctx.closePath();ctx.fill();ctx.restore();};uW(false);uW(true);const lW=f=>{ctx.save();ctx.translate(200,205);if(f)ctx.scale(-1,1);ctx.fillStyle="#CC5515";ctx.beginPath();ctx.moveTo(2,6);ctx.bezierCurveTo(32,12,105,28,120,58);ctx.bezierCurveTo(115,85,72,90,42,74);ctx.bezierCurveTo(18,58,6,32,2,16);ctx.closePath();ctx.fill();ctx.fillStyle="#F0942C";ctx.beginPath();ctx.moveTo(22,22);ctx.bezierCurveTo(52,28,82,42,88,56);ctx.bezierCurveTo(78,66,48,62,28,48);ctx.closePath();ctx.fill();ctx.restore();};lW(false);lW(true);}
@@ -110,6 +220,7 @@ function EmbroideryApp(){
   const[nextId,setNextId]=useState(1);
   const[dismissed,setDismissed]=useState(new Set());
   const[dragNode,setDragNode]=useState(null); // { regionId, nodeIdx }
+  const[compactness,setCompactness]=useState(10);
 
   const mainC=useRef(null),imgC=useRef(null),fileRef=useRef(null);
   const imgRef=useRef(null),imgDataRef=useRef(null),isDraw=useRef(false);
@@ -121,7 +232,7 @@ function EmbroideryApp(){
 
   const handleFile=useCallback(e=>{const f=e.target.files?.[0];if(!f)return;const reader=new FileReader();reader.onload=ev=>{setImgSrc(ev.target.result);const img=new Image();img.onload=()=>{imgRef.current=img;const ic=imgC.current;ic.width=CW;ic.height=CH;const ctx=ic.getContext("2d");ctx.clearRect(0,0,CW,CH);const s=Math.min(CW/img.width,CH/img.height);ctx.drawImage(img,(CW-img.width*s)/2,(CH-img.height*s)/2,img.width*s,img.height*s);imgDataRef.current=ctx.getImageData(0,0,CW,CH);setPhase("segment");};img.src=ev.target.result;};reader.readAsDataURL(f);},[]);
   const loadSample=useCallback(type=>{const c=document.createElement("canvas");c.width=CW;c.height=CH;const ctx=c.getContext("2d");if(type==="flower")drawSampleFlower(ctx);else drawSampleButterfly(ctx);const url=c.toDataURL();setImgSrc(url);const img=new Image();img.onload=()=>{imgRef.current=img;const ic=imgC.current;ic.width=CW;ic.height=CH;ic.getContext("2d").drawImage(img,0,0);imgDataRef.current=ic.getContext("2d").getImageData(0,0,CW,CH);setPhase("segment");};img.src=url;},[]);
-  const runAuto=useCallback(()=>{if(!imgDataRef.current)return;setLoading(true);setTimeout(()=>{const r=autoSegment(imgDataRef.current,numColors);setRegions(r);setNextId(r.length+1);setLoading(false);setPhase("edit");setEditMode("select");setDismissed(new Set());},80);},[numColors]);
+  const runAuto=useCallback(()=>{if(!imgDataRef.current)return;setLoading(true);setTimeout(()=>{const r=autoSegment(imgDataRef.current,numColors,compactness);setRegions(r);setNextId(r.length+1);setLoading(false);setPhase("edit");setEditMode("select");setDismissed(new Set());},80);},[numColors,compactness]);
   const startDraw=useCallback(()=>{setPhase("edit");setRegions([]);setNextId(1);setEditMode("draw");setDismissed(new Set());},[]);
 
   const makeRegion=useCallback(rawPts=>{if(rawPts.length<5)return null;let sm=simplify(rawPts,4);if(sm.length>=4)sm=catmull(sm,4);sm=simplify(sm,2);if(sm.length<4)return null;const bounds=pBounds(sm),area=pArea(sm);let r=180,g=180,b=180,cnt=0;if(imgDataRef.current){const d=imgDataRef.current.data;for(let py=Math.max(0,bounds.y|0);py<Math.min(CH,bounds.y+bounds.h);py+=2)for(let px=Math.max(0,bounds.x|0);px<Math.min(CW,bounds.x+bounds.w);px+=2)if(ptIn(sm,px,py)){const i=(py*CW+px)*4;r+=d[i];g+=d[i+1];b+=d[i+2];cnt++;}if(cnt>0){r=Math.round(r/cnt);g=Math.round(g/cnt);b=Math.round(b/cnt);}}
@@ -315,12 +426,17 @@ function EmbroideryApp(){
             <div style={{textAlign:"center",marginBottom:8}}>
               <span style={{fontSize:26}}>🤖</span>
               <h3 className="emb-method-title">Auto Detect</h3>
-              <p className="emb-method-desc">K-means clustering</p>
+              <p className="emb-method-desc">SLIC superpixel segmentation</p>
             </div>
             <div style={{marginBottom:10}}>
               <label className="emb-label">Colour regions: {numColors}</label>
               <input type="range" min={4} max={16} value={numColors} onChange={e=>setNumColors(+e.target.value)} style={{width:"100%"}}/>
               <div className="emb-range-labels"><span>Fewer</span><span>More</span></div>
+            </div>
+            <div style={{marginBottom:10}}>
+              <label className="emb-label">Edge sensitivity: {compactness<=5?'High':compactness<=14?'Medium':'Low'}</label>
+              <input type="range" min={1} max={20} value={21-compactness} onChange={e=>setCompactness(21-(+e.target.value))} style={{width:"100%"}}/>
+              <div className="emb-range-labels"><span>Low</span><span>High</span></div>
             </div>
             <button className="emb-btn emb-btn--primary emb-btn--full" onClick={runAuto} disabled={loading} style={{opacity:loading?.6:1,cursor:loading?"wait":"pointer"}}>
               {loading?"Detecting…":"Auto Segment"}
