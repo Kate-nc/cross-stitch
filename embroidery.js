@@ -7,6 +7,9 @@ const ACCENT_DARK = '#0f766e';
 const ACCENT_LIGHT = '#f0fdfa';
 const ACCENT_BORDER = '#99f6e4';
 
+// Module-level Sobel edge cache: set by autoSegment, reused by magicWandFill
+let _wandEdgeCache = null;
+
 const STITCHES = [
   { id:"satin",name:"Satin",desc:"Smooth parallel fill",color:"#0d9488"},
   { id:"longshort",name:"Long & Short",desc:"Blended shading fill",color:"#0f766e"},
@@ -65,6 +68,27 @@ function extractBoundary(mask,w,h){const b=[];for(let y=0;y<h;y++)for(let x=0;x<
 function traceContour(mask,w,h){const out=[];let sx=-1,sy=-1;outer:for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(mask[y*w+x]){sx=x;sy=y;break outer;}if(sx<0)return out;const dirs=[[-1,0],[-1,-1],[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1]];let cx=sx,cy=sy,cd=0;const mk=new Uint8Array(w*h);do{out.push([cx,cy]);mk[cy*w+cx]=1;let found=false;const start=(cd+5)%8;for(let s=0;s<8;s++){const d=(start+s)%8,[dx,dy]=dirs[d],nx=cx+dx,ny=cy+dy;if(nx>=0&&nx<w&&ny>=0&&ny<h&&mask[ny*w+nx]){cx=nx;cy=ny;cd=d;found=true;break;}}if(!found)break;}while(cx!==sx||cy!==sy);if(out.length>2)out.push(out[0].slice());return out;}
 function orderBoundary(pts){return pts;}
 function downsample(pts,n){if(pts.length<=n)return pts;const al=[0];for(let i=1;i<pts.length;i++)al.push(al[i-1]+Math.sqrt((pts[i][0]-pts[i-1][0])**2+(pts[i][1]-pts[i-1][1])**2));const tot=al[al.length-1];if(tot<1)return pts.slice(0,n);const step=tot/n;const out=[pts[0]];let nd=step;for(let i=1;i<pts.length&&out.length<n;i++)while(al[i]>=nd&&out.length<n){const sl=al[i]-al[i-1],t=sl>0?(nd-al[i-1])/sl:0;out.push([pts[i-1][0]+t*(pts[i][0]-pts[i-1][0]),pts[i-1][1]+t*(pts[i][1]-pts[i-1][1])]);nd+=step;}return out;}
+
+// Remove spike points from a contour: points whose consecutive direction vectors
+// reverse sharply (dot product of unit vectors below minCos, i.e. >~120° turn).
+function smoothContourAngles(pts,minCos=-0.5){
+  if(pts.length<4)return pts;
+  let res=pts.slice();
+  for(let pass=0;pass<3;pass++){
+    const next=[res[0]];
+    for(let i=1;i<res.length-1;i++){
+      const[ax,ay]=res[i-1],[bx,by]=res[i],[cx,cy]=res[i+1];
+      const ux=bx-ax,uy=by-ay,vx=cx-bx,vy=cy-by;
+      const lu=Math.sqrt(ux*ux+uy*uy),lv=Math.sqrt(vx*vx+vy*vy);
+      if(lu>0&&lv>0&&(ux*vx+uy*vy)/(lu*lv)<minCos)continue; // skip spike
+      next.push(res[i]);
+    }
+    next.push(res[res.length-1]);
+    if(next.length===res.length)break;
+    res=next;
+  }
+  return res.length>=4?res:pts;
+}
 
 // Convert smooth points back to ~N control nodes
 function pointsToNodes(pts, targetN) {
@@ -225,8 +249,8 @@ function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,oc
     const ni=ny*w+nx;if(pL[ni]<0)continue;sL+=pL[ni];sA+=pA[ni];sB+=pB[ni];sc++;
   }
   if(!sc)return new Uint8Array(N);sL/=sc;sA/=sc;sB/=sc;
-  // Edge map for snap
-  const edgeMag=useEdgeSnap?sobelMagLAB(pL,pA,pB,w,h):null;
+  // Edge map for snap — reuse autoSegment’s cached map when dimensions match (avoids recompute)
+  const edgeMag=useEdgeSnap?(_wandEdgeCache&&_wandEdgeCache.w===w&&_wandEdgeCache.h===h?_wandEdgeCache.mag:sobelMagLAB(pL,pA,pB,w,h)):null;
   const mask=new Uint8Array(N),visited=new Uint8Array(N),queue=new Int32Array(N);
   let head=0,tail=0;const seed=seedY*w+seedX;
   if(seed<0||seed>=N||pL[seed]<0||occupiedMask[seed])return mask;
@@ -281,9 +305,15 @@ function autoSegment(imageData,numColors,compactness=10){
       const wt=Math.exp(-(kx*kx+ky*ky)/bSigS2-cD/bSigC2);
       sr+=sd[ni]*wt;sg+=sd[ni+1]*wt;sb+=sd[ni+2]*wt;sa+=sd[ni+3]*wt;wSum+=wt;
     }const oi=(y*pw+x)*4;smoothed[oi]=sr/wSum;smoothed[oi+1]=sg/wSum;smoothed[oi+2]=sb/wSum;smoothed[oi+3]=sa/wSum;}
+  // Compute Sobel edge map on smoothed data: used for adaptive nSP and contour snapping
+  const sMag=sobelMag(smoothed,pw,ph);
+  // Edge complexity: (mean + std) of Sobel magnitudes, normalised to a 0.5–2× scale factor
+  const complexity=(()=>{const eN=pw*ph;let eS=0,eS2=0;for(let i=0;i<eN;i++){const v=sMag[i];eS+=v;eS2+=v*v;}const eMn=eS/eN,eStd=Math.sqrt(Math.max(0,eS2/eN-eMn*eMn));return Math.min(2,Math.max(0.5,(eMn+eStd)/(eMn+1)));})();
+  // Cache full-resolution LAB Sobel for magic wand reuse (computed once per image load)
+  try{const D=imageData.data,N=CW*CH,fL=new Float32Array(N),fA=new Float32Array(N),fB=new Float32Array(N);for(let i=0;i<N;i++){const idx=i*4;if(D[idx+3]<=30)continue;const[l,a,b]=rgb2lab(D[idx],D[idx+1],D[idx+2]);fL[i]=l;fA[i]=a;fB[i]=b;}_wandEdgeCache={mag:sobelMagLAB(fL,fA,fB,CW,CH),w:CW,h:CH};}catch(e){_wandEdgeCache=null;}
   // SLIC superpixel segmentation + agglomerative merge (on smoothed data)
-  // More superpixels at higher sensitivity for finer initial clustering
-  const nSP=Math.max(numColors,Math.min(Math.floor(numColors*25*(1+edgeW)),Math.floor(pw*ph/4)));
+  // More superpixels at higher sensitivity and more complex images
+  const nSP=Math.max(numColors,Math.min(Math.floor(numColors*25*(1+edgeW)*complexity),Math.floor(pw*ph/4)));
   const{labels:spLabels,labL,labA,labBv,nC}=slicSegment(smoothed,pw,ph,nSP,slicM,10);
   const{mergedLabels,avgColors}=mergeSuperpixels(spLabels,labL,labA,labBv,pw,ph,nC,numColors,data,CW,CH,smoothed,edgeW);
   // Connected components on merged label map
@@ -295,8 +325,19 @@ function autoSegment(imageData,numColors,compactness=10){
     if(pix.length>=minSize)components.push({pixels:pix,col:avgColors[col]||[180,180,180],size:pix.length});
   }
   components.sort((a,b)=>b.size-a.size);
+  const invSc=CW/pw;
+  // DMC-colour merging: union-find adjacent components that resolve to the same DMC thread code
+  // This eliminates colour-identical fragments that would be stitched the same anyway
+  {const cLbl=new Int32Array(PN).fill(-1);for(let ci=0;ci<components.length;ci++)for(const p of components[ci].pixels)cLbl[p]=ci;
+   const cD=components.map(c=>closestDMC(...c.col).c);
+   const cP=components.map((_,i)=>i);
+   const cF=x=>{while(cP[x]!==x){cP[x]=cP[cP[x]];x=cP[x];}return x;};
+   for(let i=0;i<PN;i++){const ci=cLbl[i];if(ci<0)continue;const x=i%pw,y=(i/pw)|0;for(const[dx,dy]of[[1,0],[0,1]]){const nx=x+dx,ny=y+dy;if(nx>=pw||ny>=ph)continue;const cj=cLbl[ny*pw+nx];if(cj<0||cj===ci)continue;const ri=cF(ci),rj=cF(cj);if(ri!==rj&&cD[ri]===cD[rj])cP[rj]=ri;}}
+   const mMap=new Map();for(let ci=0;ci<components.length;ci++){const r=cF(ci);if(!mMap.has(r))mMap.set(r,{pixels:[],col:components[r].col,size:0});const mc=mMap.get(r);for(const p of components[ci].pixels)mc.pixels.push(p);mc.size+=components[ci].size;}
+   for(const[,mc]of mMap){let sr=0,sg=0,sb=0,cnt=0;for(const p of mc.pixels){const ox=Math.min(CW-1,Math.round((p%pw)*invSc)),oy=Math.min(CH-1,Math.round(((p/pw)|0)*invSc)),oi=(oy*CW+ox)*4;if(data[oi+3]>30){sr+=data[oi];sg+=data[oi+1];sb+=data[oi+2];cnt++;}}if(cnt>0)mc.col=[Math.round(sr/cnt),Math.round(sg/cnt),Math.round(sb/cnt)];}
+   components.length=0;for(const[,mc]of mMap)if(mc.size>=minSize)components.push(mc);components.sort((a,b)=>b.size-a.size);}
   // Skip background: largest component only if it covers >50% of image
-  const bgT=PN*0.5,invSc=CW/pw,regions=[];
+  const bgT=PN*0.5,regions=[];
   for(const comp of components){
     if(comp.size>bgT&&!regions.length)continue;
     const mask=new Uint8Array(PN);for(const p of comp.pixels)mask[p]=1;
@@ -309,14 +350,18 @@ function autoSegment(imageData,numColors,compactness=10){
     const useMask=opened.reduce((s,v)=>s+v,0)>=comp.pixels.length*0.3?opened:mask;
     const bMask=new Uint8Array(PN);for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){if(!useMask[y*pw+x])continue;if(x===0||!useMask[y*pw+x-1]||x===pw-1||!useMask[y*pw+x+1]||y===0||!useMask[(y-1)*pw+x]||y===ph-1||!useMask[(y+1)*pw+x])bMask[y*pw+x]=1;}
     // Multi-contour: trace all boundary components, use the largest (outer contour)
+    // Scan advances past zeroed pixels so each contour component is found once — O(PN) total
     const tmpB=new Uint8Array(bMask);let bestContour=[];
     for(let scan=0;scan<PN;scan++){if(!tmpB[scan])continue;
       const c=traceContour(tmpB,pw,ph);for(const[cx,cy]of c)tmpB[cy*pw+cx]=0;
-      if(c.length>bestContour.length)bestContour=c;if(!tmpB.some(v=>v))break;}
-    const contour=bestContour;if(contour.length<6)continue;
+      if(c.length>bestContour.length)bestContour=c;}
+    if(bestContour.length<6)continue;
+    // Boundary edge-snapping: nudge each contour point toward the nearest high-gradient pixel
+    const snapped=bestContour.map(([cx,cy])=>{let bm=sMag[cy*pw+cx],bx=cx,by=cy;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const nx=cx+dx,ny=cy+dy;if(nx<0||nx>=pw||ny<0||ny>=ph)continue;if(sMag[ny*pw+nx]>bm){bm=sMag[ny*pw+nx];bx=nx;by=ny;}}return[bx,by];});
+    const contour=snapped.length>=6?snapped:bestContour;
     const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(comp.size)/3)));
     const ds=downsample(contour,tp);if(ds.length<4)continue;
-    let sm=catmull(ds,3);sm=simplify(sm,1.5);if(sm.length<4)continue;
+    let sm=catmull(ds,3);sm=simplify(sm,1.5);sm=smoothContourAngles(sm);if(sm.length<4)continue;
     const sc=sm.map(([x,y])=>[x*invSc,y*invSc]);
     const dmc=closestDMC(...comp.col),area=pArea(sc),bounds=pBounds(sc);
     if(bounds.w<8||bounds.h<8)continue;
@@ -384,7 +429,7 @@ function EmbroideryApp(){
   const finishDraw=useCallback(()=>{const result=makeRegion(curPts);isDraw.current=false;setCurPts([]);if(!result)return;
     setRegions(p=>[...p,{id:nextId,label:`Region ${nextId}`,...result}]);setNextId(n=>n+1);},[curPts,nextId,makeRegion]);
 
-  const runWand=useCallback((mx,my)=>{if(!imgDataRef.current)return;const sx=Math.max(0,Math.min(CW-1,Math.round(mx))),sy=Math.max(0,Math.min(CH-1,Math.round(my)));const occ=new Uint8Array(CW*CH);for(const r of regions){const b=r.bounds;for(let py=Math.max(0,b.y|0);py<Math.min(CH,(b.y+b.h+1)|0);py++)for(let px=Math.max(0,b.x|0);px<Math.min(CW,(b.x+b.w+1)|0);px++)if(ptIn(r.points,px,py))occ[py*CW+px]=1;}const mask=magicWandFill(imgDataRef.current,sx,sy,wandTolerance,wandEdgeSnap,3.0,occ);const bMask=new Uint8Array(CW*CH);for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){if(!mask[y*CW+x])continue;if(x===0||!mask[y*CW+x-1]||x===CW-1||!mask[y*CW+x+1]||y===0||!mask[(y-1)*CW+x]||y===CH-1||!mask[(y+1)*CW+x])bMask[y*CW+x]=1;}const contour=traceContour(bMask,CW,CH);if(contour.length<10)return;const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(contour.length)/3)));const ds=downsample(contour,tp);if(ds.length<4)return;let sm=catmull(ds,3);sm=simplify(sm,2);if(sm.length<4)return;let ar=0,ag=0,ab=0,ac=0;const d=imgDataRef.current.data;for(let i=0;i<CW*CH;i++){if(!mask[i])continue;ar+=d[i*4];ag+=d[i*4+1];ab+=d[i*4+2];ac++;}const avgC=ac>0?[Math.round(ar/ac),Math.round(ag/ac),Math.round(ab/ac)]:[180,180,180];const area=pArea(sm),bounds=pBounds(sm);if(bounds.w<8||bounds.h<8)return;const nodes=pointsToNodes(sm,Math.min(20,Math.max(6,Math.floor(Math.sqrt(area)/6))));const curve=buildCurve(nodes);const nid=nextId;setRegions(p=>[...p,{id:nid,label:`Region ${nid}`,nodes,points:curve,bounds:pBounds(curve),avgColor:avgC,dmc:closestDMC(...avgC),stitch:suggestStitch(area),direction:0,area:pArea(curve)}]);setNextId(n=>n+1);setSelId(nid);setEditMode("select");},[regions,wandTolerance,wandEdgeSnap,nextId]);
+  const runWand=useCallback((mx,my)=>{if(!imgDataRef.current)return;const sx=Math.max(0,Math.min(CW-1,Math.round(mx))),sy=Math.max(0,Math.min(CH-1,Math.round(my)));const occ=new Uint8Array(CW*CH);for(const r of regions){const b=r.bounds;for(let py=Math.max(0,b.y|0);py<Math.min(CH,(b.y+b.h+1)|0);py++)for(let px=Math.max(0,b.x|0);px<Math.min(CW,(b.x+b.w+1)|0);px++)if(ptIn(r.points,px,py))occ[py*CW+px]=1;}const mask=magicWandFill(imgDataRef.current,sx,sy,wandTolerance,wandEdgeSnap,3.0,occ);const bMask=new Uint8Array(CW*CH);for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){if(!mask[y*CW+x])continue;if(x===0||!mask[y*CW+x-1]||x===CW-1||!mask[y*CW+x+1]||y===0||!mask[(y-1)*CW+x]||y===CH-1||!mask[(y+1)*CW+x])bMask[y*CW+x]=1;}const contour=traceContour(bMask,CW,CH);if(contour.length<10)return;const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(contour.length)/3)));const ds=downsample(contour,tp);if(ds.length<4)return;let sm=catmull(ds,3);sm=simplify(sm,2);sm=smoothContourAngles(sm);if(sm.length<4)return;let ar=0,ag=0,ab=0,ac=0;const d=imgDataRef.current.data;for(let i=0;i<CW*CH;i++){if(!mask[i])continue;ar+=d[i*4];ag+=d[i*4+1];ab+=d[i*4+2];ac++;}const avgC=ac>0?[Math.round(ar/ac),Math.round(ag/ac),Math.round(ab/ac)]:[180,180,180];const area=pArea(sm),bounds=pBounds(sm);if(bounds.w<8||bounds.h<8)return;const nodes=pointsToNodes(sm,Math.min(20,Math.max(6,Math.floor(Math.sqrt(area)/6))));const curve=buildCurve(nodes);const nid=nextId;setRegions(p=>[...p,{id:nid,label:`Region ${nid}`,nodes,points:curve,bounds:pBounds(curve),avgColor:avgC,dmc:closestDMC(...avgC),stitch:suggestStitch(area),direction:0,area:pArea(curve)}]);setNextId(n=>n+1);setSelId(nid);setEditMode("select");},[regions,wandTolerance,wandEdgeSnap,nextId]);
 
   // Canvas render
   useEffect(()=>{
