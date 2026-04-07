@@ -136,9 +136,12 @@ function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,
   adjList.sort((x,y)=>x.d-y.d);
   let nClusters=0;for(let s=0;s<nSP;s++)if(spCnt[s])nClusters++;
   // Agglomerative merge until targetK clusters remain
+  // Adaptive stopping: halt early when cheapest merge exceeds perceptual significance
+  const MERGE_COST_THRESH=200; // ~deltaE≈14 — clearly distinct colours
   while(nClusters>targetK&&adjList.length){
     let fi=-1;for(let i=0;i<adjList.length;i++){if(find(adjList[i].a)!==find(adjList[i].b)){fi=i;break;}}
     if(fi<0)break;
+    if(adjList[fi].d>MERGE_COST_THRESH)break; // adaptive: stop merging distinct regions
     const{a,b}=adjList[fi],ra=find(a),rb=find(b),tc=clCnt[ra]+clCnt[rb];
     clL[ra]=(clL[ra]*clCnt[ra]+clL[rb]*clCnt[rb])/tc;clA[ra]=(clA[ra]*clCnt[ra]+clA[rb]*clCnt[rb])/tc;clBv[ra]=(clBv[ra]*clCnt[ra]+clBv[rb]*clCnt[rb])/tc;
     clCnt[ra]=tc;parent[rb]=ra;nClusters--;
@@ -164,7 +167,33 @@ function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,
 // Magic Wand Tool
 // ============================================================
 
-function sobelMag(data,w,h){const m=new Float32Array(w*h);for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const p=(dx,dy)=>{const i=((y+dy)*w+(x+dx))*4;return 0.2126*data[i]+0.7152*data[i+1]+0.0722*data[i+2];};const gx=-p(-1,-1)-2*p(-1,0)-p(-1,1)+p(1,-1)+2*p(1,0)+p(1,1),gy=-p(-1,-1)-2*p(0,-1)-p(1,-1)+p(-1,1)+2*p(0,1)+p(1,1);m[y*w+x]=Math.sqrt(gx*gx+gy*gy);}return m;}
+function sobelMag(data,w,h){
+  const N=w*h,m=new Float32Array(N),lum=new Float32Array(N);
+  for(let i=0;i<N;i++){const idx=i*4;lum[i]=0.2126*data[idx]+0.7152*data[idx+1]+0.0722*data[idx+2];}
+  // 3×3 Sobel
+  for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+    const p=(dx,dy)=>lum[(y+dy)*w+(x+dx)];
+    const gx=-p(-1,-1)-2*p(-1,0)-p(-1,1)+p(1,-1)+2*p(1,0)+p(1,1);
+    const gy=-p(-1,-1)-2*p(0,-1)-p(1,-1)+p(-1,1)+2*p(0,1)+p(1,1);
+    m[y*w+x]=Math.sqrt(gx*gx+gy*gy);
+  }
+  // 5×5 extended Sobel — catches softer/wider edges, take max with 3×3
+  for(let y=2;y<h-2;y++)for(let x=2;x<w-2;x++){
+    const p=(dx,dy)=>lum[(y+dy)*w+(x+dx)];
+    const gx5=-p(-2,-2)-2*p(-1,-2)+2*p(1,-2)+p(2,-2)
+             -4*p(-2,-1)-8*p(-1,-1)+8*p(1,-1)+4*p(2,-1)
+             -6*p(-2,0)-12*p(-1,0)+12*p(1,0)+6*p(2,0)
+             -4*p(-2,1)-8*p(-1,1)+8*p(1,1)+4*p(2,1)
+             -p(-2,2)-2*p(-1,2)+2*p(1,2)+p(2,2);
+    const gy5=-p(-2,-2)-4*p(-1,-2)-6*p(0,-2)-4*p(1,-2)-p(2,-2)
+             -2*p(-2,-1)-8*p(-1,-1)-12*p(0,-1)-8*p(1,-1)-2*p(2,-1)
+             +2*p(-2,1)+8*p(-1,1)+12*p(0,1)+8*p(1,1)+2*p(2,1)
+             +p(-2,2)+4*p(-1,2)+6*p(0,2)+4*p(1,2)+p(2,2);
+    const mag5=Math.sqrt(gx5*gx5+gy5*gy5)/4; // normalize to 3×3 scale
+    if(mag5>m[y*w+x])m[y*w+x]=mag5;
+  }
+  return m;
+}
 
 // LAB-based Sobel edge magnitude — detects edges in perceptual colour space
 function sobelMagLAB(labL,labA,labB,w,h){
@@ -241,14 +270,17 @@ function autoSegment(imageData,numColors,compactness=10){
   const tmpC=document.createElement('canvas');tmpC.width=CW;tmpC.height=CH;tmpC.getContext('2d').putImageData(imageData,0,0);
   const scC=document.createElement('canvas');scC.width=pw;scC.height=ph;scC.getContext('2d').drawImage(tmpC,0,0,CW,CH,0,0,pw,ph);
   const scaledD=scC.getContext('2d').getImageData(0,0,pw,ph);
-  // Gaussian 3×3 pre-smooth to reduce noise/JPEG artefacts
+  // Bilateral filter: edge-preserving smooth — reduces noise while keeping colour boundaries sharp
   const sd=scaledD.data,smoothed=new Uint8ClampedArray(sd.length);
-  const gk=[1,2,1,2,4,2,1,2,1],gs=16;
-  for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){let sr=0,sg=0,sb=0,sa=0,ki=0;
-    for(let ky=-1;ky<=1;ky++)for(let kx=-1;kx<=1;kx++){
-      const ny=Math.max(0,Math.min(ph-1,y+ky)),nx=Math.max(0,Math.min(pw-1,x+kx)),idx=(ny*pw+nx)*4,w=gk[ki++];
-      sr+=sd[idx]*w;sg+=sd[idx+1]*w;sb+=sd[idx+2]*w;sa+=sd[idx+3]*w;
-    }const oi=(y*pw+x)*4;smoothed[oi]=sr/gs;smoothed[oi+1]=sg/gs;smoothed[oi+2]=sb/gs;smoothed[oi+3]=sa/gs;}
+  const bSigS=2,bSigC=25,bR=2,bSigS2=2*bSigS*bSigS,bSigC2=2*bSigC*bSigC;
+  for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){
+    let sr=0,sg=0,sb=0,sa=0,wSum=0;const ci=(y*pw+x)*4;
+    for(let ky=-bR;ky<=bR;ky++)for(let kx=-bR;kx<=bR;kx++){
+      const ny=Math.max(0,Math.min(ph-1,y+ky)),nx=Math.max(0,Math.min(pw-1,x+kx)),ni=(ny*pw+nx)*4;
+      const cD=(sd[ci]-sd[ni])**2+(sd[ci+1]-sd[ni+1])**2+(sd[ci+2]-sd[ni+2])**2;
+      const wt=Math.exp(-(kx*kx+ky*ky)/bSigS2-cD/bSigC2);
+      sr+=sd[ni]*wt;sg+=sd[ni+1]*wt;sb+=sd[ni+2]*wt;sa+=sd[ni+3]*wt;wSum+=wt;
+    }const oi=(y*pw+x)*4;smoothed[oi]=sr/wSum;smoothed[oi+1]=sg/wSum;smoothed[oi+2]=sb/wSum;smoothed[oi+3]=sa/wSum;}
   // SLIC superpixel segmentation + agglomerative merge (on smoothed data)
   // More superpixels at higher sensitivity for finer initial clustering
   const nSP=Math.max(numColors,Math.min(Math.floor(numColors*25*(1+edgeW)),Math.floor(pw*ph/4)));
@@ -268,8 +300,20 @@ function autoSegment(imageData,numColors,compactness=10){
   for(const comp of components){
     if(comp.size>bgT&&!regions.length)continue;
     const mask=new Uint8Array(PN);for(const p of comp.pixels)mask[p]=1;
-    const bMask=new Uint8Array(PN);for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){if(!mask[y*pw+x])continue;if(x===0||!mask[y*pw+x-1]||x===pw-1||!mask[y*pw+x+1]||y===0||!mask[(y-1)*pw+x]||y===ph-1||!mask[(y+1)*pw+x])bMask[y*pw+x]=1;}
-    const contour=traceContour(bMask,pw,ph);if(contour.length<6)continue;
+    // Morphological opening: erode then dilate to remove thin noise spurs
+    const eroded=new Uint8Array(PN);
+    for(let y=1;y<ph-1;y++)for(let x=1;x<pw-1;x++){if(mask[y*pw+x]&&mask[(y-1)*pw+x]&&mask[(y+1)*pw+x]&&mask[y*pw+x-1]&&mask[y*pw+x+1])eroded[y*pw+x]=1;}
+    const opened=new Uint8Array(PN);
+    for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){if(eroded[y*pw+x]){opened[y*pw+x]=1;continue;}let hit=false;for(let dy=-1;dy<=1&&!hit;dy++)for(let dx=-1;dx<=1&&!hit;dx++){const ny=y+dy,nx=x+dx;if(ny>=0&&ny<ph&&nx>=0&&nx<pw&&eroded[ny*pw+nx])hit=true;}if(hit)opened[y*pw+x]=1;}
+    // Fall back to original mask if opening erased too much (small regions)
+    const useMask=opened.reduce((s,v)=>s+v,0)>=comp.pixels.length*0.3?opened:mask;
+    const bMask=new Uint8Array(PN);for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){if(!useMask[y*pw+x])continue;if(x===0||!useMask[y*pw+x-1]||x===pw-1||!useMask[y*pw+x+1]||y===0||!useMask[(y-1)*pw+x]||y===ph-1||!useMask[(y+1)*pw+x])bMask[y*pw+x]=1;}
+    // Multi-contour: trace all boundary components, use the largest (outer contour)
+    const tmpB=new Uint8Array(bMask);let bestContour=[];
+    for(let scan=0;scan<PN;scan++){if(!tmpB[scan])continue;
+      const c=traceContour(tmpB,pw,ph);for(const[cx,cy]of c)tmpB[cy*pw+cx]=0;
+      if(c.length>bestContour.length)bestContour=c;if(!tmpB.some(v=>v))break;}
+    const contour=bestContour;if(contour.length<6)continue;
     const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(comp.size)/3)));
     const ds=downsample(contour,tp);if(ds.length<4)continue;
     let sm=catmull(ds,3);sm=simplify(sm,1.5);if(sm.length<4)continue;
