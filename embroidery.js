@@ -886,11 +886,6 @@ function EmbroideryApp(){
   // Keep refs in sync with state on every render (avoids stale closure in callbacks)
   zoomRef.current=zoom;panRef.current=pan;
 
-  const clampPanFn=(px,py,z)=>({
-    x:Math.max(CW*0.5-CW*z, Math.min(CW*0.5, px)),
-    y:Math.max(CH*0.5-CH*z, Math.min(CH*0.5, py)),
-  });
-
   const rebuildRegionCurve = useCallback((r) => {
     const curve = buildCurve(r.nodes);
     return { ...r, points: curve, bounds: pBounds(curve), area: pArea(curve) };
@@ -1069,7 +1064,6 @@ function EmbroideryApp(){
       const bufX=(e.clientX-rect.left)*(CW/rect.width);
       const bufY=(e.clientY-rect.top)*(CH/rect.height);
       const np={x:bufX-(bufX-panRef.current.x)*(newZ/zoomRef.current),y:bufY-(bufY-panRef.current.y)*(newZ/zoomRef.current)};
-      const cz=zoomRef.current;// use current before update to avoid stale
       const cpx=CW*0.5-CW*newZ,cpy=CH*0.5-CH*newZ;
       const clampedNp={x:Math.max(cpx,Math.min(CW*0.5,np.x)),y:Math.max(cpy,Math.min(CH*0.5,np.y))};
       setZoom(newZ);setPan(clampedNp);zoomRef.current=newZ;panRef.current=clampedNp;
@@ -1426,15 +1420,16 @@ function EmbroideryApp(){
         {/* Canvas */}
         <div className="card" style={{marginBottom:8,touchAction:"none"}}>
           <canvas ref={mainC} width={CW} height={CH}
-            onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
-            onContextMenu={e=>{if(e.button===1)e.preventDefault();}}
+            onMouseDown={e=>{if(e.button===1)e.preventDefault();onDown(e);}} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+            onAuxClick={e=>{if(e.button===1)e.preventDefault();}}
             onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
             onDoubleClick={e=>{
               if(editMode==="lasso"&&lassoAnchors.length>=3){finishLasso();return;}
               if(!isNodeEdit||!sel)return;
               const[mx,my]=getPos(e);
+              const nodeHit=NODE_HIT/zoomRef.current;
               for(let i=0;i<sel.nodes.length;i++){
-                if((mx-sel.nodes[i][0])**2+(my-sel.nodes[i][1])**2<NODE_HIT**2){
+                if((mx-sel.nodes[i][0])**2+(my-sel.nodes[i][1])**2<nodeHit**2){
                   deleteNode(sel.id,i);return;}}}}
             style={{width:"100%",display:"block",cursor:(editMode==="draw"||editMode==="wand"||editMode==="lasso")?"crosshair":isNodeEdit?"default":"pointer"}}/>          
         </div>
