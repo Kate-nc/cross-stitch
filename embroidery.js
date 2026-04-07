@@ -24,8 +24,28 @@ const EDGE_PENALTY_MULTIPLIER = 10.0;
 const MORPH_KERNEL_SIZE       = 3;
 
 // Module-level edge caches: set by autoSegment, reused by magicWandFill
-// _wandEdgeCache: {mag: Float32Array (Sobel), canny: Uint8Array, w, h} — full canvas res
+// _wandEdgeCache: {mag, canny, smoothed, w, h} — full canvas resolution
 let _wandEdgeCache = null;
+// Lasso cost map — rebuilt lazily from _wandEdgeCache or raw image
+// {data: Uint8Array, w, h, src} where src is the _wandEdgeCache or ImageData object used to build it
+let _lassoCostCache = null;
+
+// --- Wand HSL metric ---
+const WAND_WEIGHT_HUE         = 1.8;  // dominant: prevents hue-boundary bleeding
+const WAND_WEIGHT_SATURATION  = 1.0;  // moderate
+const WAND_WEIGHT_LIGHTNESS   = 0.4;  // low: spans shadow/highlight within a region
+const LOW_SAT_THRESHOLD       = 0.12; // below this saturation, hue is unreliable (greys)
+const WAND_DYNAMIC_TOLERANCE_ENABLED = true;
+const VARIANCE_LOW_THRESHOLD  = 5.0;  // flat region → tighten tolerance × 0.7
+const VARIANCE_HIGH_THRESHOLD = 20.0; // textured/gradient region → loosen × 1.3
+
+// --- Magnetic Lasso ---
+const LASSO_EDGE_COST         = 1;    // cost for traversing an edge pixel
+const LASSO_FLAT_COST         = 100;  // cost for traversing a non-edge pixel
+const LASSO_SEARCH_RADIUS     = 80;   // Dijkstra corridor (px in cost-map space)
+const LASSO_DEBOUNCE_MS       = 30;   // min ms between path recalculations on mousemove
+const LASSO_MIN_ANCHOR_DISTANCE = 8;  // ignore clicks within this many px of last anchor
+const LASSO_CLOSE_RADIUS      = 12;   // px to start anchor — triggers close indicator
 
 const STITCHES = [
   { id:"satin",name:"Satin",desc:"Smooth parallel fill",color:"#0d9488"},
@@ -519,48 +539,62 @@ function sobelMagLAB(labL,labA,labB,w,h){
   return m;
 }
 
-function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,occupiedMask,edgeMask=null){
-  const{data,width:w,height:h}=imageData,N=w*h;
-  // LAB threshold: tolerance 0-100 maps to deltaE 0-80 (perceptual range)
-  const thresh=tolerance*0.8,maxDrift=thresh*1.5;
-  // Pre-compute LAB for all pixels
-  const pL=new Float32Array(N),pA=new Float32Array(N),pB=new Float32Array(N);
-  for(let i=0;i<N;i++){const idx=i*4;if(data[idx+3]<=30){pL[i]=-1;continue;}const[l,a,b]=rgb2lab(data[idx],data[idx+1],data[idx+2]);pL[i]=l;pA[i]=a;pB[i]=b;}
-  // Seed colour: average LAB in 3×3 neighbourhood
-  let sL=0,sA=0,sB=0,sc=0;
+function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,occupiedMask,edgeMask=null,smoothedData=null){
+  const{data:rawData,width:w,height:h}=imageData,N=w*h;
+  // Use bilateral-filtered data for colour comparisons if supplied (avoids shadow/highlight bleeding)
+  const cmpData=smoothedData||rawData;
+  // Pre-compute HSL for every pixel using the (smoothed) source data
+  const pH=new Float32Array(N),pS=new Float32Array(N),pLv=new Float32Array(N);
+  for(let i=0;i<N;i++){const idx=i*4;if(rawData[idx+3]<=30){pH[i]=-1;continue;}const[hv,sv,lv]=rgb2hsl(cmpData[idx],cmpData[idx+1],cmpData[idx+2]);pH[i]=hv;pS[i]=sv;pLv[i]=lv;}
+  // Seed colour: average HSL over 3x3 neighbourhood
+  let sH=0,sS=0,sLs=0,sc=0;
   for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
     const nx=seedX+dx,ny=seedY+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;
-    const ni=ny*w+nx;if(pL[ni]<0)continue;sL+=pL[ni];sA+=pA[ni];sB+=pB[ni];sc++;
+    const ni=ny*w+nx;if(pH[ni]<0)continue;sH+=pH[ni];sS+=pS[ni];sLs+=pLv[ni];sc++;
   }
-  if(!sc)return new Uint8Array(N);sL/=sc;sA/=sc;sB/=sc;
-  // Edge map for snap — reuse autoSegment’s cached map when dimensions match (avoids recompute)
-  const edgeMag=useEdgeSnap?(_wandEdgeCache&&_wandEdgeCache.w===w&&_wandEdgeCache.h===h?_wandEdgeCache.mag:sobelMagLAB(pL,pA,pB,w,h)):null;
+  if(!sc)return new Uint8Array(N);sH/=sc;sS/=sc;sLs/=sc;
+  // Low-saturation guard: grey pixels - ignore hue, compare by lightness only
+  let wH=WAND_WEIGHT_HUE,wS=WAND_WEIGHT_SATURATION,wL2=WAND_WEIGHT_LIGHTNESS;
+  if(sS<LOW_SAT_THRESHOLD){wH=0;wL2=1.5;}
+  // Dynamic tolerance: measure HSL variance in 5x5 seed neighbourhood
+  let effTol=tolerance;
+  if(WAND_DYNAMIC_TOLERANCE_ENABLED){
+    const dists=[];
+    for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){
+      const nx=seedX+dx,ny=seedY+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;
+      const ni=ny*w+nx;if(pH[ni]<0)continue;
+      dists.push(hslWeightedDist(pH[ni],pS[ni],pLv[ni],sH,sS,sLs,wH,wS,wL2));
+    }
+    if(dists.length>1){
+      const mean=dists.reduce((a,v)=>a+v,0)/dists.length;
+      const stddev=Math.sqrt(dists.reduce((a,v)=>a+(v-mean)**2,0)/dists.length);
+      if(stddev<VARIANCE_LOW_THRESHOLD)effTol*=0.7;
+      else if(stddev>VARIANCE_HIGH_THRESHOLD)effTol*=1.3;
+    }
+  }
+  // Soft edge map for snap - reuse autoSegment cached Sobel when dimensions match
+  const edgeMag=useEdgeSnap?(_wandEdgeCache&&_wandEdgeCache.w===w&&_wandEdgeCache.h===h?_wandEdgeCache.mag:null):null;
   const mask=new Uint8Array(N),visited=new Uint8Array(N),queue=new Int32Array(N);
   let head=0,tail=0;const seed=seedY*w+seedX;
-  if(seed<0||seed>=N||pL[seed]<0||occupiedMask[seed])return mask;
+  if(seed<0||seed>=N||pH[seed]<0||occupiedMask[seed])return mask;
   visited[seed]=1;queue[tail++]=seed;
-  // Running average in LAB
-  let sumL=sL,sumA2=sA,sumB2=sB,cnt=1;
   while(head<tail){
     const p=queue[head++],px=p%w,py=(p/w)|0;mask[p]=1;
     for(const[ddx,ddy]of[[1,0],[-1,0],[0,1],[0,-1]]){
       const nx=px+ddx,ny=py+ddy;if(nx<0||nx>=w||ny<0||ny>=h)continue;
-      const ni=ny*w+nx;if(visited[ni]||occupiedMask[ni]||pL[ni]<0)continue;
+      const ni=ny*w+nx;if(visited[ni]||occupiedMask[ni]||pH[ni]<0)continue;
       // Hard Canny boundary: treat edge pixels as impassable walls
       if(edgeMask&&edgeMask[ni]){visited[ni]=1;continue;}
       visited[ni]=1;
-      // DeltaE from seed
-      const dSeed=Math.sqrt((pL[ni]-sL)**2+(pA[ni]-sA)**2+(pB[ni]-sB)**2);
-      // DeltaE from running average with drift cap
-      const aL=sumL/cnt,aA2=sumA2/cnt,aB2=sumB2/cnt;
-      const avgDrift=Math.sqrt((aL-sL)**2+(aA2-sA)**2+(aB2-sB)**2);
-      const dAvg=avgDrift<maxDrift?Math.sqrt((pL[ni]-aL)**2+(pA[ni]-aA2)**2+(pB[ni]-aB2)**2):Infinity;
-      let et=thresh;
-      if(useEdgeSnap&&edgeMagSnap){const eStr=Math.min(1,edgeMagSnap[ni]/200);et=thresh/(1+eStr*edgeFactor);}
-      if(Math.min(dSeed,dAvg)<et){sumL+=pL[ni];sumA2+=pA[ni];sumB2+=pB[ni];cnt++;queue[tail++]=ni;}
+      // Weighted HSL distance from seed
+      const d=hslWeightedDist(pH[ni],pS[ni],pLv[ni],sH,sS,sLs,wH,wS,wL2);
+      // Soft edge snap: tighten effective tolerance at detected edges
+      let et=effTol;
+      if(useEdgeSnap&&edgeMag){const eStr=Math.min(1,edgeMag[ni]/200);et=effTol/(1+eStr*edgeFactor);}
+      if(d<et)queue[tail++]=ni;
     }
   }
-  // Hole exclusion: flood-fill exterior from image border, then remove interior holes from mask
+  // Hole exclusion: flood-fill exterior from image border, then fill interior holes into mask
   const ext=new Uint8Array(N),eq=new Int32Array(N);let eh=0,et2=0;
   for(let x=0;x<w;x++){if(!mask[x]&&!ext[x]){ext[x]=1;eq[et2++]=x;}if(!mask[(h-1)*w+x]&&!ext[(h-1)*w+x]){ext[(h-1)*w+x]=1;eq[et2++]=(h-1)*w+x;}}
   for(let y=0;y<h;y++){if(!mask[y*w]&&!ext[y*w]){ext[y*w]=1;eq[et2++]=y*w;}if(!mask[y*w+w-1]&&!ext[y*w+w-1]){ext[y*w+w-1]=1;eq[et2++]=y*w+w-1;}}
@@ -590,7 +624,7 @@ function autoSegment(imageData,numColors,compactness=10){
   // Edge complexity: (mean + std) of Sobel magnitudes, normalised to a 0.5–2× scale factor
   const complexity=(()=>{const eN=pw*ph;let eS=0,eS2=0;for(let i=0;i<eN;i++){const v=sMag[i];eS+=v;eS2+=v*v;}const eMn=eS/eN,eStd=Math.sqrt(Math.max(0,eS2/eN-eMn*eMn));return Math.min(2,Math.max(0.5,(eMn+eStd)/(eMn+1)));})();
   // Cache full-resolution bilateral+Canny+Sobel for magic wand reuse (once per image load)
-  try{const D=imageData.data,N=CW*CH,fL=new Float32Array(N),fA=new Float32Array(N),fB=new Float32Array(N);for(let i=0;i<N;i++){const idx=i*4;if(D[idx+3]<=30)continue;const[l,a,b]=rgb2lab(D[idx],D[idx+1],D[idx+2]);fL[i]=l;fA[i]=a;fB[i]=b;}const fullSmoothed=bilateralFilter(D,CW,CH);_wandEdgeCache={mag:sobelMagLAB(fL,fA,fB,CW,CH),canny:cannyEdges(fullSmoothed,CW,CH),w:CW,h:CH};}catch(e){_wandEdgeCache=null;}
+  try{const D=imageData.data,N=CW*CH,fL=new Float32Array(N),fA=new Float32Array(N),fB=new Float32Array(N);for(let i=0;i<N;i++){const idx=i*4;if(D[idx+3]<=30)continue;const[l,a,b]=rgb2lab(D[idx],D[idx+1],D[idx+2]);fL[i]=l;fA[i]=a;fB[i]=b;}const fullSmoothed=bilateralFilter(D,CW,CH);_wandEdgeCache={mag:sobelMagLAB(fL,fA,fB,CW,CH),canny:cannyEdges(fullSmoothed,CW,CH),smoothed:fullSmoothed,w:CW,h:CH};_lassoCostCache=null;}catch(e){_wandEdgeCache=null;}
   // [3] SLIC superpixel segmentation + agglomerative merge (on bilaterally filtered data, Canny-aware clusters)
   // More superpixels at higher sensitivity and more complex images
   const nSP=Math.max(numColors,Math.min(Math.floor(numColors*25*(1+edgeW)*complexity),Math.floor(pw*ph/4)));
@@ -671,6 +705,142 @@ function getRecommendations(region, allRegions){const recs=[];const{stitch,area,
   return recs;}
 
 // ============================================================
+// HSL colour helpers
+// ============================================================
+
+/**
+ * Convert RGB (0-255) to HSL. Returns [h (degrees 0-360), s (0-1), l (0-1)].
+ */
+function rgb2hsl(r,g,b){
+  r/=255;g/=255;b/=255;
+  const max=Math.max(r,g,b),min=Math.min(r,g,b),l=(max+min)/2;
+  if(max===min)return[0,0,l];
+  const d=max-min,s=l>0.5?d/(2-max-min):d/(max+min);
+  let h;
+  if(max===r)h=((g-b)/d+(g<b?6:0))/6;
+  else if(max===g)h=((b-r)/d+2)/6;
+  else h=((r-g)/d+4)/6;
+  return[h*360,s,l];
+}
+
+/**
+ * Weighted HSL distance with circular hue wrap-around.
+ * H in degrees [0-360], S and L in [0-1].
+ */
+function hslWeightedDist(h1,s1,l1,h2,s2,l2,wH,wS,wL){
+  const dh=Math.min(Math.abs(h1-h2),360-Math.abs(h1-h2));
+  return Math.sqrt((wH*dh)**2+(wS*(s1-s2))**2+(wL*(l1-l2))**2);
+}
+
+// ============================================================
+// Lasso helpers
+// ============================================================
+
+/**
+ * Bresenham line — returns pixel-by-pixel [x, y] array from (ax,ay) to (bx,by).
+ */
+function bresenhamLine(ax,ay,bx,by){
+  const pts=[];
+  let dx=Math.abs(bx-ax),dy=Math.abs(by-ay),sx=ax<bx?1:-1,sy=ay<by?1:-1,err=dx-dy,x=ax,y=ay;
+  for(;;){pts.push([x,y]);if(x===bx&&y===by)break;const e2=2*err;if(e2>-dy){err-=dy;x+=sx;}if(e2<dx){err+=dx;y+=sy;}}
+  return pts;
+}
+
+/**
+ * Polygon scanline fill — returns a binary Uint8Array mask at w×h.
+ * pts is an array of [x, y] vertices defining a closed polygon.
+ */
+function fillPolygon(pts,w,h){
+  const mask=new Uint8Array(w*h);
+  if(pts.length<3)return mask;
+  const ys=pts.map(p=>p[1]);
+  const yMin=Math.max(0,Math.floor(Math.min(...ys))),yMax=Math.min(h-1,Math.ceil(Math.max(...ys)));
+  const n=pts.length;
+  for(let y=yMin;y<=yMax;y++){
+    const xs=[];
+    for(let i=0,j=n-1;i<n;j=i++){
+      const[xi,yi]=pts[i],[xj,yj]=pts[j];
+      if((yi<=y&&yj>y)||(yj<=y&&yi>y))xs.push(xi+(y-yi)/(yj-yi)*(xj-xi));
+    }
+    xs.sort((a,b)=>a-b);
+    for(let k=0;k+1<xs.length;k+=2){
+      const x0=Math.max(0,Math.ceil(xs[k])),x1=Math.min(w-1,Math.floor(xs[k+1]));
+      for(let x=x0;x<=x1;x++)mask[y*w+x]=1;
+    }
+  }
+  return mask;
+}
+
+/**
+ * Returns the lazily-built cost map as a Uint8Array at CW×CH.
+ * Edge pixels get LASSO_EDGE_COST (1), flat pixels get LASSO_FLAT_COST (100).
+ * Uses the cached Canny mask from autoSegment when available; falls back to
+ * an inverted-normalised Sobel if the Canny cache is absent.
+ */
+function getLassoCostData(imageData){
+  if(_wandEdgeCache&&_wandEdgeCache.canny&&_wandEdgeCache.w===CW&&_wandEdgeCache.h===CH){
+    if(_lassoCostCache&&_lassoCostCache.src===_wandEdgeCache)return _lassoCostCache.data;
+    const c=_wandEdgeCache.canny,d=new Uint8Array(CW*CH);
+    for(let i=0;i<d.length;i++)d[i]=c[i]?LASSO_EDGE_COST:LASSO_FLAT_COST;
+    _lassoCostCache={data:d,src:_wandEdgeCache};
+    return d;
+  }
+  if(!imageData)return null;
+  if(_lassoCostCache&&_lassoCostCache.src===imageData)return _lassoCostCache.data;
+  const sm=sobelMag(imageData.data,CW,CH);
+  let mx=0;for(let i=0;i<sm.length;i++)if(sm[i]>mx)mx=sm[i];
+  const d=new Uint8Array(CW*CH);
+  for(let i=0;i<d.length;i++)d[i]=Math.max(1,Math.round(LASSO_FLAT_COST*(1-(mx>0?sm[i]/mx:0)*0.99)));
+  _lassoCostCache={data:d,src:imageData};
+  return d;
+}
+
+/**
+ * Dijkstra shortest-path on a cost map, constrained to a rectangular search
+ * corridor LASSO_SEARCH_RADIUS px wide around the segment (ax,ay)→(bx,by).
+ * Falls back to a straight Bresenham line when:
+ *   - costData is null
+ *   - the straight-line distance is < 1 px
+ *   - the cheapest path cost exceeds LASSO_FLAT_COST × dist × 1.5 (featureless area)
+ * Returns an array of [x, y] pixels (inclusive of both endpoints).
+ */
+function lassoPathfind(costData,w,h,ax,ay,bx,by){
+  const dx0=bx-ax,dy0=by-ay,straightDist=Math.sqrt(dx0*dx0+dy0*dy0);
+  if(straightDist<1||!costData)return bresenhamLine(ax,ay,bx,by);
+  const maxCost=LASSO_FLAT_COST*straightDist*1.5;
+  const R=LASSO_SEARCH_RADIUS;
+  const cx0=Math.max(0,Math.min(ax,bx)-R),cx1=Math.min(w-1,Math.max(ax,bx)+R);
+  const cy0=Math.max(0,Math.min(ay,by)-R),cy1=Math.min(h-1,Math.max(ay,by)+R);
+  const N=w*h,distArr=new Float32Array(N).fill(Infinity),prevArr=new Int32Array(N).fill(-1);
+  const start=ay*w+ax,goal=by*w+bx;
+  distArr[start]=0;
+  // Inline min-heap
+  const hp=[{c:0,i:start}];
+  const hpUp=k=>{while(k>0){const p=(k-1)>>1;if(hp[p].c<=hp[k].c)break;[hp[p],hp[k]]=[hp[k],hp[p]];k=p;}};
+  const hpDown=k=>{const n=hp.length;for(;;){let s=k,l=2*k+1,r=2*k+2;if(l<n&&hp[l].c<hp[s].c)s=l;if(r<n&&hp[r].c<hp[s].c)s=r;if(s===k)break;[hp[s],hp[k]]=[hp[k],hp[s]];k=s;}};
+  const hpPush=(c,i)=>{hp.push({c,i});hpUp(hp.length-1);};
+  const hpPop=()=>{const top=hp[0],last=hp.pop();if(hp.length){hp[0]=last;hpDown(0);}return top;};
+  const dirs=[[-1,0,1],[1,0,1],[0,-1,1],[0,1,1],[-1,-1,1.414],[-1,1,1.414],[1,-1,1.414],[1,1,1.414]];
+  while(hp.length){
+    const{c:d,i:p}=hpPop();
+    if(d>distArr[p])continue;
+    if(p===goal)break;
+    const px=p%w,py=(p/w)|0;
+    for(const[ddx,ddy,step]of dirs){
+      const nx=px+ddx,ny=py+ddy;
+      if(nx<cx0||nx>cx1||ny<cy0||ny>cy1)continue;
+      const ni=ny*w+nx,nd=d+costData[ni]*step;
+      if(nd<distArr[ni]){distArr[ni]=nd;prevArr[ni]=p;hpPush(nd,ni);}
+    }
+  }
+  if(distArr[goal]>maxCost||distArr[goal]===Infinity)return bresenhamLine(ax,ay,bx,by);
+  const path=[];let cur=goal;
+  while(cur!==-1&&cur!==start){path.push([cur%w,(cur/w)|0]);cur=prevArr[cur];}
+  path.push([ax,ay]);path.reverse();
+  return path;
+}
+
+// ============================================================
 function EmbroideryApp(){
   const[modal,setModal]=useState(null);
   const[phase,setPhase]=useState("upload");
@@ -688,6 +858,12 @@ function EmbroideryApp(){
   const[compactness,setCompactness]=useState(10);
   const[wandTolerance,setWandTolerance]=useState(35);
   const[wandEdgeSnap,setWandEdgeSnap]=useState(true);
+  // Lasso tool state
+  const[lassoAnchors,setLassoAnchors]=useState([]);   // [[x,y],...] committed anchor points
+  const[lassoSegments,setLassoSegments]=useState([]); // Dijkstra paths between anchors (excl. start pt)
+  const[lassoPreview,setLassoPreview]=useState([]);   // live path from last anchor to cursor
+  const[lassoNearClose,setLassoNearClose]=useState(false);
+  const lassoLastMsRef=useRef(0);                     // timestamp for mousemove debounce
 
   const mainC=useRef(null),imgC=useRef(null),fileRef=useRef(null);
   const imgRef=useRef(null),imgDataRef=useRef(null),isDraw=useRef(false);
@@ -717,7 +893,8 @@ function EmbroideryApp(){
     for(const r of regions){const b=r.bounds;for(let py=Math.max(0,b.y|0);py<Math.min(CH,(b.y+b.h+1)|0);py++)for(let px=Math.max(0,b.x|0);px<Math.min(CW,(b.x+b.w+1)|0);px++)if(ptIn(r.points,px,py))occ[py*CW+px]=1;}
     // Use cached Canny edge mask (set by autoSegment) as hard boundaries for the wand
     const wandCanny=(_wandEdgeCache&&_wandEdgeCache.canny&&_wandEdgeCache.w===CW&&_wandEdgeCache.h===CH)?_wandEdgeCache.canny:null;
-    const rawMask=magicWandFill(imgDataRef.current,sx,sy,wandTolerance,wandEdgeSnap,3.0,occ,wandCanny);
+    const wandSmoothed=(_wandEdgeCache&&_wandEdgeCache.smoothed&&_wandEdgeCache.w===CW&&_wandEdgeCache.h===CH)?_wandEdgeCache.smoothed:null;
+    const rawMask=magicWandFill(imgDataRef.current,sx,sy,wandTolerance,wandEdgeSnap,3.0,occ,wandCanny,wandSmoothed);
     // [4] Morphological clean-up on wand fill mask (closing then opening)
     const closed=morphErode(morphDilate(rawMask,CW,CH,MORPH_KERNEL_SIZE),CW,CH,MORPH_KERNEL_SIZE);
     const opened=morphDilate(morphErode(closed,CW,CH,MORPH_KERNEL_SIZE),CW,CH,MORPH_KERNEL_SIZE);
@@ -739,6 +916,34 @@ function EmbroideryApp(){
     setRegions(p=>[...p,{id:nid,label:`Region ${nid}`,nodes,points:curve,bounds:pBounds(curve),avgColor:avgC,dmc:closestDMC(...avgC),stitch:suggestStitch(area),direction:0,area:pArea(curve)}]);
     setNextId(n=>n+1);setSelId(nid);setEditMode("select");
   },[regions,wandTolerance,wandEdgeSnap,nextId]);
+  const resetLasso=()=>{setLassoAnchors([]);setLassoSegments([]);setLassoPreview([]);setLassoNearClose(false);};
+
+  const finishLasso=useCallback(()=>{
+    if(lassoAnchors.length<3)return;
+    const poly=[lassoAnchors[0]];
+    for(const seg of lassoSegments)for(const pt of seg)poly.push(pt);
+    poly.push(lassoAnchors[0]);
+    const rawMask=fillPolygon(poly,CW,CH);
+    const rawCount=rawMask.reduce((s,v)=>s+v,0);
+    if(rawCount<20){resetLasso();return;}
+    const closed=morphErode(morphDilate(rawMask,CW,CH,MORPH_KERNEL_SIZE),CW,CH,MORPH_KERNEL_SIZE);
+    const opened=morphDilate(morphErode(closed,CW,CH,MORPH_KERNEL_SIZE),CW,CH,MORPH_KERNEL_SIZE);
+    const mask=opened.reduce((s,v)=>s+v,0)>=rawCount*0.3?opened:rawMask;
+    const bMask=new Uint8Array(CW*CH);
+    for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){if(!mask[y*CW+x])continue;if(x===0||!mask[y*CW+x-1]||x===CW-1||!mask[y*CW+x+1]||y===0||!mask[(y-1)*CW+x]||y===CH-1||!mask[(y+1)*CW+x])bMask[y*CW+x]=1;}
+    const contour=traceContour(bMask,CW,CH);if(contour.length<10){resetLasso();return;}
+    const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(contour.length)/3)));const ds=downsample(contour,tp);if(ds.length<4){resetLasso();return;}
+    let sm=catmull(ds,3);sm=simplify(sm,2);sm=smoothContourAngles(sm);if(sm.length<4){resetLasso();return;}
+    let ar=0,ag=0,ab=0,ac=0;const d=imgDataRef.current?imgDataRef.current.data:new Uint8Array(0);
+    for(let i=0;i<CW*CH;i++){if(!mask[i])continue;ar+=d[i*4];ag+=d[i*4+1];ab+=d[i*4+2];ac++;}
+    const avgC=ac>0?[Math.round(ar/ac),Math.round(ag/ac),Math.round(ab/ac)]:[180,180,180];
+    const area=pArea(sm),bounds=pBounds(sm);if(bounds.w<8||bounds.h<8){resetLasso();return;}
+    const nodes=pointsToNodes(sm,Math.min(20,Math.max(6,Math.floor(Math.sqrt(area)/6))));
+    const curve=buildCurve(nodes);const nid=nextId;
+    setRegions(p=>[...p,{id:nid,label:"Region "+nid,nodes,points:curve,bounds:pBounds(curve),avgColor:avgC,dmc:closestDMC(...avgC),stitch:suggestStitch(area),direction:0,area:pArea(curve)}]);
+    setNextId(n=>n+1);setSelId(nid);setEditMode("select");
+    resetLasso();
+  },[lassoAnchors,lassoSegments,nextId]);
 
   // Canvas render
   useEffect(()=>{
@@ -785,9 +990,60 @@ function EmbroideryApp(){
     }
     // Freehand drawing preview
     if(isDraw.current&&curPts.length>1){ctx.save();ctx.beginPath();ctx.moveTo(curPts[0][0],curPts[0][1]);for(let i=1;i<curPts.length;i++)ctx.lineTo(curPts[i][0],curPts[i][1]);ctx.strokeStyle="#14b8a6";ctx.lineWidth=2.5;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();ctx.setLineDash([4,4]);ctx.strokeStyle="#14b8a688";ctx.beginPath();ctx.moveTo(curPts[curPts.length-1][0],curPts[curPts.length-1][1]);ctx.lineTo(curPts[0][0],curPts[0][1]);ctx.stroke();ctx.setLineDash([]);ctx.beginPath();ctx.arc(curPts[0][0],curPts[0][1],6,0,Math.PI*2);ctx.fillStyle="#14b8a6";ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();ctx.restore();}
-  },[regions,selId,view,curPts,editMode,dismissed,dragNode]);
+    // Magnetic lasso overlay
+    if(editMode==="lasso"&&lassoAnchors.length>0){
+      // Build full confirmed path for display
+      const conPath=[lassoAnchors[0]];
+      for(const seg of lassoSegments)for(const pt of seg)conPath.push(pt);
+      // Draw confirmed segments
+      if(conPath.length>1){
+        ctx.save();
+        ctx.lineCap="round";ctx.lineJoin="round";
+        ctx.strokeStyle="#000";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(conPath[0][0],conPath[0][1]);for(let i=1;i<conPath.length;i++)ctx.lineTo(conPath[i][0],conPath[i][1]);ctx.stroke();
+        ctx.strokeStyle="#00ffff";ctx.lineWidth=2;ctx.stroke();
+        ctx.restore();
+      }
+      // Draw live preview segment
+      if(lassoPreview.length>1){
+        ctx.save();
+        ctx.lineCap="round";ctx.lineJoin="round";ctx.setLineDash([6,4]);
+        ctx.strokeStyle="#000";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(lassoPreview[0][0],lassoPreview[0][1]);for(let i=1;i<lassoPreview.length;i++)ctx.lineTo(lassoPreview[i][0],lassoPreview[i][1]);ctx.stroke();
+        ctx.strokeStyle="#00ffff";ctx.lineWidth=1.5;ctx.stroke();
+        ctx.setLineDash([]);ctx.restore();
+      }
+      // Draw anchor dots
+      for(let i=0;i<lassoAnchors.length;i++){
+        const[ax,ay]=lassoAnchors[i],isFirst=i===0;
+        ctx.save();
+        if(isFirst){
+          ctx.beginPath();ctx.arc(ax,ay,lassoNearClose?12:9,0,Math.PI*2);
+          ctx.strokeStyle=lassoNearClose?"#22ff44":"#00ffff";ctx.lineWidth=2;ctx.stroke();
+        }
+        ctx.beginPath();ctx.arc(ax,ay,6,0,Math.PI*2);
+        ctx.fillStyle=isFirst&&lassoNearClose?"#22ff44":"#00ffff";ctx.fill();
+        ctx.strokeStyle="#000";ctx.lineWidth=1.5;ctx.stroke();
+        ctx.restore();
+      }
+    }
+  },[regions,selId,view,curPts,editMode,dismissed,dragNode,lassoAnchors,lassoSegments,lassoPreview,lassoNearClose]);
 
-  const getPos=e=>{const rect=mainC.current.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return[(t.clientX-rect.left)*(CW/rect.width),(t.clientY-rect.top)*(CH/rect.height)];};
+  // Keyboard: Ctrl/Cmd+Z in lasso mode removes last anchor
+  useEffect(()=>{
+    if(editMode!=="lasso")return;
+    const handler=e=>{
+      if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){
+        e.preventDefault();
+        if(lassoAnchors.length<=1){resetLasso();return;}
+        setLassoAnchors(p=>p.slice(0,-1));
+        setLassoSegments(p=>p.slice(0,-1));
+        setLassoNearClose(false);
+      }
+    };
+    document.addEventListener('keydown',handler);
+    return()=>document.removeEventListener('keydown',handler);
+  },[editMode,lassoAnchors.length]);
+
+    const getPos=e=>{const rect=mainC.current.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return[(t.clientX-rect.left)*(CW/rect.width),(t.clientY-rect.top)*(CH/rect.height)];};
 
   const onDown=useCallback(e=>{
     const[mx,my]=getPos(e);
@@ -835,6 +1091,23 @@ function EmbroideryApp(){
       return;
     }
 
+    // Lasso mode
+    if(editMode==="lasso"){
+      e.preventDefault();
+      if(lassoAnchors.length===0){setLassoAnchors([[mx,my]]);return;}
+      if(lassoNearClose&&lassoAnchors.length>=3){finishLasso();return;}
+      const last=lassoAnchors[lassoAnchors.length-1];
+      const dd=Math.sqrt((mx-last[0])**2+(my-last[1])**2);
+      if(dd<LASSO_MIN_ANCHOR_DISTANCE)return;
+      const ax2=Math.round(last[0]),ay2=Math.round(last[1]);
+      const bx2=Math.round(mx),by2=Math.round(my);
+      const costD=getLassoCostData(imgDataRef.current);
+      const seg=lassoPathfind(costD,CW,CH,ax2,ay2,bx2,by2);
+      setLassoSegments(p=>[...p,seg.slice(1)]); // exclude start point (= previous anchor)
+      setLassoAnchors(p=>[...p,[mx,my]]);
+      setLassoPreview([]);
+      return;
+    }
     // Wand mode
     if(editMode==="wand"){e.preventDefault();runWand(mx,my);return;}
 
@@ -844,9 +1117,27 @@ function EmbroideryApp(){
     // Select mode — click to select region
     for(let i=regions.length-1;i>=0;i--)if(ptIn(regions[i].points,mx,my)){setSelId(regions[i].id);return;}
     setSelId(null);
-  },[editMode,selId,regions,rebuildRegionCurve,runWand]);
+  },[editMode,selId,regions,rebuildRegionCurve,runWand,lassoAnchors,lassoSegments,lassoNearClose,finishLasso]);
 
   const onMove=useCallback(e=>{
+    // Lasso live path preview
+    if(editMode==="lasso"&&lassoAnchors.length>0){
+      e.preventDefault();
+      const now=Date.now();
+      if(now-lassoLastMsRef.current<LASSO_DEBOUNCE_MS)return;
+      lassoLastMsRef.current=now;
+      const[mx,my]=getPos(e);
+      const first=lassoAnchors[0];
+      const nearClose=lassoAnchors.length>=3&&Math.sqrt((mx-first[0])**2+(my-first[1])**2)<=LASSO_CLOSE_RADIUS;
+      setLassoNearClose(nearClose);
+      const last=lassoAnchors[lassoAnchors.length-1];
+      const ax2=Math.round(last[0]),ay2=Math.round(last[1]);
+      const bx2=Math.round(mx),by2=Math.round(my);
+      const costD=getLassoCostData(imgDataRef.current);
+      const path=lassoPathfind(costD,CW,CH,ax2,ay2,bx2,by2);
+      setLassoPreview(path);
+      return;
+    }
     if(dragNode){
       e.preventDefault();
       const[mx,my]=getPos(e);
@@ -858,7 +1149,7 @@ function EmbroideryApp(){
       return;
     }
     if(isDraw.current){e.preventDefault();const pos=getPos(e);setCurPts(p=>{const l=p[p.length-1];if(!l||(pos[0]-l[0])**2+(pos[1]-l[1])**2>4)return[...p,pos];return p;});}
-  },[dragNode,rebuildRegionCurve]);
+  },[dragNode,rebuildRegionCurve,editMode,lassoAnchors]);
 
   const onUp=useCallback(e=>{
     if(dragNode){e?.preventDefault();setDragNode(null);return;}
@@ -966,7 +1257,7 @@ function EmbroideryApp(){
       <div className="emb-container">
         <div className="emb-nav-row" style={{justifyContent:"space-between"}}>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <button className="emb-back-btn" onClick={()=>{setPhase("segment");setRegions([]);setSelId(null);setCurPts([]);isDraw.current=false;setEditMode("select");setDragNode(null);}}>←</button>
+            <button className="emb-back-btn" onClick={()=>{setPhase("segment");setRegions([]);setSelId(null);setCurPts([]);isDraw.current=false;setEditMode("select");setDragNode(null);resetLasso();}}>←</button>
             <h2 className="emb-heading">Edit Pattern</h2>
           </div>
           {totalRecs>0&&editMode==="select"&&<div className="emb-suggestion-badge">{totalRecs} suggestion{totalRecs>1?"s":""}</div>}
@@ -982,6 +1273,8 @@ function EmbroideryApp(){
             ✏️ Add</button>
           <button className={'tb-btn'+(editMode==="wand"?' tb-btn--on':'')} onClick={()=>{setEditMode("wand");setSelId(null);setDragNode(null);}}>
             🪄 Wand</button>
+          <button className={'tb-btn'+(editMode==="lasso"?' tb-btn--on':'')} onClick={()=>{setEditMode("lasso");setSelId(null);setDragNode(null);resetLasso();}}>
+            🧲 Lasso</button>
         </div>
 
         {/* Context hints */}
@@ -998,6 +1291,7 @@ function EmbroideryApp(){
             Edge snap
           </label>
         </div>}
+        {editMode==="lasso"&&<div className="emb-hint emb-hint--teal" style={{marginBottom:6}}><strong>Click</strong> to place anchors — path snaps to edges. Move near first anchor to close and fill the region. <strong>Ctrl+Z</strong> to undo.</div>}
         {isNodeEdit&&<div className="emb-hint emb-hint--amber">
           <strong>Drag nodes</strong> to reshape. Click a <strong>+</strong> midpoint or any edge to add a node. Double-click a node to remove it (min 3).
         </div>}
@@ -1014,12 +1308,13 @@ function EmbroideryApp(){
             onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
             onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
             onDoubleClick={e=>{
+              if(editMode==="lasso"&&lassoAnchors.length>=3){finishLasso();return;}
               if(!isNodeEdit||!sel)return;
               const[mx,my]=getPos(e);
               for(let i=0;i<sel.nodes.length;i++){
                 if((mx-sel.nodes[i][0])**2+(my-sel.nodes[i][1])**2<NODE_HIT**2){
                   deleteNode(sel.id,i);return;}}}}
-            style={{width:"100%",display:"block",cursor:(editMode==="draw"||editMode==="wand")?"crosshair":isNodeEdit?"default":"pointer"}}/>          
+            style={{width:"100%",display:"block",cursor:(editMode==="draw"||editMode==="wand"||editMode==="lasso")?"crosshair":isNodeEdit?"default":"pointer"}}/>          
         </div>
 
         {/* Region editor */}
