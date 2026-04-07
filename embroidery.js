@@ -138,8 +138,8 @@ function slicSegment(data,w,h,k,compactness,iters){
 
 function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,oCH,scaledData,edgeW=0.3){
   const PN=pw*ph,spL=new Float64Array(nSP),spA=new Float64Array(nSP),spBv=new Float64Array(nSP),spCnt=new Int32Array(nSP);
-  // Compute LAB-based Sobel edge magnitudes for border penalty
-  const eMag=scaledData?sobelMag(scaledData,pw,ph):null;
+  // LAB-based perceptual Sobel — detects colour boundaries luminance Sobel misses (e.g. red vs green)
+  const eMag=sobelMagLAB(labL,labA,labBv,pw,ph);
   for(let i=0;i<PN;i++){const l=labels[i];if(l<0||l>=nSP)continue;spL[l]+=labL[i];spA[l]+=labA[i];spBv[l]+=labBv[i];spCnt[l]++;}
   for(let s=0;s<nSP;s++)if(spCnt[s]){spL[s]/=spCnt[s];spA[s]/=spCnt[s];spBv[s]/=spCnt[s];}
   // Union-find
@@ -152,7 +152,8 @@ function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,
   // Persistent edge penalty map keyed by (min,max) of root pair
   const edgeKey=(a,b)=>Math.min(a,b)*nSP+Math.max(a,b);
   const edgePenalty=new Map();
-  for(const[,e]of adjRaw){if(!spCnt[e.a]||!spCnt[e.b])continue;const ep=e.eCnt>0?(e.eSum/e.eCnt)*edgeW:0;edgePenalty.set(edgeKey(e.a,e.b),ep*ep);}
+  // Use linear (not squared) penalty so MERGE_COST_THRESH stays meaningful relative to LAB distance
+  for(const[,e]of adjRaw){if(!spCnt[e.a]||!spCnt[e.b])continue;const ep=e.eCnt>0?(e.eSum/e.eCnt)*edgeW:0;edgePenalty.set(edgeKey(e.a,e.b),ep);}
   // Build initial adjacency list
   const mergeCost=(a,b)=>{const cd=(clL[a]-clL[b])**2+(clA[a]-clA[b])**2+(clBv[a]-clBv[b])**2;const ep=edgePenalty.get(edgeKey(a,b))||0;return cd+ep;};
   let adjList=[];
@@ -178,10 +179,28 @@ function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,
     if(adjList.filter(e=>e.d===Infinity).length>adjList.length>>1)adjList=adjList.filter(e=>e.d<Infinity);
     adjList.sort((x,y)=>x.d-y.d);
   }
+  // Post-merge LAB refinement: boundary pixels adopt the adjacent cluster whose LAB mean
+  // best matches their own colour — mirrors the magic wand’s flood-fill snap logic
+  const refined=new Int32Array(PN);
+  for(let i=0;i<PN;i++) refined[i]=labels[i]>=0?find(labels[i]):-1;
+  for(let pass=0;pass<2;pass++){
+    let changed=false;const next=refined.slice();
+    for(let i=0;i<PN;i++){const rl=refined[i];if(rl<0)continue;
+      const vL=labL[i],vA=labA[i],vB=labBv[i];
+      const dCur=(clL[rl]-vL)**2+(clA[rl]-vA)**2+(clBv[rl]-vB)**2;
+      const px=i%pw,py=(i/pw)|0;
+      for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){
+        const nx2=px+dx,ny2=py+dy;if(nx2<0||nx2>=pw||ny2<0||ny2>=ph)continue;
+        const ni2=ny2*pw+nx2,rn=refined[ni2];if(rn<0||rn===rl)continue;
+        const d=(clL[rn]-vL)**2+(clA[rn]-vA)**2+(clBv[rn]-vB)**2;
+        if(d<dCur*0.75){next[i]=rn;changed=true;break;}
+      }}
+    refined.set(next);if(!changed)break;
+  }
   // Remap to contiguous IDs, sample avg RGB from original image
   const invSc=oCW/pw,clusterMap=new Map();let nextCId=0;
   const mergedLabels=new Int32Array(PN).fill(-1);
-  for(let i=0;i<PN;i++){const l=labels[i];if(l<0)continue;const r=find(l);if(!clusterMap.has(r))clusterMap.set(r,{id:nextCId++,sr:0,sg:0,sb:0,cnt:0,lab:[clL[r],clA[r],clBv[r]]});const cl=clusterMap.get(r);mergedLabels[i]=cl.id;const ox=Math.min(oCW-1,Math.round((i%pw)*invSc)),oy=Math.min(oCH-1,Math.round(((i/pw)|0)*invSc)),oidx=(oy*oCW+ox)*4;if(origData[oidx+3]>30){cl.sr+=origData[oidx];cl.sg+=origData[oidx+1];cl.sb+=origData[oidx+2];cl.cnt++;}}
+  for(let i=0;i<PN;i++){const r=refined[i];if(r<0)continue;if(!clusterMap.has(r))clusterMap.set(r,{id:nextCId++,sr:0,sg:0,sb:0,cnt:0,lab:[clL[r],clA[r],clBv[r]]});const cl=clusterMap.get(r);mergedLabels[i]=cl.id;const ox=Math.min(oCW-1,Math.round((i%pw)*invSc)),oy=Math.min(oCH-1,Math.round(((i/pw)|0)*invSc)),oidx=(oy*oCW+ox)*4;if(origData[oidx+3]>30){cl.sr+=origData[oidx];cl.sg+=origData[oidx+1];cl.sb+=origData[oidx+2];cl.cnt++;}}
   const avgColors=new Array(nextCId);
   for(const cl of clusterMap.values())avgColors[cl.id]=cl.cnt?[Math.round(cl.sr/cl.cnt),Math.round(cl.sg/cl.cnt),Math.round(cl.sb/cl.cnt)]:lab2rgb(...cl.lab);
   return{mergedLabels,nMerged:nextCId,avgColors};
@@ -288,8 +307,8 @@ function autoSegment(imageData,numColors,compactness=10){
   const slicM=Math.max(8,compactness+5);
   // Derive edge penalty weight for merge (high sens → strong edge preservation, low sens → free merge)
   const edgeW=(21-compactness)/40; // range 0.025 (low sens) to 0.5 (high sens)
-  // Downscale to max 300px for processing (higher res = better detail)
-  const PROC_MAX=300,scale=Math.min(1,PROC_MAX/Math.max(CW,CH));
+  // Process at full canvas resolution — 300px downscale lost too much boundary detail
+  const PROC_MAX=400,scale=Math.min(1,PROC_MAX/Math.max(CW,CH));
   const pw=Math.max(2,Math.round(CW*scale)),ph=Math.max(2,Math.round(CH*scale));
   const tmpC=document.createElement('canvas');tmpC.width=CW;tmpC.height=CH;tmpC.getContext('2d').putImageData(imageData,0,0);
   const scC=document.createElement('canvas');scC.width=pw;scC.height=ph;scC.getContext('2d').drawImage(tmpC,0,0,CW,CH,0,0,pw,ph);
