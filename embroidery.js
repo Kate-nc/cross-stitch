@@ -114,7 +114,7 @@ function slicSegment(data,w,h,k,compactness,iters){
 
 function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,oCH,scaledData){
   const PN=pw*ph,spL=new Float64Array(nSP),spA=new Float64Array(nSP),spBv=new Float64Array(nSP),spCnt=new Int32Array(nSP);
-  // Compute Sobel edge magnitudes on the scaled image for border penalty
+  // Compute LAB-based Sobel edge magnitudes for border penalty
   const eMag=scaledData?sobelMag(scaledData,pw,ph):null;
   for(let i=0;i<PN;i++){const l=labels[i];if(l<0||l>=nSP)continue;spL[l]+=labL[i];spA[l]+=labA[i];spBv[l]+=labBv[i];spCnt[l]++;}
   for(let s=0;s<nSP;s++)if(spCnt[s]){spL[s]/=spCnt[s];spA[s]/=spCnt[s];spBv[s]/=spCnt[s];}
@@ -122,11 +122,18 @@ function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,
   const parent=new Int32Array(nSP);for(let s=0;s<nSP;s++)parent[s]=s;
   const find=x=>{while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x];}return x;};
   const clL=Array.from(spL),clA=Array.from(spA),clBv=Array.from(spBv),clCnt=Array.from(spCnt);
-  // Build adjacency edge list with Sobel edge penalty
-  const adjSet=new Map();
-  for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){const i=y*pw+x,li=labels[i];if(li<0)continue;const addEdge=(oi)=>{const lo=labels[oi];if(lo>=0&&lo!==li){const a=Math.min(li,lo),b=Math.max(li,lo),key=a*nSP+b;if(!adjSet.has(key))adjSet.set(key,{a,b,eSum:0,eCnt:0});if(eMag){const e=adjSet.get(key);e.eSum+=eMag[i]+eMag[oi];e.eCnt+=2;}}};if(x<pw-1)addEdge(i+1);if(y<ph-1)addEdge(i+pw);}
-  let adjList=[];const EDGE_W=0.3;
-  for(const[,e]of adjSet){if(!spCnt[e.a]||!spCnt[e.b])continue;const cd=(spL[e.a]-spL[e.b])**2+(spA[e.a]-spA[e.b])**2+(spBv[e.a]-spBv[e.b])**2;const ep=e.eCnt>0?(e.eSum/e.eCnt)*EDGE_W:0;adjList.push({d:cd+ep*ep,a:e.a,b:e.b});}
+  // Build adjacency with Sobel edge stats — store per-pair edge data persistently
+  const adjRaw=new Map();
+  for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){const i=y*pw+x,li=labels[i];if(li<0)continue;const addEdge=(oi)=>{const lo=labels[oi];if(lo>=0&&lo!==li){const a=Math.min(li,lo),b=Math.max(li,lo),key=a*nSP+b;if(!adjRaw.has(key))adjRaw.set(key,{a,b,eSum:0,eCnt:0});if(eMag){const e=adjRaw.get(key);e.eSum+=eMag[i]+eMag[oi];e.eCnt+=2;}}};if(x<pw-1)addEdge(i+1);if(y<ph-1)addEdge(i+pw);}
+  // Persistent edge penalty map keyed by (min,max) of root pair
+  const EDGE_W=0.4;
+  const edgeKey=(a,b)=>Math.min(a,b)*nSP+Math.max(a,b);
+  const edgePenalty=new Map();
+  for(const[,e]of adjRaw){if(!spCnt[e.a]||!spCnt[e.b])continue;const ep=e.eCnt>0?(e.eSum/e.eCnt)*EDGE_W:0;edgePenalty.set(edgeKey(e.a,e.b),ep*ep);}
+  // Build initial adjacency list
+  const mergeCost=(a,b)=>{const cd=(clL[a]-clL[b])**2+(clA[a]-clA[b])**2+(clBv[a]-clBv[b])**2;const ep=edgePenalty.get(edgeKey(a,b))||0;return cd+ep;};
+  let adjList=[];
+  for(const[,e]of adjRaw){if(!spCnt[e.a]||!spCnt[e.b])continue;adjList.push({d:mergeCost(e.a,e.b),a:e.a,b:e.b});}
   adjList.sort((x,y)=>x.d-y.d);
   let nClusters=0;for(let s=0;s<nSP;s++)if(spCnt[s])nClusters++;
   // Agglomerative merge until targetK clusters remain
@@ -136,9 +143,12 @@ function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,
     const{a,b}=adjList[fi],ra=find(a),rb=find(b),tc=clCnt[ra]+clCnt[rb];
     clL[ra]=(clL[ra]*clCnt[ra]+clL[rb]*clCnt[rb])/tc;clA[ra]=(clA[ra]*clCnt[ra]+clA[rb]*clCnt[rb])/tc;clBv[ra]=(clBv[ra]*clCnt[ra]+clBv[rb]*clCnt[rb])/tc;
     clCnt[ra]=tc;parent[rb]=ra;nClusters--;
+    // Collect neighbours, propagate edge penalty from rb's edges to ra's edges
     const newN=new Set();
-    for(let i=0;i<adjList.length;i++){const e=adjList[i],fa=find(e.a),fb=find(e.b);if(fa===ra||fb===ra){if(fa!==fb)newN.add(fa===ra?fb:fa);e.d=Infinity;}}
-    for(const nc of newN){if(!clCnt[nc])continue;adjList.push({d:(clL[ra]-clL[nc])**2+(clA[ra]-clA[nc])**2+(clBv[ra]-clBv[nc])**2,a:ra,b:nc});}
+    for(let i=0;i<adjList.length;i++){const e=adjList[i],fa=find(e.a),fb=find(e.b);if(fa===ra||fb===ra){if(fa!==fb){const nc=fa===ra?fb:fa;newN.add(nc);
+      // Merge edge penalties: take max of (ra,nc) and (rb,nc)
+      const kNew=edgeKey(ra,nc),kOld=edgePenalty.get(edgeKey(rb,nc));if(kOld!==undefined){const existing=edgePenalty.get(kNew)||0;edgePenalty.set(kNew,Math.max(existing,kOld));}}e.d=Infinity;}}
+    for(const nc of newN){if(!clCnt[nc])continue;adjList.push({d:mergeCost(ra,nc),a:ra,b:nc});}
     if(adjList.filter(e=>e.d===Infinity).length>adjList.length>>1)adjList=adjList.filter(e=>e.d<Infinity);
     adjList.sort((x,y)=>x.d-y.d);
   }
@@ -156,7 +166,61 @@ function mergeSuperpixels(labels,labL,labA,labBv,pw,ph,nSP,targetK,origData,oCW,
 // ============================================================
 
 function sobelMag(data,w,h){const m=new Float32Array(w*h);for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const p=(dx,dy)=>{const i=((y+dy)*w+(x+dx))*4;return 0.2126*data[i]+0.7152*data[i+1]+0.0722*data[i+2];};const gx=-p(-1,-1)-2*p(-1,0)-p(-1,1)+p(1,-1)+2*p(1,0)+p(1,1),gy=-p(-1,-1)-2*p(0,-1)-p(1,-1)+p(-1,1)+2*p(0,1)+p(1,1);m[y*w+x]=Math.sqrt(gx*gx+gy*gy);}return m;}
-function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,occupiedMask){const{data,width:w,height:h}=imageData,N=w*h,thresh=tolerance*2.55,maxDrift=thresh*1.5;let sr=0,sg=0,sb=0,sc=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const nx=seedX+dx,ny=seedY+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const i=(ny*w+nx)*4;if(data[i+3]<=30)continue;sr+=data[i];sg+=data[i+1];sb+=data[i+2];sc++;}if(!sc)return new Uint8Array(N);sr/=sc;sg/=sc;sb/=sc;const edgeMag=useEdgeSnap?sobelMag(data,w,h):null,mask=new Uint8Array(N),visited=new Uint8Array(N),queue=new Int32Array(N);let head=0,tail=0;const seed=seedY*w+seedX;if(seed<0||seed>=N||data[seed*4+3]<=30||occupiedMask[seed])return mask;visited[seed]=1;queue[tail++]=seed;let sumR=sr,sumG=sg,sumB=sb,cnt=1;while(head<tail){const p=queue[head++],px=p%w,py=(p/w)|0;mask[p]=1;for(const[ddx,ddy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=px+ddx,ny=py+ddy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const ni=ny*w+nx;if(visited[ni]||occupiedMask[ni]||data[ni*4+3]<=30)continue;visited[ni]=1;const r=data[ni*4],g=data[ni*4+1],b=data[ni*4+2],dSeed=Math.sqrt((r-sr)**2+(g-sg)**2+(b-sb)**2);const aR=sumR/cnt,aG=sumG/cnt,aB=sumB/cnt;const avgDriftFromSeed=Math.sqrt((aR-sr)**2+(aG-sg)**2+(aB-sb)**2);const dAvg=avgDriftFromSeed<maxDrift?Math.sqrt((r-aR)**2+(g-aG)**2+(b-aB)**2):Infinity;let et=thresh;if(useEdgeSnap&&edgeMag){const eStr=Math.min(1,edgeMag[ni]/180);et=thresh/(1+eStr*edgeFactor);}if(Math.min(dSeed,dAvg)<et){sumR+=r;sumG+=g;sumB+=b;cnt++;queue[tail++]=ni;}}}
+
+// LAB-based Sobel edge magnitude — detects edges in perceptual colour space
+function sobelMagLAB(labL,labA,labB,w,h){
+  const m=new Float32Array(w*h);
+  for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+    const g=(arr)=>{
+      const tl=arr[(y-1)*w+(x-1)],tc=arr[(y-1)*w+x],tr=arr[(y-1)*w+(x+1)];
+      const ml=arr[y*w+(x-1)],mr=arr[y*w+(x+1)];
+      const bl=arr[(y+1)*w+(x-1)],bc=arr[(y+1)*w+x],br=arr[(y+1)*w+(x+1)];
+      const gx=-tl-2*ml-bl+tr+2*mr+br, gy=-tl-2*tc-tr+bl+2*bc+br;
+      return gx*gx+gy*gy;
+    };
+    m[y*w+x]=Math.sqrt(g(labL)+g(labA)+g(labB));
+  }
+  return m;
+}
+
+function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,occupiedMask){
+  const{data,width:w,height:h}=imageData,N=w*h;
+  // LAB threshold: tolerance 0-100 maps to deltaE 0-60 (perceptual range)
+  const thresh=tolerance*0.6,maxDrift=thresh*1.5;
+  // Pre-compute LAB for all pixels
+  const pL=new Float32Array(N),pA=new Float32Array(N),pB=new Float32Array(N);
+  for(let i=0;i<N;i++){const idx=i*4;if(data[idx+3]<=30){pL[i]=-1;continue;}const[l,a,b]=rgb2lab(data[idx],data[idx+1],data[idx+2]);pL[i]=l;pA[i]=a;pB[i]=b;}
+  // Seed colour: average LAB in 3×3 neighbourhood
+  let sL=0,sA=0,sB=0,sc=0;
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+    const nx=seedX+dx,ny=seedY+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;
+    const ni=ny*w+nx;if(pL[ni]<0)continue;sL+=pL[ni];sA+=pA[ni];sB+=pB[ni];sc++;
+  }
+  if(!sc)return new Uint8Array(N);sL/=sc;sA/=sc;sB/=sc;
+  // Edge map for snap
+  const edgeMag=useEdgeSnap?sobelMagLAB(pL,pA,pB,w,h):null;
+  const mask=new Uint8Array(N),visited=new Uint8Array(N),queue=new Int32Array(N);
+  let head=0,tail=0;const seed=seedY*w+seedX;
+  if(seed<0||seed>=N||pL[seed]<0||occupiedMask[seed])return mask;
+  visited[seed]=1;queue[tail++]=seed;
+  // Running average in LAB
+  let sumL=sL,sumA2=sA,sumB2=sB,cnt=1;
+  while(head<tail){
+    const p=queue[head++],px=p%w,py=(p/w)|0;mask[p]=1;
+    for(const[ddx,ddy]of[[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx=px+ddx,ny=py+ddy;if(nx<0||nx>=w||ny<0||ny>=h)continue;
+      const ni=ny*w+nx;if(visited[ni]||occupiedMask[ni]||pL[ni]<0)continue;visited[ni]=1;
+      // DeltaE from seed
+      const dSeed=Math.sqrt((pL[ni]-sL)**2+(pA[ni]-sA)**2+(pB[ni]-sB)**2);
+      // DeltaE from running average with drift cap
+      const aL=sumL/cnt,aA2=sumA2/cnt,aB2=sumB2/cnt;
+      const avgDrift=Math.sqrt((aL-sL)**2+(aA2-sA)**2+(aB2-sB)**2);
+      const dAvg=avgDrift<maxDrift?Math.sqrt((pL[ni]-aL)**2+(pA[ni]-aA2)**2+(pB[ni]-aB2)**2):Infinity;
+      let et=thresh;
+      if(useEdgeSnap&&edgeMag){const eStr=Math.min(1,edgeMag[ni]/60);et=thresh/(1+eStr*edgeFactor);}
+      if(Math.min(dSeed,dAvg)<et){sumL+=pL[ni];sumA2+=pA[ni];sumB2+=pB[ni];cnt++;queue[tail++]=ni;}
+    }
+  }
   // Hole exclusion: flood-fill exterior from image border, then remove interior holes from mask
   const ext=new Uint8Array(N),eq=new Int32Array(N);let eh=0,et2=0;
   for(let x=0;x<w;x++){if(!mask[x]&&!ext[x]){ext[x]=1;eq[et2++]=x;}if(!mask[(h-1)*w+x]&&!ext[(h-1)*w+x]){ext[(h-1)*w+x]=1;eq[et2++]=(h-1)*w+x;}}
@@ -167,18 +231,26 @@ function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,oc
 
 function autoSegment(imageData,numColors,compactness=10){
   const data=imageData.data;
-  // Downscale to max 200px for processing
-  const PROC_MAX=200,scale=Math.min(1,PROC_MAX/Math.max(CW,CH));
+  // Downscale to max 300px for processing (higher res = better detail)
+  const PROC_MAX=300,scale=Math.min(1,PROC_MAX/Math.max(CW,CH));
   const pw=Math.max(2,Math.round(CW*scale)),ph=Math.max(2,Math.round(CH*scale));
   const tmpC=document.createElement('canvas');tmpC.width=CW;tmpC.height=CH;tmpC.getContext('2d').putImageData(imageData,0,0);
   const scC=document.createElement('canvas');scC.width=pw;scC.height=ph;scC.getContext('2d').drawImage(tmpC,0,0,CW,CH,0,0,pw,ph);
   const scaledD=scC.getContext('2d').getImageData(0,0,pw,ph);
-  // SLIC superpixel segmentation + agglomerative merge
-  const nSP=Math.max(numColors,Math.min(numColors*20,Math.floor(pw*ph/4)));
-  const{labels:spLabels,labL,labA,labBv,nC}=slicSegment(scaledD.data,pw,ph,nSP,compactness,10);
-  const{mergedLabels,avgColors}=mergeSuperpixels(spLabels,labL,labA,labBv,pw,ph,nC,numColors,data,CW,CH,scaledD.data);
+  // Gaussian 3×3 pre-smooth to reduce noise/JPEG artefacts
+  const sd=scaledD.data,smoothed=new Uint8ClampedArray(sd.length);
+  const gk=[1,2,1,2,4,2,1,2,1],gs=16;
+  for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){let sr=0,sg=0,sb=0,sa=0,ki=0;
+    for(let ky=-1;ky<=1;ky++)for(let kx=-1;kx<=1;kx++){
+      const ny=Math.max(0,Math.min(ph-1,y+ky)),nx=Math.max(0,Math.min(pw-1,x+kx)),idx=(ny*pw+nx)*4,w=gk[ki++];
+      sr+=sd[idx]*w;sg+=sd[idx+1]*w;sb+=sd[idx+2]*w;sa+=sd[idx+3]*w;
+    }const oi=(y*pw+x)*4;smoothed[oi]=sr/gs;smoothed[oi+1]=sg/gs;smoothed[oi+2]=sb/gs;smoothed[oi+3]=sa/gs;}
+  // SLIC superpixel segmentation + agglomerative merge (on smoothed data)
+  const nSP=Math.max(numColors,Math.min(numColors*25,Math.floor(pw*ph/4)));
+  const{labels:spLabels,labL,labA,labBv,nC}=slicSegment(smoothed,pw,ph,nSP,compactness,10);
+  const{mergedLabels,avgColors}=mergeSuperpixels(spLabels,labL,labA,labBv,pw,ph,nC,numColors,data,CW,CH,smoothed);
   // Connected components on merged label map
-  const PN=pw*ph,visited=new Uint8Array(PN),minSize=Math.max(4,PN/200),components=[];
+  const PN=pw*ph,visited=new Uint8Array(PN),minSize=Math.max(6,Math.floor(PN/400)),components=[];
   for(let i=0;i<PN;i++){
     if(visited[i]||mergedLabels[i]<0)continue;
     const col=mergedLabels[i],stack=[i];visited[i]=1;const pix=[];
@@ -186,12 +258,12 @@ function autoSegment(imageData,numColors,compactness=10){
     if(pix.length>=minSize)components.push({pixels:pix,col:avgColors[col]||[180,180,180],size:pix.length});
   }
   components.sort((a,b)=>b.size-a.size);
-  const bgT=PN*0.35,invSc=CW/pw,regions=[];
+  // Skip background: largest component only if it covers >45% of image
+  const bgT=PN*0.45,invSc=CW/pw,regions=[];
   for(const comp of components){
     if(comp.size>bgT&&!regions.length)continue;
     const mask=new Uint8Array(PN);for(const p of comp.pixels)mask[p]=1;
-    const bMask=new Uint8Array(PN);for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){if(!mask[y*pw+x])continue;if(x===0||!mask[y*pw+x-1]||x===pw-1||!mask[y*pw+x+1]||y===0||!mask[(y-1)*pw+x]||y===ph-1||!mask[(y+1)*pw+x])bMask[y*pw+x]=1;}
-    const contour=traceContour(bMask,pw,ph);if(contour.length<6)continue;
+    const contour=traceContour(mask,pw,ph);if(contour.length<6)continue;
     const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(comp.size)/3)));
     const ds=downsample(contour,tp);if(ds.length<4)continue;
     let sm=catmull(ds,3);sm=simplify(sm,1.5);if(sm.length<4)continue;
@@ -262,7 +334,7 @@ function EmbroideryApp(){
   const finishDraw=useCallback(()=>{const result=makeRegion(curPts);isDraw.current=false;setCurPts([]);if(!result)return;
     setRegions(p=>[...p,{id:nextId,label:`Region ${nextId}`,...result}]);setNextId(n=>n+1);},[curPts,nextId,makeRegion]);
 
-  const runWand=useCallback((mx,my)=>{if(!imgDataRef.current)return;const sx=Math.max(0,Math.min(CW-1,Math.round(mx))),sy=Math.max(0,Math.min(CH-1,Math.round(my)));const occ=new Uint8Array(CW*CH);for(const r of regions){const b=r.bounds;for(let py=Math.max(0,b.y|0);py<Math.min(CH,(b.y+b.h+1)|0);py++)for(let px=Math.max(0,b.x|0);px<Math.min(CW,(b.x+b.w+1)|0);px++)if(ptIn(r.points,px,py))occ[py*CW+px]=1;}const mask=magicWandFill(imgDataRef.current,sx,sy,wandTolerance,wandEdgeSnap,3.0,occ);const bMask=new Uint8Array(CW*CH);for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){if(!mask[y*CW+x])continue;if(x===0||!mask[y*CW+x-1]||x===CW-1||!mask[y*CW+x+1]||y===0||!mask[(y-1)*CW+x]||y===CH-1||!mask[(y+1)*CW+x])bMask[y*CW+x]=1;}const contour=traceContour(bMask,CW,CH);if(contour.length<10)return;const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(contour.length)/3)));const ds=downsample(contour,tp);if(ds.length<4)return;let sm=catmull(ds,3);sm=simplify(sm,2);if(sm.length<4)return;let ar=0,ag=0,ab=0,ac=0;const d=imgDataRef.current.data;for(let i=0;i<CW*CH;i++){if(!mask[i])continue;ar+=d[i*4];ag+=d[i*4+1];ab+=d[i*4+2];ac++;}const avgC=ac>0?[Math.round(ar/ac),Math.round(ag/ac),Math.round(ab/ac)]:[180,180,180];const area=pArea(sm),bounds=pBounds(sm);if(bounds.w<8||bounds.h<8)return;const nodes=pointsToNodes(sm,Math.min(20,Math.max(6,Math.floor(Math.sqrt(area)/6))));const curve=buildCurve(nodes);const nid=nextId;setRegions(p=>[...p,{id:nid,label:`Region ${nid}`,nodes,points:curve,bounds:pBounds(curve),avgColor:avgC,dmc:closestDMC(...avgC),stitch:suggestStitch(area),direction:0,area:pArea(curve)}]);setNextId(n=>n+1);setSelId(nid);setEditMode("select");},[regions,wandTolerance,wandEdgeSnap,nextId]);
+  const runWand=useCallback((mx,my)=>{if(!imgDataRef.current)return;const sx=Math.max(0,Math.min(CW-1,Math.round(mx))),sy=Math.max(0,Math.min(CH-1,Math.round(my)));const occ=new Uint8Array(CW*CH);for(const r of regions){const b=r.bounds;for(let py=Math.max(0,b.y|0);py<Math.min(CH,(b.y+b.h+1)|0);py++)for(let px=Math.max(0,b.x|0);px<Math.min(CW,(b.x+b.w+1)|0);px++)if(ptIn(r.points,px,py))occ[py*CW+px]=1;}const mask=magicWandFill(imgDataRef.current,sx,sy,wandTolerance,wandEdgeSnap,3.0,occ);const contour=traceContour(mask,CW,CH);if(contour.length<10)return;const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(contour.length)/3)));const ds=downsample(contour,tp);if(ds.length<4)return;let sm=catmull(ds,3);sm=simplify(sm,2);if(sm.length<4)return;let ar=0,ag=0,ab=0,ac=0;const d=imgDataRef.current.data;for(let i=0;i<CW*CH;i++){if(!mask[i])continue;ar+=d[i*4];ag+=d[i*4+1];ab+=d[i*4+2];ac++;}const avgC=ac>0?[Math.round(ar/ac),Math.round(ag/ac),Math.round(ab/ac)]:[180,180,180];const area=pArea(sm),bounds=pBounds(sm);if(bounds.w<8||bounds.h<8)return;const nodes=pointsToNodes(sm,Math.min(20,Math.max(6,Math.floor(Math.sqrt(area)/6))));const curve=buildCurve(nodes);const nid=nextId;setRegions(p=>[...p,{id:nid,label:`Region ${nid}`,nodes,points:curve,bounds:pBounds(curve),avgColor:avgC,dmc:closestDMC(...avgC),stitch:suggestStitch(area),direction:0,area:pArea(curve)}]);setNextId(n=>n+1);setSelId(nid);setEditMode("select");},[regions,wandTolerance,wandEdgeSnap,nextId]);
 
   // Canvas render
   useEffect(()=>{
