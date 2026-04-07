@@ -185,8 +185,8 @@ function sobelMagLAB(labL,labA,labB,w,h){
 
 function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,occupiedMask){
   const{data,width:w,height:h}=imageData,N=w*h;
-  // LAB threshold: tolerance 0-100 maps to deltaE 0-60 (perceptual range)
-  const thresh=tolerance*0.6,maxDrift=thresh*1.5;
+  // LAB threshold: tolerance 0-100 maps to deltaE 0-80 (perceptual range)
+  const thresh=tolerance*0.8,maxDrift=thresh*1.5;
   // Pre-compute LAB for all pixels
   const pL=new Float32Array(N),pA=new Float32Array(N),pB=new Float32Array(N);
   for(let i=0;i<N;i++){const idx=i*4;if(data[idx+3]<=30){pL[i]=-1;continue;}const[l,a,b]=rgb2lab(data[idx],data[idx+1],data[idx+2]);pL[i]=l;pA[i]=a;pB[i]=b;}
@@ -217,7 +217,7 @@ function magicWandFill(imageData,seedX,seedY,tolerance,useEdgeSnap,edgeFactor,oc
       const avgDrift=Math.sqrt((aL-sL)**2+(aA2-sA)**2+(aB2-sB)**2);
       const dAvg=avgDrift<maxDrift?Math.sqrt((pL[ni]-aL)**2+(pA[ni]-aA2)**2+(pB[ni]-aB2)**2):Infinity;
       let et=thresh;
-      if(useEdgeSnap&&edgeMag){const eStr=Math.min(1,edgeMag[ni]/60);et=thresh/(1+eStr*edgeFactor);}
+      if(useEdgeSnap&&edgeMag){const eStr=Math.min(1,edgeMag[ni]/200);et=thresh/(1+eStr*edgeFactor);}
       if(Math.min(dSeed,dAvg)<et){sumL+=pL[ni];sumA2+=pA[ni];sumB2+=pB[ni];cnt++;queue[tail++]=ni;}
     }
   }
@@ -263,7 +263,8 @@ function autoSegment(imageData,numColors,compactness=10){
   for(const comp of components){
     if(comp.size>bgT&&!regions.length)continue;
     const mask=new Uint8Array(PN);for(const p of comp.pixels)mask[p]=1;
-    const contour=traceContour(mask,pw,ph);if(contour.length<6)continue;
+    const bMask=new Uint8Array(PN);for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){if(!mask[y*pw+x])continue;if(x===0||!mask[y*pw+x-1]||x===pw-1||!mask[y*pw+x+1]||y===0||!mask[(y-1)*pw+x]||y===ph-1||!mask[(y+1)*pw+x])bMask[y*pw+x]=1;}
+    const contour=traceContour(bMask,pw,ph);if(contour.length<6)continue;
     const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(comp.size)/3)));
     const ds=downsample(contour,tp);if(ds.length<4)continue;
     let sm=catmull(ds,3);sm=simplify(sm,1.5);if(sm.length<4)continue;
@@ -334,7 +335,7 @@ function EmbroideryApp(){
   const finishDraw=useCallback(()=>{const result=makeRegion(curPts);isDraw.current=false;setCurPts([]);if(!result)return;
     setRegions(p=>[...p,{id:nextId,label:`Region ${nextId}`,...result}]);setNextId(n=>n+1);},[curPts,nextId,makeRegion]);
 
-  const runWand=useCallback((mx,my)=>{if(!imgDataRef.current)return;const sx=Math.max(0,Math.min(CW-1,Math.round(mx))),sy=Math.max(0,Math.min(CH-1,Math.round(my)));const occ=new Uint8Array(CW*CH);for(const r of regions){const b=r.bounds;for(let py=Math.max(0,b.y|0);py<Math.min(CH,(b.y+b.h+1)|0);py++)for(let px=Math.max(0,b.x|0);px<Math.min(CW,(b.x+b.w+1)|0);px++)if(ptIn(r.points,px,py))occ[py*CW+px]=1;}const mask=magicWandFill(imgDataRef.current,sx,sy,wandTolerance,wandEdgeSnap,3.0,occ);const contour=traceContour(mask,CW,CH);if(contour.length<10)return;const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(contour.length)/3)));const ds=downsample(contour,tp);if(ds.length<4)return;let sm=catmull(ds,3);sm=simplify(sm,2);if(sm.length<4)return;let ar=0,ag=0,ab=0,ac=0;const d=imgDataRef.current.data;for(let i=0;i<CW*CH;i++){if(!mask[i])continue;ar+=d[i*4];ag+=d[i*4+1];ab+=d[i*4+2];ac++;}const avgC=ac>0?[Math.round(ar/ac),Math.round(ag/ac),Math.round(ab/ac)]:[180,180,180];const area=pArea(sm),bounds=pBounds(sm);if(bounds.w<8||bounds.h<8)return;const nodes=pointsToNodes(sm,Math.min(20,Math.max(6,Math.floor(Math.sqrt(area)/6))));const curve=buildCurve(nodes);const nid=nextId;setRegions(p=>[...p,{id:nid,label:`Region ${nid}`,nodes,points:curve,bounds:pBounds(curve),avgColor:avgC,dmc:closestDMC(...avgC),stitch:suggestStitch(area),direction:0,area:pArea(curve)}]);setNextId(n=>n+1);setSelId(nid);setEditMode("select");},[regions,wandTolerance,wandEdgeSnap,nextId]);
+  const runWand=useCallback((mx,my)=>{if(!imgDataRef.current)return;const sx=Math.max(0,Math.min(CW-1,Math.round(mx))),sy=Math.max(0,Math.min(CH-1,Math.round(my)));const occ=new Uint8Array(CW*CH);for(const r of regions){const b=r.bounds;for(let py=Math.max(0,b.y|0);py<Math.min(CH,(b.y+b.h+1)|0);py++)for(let px=Math.max(0,b.x|0);px<Math.min(CW,(b.x+b.w+1)|0);px++)if(ptIn(r.points,px,py))occ[py*CW+px]=1;}const mask=magicWandFill(imgDataRef.current,sx,sy,wandTolerance,wandEdgeSnap,3.0,occ);const bMask=new Uint8Array(CW*CH);for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){if(!mask[y*CW+x])continue;if(x===0||!mask[y*CW+x-1]||x===CW-1||!mask[y*CW+x+1]||y===0||!mask[(y-1)*CW+x]||y===CH-1||!mask[(y+1)*CW+x])bMask[y*CW+x]=1;}const contour=traceContour(bMask,CW,CH);if(contour.length<10)return;const tp=Math.min(80,Math.max(16,Math.floor(Math.sqrt(contour.length)/3)));const ds=downsample(contour,tp);if(ds.length<4)return;let sm=catmull(ds,3);sm=simplify(sm,2);if(sm.length<4)return;let ar=0,ag=0,ab=0,ac=0;const d=imgDataRef.current.data;for(let i=0;i<CW*CH;i++){if(!mask[i])continue;ar+=d[i*4];ag+=d[i*4+1];ab+=d[i*4+2];ac++;}const avgC=ac>0?[Math.round(ar/ac),Math.round(ag/ac),Math.round(ab/ac)]:[180,180,180];const area=pArea(sm),bounds=pBounds(sm);if(bounds.w<8||bounds.h<8)return;const nodes=pointsToNodes(sm,Math.min(20,Math.max(6,Math.floor(Math.sqrt(area)/6))));const curve=buildCurve(nodes);const nid=nextId;setRegions(p=>[...p,{id:nid,label:`Region ${nid}`,nodes,points:curve,bounds:pBounds(curve),avgColor:avgC,dmc:closestDMC(...avgC),stitch:suggestStitch(area),direction:0,area:pArea(curve)}]);setNextId(n=>n+1);setSelId(nid);setEditMode("select");},[regions,wandTolerance,wandEdgeSnap,nextId]);
 
   // Canvas render
   useEffect(()=>{
