@@ -107,7 +107,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     { id: 'creator', label: 'Create', href: 'index.html' },
     { id: 'tracker', label: 'Track',  href: 'stitch.html' },
     { id: 'manager', label: 'Stash',  href: 'manager.html' },
-    { id: 'embroidery', label: 'Embroidery', href: 'embroidery.html' },
+    { id: 'embroidery', label: 'Embroidery (BETA)', href: 'embroidery.html' },
   ];
 
   // Active project summary for the badge (consumed from prop or read from ProjectStorage if available)

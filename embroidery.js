@@ -1289,7 +1289,10 @@ function EmbroideryApp(){
       {modal==='help'&&typeof HelpModal!=='undefined'&&<HelpModal onClose={()=>setModal(null)}/>}
       {modal==='shortcuts'&&typeof ShortcutsModal!=='undefined'&&<ShortcutsModal onClose={()=>setModal(null)}/>}
       <div className="emb-container">
-        <h2 className="emb-title">Embroidery Pattern Planner</h2>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <h2 className="emb-title" style={{margin:0}}>Embroidery Pattern Planner</h2>
+          <span style={{display:"inline-block",backgroundColor:"#fbbf24",color:"#000",padding:"4px 8px",borderRadius:"4px",fontSize:"0.75em",fontWeight:"bold"}}>BETA</span>
+        </div>
         <p className="emb-subtitle">Turn images into hand embroidery patterns with stitch annotations</p>
         <div className="upload-area" onClick={()=>fileRef.current?.click()}>
           <div style={{fontSize:36}}>🧵</div>
