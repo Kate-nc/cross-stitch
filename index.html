@@ -640,13 +640,7 @@ function generatePatternThumbnail(pat, sW, sH) {
 async function exportPDF(options={}){const displayMode=options.displayMode||"color_symbol";const cellMM=options.cellSize||3;
   if(!pat||!pal||!cmap)return;
   if(!window.jspdf)await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-  if(!window.NOTO_SANS_SYMBOLS_B64)await window.loadScript('noto-sans-symbols.js');
   const{jsPDF}=window.jspdf;const pdf=new jsPDF("portrait","mm","a4");const mg=12,cW2=186;
-
-  if(window.NOTO_SANS_SYMBOLS_B64){
-    pdf.addFileToVFS("NotoSansSymbols.ttf", window.NOTO_SANS_SYMBOLS_B64);
-    pdf.addFont("NotoSansSymbols.ttf", "NotoSansSymbols", "normal");
-  }
 
   // --- Cover Sheet Generation ---
   (function(){
@@ -804,11 +798,16 @@ async function exportPDF(options={}){const displayMode=options.displayMode||"col
             pdf.rect(px3,py3,cellMM,cellMM,"S");
             if(!isBackstitchOnly && info){
               if(displayMode==="color_symbol"||displayMode==="symbol"){
-                pdf.setFontSize(5);
-                if(window.NOTO_SANS_SYMBOLS_B64) pdf.setFont("NotoSansSymbols", "normal");
-                pdf.setTextColor((displayMode==="color_symbol"&&luminance(m.rgb)<=128)?255:0);
-                pdf.text(info.symbol,px3+cellMM/2,py3+cellMM*0.7,{align:"center"});
-                if(window.NOTO_SANS_SYMBOLS_B64) pdf.setFont("helvetica", "normal");
+                let isLight = displayMode==="color_symbol"&&luminance(m.rgb)<=128;
+                pdf.setTextColor(isLight ? 255 : 0);
+                pdf.setDrawColor(isLight ? 255 : 0);
+                pdf.setFillColor(isLight ? 255 : 0);
+                if(typeof drawPDFSymbol==='function'){
+                  drawPDFSymbol(pdf, info.symbol, px3+cellMM/2, py3+cellMM/2, cellMM);
+                } else {
+                  pdf.setFontSize(5);
+                  pdf.text(info.symbol,px3+cellMM/2,py3+cellMM*0.7,{align:"center"});
+                }
               }
             }
             if(isOverlap){pdf.setGState(new pdf.GState({opacity:1.0}));}
