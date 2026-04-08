@@ -130,7 +130,7 @@ const[stripCollapsed,setStripCollapsed]=useState({view:false,brush:false,bs:fals
 const stripRef=useRef(null);
 const overflowRef=useRef(null);
 
-const[exportPage,setExportPage]=useState(0),[pageMode,setPageMode]=useState(false);
+const[exportPage,setExportPage]=useState(0),[pageMode,setPageMode]=useState(false),[pdfDisplayMode,setPdfDisplayMode]=useState("color_symbol"),[pdfCellSize,setPdfCellSize]=useState(3),[pdfSinglePage,setPdfSinglePage]=useState(false);
 
 const[done,setDone]=useState(null);
 const[isScratchMode,setIsScratchMode]=useState(false);
@@ -637,7 +637,23 @@ function generatePatternThumbnail(pat, sW, sH) {
   return c.toDataURL("image/jpeg", 0.85);
 }
 
-async function exportPDF(){if(!pat||!pal||!cmap)return;if(!window.jspdf)await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');const{jsPDF}=window.jspdf;const pdf=new jsPDF("portrait","mm","a4");const mg=12,cW2=186;
+async function exportPDF(options={}){const displayMode=options.displayMode||"color_symbol";const cellMM=options.cellSize||3;
+  const isSinglePage = options.singlePage === true;
+  if(!pat||!pal||!cmap)return;
+  if(!window.jspdf)await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  const{jsPDF}=window.jspdf;const mg=12;
+  const cW2=186;
+  const gridColsA4=Math.floor(cW2/cellMM),gridRowsA4=Math.floor(275/cellMM);
+
+  let pdf;
+  if (isSinglePage) {
+    let singleW = mg * 2 + sW * cellMM;
+    let singleH = mg * 2 + 10 + sH * cellMM; // +10 for header
+    let minW = 210, minH = 297;
+    pdf = new jsPDF("portrait", "mm", [Math.max(minW, singleW), Math.max(minH, singleH)]);
+  } else {
+    pdf = new jsPDF("portrait","mm","a4");
+  }
 
   // --- Cover Sheet Generation ---
   (function(){
@@ -713,8 +729,110 @@ async function exportPDF(){if(!pat||!pal||!cmap)return;if(!window.jspdf)await wi
   })();
   // --- End Cover Sheet ---
   pdf.addPage();
-  pdf.setTextColor(0);let ty=mg+10;pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=8;pdf.setFontSize(8);pal.forEach(p=>{if(ty>285){pdf.addPage();ty=mg+8;}pdf.setFillColor(p.rgb[0],p.rgb[1],p.rgb[2]);pdf.circle(mg+4,ty-1.5,2,"F");pdf.setTextColor(0);let sk=skeinEst(p.count,fabricCt);pdf.text(p.symbol+" DMC "+p.id+" "+(p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name)+" ("+p.count+" st, "+sk+" skein"+(sk>1?"s":"")+")",mg+10,ty);ty+=5;});
-  const cellMM=3,gridCols=Math.floor(cW2/cellMM),gridRows=Math.floor(275/cellMM),pagesX=Math.ceil(sW/gridCols),pagesY=Math.ceil(sH/gridRows);
+  let ty=mg+10;
+  pdf.setTextColor(0);pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=10;
+  pdf.setFontSize(9);pdf.setTextColor(80);
+  pdf.text("Symbol",mg,ty);
+  pdf.text("Color",mg+15,ty);
+  pdf.text("DMC",mg+30,ty);
+  pdf.text("Name",mg+45,ty);
+  pdf.text("Stitches",mg+110,ty,{align:"right"});
+  pdf.text("Length",mg+135,ty,{align:"right"});
+  pdf.text("Skeins",mg+155,ty,{align:"right"});
+  ty+=2;
+  pdf.setDrawColor(200);pdf.setLineWidth(0.3);pdf.line(mg,ty,mg+155,ty);
+  ty+=6;
+  pdf.setFontSize(8);
+  pal.forEach(p=>{
+    if(ty>285){pdf.addPage();ty=mg+8;}
+    pdf.setFillColor(p.rgb[0],p.rgb[1],p.rgb[2]);
+    pdf.setDrawColor(150);
+    pdf.rect(mg+15, ty-3, 6, 4, "DF");
+    pdf.setTextColor(40);
+    pdf.setDrawColor(40);
+    pdf.setFillColor(40);
+    if(typeof drawPDFSymbol==='function'){
+      drawPDFSymbol(pdf,p.symbol,mg+5,ty-1,3.5);
+    }else{
+      pdf.text(p.symbol,mg+3,ty);
+    }
+
+    let isBlend = p.type === "blend";
+    let nameStr = isBlend ? p.threads[0].name+" + "+p.threads[1].name : p.name;
+    let usg;
+    if (typeof stitchesToSkeins === 'function') {
+        usg = stitchesToSkeins({ stitchCount: p.count, fabricCount: fabricCt, strandsUsed: 2, isBlended: isBlend });
+    }
+
+    pdf.text(p.id,mg+30,ty);
+    pdf.text(nameStr,mg+45,ty);
+    pdf.text(String(p.count),mg+110,ty,{align:"right"});
+    if (usg) {
+      pdf.text(String(usg.totalThreadM) + "m",mg+135,ty,{align:"right"});
+      let skDisplay = isBlend ? Math.max(usg.colorA.skeinsToBuy, usg.colorB.skeinsToBuy) : usg.skeinsToBuy;
+      pdf.text(String(skDisplay),mg+155,ty,{align:"right"});
+    } else {
+      let sk=skeinEst(p.count,fabricCt);
+      pdf.text("-",mg+135,ty,{align:"right"});
+      pdf.text(String(sk),mg+155,ty,{align:"right"});
+    }
+
+    ty+=6;
+  });
+
+  if (typeof bsLines !== 'undefined' && bsLines && bsLines.length > 0) {
+      let bsUsed = {};
+      bsLines.forEach(l => {
+          let c = l.color || "#000000";
+          if (!bsUsed[c]) bsUsed[c] = {count: 0, dmc: "Unknown"};
+          bsUsed[c].count++;
+      });
+      // Simple DMC resolution for hex values
+      Object.keys(bsUsed).forEach(hex => {
+          let m = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+          if (m && typeof rgbToLab === 'function' && typeof DMC_RAW !== 'undefined') {
+              let lr = parseInt(m[1], 16), lg = parseInt(m[2], 16), lb = parseInt(m[3], 16);
+              let lab = rgbToLab(lr, lg, lb);
+              let best = DMC_RAW[0], bDist = Infinity;
+              for(let i=0; i<DMC_RAW.length; i++) {
+                 let dr = DMC_RAW[i][2], dg = DMC_RAW[i][3], db = DMC_RAW[i][4];
+                 let dLab = rgbToLab(dr, dg, db);
+                 let dist = dE(lab, dLab);
+                 if (dist < bDist) { bDist = dist; best = DMC_RAW[i]; }
+              }
+              bsUsed[hex].dmc = best[0];
+              bsUsed[hex].name = best[1];
+          }
+      });
+
+      ty += 8;
+      if(ty>280){pdf.addPage();ty=mg+8;}
+      pdf.setTextColor(0);pdf.setFontSize(14);pdf.text("Backstitch Lines",mg,ty);ty+=10;
+      pdf.setFontSize(9);pdf.setTextColor(80);
+      pdf.text("Line",mg,ty);
+      pdf.text("DMC",mg+30,ty);
+      pdf.text("Name",mg+45,ty);
+      pdf.text("Segments",mg+110,ty,{align:"right"});
+      ty+=2;
+      pdf.setDrawColor(200);pdf.setLineWidth(0.3);pdf.line(mg,ty,mg+155,ty);
+      ty+=6;
+      pdf.setFontSize(8);
+      Object.keys(bsUsed).forEach(hex => {
+          if(ty>285){pdf.addPage();ty=mg+8;}
+          pdf.setDrawColor(hex);
+          pdf.setLineWidth(0.8);
+          pdf.line(mg+2, ty-1, mg+15, ty-1);
+          pdf.setTextColor(40);
+          pdf.text(String(bsUsed[hex].dmc),mg+30,ty);
+          pdf.text(String(bsUsed[hex].name || "Black"),mg+45,ty);
+          pdf.text(String(bsUsed[hex].count),mg+110,ty,{align:"right"});
+          ty+=6;
+      });
+  }
+
+  const gridCols=isSinglePage?sW:gridColsA4;
+  const gridRows=isSinglePage?sH:gridRowsA4;
+  const pagesX=Math.ceil(sW/gridCols),pagesY=Math.ceil(sH/gridRows);
 
   function clipLine(x1, y1, x2, y2, xmin, ymin, xmax, ymax) {
     let INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
@@ -755,23 +873,70 @@ async function exportPDF(){if(!pat||!pal||!cmap)return;if(!window.jspdf)await wi
         let headerText = (isBackstitchOnly ? "Backstitch Chart - " : "") + `Page ${py2*pagesX+px2+1}/${pagesX*pagesY}`;
         pdf.text(headerText, mg, mg+4);
 
+        // Draw Minimap (top right)
+        if (pagesX > 1 || pagesY > 1) {
+            let mmW = 3; // minimap cell width
+            let mmMapW = pagesX * mmW;
+            let mmX = mg + dW*cellMM - mmMapW;
+            let mmY = mg+2;
+
+            for(let my=0; my<pagesY; my++){
+                for(let mx=0; mx<pagesX; mx++){
+                    if (mx === px2 && my === py2) {
+                        pdf.setFillColor(100);
+                        pdf.rect(mmX + mx*mmW, mmY + my*mmW, mmW, mmW, "F");
+                    } else {
+                        pdf.setDrawColor(200);
+                        pdf.rect(mmX + mx*mmW, mmY + my*mmW, mmW, mmW, "S");
+                    }
+                }
+            }
+        }
+
         for(let gy=0;gy<dH;gy++){
           for(let gx=0;gx<dW;gx++){
             let m=pat[(y0+gy)*sW+(x0+gx)];
-            if(!m||m.id==="__skip__") continue;
-            let info=cmap[m.id],px3=mg+gx*cellMM,py3=mg+8+gy*cellMM;
+            let px3=mg+gx*cellMM,py3=mg+8+gy*cellMM;
             let isOverlap=gx>=mainW||gy>=mainH;
-            if(isOverlap){pdf.setGState(new pdf.GState({opacity:0.4}));}
-            if(!isBackstitchOnly) {
-              pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);
-              pdf.rect(px3,py3,cellMM,cellMM,"F");
+            if(isOverlap){
+               pdf.setGState(new pdf.GState({opacity:0.4}));
+               pdf.setFillColor(200, 200, 200); // light grey backdrop for overlaps
+               pdf.rect(px3,py3,cellMM,cellMM,"F");
             }
-            pdf.setDrawColor(isBackstitchOnly ? 220 : 200);
+
+            // Draw empty grid square background and border
+            if(!m||m.id==="__skip__"||m.id==="__empty__"){
+               pdf.setDrawColor(220);
+               pdf.rect(px3,py3,cellMM,cellMM,"S");
+               if(isOverlap){pdf.setGState(new pdf.GState({opacity:1.0}));}
+               continue;
+            }
+
+            let info=cmap[m.id];
+            if(!isBackstitchOnly) {
+              if(displayMode==="color_symbol"||displayMode==="color"){
+                pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);
+                pdf.rect(px3,py3,cellMM,cellMM,"F");
+              } else if(displayMode==="symbol"){
+                pdf.setFillColor(255,255,255);
+                pdf.rect(px3,py3,cellMM,cellMM,"F");
+              }
+            }
+            pdf.setDrawColor(isBackstitchOnly ? 220 : (displayMode==="symbol"?150:200));
             pdf.rect(px3,py3,cellMM,cellMM,"S");
             if(!isBackstitchOnly && info){
-              pdf.setFontSize(5);
-              pdf.setTextColor(luminance(m.rgb)>128?0:255);
-              pdf.text(info.symbol,px3+cellMM/2,py3+cellMM*0.7,{align:"center"});
+              if(displayMode==="color_symbol"||displayMode==="symbol"){
+                let isLight = displayMode==="color_symbol"&&luminance(m.rgb)<=128;
+                pdf.setTextColor(isLight ? 255 : 0);
+                pdf.setDrawColor(isLight ? 255 : 0);
+                pdf.setFillColor(isLight ? 255 : 0);
+                if(typeof drawPDFSymbol==='function'){
+                  drawPDFSymbol(pdf, info.symbol, px3+cellMM/2, py3+cellMM/2, cellMM);
+                } else {
+                  pdf.setFontSize(5);
+                  pdf.text(info.symbol,px3+cellMM/2,py3+cellMM*0.7,{align:"center"});
+                }
+              }
             }
             if(isOverlap){pdf.setGState(new pdf.GState({opacity:1.0}));}
           }
@@ -832,6 +997,39 @@ async function exportPDF(){if(!pat||!pal||!cmap)return;if(!window.jspdf)await wi
 
         pdf.setDrawColor(0);pdf.setLineWidth(0.4);
         pdf.rect(mg,mg+8,dW*cellMM,dH*cellMM,"S");
+
+        // Draw center marks if this page contains the center lines
+        pdf.setFillColor(0);
+        let centerX = Math.floor(sW/2);
+        let centerY = Math.floor(sH/2);
+
+        // Top/Bottom Center Marks
+        if (centerX >= x0 && centerX < x0+dW) {
+            let cx = mg + (centerX - x0) * cellMM + (cellMM/2);
+            // Top margin mark (if top row of pages)
+            if (py2 === 0) {
+                pdf.triangle(cx, mg+8-3, cx-2, mg+8-6, cx+2, mg+8-6, "F");
+            }
+            // Bottom margin mark (if bottom row of pages)
+            if (py2 === pagesY-1 && mainH === dH) { // only if no bottom overlap
+                let bY = mg+8 + dH*cellMM;
+                pdf.triangle(cx, bY+3, cx-2, bY+6, cx+2, bY+6, "F");
+            }
+        }
+
+        // Left/Right Center Marks
+        if (centerY >= y0 && centerY < y0+dH) {
+            let cy = mg+8 + (centerY - y0) * cellMM + (cellMM/2);
+            // Left margin mark (if left column of pages)
+            if (px2 === 0) {
+                pdf.triangle(mg-3, cy, mg-6, cy-2, mg-6, cy+2, "F");
+            }
+            // Right margin mark (if right column of pages)
+            if (px2 === pagesX-1 && mainW === dW) { // only if no right overlap
+                let rX = mg + dW*cellMM;
+                pdf.triangle(rX+3, cy, rX+6, cy-2, rX+6, cy+2, "F");
+            }
+        }
       }
     }
   }
@@ -1682,7 +1880,35 @@ return(
 
           <button onClick={handleOpenInTracker} style={{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none", display:"flex", alignItems:"center", justifyContent:"center", gap:8}}>🧵 Open in Stitch Tracker →</button>
 
-          <Section title="PDF Export"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Multi-page PDF with legend and chart.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={exportPDF} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none"}}>Download Pattern PDF</button><button onClick={exportCoverSheet} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}}>Cover Sheet PDF</button></div><p style={{fontSize:11,color:"#a1a1aa",marginTop:8}}>The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes — perfect for tucking into your project bag.</p></Section>
+          <Section title="PDF Export">
+            <p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Multi-page PDF with legend and chart.</p>
+            <div style={{display:"flex",gap:16,alignItems:"center",marginBottom:10}}>
+              <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6}}>
+                Chart Mode:
+                <select value={pdfDisplayMode} onChange={e=>setPdfDisplayMode(e.target.value)} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #d4d4d8",fontSize:12,background:"#fff"}}>
+                  <option value="color_symbol">Color + Symbols</option>
+                  <option value="symbol">Symbols Only</option>
+                  <option value="color">Color Blocks Only</option>
+                </select>
+              </label>
+              <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6}}>
+                Cell Size:
+                <select value={pdfCellSize} onChange={e=>setPdfCellSize(Number(e.target.value))} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #d4d4d8",fontSize:12,background:"#fff"}}>
+                  <option value={2.5}>Small (2.5mm)</option>
+                  <option value={3}>Medium (3mm)</option>
+                  <option value={4.5}>Large (4.5mm)</option>
+                </select>
+              </label>
+              <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}>
+                <input type="checkbox" checked={pdfSinglePage} onChange={e=>setPdfSinglePage(e.target.checked)}/> Single Page
+              </label>
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button onClick={()=>exportPDF({displayMode:pdfDisplayMode, cellSize:pdfCellSize, singlePage:pdfSinglePage})} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none"}}>Download Pattern PDF</button>
+              <button onClick={exportCoverSheet} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}}>Cover Sheet PDF</button>
+            </div>
+            <p style={{fontSize:11,color:"#a1a1aa",marginTop:8}}>The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes — perfect for tucking into your project bag.</p>
+          </Section>
           <Section title="PNG Chart"><div style={{display:"flex",gap:8,alignItems:"center",marginTop:8,marginBottom:8}}><label style={{display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer"}}><input type="checkbox" checked={pageMode} onChange={e=>{setPageMode(e.target.checked);setExportPage(0);}}/>A4 pages</label>{pageMode&&<><button onClick={()=>setExportPage(Math.max(0,exportPage-1))} disabled={exportPage===0} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}}>◀</button><span style={{fontSize:12}}>Page {exportPage+1}/{totPg}</span><button onClick={()=>setExportPage(Math.min(totPg-1,exportPage+1))} disabled={exportPage>=totPg-1} style={{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}}>▶</button></>}</div><div style={{overflow:"auto",maxHeight:400,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#fff"}}><canvas ref={expRef} style={{display:"block"}}/></div></Section>
           <Section title="Save / Load"><p style={{fontSize:12,color:"#71717a",margin:"8px 0 10px"}}>Saves pattern for later editing or opening in Stitch Tracker.</p><div style={{display:"flex",gap:8}}><button onClick={saveProject} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save (.json)</button><button onClick={()=>loadRef.current.click()} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}}>Load</button></div></Section>
         </div>}

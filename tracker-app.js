@@ -679,6 +679,448 @@ function doSaveProject(finalName){
   URL.revokeObjectURL(url);
 }
 
+function generatePatternThumbnail(pat, sW, sH) {
+  let c = document.createElement("canvas");
+  c.width = sW;
+  c.height = sH;
+  let ctx = c.getContext("2d");
+  let imgData = ctx.createImageData(sW, sH);
+  let d = imgData.data;
+  for (let i = 0; i < pat.length; i++) {
+    let m = pat[i];
+    let idx = i * 4;
+    if (!m || m.id === "__skip__" || m.id === "__empty__") {
+      d[idx] = 255; d[idx+1] = 255; d[idx+2] = 255; d[idx+3] = 255;
+    } else {
+      d[idx] = m.rgb[0]; d[idx+1] = m.rgb[1]; d[idx+2] = m.rgb[2]; d[idx+3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+  return c.toDataURL("image/jpeg", 0.85);
+}
+
+async function exportPDF(options={}){
+  const displayMode=options.displayMode||"color_symbol";
+  const cellMM=options.cellSize||3;
+  const isSinglePage=options.singlePage===true;
+  if(!pat||!pal||!cmap)return;
+  if(!window.jspdf)await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  const{jsPDF}=window.jspdf;const mg=12,cW2=186;
+  const gridColsA4=Math.floor(cW2/cellMM),gridRowsA4=Math.floor(275/cellMM);
+
+  let pdf;
+  if (isSinglePage) {
+    let singleW = mg * 2 + sW * cellMM;
+    let singleH = mg * 2 + 10 + sH * cellMM; // +10 for header
+    let minW = 210, minH = 297;
+    pdf = new jsPDF("portrait", "mm", [Math.max(minW, singleW), Math.max(minH, singleH)]);
+  } else {
+    pdf = new jsPDF("portrait","mm","a4");
+  }
+
+  // --- Cover Sheet Generation ---
+  (function(){
+    const mg=15;
+    let y=mg;
+    pdf.setFontSize(26);pdf.setTextColor(30,30,30);pdf.text("Cross Stitch Project",mg,y+10);y+=18;
+    pdf.setDrawColor(91,123,179);pdf.setLineWidth(0.8);pdf.line(mg,y,195,y);y+=10;
+
+    let thumbData = generatePatternThumbnail(pat, sW, sH);
+    let thumbW = 60;
+    let thumbH = (sH / sW) * thumbW;
+    if (thumbH > 80) {
+      thumbH = 80;
+      thumbW = (sW / sH) * thumbH;
+    }
+    let thumbX = (210 - thumbW) / 2;
+    pdf.addImage(thumbData, 'JPEG', thumbX, y, thumbW, thumbH);
+    y += thumbH + 10;
+
+    pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("PATTERN SUMMARY",mg,y);y+=7;
+    pdf.setFontSize(10);pdf.setTextColor(40);
+    let div2=fabricCt===28?14:fabricCt;let wIn2=sW/div2,hIn2=sH/div2;
+
+    // totalSkeins
+    let totalSkeins = 0;
+    pal.forEach(p => { totalSkeins += skeinEst(p.count, fabricCt); });
+
+    let blendCount=pal.filter(p=>p.type==="blend").length;
+
+    let infoLines=[
+      ["Pattern size",`${sW} × ${sH} stitches`],
+      ["Stitchable stitches",totalStitchable.toLocaleString()],
+      ["Colours",`${pal.length} (${blendCount} blend${blendCount!==1?"s":""})`],
+      ["Skeins needed",`${totalSkeins}`],
+      ["Fabric",`${fabricCt} count`],
+      ["Finished size",`${wIn2.toFixed(1)}″ × ${hIn2.toFixed(1)}″ (${(wIn2*2.54).toFixed(1)} × ${(hIn2*2.54).toFixed(1)} cm)`],
+      ["With 1″ margin",`${(wIn2+2).toFixed(0)}″ × ${(hIn2+2).toFixed(0)}″`],
+      ["Est. time",fmtTimeL(Math.round(totalStitchable/stitchSpeed*3600))+` (at ${stitchSpeed} st/hr)`],
+      ["Est. thread cost",`£${(totalSkeins*skeinPrice).toFixed(2)} (at £${skeinPrice.toFixed(2)}/skein)`],
+    ];
+    infoLines.forEach(([l,v])=>{pdf.setTextColor(120);pdf.text(l+":",mg,y);pdf.setTextColor(40);pdf.text(v,mg+50,y);y+=5.5;});
+    y+=6;
+
+    if(done&&totalStitchable>0){
+      let localDoneCount=0;for(let i=0;i<done.length;i++)if(done[i])localDoneCount++;
+      if(localDoneCount>0){
+        let localProgressPct=Math.round(localDoneCount/totalStitchable*1000)/10;
+        pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("PROGRESS",mg,y);y+=7;pdf.setFontSize(10);pdf.setTextColor(40);pdf.text(`${localProgressPct}% complete — ${localDoneCount.toLocaleString()} of ${totalStitchable.toLocaleString()} stitches`,mg,y);y+=8;if(totalTime>0){pdf.text(`Time stitched: ${fmtTimeL(totalTime)} (${sessions.length} session${sessions.length!==1?"s":""})`,mg,y);y+=5.5;let actualSpeed=Math.round(localDoneCount/(totalTime/3600));pdf.text(`Actual speed: ${actualSpeed} stitches/hr`,mg,y);y+=5.5;}y+=4;
+      }
+    }
+
+    pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("THREAD LIST",mg,y);y+=7;
+    pdf.setFontSize(8);pdf.setTextColor(80);pdf.text("DMC",mg,y);pdf.text("Name",mg+20,y);pdf.text("Skeins",mg+100,y);pdf.text("Status",mg+120,y);y+=2;
+    pdf.setDrawColor(200);pdf.line(mg,y,180,y);y+=4;
+    pdf.setFontSize(9);
+
+    // skeinData
+    let skeinData = pal.map(p => ({
+        id: p.id,
+        name: p.type === 'blend' ? `${p.threads[0].name} + ${p.threads[1].name}` : p.name,
+        skeins: skeinEst(p.count, fabricCt),
+        rgb: p.rgb
+    }));
+
+    skeinData.forEach(d=>{
+      if(y>275){pdf.addPage();y=mg+8;}
+      pdf.setFillColor(d.rgb[0],d.rgb[1],d.rgb[2]);pdf.circle(mg+3,y-1.2,1.8,"F");
+      pdf.setTextColor(40);pdf.text(d.id,mg+8,y);pdf.text(d.name,mg+20,y);pdf.text(String(d.skeins),mg+104,y);
+      let st=threadOwned[d.id]||"";
+      if(st==="owned"){pdf.setTextColor(22,163,74);pdf.text("Owned",mg+120,y);}
+      else{pdf.setTextColor(234,88,12);pdf.text("To buy",mg+120,y);}
+      pdf.setTextColor(40);
+      y+=5;
+    });
+    y+=6;
+
+    if(y<240){pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("NOTES",mg,y);y+=4;pdf.setDrawColor(220);for(let nl=0;nl<8;nl++){y+=7;pdf.line(mg,y,180,y);}}
+  })();
+
+  pdf.addPage();
+  let ty=mg+10;
+  pdf.setTextColor(0);pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=10;
+  pdf.setFontSize(9);pdf.setTextColor(80);
+  pdf.text("Symbol",mg,ty);
+  pdf.text("Color",mg+15,ty);
+  pdf.text("DMC",mg+30,ty);
+  pdf.text("Name",mg+45,ty);
+  pdf.text("Stitches",mg+110,ty,{align:"right"});
+  pdf.text("Length",mg+135,ty,{align:"right"});
+  pdf.text("Skeins",mg+155,ty,{align:"right"});
+  ty+=2;
+  pdf.setDrawColor(200);pdf.setLineWidth(0.3);pdf.line(mg,ty,mg+155,ty);
+  ty+=6;
+  pdf.setFontSize(8);
+  pal.forEach(p=>{
+    if(ty>285){pdf.addPage();ty=mg+8;}
+    pdf.setFillColor(p.rgb[0],p.rgb[1],p.rgb[2]);
+    pdf.setDrawColor(150);
+    pdf.rect(mg+15, ty-3, 6, 4, "DF");
+    pdf.setTextColor(40);
+    pdf.setDrawColor(40);
+    pdf.setFillColor(40);
+    if(typeof drawPDFSymbol==='function'){
+      drawPDFSymbol(pdf,p.symbol,mg+5,ty-1,3.5);
+    }else{
+      pdf.text(p.symbol,mg+3,ty);
+    }
+
+    let isBlend = p.type === "blend";
+    let nameStr = isBlend ? p.threads[0].name+" + "+p.threads[1].name : p.name;
+    let usg;
+    if (typeof stitchesToSkeins === 'function') {
+        usg = stitchesToSkeins({ stitchCount: p.count, fabricCount: fabricCt, strandsUsed: 2, isBlended: isBlend });
+    }
+
+    pdf.text(p.id,mg+30,ty);
+    pdf.text(nameStr,mg+45,ty);
+    pdf.text(String(p.count),mg+110,ty,{align:"right"});
+    if (usg) {
+      pdf.text(String(usg.totalThreadM) + "m",mg+135,ty,{align:"right"});
+      let skDisplay = isBlend ? Math.max(usg.colorA.skeinsToBuy, usg.colorB.skeinsToBuy) : usg.skeinsToBuy;
+      pdf.text(String(skDisplay),mg+155,ty,{align:"right"});
+    } else {
+      let sk=skeinEst(p.count,fabricCt);
+      pdf.text("-",mg+135,ty,{align:"right"});
+      pdf.text(String(sk),mg+155,ty,{align:"right"});
+    }
+    ty+=6;
+  });
+
+  if (typeof bsLines !== 'undefined' && bsLines && bsLines.length > 0) {
+      let bsUsed = {};
+      bsLines.forEach(l => {
+          let c = l.color || "#000000";
+          if (!bsUsed[c]) bsUsed[c] = {count: 0, dmc: "Unknown"};
+          bsUsed[c].count++;
+      });
+      // Simple DMC resolution for hex values
+      Object.keys(bsUsed).forEach(hex => {
+          let m = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+          if (m && typeof rgbToLab === 'function' && typeof DMC_RAW !== 'undefined') {
+              let lr = parseInt(m[1], 16), lg = parseInt(m[2], 16), lb = parseInt(m[3], 16);
+              let lab = rgbToLab(lr, lg, lb);
+              let best = DMC_RAW[0], bDist = Infinity;
+              for(let i=0; i<DMC_RAW.length; i++) {
+                 let dr = DMC_RAW[i][2], dg = DMC_RAW[i][3], db = DMC_RAW[i][4];
+                 let dLab = rgbToLab(dr, dg, db);
+                 let dist = dE(lab, dLab);
+                 if (dist < bDist) { bDist = dist; best = DMC_RAW[i]; }
+              }
+              bsUsed[hex].dmc = best[0];
+              bsUsed[hex].name = best[1];
+          }
+      });
+
+      ty += 8;
+      if(ty>280){pdf.addPage();ty=mg+8;}
+      pdf.setTextColor(0);pdf.setFontSize(14);pdf.text("Backstitch Lines",mg,ty);ty+=10;
+      pdf.setFontSize(9);pdf.setTextColor(80);
+      pdf.text("Line",mg,ty);
+      pdf.text("DMC",mg+30,ty);
+      pdf.text("Name",mg+45,ty);
+      pdf.text("Segments",mg+110,ty,{align:"right"});
+      ty+=2;
+      pdf.setDrawColor(200);pdf.setLineWidth(0.3);pdf.line(mg,ty,mg+155,ty);
+      ty+=6;
+      pdf.setFontSize(8);
+      Object.keys(bsUsed).forEach(hex => {
+          if(ty>285){pdf.addPage();ty=mg+8;}
+          pdf.setDrawColor(hex);
+          pdf.setLineWidth(0.8);
+          pdf.line(mg+2, ty-1, mg+15, ty-1);
+          pdf.setTextColor(40);
+          pdf.text(String(bsUsed[hex].dmc),mg+30,ty);
+          pdf.text(String(bsUsed[hex].name || "Black"),mg+45,ty);
+          pdf.text(String(bsUsed[hex].count),mg+110,ty,{align:"right"});
+          ty+=6;
+      });
+  }
+
+  const gridCols=isSinglePage?sW:gridColsA4;
+  const gridRows=isSinglePage?sH:gridRowsA4;
+  const pagesX=Math.ceil(sW/gridCols),pagesY=Math.ceil(sH/gridRows);
+
+  function clipLine(x1, y1, x2, y2, xmin, ymin, xmax, ymax) {
+    let INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
+    function computeOutCode(x, y) {
+      let code = INSIDE;
+      if (x < xmin) code |= LEFT;
+      else if (x > xmax) code |= RIGHT;
+      if (y < ymin) code |= TOP;
+      else if (y > ymax) code |= BOTTOM;
+      return code;
+    }
+    let outcode0 = computeOutCode(x1, y1), outcode1 = computeOutCode(x2, y2), accept = false;
+    while (true) {
+      if (!(outcode0 | outcode1)) { accept = true; break; }
+      else if (outcode0 & outcode1) { break; }
+      else {
+        let x, y, outcodeOut = outcode0 ? outcode0 : outcode1;
+        if (outcodeOut & TOP) { x = x1 + (x2 - x1) * (ymin - y1) / (y2 - y1); y = ymin; }
+        else if (outcodeOut & BOTTOM) { x = x1 + (x2 - x1) * (ymax - y1) / (y2 - y1); y = ymax; }
+        else if (outcodeOut & RIGHT) { y = y1 + (y2 - y1) * (xmax - x1) / (x2 - x1); x = xmax; }
+        else if (outcodeOut & LEFT) { y = y1 + (y2 - y1) * (xmin - x1) / (x2 - x1); x = xmin; }
+        if (outcodeOut === outcode0) { x1 = x; y1 = y; outcode0 = computeOutCode(x1, y1); }
+        else { x2 = x; y2 = y; outcode1 = computeOutCode(x2, y2); }
+      }
+    }
+    return accept ? [x1, y1, x2, y2] : null;
+  }
+
+  function drawChartPages(isBackstitchOnly) {
+    for(let py2=0;py2<pagesY;py2++){
+      for(let px2=0;px2<pagesX;px2++){
+        pdf.addPage();
+        let x0=px2*gridCols,y0=py2*gridRows;
+        let mainW=Math.min(gridCols,sW-x0),mainH=Math.min(gridRows,sH-y0);
+        let overlapRight=(x0+mainW<sW)?2:0,overlapBottom=(y0+mainH<sH)?2:0;
+        let dW=mainW+overlapRight,dH=mainH+overlapBottom;
+        pdf.setFontSize(8);pdf.setTextColor(100);
+        let headerText = (isBackstitchOnly ? "Backstitch Chart - " : "") + `Page ${py2*pagesX+px2+1}/${pagesX*pagesY}`;
+        pdf.text(headerText, mg, mg+4);
+
+        // Draw Minimap (top right)
+        if (pagesX > 1 || pagesY > 1) {
+            let mmW = 3; // minimap cell width
+            let mmMapW = pagesX * mmW;
+            let mmX = mg + dW*cellMM - mmMapW;
+            let mmY = mg+2;
+
+            for(let my=0; my<pagesY; my++){
+                for(let mx=0; mx<pagesX; mx++){
+                    if (mx === px2 && my === py2) {
+                        pdf.setFillColor(100);
+                        pdf.rect(mmX + mx*mmW, mmY + my*mmW, mmW, mmW, "F");
+                    } else {
+                        pdf.setDrawColor(200);
+                        pdf.rect(mmX + mx*mmW, mmY + my*mmW, mmW, mmW, "S");
+                    }
+                }
+            }
+        }
+
+        for(let gy=0;gy<dH;gy++){
+          for(let gx=0;gx<dW;gx++){
+            let cellIdx = (y0+gy)*sW+(x0+gx);
+            let m=pat[cellIdx];
+            let px3=mg+gx*cellMM,py3=mg+8+gy*cellMM;
+            let isOverlap=gx>=mainW||gy>=mainH;
+            if(isOverlap){
+               pdf.setGState(new pdf.GState({opacity:0.4}));
+               pdf.setFillColor(200, 200, 200); // light grey backdrop for overlaps
+               pdf.rect(px3,py3,cellMM,cellMM,"F");
+            }
+
+            // Draw empty grid square background and border
+            if(!m||m.id==="__skip__"||m.id==="__empty__"){
+               pdf.setDrawColor(220);
+               pdf.rect(px3,py3,cellMM,cellMM,"S");
+               if(isOverlap){pdf.setGState(new pdf.GState({opacity:1.0}));}
+               continue;
+            }
+
+            let info=cmap[m.id];
+            let isDone = done && done[cellIdx];
+
+            if(!isBackstitchOnly) {
+              if(displayMode==="color_symbol"||displayMode==="color"){
+                pdf.setFillColor(m.rgb[0],m.rgb[1],m.rgb[2]);
+                pdf.rect(px3,py3,cellMM,cellMM,"F");
+              } else if(displayMode==="symbol"){
+                pdf.setFillColor(255,255,255);
+                pdf.rect(px3,py3,cellMM,cellMM,"F");
+              }
+              if (isDone) {
+                  // Fade out completed stitches by overlaying white
+                  pdf.setGState(new pdf.GState({opacity:0.6}));
+                  pdf.setFillColor(255,255,255);
+                  pdf.rect(px3,py3,cellMM,cellMM,"F");
+                  pdf.setGState(new pdf.GState({opacity:1.0}));
+              }
+            }
+            pdf.setDrawColor(isBackstitchOnly ? 220 : (displayMode==="symbol"?150:200));
+            pdf.rect(px3,py3,cellMM,cellMM,"S");
+            if(!isBackstitchOnly && info){
+              if(displayMode==="color_symbol"||displayMode==="symbol"){
+                let isLight = displayMode==="color_symbol"&&luminance(m.rgb)<=128;
+                let cV = isLight ? 255 : 0;
+                if(isDone) cV = 200;
+                pdf.setTextColor(cV);
+                pdf.setDrawColor(cV);
+                pdf.setFillColor(cV);
+                if(typeof drawPDFSymbol==='function'){
+                  drawPDFSymbol(pdf, info.symbol, px3+cellMM/2, py3+cellMM/2, cellMM);
+                } else {
+                  pdf.setFontSize(5);
+                  pdf.text(info.symbol,px3+cellMM/2,py3+cellMM*0.7,{align:"center"});
+                }
+              }
+            }
+            if(isOverlap){pdf.setGState(new pdf.GState({opacity:1.0}));}
+          }
+        }
+
+        pdf.setDrawColor(80);pdf.setLineWidth(0.2);
+        for(let gx2=0;gx2<=dW;gx2++) {
+          if (gx2 % 10 === 0) {
+            pdf.line(mg+gx2*cellMM,mg+8,mg+gx2*cellMM,mg+8+dH*cellMM);
+            if(gx2 < dW || x0+gx2 === sW) {
+              pdf.setFontSize(6);pdf.setTextColor(150);
+              pdf.text(String(x0+gx2+1), mg+gx2*cellMM, mg+7, {align:"center"});
+            }
+          }
+        }
+        if (dW % 10 !== 0) {
+          pdf.line(mg+dW*cellMM,mg+8,mg+dW*cellMM,mg+8+dH*cellMM);
+        }
+        for(let gy2=0;gy2<=dH;gy2++) {
+          if (gy2 % 10 === 0) {
+            pdf.line(mg,mg+8+gy2*cellMM,mg+dW*cellMM,mg+8+gy2*cellMM);
+            if(gy2 < dH || y0+gy2 === sH) {
+              pdf.setFontSize(6);pdf.setTextColor(150);
+              pdf.text(String(y0+gy2+1), mg-1, mg+8+gy2*cellMM+1, {align:"right"});
+            }
+          }
+        }
+        if (dH % 10 !== 0) {
+          pdf.line(mg,mg+8+dH*cellMM,mg+dW*cellMM,mg+8+dH*cellMM);
+        }
+
+        if (overlapRight > 0) {
+          pdf.setLineWidth(0.3);
+          pdf.setDrawColor(120, 120, 120);
+          pdf.setLineDash([2, 2]);
+          pdf.line(mg+mainW*cellMM,mg+8,mg+mainW*cellMM,mg+8+dH*cellMM);
+          pdf.setLineDash([]);
+        }
+        if (overlapBottom > 0) {
+          pdf.setLineWidth(0.3);
+          pdf.setDrawColor(120, 120, 120);
+          pdf.setLineDash([2, 2]);
+          pdf.line(mg,mg+8+mainH*cellMM,mg+dW*cellMM,mg+8+mainH*cellMM);
+          pdf.setLineDash([]);
+        }
+
+        if (bsLines && bsLines.length > 0) {
+          pdf.setLineWidth(0.6);
+          pdf.setDrawColor(0,0,0);
+          bsLines.forEach(ln => {
+            let clipped = clipLine(ln.x1, ln.y1, ln.x2, ln.y2, x0, y0, x0+dW, y0+dH);
+            if (clipped) {
+              pdf.line(mg+(clipped[0]-x0)*cellMM, mg+8+(clipped[1]-y0)*cellMM,
+                       mg+(clipped[2]-x0)*cellMM, mg+8+(clipped[3]-y0)*cellMM);
+            }
+          });
+        }
+
+        pdf.setDrawColor(0);pdf.setLineWidth(0.4);
+        pdf.rect(mg,mg+8,dW*cellMM,dH*cellMM,"S");
+
+        // Draw center marks if this page contains the center lines
+        pdf.setFillColor(0);
+        let centerX = Math.floor(sW/2);
+        let centerY = Math.floor(sH/2);
+
+        // Top/Bottom Center Marks
+        if (centerX >= x0 && centerX < x0+dW) {
+            let cx = mg + (centerX - x0) * cellMM + (cellMM/2);
+            // Top margin mark (if top row of pages)
+            if (py2 === 0) {
+                pdf.triangle(cx, mg+8-3, cx-2, mg+8-6, cx+2, mg+8-6, "F");
+            }
+            // Bottom margin mark (if bottom row of pages)
+            if (py2 === pagesY-1 && mainH === dH) { // only if no bottom overlap
+                let bY = mg+8 + dH*cellMM;
+                pdf.triangle(cx, bY+3, cx-2, bY+6, cx+2, bY+6, "F");
+            }
+        }
+
+        // Left/Right Center Marks
+        if (centerY >= y0 && centerY < y0+dH) {
+            let cy = mg+8 + (centerY - y0) * cellMM + (cellMM/2);
+            // Left margin mark (if left column of pages)
+            if (px2 === 0) {
+                pdf.triangle(mg-3, cy, mg-6, cy-2, mg-6, cy+2, "F");
+            }
+            // Right margin mark (if right column of pages)
+            if (px2 === pagesX-1 && mainW === dW) { // only if no right overlap
+                let rX = mg + dW*cellMM;
+                pdf.triangle(rX+3, cy, rX+6, cy-2, rX+6, cy+2, "F");
+            }
+        }
+      }
+    }
+  }
+
+  drawChartPages(false);
+  if (bsLines && bsLines.length > 0) {
+    drawChartPages(true);
+  }
+
+  pdf.save("cross-stitch-progress.pdf");
+}
+
 function saveProject(){
   if(!pat||!pal)return;
   if(!projectName){
@@ -1903,7 +2345,7 @@ useEffect(()=>{
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} />
 {pat&&pal&&<ContextBar
   name={projectName || (sW + '×' + sH + ' pattern')}
   dimensions={pat ? {width:sW, height:sH} : null}
@@ -2466,6 +2908,37 @@ return(
 
   {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
+  {modal==="pdf_export"&&<div className="modal-overlay" onClick={()=>setModal(null)}>
+    <div className="modal-content" style={{maxWidth:400}} onClick={e=>e.stopPropagation()}>
+      <button className="modal-close" onClick={()=>setModal(null)}>×</button>
+      <h3 style={{marginTop:0,marginBottom:15}}>Export PDF</h3>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6}}>
+          Chart Mode:
+          <select value={pdfSettings.chartStyle||"color_symbol"} onChange={e=>setPdfSettings({...pdfSettings,chartStyle:e.target.value})} style={{padding:"6px 8px",borderRadius:6,border:"1px solid #d4d4d8",fontSize:13,background:"#fff"}}>
+            <option value="color_symbol">Color + Symbols</option>
+            <option value="symbol">Symbols Only</option>
+            <option value="color">Color Blocks Only</option>
+          </select>
+        </label>
+        <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6}}>
+          Cell Size:
+          <select value={pdfSettings.cellSize||3} onChange={e=>setPdfSettings({...pdfSettings,cellSize:Number(e.target.value)})} style={{padding:"6px 8px",borderRadius:6,border:"1px solid #d4d4d8",fontSize:13,background:"#fff"}}>
+            <option value={2.5}>Small (2.5mm)</option>
+            <option value={3}>Medium (3mm)</option>
+            <option value={4.5}>Large (4.5mm)</option>
+          </select>
+        </label>
+        <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}>
+          <input type="checkbox" checked={pdfSettings.singlePage||false} onChange={e=>setPdfSettings({...pdfSettings,singlePage:e.target.checked})}/> Single Page
+        </label>
+        <div style={{display:"flex",gap:10,marginTop:8}}>
+          <button onClick={()=>{setModal(null);exportPDF({displayMode:pdfSettings.chartStyle||"color_symbol",cellSize:pdfSettings.cellSize||3,singlePage:pdfSettings.singlePage||false});}} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer"}}>Export PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>}
+
   {modal==="shortcuts"&&<SharedModals.Shortcuts onClose={()=>setModal(null)} page="tracker" />}
 
 

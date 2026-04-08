@@ -593,3 +593,90 @@ function hitTestHalfStitch(localX, localY, cSz, ambiguousRadius) {
   var diag = localX + localY;
   return diag > cSz ? "fwd" : "bck";
 }
+
+/**
+ * Draws geometric shapes for the standard pattern symbols directly onto a jsPDF instance.
+ * @param {Object} pdf - The jsPDF instance
+ * @param {string} symbol - The symbol character
+ * @param {number} cx - Center X coordinate
+ * @param {number} cy - Center Y coordinate
+ * @param {number} size - Base size/radius for the symbol
+ */
+function drawPDFSymbol(pdf, symbol, cx, cy, size) {
+  let r = size * 0.2;
+  let r2 = size * 0.15;
+  pdf.setLineWidth(Math.max(0.1, size * 0.05));
+
+  if (symbol === "●") { pdf.circle(cx, cy, r, "F"); }
+  else if (symbol === "○") { pdf.circle(cx, cy, r, "S"); }
+  else if (symbol === "■") { pdf.rect(cx - r, cy - r, r*2, r*2, "F"); }
+  else if (symbol === "□") { pdf.rect(cx - r, cy - r, r*2, r*2, "S"); }
+  else if (symbol === "▲") { pdf.triangle(cx, cy - r, cx + r, cy + r, cx - r, cy + r, "F"); }
+  else if (symbol === "△") { pdf.triangle(cx, cy - r, cx + r, cy + r, cx - r, cy + r, "S"); }
+  else if (symbol === "▼") { pdf.triangle(cx - r, cy - r, cx + r, cy - r, cx, cy + r, "F"); }
+  else if (symbol === "▽") { pdf.triangle(cx - r, cy - r, cx + r, cy - r, cx, cy + r, "S"); }
+  else if (symbol === "◆" || symbol === "♦" || symbol === "⬥" || symbol === "⬦") {
+    pdf.lines([[r, r], [-r, r], [-r, -r], [r, -r]], cx, cy - r, [1, 1], "F", true);
+  }
+  else if (symbol === "◇" || symbol === "♢") {
+    pdf.lines([[r, r], [-r, r], [-r, -r], [r, -r]], cx, cy - r, [1, 1], "S", true);
+  }
+  else if (symbol === "◄" || symbol === "◁") { pdf.triangle(cx + r, cy - r, cx + r, cy + r, cx - r, cy, "F"); }
+  else if (symbol === "►" || symbol === "▷") { pdf.triangle(cx - r, cy - r, cx + r, cy, cx - r, cy + r, "F"); }
+  else if (symbol === "★" || symbol === "☆") {
+    let pts = [];
+    for(let i=0; i<10; i++) {
+      let rad = (i%2===0)?r:r*0.4;
+      let angle = (i * Math.PI / 5) - Math.PI / 2;
+      pts.push([Math.cos(angle)*rad, Math.sin(angle)*rad]);
+    }
+    let relPts = [];
+    for(let i=1; i<10; i++) { relPts.push([pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]]); }
+    pdf.lines(relPts, cx+pts[0][0], cy+pts[0][1], [1, 1], symbol === "★" ? "F" : "S", true);
+  }
+  else if (symbol === "♥" || symbol === "♡") {
+    pdf.circle(cx - r2, cy - r2*0.5, r2, symbol === "♥" ? "F" : "S");
+    pdf.circle(cx + r2, cy - r2*0.5, r2, symbol === "♥" ? "F" : "S");
+    pdf.triangle(cx - r2*2, cy, cx + r2*2, cy, cx, cy + r*1.2, symbol === "♥" ? "F" : "S");
+  }
+  else if (symbol === "♣" || symbol === "♧") {
+    pdf.circle(cx, cy - r2, r2, symbol === "♣" ? "F" : "S");
+    pdf.circle(cx - r2, cy + r2*0.5, r2, symbol === "♣" ? "F" : "S");
+    pdf.circle(cx + r2, cy + r2*0.5, r2, symbol === "♣" ? "F" : "S");
+    pdf.triangle(cx - r2*0.5, cy + r, cx + r2*0.5, cy + r, cx, cy, symbol === "♣" ? "F" : "S");
+  }
+  else if (symbol === "♠" || symbol === "♤") {
+    pdf.circle(cx - r2, cy + r2*0.5, r2, symbol === "♠" ? "F" : "S");
+    pdf.circle(cx + r2, cy + r2*0.5, r2, symbol === "♠" ? "F" : "S");
+    pdf.triangle(cx - r2*2, cy, cx + r2*2, cy, cx, cy - r*1.2, symbol === "♠" ? "F" : "S");
+    pdf.triangle(cx - r2*0.5, cy + r*1.5, cx + r2*0.5, cy + r*1.5, cx, cy, symbol === "♠" ? "F" : "S");
+  }
+  else if (symbol === "⊕") { pdf.circle(cx, cy, r, "S"); pdf.line(cx - r, cy, cx + r, cy); pdf.line(cx, cy - r, cx, cy + r); }
+  else if (symbol === "⊗") { pdf.circle(cx, cy, r, "S"); let r3=r*0.7; pdf.line(cx - r3, cy - r3, cx + r3, cy + r3); pdf.line(cx + r3, cy - r3, cx - r3, cy + r3); }
+  else if (symbol === "⊞") { pdf.rect(cx - r, cy - r, r*2, r*2, "S"); pdf.line(cx - r, cy, cx + r, cy); pdf.line(cx, cy - r, cx, cy + r); }
+  else if (symbol === "⊠") { pdf.rect(cx - r, cy - r, r*2, r*2, "S"); pdf.line(cx - r, cy - r, cx + r, cy + r); pdf.line(cx + r, cy - r, cx - r, cy + r); }
+  else if (symbol === "⊡") { pdf.rect(cx - r, cy - r, r*2, r*2, "S"); pdf.rect(cx - r2*0.5, cy - r2*0.5, r2, r2, "F"); }
+  else if (symbol === "⊘") { pdf.circle(cx, cy, r, "S"); pdf.line(cx - r, cy + r, cx + r, cy - r); }
+  else if (symbol === "⊙") { pdf.circle(cx, cy, r, "S"); pdf.circle(cx, cy, r*0.2, "F"); }
+  else if (symbol === "⊚") { pdf.circle(cx, cy, r, "S"); pdf.circle(cx, cy, r*0.5, "S"); }
+  else if (symbol === "⊛") { pdf.circle(cx, cy, r, "S"); let r3=r*0.7; pdf.line(cx - r3, cy - r3, cx + r3, cy + r3); pdf.line(cx + r3, cy - r3, cx - r3, cy + r3); pdf.line(cx - r, cy, cx + r, cy); pdf.line(cx, cy - r, cx, cy + r); }
+  else if (symbol === "⊜") { pdf.circle(cx, cy, r, "S"); pdf.line(cx - r*0.8, cy - r*0.3, cx + r*0.8, cy - r*0.3); pdf.line(cx - r*0.8, cy + r*0.3, cx + r*0.8, cy + r*0.3); }
+  else if (symbol === "⊝") { pdf.circle(cx, cy, r, "S"); pdf.line(cx - r, cy, cx + r, cy); }
+  else if (symbol === "⬡" || symbol === "⬢" || symbol === "⬣") {
+    let pts = [];
+    for(let i=0; i<6; i++) {
+      let angle = (i * Math.PI / 3) - Math.PI / 2;
+      pts.push([Math.cos(angle)*r, Math.sin(angle)*r]);
+    }
+    let relPts = [];
+    for(let i=1; i<6; i++) { relPts.push([pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]]); }
+    pdf.lines(relPts, cx+pts[0][0], cy+pts[0][1], [1, 1], symbol === "⬡" ? "S" : "F", true);
+  }
+  else if (symbol === "⬧" || symbol === "⬨" || symbol === "⬩") {
+    pdf.lines([[r, r*1.5], [-r, r*1.5], [-r, -r*1.5], [r, -r*1.5]], cx, cy - r*1.5, [1, 1], symbol === "⬧" ? "F" : "S", true);
+  }
+  else {
+    pdf.setFontSize(size * 1.5);
+    pdf.text(symbol, cx, cy + size * 0.4, {align:"center"});
+  }
+}
