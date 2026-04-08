@@ -704,7 +704,13 @@ async function exportPDF(options={}){
   const cellMM=options.cellSize||3;
   if(!pat||!pal||!cmap)return;
   if(!window.jspdf)await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  if(!window.NOTO_SANS_SYMBOLS_B64)await window.loadScript('noto-sans-symbols.js');
   const{jsPDF}=window.jspdf;const pdf=new jsPDF("portrait","mm","a4");const mg=12,cW2=186;
+
+  if(window.NOTO_SANS_SYMBOLS_B64){
+    pdf.addFileToVFS("NotoSansSymbols.ttf", window.NOTO_SANS_SYMBOLS_B64);
+    pdf.addFont("NotoSansSymbols.ttf", "NotoSansSymbols", "normal");
+  }
 
   // --- Cover Sheet Generation ---
   (function(){
@@ -785,7 +791,40 @@ async function exportPDF(options={}){
   })();
 
   pdf.addPage();
-  pdf.setTextColor(0);let ty=mg+10;pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=8;pdf.setFontSize(8);pal.forEach(p=>{if(ty>285){pdf.addPage();ty=mg+8;}pdf.setFillColor(p.rgb[0],p.rgb[1],p.rgb[2]);pdf.circle(mg+4,ty-1.5,2,"F");pdf.setTextColor(0);pdf.setDrawColor(0);if(typeof drawPDFSymbol==='function'){drawPDFSymbol(pdf,p.symbol,mg+10,ty-1,3.5);}else{pdf.text(p.symbol,mg+10,ty);}let sk=skeinEst(p.count,fabricCt);pdf.text("   DMC "+p.id+" "+(p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name)+" ("+p.count+" st, "+sk+" skein"+(sk>1?"s":"")+")",mg+12,ty);ty+=5;});
+  let ty=mg+10;
+  pdf.setTextColor(0);pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=10;
+  pdf.setFontSize(9);pdf.setTextColor(80);
+  pdf.text("Symbol",mg,ty);
+  pdf.text("Color",mg+15,ty);
+  pdf.text("DMC",mg+30,ty);
+  pdf.text("Name",mg+45,ty);
+  pdf.text("Stitches",mg+110,ty,{align:"right"});
+  pdf.text("Skeins",mg+130,ty,{align:"right"});
+  ty+=2;
+  pdf.setDrawColor(200);pdf.setLineWidth(0.3);pdf.line(mg,ty,mg+130,ty);
+  ty+=6;
+  pdf.setFontSize(8);
+  pal.forEach(p=>{
+    if(ty>285){pdf.addPage();ty=mg+8;}
+    pdf.setFillColor(p.rgb[0],p.rgb[1],p.rgb[2]);
+    pdf.setDrawColor(150);
+    pdf.rect(mg+15, ty-3, 6, 4, "DF");
+    pdf.setTextColor(40);
+    pdf.setDrawColor(40);
+    pdf.setFillColor(40);
+    if(typeof drawPDFSymbol==='function'){
+      drawPDFSymbol(pdf,p.symbol,mg+5,ty-1,3.5);
+    }else{
+      pdf.text(p.symbol,mg+3,ty);
+    }
+    let sk=skeinEst(p.count,fabricCt);
+    let nameStr = p.type==="blend"?p.threads[0].name+" + "+p.threads[1].name:p.name;
+    pdf.text(p.id,mg+30,ty);
+    pdf.text(nameStr,mg+45,ty);
+    pdf.text(String(p.count),mg+110,ty,{align:"right"});
+    pdf.text(String(sk),mg+130,ty,{align:"right"});
+    ty+=6;
+  });
   const gridCols=Math.floor(cW2/cellMM),gridRows=Math.floor(275/cellMM),pagesX=Math.ceil(sW/gridCols),pagesY=Math.ceil(sH/gridRows);
 
   function clipLine(x1, y1, x2, y2, xmin, ymin, xmax, ymax) {
