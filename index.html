@@ -144,6 +144,10 @@ const[totalTime,setTotalTime]=useState(0);
 const[sessions,setSessions]=useState([]);
 const[halfStitches,setHalfStitches]=useState(()=>new Map());
 const[halfStitchTool,setHalfStitchTool]=useState(null);
+const[palSort,setPalSort]=useState('count'); // 'count'|'hue'|'dmc'|'name'
+const recentColorsRef=useRef([]);
+const[recentColors,setRecentColors]=useState([]);
+const[canvasCursor,setCanvasCursor]=useState('default');
 
 // Thread organiser: {skeinId: "owned"|"tobuy"|""}
 const[threadOwned,setThreadOwned]=useState({});
@@ -194,6 +198,7 @@ const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitc
 const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
 const dmcFiltered=useMemo(()=>{if(!dmcSearch.trim())return DMC;let q=dmcSearch.toLowerCase();return DMC.filter(d=>d.id.toLowerCase().includes(q)||d.name.toLowerCase().includes(q));},[dmcSearch]);
 const displayPal=useMemo(()=>{if(!isScratchMode||!pal)return pal;let ids=new Set(pal.map(p=>p.id));let extras=scratchPalette.filter(p=>!ids.has(p.id));return[...pal,...extras];},[isScratchMode,pal,scratchPalette]);
+const sortedDisplayPal=useMemo(()=>{const src=displayPal||pal||[];if(!src.length)return src;const arr=[...src];if(palSort==='hue'){const hue=([r,g,b])=>{r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b);if(mx===mn)return 0;const d=mx-mn;if(mx===r)return((g-b)/d+(g<b?6:0))/6*360;if(mx===g)return((b-r)/d+2)/6*360;return((r-g)/d+4)/6*360;};return arr.sort((a,b)=>hue(a.rgb)-hue(b.rgb));}if(palSort==='dmc'){return arr.sort((a,b)=>{const n=id=>{const v=parseInt(id);return isNaN(v)?99999:v;};return n(a.id)-n(b.id);});}if(palSort==='name')return arr.sort((a,b)=>(a.name||a.id).localeCompare(b.name||b.id));return arr.sort((a,b)=>b.count-a.count);},[displayPal,pal,palSort]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
 const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__"||pat[i].id==="__empty__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
 
@@ -259,7 +264,7 @@ useEffect(()=>{
 
 // Unified stitch-type selector — maps to existing activeTool / halfStitchTool machinery
 function selectStitchType(t){
-  if(t==='cross'){setActiveTool(brushMode);setHalfStitchTool(null);setBsStart(null);}
+  if(t==='cross'){setActiveTool(brushMode);setHalfStitchTool(null);setBsStart(null);if(!selectedColorId&&pal&&pal.length)setSelectedColorId(pal[0].id);}
   else if(t==='half-fwd'){setHalfStitchTool('fwd');setActiveTool(null);setBsStart(null);}
   else if(t==='half-bck'){setHalfStitchTool('bck');setActiveTool(null);setBsStart(null);}
   else if(t==='backstitch'){setActiveTool('backstitch');setHalfStitchTool(null);}
@@ -461,7 +466,7 @@ function processLoadedProject(project){
   if(s.stitchSpeed)setStitchSpeed(s.stitchSpeed);
   let restored=project.pattern.map(restoreStitch);
   let{pal:newPal,cmap:newCmap}=buildPalette(restored);
-  setPat(restored);setPal(newPal);setCmap(newCmap);setTab("pattern");setActiveTool('paint');setSelectedColorId(null);setEditHistory([]);setRedoHistory([]);setSidebarOpen(true);
+  setPat(restored);setPal(newPal);setCmap(newCmap);setTab("pattern");setActiveTool('paint');setSelectedColorId(newPal.length?newPal[0].id:null);setEditHistory([]);setRedoHistory([]);setSidebarOpen(true);
   setThreadOwned(project.threadOwned||{});
   if(project.done&&project.done.length===restored.length)setDone(new Uint8Array(project.done));else setDone(new Uint8Array(restored.length));
   setParkMarkers(project.parkMarkers||[]);setTotalTime(project.totalTime||0);setSessions(project.sessions||[]);
@@ -560,6 +565,33 @@ useEffect(() => {
 }, []);
 
 useEffect(()=>{ typeof StashBridge!=="undefined"&&StashBridge.getGlobalStash().then(setGlobalStash).catch(()=>{}); },[]);
+// Track recently used colours (ring buffer, last 5 distinct)
+useEffect(()=>{
+  if(!selectedColorId||!cmap||!cmap[selectedColorId])return;
+  const prev=recentColorsRef.current;
+  if(prev[0]===selectedColorId)return;
+  const next=[selectedColorId,...prev.filter(id=>id!==selectedColorId)].slice(0,5);
+  recentColorsRef.current=next;
+  setRecentColors(next);
+},[selectedColorId,cmap]);
+// Paint-tool canvas cursor: coloured square matching selected colour + brush size
+useEffect(()=>{
+  if(activeTool==='paint'&&selectedColorId&&cmap&&cmap[selectedColorId]){
+    const[r,g,b]=cmap[selectedColorId].rgb;
+    const cellPx=Math.min(cs,36);
+    const sz=Math.max(4,cellPx*brushSize);
+    const cvs=document.createElement('canvas');cvs.width=sz+2;cvs.height=sz+2;
+    const ctx=cvs.getContext('2d');
+    ctx.fillStyle=`rgb(${r},${g},${b})`;ctx.fillRect(1,1,sz,sz);
+    ctx.strokeStyle='rgba(0,0,0,0.55)';ctx.lineWidth=1;ctx.strokeRect(1.5,1.5,sz-1,sz-1);
+    ctx.strokeStyle='rgba(255,255,255,0.7)';ctx.lineWidth=0.5;ctx.strokeRect(1,1,sz,sz);
+    setCanvasCursor(`url(${cvs.toDataURL()}) 1 1, crosshair`);
+  }else if(activeTool||halfStitchTool){
+    setCanvasCursor('crosshair');
+  }else{
+    setCanvasCursor('default');
+  }
+},[activeTool,halfStitchTool,selectedColorId,brushSize,cs,cmap]);
 // Auto-save effect
 useEffect(() => {
     if (!pat || !pal) return;
@@ -960,7 +992,7 @@ const generate=useCallback(()=>{
     const cleanConfetti=orphans>0?analyzeConfetti(mapped,sW,sH):rawConfetti;
     setConfettiData({raw:rawConfetti,clean:cleanConfetti});
     let{pal:newPal,cmap:newCmap}=buildPalette(mapped);
-    setPal(newPal);setCmap(newCmap);setPat(mapped);setDone(new Uint8Array(mapped.length));setParkMarkers([]);setTab("pattern");setThreadOwned({});setEditHistory([]);setRedoHistory([]);setActiveTool('paint');setHalfStitchTool(null);
+    setPal(newPal);setCmap(newCmap);setPat(mapped);setDone(new Uint8Array(mapped.length));setParkMarkers([]);setTab("pattern");setThreadOwned({});setEditHistory([]);setRedoHistory([]);setActiveTool('paint');setHalfStitchTool(null);setSelectedColorId(newPal.length?newPal[0].id:null);
     if(!hasGenerated){
       setDimOpen(false);setPalOpen(false);setFabOpen(false);setAdjOpen(false);setBgOpen(false);
       setHasGenerated(true);
@@ -1683,7 +1715,7 @@ return(
           {cs < 6 && (view === "symbol" || view === "both") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
           {isScratchMode&&(!displayPal||displayPal.length===0)&&<div style={{fontSize:12,color:"#a1a1aa",padding:"8px 12px",background:"#f4f4f5",borderRadius:8,marginBottom:8,textAlign:"center"}}>Add colours using the Colours panel on the left, then select Paint or Fill to begin.</div>}
           {!shortcutsHintDismissed&&<div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>💡 Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>}
-          <div ref={scrollRef} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(activeTool||halfStitchTool)?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onMouseDown={handlePatMouseDown} onMouseUp={handlePatMouseUp} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{if(activeTool==="backstitch"&&bsStart){e.preventDefault();setBsStart(null);}}}/></div>
+          <div ref={scrollRef} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:canvasCursor}}><canvas ref={pcRef} style={{display:"block"}} onMouseDown={handlePatMouseDown} onMouseUp={handlePatMouseUp} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{if(activeTool==="backstitch"&&bsStart){e.preventDefault();setBsStart(null);}}}/></div>
           <div className="tb-status">{stitchType==="cross"?`Cross stitch — ${brushMode==="fill"?"fill":"paint"} mode. Select a colour chip below.`:stitchType==="half-fwd"?"Half stitch / — click cells to place.":stitchType==="half-bck"?"Half stitch \\ — click cells to place.":stitchType==="backstitch"?"Backstitch — click grid intersections. Right-click to cancel.":stitchType==="erase"?"Erase — click to remove stitches and backstitch lines.":"Select a colour chip below, then choose a stitch type above."}</div>
           <div style={{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}}>
             {editHistory.length>0&&<button onClick={undoEdit} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
@@ -1695,11 +1727,21 @@ return(
               <span style={{fontSize:13}}>👇</span> Click a colour chip below to select it, then paint on the canvas
             </div>
           )}
-          <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{(displayPal||pal||[]).map(p=>{let isHsTool=halfStitchTool&&halfStitchTool!=="erase";let ips=(activeTool==="paint"||activeTool==="fill"||isHsTool)&&selectedColorId===p.id,ihs=hiId===p.id,isUnused=isScratchMode&&p.count===0;
+          <div style={{marginTop:8}}>
+            <div style={{display:"flex",gap:3,marginBottom:5,alignItems:"center"}}>
+              <span style={{fontSize:10,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginRight:2}}>Sort</span>
+              {[['count','Count'],['hue','Hue'],['dmc','DMC #'],['name','Name']].map(([k,l])=>(<button key={k} onClick={()=>setPalSort(k)} style={{fontSize:10,padding:"2px 8px",border:"0.5px solid "+(palSort===k?"#0d9488":"#e4e4e7"),borderRadius:6,background:palSort===k?"#f0fdfa":"#fff",color:palSort===k?"#0d9488":"#71717a",cursor:"pointer",fontWeight:palSort===k?600:400}}>{l}</button>))}
+            </div>
+            {recentColors.length>=2&&(activeTool==="paint"||activeTool==="fill"||(halfStitchTool&&halfStitchTool!=="erase"))&&<div style={{display:"flex",gap:4,marginBottom:6,alignItems:"center"}}>
+              <span style={{fontSize:10,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,flexShrink:0}}>Recent</span>
+              {recentColors.map(id=>cmap&&cmap[id]?(<div key={id} onClick={()=>setSelectedColorId(id)} title={id} style={{width:22,height:22,borderRadius:4,background:`rgb(${cmap[id].rgb})`,border:selectedColorId===id?"2px solid #0d9488":"1.5px solid #d4d4d8",cursor:"pointer",flexShrink:0,boxShadow:selectedColorId===id?"0 0 0 2px #99f6e4":"none"}}/>):null)}
+            </div>}
+            <div style={{borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{(sortedDisplayPal||[]).map(p=>{let isHsTool=halfStitchTool&&halfStitchTool!=="erase";let ips=(activeTool==="paint"||activeTool==="fill"||isHsTool)&&selectedColorId===p.id,ihs=hiId===p.id,isUnused=isScratchMode&&p.count===0;
             const chip=<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill"||isHsTool){setSelectedColorId(selectedColorId===p.id?null:p.id);}else if(!activeTool&&!halfStitchTool){selectStitchType('cross');setSelectedColorId(p.id);}else{setHiId(hiId===p.id?null:p.id);}}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?(isHsTool?"2px solid #0284c7":"2px solid #0d9488"):ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?(isHsTool?"#e0f2fe":"#f0fdfa"):ihs?"#fff7ed":"#fff",opacity:isUnused?0.6:1}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span>{isUnused&&<span onClick={e=>{e.stopPropagation();removeScratchColour(p.id);}} style={{fontSize:9,color:"#a1a1aa",cursor:"pointer",marginLeft:2,lineHeight:1}}>×</span>}</div>;
             const tipText=ips?"Currently selected — click canvas to paint":isUnused?"Click to select · no stitches yet":"Click to select this colour for painting";
             return isScratchMode?<Tooltip key={p.id} text={tipText} width={180}>{chip}</Tooltip>:chip;
           })}</div></div>
+          </div>
         </div>}
 
         {/* ═══ PROJECT TAB ═══ */}
