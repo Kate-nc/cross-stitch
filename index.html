@@ -93,7 +93,7 @@ function confettiTier(pct){
 }
 
 function CreatorApp({onSwitchToTrack=null, isActive=true}={}){
-const[img,setImg]=useState(null),[sW,setSW]=useState(80),[sH,setSH]=useState(80),[arLock,setArLock]=useState(true),[ar,setAr]=useState(1);
+const[img,setImg]=useState(null),[isUploading,setIsUploading]=useState(false),[isDragging,setIsDragging]=useState(false),[sW,setSW]=useState(80),[sH,setSH]=useState(80),[arLock,setArLock]=useState(true),[ar,setAr]=useState(1);
 const[maxC,setMaxC]=useState(30),[bri,setBri]=useState(0),[con,setCon]=useState(0),[sat,setSat]=useState(0),[dith,setDith]=useState(false);
 const[skipBg,setSkipBg]=useState(false),[bgTh,setBgTh]=useState(15),[bgCol,setBgCol]=useState([255,255,255]),[pickBg,setPickBg]=useState(false),[minSt,setMinSt]=useState(0);
 const[smooth,setSmooth]=useState(0),[smoothType,setSmoothType]=useState("median"),[orphans,setOrphans]=useState(0);
@@ -251,6 +251,28 @@ useEffect(()=>{
   return()=>{if(previewTimerRef.current)clearTimeout(previewTimerRef.current);};
 },[generatePreview]);
 
+useEffect(()=>{
+  if(!isActive)return;
+  function handlePaste(e) {
+    let activeElem = document.activeElement;
+    if (activeElem && (activeElem.tagName === 'INPUT' || activeElem.tagName === 'TEXTAREA')) return;
+    if (!e.clipboardData || !e.clipboardData.items) return;
+    for (let i = 0; i < e.clipboardData.items.length; i++) {
+      let item = e.clipboardData.items[i];
+      if (item.type.indexOf('image') === 0) {
+        let blob = item.getAsFile();
+        if (blob) {
+          e.preventDefault();
+          handleFile(blob);
+          break;
+        }
+      }
+    }
+  }
+  window.addEventListener('paste', handlePaste);
+  return () => window.removeEventListener('paste', handlePaste);
+}, [isActive]);
+
 // Unified stitch-type selector — maps to existing activeTool / halfStitchTool machinery
 function selectStitchType(t){
   if(t==='cross'){setActiveTool(brushMode);setHalfStitchTool(null);setBsStart(null);}
@@ -325,7 +347,7 @@ function removeScratchColour(id){
   setCmap(prev=>{if(!prev)return prev;let n={...prev};delete n[id];return n;});
 }
 
-function handleFile(e){let f=e.target.files[0];if(!f)return;const MAX_FILE_SIZE = 5 * 1024 * 1024; if(f.size>MAX_FILE_SIZE){alert("File is too large. Please select an image under 5MB.");return;}let rd=new FileReader();rd.onload=ev=>{let i=new Image();const proceed=()=>{userActedRef.current=true;setOrigW(i.width);setOrigH(i.height);let a=i.width/i.height;setAr(a);setSW(80);setSH(Math.round(80/a));setImg(i);resetAll();};if(typeof i.decode==='function'){i.src=ev.target.result;i.decode().then(proceed).catch(()=>{i.onload=proceed;});}else{i.onload=proceed;i.src=ev.target.result;}};rd.readAsDataURL(f);}
+function handleFile(e){let f=e.target?e.target.files[0]:e;if(!f)return;if(e.target)e.target.value='';setIsUploading(true);let rd=new FileReader();rd.onload=ev=>{let i=new Image();const proceed=()=>{let targetW=i.width,targetH=i.height;const MAX_AREA=2000*2000;if(targetW*targetH>MAX_AREA||(f.size&&f.size>5*1024*1024)){let scale=Math.sqrt(MAX_AREA/(targetW*targetH));if(scale<1){targetW=Math.round(targetW*scale);targetH=Math.round(targetH*scale);}let c=document.createElement('canvas');c.width=targetW;c.height=targetH;let ctx=c.getContext('2d');ctx.drawImage(i,0,0,targetW,targetH);let scaledImg=new Image();scaledImg.onload=()=>{userActedRef.current=true;setOrigW(targetW);setOrigH(targetH);let a=targetW/targetH;setAr(a);setSW(80);setSH(Math.round(80/a));setImg(scaledImg);resetAll();setIsUploading(false);};scaledImg.src=c.toDataURL('image/jpeg',0.85);return;}userActedRef.current=true;setOrigW(i.width);setOrigH(i.height);let a=i.width/i.height;setAr(a);setSW(80);setSH(Math.round(80/a));setImg(i);resetAll();setIsUploading(false);};if(typeof i.decode==='function'){i.src=ev.target.result;i.decode().then(proceed).catch(()=>{i.onload=proceed;});}else{i.onload=proceed;i.src=ev.target.result;}};rd.onerror=()=>setIsUploading(false);rd.readAsDataURL(f);}
 
 function chgW(v){let w=Math.max(10,Math.min(300,parseInt(v)||10));setSW(w);if(arLock)setSH(Math.max(10,Math.round(w/ar)));}
 function chgH(v){let h=Math.max(10,Math.min(300,parseInt(v)||10));setSH(h);if(arLock)setSW(Math.max(10,Math.round(h*ar)));}
@@ -487,16 +509,29 @@ useEffect(() => {
     if (window.__pendingCreatorFile) {
       const file = window.__pendingCreatorFile;
       delete window.__pendingCreatorFile;
-      // Simulate file input by reading the file as an image
-      const MAX_FILE_SIZE = 5 * 1024 * 1024;
-      if (file.size > MAX_FILE_SIZE) { alert("File is too large. Please select an image under 5MB."); return; }
+      setIsUploading(true);
       const rd = new FileReader();
       rd.onload = ev => {
         const i = new Image();
-        const proceed = () => { userActedRef.current = true; setOrigW(i.width); setOrigH(i.height); let a = i.width / i.height; setAr(a); setSW(80); setSH(Math.round(80 / a)); setImg(i); resetAll(); };
-        if (typeof i.decode === 'function') { i.src = ev.target.result; i.decode().then(proceed).catch(() => { i.onload = proceed; i.src = ev.target.result; }); }
+        const proceed = () => {
+          let targetW = i.width, targetH = i.height;
+          const MAX_AREA = 2000 * 2000;
+          if (targetW * targetH > MAX_AREA || (file.size && file.size > 5 * 1024 * 1024)) {
+            let scale = Math.sqrt(MAX_AREA / (targetW * targetH));
+            if (scale < 1) { targetW = Math.round(targetW * scale); targetH = Math.round(targetH * scale); }
+            let c = document.createElement('canvas'); c.width = targetW; c.height = targetH;
+            let ctx = c.getContext('2d'); ctx.drawImage(i, 0, 0, targetW, targetH);
+            let scaledImg = new Image();
+            scaledImg.onload = () => { userActedRef.current = true; setOrigW(targetW); setOrigH(targetH); let a = targetW / targetH; setAr(a); setSW(80); setSH(Math.round(80 / a)); setImg(scaledImg); resetAll(); setIsUploading(false); };
+            scaledImg.src = c.toDataURL('image/jpeg', 0.85);
+            return;
+          }
+          userActedRef.current = true; setOrigW(i.width); setOrigH(i.height); let a = i.width / i.height; setAr(a); setSW(80); setSH(Math.round(80 / a)); setImg(i); resetAll(); setIsUploading(false);
+        };
+        if (typeof i.decode === 'function') { i.src = ev.target.result; i.decode().then(proceed).catch(() => { i.onload = proceed; }); }
         else { i.onload = proceed; i.src = ev.target.result; }
       };
+      rd.onerror = () => setIsUploading(false);
       rd.readAsDataURL(file);
       return;
     }
@@ -1337,11 +1372,27 @@ return(
     <p style={{fontSize:15, color:"#71717a", marginBottom:32}}>Turn any photo into a detailed pattern, or continue working on an existing project.</p>
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:24}}>
-      <div onClick={()=>fRef.current.click()} className="upload-area">
+      <div
+        onClick={()=>fRef.current.click()}
+        className="upload-area"
+        style={{position:"relative", borderColor: isDragging ? "#0d9488" : undefined, background: isDragging ? "#f0fdfa" : undefined}}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleFile(e.dataTransfer.files[0]);
+            e.dataTransfer.clearData();
+          }
+        }}
+      >
+        {isUploading&&<div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"rgba(255,255,255,0.8)",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:12,zIndex:10,fontWeight:600,color:"#0d9488"}}>Processing...</div>}
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
         <div>
           <div style={{fontWeight:600,fontSize:18,color:"#18181b",marginBottom:4}}>Create New Pattern</div>
-          <div style={{color:"#71717a",fontSize:14}}>Upload an image (JPG, PNG)</div>
+          <div style={{color:"#71717a",fontSize:14}}>Upload or Drop an image (JPG, PNG)</div>
         </div>
       </div>
       <div onClick={()=>loadRef.current.click()} className="upload-area">

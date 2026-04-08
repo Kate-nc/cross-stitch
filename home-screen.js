@@ -150,6 +150,9 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var hasNoProjects = projectCount === 0;
   var isEmptyState = hasNoProjects && !hasStash;
 
+  var _isDragging = useState(false);
+  var isDragging = _isDragging[0], setIsDragging = _isDragging[1];
+
   // File input handlers
   function handleImageSelect(e) {
     var f = e.target.files[0];
@@ -251,7 +254,22 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       h('div', { className: 'home-panel' },
         h('div', { className: 'home-panel-header' }, 'START NEW'),
         h('div', { className: 'home-panel-list' },
-          h('button', { className: 'home-action-row', onClick: function() { imageInputRef.current.click(); } },
+          h('button', {
+            className: 'home-action-row',
+            onClick: function() { imageInputRef.current.click(); },
+            style: { borderColor: isDragging ? "#0d9488" : undefined, background: isDragging ? "#f0fdfa" : undefined },
+            onDragOver: function(e) { e.preventDefault(); setIsDragging(true); },
+            onDragEnter: function(e) { e.preventDefault(); setIsDragging(true); },
+            onDragLeave: function(e) { e.preventDefault(); setIsDragging(false); },
+            onDrop: function(e) {
+              e.preventDefault();
+              setIsDragging(false);
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                if (onOpenCreatorWithImage) onOpenCreatorWithImage(e.dataTransfer.files[0]);
+                e.dataTransfer.clearData();
+              }
+            }
+          },
             h('span', { className: 'home-action-icon', 'aria-hidden': 'true' },
               h('svg', { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' },
                 h('rect', { x: 3, y: 3, width: 18, height: 18, rx: 2, ry: 2 }),
