@@ -313,6 +313,7 @@ function startScratch(){
   setImg({src:null,w:sW,h:sH});
   prevSW.current=sW;prevSH.current=sH;
   initBlankGrid(sW,sH);
+  setActiveTool('paint'); // default to paint so toolbar is immediately usable
 }
 
 function addScratchColour(d){
@@ -324,9 +325,7 @@ function addScratchColour(d){
   setPal(prev=>prev?[...prev,entry]:[entry]);
   setCmap(prev=>prev?{...prev,[d.id]:entry}:{[d.id]:entry});
   setSelectedColorId(d.id);
-  if (!activeTool && !halfStitchTool) {
-    setBrushAndActivate('paint');
-  }
+  selectStitchType('cross'); // always switch to paint when adding a new colour
 }
 
 function removeScratchColour(id){
@@ -462,7 +461,7 @@ function processLoadedProject(project){
   if(s.stitchSpeed)setStitchSpeed(s.stitchSpeed);
   let restored=project.pattern.map(restoreStitch);
   let{pal:newPal,cmap:newCmap}=buildPalette(restored);
-  setPat(restored);setPal(newPal);setCmap(newCmap);setTab("pattern");setActiveTool(null);setSelectedColorId(null);setEditHistory([]);setRedoHistory([]);setSidebarOpen(true);
+  setPat(restored);setPal(newPal);setCmap(newCmap);setTab("pattern");setActiveTool('paint');setSelectedColorId(null);setEditHistory([]);setRedoHistory([]);setSidebarOpen(true);
   setThreadOwned(project.threadOwned||{});
   if(project.done&&project.done.length===restored.length)setDone(new Uint8Array(project.done));else setDone(new Uint8Array(restored.length));
   setParkMarkers(project.parkMarkers||[]);setTotalTime(project.totalTime||0);setSessions(project.sessions||[]);
@@ -961,7 +960,7 @@ const generate=useCallback(()=>{
     const cleanConfetti=orphans>0?analyzeConfetti(mapped,sW,sH):rawConfetti;
     setConfettiData({raw:rawConfetti,clean:cleanConfetti});
     let{pal:newPal,cmap:newCmap}=buildPalette(mapped);
-    setPal(newPal);setCmap(newCmap);setPat(mapped);setDone(new Uint8Array(mapped.length));setParkMarkers([]);setTab("pattern");setThreadOwned({});setEditHistory([]);setRedoHistory([]);
+    setPal(newPal);setCmap(newCmap);setPat(mapped);setDone(new Uint8Array(mapped.length));setParkMarkers([]);setTab("pattern");setThreadOwned({});setEditHistory([]);setRedoHistory([]);setActiveTool('paint');setHalfStitchTool(null);
     if(!hasGenerated){
       setDimOpen(false);setPalOpen(false);setFabOpen(false);setAdjOpen(false);setBgOpen(false);
       setHasGenerated(true);
@@ -1168,16 +1167,16 @@ function handlePatClick(e){
     let cell = pat[idx];
     if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
       setSelectedColorId(cell.id);
-      setBrushAndActivate("paint");
+      selectStitchType('cross'); // return to paint after picking a colour
     } else {
       let hs = halfStitches.get(idx);
       if (hs) {
         if (hs.fwd && cmap[hs.fwd.id]) {
           setSelectedColorId(hs.fwd.id);
-          setBrushAndActivate("paint");
+          selectStitchType('cross');
         } else if (hs.bck && cmap[hs.bck.id]) {
           setSelectedColorId(hs.bck.id);
-          setBrushAndActivate("paint");
+          selectStitchType('cross');
         }
       }
     }
@@ -1483,20 +1482,20 @@ return(
       <svg width="11" height="11" viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg>Erase
     </button>
   </div>
-  {/* Brush group — always visible but dim if no color selected (for Cross stitch) */}
+  {/* Brush group — only for cross stitch */}
   {stitchType==='cross'&&<><div className="tb-sdiv"/>
   <div className={'tb-grp'+(stripCollapsed.brush?' tb-hidden':'')} style={{opacity: selectedColorId ? 1 : 0.6}}>
     <button className={'tb-btn'+(brushMode==='paint'?' tb-btn--on':'')} onClick={()=>setBrushAndActivate('paint')} title="Paint (P)">Paint</button>
     <button className={'tb-btn'+(brushMode==='fill'?' tb-btn--on':'')} onClick={()=>setBrushAndActivate('fill')} title="Fill (F)">Fill</button>
     <button className={'tb-btn'+(activeTool==='eyedropper'?' tb-btn--on':'')} onClick={()=>setTool('eyedropper')} title="Eyedropper (I)">Pick Color</button>
-  </div>
-  {(brushMode==='paint' || stitchType==='erase' || (halfStitchTool && halfStitchTool!=='erase')) && activeTool!=='eyedropper' && <div className="tb-grp" style={{display: 'flex', alignItems: 'center', gap: 4, marginLeft: 6, opacity: (selectedColorId || stitchType==='erase') ? 1 : 0.6}}>
+  </div></>}
+  {/* Size group — visible for paint, erase, and half-stitch (decoupled from Cross block) */}
+  {((stitchType==='cross'&&brushMode==='paint'&&activeTool!=='eyedropper')||stitchType==='erase'||stitchType==='half-fwd'||stitchType==='half-bck')&&<div className="tb-grp" style={{display: 'flex', alignItems: 'center', gap: 4, marginLeft: 6, opacity: (selectedColorId || stitchType==='erase') ? 1 : 0.6}}>
      <span style={{fontSize: 10, color: "#71717a", textTransform: "uppercase", fontWeight: 600}}>Size</span>
      {[1,2,3].map(sz => (
         <button key={sz} className={'tb-btn'+(brushSize===sz?' tb-btn--on':'')} onClick={()=>setBrushSize(sz)} style={{padding: "2px 6px", minWidth: 24}}>{sz}</button>
      ))}
   </div>}
-  </>}
   {/* Backstitch continuous — only when backstitch active */}
   {stitchType==='backstitch'&&<><div className="tb-sdiv"/>
   <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#71717a",flexShrink:0}}>
@@ -1697,7 +1696,7 @@ return(
             </div>
           )}
           <div style={{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{(displayPal||pal||[]).map(p=>{let isHsTool=halfStitchTool&&halfStitchTool!=="erase";let ips=(activeTool==="paint"||activeTool==="fill"||isHsTool)&&selectedColorId===p.id,ihs=hiId===p.id,isUnused=isScratchMode&&p.count===0;
-            const chip=<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill"||isHsTool)setSelectedColorId(selectedColorId===p.id?null:p.id);else setHiId(hiId===p.id?null:p.id);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?(isHsTool?"2px solid #0284c7":"2px solid #0d9488"):ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?(isHsTool?"#e0f2fe":"#f0fdfa"):ihs?"#fff7ed":"#fff",opacity:isUnused?0.6:1}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span>{isUnused&&<span onClick={e=>{e.stopPropagation();removeScratchColour(p.id);}} style={{fontSize:9,color:"#a1a1aa",cursor:"pointer",marginLeft:2,lineHeight:1}}>×</span>}</div>;
+            const chip=<div key={p.id} onClick={()=>{if(activeTool==="paint"||activeTool==="fill"||isHsTool){setSelectedColorId(selectedColorId===p.id?null:p.id);}else if(!activeTool&&!halfStitchTool){selectStitchType('cross');setSelectedColorId(p.id);}else{setHiId(hiId===p.id?null:p.id);}}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,cursor:"pointer",fontSize:11,border:ips?(isHsTool?"2px solid #0284c7":"2px solid #0d9488"):ihs?"2px solid #ea580c":"0.5px solid #e4e4e7",background:ips?(isHsTool?"#e0f2fe":"#f0fdfa"):ihs?"#fff7ed":"#fff",opacity:isUnused?0.6:1}}><span style={{width:12,height:12,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}/><span style={{fontFamily:"monospace",color:"#71717a"}}>{p.symbol}</span><span style={{fontWeight:500}}>{p.id}</span>{isUnused&&<span onClick={e=>{e.stopPropagation();removeScratchColour(p.id);}} style={{fontSize:9,color:"#a1a1aa",cursor:"pointer",marginLeft:2,lineHeight:1}}>×</span>}</div>;
             const tipText=ips?"Currently selected — click canvas to paint":isUnused?"Click to select · no stitches yet":"Click to select this colour for painting";
             return isScratchMode?<Tooltip key={p.id} text={tipText} width={180}>{chip}</Tooltip>:chip;
           })}</div></div>
