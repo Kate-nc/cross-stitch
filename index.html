@@ -144,7 +144,7 @@ const[totalTime,setTotalTime]=useState(0);
 const[sessions,setSessions]=useState([]);
 const[halfStitches,setHalfStitches]=useState(()=>new Map());
 const[halfStitchTool,setHalfStitchTool]=useState(null);
-const[palSort,setPalSort]=useState('count'); // 'count'|'hue'|'dmc'|'name'
+const[palSort,setPalSort]=useState('count'); // 'count'|'hue'|'dmc'|'name'|'remaining'|'done%'
 const recentColorsRef=useRef([]);
 const[recentColors,setRecentColors]=useState([]);
 const[canvasCursor,setCanvasCursor]=useState('default');
@@ -198,9 +198,9 @@ const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitc
 const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
 const dmcFiltered=useMemo(()=>{if(!dmcSearch.trim())return DMC;let q=dmcSearch.toLowerCase();return DMC.filter(d=>d.id.toLowerCase().includes(q)||d.name.toLowerCase().includes(q));},[dmcSearch]);
 const displayPal=useMemo(()=>{if(!isScratchMode||!pal)return pal;let ids=new Set(pal.map(p=>p.id));let extras=scratchPalette.filter(p=>!ids.has(p.id));return[...pal,...extras];},[isScratchMode,pal,scratchPalette]);
-const sortedDisplayPal=useMemo(()=>{const src=displayPal||pal||[];if(!src.length)return src;const arr=[...src];if(palSort==='hue'){const hue=([r,g,b])=>{r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b);if(mx===mn)return 0;const d=mx-mn;if(mx===r)return((g-b)/d+(g<b?6:0))/6*360;if(mx===g)return((b-r)/d+2)/6*360;return((r-g)/d+4)/6*360;};return arr.sort((a,b)=>hue(a.rgb)-hue(b.rgb));}if(palSort==='dmc'){return arr.sort((a,b)=>{const n=id=>{const v=parseInt(id);return isNaN(v)?99999:v;};return n(a.id)-n(b.id);});}if(palSort==='name')return arr.sort((a,b)=>(a.name||a.id).localeCompare(b.name||b.id));return arr.sort((a,b)=>b.count-a.count);},[displayPal,pal,palSort]);
-const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
 const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__"||pat[i].id==="__empty__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+const sortedDisplayPal=useMemo(()=>{const src=displayPal||pal||[];if(!src.length)return src;const arr=[...src];if(palSort==='hue'){const hue=([r,g,b])=>{r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b);if(mx===mn)return 0;const d=mx-mn;if(mx===r)return((g-b)/d+(g<b?6:0))/6*360;if(mx===g)return((b-r)/d+2)/6*360;return((r-g)/d+4)/6*360;};return arr.sort((a,b)=>hue(a.rgb)-hue(b.rgb));}if(palSort==='dmc'){return arr.sort((a,b)=>{const n=id=>{const v=parseInt(id);return isNaN(v)?99999:v;};return n(a.id)-n(b.id);});}if(palSort==='name')return arr.sort((a,b)=>(a.name||a.id).localeCompare(b.name||b.id));if(palSort==='remaining'){return arr.sort((a,b)=>{const rem=p=>{const dc=colourDoneCounts[p.id];return dc?dc.total-dc.done:p.count;};return rem(b)-rem(a);});}if(palSort==='done%'){return arr.sort((a,b)=>{const pct=p=>{const dc=colourDoneCounts[p.id];return dc&&dc.total?dc.done/dc.total:0;};return pct(a)-pct(b);});}return arr.sort((a,b)=>b.count-a.count);},[displayPal,pal,palSort,colourDoneCounts]);
+const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
 
 const generatePreview=useCallback(()=>{
   if(!img||!img.src)return;
@@ -1459,10 +1459,13 @@ useEffect(()=>{
     if(e.key==="="||e.key==="+"){setZoom(z=>Math.min(3,+(z+0.1).toFixed(2)));return;}
     if(e.key==="-"){setZoom(z=>Math.max(0.05,+(z-0.1).toFixed(2)));return;}
     if(e.key==="0"){fitZ();return;}
+    if(e.key==="s"||e.key==="S"){const order=['count','hue','dmc','name','remaining','done%'];setPalSort(cur=>{const idx=order.indexOf(cur);return order[(idx+1)%order.length];});return;}
+    if((e.key===","||e.key==="<")&&recentColorsRef.current.length>0){const rc=recentColorsRef.current;const cur=rc.indexOf(selectedColorId);const next=rc[(cur+1)%rc.length];setSelectedColorId(next);return;}
+    if((e.key==="."||e.key===">")&&recentColorsRef.current.length>0){const rc=recentColorsRef.current;const cur=rc.indexOf(selectedColorId);const prev=rc[(cur-1+rc.length)%rc.length];setSelectedColorId(prev);return;}
   }
   window.addEventListener("keydown",handleKeyDown);
   return ()=>window.removeEventListener("keydown",handleKeyDown);
-},[activeTool,bsStart,isActive,editHistory,redoHistory,pat,pal,namePromptOpen,modal,overflowOpen,selectedColorId,halfStitchTool,hiId]);
+},[activeTool,bsStart,isActive,editHistory,redoHistory,pat,pal,namePromptOpen,modal,overflowOpen,selectedColorId,halfStitchTool,hiId,recentColors]);
 
 // Thread organiser helpers
 function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur===""?"owned":cur==="owned"?"tobuy":"";return{...prev,[id]:next};});}
@@ -1730,7 +1733,7 @@ return(
           <div style={{marginTop:8}}>
             <div style={{display:"flex",gap:3,marginBottom:5,alignItems:"center"}}>
               <span style={{fontSize:10,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginRight:2}}>Sort</span>
-              {[['count','Count'],['hue','Hue'],['dmc','DMC #'],['name','Name']].map(([k,l])=>(<button key={k} onClick={()=>setPalSort(k)} style={{fontSize:10,padding:"2px 8px",border:"0.5px solid "+(palSort===k?"#0d9488":"#e4e4e7"),borderRadius:6,background:palSort===k?"#f0fdfa":"#fff",color:palSort===k?"#0d9488":"#71717a",cursor:"pointer",fontWeight:palSort===k?600:400}}>{l}</button>))}
+              {[['count','Count'],['hue','Hue'],['dmc','DMC #'],['name','Name'],['remaining','Remaining'],['done%','Done %']].map(([k,l])=>(<button key={k} onClick={()=>setPalSort(k)} title={{count:'Most stitches first',hue:'Sort by colour wheel',dmc:'Sort by DMC thread number',name:'Alphabetical by name',remaining:'Most stitches left first',"done%":'Least complete first (focus on unstarted colours)'}[k]} style={{fontSize:10,padding:"2px 8px",border:"0.5px solid "+(palSort===k?"#0d9488":"#e4e4e7"),borderRadius:6,background:palSort===k?"#f0fdfa":"#fff",color:palSort===k?"#0d9488":"#71717a",cursor:"pointer",fontWeight:palSort===k?600:400}}>{l}</button>))}
             </div>
             {recentColors.length>=2&&(activeTool==="paint"||activeTool==="fill"||(halfStitchTool&&halfStitchTool!=="erase"))&&<div style={{display:"flex",gap:4,marginBottom:6,alignItems:"center"}}>
               <span style={{fontSize:10,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,flexShrink:0}}>Recent</span>
