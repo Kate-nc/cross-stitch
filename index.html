@@ -32,6 +32,7 @@
 <script src="project-storage.js"></script>
 <script src="stash-bridge.js"></script>
 <script src="home-screen.js"></script>
+<script src="palette-swap.js"></script>
 <!-- Lazy-load helpers — available to both regular and Babel scripts -->
 <script>
 window.loadScript = function(src) {
@@ -190,6 +191,8 @@ const dmcFiltered=useMemo(()=>{if(!dmcSearch.trim())return DMC;let q=dmcSearch.t
 const displayPal=useMemo(()=>{if(!isScratchMode||!pal)return pal;let ids=new Set(pal.map(p=>p.id));let extras=scratchPalette.filter(p=>!ids.has(p.id));return[...pal,...extras];},[isScratchMode,pal,scratchPalette]);
 const progressPct=totalStitchable>0?Math.round(doneCount/totalStitchable*1000)/10:0;
 const colourDoneCounts=useMemo(()=>{if(!pat||!done)return{};let c={};for(let i=0;i<pat.length;i++){if(pat[i].id==="__skip__"||pat[i].id==="__empty__")continue;let id=pat[i].id;if(!c[id])c[id]={total:0,done:0};c[id].total++;if(done[i])c[id].done++;}return c;},[pat,done]);
+
+const paletteSwap=usePaletteSwap({pat,pal:pal||[],cmap,sW,sH,done,setPat,setPal,setCmap,setDone,editHistory,setEditHistory,setRedoHistory,EDIT_HISTORY_MAX,buildPaletteWithScratch});
 
 const generatePreview=useCallback(()=>{
   if(!img||!img.src)return;
@@ -1703,6 +1706,8 @@ return(
           </div>}
         </div>}
       </Section>}
+      {pat&&pal&&paletteSwap&&paletteSwap.shiftSection}
+      {pat&&pal&&paletteSwap&&paletteSwap.presetSection}
       {isScratchMode
         ?<button onClick={()=>initBlankGrid(sW,sH)} style={{padding:"12px 20px",fontSize:15,fontWeight:600,background:"#dc2626",color:"#fff",border:"none",borderRadius:10,cursor:"pointer"}}>Reset Canvas</button>
         :<button onClick={generate} disabled={busy} style={{padding:"12px 20px",fontSize:15,fontWeight:600,background:busy?"#a1a1aa":"#0d9488",color:"#fff",border:"none",borderRadius:10,cursor:busy?"wait":"pointer"}}>{busy?"Generating...":(pat?"Regenerate":"Generate Pattern")}</button>
@@ -1712,8 +1717,10 @@ return(
 
     <div style={{flex:1,minWidth:0}}>
       {pat&&pal&&<div>
+        {/* ═══ PALETTE SWAP CONFIRMATION ═══ */}
+        {tab==="pattern"&&paletteSwap&&paletteSwap.showConfirm&&paletteSwap.confirmView}
         {/* ═══ PATTERN TAB ═══ */}
-        {tab==="pattern"&&<div>
+        {tab==="pattern"&&!(paletteSwap&&paletteSwap.showConfirm)&&<div>
           {cs < 6 && (view === "symbol" || view === "both") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
           {isScratchMode&&(!displayPal||displayPal.length===0)&&<div style={{fontSize:12,color:"#a1a1aa",padding:"8px 12px",background:"#f4f4f5",borderRadius:8,marginBottom:8,textAlign:"center"}}>Add colours using the Colours panel on the left, then select Paint or Fill to begin.</div>}
           {!shortcutsHintDismissed&&<div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>💡 Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>}
