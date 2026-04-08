@@ -107,6 +107,7 @@ const[stitchSpeed,setStitchSpeed]=useState(40); // stitches per hour
 const[tab,setTab]=useState("pattern"),[sidebarOpen,setSidebarOpen]=useState(true),[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
 const[view,setView]=useState("color"),[zoom,setZoom]=useState(1),[hiId,setHiId]=useState(null),[showCtr,setShowCtr]=useState(true);
+const lastHiIdRef=useRef(null); // remembers last highlighted colour across mode switches
 const[showOverlay,setShowOverlay]=useState(false),[overlayOpacity,setOverlayOpacity]=useState(0.3);
 
 const[dimOpen,setDimOpen]=useState(true),[palOpen,setPalOpen]=useState(true),[fabOpen,setFabOpen]=useState(false),[adjOpen,setAdjOpen]=useState(false),[bgOpen,setBgOpen]=useState(false);
@@ -574,6 +575,8 @@ useEffect(()=>{
   recentColorsRef.current=next;
   setRecentColors(next);
 },[selectedColorId,cmap]);
+// Remember last non-null highlight colour so it can be restored when re-entering highlight mode
+useEffect(()=>{ if(hiId) lastHiIdRef.current=hiId; },[hiId]);
 // Paint-tool canvas cursor: coloured square matching selected colour + brush size
 useEffect(()=>{
   if(activeTool==='paint'&&selectedColorId&&cmap&&cmap[selectedColorId]){
@@ -1440,7 +1443,12 @@ useEffect(()=>{
       if(modal){setModal(null);return;}
       if(overflowOpen){setOverflowOpen(false);return;}
       if(activeTool==="backstitch"&&bsStart){setBsStart(null);return;}
-      if(activeTool||halfStitchTool){setActiveTool(null);setHalfStitchTool(null);setBsStart(null);return;}
+      if(activeTool||halfStitchTool){
+        setActiveTool(null);setHalfStitchTool(null);setBsStart(null);
+        // Restore last highlight when deactivating a tool, if the highlight was cleared while painting
+        if(!hiId&&lastHiIdRef.current&&pal&&pal.find(p=>p.id===lastHiIdRef.current)){setHiId(lastHiIdRef.current);}
+        return;
+      }
       if(hiId){setHiId(null);return;}
       if(selectedColorId){setSelectedColorId(null);return;}
       return;
