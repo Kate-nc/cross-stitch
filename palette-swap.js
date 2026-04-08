@@ -72,26 +72,165 @@ function rgbToHex(rgb) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Preset Palette Data
+// Preset Palette Data (Tiered: 8 / 16 / 24 colours)
 // ═══════════════════════════════════════════════════════════
 
-var PALETTE_PRESETS = {
-  "Spring Pastels":     { colours: ["#FFB7C5","#FFDAB9","#FFFACD","#C1FFC1","#B0E0E6","#E6E6FA"], category: "seasonal" },
-  "Summer Brights":     { colours: ["#FF4500","#FFD700","#00CED1","#FF69B4","#32CD32","#FF8C00"], category: "seasonal" },
-  "Autumn Warm":        { colours: ["#8B4513","#CD853F","#DAA520","#B22222","#556B2F","#D2691E"], category: "seasonal" },
-  "Winter Cool":        { colours: ["#4682B4","#708090","#B0C4DE","#DCDCDC","#5F9EA0","#2F4F4F"], category: "seasonal" },
-  "Midnight":           { colours: ["#191970","#000080","#483D8B","#2E0854","#301934","#0D0D0D"], category: "seasonal" },
-  "Sunset":             { colours: ["#FF6347","#FF7F50","#FFD700","#FF4500","#DC143C","#8B008B"], category: "seasonal" },
-  "Forest":             { colours: ["#228B22","#006400","#2E8B57","#556B2F","#8B4513","#6B8E23"], category: "seasonal" },
-  "Ocean":              { colours: ["#006994","#40E0D0","#00CED1","#20B2AA","#5F9EA0","#B0E0E6"], category: "seasonal" },
-  "Monochrome Warm":    { colours: ["#8B4513","#A0522D","#CD853F","#DEB887","#F5DEB3","#FAEBD7"], category: "seasonal" },
-  "Monochrome Cool":    { colours: ["#2F4F4F","#708090","#778899","#B0C4DE","#DCDCDC","#F0F8FF"], category: "seasonal" },
-  "Jewel Tones":        { colours: ["#9B111E","#0F52BA","#50C878","#9966CC","#E0115F","#FF8C00"], category: "artistic" },
-  "Scandinavian Minimal":{ colours: ["#F5F5DC","#D2B48C","#8FBC8F","#696969","#FFFFF0","#BC8F8F"], category: "artistic" },
-  "Muted Earth":        { colours: ["#BC8F8F","#8FBC8F","#BDB76B","#D2B48C","#C4A882","#A0937D"], category: "artistic" },
-  "Dusty Rose":         { colours: ["#DCAE96","#E8B4B8","#C48793","#967E76","#D4A5A5","#F5E6CC"], category: "artistic" },
-  "Cottage Garden":     { colours: ["#C71585","#DA70D6","#228B22","#FFD700","#FF69B4","#8FBC8F"], category: "artistic" }
-};
+var PALETTE_PRESETS = [
+  {
+    id: "spring-pastels", name: "Spring Pastels", category: "seasonal",
+    tiers: {
+      8:  ["#FFB7C5","#FFDAB9","#FFFACD","#C1FFC1","#B0E0E6","#E6E6FA","#F4A7B9","#ACE1AF"],
+      16: ["#FFB7C5","#FFDAB9","#FFFACD","#C1FFC1","#B0E0E6","#E6E6FA","#F4A7B9","#ACE1AF",
+           "#FFC1CC","#FFE4B5","#FFFFF0","#98FB98","#87CEEB","#D8BFD8","#FFF0F5","#F5FFFA"],
+      24: ["#FFB7C5","#FFDAB9","#FFFACD","#C1FFC1","#B0E0E6","#E6E6FA","#F4A7B9","#ACE1AF",
+           "#FFC1CC","#FFE4B5","#FFFFF0","#98FB98","#87CEEB","#D8BFD8","#FFF0F5","#F5FFFA",
+           "#FFD1DC","#FFEFD5","#FFFFE0","#90EE90","#ADD8E6","#DDA0DD","#FFF5EE","#E0FFE0"]
+    }
+  },
+  {
+    id: "summer-brights", name: "Summer Brights", category: "seasonal",
+    tiers: {
+      8:  ["#FF4500","#FFD700","#00CED1","#FF69B4","#32CD32","#FF8C00","#1E90FF","#FF1493"],
+      16: ["#FF4500","#FFD700","#00CED1","#FF69B4","#32CD32","#FF8C00","#1E90FF","#FF1493",
+           "#FF6347","#FFFF00","#00BFFF","#FF7F50","#7CFC00","#FFA500","#4169E1","#DC143C"],
+      24: ["#FF4500","#FFD700","#00CED1","#FF69B4","#32CD32","#FF8C00","#1E90FF","#FF1493",
+           "#FF6347","#FFFF00","#00BFFF","#FF7F50","#7CFC00","#FFA500","#4169E1","#DC143C",
+           "#E74C3C","#F1C40F","#00FA9A","#E91E63","#00FF7F","#E67E22","#6495ED","#C71585"]
+    }
+  },
+  {
+    id: "autumn-warm", name: "Autumn Warm", category: "seasonal",
+    tiers: {
+      8:  ["#8B4513","#CD853F","#DAA520","#B22222","#556B2F","#D2691E","#CC5500","#8B6914"],
+      16: ["#8B4513","#CD853F","#DAA520","#B22222","#556B2F","#D2691E","#CC5500","#8B6914",
+           "#A0522D","#DEB887","#B8860B","#800000","#6B8E23","#A52A2A","#E2725B","#BDB76B"],
+      24: ["#8B4513","#CD853F","#DAA520","#B22222","#556B2F","#D2691E","#CC5500","#8B6914",
+           "#A0522D","#DEB887","#B8860B","#800000","#6B8E23","#A52A2A","#E2725B","#BDB76B",
+           "#5C4033","#F5DEB3","#C4A000","#DC143C","#4B5320","#993300","#D2B48C","#808000"]
+    }
+  },
+  {
+    id: "winter-cool", name: "Winter Cool", category: "seasonal",
+    tiers: {
+      8:  ["#4682B4","#708090","#B0C4DE","#DCDCDC","#5F9EA0","#2F4F4F","#778899","#F0F8FF"],
+      16: ["#4682B4","#708090","#B0C4DE","#DCDCDC","#5F9EA0","#2F4F4F","#778899","#F0F8FF",
+           "#6495ED","#A9A9A9","#ADD8E6","#E8E8E8","#87CEEB","#3B3B3B","#C0C0C0","#F5F5F5"],
+      24: ["#4682B4","#708090","#B0C4DE","#DCDCDC","#5F9EA0","#2F4F4F","#778899","#F0F8FF",
+           "#6495ED","#A9A9A9","#ADD8E6","#E8E8E8","#87CEEB","#3B3B3B","#C0C0C0","#F5F5F5",
+           "#4169E1","#696969","#87CEFA","#D3D3D3","#00CED1","#1C1C1C","#808080","#FFFFFF"]
+    }
+  },
+  {
+    id: "sunset-glow", name: "Sunset Glow", category: "mood",
+    tiers: {
+      8:  ["#FF6347","#FF7F50","#FFD700","#FF4500","#DC143C","#8B008B","#FF8C00","#FFB347"],
+      16: ["#FF6347","#FF7F50","#FFD700","#FF4500","#DC143C","#8B008B","#FF8C00","#FFB347",
+           "#FF2400","#FFA07A","#FFCC00","#E65100","#AB274F","#9B59B6","#F39C12","#FFD1A4"],
+      24: ["#FF6347","#FF7F50","#FFD700","#FF4500","#DC143C","#8B008B","#FF8C00","#FFB347",
+           "#FF2400","#FFA07A","#FFCC00","#E65100","#AB274F","#9B59B6","#F39C12","#FFD1A4",
+           "#C0392B","#E9967A","#DAA520","#CC3300","#C71585","#6A0DAD","#D35400","#FFDEAD"]
+    }
+  },
+  {
+    id: "midnight-dreams", name: "Midnight Dreams", category: "mood",
+    tiers: {
+      8:  ["#191970","#000080","#483D8B","#2E0854","#301934","#1B1B2F","#0F4C75","#2C003E"],
+      16: ["#191970","#000080","#483D8B","#2E0854","#301934","#1B1B2F","#0F4C75","#2C003E",
+           "#0D0D5E","#00004D","#6A5ACD","#4B0082","#1F0318","#162447","#1A5276","#4A0E4E"],
+      24: ["#191970","#000080","#483D8B","#2E0854","#301934","#1B1B2F","#0F4C75","#2C003E",
+           "#0D0D5E","#00004D","#6A5ACD","#4B0082","#1F0318","#162447","#1A5276","#4A0E4E",
+           "#0B0B45","#00003B","#7B68EE","#5D0076","#120524","#0E1A40","#1F618D","#5B2C6F"]
+    }
+  },
+  {
+    id: "ocean-breeze", name: "Ocean Breeze", category: "mood",
+    tiers: {
+      8:  ["#006994","#40E0D0","#00CED1","#20B2AA","#5F9EA0","#B0E0E6","#008B8B","#48D1CC"],
+      16: ["#006994","#40E0D0","#00CED1","#20B2AA","#5F9EA0","#B0E0E6","#008B8B","#48D1CC",
+           "#007BA7","#7FFFD4","#00BFFF","#2E8B57","#6B8E9B","#E0FFFF","#006D6F","#66CDAA"],
+      24: ["#006994","#40E0D0","#00CED1","#20B2AA","#5F9EA0","#B0E0E6","#008B8B","#48D1CC",
+           "#007BA7","#7FFFD4","#00BFFF","#2E8B57","#6B8E9B","#E0FFFF","#006D6F","#66CDAA",
+           "#004E66","#AFEEEE","#87CEEB","#3CB371","#4682B4","#F0FFFF","#005F5F","#8FBC8F"]
+    }
+  },
+  {
+    id: "forest-haven", name: "Forest Haven", category: "mood",
+    tiers: {
+      8:  ["#228B22","#006400","#2E8B57","#556B2F","#8B4513","#6B8E23","#3CB371","#A0522D"],
+      16: ["#228B22","#006400","#2E8B57","#556B2F","#8B4513","#6B8E23","#3CB371","#A0522D",
+           "#32CD32","#004D00","#008080","#808000","#654321","#9ACD32","#66CDAA","#8B6914"],
+      24: ["#228B22","#006400","#2E8B57","#556B2F","#8B4513","#6B8E23","#3CB371","#A0522D",
+           "#32CD32","#004D00","#008080","#808000","#654321","#9ACD32","#66CDAA","#8B6914",
+           "#00FF00","#003300","#20B2AA","#4B5320","#3E2723","#ADFF2F","#2E7D32","#795548"]
+    }
+  },
+  {
+    id: "jewel-tones", name: "Jewel Tones", category: "artistic",
+    tiers: {
+      8:  ["#9B111E","#0F52BA","#50C878","#9966CC","#E0115F","#FF8C00","#0047AB","#009B7D"],
+      16: ["#9B111E","#0F52BA","#50C878","#9966CC","#E0115F","#FF8C00","#0047AB","#009B7D",
+           "#722F37","#1560BD","#3B7A57","#7851A9","#C41E3A","#E65100","#4169E1","#00A86B"],
+      24: ["#9B111E","#0F52BA","#50C878","#9966CC","#E0115F","#FF8C00","#0047AB","#009B7D",
+           "#722F37","#1560BD","#3B7A57","#7851A9","#C41E3A","#E65100","#4169E1","#00A86B",
+           "#960018","#0000CD","#2E8B57","#6A0DAD","#B22222","#CC7000","#00308F","#006B3C"]
+    }
+  },
+  {
+    id: "scandinavian-minimal", name: "Scandinavian Minimal", category: "artistic",
+    tiers: {
+      8:  ["#F5F5DC","#D2B48C","#8FBC8F","#696969","#FFFFF0","#BC8F8F","#C4B6A0","#A3B9C6"],
+      16: ["#F5F5DC","#D2B48C","#8FBC8F","#696969","#FFFFF0","#BC8F8F","#C4B6A0","#A3B9C6",
+           "#FAF0E6","#C2A278","#ACB78E","#808080","#F5F5F0","#D4A5A5","#B0A08C","#8EAAB5"],
+      24: ["#F5F5DC","#D2B48C","#8FBC8F","#696969","#FFFFF0","#BC8F8F","#C4B6A0","#A3B9C6",
+           "#FAF0E6","#C2A278","#ACB78E","#808080","#F5F5F0","#D4A5A5","#B0A08C","#8EAAB5",
+           "#E8DCC8","#B8956A","#7D9B7D","#585858","#FFFDE7","#CDA4A4","#A89882","#7A9AA8"]
+    }
+  },
+  {
+    id: "dusty-rose", name: "Dusty Rose", category: "artistic",
+    tiers: {
+      8:  ["#DCAE96","#E8B4B8","#C48793","#967E76","#D4A5A5","#F5E6CC","#B5838D","#E5C1C1"],
+      16: ["#DCAE96","#E8B4B8","#C48793","#967E76","#D4A5A5","#F5E6CC","#B5838D","#E5C1C1",
+           "#C9A090","#D4919A","#A66B7A","#7D6969","#C4928F","#EBD8B7","#9E6B76","#D9ACAC"],
+      24: ["#DCAE96","#E8B4B8","#C48793","#967E76","#D4A5A5","#F5E6CC","#B5838D","#E5C1C1",
+           "#C9A090","#D4919A","#A66B7A","#7D6969","#C4928F","#EBD8B7","#9E6B76","#D9ACAC",
+           "#B69080","#C07080","#8E5C6A","#6B5858","#B48080","#E0CCA3","#875060","#CCA0A0"]
+    }
+  },
+  {
+    id: "cottage-garden", name: "Cottage Garden", category: "artistic",
+    tiers: {
+      8:  ["#C71585","#DA70D6","#228B22","#FFD700","#FF69B4","#8FBC8F","#9932CC","#FFA07A"],
+      16: ["#C71585","#DA70D6","#228B22","#FFD700","#FF69B4","#8FBC8F","#9932CC","#FFA07A",
+           "#DB7093","#BA55D3","#32CD32","#F0E68C","#FF1493","#66CDAA","#8B008B","#FF6347"],
+      24: ["#C71585","#DA70D6","#228B22","#FFD700","#FF69B4","#8FBC8F","#9932CC","#FFA07A",
+           "#DB7093","#BA55D3","#32CD32","#F0E68C","#FF1493","#66CDAA","#8B008B","#FF6347",
+           "#FF00FF","#EE82EE","#006400","#FFE4B5","#FF85A1","#2E8B57","#6B3FA0","#FA8072"]
+    }
+  },
+  {
+    id: "warm-mono", name: "Warm Monochrome", category: "monochrome",
+    tiers: {
+      8:  ["#3E1F00","#5C3317","#8B4513","#A0522D","#CD853F","#DEB887","#F5DEB3","#FAEBD7"],
+      16: ["#3E1F00","#4B2509","#5C3317","#6E3B1F","#8B4513","#9B5523","#A0522D","#B8763E",
+           "#CD853F","#D4A060","#DEB887","#E8CDA0","#F5DEB3","#F7E4C7","#FAEBD7","#FDF5E6"],
+      24: ["#3E1F00","#452205","#4B2509","#54300F","#5C3317","#65391B","#6E3B1F","#7A4019",
+           "#8B4513","#93501B","#9B5523","#A46030","#AD6B3A","#B8763E","#C28448","#CD853F",
+           "#D4A060","#DEB887","#E3C498","#E8CDA0","#F0D9B0","#F5DEB3","#FAEBD7","#FDF5E6"]
+    }
+  },
+  {
+    id: "cool-mono", name: "Cool Monochrome", category: "monochrome",
+    tiers: {
+      8:  ["#1C1C1C","#2F4F4F","#708090","#778899","#B0C4DE","#C0C0C0","#DCDCDC","#F0F8FF"],
+      16: ["#1C1C1C","#2B2B2B","#2F4F4F","#4A6972","#708090","#748B9C","#778899","#8C9DAE",
+           "#B0C4DE","#B8C8D8","#C0C0C0","#CCCCCC","#DCDCDC","#E8E8E8","#F0F8FF","#FFFFFF"],
+      24: ["#1C1C1C","#232323","#2B2B2B","#2F4F4F","#3D5C64","#4A6972","#587880","#668690",
+           "#708090","#748B9C","#778899","#808FA0","#8C9DAE","#9AACBE","#B0C4DE","#B8C8D8",
+           "#C0C0C0","#C8C8C8","#CCCCCC","#D5D5D5","#DCDCDC","#E8E8E8","#F0F8FF","#FFFFFF"]
+    }
+  }
+];
 
 var HARMONY_TYPES = {
   "Complementary": [180],
@@ -116,6 +255,103 @@ var CVD_MATRICES = {
     -0.003882, -0.048116, 1.051998
   ]
 };
+
+// ═══════════════════════════════════════════════════════════
+// Tier Selection & Palette Scaling
+// ═══════════════════════════════════════════════════════════
+
+function autoSelectTier(palCount) {
+  if (palCount <= 12) return 8;
+  if (palCount <= 20) return 16;
+  return 24;
+}
+
+function expandPalette(hexColours, targetCount) {
+  if (targetCount <= hexColours.length) return hexColours.slice(0, targetCount);
+  // Sort by OKLAB lightness for perceptual ordering
+  var sorted = hexColours.slice().sort(function(a, b) {
+    var ra = hexToRgb(a), rb = hexToRgb(b);
+    return rgbToOklab(ra[0], ra[1], ra[2]).L - rgbToOklab(rb[0], rb[1], rb[2]).L;
+  });
+  var result = sorted.slice();
+  while (result.length < targetCount) {
+    // Find pair with widest OKLAB gap and insert interpolated midpoint
+    var maxGap = -1, maxIdx = 0;
+    for (var i = 0; i < result.length - 1; i++) {
+      var rgbA = hexToRgb(result[i]), rgbB = hexToRgb(result[i + 1]);
+      var okA = rgbToOklab(rgbA[0], rgbA[1], rgbA[2]);
+      var okB = rgbToOklab(rgbB[0], rgbB[1], rgbB[2]);
+      var gap = Math.sqrt(
+        (okA.L - okB.L) * (okA.L - okB.L) +
+        (okA.a - okB.a) * (okA.a - okB.a) +
+        (okA.b - okB.b) * (okA.b - okB.b)
+      );
+      if (gap > maxGap) { maxGap = gap; maxIdx = i; }
+    }
+    var rA = hexToRgb(result[maxIdx]), rB = hexToRgb(result[maxIdx + 1]);
+    var oA = rgbToOklab(rA[0], rA[1], rA[2]), oB = rgbToOklab(rB[0], rB[1], rB[2]);
+    var mid = oklabToRgb((oA.L + oB.L) / 2, (oA.a + oB.a) / 2, (oA.b + oB.b) / 2);
+    result.splice(maxIdx + 1, 0, rgbToHex(mid));
+  }
+  return result;
+}
+
+function reducePalette(hexColours, targetCount) {
+  if (targetCount >= hexColours.length) return hexColours.slice();
+  if (targetCount <= 0) return [];
+  // MaxMin diversity selection in OKLAB space
+  var oklabs = hexColours.map(function(hex) {
+    var r = hexToRgb(hex);
+    return rgbToOklab(r[0], r[1], r[2]);
+  });
+  var n = oklabs.length;
+  var selected = [0];
+  var minDist = new Array(n);
+  for (var i = 0; i < n; i++) {
+    var d = oklabs[0];
+    minDist[i] = Math.sqrt(
+      (oklabs[i].L - d.L) * (oklabs[i].L - d.L) +
+      (oklabs[i].a - d.a) * (oklabs[i].a - d.a) +
+      (oklabs[i].b - d.b) * (oklabs[i].b - d.b)
+    );
+  }
+  while (selected.length < targetCount) {
+    var best = -1, bestDist = -1;
+    for (var j = 0; j < n; j++) {
+      if (selected.indexOf(j) >= 0) continue;
+      if (minDist[j] > bestDist) { bestDist = minDist[j]; best = j; }
+    }
+    selected.push(best);
+    for (var k = 0; k < n; k++) {
+      if (selected.indexOf(k) >= 0) continue;
+      var dist = Math.sqrt(
+        (oklabs[k].L - oklabs[best].L) * (oklabs[k].L - oklabs[best].L) +
+        (oklabs[k].a - oklabs[best].a) * (oklabs[k].a - oklabs[best].a) +
+        (oklabs[k].b - oklabs[best].b) * (oklabs[k].b - oklabs[best].b)
+      );
+      if (dist < minDist[k]) minDist[k] = dist;
+    }
+  }
+  selected.sort(function(a, b) { return a - b; });
+  return selected.map(function(idx) { return hexColours[idx]; });
+}
+
+function getPresetById(id) {
+  for (var i = 0; i < PALETTE_PRESETS.length; i++) {
+    if (PALETTE_PRESETS[i].id === id) return PALETTE_PRESETS[i];
+  }
+  return null;
+}
+
+function getEffectiveTierColours(preset, tier, unlockedCount) {
+  var tierColours = preset.tiers[tier] || preset.tiers[8];
+  if (unlockedCount > tierColours.length) {
+    return { colours: expandPalette(tierColours, unlockedCount), mode: "expand", tierSize: tierColours.length };
+  } else if (unlockedCount < tierColours.length) {
+    return { colours: reducePalette(tierColours, unlockedCount), mode: "reduce", tierSize: tierColours.length };
+  }
+  return { colours: tierColours, mode: "exact", tierSize: tierColours.length };
+}
 
 // ═══════════════════════════════════════════════════════════
 // Core Palette Swap Logic
@@ -203,7 +439,7 @@ function computePresetMapping(pal, presetColours, lockedIds) {
   return { mapping: mapping, collisions: collisionList };
 }
 
-function generateHarmonyPalette(baseHex, harmonyType) {
+function generateHarmonyPalette(baseHex, harmonyType, count) {
   var baseRgb = hexToRgb(baseHex);
   var ok = rgbToOklab(baseRgb[0], baseRgb[1], baseRgb[2]);
   var lch = oklabToOklch(ok.L, ok.a, ok.b);
@@ -215,6 +451,27 @@ function generateHarmonyPalette(baseHex, harmonyType) {
     var ab = oklchToOklab(lch.L, lch.C, h);
     var rgb = oklabToRgb(ab.L, ab.a, ab.b);
     colours.push(rgbToHex(rgb));
+  }
+  // Expand to target count by adding lightness variants
+  var target = count || colours.length;
+  if (colours.length < target) {
+    var expanded = colours.slice();
+    var ci = 0;
+    while (expanded.length < target) {
+      var cRgb = hexToRgb(colours[ci % colours.length]);
+      var cOk = rgbToOklab(cRgb[0], cRgb[1], cRgb[2]);
+      var cLch = oklabToOklch(cOk.L, cOk.a, cOk.b);
+      var step = Math.floor(ci / colours.length) + 1;
+      var lightL = Math.min(0.95, cLch.L + step * 0.12);
+      var abL = oklchToOklab(lightL, cLch.C * 0.8, cLch.H);
+      expanded.push(rgbToHex(oklabToRgb(abL.L, abL.a, abL.b)));
+      if (expanded.length >= target) break;
+      var darkL = Math.max(0.05, cLch.L - step * 0.12);
+      var abD = oklchToOklab(darkL, cLch.C * 0.9, cLch.H);
+      expanded.push(rgbToHex(oklabToRgb(abD.L, abD.a, abD.b)));
+      ci++;
+    }
+    return expanded.slice(0, target);
   }
   return colours;
 }
@@ -580,6 +837,7 @@ function MappingTableRow(props) {
 function PresetCard(props) {
   var p = props.preset;
   var selected = props.selected;
+  var swatchColours = p.tiers[8];
   return React.createElement("div", {
     onClick: props.onClick,
     className: "ps-preset-card" + (selected ? " ps-preset-card--selected" : ""),
@@ -590,19 +848,18 @@ function PresetCard(props) {
     }
   },
     React.createElement("div", { style: { fontSize: 11, fontWeight: 500, marginBottom: 4, color: "#18181b" } }, p.name),
-    React.createElement("div", { style: { display: "flex", gap: 3 } },
-      p.colours.slice(0, 6).map(function(hex, i) {
-        var rgb = hexToRgb(hex);
+    React.createElement("div", { style: { display: "flex", gap: 2, flexWrap: "wrap" } },
+      swatchColours.map(function(hex, i) {
         return React.createElement("span", {
           key: i,
           style: {
-            width: 18, height: 18, borderRadius: 3, display: "inline-block",
+            width: 16, height: 16, borderRadius: 2, display: "inline-block",
             background: hex, border: "1px solid #d4d4d8"
           }
         });
       })
     ),
-    React.createElement("div", { style: { fontSize: 10, color: "#a1a1aa", marginTop: 3 } }, p.colours.length + " colours")
+    React.createElement("div", { style: { fontSize: 10, color: "#a1a1aa", marginTop: 3 } }, "8 / 16 / 24 colours")
   );
 }
 
@@ -632,6 +889,7 @@ function usePaletteSwap(props) {
   var _s9 = React.useState(function() { return loadCustomPalettes(); }), customPalettes = _s9[0], setCustomPalettes = _s9[1];
   var _s10 = React.useState(null), mappingOverrides = _s10[0], setMappingOverrides = _s10[1];
   var _s11 = React.useState("shift"), activeMode = _s11[0], setActiveMode = _s11[1]; // "shift" or "preset"
+  var _s12 = React.useState(null), activeTier = _s12[0], setActiveTier = _s12[1]; // null=auto, 8, 16, or 24
 
   var beforeRef = React.useRef(null);
   var afterRef = React.useRef(null);
@@ -640,15 +898,21 @@ function usePaletteSwap(props) {
   // Compute mapping
   var computedMapping = React.useMemo(function() {
     if (activeMode === "preset" && activePreset) {
-      var presetData = PALETTE_PRESETS[activePreset];
-      if (presetData) return computePresetMapping(pal, presetData.colours, lockedIds);
+      var presetData = getPresetById(activePreset);
+      if (presetData) {
+        var tier = activeTier || autoSelectTier(pal.length);
+        var unlockedCount = pal.filter(function(e) { return e.id !== "__skip__" && e.id !== "__empty__" && !lockedIds.has(e.id); }).length;
+        var eff = getEffectiveTierColours(presetData, tier, unlockedCount);
+        return computePresetMapping(pal, eff.colours, lockedIds);
+      }
     }
     if (activeMode === "harmony") {
-      var harmonyCols = generateHarmonyPalette(harmonyBase, harmonyType);
+      var hTier = activeTier || autoSelectTier(pal.length);
+      var harmonyCols = generateHarmonyPalette(harmonyBase, harmonyType, hTier);
       return computePresetMapping(pal, harmonyCols, lockedIds);
     }
     return computeShiftMapping(pal, shiftDeg, lockedIds);
-  }, [pal, shiftDeg, lockedIds, activePreset, activeMode, harmonyBase, harmonyType]);
+  }, [pal, shiftDeg, lockedIds, activePreset, activeMode, harmonyBase, harmonyType, activeTier]);
 
   // Apply overrides
   var finalMapping = React.useMemo(function() {
@@ -769,6 +1033,7 @@ function usePaletteSwap(props) {
     // Reset swap state
     setShiftDeg(0);
     setActivePreset(null);
+    setActiveTier(null);
     setMappingOverrides(null);
     setShowConfirm(false);
   }
@@ -810,20 +1075,14 @@ function usePaletteSwap(props) {
     return pal.filter(function(p) { return p.id !== "__skip__" && p.id !== "__empty__"; });
   }, [pal]);
 
-  // Preset list by category
-  var presetList = React.useMemo(function() {
-    return Object.keys(PALETTE_PRESETS).map(function(name) {
-      return { name: name, colours: PALETTE_PRESETS[name].colours, category: PALETTE_PRESETS[name].category };
-    });
-  }, []);
-  var seasonalPresets = presetList.filter(function(p) { return p.category === "seasonal"; });
-  var artisticPresets = presetList.filter(function(p) { return p.category === "artistic"; });
-  var allThemePresets = seasonalPresets.concat(artisticPresets);
+  // All presets (array)
+  var allThemePresets = PALETTE_PRESETS;
 
   // Harmony palette
   var harmonyColours = React.useMemo(function() {
-    return generateHarmonyPalette(harmonyBase, harmonyType);
-  }, [harmonyBase, harmonyType]);
+    var tier = activeTier || autoSelectTier(pal.length);
+    return generateHarmonyPalette(harmonyBase, harmonyType, tier);
+  }, [harmonyBase, harmonyType, activeTier, pal.length]);
 
   var harmonyDmc = React.useMemo(function() {
     return harmonyColours.map(function(hex) {
@@ -932,19 +1191,70 @@ function usePaletteSwap(props) {
 
       // Themes tab
       presetTab === "themes" && React.createElement("div", {
-        style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }
+        style: { display: "flex", flexDirection: "column", gap: 8 }
       },
-        allThemePresets.map(function(p) {
-          return React.createElement(PresetCard, {
-            key: p.name, preset: p,
-            selected: activePreset === p.name,
-            onClick: function() {
-              setActivePreset(p.name);
-              setActiveMode("preset");
-              setMappingOverrides(null);
-            }
-          });
-        })
+        React.createElement("div", {
+          style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }
+        },
+          allThemePresets.map(function(p) {
+            return React.createElement(PresetCard, {
+              key: p.id, preset: p,
+              selected: activePreset === p.id,
+              onClick: function() {
+                setActivePreset(p.id);
+                setActiveMode("preset");
+                setMappingOverrides(null);
+              }
+            });
+          })
+        ),
+        // Tier selector (visible when a preset is selected)
+        activePreset && activeMode === "preset" && React.createElement("div", {
+          style: { background: "#f9fafb", borderRadius: 8, padding: "8px 10px", border: "0.5px solid #e4e4e7" }
+        },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 600, color: "#71717a", marginBottom: 6, textTransform: "uppercase" } }, "Palette size"),
+          React.createElement("div", { style: { display: "flex", gap: 4 } },
+            [null, 8, 16, 24].map(function(t) {
+              var isAuto = t === null;
+              var label = isAuto ? "Auto (" + autoSelectTier(pal.length) + ")" : t + "";
+              var active = activeTier === t;
+              return React.createElement("button", {
+                key: String(t),
+                onClick: function() { setActiveTier(t); setMappingOverrides(null); },
+                style: {
+                  flex: 1, padding: "5px 6px", fontSize: 10, fontWeight: active ? 600 : 400,
+                  borderRadius: 6, cursor: "pointer",
+                  border: active ? "1px solid #1D9E75" : "1px solid #e4e4e7",
+                  background: active ? "#f0fdfa" : "#fff",
+                  color: active ? "#1D9E75" : "#71717a"
+                }
+              }, label);
+            })
+          ),
+          // Tier preview with scaling info
+          (function() {
+            var preset = getPresetById(activePreset);
+            if (!preset) return null;
+            var tier = activeTier || autoSelectTier(pal.length);
+            var colours = preset.tiers[tier] || preset.tiers[8];
+            var unlockedCount = pal.filter(function(e) { return e.id !== "__skip__" && e.id !== "__empty__" && !lockedIds.has(e.id); }).length;
+            var info = "";
+            if (unlockedCount > colours.length) info = "Expanding " + colours.length + " \u2192 " + unlockedCount + " via interpolation";
+            else if (unlockedCount < colours.length) info = "Reducing " + colours.length + " \u2192 " + unlockedCount + " (most distinct)";
+            else info = "Exact match (" + colours.length + " colours)";
+            return React.createElement("div", { style: { marginTop: 6 } },
+              React.createElement("div", { style: { display: "flex", gap: 2, flexWrap: "wrap", marginBottom: 4 } },
+                colours.map(function(hex, i) {
+                  return React.createElement("span", {
+                    key: i,
+                    style: { width: 14, height: 14, borderRadius: 2, background: hex, border: "1px solid #d4d4d8", display: "inline-block" }
+                  });
+                })
+              ),
+              React.createElement("div", { style: { fontSize: 10, color: "#71717a" } }, info)
+            );
+          })()
+        )
       ),
 
       // Harmony tab
@@ -985,6 +1295,25 @@ function usePaletteSwap(props) {
                 color: active ? "#1D9E75" : "#71717a"
               }
             }, ht);
+          })
+        ),
+        // Tier selector for harmony
+        React.createElement("div", { style: { display: "flex", gap: 4 } },
+          [null, 8, 16, 24].map(function(t) {
+            var isAuto = t === null;
+            var label = isAuto ? "Auto (" + autoSelectTier(pal.length) + ")" : t + " colours";
+            var active = activeTier === t;
+            return React.createElement("button", {
+              key: String(t),
+              onClick: function() { setActiveTier(t); setActiveMode("harmony"); setMappingOverrides(null); },
+              style: {
+                flex: 1, padding: "4px 6px", fontSize: 10, fontWeight: active ? 600 : 400,
+                borderRadius: 6, cursor: "pointer",
+                border: active ? "1px solid #1D9E75" : "1px solid #e4e4e7",
+                background: active ? "#f0fdfa" : "#fff",
+                color: active ? "#1D9E75" : "#71717a"
+              }
+            }, label);
           })
         ),
         React.createElement("div", { style: { display: "flex", gap: 3 } },
@@ -1070,13 +1399,16 @@ function usePaletteSwap(props) {
       ),
 
       // Apply preset button (Themes/Saved)
-      (presetTab === "themes" && activePreset) && React.createElement("button", {
-        onClick: function() { setShowConfirm(true); },
-        style: {
-          padding: "8px", fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: "pointer",
-          background: "#1D9E75", color: "#fff", border: "none"
-        }
-      }, "Preview \u201C" + activePreset + "\u201D")
+      (presetTab === "themes" && activePreset) && (function() {
+        var pName = (getPresetById(activePreset) || {}).name || activePreset;
+        return React.createElement("button", {
+          onClick: function() { setShowConfirm(true); },
+          style: {
+            padding: "8px", fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: "pointer",
+            background: "#1D9E75", color: "#fff", border: "none"
+          }
+        }, "Preview \u201C" + pName + "\u201D");
+      })()
     )
   );
 
@@ -1095,7 +1427,7 @@ function usePaletteSwap(props) {
       ),
       React.createElement("div", { style: { flex: 1 } },
         React.createElement("div", { style: { fontSize: 11, color: "#a1a1aa", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 } },
-          "After" + (activeMode === "shift" ? " (" + shiftDeg + "\u00B0 shift)" : activeMode === "preset" && activePreset ? " (\u201C" + activePreset + "\u201D)" : "")
+          "After" + (activeMode === "shift" ? " (" + shiftDeg + "\u00B0 shift)" : activeMode === "preset" && activePreset ? " (\u201C" + ((getPresetById(activePreset) || {}).name || activePreset) + "\u201D)" : "")
         ),
         React.createElement("div", { style: { borderRadius: 8, background: "#f4f4f5", overflow: "hidden", aspectRatio: sW + "/" + sH } },
           React.createElement("canvas", { ref: afterRef, style: { width: "100%", height: "100%", display: "block", imageRendering: "pixelated" } })
