@@ -1367,32 +1367,34 @@ return(
 <div className="cs-page-content" style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
 
-  {!img&&!pat&&<div style={{maxWidth:700, margin:"40px auto", textAlign:"center"}}>
+  {!img&&!pat&&<div
+      style={{maxWidth:700, margin:"40px auto", textAlign:"center", padding:"40px", border: isDragging ? "2px dashed #0d9488" : "2px dashed transparent", borderRadius:"16px", background: isDragging ? "#f0fdfa" : "transparent", transition: "all 0.2s"}}
+      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+      onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
+      onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleFile(e.dataTransfer.files[0]);
+          e.dataTransfer.clearData();
+        }
+      }}
+    >
     <h1 style={{fontSize:28, fontWeight:700, color:"#18181b", marginBottom:8}}>Welcome to Cross Stitch Pattern Generator</h1>
-    <p style={{fontSize:15, color:"#71717a", marginBottom:32}}>Turn any photo into a detailed pattern, or continue working on an existing project.</p>
+    <p style={{fontSize:15, color:"#71717a", marginBottom:32}}>Turn any photo into a detailed pattern, drop an image anywhere here, or continue working on an existing project.</p>
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:24}}>
       <div
         onClick={()=>fRef.current.click()}
         className="upload-area"
-        style={{position:"relative", borderColor: isDragging ? "#0d9488" : undefined, background: isDragging ? "#f0fdfa" : undefined}}
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-        onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
-        onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
-        onDrop={(e) => {
-          e.preventDefault();
-          setIsDragging(false);
-          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            handleFile(e.dataTransfer.files[0]);
-            e.dataTransfer.clearData();
-          }
-        }}
+        style={{position:"relative"}}
       >
         {isUploading&&<div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"rgba(255,255,255,0.8)",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:12,zIndex:10,fontWeight:600,color:"#0d9488"}}>Processing...</div>}
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
         <div>
           <div style={{fontWeight:600,fontSize:18,color:"#18181b",marginBottom:4}}>Create New Pattern</div>
-          <div style={{color:"#71717a",fontSize:14}}>Upload or Drop an image (JPG, PNG)</div>
+          <div style={{color:"#71717a",fontSize:14}}>Upload an image (JPG, PNG)</div>
         </div>
       </div>
       <div onClick={()=>loadRef.current.click()} className="upload-area">
