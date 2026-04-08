@@ -97,6 +97,7 @@ const[img,setImg]=useState(null),[sW,setSW]=useState(80),[sH,setSH]=useState(80)
 const[maxC,setMaxC]=useState(30),[bri,setBri]=useState(0),[con,setCon]=useState(0),[sat,setSat]=useState(0),[dith,setDith]=useState(false);
 const[skipBg,setSkipBg]=useState(false),[bgTh,setBgTh]=useState(15),[bgCol,setBgCol]=useState([255,255,255]),[pickBg,setPickBg]=useState(false),[minSt,setMinSt]=useState(0);
 const[smooth,setSmooth]=useState(0),[smoothType,setSmoothType]=useState("median"),[orphans,setOrphans]=useState(0);
+const[allowBlends,setAllowBlends]=useState(true);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null),[busy,setBusy]=useState(false);
 const[origW,setOrigW]=useState(0),[origH,setOrigH]=useState(0);
 const[fabricCt,setFabricCt]=useState(14);
@@ -199,7 +200,7 @@ const generatePreview=useCallback(()=>{
   let raw=cx.getImageData(0,0,pw,ph).data;
   if(smooth>0){if(smoothType==="gaussian")applyGaussianBlur(raw,pw,ph,smooth);else applyMedianFilter(raw,pw,ph,smooth);}
   let p=quantize(raw,pw,ph,maxC);if(!p.length)return;
-  let mapped=dith?doDither(raw,pw,ph,p):doMap(raw,pw,ph,p);
+  let mapped=dith?doDither(raw,pw,ph,p,allowBlends):doMap(raw,pw,ph,p,allowBlends);
   if(skipBg){let bl=rgbToLab(bgCol[0],bgCol[1],bgCol[2]);for(let i=0;i<mapped.length;i++){if(dE(rgbToLab(raw[i*4],raw[i*4+1],raw[i*4+2]),bl)<bgTh)mapped[i]={type:"skip",id:"__skip__",rgb:[255,255,255]};}}
   const confettiRaw=analyzeConfetti(mapped,pw,ph);
   if(orphans>0)mapped=removeOrphanStitches(mapped,pw,ph,orphans);
@@ -241,7 +242,7 @@ const generatePreview=useCallback(()=>{
   pc.width=pw*pcs;pc.height=ph*pcs;let pcx=pc.getContext("2d");
   for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){let m=mapped[y*pw+x];if(m.id==="__skip__"){pcx.fillStyle="#f0f0f0";}else{pcx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;}pcx.fillRect(x*pcs,y*pcs,pcs,pcs);}
   setPreviewUrl(pc.toDataURL());
-},[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh,smooth,smoothType,orphans,fabricCt]);
+},[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh,smooth,smoothType,orphans,fabricCt,allowBlends]);
 
 useEffect(()=>{
   if(!img)return;
@@ -389,7 +390,7 @@ function applyCrop(){
 function doSaveProject(finalName){
   if(!pat||!pal)return;
   let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
-  let project={version:9,page:"creator",name:finalName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr,savedZoom:zoom,savedScroll:scrollRef.current?{left:scrollRef.current.scrollLeft,top:scrollRef.current.scrollTop}:null};
+  let project={version:9,page:"creator",name:finalName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode,allowBlends},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr,savedZoom:zoom,savedScroll:scrollRef.current?{left:scrollRef.current.scrollLeft,top:scrollRef.current.scrollTop}:null};
   let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
   let url=URL.createObjectURL(blob);
   let a=document.createElement("a");
@@ -411,7 +412,7 @@ function handleOpenInTracker(){
   if(!pat||!pal)return;
   if(!projectIdRef.current) projectIdRef.current="proj_"+Date.now();
   let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
-  let project={version:9,id:projectIdRef.current,page:"creator",name:projectName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
+  let project={version:9,id:projectIdRef.current,page:"creator",name:projectName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,allowBlends},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr};
   if(onSwitchToTrack){
     // Unified app: save in background and pass project directly (bypasses DB read race)
     saveProjectToDB(project).catch(()=>{});
@@ -445,6 +446,7 @@ function handleOpenInTracker(){
 function processLoadedProject(project){
   let s=project.settings;setSW(s.sW);setSH(s.sH);setMaxC(s.maxC);setBri(s.bri||0);setCon(s.con||0);setSat(s.sat||0);setDith(!!s.dith);setSkipBg(!!s.skipBg);setBgTh(s.bgTh||15);setBgCol(s.bgCol||[255,255,255]);setMinSt(s.minSt||0);setArLock(s.arLock!==false);setAr(s.ar||1);setBsLines(project.bsLines||[]);
   setSmooth(s.smooth||0);setSmoothType(s.smoothType||"median");setOrphans(s.orphans||0);
+  setAllowBlends(s.allowBlends!==false);
   if(s.fabricCt)setFabricCt(s.fabricCt);
   if(s.skeinPrice!=null)setSkeinPrice(s.skeinPrice);
   if(s.stitchSpeed)setStitchSpeed(s.stitchSpeed);
@@ -555,14 +557,14 @@ useEffect(() => {
     const saveTimer = setTimeout(() => {
         let hsArr=[];halfStitches.forEach((v,k)=>hsArr.push([k,{fwd:v.fwd?{id:v.fwd.id,rgb:v.fwd.rgb}:undefined,bck:v.bck?{id:v.bck.id,rgb:v.bck.rgb}:undefined}]));
         if(!projectIdRef.current) projectIdRef.current="proj_"+Date.now();
-        let project={version:9,id:projectIdRef.current,page:"creator",name:projectName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr,savedZoom:zoom,savedScroll:scrollRef.current?{left:scrollRef.current.scrollLeft,top:scrollRef.current.scrollTop}:null};
+        let project={version:9,id:projectIdRef.current,page:"creator",name:projectName,settings:{sW,sH,maxC,bri,con,sat,dith,skipBg,bgTh,bgCol,minSt,arLock,ar,fabricCt,skeinPrice,stitchSpeed,smooth,smoothType,orphans,isScratchMode,allowBlends},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:img?img.src:null,halfStitches:hsArr,savedZoom:zoom,savedScroll:scrollRef.current?{left:scrollRef.current.scrollLeft,top:scrollRef.current.scrollTop}:null};
         saveProjectToDB(project).catch(err => console.error("Auto-save failed:", err));
         ProjectStorage.save(project).then(id => { ProjectStorage.setActiveProject(id); }).catch(err => console.error("ProjectStorage auto-save failed:", err));
         if(typeof StashBridge!=="undefined") StashBridge.syncProjectToLibrary(projectIdRef.current,projectName||`${sW}×${sH} pattern`,skeinData,"inprogress");
     }, 1000); // 1-second debounce
 
     return () => clearTimeout(saveTimer);
-}, [pat, pal, sW, sH, maxC, bri, con, sat, dith, skipBg, bgTh, bgCol, minSt, arLock, ar, fabricCt, skeinPrice, stitchSpeed, smooth, smoothType, orphans, bsLines, done, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned, img, halfStitches, projectName]);
+}, [pat, pal, sW, sH, maxC, bri, con, sat, dith, skipBg, bgTh, bgCol, minSt, arLock, ar, fabricCt, skeinPrice, stitchSpeed, smooth, smoothType, orphans, bsLines, done, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned, img, halfStitches, projectName, allowBlends]);
 
 // Resize scratch-mode grid: preserve existing stitches, fill new cells with __empty__
 useEffect(()=>{
@@ -940,7 +942,7 @@ const generate=useCallback(()=>{
     cx.drawImage(img,0,0,sW,sH);cx.filter="none";let raw=cx.getImageData(0,0,sW,sH).data;
     if(smooth>0){if(smoothType==="gaussian")applyGaussianBlur(raw,sW,sH,smooth);else applyMedianFilter(raw,sW,sH,smooth);}
     let p=quantize(raw,sW,sH,maxC);if(!p.length){setBusy(false);return;}
-    let mapped=dith?doDither(raw,sW,sH,p):doMap(raw,sW,sH,p);
+    let mapped=dith?doDither(raw,sW,sH,p,allowBlends):doMap(raw,sW,sH,p,allowBlends);
     if(skipBg){let bl=rgbToLab(bgCol[0],bgCol[1],bgCol[2]);for(let i=0;i<mapped.length;i++){if(dE(rgbToLab(raw[i*4],raw[i*4+1],raw[i*4+2]),bl)<bgTh)mapped[i]={type:"skip",id:"__skip__",rgb:[255,255,255],lab:[100,0,0]};}}
     if(minSt>0){for(let pass=0;pass<3;pass++){let{pal:ep}=buildPalette(mapped);let rare=ep.filter(e=>e.count<minSt),keep=ep.filter(e=>e.count>=minSt);if(!rare.length||!keep.length)break;let rm2={};rare.forEach(r=>{let b=null,bd=1e9;keep.forEach(k=>{let d=dE(r.lab,k.lab);if(d<bd){bd=d;b=k.id;}});if(b)rm2[r.id]=b;});let changed=false;let keepMap={};keep.forEach(k=>{keepMap[k.id]=k;});for(let i=0;i<mapped.length;i++){if(mapped[i].id!=="__skip__"&&rm2[mapped[i].id]){mapped[i]={...keepMap[rm2[mapped[i].id]]};changed=true;}}if(!changed)break;}}
     for(let safe=0;safe<5;safe++){let ids=new Set();for(let i=0;i<mapped.length;i++){let m=mapped[i];if(m.id==="__skip__")continue;if(m.type==="blend"&&m.threads)m.threads.forEach(t=>ids.add(t.id));else ids.add(m.id);}if(ids.size<=maxC)break;let tu={};for(let i=0;i<mapped.length;i++){let m=mapped[i];if(m.id==="__skip__")continue;if(m.type==="blend"&&m.threads)m.threads.forEach(t=>{tu[t.id]=(tu[t.id]||0)+1;});else tu[m.id]=(tu[m.id]||0)+1;}let sorted=Object.entries(tu).sort((a,b)=>b[1]-a[1]);let ks=new Set(sorted.slice(0,maxC).map(e=>e[0]));let kp=p.filter(t=>ks.has(t.id));if(!kp.length)break;for(let i=0;i<mapped.length;i++){let m=mapped[i];if(m.id==="__skip__")continue;let nr=m.type==="blend"&&m.threads?m.threads.some(t=>!ks.has(t.id)):!ks.has(m.id);if(nr)mapped[i]=findSolid(m.lab||rgbToLab(raw[i*4],raw[i*4+1],raw[i*4+2]),kp);}}
@@ -956,7 +958,7 @@ const generate=useCallback(()=>{
     }
     let z=Math.min(3,Math.max(0.05,750/(sW*20)));setTimeout(()=>{setZoom(z);},0);
   }catch(err){console.error(err);}setBusy(false);},50);
-},[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh,minSt,smooth,smoothType,orphans,hasGenerated]);
+},[img,sW,sH,maxC,bri,con,sat,dith,skipBg,bgCol,bgTh,minSt,smooth,smoothType,orphans,hasGenerated,allowBlends]);
 
 // ═══ Canvas drawing ═══
 function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, showOverlayImg=false, op=0.3){
@@ -1426,7 +1428,7 @@ return(
         </div>}
       </Section>
 
-      {!isScratchMode&&<Section title="Palette" isOpen={palOpen} onToggle={setPalOpen}><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div><button onClick={()=>setPalAdvanced(o=>!o)} style={{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#71717a",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}}><span style={{fontSize:9,display:"inline-block",transform:palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}>▶</span>Advanced{(orphans>0||dith)?<span style={{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block",marginLeft:2}}/>:null}</button>{palAdvanced&&<><div style={{marginTop:6}}><SliderRow label="Remove Orphans" value={orphans} min={0} max={3} onChange={setOrphans} format={v=>v===0?"Off":v}/></div><div style={{display:"flex",gap:6,marginTop:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setDith(false)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !dith ? 500 : 400, background: !dith ? "#fff" : "transparent", borderRadius: 6, color: !dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: !dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Direct</button><button onClick={()=>setDith(true)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: dith ? 500 : 400, background: dith ? "#fff" : "transparent", borderRadius: 6, color: dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Dithered</button></div></div></>}</Section>}
+      {!isScratchMode&&<Section title="Palette" isOpen={palOpen} onToggle={setPalOpen}><div style={{marginTop:8}}><SliderRow label="Max skeins" value={maxC} min={10} max={40} onChange={setMaxC}/></div><label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}}><input type="checkbox" checked={allowBlends} onChange={e=>setAllowBlends(e.target.checked)}/>Allow blended threads</label><div style={{marginTop:8}}><SliderRow label="Min stitches/colour" value={minSt} min={0} max={50} onChange={setMinSt} format={v=>v===0?"Off":v}/></div><button onClick={()=>setPalAdvanced(o=>!o)} style={{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#71717a",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}}><span style={{fontSize:9,display:"inline-block",transform:palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}>▶</span>Advanced{(orphans>0||dith)?<span style={{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block",marginLeft:2}}/>:null}</button>{palAdvanced&&<><div style={{marginTop:6}}><SliderRow label="Remove Orphans" value={orphans} min={0} max={3} onChange={setOrphans} format={v=>v===0?"Off":v}/></div><div style={{display:"flex",gap:6,marginTop:6}}><div style={{ display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2, flex: 1 }}><button onClick={()=>setDith(false)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: !dith ? 500 : 400, background: !dith ? "#fff" : "transparent", borderRadius: 6, color: !dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: !dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Direct</button><button onClick={()=>setDith(true)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: dith ? 500 : 400, background: dith ? "#fff" : "transparent", borderRadius: 6, color: dith ? "#18181b" : "#71717a", border: "none", cursor: "pointer", boxShadow: dith ? "0 1px 2px rgba(0,0,0,0.04)" : "none", flex: 1 }}>Dithered</button></div></div></>}</Section>}
 
       <Section title="Fabric & Floss" isOpen={fabOpen} onToggle={setFabOpen} badge={<span style={{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}>{fabricCt}ct</span>}>
         <div style={{marginTop:8}}>
