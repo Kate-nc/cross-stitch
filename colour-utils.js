@@ -1,6 +1,8 @@
 function findSolid(lab,p){let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE2(lab,p[i].lab);if(d<bd){bd=d;b=p[i];}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:Math.sqrt(bd)};}
-function findBest(lab, palette) {
+function findBest(lab, palette, allowBlends = true) {
   const solidMatch = findSolid(lab, palette);
+  if (!allowBlends) return solidMatch;
+
   let bestBlend = null;
   let bestBlendDist = 1e9;
 
@@ -99,8 +101,8 @@ function quantize(data,w,h,n){
   }
   return pl;
 }
-function doDither(data,w,h,pal){let d=new Float32Array(w*h*3);for(let i=0;i<w*h;i++){d[i*3]=data[i*4];d[i*3+1]=data[i*4+1];d[i*3+2]=data[i*4+2];}let r=new Array(w*h);for(let y=0;y<h;y++)for(let x=0;x<w;x++){let idx=y*w+x,cr=Math.max(0,Math.min(255,d[idx*3])),cg=Math.max(0,Math.min(255,d[idx*3+1])),cb=Math.max(0,Math.min(255,d[idx*3+2]));let m=findBest(rgbToLab(cr,cg,cb),pal);r[idx]=m;let eR=cr-m.rgb[0],eG=cg-m.rgb[1],eB=cb-m.rgb[2];if(x+1<w){let ni=(y*w+x+1)*3;d[ni]+=eR*7/16;d[ni+1]+=eG*7/16;d[ni+2]+=eB*7/16;}if(y+1<h){if(x>0){let ni2=((y+1)*w+x-1)*3;d[ni2]+=eR*3/16;d[ni2+1]+=eG*3/16;d[ni2+2]+=eB*3/16;}let ni3=((y+1)*w+x)*3;d[ni3]+=eR*5/16;d[ni3+1]+=eG*5/16;d[ni3+2]+=eB*5/16;if(x+1<w){let ni4=((y+1)*w+x+1)*3;d[ni4]+=eR*1/16;d[ni4+1]+=eG*1/16;d[ni4+2]+=eB*1/16;}}}return r;}
-function doMap(data, w, h, pal) {
+function doDither(data,w,h,pal,allowBlends=true){let d=new Float32Array(w*h*3);for(let i=0;i<w*h;i++){d[i*3]=data[i*4];d[i*3+1]=data[i*4+1];d[i*3+2]=data[i*4+2];}let r=new Array(w*h);for(let y=0;y<h;y++)for(let x=0;x<w;x++){let idx=y*w+x,cr=Math.max(0,Math.min(255,d[idx*3])),cg=Math.max(0,Math.min(255,d[idx*3+1])),cb=Math.max(0,Math.min(255,d[idx*3+2]));let m=findBest(rgbToLab(cr,cg,cb),pal,allowBlends);r[idx]=m;let eR=cr-m.rgb[0],eG=cg-m.rgb[1],eB=cb-m.rgb[2];if(x+1<w){let ni=(y*w+x+1)*3;d[ni]+=eR*7/16;d[ni+1]+=eG*7/16;d[ni+2]+=eB*7/16;}if(y+1<h){if(x>0){let ni2=((y+1)*w+x-1)*3;d[ni2]+=eR*3/16;d[ni2+1]+=eG*3/16;d[ni2+2]+=eB*3/16;}let ni3=((y+1)*w+x)*3;d[ni3]+=eR*5/16;d[ni3+1]+=eG*5/16;d[ni3+2]+=eB*5/16;if(x+1<w){let ni4=((y+1)*w+x+1)*3;d[ni4]+=eR*1/16;d[ni4+1]+=eG*1/16;d[ni4+2]+=eB*1/16;}}}return r;}
+function doMap(data, w, h, pal, allowBlends = true) {
   let r = new Array(w * h);
   let cache = new Map();
   for (let i = 0; i < w * h; i++) {
@@ -112,7 +114,7 @@ function doMap(data, w, h, pal) {
     if (cached !== undefined) {
       r[i] = cached;
     } else {
-      let mapped = findBest(rgbToLab(r_val, g_val, b_val), pal);
+      let mapped = findBest(rgbToLab(r_val, g_val, b_val), pal, allowBlends);
       cache.set(key, mapped);
       r[i] = mapped;
     }
