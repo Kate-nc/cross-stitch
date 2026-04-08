@@ -702,14 +702,20 @@ function generatePatternThumbnail(pat, sW, sH) {
 async function exportPDF(options={}){
   const displayMode=options.displayMode||"color_symbol";
   const cellMM=options.cellSize||3;
+  const isSinglePage=options.singlePage===true;
   if(!pat||!pal||!cmap)return;
   if(!window.jspdf)await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-  if(!window.NOTO_SANS_SYMBOLS_B64)await window.loadScript('noto-sans-symbols.js');
-  const{jsPDF}=window.jspdf;const pdf=new jsPDF("portrait","mm","a4");const mg=12,cW2=186;
+  const{jsPDF}=window.jspdf;const mg=12,cW2=186;
+  const gridColsA4=Math.floor(cW2/cellMM),gridRowsA4=Math.floor(275/cellMM);
 
-  if(window.NOTO_SANS_SYMBOLS_B64){
-    pdf.addFileToVFS("NotoSansSymbols.ttf", window.NOTO_SANS_SYMBOLS_B64);
-    pdf.addFont("NotoSansSymbols.ttf", "NotoSansSymbols", "normal");
+  let pdf;
+  if (isSinglePage) {
+    let singleW = mg * 2 + sW * cellMM;
+    let singleH = mg * 2 + 10 + sH * cellMM; // +10 for header
+    let minW = 210, minH = 297;
+    pdf = new jsPDF("portrait", "mm", [Math.max(minW, singleW), Math.max(minH, singleH)]);
+  } else {
+    pdf = new jsPDF("portrait","mm","a4");
   }
 
   // --- Cover Sheet Generation ---
@@ -799,9 +805,10 @@ async function exportPDF(options={}){
   pdf.text("DMC",mg+30,ty);
   pdf.text("Name",mg+45,ty);
   pdf.text("Stitches",mg+110,ty,{align:"right"});
-  pdf.text("Skeins",mg+130,ty,{align:"right"});
+  pdf.text("Length",mg+135,ty,{align:"right"});
+  pdf.text("Skeins",mg+155,ty,{align:"right"});
   ty+=2;
-  pdf.setDrawColor(200);pdf.setLineWidth(0.3);pdf.line(mg,ty,mg+130,ty);
+  pdf.setDrawColor(200);pdf.setLineWidth(0.3);pdf.line(mg,ty,mg+155,ty);
   ty+=6;
   pdf.setFontSize(8);
   pal.forEach(p=>{
@@ -817,15 +824,82 @@ async function exportPDF(options={}){
     }else{
       pdf.text(p.symbol,mg+3,ty);
     }
-    let sk=skeinEst(p.count,fabricCt);
-    let nameStr = p.type==="blend"?p.threads[0].name+" + "+p.threads[1].name:p.name;
+
+    let isBlend = p.type === "blend";
+    let nameStr = isBlend ? p.threads[0].name+" + "+p.threads[1].name : p.name;
+    let usg;
+    if (typeof stitchesToSkeins === 'function') {
+        usg = stitchesToSkeins({ stitchCount: p.count, fabricCount: fabricCt, strandsUsed: 2, isBlended: isBlend });
+    }
+
     pdf.text(p.id,mg+30,ty);
     pdf.text(nameStr,mg+45,ty);
     pdf.text(String(p.count),mg+110,ty,{align:"right"});
-    pdf.text(String(sk),mg+130,ty,{align:"right"});
+    if (usg) {
+      pdf.text(String(usg.totalThreadM) + "m",mg+135,ty,{align:"right"});
+      let skDisplay = isBlend ? Math.max(usg.colorA.skeinsToBuy, usg.colorB.skeinsToBuy) : usg.skeinsToBuy;
+      pdf.text(String(skDisplay),mg+155,ty,{align:"right"});
+    } else {
+      let sk=skeinEst(p.count,fabricCt);
+      pdf.text("-",mg+135,ty,{align:"right"});
+      pdf.text(String(sk),mg+155,ty,{align:"right"});
+    }
     ty+=6;
   });
-  const gridCols=Math.floor(cW2/cellMM),gridRows=Math.floor(275/cellMM),pagesX=Math.ceil(sW/gridCols),pagesY=Math.ceil(sH/gridRows);
+
+  if (typeof bsLines !== 'undefined' && bsLines && bsLines.length > 0) {
+      let bsUsed = {};
+      bsLines.forEach(l => {
+          let c = l.color || "#000000";
+          if (!bsUsed[c]) bsUsed[c] = {count: 0, dmc: "Unknown"};
+          bsUsed[c].count++;
+      });
+      // Simple DMC resolution for hex values
+      Object.keys(bsUsed).forEach(hex => {
+          let m = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+          if (m && typeof rgbToLab === 'function' && typeof DMC_RAW !== 'undefined') {
+              let lr = parseInt(m[1], 16), lg = parseInt(m[2], 16), lb = parseInt(m[3], 16);
+              let lab = rgbToLab(lr, lg, lb);
+              let best = DMC_RAW[0], bDist = Infinity;
+              for(let i=0; i<DMC_RAW.length; i++) {
+                 let dr = DMC_RAW[i][2], dg = DMC_RAW[i][3], db = DMC_RAW[i][4];
+                 let dLab = rgbToLab(dr, dg, db);
+                 let dist = dE(lab, dLab);
+                 if (dist < bDist) { bDist = dist; best = DMC_RAW[i]; }
+              }
+              bsUsed[hex].dmc = best[0];
+              bsUsed[hex].name = best[1];
+          }
+      });
+
+      ty += 8;
+      if(ty>280){pdf.addPage();ty=mg+8;}
+      pdf.setTextColor(0);pdf.setFontSize(14);pdf.text("Backstitch Lines",mg,ty);ty+=10;
+      pdf.setFontSize(9);pdf.setTextColor(80);
+      pdf.text("Line",mg,ty);
+      pdf.text("DMC",mg+30,ty);
+      pdf.text("Name",mg+45,ty);
+      pdf.text("Segments",mg+110,ty,{align:"right"});
+      ty+=2;
+      pdf.setDrawColor(200);pdf.setLineWidth(0.3);pdf.line(mg,ty,mg+155,ty);
+      ty+=6;
+      pdf.setFontSize(8);
+      Object.keys(bsUsed).forEach(hex => {
+          if(ty>285){pdf.addPage();ty=mg+8;}
+          pdf.setDrawColor(hex);
+          pdf.setLineWidth(0.8);
+          pdf.line(mg+2, ty-1, mg+15, ty-1);
+          pdf.setTextColor(40);
+          pdf.text(String(bsUsed[hex].dmc),mg+30,ty);
+          pdf.text(String(bsUsed[hex].name || "Black"),mg+45,ty);
+          pdf.text(String(bsUsed[hex].count),mg+110,ty,{align:"right"});
+          ty+=6;
+      });
+  }
+
+  const gridCols=isSinglePage?sW:gridColsA4;
+  const gridRows=isSinglePage?sH:gridRowsA4;
+  const pagesX=Math.ceil(sW/gridCols),pagesY=Math.ceil(sH/gridRows);
 
   function clipLine(x1, y1, x2, y2, xmin, ymin, xmax, ymax) {
     let INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
@@ -892,7 +966,11 @@ async function exportPDF(options={}){
             let m=pat[cellIdx];
             let px3=mg+gx*cellMM,py3=mg+8+gy*cellMM;
             let isOverlap=gx>=mainW||gy>=mainH;
-            if(isOverlap){pdf.setGState(new pdf.GState({opacity:0.4}));}
+            if(isOverlap){
+               pdf.setGState(new pdf.GState({opacity:0.4}));
+               pdf.setFillColor(200, 200, 200); // light grey backdrop for overlaps
+               pdf.rect(px3,py3,cellMM,cellMM,"F");
+            }
 
             // Draw empty grid square background and border
             if(!m||m.id==="__skip__"||m.id==="__empty__"){
@@ -2851,8 +2929,11 @@ return(
             <option value={4.5}>Large (4.5mm)</option>
           </select>
         </label>
+        <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}>
+          <input type="checkbox" checked={pdfSettings.singlePage||false} onChange={e=>setPdfSettings({...pdfSettings,singlePage:e.target.checked})}/> Single Page
+        </label>
         <div style={{display:"flex",gap:10,marginTop:8}}>
-          <button onClick={()=>{setModal(null);exportPDF({displayMode:pdfSettings.chartStyle||"color_symbol",cellSize:pdfSettings.cellSize||3});}} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer"}}>Export PDF</button>
+          <button onClick={()=>{setModal(null);exportPDF({displayMode:pdfSettings.chartStyle||"color_symbol",cellSize:pdfSettings.cellSize||3,singlePage:pdfSettings.singlePage||false});}} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer"}}>Export PDF</button>
         </div>
       </div>
     </div>
