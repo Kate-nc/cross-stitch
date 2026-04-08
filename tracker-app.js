@@ -890,11 +890,19 @@ async function exportPDF(options={}){
           for(let gx=0;gx<dW;gx++){
             let cellIdx = (y0+gy)*sW+(x0+gx);
             let m=pat[cellIdx];
-            if(!m||m.id==="__skip__"||m.id==="__empty__") continue;
-            let info=cmap[m.id],px3=mg+gx*cellMM,py3=mg+8+gy*cellMM;
+            let px3=mg+gx*cellMM,py3=mg+8+gy*cellMM;
             let isOverlap=gx>=mainW||gy>=mainH;
             if(isOverlap){pdf.setGState(new pdf.GState({opacity:0.4}));}
 
+            // Draw empty grid square background and border
+            if(!m||m.id==="__skip__"||m.id==="__empty__"){
+               pdf.setDrawColor(220);
+               pdf.rect(px3,py3,cellMM,cellMM,"S");
+               if(isOverlap){pdf.setGState(new pdf.GState({opacity:1.0}));}
+               continue;
+            }
+
+            let info=cmap[m.id];
             let isDone = done && done[cellIdx];
 
             if(!isBackstitchOnly) {
