@@ -5,6 +5,33 @@ const { stitchesToSkeins, skeinsToStitches } = require('../threadCalc.js');
 // ---------------------------------------------------------------------------
 
 describe('stitchesToSkeins — non-blended', () => {
+    describe('parameterized tests', () => {
+        test.each([
+            // stitchCount, fabricCount, strandsUsed, skeinLengthM, wasteFactor, expectedExact, expectedBuy
+            [5000, 14, 2, 8.0, 0.20, 2.27, 3],
+            [1000, 14, 2, 8.0, 0.20, 0.45, 1],
+            [1000, 18, 2, 8.0, 0.20, 0.35, 1],
+            [1000, 14, 3, 8.0, 0.20, 0.68, 1],
+            [5000, 14, 2, 10.0, 0.20, 1.81, 2], // Madeira length
+            [5000, 14, 2, 8.0, 0.10, 2.02, 3],  // Lower waste
+            [5000, 14, 2, 8.0, 0.30, 2.59, 3],  // Higher waste
+            [0, 14, 2, 8.0, 0.20, 0, 0]         // Zero stitches
+        ])(
+            'given %p stitches, %pct, %p strands, %pm skein, %p waste → expects ~%p exact, %p to buy',
+            (stitchCount, fabricCount, strandsUsed, skeinLengthM, wasteFactor, expectedExact, expectedBuy) => {
+                const result = stitchesToSkeins({
+                    stitchCount,
+                    fabricCount,
+                    strandsUsed,
+                    skeinLengthM,
+                    wasteFactor
+                });
+                expect(result.skeinsExact).toBeCloseTo(expectedExact, 1);
+                expect(result.skeinsToBuy).toBe(expectedBuy);
+            }
+        );
+    });
+
     it('brief verification: 5000 stitches, 2 strands, 14ct, 8m skein, 20% waste → ~2.27 skeins', () => {
         const result = stitchesToSkeins({
             stitchCount: 5000,
@@ -80,6 +107,32 @@ describe('stitchesToSkeins — non-blended', () => {
 // ---------------------------------------------------------------------------
 
 describe('stitchesToSkeins — blended', () => {
+    describe('parameterized tests for blends', () => {
+        test.each([
+            // stitchCount, fabricCount, strandsUsed, blendRatio, expectedASkeinsExact, expectedBSkeinsExact
+            [5000, 14, 2, [1, 1], 1.13, 1.13],
+            [5000, 14, 3, [2, 1], 2.27, 1.13],
+            [5000, 14, 3, [1, 2], 1.13, 2.27],
+            [10000, 18, 4, [2, 2], 3.53, 3.53],
+            [0, 14, 2, [1, 1], 0, 0]
+        ])(
+            'given %p stitches, %pct, %p strands, ratio %p → expects colorA ~%p, colorB ~%p',
+            (stitchCount, fabricCount, strandsUsed, blendRatio, expectedA, expectedB) => {
+                const result = stitchesToSkeins({
+                    stitchCount,
+                    fabricCount,
+                    strandsUsed,
+                    isBlended: true,
+                    blendRatio
+                });
+                expect(result.colorA.skeinsExact).toBeCloseTo(expectedA, 1);
+                expect(result.colorB.skeinsExact).toBeCloseTo(expectedB, 1);
+                expect(result.colorA.skeinsToBuy).toBe(Math.ceil(result.colorA.skeinsExact));
+                expect(result.colorB.skeinsToBuy).toBe(Math.ceil(result.colorB.skeinsExact));
+            }
+        );
+    });
+
     it('returns colorA and colorB objects when isBlended=true', () => {
         const result = stitchesToSkeins({
             stitchCount: 5000,
@@ -130,6 +183,33 @@ describe('stitchesToSkeins — blended', () => {
 // ---------------------------------------------------------------------------
 
 describe('skeinsToStitches', () => {
+    describe('parameterized tests', () => {
+        test.each([
+            // skeinCount, fabricCount, strandsUsed, skeinLengthM, wasteFactor, expectedApprox
+            [1, 14, 2, 8.0, 0.20, 2205],
+            [2, 14, 2, 8.0, 0.20, 4411],
+            [1, 18, 2, 8.0, 0.20, 2835], // Finer fabric, more stitches
+            [1, 14, 3, 8.0, 0.20, 1470], // More strands, fewer stitches
+            [1, 14, 2, 10.0, 0.20, 2757], // Longer skein, more stitches
+            [1, 14, 2, 8.0, 0.10, 2481], // Less waste, more stitches
+            [0, 14, 2, 8.0, 0.20, 0]     // Zero skeins
+        ])(
+            'given %p skeins, %pct, %p strands, %pm skein, %p waste → expects ~%p stitches',
+            (skeinCount, fabricCount, strandsUsed, skeinLengthM, wasteFactor, expectedApprox) => {
+                const result = skeinsToStitches({
+                    skeinCount,
+                    fabricCount,
+                    strandsUsed,
+                    skeinLengthM,
+                    wasteFactor
+                });
+                // Allow a small delta for rounding differences (Math.floor vs expected exact calculation)
+                expect(result.stitchesApprox).toBeCloseTo(expectedApprox, -1);
+                expect(result.isApproximate).toBe(true);
+            }
+        );
+    });
+
     it('returns a positive integer stitch count for 1 skein at default settings', () => {
         const result = skeinsToStitches({ skeinCount: 1, fabricCount: 14 });
         expect(result.stitchesApprox).toBeGreaterThan(0);
