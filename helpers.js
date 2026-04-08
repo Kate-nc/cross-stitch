@@ -603,9 +603,9 @@ function hitTestHalfStitch(localX, localY, cSz, ambiguousRadius) {
  * @param {number} size - Base size/radius for the symbol
  */
 function drawPDFSymbol(pdf, symbol, cx, cy, size) {
-  let r = size * 0.4;
-  let r2 = size * 0.35;
-  pdf.setLineWidth(0.2);
+  let r = size * 0.3;
+  let r2 = size * 0.25;
+  pdf.setLineWidth(Math.max(0.1, size * 0.05));
 
   if (symbol === "●") { pdf.circle(cx, cy, r, "F"); }
   else if (symbol === "○") { pdf.circle(cx, cy, r, "S"); }
