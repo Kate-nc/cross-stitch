@@ -704,7 +704,13 @@ async function exportPDF(options={}){
   const cellMM=options.cellSize||3;
   if(!pat||!pal||!cmap)return;
   if(!window.jspdf)await window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  if(!window.NOTO_SANS_SYMBOLS_B64)await window.loadScript('noto-sans-symbols.js');
   const{jsPDF}=window.jspdf;const pdf=new jsPDF("portrait","mm","a4");const mg=12,cW2=186;
+
+  if(window.NOTO_SANS_SYMBOLS_B64){
+    pdf.addFileToVFS("NotoSansSymbols.ttf", window.NOTO_SANS_SYMBOLS_B64);
+    pdf.addFont("NotoSansSymbols.ttf", "NotoSansSymbols", "normal");
+  }
 
   // --- Cover Sheet Generation ---
   (function(){
@@ -785,7 +791,7 @@ async function exportPDF(options={}){
   })();
 
   pdf.addPage();
-  pdf.setTextColor(0);let ty=mg+10;pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=8;pdf.setFontSize(8);pal.forEach(p=>{if(ty>285){pdf.addPage();ty=mg+8;}pdf.setFillColor(p.rgb[0],p.rgb[1],p.rgb[2]);pdf.circle(mg+4,ty-1.5,2,"F");pdf.setTextColor(0);let sk=skeinEst(p.count,fabricCt);pdf.text(p.symbol+" DMC "+p.id+" "+(p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name)+" ("+p.count+" st, "+sk+" skein"+(sk>1?"s":"")+")",mg+10,ty);ty+=5;});
+  pdf.setTextColor(0);let ty=mg+10;pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=8;pdf.setFontSize(8);pal.forEach(p=>{if(ty>285){pdf.addPage();ty=mg+8;}pdf.setFillColor(p.rgb[0],p.rgb[1],p.rgb[2]);pdf.circle(mg+4,ty-1.5,2,"F");pdf.setTextColor(0);let sk=skeinEst(p.count,fabricCt);if(window.NOTO_SANS_SYMBOLS_B64){pdf.setFont("NotoSansSymbols", "normal");}pdf.text(p.symbol,mg+8,ty);if(window.NOTO_SANS_SYMBOLS_B64){pdf.setFont("helvetica", "normal");}pdf.text(" DMC "+p.id+" "+(p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name)+" ("+p.count+" st, "+sk+" skein"+(sk>1?"s":"")+")",mg+12,ty);ty+=5;});
   const gridCols=Math.floor(cW2/cellMM),gridRows=Math.floor(275/cellMM),pagesX=Math.ceil(sW/gridCols),pagesY=Math.ceil(sH/gridRows);
 
   function clipLine(x1, y1, x2, y2, xmin, ymin, xmax, ymax) {
@@ -879,9 +885,11 @@ async function exportPDF(options={}){
             if(!isBackstitchOnly && info){
               if(displayMode==="color_symbol"||displayMode==="symbol"){
                 pdf.setFontSize(5);
+                if(window.NOTO_SANS_SYMBOLS_B64) pdf.setFont("NotoSansSymbols", "normal");
                 pdf.setTextColor((displayMode==="color_symbol"&&luminance(m.rgb)<=128)?255:0);
                 if(isDone) pdf.setTextColor(200); // faded text for done stitches
                 pdf.text(info.symbol,px3+cellMM/2,py3+cellMM*0.7,{align:"center"});
+                if(window.NOTO_SANS_SYMBOLS_B64) pdf.setFont("helvetica", "normal");
               }
             }
             if(isOverlap){pdf.setGState(new pdf.GState({opacity:1.0}));}
