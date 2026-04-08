@@ -539,8 +539,6 @@ function computeContrastWarnings(pat, mapping, sW) {
       var pairKey = [destA.id, destB.id].sort().join("|");
       if (pairSet.has(pairKey)) continue;
       pairSet.add(pairKey);
-      var lA = (luminance(destA.rgb) + 0.05) / 255; // normalize to 0-1 range for WCAG
-      var lB = (luminance(destB.rgb) + 0.05) / 255;
       // WCAG relative luminance
       var rA = destA.rgb[0]/255, gA = destA.rgb[1]/255, bA = destA.rgb[2]/255;
       rA = rA <= 0.04045 ? rA/12.92 : Math.pow((rA+0.055)/1.055, 2.4);
@@ -1059,14 +1057,48 @@ function usePaletteSwap(props) {
     saveCustomPalettes(updated);
   }
 
+  function upsertDraftCustomPalette(hex, match) {
+    var draftName = match && match.name
+      ? "Draft custom palette (" + match.name + " base)"
+      : "Draft custom palette";
+    var draftIndex = customPalettes.findIndex(function(entry) {
+      return entry && (entry.isDraft === true || /^Draft custom palette\b/.test(entry.name));
+    });
+
+    if (draftIndex === -1) {
+      return customPalettes.concat([{
+        name: draftName,
+        colours: [hex],
+        createdAt: Date.now(),
+        isDraft: true
+      }]);
+    }
+
+    return customPalettes.map(function(entry, index) {
+      if (index !== draftIndex) return entry;
+      var colours = Array.isArray(entry.colours) ? entry.colours.slice() : [];
+      if (colours.indexOf(hex) === -1) colours.push(hex);
+      return {
+        name: draftName,
+        colours: colours,
+        createdAt: entry.createdAt || Date.now(),
+        isDraft: true
+      };
+    });
+  }
+
   // Add hex to a temporary building palette
   function addCustomHexColour() {
     var hex = customHex.trim();
     if (!/^#?[0-9a-fA-F]{3,6}$/.test(hex)) return;
     if (hex[0] !== '#') hex = '#' + hex;
     var rgb = hexToRgb(hex);
+    var canonicalHex = rgbToHex(rgb);
     var lab = rgbToLab(rgb[0], rgb[1], rgb[2]);
     var match = findSolid(lab, DMC);
+    var updated = upsertDraftCustomPalette(canonicalHex, match);
+    setCustomPalettes(updated);
+    saveCustomPalettes(updated);
     setCustomHex("");
   }
 
@@ -1260,17 +1292,18 @@ function usePaletteSwap(props) {
       // Harmony tab
       presetTab === "harmony" && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
-          React.createElement("span", {
+          React.createElement("label", {
+            htmlFor: "harmony-base-colour-input",
             style: {
               width: 28, height: 28, borderRadius: 6, display: "inline-block",
               background: harmonyBase, border: "2px solid #e4e4e7", cursor: "pointer"
-            },
-            onClick: function() { /* handled by input below */ }
+            }
           }),
           React.createElement("input", {
+            id: "harmony-base-colour-input",
             type: "color", value: harmonyBase,
             onChange: function(e) { setHarmonyBase(e.target.value); setActiveMode("harmony"); setMappingOverrides(null); },
-            style: { width: 0, height: 0, visibility: "hidden", position: "absolute" }
+            style: { width: 0, height: 0, opacity: 0, position: "absolute" }
           }),
           React.createElement("input", {
             type: "text", value: harmonyBase,
@@ -1352,15 +1385,11 @@ function usePaletteSwap(props) {
               React.createElement("div", { style: { display: "flex", gap: 4 } },
                 React.createElement("button", {
                   onClick: function() {
-                    setActivePreset(null); // custom
+                    // Store saved palette colours as the active preset source so
+                    // mapping and collision detection are derived from the same state.
+                    setActivePreset(cp.colours);
                     setActiveMode("preset");
                     setMappingOverrides(null);
-                    // Temporarily set active preset to a special key
-                    var result = computePresetMapping(pal, cp.colours, lockedIds);
-                    // We need to use preset colours directly — store in overrides
-                    var merged = {};
-                    Object.keys(result.mapping).forEach(function(id) { merged[id] = result.mapping[id]; });
-                    setMappingOverrides(merged);
                     setShowConfirm(true);
                   },
                   style: { fontSize: 10, padding: "2px 8px", borderRadius: 6, border: "1px solid #99f6e4", background: "#f0fdfa", color: "#1D9E75", cursor: "pointer" }
