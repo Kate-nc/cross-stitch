@@ -1221,6 +1221,97 @@ function handleSymbolReassignment(oldColorId, newThread) {
   setCmap(newCmap);
 }
 
+function handleAutoSubstitute() {
+  if (!pat || !pal || !cmap || typeof StashBridge === "undefined") return;
+
+  const replacements = [];
+  const replacementMap = {};
+
+  skeinData.forEach(d => {
+    if ((threadOwned[d.id] || "") !== "owned") {
+      const alts = StashBridge.suggestAlternatives(d.id, 1, globalStash);
+      if (alts.length > 0 && alts[0].deltaE < 4.0) {
+        replacements.push({ oldId: d.id, newThread: alts[0] });
+        replacementMap[d.id] = alts[0];
+      }
+    }
+  });
+
+  if (replacements.length === 0) {
+    setAdvanceToast("No suitable stash alternatives found.");
+    setTimeout(() => setAdvanceToast(null), 2500);
+    return;
+  }
+
+  const currentPatState = JSON.parse(JSON.stringify(pat));
+  const currentPalState = JSON.parse(JSON.stringify(pal));
+  const currentThreadOwnedState = JSON.parse(JSON.stringify(threadOwned));
+  setUndoSnapshot({ type: "bulk_reassignment_batch", pat: currentPatState, pal: currentPalState, threadOwned: currentThreadOwnedState });
+
+  let newPal = pal.map(p => {
+    if (replacementMap[p.id]) {
+      const newThread = replacementMap[p.id];
+      return {
+        ...p,
+        id: newThread.id,
+        name: newThread.name,
+        rgb: newThread.rgb,
+        lab: newThread.lab || p.lab,
+      };
+    }
+    return p;
+  });
+
+  // Handle possible duplicates if two old threads map to the same new thread, or an old thread maps to an existing thread.
+  // We need to merge counts and deduplicate by id while keeping the first symbol.
+  const palMap = {};
+  newPal.forEach(p => {
+    if (palMap[p.id]) {
+      palMap[p.id].count += p.count;
+      palMap[p.id].halfTotal = (palMap[p.id].halfTotal || 0) + (p.halfTotal || 0);
+    } else {
+      palMap[p.id] = { ...p };
+    }
+  });
+  newPal = Object.values(palMap);
+
+  const newCmap = {};
+  newPal.forEach(p => { newCmap[p.id] = p; });
+
+  const newPat = pat.map(cell => {
+    if (replacementMap[cell.id]) {
+      const newThread = replacementMap[cell.id];
+      const assignedSymbol = newCmap[newThread.id]?.sym || cell.sym;
+      return {
+        ...cell,
+        id: newThread.id,
+        name: newThread.name,
+        rgb: newThread.rgb,
+        lab: newThread.lab || cell.lab,
+        sym: assignedSymbol
+      };
+    }
+    return cell;
+  });
+
+  setThreadOwned(prev => {
+    const next = { ...prev };
+    replacements.forEach(({ oldId, newThread }) => {
+      // Mark stash-substituted threads as owned
+      next[newThread.id] = "owned";
+      delete next[oldId];
+    });
+    return next;
+  });
+
+  setPat(newPat);
+  setPal(newPal);
+  setCmap(newCmap);
+
+  setAdvanceToast(`Replaced ${replacements.length} missing colours with stash alternatives`);
+  setTimeout(() => setAdvanceToast(null), 3000);
+}
+
 function processLoadedProject(project){
   let s=project.settings||{};
   setSW(project.w||s.sW||project.settings?.w||80);
@@ -2734,6 +2825,9 @@ return(
           <div style={{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}}><span style={{fontWeight:700,color:"#16a34a"}}>{ownedCount}</span> <span style={{color:"#71717a"}}>owned</span></div>
           <div style={{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}}><span style={{fontWeight:700,color:"#ea580c"}}>{toBuyList.length}</span> <span style={{color:"#71717a"}}>to buy</span></div>
           <div style={{marginLeft:"auto",display:"flex",gap:4}}>
+            {typeof StashBridge !== "undefined" && (
+              <button onClick={handleAutoSubstitute} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #c7d2fe",borderRadius:6,background:"#eef2ff",color:"#4f46e5",cursor:"pointer",fontWeight:500}}>Substitute from Stash</button>
+            )}
             <button onClick={()=>setModal("calculator_batch")} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>Calculate thread needed</button>
             <button onClick={()=>{if(!confirm("Mark all "+skeinData.length+" threads as owned?"))return;let n={};skeinData.forEach(d=>{n[d.id]="owned";});setThreadOwned(n);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #bbf7d0",borderRadius:6,background:"#f0fdf4",color:"#16a34a",cursor:"pointer"}}>Own all</button>
             <button onClick={()=>{if(!confirm("Clear all thread ownership status?"))return;setThreadOwned({});}} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",color:"#71717a",cursor:"pointer"}}>Clear</button>
