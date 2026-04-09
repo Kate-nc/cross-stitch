@@ -58,7 +58,6 @@ function ManagerApp() {
   });
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null); // { type: 'success'|'error'|'confirm', message, summary?, onConfirm? }
-  const backupFileRef = useCallback(node => { if (node) node.value = ""; }, []);
   const lowStockThreshold = 1;
 
   // Storage initialization
