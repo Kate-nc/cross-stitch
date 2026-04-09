@@ -819,24 +819,24 @@ function morphologicalClean(mapped, w, h, sourceData = null, { minPixelCount = 2
     }
   }
 
-  // Write results back: only update pixels that were processed and have a claim
+  // Write results back: only update pixels that were actually processed and have a claim
   for (let i = 0; i < N; i++) {
     const id = mapped[i].id;
     if (id === '__skip__' || id === '__empty__') continue;
-    if (!colorEntry[id]) continue; // color was below minPixelCount — leave as-is
+    if (!cleaned[id]) continue; // color was below minPixelCount — leave as-is
 
     const winner = claim[i];
     if (winner !== null && winner !== id) {
       result[i] = colorEntry[winner];
     }
-    // Unclaimed (claim[i] === null): pixel was eroded away from all masks.
+    // Unclaimed (claim[i] === null): pixel was eroded away from all processed masks.
     // Resolve by most-common neighbor color, same as removeOrphanStitches.
     if (winner === null) {
       const x = i % w, y = (i / w) | 0;
       const neighborCounts = {};
       const check = (ni) => {
         const nid = mapped[ni].id;
-        if (nid !== '__skip__' && nid !== '__empty__') {
+        if (nid !== '__skip__' && nid !== '__empty__' && cleaned[nid]) {
           neighborCounts[nid] = (neighborCounts[nid] || 0) + 1;
         }
       };
