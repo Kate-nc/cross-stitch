@@ -726,101 +726,221 @@ function morphologicalClean(mapped, w, h, sourceData = null, { minPixelCount = 2
   return mapped;
 }
 
-function removeOrphanStitches(mapped, w, h, maxOrphanSize) {
-  if (maxOrphanSize <= 0) return mapped;
-  let len = mapped.length;
-  let vis = new Uint8Array(len);
+// ---------------------------------------------------------------------------
+// Stage 4: Edge Map Generation
+// ---------------------------------------------------------------------------
 
-  // Pre-allocate queue to avoid small array allocations
-  // The max queue size inside an orphan search is very small, but we use a safely sized queue
-  let q = new Uint32Array(maxOrphanSize * 4 + 10);
-  let comp = new Uint32Array(maxOrphanSize + 1);
+/**
+ * One pass of binary dilation with a 3×3 square structuring element.
+ * Returns a new Uint8Array; does not mutate the input.
+ */
+function _dilate3Square(mask, w, h) {
+  const N = w * h;
+  const out = new Uint8Array(N);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (mask[i]) { out[i] = 1; continue; }
+      let set = 0;
+      for (let dy = -1; dy <= 1 && !set; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h) continue;
+        for (let dx = -1; dx <= 1 && !set; dx++) {
+          if (!dy && !dx) continue;
+          const nx = x + dx;
+          if (nx >= 0 && nx < w && mask[ny * w + nx]) set = 1;
+        }
+      }
+      out[i] = set;
+    }
+  }
+  return out;
+}
+
+/**
+ * Stage 4: Generate a boolean edge mask from the source image.
+ *
+ * Calls the global `cannyEdges` function from embroidery.js, then optionally
+ * dilates the result so stitches immediately adjacent to an edge are also
+ * protected from orphan removal in Stage 5.
+ *
+ * @param {Uint8ClampedArray} data           RGBA source pixels
+ * @param {number}            w
+ * @param {number}            h
+ * @param {object}            [opts]
+ * @param {number}            [opts.edgeDilation=1]  Dilation radius in pixels (0 = no buffer)
+ * @returns {Uint8Array}  Boolean edge mask of length w*h (1 = edge pixel)
+ */
+function generateEdgeMap(data, w, h, { edgeDilation = 1 } = {}) {
+  // cannyEdges is a global defined in embroidery.js
+  let edges = cannyEdges(data, w, h); // Uint8Array, 0/1
+
+  for (let pass = 0; pass < edgeDilation; pass++) {
+    edges = _dilate3Square(edges, w, h);
+  }
+
+  return edges;
+}
+
+// ---------------------------------------------------------------------------
+// Stage 5: Edge-Protected Perceptual Orphan Removal
+// ---------------------------------------------------------------------------
+
+/**
+ * Remove small isolated color clusters ("orphan stitches") from a quantized pattern.
+ *
+ * Enhancements over the original frequency-based pass:
+ *  - Edge protection: clusters overlapping the edge map are skipped entirely.
+ *  - Saliency-scaled threshold: orphans in low-saliency (background) regions are
+ *    eligible for removal even if they are somewhat larger.
+ *  - Perceptual replacement: the replacement color minimizes dE2 to the orphan
+ *    color (not merely the most-frequent border neighbor). Frequency is only used
+ *    as a tie-break when two candidates are within deTieBreakThreshold ΔE.
+ *
+ * Backward-compatible: callers that pass only the original four arguments get the
+ * same old behavior (edgeMap=null, saliencyMap=null → no edge protection, no
+ * saliency scaling, and perceptual selection still improves replacement quality).
+ *
+ * @param {Array}        mapped
+ * @param {number}       w
+ * @param {number}       h
+ * @param {number}       maxOrphanSize         Base pixel threshold for orphan eligibility
+ * @param {Uint8Array}   [edgeMap]             From generateEdgeMap(); null = no protection
+ * @param {Float32Array} [saliencyMap]         From generateSaliencyMap(); null = no scaling
+ * @param {object}       [opts]
+ * @param {number}       [opts.saliencyMultiplier=2.0]    Scales effectiveMaxSize in flat areas
+ * @param {number}       [opts.deTieBreakThreshold=1.0]   ΔE within which frequency wins
+ */
+function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, saliencyMap = null, { saliencyMultiplier = 2.0, deTieBreakThreshold = 1.0 } = {}) {
+  if (maxOrphanSize <= 0) return mapped;
+
+  const len = mapped.length;
+
+  // Maximum BFS exploration bound: effectiveMaxSize is maximised when saliency=0
+  const absoluteMaxSize = Math.ceil(maxOrphanSize * (1.0 + saliencyMultiplier));
+
+  // Pre-build a color-entry lookup to avoid O(n) scans per orphan
+  const colorEntries = {};
+  for (let i = 0; i < len; i++) {
+    const id = mapped[i].id;
+    if (!colorEntries[id]) colorEntries[id] = mapped[i];
+  }
+
+  const vis  = new Uint8Array(len);
+  // Queue sized for full image to be safe (components exceeding absoluteMaxSize are drained)
+  const q    = new Uint32Array(len);
+  const comp = new Uint32Array(absoluteMaxSize + 2);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      let idx = y * w + x;
-      if (vis[idx] || mapped[idx].id === "__skip__") continue;
+      const idx = y * w + x;
+      if (vis[idx]) continue;
+      const m = mapped[idx];
+      if (m.id === '__skip__' || m.id === '__empty__') { vis[idx] = 1; continue; }
 
-      let tid = mapped[idx].id;
-      let qHead = 0;
-      let qTail = 0;
-      let compCount = 0;
+      const tid = m.id;
+      let qHead = 0, qTail = 0, compCount = 0;
 
       q[qTail++] = idx;
       vis[idx] = 1;
 
       while (qHead < qTail) {
-        let curr = q[qHead++];
-        if (compCount <= maxOrphanSize) {
-            comp[compCount++] = curr;
-        }
-        if (compCount > maxOrphanSize) break;
+        const curr = q[qHead++];
 
-        let cx = curr % w;
-        let cy = Math.floor(curr / w);
+        if (compCount <= absoluteMaxSize) comp[compCount++] = curr;
 
-        // unrolled neighbors: left, right, up, down
-        if (cx > 0) {
-            let nidx = curr - 1;
-            if (!vis[nidx] && mapped[nidx].id === tid) { vis[nidx] = 1; q[qTail++] = nidx; }
-        }
-        if (cx < w - 1) {
-            let nidx = curr + 1;
-            if (!vis[nidx] && mapped[nidx].id === tid) { vis[nidx] = 1; q[qTail++] = nidx; }
-        }
-        if (cy > 0) {
-            let nidx = curr - w;
-            if (!vis[nidx] && mapped[nidx].id === tid) { vis[nidx] = 1; q[qTail++] = nidx; }
-        }
-        if (cy < h - 1) {
-            let nidx = curr + w;
-            if (!vis[nidx] && mapped[nidx].id === tid) { vis[nidx] = 1; q[qTail++] = nidx; }
-        }
+        // If already beyond the absolute limit stop expanding (drain handled below)
+        if (compCount > absoluteMaxSize) break;
+
+        const cx = curr % w, cy = (curr / w) | 0;
+        if (cx > 0)     { const n = curr - 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+        if (cx < w - 1) { const n = curr + 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+        if (cy > 0)     { const n = curr - w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+        if (cy < h - 1) { const n = curr + w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
       }
 
-      if (compCount <= maxOrphanSize) {
-        let counts = {};
+      // Drain remainder so all component pixels are marked visited
+      while (qHead < qTail) {
+        const curr = q[qHead++];
+        const cx = curr % w, cy = (curr / w) | 0;
+        if (cx > 0)     { const n = curr - 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+        if (cx < w - 1) { const n = curr + 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+        if (cy > 0)     { const n = curr - w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+        if (cy < h - 1) { const n = curr + w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+      }
+
+      // Component exceeds the absolute maximum — cannot be an orphan
+      if (compCount > absoluteMaxSize) continue;
+
+      // --- Stage 5, step 2: Edge protection ---
+      if (edgeMap) {
+        let onEdge = false;
         for (let i = 0; i < compCount; i++) {
-          let cidx = comp[i];
-          let cx = cidx % w;
-          let cy = Math.floor(cidx / w);
-
-          let l = cx > 0, r = cx < w - 1, u = cy > 0, d = cy < h - 1;
-
-          if (l) { let nid = mapped[cidx - 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-          if (r) { let nid = mapped[cidx + 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-          if (u) { let nid = mapped[cidx - w].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-          if (d) { let nid = mapped[cidx + w].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-
-          if (l && u) { let nid = mapped[cidx - w - 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-          if (r && u) { let nid = mapped[cidx - w + 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-          if (l && d) { let nid = mapped[cidx + w - 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-          if (r && d) { let nid = mapped[cidx + w + 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
+          if (edgeMap[comp[i]]) { onEdge = true; break; }
         }
+        if (onEdge) continue;
+      }
 
-        let bestId = null;
-        let bestCount = -1;
-        for (let nid in counts) {
-          if (counts[nid] > bestCount) {
-            bestCount = counts[nid];
+      // --- Stage 5, step 3: Saliency-scaled effective max size ---
+      let effectiveMaxSize = maxOrphanSize;
+      if (saliencyMap) {
+        let saliencySum = 0;
+        for (let i = 0; i < compCount; i++) saliencySum += saliencyMap[comp[i]];
+        const meanSaliency = saliencySum / compCount;
+        effectiveMaxSize = maxOrphanSize * (1.0 + (1.0 - meanSaliency) * saliencyMultiplier);
+      }
+
+      if (compCount > effectiveMaxSize) continue;
+
+      // --- Stage 5, step 4: Perceptual replacement color selection ---
+      // Collect 8-neighbor border colors with their frequency
+      const neighborFreq = {};
+      for (let i = 0; i < compCount; i++) {
+        const cidx = comp[i];
+        const cx = cidx % w, cy = (cidx / w) | 0;
+        const checkN = (ni) => {
+          const nid = mapped[ni].id;
+          if (nid !== tid && nid !== '__skip__' && nid !== '__empty__') {
+            neighborFreq[nid] = (neighborFreq[nid] || 0) + 1;
+          }
+        };
+        if (cx > 0)             checkN(cidx - 1);
+        if (cx < w - 1)         checkN(cidx + 1);
+        if (cy > 0)             checkN(cidx - w);
+        if (cy < h - 1)         checkN(cidx + w);
+        if (cx > 0 && cy > 0)         checkN(cidx - w - 1);
+        if (cx < w-1 && cy > 0)       checkN(cidx - w + 1);
+        if (cx > 0 && cy < h-1)       checkN(cidx + w - 1);
+        if (cx < w-1 && cy < h-1)     checkN(cidx + w + 1);
+      }
+
+      // Find the minimum ΔE distance to the orphan's Lab color
+      const orphanLab = m.lab;
+      let minDE = Infinity;
+      for (const nid in neighborFreq) {
+        const entry = colorEntries[nid];
+        if (!entry) continue;
+        const de = Math.sqrt(dE2(orphanLab, entry.lab));
+        if (de < minDE) minDE = de;
+      }
+
+      // Among candidates within deTieBreakThreshold of minDE, prefer by frequency
+      let bestId = null, bestCount = -1;
+      for (const nid in neighborFreq) {
+        const entry = colorEntries[nid];
+        if (!entry) continue;
+        const de = Math.sqrt(dE2(orphanLab, entry.lab));
+        if (de - minDE <= deTieBreakThreshold) {
+          if (neighborFreq[nid] > bestCount) {
+            bestCount = neighborFreq[nid];
             bestId = nid;
           }
         }
+      }
 
-        if (bestId) {
-          let replacement = null;
-          for (let j = 0; j < len; j++) {
-            if (mapped[j].id === bestId) {
-              replacement = mapped[j];
-              break;
-            }
-          }
-          if (replacement) {
-            for (let i = 0; i < compCount; i++) {
-              mapped[comp[i]] = replacement;
-            }
-          }
-        }
+      if (bestId) {
+        const replacement = colorEntries[bestId];
+        for (let i = 0; i < compCount; i++) mapped[comp[i]] = replacement;
       }
     }
   }
@@ -883,4 +1003,4 @@ function analyzeConfetti(mapped, w, h) {
   return { singles, smallClusters, total, pct, colorConfetti };
 }
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, removeOrphanStitches, analyzeConfetti }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, generateEdgeMap, removeOrphanStitches, analyzeConfetti }; }
