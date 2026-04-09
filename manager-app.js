@@ -132,11 +132,13 @@ function ManagerApp() {
       }
     };
 
-    loadManagerData();
+    // Await loadManagerData so ensurePersistence() has settled before we read the
+    // storage estimate — otherwise the persistent flag races and shows false.
+    loadManagerData().then(() => {
+      ProjectStorage.getStorageEstimate().then(setStorageUsage).catch(() => {});
+    });
     loadActiveProject();
-    // Load all named cross-stitch projects and storage usage estimate
     ProjectStorage.listProjects().then(setStoredProjects).catch(err => console.error("Failed to list projects:", err));
-    ProjectStorage.getStorageEstimate().then(setStorageUsage).catch(() => {});
   }, []);
 
   // Auto-save Manager Data

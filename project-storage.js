@@ -171,6 +171,9 @@ const ProjectStorage = (() => {
     async getStorageEstimate() {
       if (navigator.storage && navigator.storage.estimate) {
         try {
+          // Request persistence before reading the flag so the result reflects the
+          // grant/deny outcome of this session rather than a stale prior check.
+          await ensurePersistence();
           const est = await navigator.storage.estimate();
           const persistent = navigator.storage.persisted ? await navigator.storage.persisted() : false;
           return { used: est.usage || 0, quota: est.quota || 0, persistent };
