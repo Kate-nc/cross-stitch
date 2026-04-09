@@ -126,6 +126,7 @@ const[redoHistory,setRedoHistory]=useState([]);
 const EDIT_HISTORY_MAX=50;
 const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
 const[brushMode,setBrushMode]=useState('paint'); // persists paint/fill across stitch type switches
+const[brushSize,setBrushSize]=useState(1);
 const[overflowOpen,setOverflowOpen]=useState(false);
 const[stripCollapsed,setStripCollapsed]=useState({view:false,brush:false,bs:false});
 const stripRef=useRef(null);
@@ -160,6 +161,14 @@ const userActedRef=useRef(false); // set to true the first time user uploads/loa
 const pcRef=useRef(null),fRef=useRef(null),scrollRef=useRef(null),expRef=useRef(null),loadRef=useRef(null);
 const prevSW=useRef(sW),prevSH=useRef(sH);
 const projectIdRef=useRef(null); // persists across renders without causing re-renders
+
+const isDraggingRef=useRef(false);
+const dragChangesRef=useRef([]);
+const dragCellsRef=useRef(new Set());
+const dragActionRef=useRef(null);
+const dragPatRef=useRef(null);
+const dragHalfStitchesRef=useRef(null);
+const dragBsLinesRef=useRef(null);
 const[projectName,setProjectName]=useState("");
 const[namePromptOpen,setNamePromptOpen]=useState(false);
 const G=28;
@@ -282,7 +291,7 @@ function selectStitchType(t){
   else if(t==='half-fwd'){setHalfStitchTool('fwd');setActiveTool(null);setBsStart(null);}
   else if(t==='half-bck'){setHalfStitchTool('bck');setActiveTool(null);setBsStart(null);}
   else if(t==='backstitch'){setActiveTool('backstitch');setHalfStitchTool(null);}
-  else if(t==='erase'){setHalfStitchTool('erase');setActiveTool(null);setBsStart(null);} // combined erase handled in handlePatClick
+  else if(t==='erase'){setActiveTool('eraseAll');setHalfStitchTool(null);setBsStart(null);}
   else{setActiveTool(null);setHalfStitchTool(null);setBsStart(null);}
 }
 function setBrushAndActivate(mode){
@@ -342,6 +351,10 @@ function addScratchColour(d){
   setScratchPalette(prev=>[...prev.filter(p=>p.id!==d.id),entry]);
   setPal(prev=>prev?[...prev,entry]:[entry]);
   setCmap(prev=>prev?{...prev,[d.id]:entry}:{[d.id]:entry});
+  setSelectedColorId(d.id);
+  if (!activeTool && !halfStitchTool) {
+    setBrushAndActivate('paint');
+  }
 }
 
 function removeScratchColour(id){
@@ -1249,7 +1262,28 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, showOverlayImg=false, op=0.3){
     }
   }
   if(cSz>=3){ctx.strokeStyle="rgba(0,0,0,0.2)";ctx.lineWidth=cSz>=8?1.5:1;for(let gx=0;gx<=dW;gx+=10){ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut);ctx.lineTo(gut+gx*cSz,gut+dH*cSz);ctx.stroke();}for(let gy=0;gy<=dH;gy+=10){ctx.beginPath();ctx.moveTo(gut,gut+gy*cSz);ctx.lineTo(gut+dW*cSz,gut+gy*cSz);ctx.stroke();}}
-  if(showCtr){ctx.strokeStyle="rgba(200,60,60,0.3)";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);let cx2=Math.floor(sW/2)-offX,cy2=Math.floor(sH/2)-offY;if(cx2>=0&&cx2<=dW){ctx.beginPath();ctx.moveTo(gut+cx2*cSz,gut);ctx.lineTo(gut+cx2*cSz,gut+dH*cSz);ctx.stroke();}if(cy2>=0&&cy2<=dH){ctx.beginPath();ctx.moveTo(gut,gut+cy2*cSz);ctx.lineTo(gut+dW*cSz,gut+cy2*cSz);ctx.stroke();}ctx.setLineDash([]);}
+  if(showCtr){
+    ctx.strokeStyle="rgba(200,60,60,0.3)";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
+    let cx2=Math.floor(sW/2)-offX,cy2=Math.floor(sH/2)-offY;
+    if(cx2>=0&&cx2<=dW){ctx.beginPath();ctx.moveTo(gut+cx2*cSz,gut);ctx.lineTo(gut+cx2*cSz,gut+dH*cSz);ctx.stroke();}
+    if(cy2>=0&&cy2<=dH){ctx.beginPath();ctx.moveTo(gut,gut+cy2*cSz);ctx.lineTo(gut+dW*cSz,gut+cy2*cSz);ctx.stroke();}
+    ctx.setLineDash([]);
+  }
+
+  // Crosshair highlight based on brush size
+  if (hoverCoords && hoverCoords.gx >= offX && hoverCoords.gy >= offY && hoverCoords.gx < offX + dW && hoverCoords.gy < offY + dH) {
+    let hx = hoverCoords.gx - offX, hy = hoverCoords.gy - offY;
+    let isDrawingTool = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (halfStitchTool && halfStitchTool !== "erase");
+    let actualBrushSize = isDrawingTool ? Math.min(brushSize, Math.min(dW - hx, dH - hy)) : 1;
+    if (actualBrushSize < 1) actualBrushSize = 1;
+
+    ctx.fillStyle = "rgba(0,0,0,0.03)";
+    // Vertical highlight
+    ctx.fillRect(gut + hx * cSz, gut, cSz * actualBrushSize, dH * cSz);
+    // Horizontal highlight
+    ctx.fillRect(gut, gut + hy * cSz, dW * cSz, cSz * actualBrushSize);
+  }
+
   if(bsLines.length>0){
     ctx.lineCap="round";
     let hx = hoverCoords ? hoverCoords.gx - offX : null;
@@ -1288,22 +1322,52 @@ function drawPattern(ctx,offX,offY,dW,dH,cSz,gut, showOverlayImg=false, op=0.3){
     }
   }
 
-  if (hoverCoords && (activeTool === "paint" || activeTool === "fill") && selectedColorId && cmap) {
-    let hx = hoverCoords.gx - offX, hy = hoverCoords.gy - offY;
-    if (hx >= 0 && hx < dW && hy >= 0 && hy < dH) {
-      ctx.strokeStyle = `rgba(${cmap[selectedColorId].rgb[0]},${cmap[selectedColorId].rgb[1]},${cmap[selectedColorId].rgb[2]},0.8)`;
-      ctx.lineWidth = Math.max(2, cSz * 0.15);
-      ctx.strokeRect(gut + hx * cSz + 1, gut + hy * cSz + 1, cSz - 2, cSz - 2);
-      ctx.fillStyle = `rgba(${cmap[selectedColorId].rgb[0]},${cmap[selectedColorId].rgb[1]},${cmap[selectedColorId].rgb[2]},0.3)`;
-      ctx.fillRect(gut + hx * cSz + 1, gut + hy * cSz + 1, cSz - 2, cSz - 2);
-      ctx.lineWidth = 1;
+  if (hoverCoords) {
+    let isDrawingTool = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (halfStitchTool && halfStitchTool !== "erase");
+    let isValidDraw = (activeTool === "paint" || activeTool === "fill") && selectedColorId && cmap;
+    if (isDrawingTool && isValidDraw) {
+      let hx = hoverCoords.gx - offX, hy = hoverCoords.gy - offY;
+      let bw = Math.min(brushSize, dW - hx);
+      let bh = Math.min(brushSize, dH - hy);
+      if (hx >= 0 && hx < dW && hy >= 0 && hy < dH && bw > 0 && bh > 0) {
+        ctx.strokeStyle = `rgba(${cmap[selectedColorId].rgb[0]},${cmap[selectedColorId].rgb[1]},${cmap[selectedColorId].rgb[2]},0.8)`;
+        ctx.lineWidth = Math.max(2, cSz * 0.15);
+        ctx.strokeRect(gut + hx * cSz + 1, gut + hy * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+        ctx.fillStyle = `rgba(${cmap[selectedColorId].rgb[0]},${cmap[selectedColorId].rgb[1]},${cmap[selectedColorId].rgb[2]},0.3)`;
+        ctx.fillRect(gut + hx * cSz + 1, gut + hy * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+        ctx.lineWidth = 1;
+      }
+    } else if (isDrawingTool && stitchType === "erase") {
+      let hx = hoverCoords.gx - offX, hy = hoverCoords.gy - offY;
+      let bw = Math.min(brushSize, dW - hx);
+      let bh = Math.min(brushSize, dH - hy);
+      if (hx >= 0 && hx < dW && hy >= 0 && hy < dH && bw > 0 && bh > 0) {
+        ctx.strokeStyle = `rgba(239, 68, 68, 0.8)`; // red-500
+        ctx.lineWidth = Math.max(2, cSz * 0.15);
+        ctx.strokeRect(gut + hx * cSz + 1, gut + hy * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+        ctx.fillStyle = `rgba(239, 68, 68, 0.2)`;
+        ctx.fillRect(gut + hx * cSz + 1, gut + hy * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+        ctx.lineWidth = 1;
+      }
+    } else if (isDrawingTool && halfStitchTool && halfStitchTool !== "erase" && selectedColorId && cmap) {
+      let hx = hoverCoords.gx - offX, hy = hoverCoords.gy - offY;
+      let bw = Math.min(brushSize, dW - hx);
+      let bh = Math.min(brushSize, dH - hy);
+      if (hx >= 0 && hx < dW && hy >= 0 && hy < dH && bw > 0 && bh > 0) {
+        ctx.strokeStyle = `rgba(${cmap[selectedColorId].rgb[0]},${cmap[selectedColorId].rgb[1]},${cmap[selectedColorId].rgb[2]},0.8)`;
+        ctx.lineWidth = Math.max(2, cSz * 0.15);
+        ctx.strokeRect(gut + hx * cSz + 1, gut + hy * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+        ctx.fillStyle = `rgba(${cmap[selectedColorId].rgb[0]},${cmap[selectedColorId].rgb[1]},${cmap[selectedColorId].rgb[2]},0.3)`;
+        ctx.fillRect(gut + hx * cSz + 1, gut + hy * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+        ctx.lineWidth = 1;
+      }
     }
   }
 
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
 }
 
-const renderPattern=useCallback(()=>{if(!pat||!cmap||!pcRef.current||tab!=="pattern")return;pcRef.current.width=sW*cs+G+2;pcRef.current.height=sH*cs+G+2;drawPattern(pcRef.current.getContext("2d"),0,0,sW,sH,cs,G, showOverlay && !!img && !!img.src, overlayOpacity);},[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab,hoverCoords,selectedColorId,bsContinuous,showOverlay,overlayOpacity,img,halfStitches]);
+const renderPattern=useCallback(()=>{if(!pat||!cmap||!pcRef.current||tab!=="pattern")return;pcRef.current.width=sW*cs+G+2;pcRef.current.height=sH*cs+G+2;drawPattern(pcRef.current.getContext("2d"),0,0,sW,sH,cs,G, showOverlay && !!img && !!img.src, overlayOpacity);},[pat,cmap,cs,sW,sH,view,hiId,showCtr,bsLines,bsStart,activeTool,tab,hoverCoords,selectedColorId,bsContinuous,showOverlay,overlayOpacity,img,halfStitches,brushSize,stitchType,halfStitchTool]);
 useEffect(()=>renderPattern(),[renderPattern]);
 
 // ResizeObserver: progressively collapse strip groups when narrow
@@ -1336,6 +1400,28 @@ function handlePatClick(e){
   if(!pcRef.current||!pat)return;
   let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch");
   if(!gc)return;let{gx,gy}=gc;
+
+  if (activeTool === "eyedropper") {
+    if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+    let idx = gy * sW + gx;
+    let cell = pat[idx];
+    if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
+      setSelectedColorId(cell.id);
+      setBrushAndActivate("paint");
+    } else {
+      let hs = halfStitches.get(idx);
+      if (hs) {
+        if (hs.fwd && cmap[hs.fwd.id]) {
+          setSelectedColorId(hs.fwd.id);
+          setBrushAndActivate("paint");
+        } else if (hs.bck && cmap[hs.bck.id]) {
+          setSelectedColorId(hs.bck.id);
+          setBrushAndActivate("paint");
+        }
+      }
+    }
+    return;
+  }
   if(halfStitchTool){
     if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;
     if(halfStitchTool==="erase"){
@@ -1364,7 +1450,10 @@ function handlePatClick(e){
     if(gx<0||gx>=sW||gy<0||gy>=sH)return;let idx=gy*sW+gx;if(pat[idx].id==="__skip__")return;
     let pe=cmap[selectedColorId];if(!pe)return;let np=pat.slice();
     if(activeTool==="fill"){let ch=[],vis=new Set(),q=[idx],tid=pat[idx].id;if(tid===pe.id)return;while(q.length){let id2=q.pop();if(vis.has(id2))continue;vis.add(id2);if(pat[id2].id!==tid)continue;ch.push({idx:id2,old:{...pat[id2]}});let x2=id2%sW,y2=Math.floor(id2/sW);if(x2>0)q.push(id2-1);if(x2<sW-1)q.push(id2+1);if(y2>0)q.push(id2-sW);if(y2<sH-1)q.push(id2+sW);}if(!ch.length)return;setEditHistory(prev=>{let n=[...prev,{type:"fill",changes:ch}];if(n.length>EDIT_HISTORY_MAX)n=n.slice(n.length-EDIT_HISTORY_MAX);return n;});setRedoHistory([]);ch.forEach(c2=>np[c2.idx]={...pe});}
-    else{setEditHistory(prev=>{let n=[...prev,{type:"paint",changes:[{idx,old:{...pat[idx]}}]}];if(n.length>EDIT_HISTORY_MAX)n=n.slice(n.length-EDIT_HISTORY_MAX);return n;});setRedoHistory([]);np[idx]={...pe};}
+  else{
+    // Handled by mouse down/drag system now.
+    return;
+  }
     setPat(np);let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);setPal(np2);setCmap(nc);return;
   }
   if(activeTool==="backstitch"){if(gx<0||gx>sW||gy<0||gy>sH)return;let pt={x:gx,y:gy};if(!bsStart)setBsStart(pt);else{setBsLines(prev=>[...prev,{x1:bsStart.x,y1:bsStart.y,x2:pt.x,y2:pt.y}]);setBsStart(bsContinuous?pt:null);}}
@@ -1390,14 +1479,209 @@ function handlePatClick(e){
   }
 }
 
+function applyBrush(gx, gy, action) {
+  let changes = [];
+  let np = dragPatRef.current;
+  let nm = dragHalfStitchesRef.current;
+  let colorEntry = selectedColorId && cmap ? cmap[selectedColorId] : null;
+
+  for (let dy = 0; dy < brushSize; dy++) {
+    for (let dx = 0; dx < brushSize; dx++) {
+      let x = gx + dx;
+      let y = gy + dy;
+      if (x < 0 || x >= sW || y < 0 || y >= sH) continue;
+      let idx = y * sW + x;
+
+      if (dragCellsRef.current.has(idx)) continue; // Already painted this cell in this drag
+      dragCellsRef.current.add(idx);
+
+      if (action === "paint" && np) {
+         if (np[idx].id === "__skip__") continue;
+         if (!colorEntry) continue;
+         if (np[idx].id !== colorEntry.id) {
+            changes.push({idx, old: {...np[idx]}});
+            np[idx] = {...colorEntry};
+
+            // Direct canvas update for responsiveness
+            if (pcRef.current) {
+               let ctx = pcRef.current.getContext('2d');
+               ctx.fillStyle = `rgb(${colorEntry.rgb})`;
+               ctx.fillRect(G + x * cs, G + y * cs, cs, cs);
+               // Simple grid redraw over it
+               ctx.strokeStyle = "rgba(0,0,0,0.1)";
+               ctx.lineWidth = 0.5;
+               ctx.strokeRect(G + x * cs, G + y * cs, cs, cs);
+            }
+         }
+      } else if (action === "eraseAll" && np) {
+         if (np[idx].id === "__skip__") continue;
+         let changed = false;
+         if (np[idx].id !== "__empty__") {
+            changes.push({idx, old: {...np[idx]}});
+            np[idx] = {id: "__empty__", rgb: [255, 255, 255]};
+            changed = true;
+         }
+         if (nm.has(idx)) {
+            nm.delete(idx);
+            changed = true;
+         }
+         if (changed && pcRef.current) {
+            let ctx = pcRef.current.getContext('2d');
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(G + x * cs, G + y * cs, cs, cs);
+            drawCk(ctx, G + x * cs, G + y * cs, cs);
+            ctx.strokeStyle = "rgba(0,0,0,0.1)";
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(G + x * cs, G + y * cs, cs, cs);
+         }
+
+         // Erase backstitch if close
+         let prevBs = dragBsLinesRef.current;
+         if(prevBs.length > 0){
+            let closestIdx=-1,minD=Infinity;
+            prevBs.forEach((ln,i)=>{let A=x-ln.x1,B=y-ln.y1,C=ln.x2-ln.x1,D=ln.y2-ln.y1;let dot=A*C+B*D,lenSq=C*C+D*D,param=-1;if(lenSq!==0)param=dot/lenSq;let xx,yy;if(param<0){xx=ln.x1;yy=ln.y1;}else if(param>1){xx=ln.x2;yy=ln.y2;}else{xx=ln.x1+param*C;yy=ln.y1+param*D;}let d=Math.sqrt((x-xx)**2+(y-yy)**2);if(d<minD){minD=d;closestIdx=i;}});
+            if(minD<=0.6&&closestIdx>=0){
+                let nBs=[...prevBs];
+                nBs.splice(closestIdx,1);
+                dragBsLinesRef.current = nBs;
+                // Re-draw grid/canvas visually
+                if (pcRef.current) {
+                   let ctx = pcRef.current.getContext('2d');
+                   drawPattern(ctx, 0, 0, sW, sH, cs, G, showOverlay, overlayOpacity); // simplified full redraw for backstitch erase
+                }
+            }
+         }
+      } else if (action.startsWith("half-") && np) {
+         if (np[idx].id === "__skip__") continue;
+         let dir = action.replace("half-", "");
+         let ce = colorEntry;
+         if (!ce) {
+            let m = np[idx];
+            if(m && m.id !== "__empty__" && cmap) ce = cmap[m.id];
+         }
+         if (!ce) continue;
+         let existing = nm.get(idx) || {};
+         if (existing[dir] && existing[dir].id === ce.id) {
+             let updated = {...existing}; delete updated[dir];
+             if(!updated.fwd && !updated.bck) nm.delete(idx); else nm.set(idx, updated);
+         } else {
+             nm.set(idx, {...existing, [dir]: {id: ce.id, rgb: ce.rgb}});
+         }
+      }
+    }
+  }
+
+  if (changes.length > 0) {
+    dragChangesRef.current.push(...changes);
+  }
+}
+
+function handlePatMouseDown(e) {
+  if (e.button !== 0) return; // Only left click
+  if (!pcRef.current || !pat) return;
+
+  let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch");
+  if(!gc)return;let{gx,gy}=gc;
+
+  // Normal click for eyedropper, fill, backstitch, eraseBs
+  if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs") {
+      handlePatClick(e);
+      return;
+  }
+
+  isDraggingRef.current = true;
+  dragChangesRef.current = [];
+  dragCellsRef.current.clear();
+  dragPatRef.current = pat.slice();
+  dragHalfStitchesRef.current = new Map(halfStitches);
+  dragBsLinesRef.current = bsLines;
+
+  if (activeTool === "paint" && selectedColorId && cmap) {
+     dragActionRef.current = "paint";
+     applyBrush(gx, gy, "paint");
+  } else if (activeTool === "eraseAll") {
+     dragActionRef.current = "eraseAll";
+     applyBrush(gx, gy, "eraseAll");
+  } else if (halfStitchTool) {
+     dragActionRef.current = `half-${halfStitchTool}`;
+     applyBrush(gx, gy, dragActionRef.current);
+  }
+}
+
 function handlePatMouseMove(e){
-  if(!pcRef.current||!pat||!activeTool)return;
+  if(!pcRef.current||!pat||(!activeTool&&!halfStitchTool))return;
   let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch"||activeTool==="eraseBs");
   if(!gc)return;
   if(!hoverCoords||hoverCoords.gx!==gc.gx||hoverCoords.gy!==gc.gy)setHoverCoords(gc);
+
+  if (isDraggingRef.current) {
+    applyBrush(gc.gx, gc.gy, dragActionRef.current);
+  }
 }
 
-function handlePatMouseLeave(){setHoverCoords(null);}
+function handlePatMouseUp(e) {
+  if (isDraggingRef.current) {
+     isDraggingRef.current = false;
+
+     let madeChanges = dragChangesRef.current.length > 0;
+     let oldHs = halfStitches;
+     let newHs = dragHalfStitchesRef.current;
+     let hsChanged = false;
+     if (dragActionRef.current === "eraseAll" || dragActionRef.current.startsWith("half-")) {
+         if (oldHs.size !== newHs.size) hsChanged = true;
+         else {
+             for (let [k,v] of oldHs) {
+                 if (!newHs.has(k) || newHs.get(k) !== v) { hsChanged = true; break; }
+             }
+         }
+     }
+
+     let hsChanges = [];
+     if (hsChanged) {
+         let allKeys = new Set([...oldHs.keys(), ...newHs.keys()]);
+         for (let k of allKeys) {
+             let ov = oldHs.get(k);
+             let nv = newHs.get(k);
+             if (ov !== nv) {
+                 hsChanges.push({idx: k, old: ov ? {...ov} : null});
+             }
+         }
+     }
+
+     let bsLinesChanged = dragBsLinesRef.current !== bsLines;
+
+     if (madeChanges || hsChanged || bsLinesChanged) {
+         if (madeChanges) setPat(dragPatRef.current);
+         if (hsChanged) setHalfStitches(dragHalfStitchesRef.current);
+         if (bsLinesChanged) setBsLines(dragBsLinesRef.current);
+
+         setEditHistory(prev=>{
+             let n=[...prev, {
+                 type: dragActionRef.current,
+                 changes: dragChangesRef.current,
+                 hsChanges: hsChanges.length > 0 ? hsChanges : undefined,
+                 bsLines: bsLinesChanged ? bsLines : undefined
+             }];
+             if(n.length>EDIT_HISTORY_MAX)n=n.slice(n.length-EDIT_HISTORY_MAX);
+             return n;
+         });
+         setRedoHistory([]);
+
+         if (madeChanges) {
+             let{pal:np2,cmap:nc}=buildPaletteWithScratch(dragPatRef.current);
+             setPal(np2);setCmap(nc);
+         }
+     }
+
+     dragPatRef.current = null;
+     dragHalfStitchesRef.current = null;
+  }
+}
+
+function handlePatMouseLeave(e){
+  setHoverCoords(null);
+  handlePatMouseUp(e);
+}
 
 function undoEdit(){
   if(!editHistory.length)return;
@@ -1405,8 +1689,24 @@ function undoEdit(){
   let np=pat.slice();
   let redoChanges=last.changes.map(c=>({idx:c.idx,old:{...np[c.idx]}}));
   last.changes.forEach(c=>np[c.idx]={...c.old});
-  setPat(np);setEditHistory(prev=>prev.slice(0,-1));
-  setRedoHistory(prev=>{let n=[...prev,{type:last.type,changes:redoChanges}];if(n.length>EDIT_HISTORY_MAX)n=n.slice(n.length-EDIT_HISTORY_MAX);return n;});
+  setPat(np);
+
+  let redoHsChanges = null;
+  if(last.hsChanges) {
+      let nm=new Map(halfStitches);
+      redoHsChanges=last.hsChanges.map(c=>({idx:c.idx,old:nm.has(c.idx)?{...nm.get(c.idx)}:null}));
+      last.hsChanges.forEach(c=>{ if(c.old) nm.set(c.idx, c.old); else nm.delete(c.idx); });
+      setHalfStitches(nm);
+  }
+
+  let redoBsLines = null;
+  if(last.bsLines) {
+      redoBsLines = [...bsLines];
+      setBsLines(last.bsLines);
+  }
+
+  setEditHistory(prev=>prev.slice(0,-1));
+  setRedoHistory(prev=>{let n=[...prev,{type:last.type,changes:redoChanges,hsChanges:redoHsChanges,bsLines:redoBsLines}];if(n.length>EDIT_HISTORY_MAX)n=n.slice(n.length-EDIT_HISTORY_MAX);return n;});
   let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);
   setPal(np2);setCmap(nc);
 }
@@ -1416,8 +1716,24 @@ function redoEdit(){
   let np=pat.slice();
   let undoChanges=last.changes.map(c=>({idx:c.idx,old:{...np[c.idx]}}));
   last.changes.forEach(c=>np[c.idx]={...c.old});
-  setPat(np);setRedoHistory(prev=>prev.slice(0,-1));
-  setEditHistory(prev=>{let n=[...prev,{type:last.type,changes:undoChanges}];if(n.length>EDIT_HISTORY_MAX)n=n.slice(n.length-EDIT_HISTORY_MAX);return n;});
+  setPat(np);
+
+  let undoHsChanges = null;
+  if(last.hsChanges) {
+      let nm=new Map(halfStitches);
+      undoHsChanges=last.hsChanges.map(c=>({idx:c.idx,old:nm.has(c.idx)?{...nm.get(c.idx)}:null}));
+      last.hsChanges.forEach(c=>{ if(c.old) nm.set(c.idx, c.old); else nm.delete(c.idx); });
+      setHalfStitches(nm);
+  }
+
+  let undoBsLines = null;
+  if(last.bsLines) {
+      undoBsLines = [...bsLines];
+      setBsLines(last.bsLines);
+  }
+
+  setRedoHistory(prev=>prev.slice(0,-1));
+  setEditHistory(prev=>{let n=[...prev,{type:last.type,changes:undoChanges,hsChanges:undoHsChanges,bsLines:undoBsLines}];if(n.length>EDIT_HISTORY_MAX)n=n.slice(n.length-EDIT_HISTORY_MAX);return n;});
   let{pal:np2,cmap:nc}=buildPaletteWithScratch(np);
   setPal(np2);setCmap(nc);
 }
@@ -1450,6 +1766,7 @@ useEffect(()=>{
     if(e.key==="5"){selectStitchType("erase");return;}
     if(e.key==="p"||e.key==="P"){if(!halfStitchTool&&activeTool!=="backstitch")setBrushAndActivate("paint");return;}
     if(e.key==="f"||e.key==="F"){if(!halfStitchTool&&activeTool!=="backstitch")setBrushAndActivate("fill");return;}
+    if(e.key==="i"||e.key==="I"){setActiveTool("eyedropper"); setBsStart(null); setHalfStitchTool(null);;return;}
     if(e.key==="v"||e.key==="V"){setView(v=>v==="color"?"symbol":v==="symbol"?"both":"color");return;}
     if(e.key==="="||e.key==="+"){setZoom(z=>Math.min(3,+(z+0.1).toFixed(2)));return;}
     if(e.key==="-"){setZoom(z=>Math.max(0.05,+(z-0.1).toFixed(2)));return;}
@@ -1509,12 +1826,23 @@ return(
       <svg width="11" height="11" viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg>Erase
     </button>
   </div>
-  {/* Brush group — only visible for Cross stitch */}
+  {/* Brush group — always visible but dim if no color selected (for Cross stitch) */}
   {stitchType==='cross'&&<><div className="tb-sdiv"/>
-  <div className={'tb-grp'+(stripCollapsed.brush?' tb-hidden':'')}>
+  <div className={'tb-grp'+(stripCollapsed.brush?' tb-hidden':'')} style={{opacity: selectedColorId ? 1 : 0.6}}>
     <button className={'tb-btn'+(brushMode==='paint'?' tb-btn--on':'')} onClick={()=>setBrushAndActivate('paint')} title="Paint (P)">Paint</button>
     <button className={'tb-btn'+(brushMode==='fill'?' tb-btn--on':'')} onClick={()=>setBrushAndActivate('fill')} title="Fill (F)">Fill</button>
-  </div></>}
+    <button className={'tb-btn'+(activeTool==='eyedropper'?' tb-btn--on':'')} onClick={()=>{setActiveTool('eyedropper'); setBsStart(null); setHalfStitchTool(null);}} title="Eyedropper (I)">Pick Color</button>
+  </div>
+  </>}
+  {((stitchType==='cross' && brushMode==='paint') || stitchType==='erase' || (halfStitchTool && halfStitchTool!=='erase')) && activeTool!=='eyedropper' && <>
+    <div className="tb-sdiv"/>
+    <div className="tb-grp" style={{display: 'flex', alignItems: 'center', gap: 4, opacity: (selectedColorId || stitchType==='erase') ? 1 : 0.6}}>
+       <span style={{fontSize: 10, color: "#71717a", textTransform: "uppercase", fontWeight: 600}}>Size</span>
+       {[1,2,3].map(sz => (
+          <button key={sz} className={'tb-btn'+(brushSize===sz?' tb-btn--on':'')} onClick={()=>setBrushSize(sz)} style={{padding: "2px 6px", minWidth: 24}}>{sz}</button>
+       ))}
+    </div>
+  </>}
   {/* Backstitch continuous — only when backstitch active */}
   {stitchType==='backstitch'&&<><div className="tb-sdiv"/>
   <label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#71717a",flexShrink:0}}>
@@ -1724,7 +2052,7 @@ return(
           {cs < 6 && (view === "symbol" || view === "both") && <div style={{fontSize: 12, color: "#71717a", marginBottom: 6, background: "#f4f4f5", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
           {isScratchMode&&(!displayPal||displayPal.length===0)&&<div style={{fontSize:12,color:"#a1a1aa",padding:"8px 12px",background:"#f4f4f5",borderRadius:8,marginBottom:8,textAlign:"center"}}>Add colours using the Colours panel on the left, then select Paint or Fill to begin.</div>}
           {!shortcutsHintDismissed&&<div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>💡 Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>}
-          <div ref={scrollRef} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(activeTool||halfStitchTool)?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onClick={handlePatClick} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{if(activeTool==="backstitch"&&bsStart){e.preventDefault();setBsStart(null);}}}/></div>
+          <div ref={scrollRef} style={{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(activeTool||halfStitchTool)?"crosshair":"default"}}><canvas ref={pcRef} style={{display:"block"}} onMouseDown={handlePatMouseDown} onMouseUp={handlePatMouseUp} onMouseMove={handlePatMouseMove} onMouseLeave={handlePatMouseLeave} onContextMenu={e=>{if(activeTool==="backstitch"&&bsStart){e.preventDefault();setBsStart(null);}}}/></div>
           <div className="tb-status">{stitchType==="cross"?`Cross stitch — ${brushMode==="fill"?"fill":"paint"} mode. Select a colour chip below.`:stitchType==="half-fwd"?"Half stitch / — click cells to place.":stitchType==="half-bck"?"Half stitch \\ — click cells to place.":stitchType==="backstitch"?"Backstitch — click grid intersections. Right-click to cancel.":stitchType==="erase"?"Erase — click to remove stitches and backstitch lines.":"Select a colour chip below, then choose a stitch type above."}</div>
           <div style={{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}}>
             {editHistory.length>0&&<button onClick={undoEdit} style={{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>↩ Undo</button>}
