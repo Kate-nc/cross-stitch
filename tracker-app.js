@@ -572,6 +572,11 @@ function applyUndo() {
     const newCmap = {}; prevPal.forEach(p => { newCmap[p.id] = p; });
     setPat(newPat); setPal(prevPal); setCmap(newCmap); setThreadOwned(prevOwned);
   }
+  else if (snap.type === "bulk_reassignment_batch") {
+    const { pat: prevPat, pal: prevPal, threadOwned: prevOwned } = snap;
+    const newCmap = {}; prevPal.forEach(p => { newCmap[p.id] = p; });
+    setPat(prevPat); setPal(prevPal); setCmap(newCmap); setThreadOwned(prevOwned);
+  }
   else if (snap.type === "single_stitch_edit") {
     const { cellIdx, previousCell, previousEditEntry } = snap;
     const newPat = [...pat];
