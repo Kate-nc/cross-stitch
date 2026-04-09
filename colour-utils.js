@@ -424,15 +424,20 @@ function applyGaussianBlur(data, w, h, sigma) {
 // ---------------------------------------------------------------------------
 // Image processing primitives (Gaussian blur, Sobel, Canny).
 // These are defined as function declarations in embroidery.js for embroidery
-// pages.  The var-based fallbacks below ensure they are available when
-// colour-utils.js is loaded without embroidery.js (e.g. the creator app).
-// Embroidery.js redefines them via hoisted function declarations after this
-// file executes — the definitions are identical so there is no conflict.
+// pages.  The fallbacks below ensure they are available when colour-utils.js
+// is loaded without embroidery.js (e.g. the creator app).
+// Use globalThis for CANNY_* defaults so this file does not create hoisted
+// script-scope bindings that can mask globals or conflict with later const
+// declarations in embroidery.js.
 // ---------------------------------------------------------------------------
-if (typeof CANNY_BLUR_SIGMA === 'undefined') {
-  var CANNY_BLUR_SIGMA    = 1.4;
-  var CANNY_THRESHOLD_LOW = 30;
-  var CANNY_THRESHOLD_HIGH = 80;
+if (typeof globalThis.CANNY_BLUR_SIGMA === 'undefined') {
+  globalThis.CANNY_BLUR_SIGMA = 1.4;
+}
+if (typeof globalThis.CANNY_THRESHOLD_LOW === 'undefined') {
+  globalThis.CANNY_THRESHOLD_LOW = 30;
+}
+if (typeof globalThis.CANNY_THRESHOLD_HIGH === 'undefined') {
+  globalThis.CANNY_THRESHOLD_HIGH = 80;
 }
 if (typeof gaussianBlur === 'undefined') {
   var gaussianBlur = function(data, w, h, sigma) {
