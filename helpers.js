@@ -31,21 +31,25 @@ const DB_NAME = "CrossStitchDB";
 const STORE_NAME = "projects";
 
 async function ensurePersistence() {
-  if (navigator.storage && navigator.storage.persist) {
-    const isPersisted = await navigator.storage.persisted();
-    if (!isPersisted) {
-      const granted = await navigator.storage.persist();
-      console.log(`Storage persistence ${granted ? "granted" : "denied"}.`);
-      return granted;
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      const isPersisted = await navigator.storage.persisted();
+      if (!isPersisted) {
+        const granted = await navigator.storage.persist();
+        console.log(`Storage persistence ${granted ? "granted" : "denied"}.`);
+        return granted;
+      }
+      return true;
     }
-    return true;
+  } catch (error) {
+    console.warn("Storage persistence unavailable.", error);
   }
   return false;
 }
 
 function getDB() {
   return new Promise((resolve, reject) => {
-    ensurePersistence();
+    ensurePersistence().catch(() => {});
     let request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = (e) => {
       let db = e.target.result;
