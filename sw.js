@@ -7,6 +7,9 @@ var PRECACHE_URLS = [
   './manager.html',
   './embroidery.html',
 
+  // PWA manifest
+  './manifest.json',
+
   // Shared local assets
   './styles.css',
   './constants.js',
@@ -41,21 +44,17 @@ var PRECACHE_URLS = [
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
 ];
 
-// Install: pre-cache all assets
+// Install: pre-cache all assets individually so one failure doesn't block the rest
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      try {
-        return cache.addAll(PRECACHE_URLS);
-      } catch (err) {
-        console.error('SW install: cache.addAll() threw synchronously:', err);
-        return Promise.reject(err);
-      }
-    }).catch(function (err) {
-      console.error('SW install: failed to pre-cache. Check URLs below.');
-      // Log each URL so the failing one can be identified
-      PRECACHE_URLS.forEach(function (url) { console.log('  -', url); });
-      throw err;
+      return Promise.all(
+        PRECACHE_URLS.map(function (url) {
+          return cache.add(url).catch(function (err) {
+            console.warn('SW install: failed to cache', url, err);
+          });
+        })
+      );
     }).then(function () {
       return self.skipWaiting();
     })
@@ -87,8 +86,17 @@ self.addEventListener('fetch', function (event) {
   // Navigation requests (HTML pages): network-first, cache fallback
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(function () {
-        return caches.match(event.request);
+      fetch(event.request).then(function (response) {
+        // Cache the latest copy for offline use
+        var clone = response.clone();
+        caches.open(CACHE_NAME).then(function (cache) {
+          cache.put(event.request, clone);
+        });
+        return response;
+      }).catch(function () {
+        return caches.match(event.request).then(function (cached) {
+          return cached || caches.match('./index.html');
+        });
       })
     );
     return;
@@ -101,7 +109,8 @@ self.addEventListener('fetch', function (event) {
   if (isCDN || isLocalAsset) {
     event.respondWith(
       caches.match(event.request).then(function (cached) {
-        return cached || fetch(event.request).then(function (response) {
+        if (cached) return cached;
+        return fetch(event.request).then(function (response) {
           // Cache successful responses for future offline use
           if (response.ok) {
             var clone = response.clone();
@@ -111,6 +120,9 @@ self.addEventListener('fetch', function (event) {
           }
           return response;
         });
+      }).catch(function () {
+        // Both cache and network failed — return empty response rather than a hard error
+        return new Response('', { status: 503, statusText: 'Offline' });
       })
     );
     return;
