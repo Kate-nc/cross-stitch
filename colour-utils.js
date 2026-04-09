@@ -422,6 +422,134 @@ function applyGaussianBlur(data, w, h, sigma) {
 }
 
 // ---------------------------------------------------------------------------
+// Image processing primitives (Gaussian blur, Sobel, Canny).
+// These are defined as function declarations in embroidery.js for embroidery
+// pages.  The var-based fallbacks below ensure they are available when
+// colour-utils.js is loaded without embroidery.js (e.g. the creator app).
+// Embroidery.js redefines them via hoisted function declarations after this
+// file executes — the definitions are identical so there is no conflict.
+// ---------------------------------------------------------------------------
+if (typeof CANNY_BLUR_SIGMA === 'undefined') {
+  var CANNY_BLUR_SIGMA    = 1.4;
+  var CANNY_THRESHOLD_LOW = 30;
+  var CANNY_THRESHOLD_HIGH = 80;
+}
+if (typeof gaussianBlur === 'undefined') {
+  var gaussianBlur = function(data, w, h, sigma) {
+    const r = Math.ceil(3 * sigma) | 0;
+    const klen = 2 * r + 1;
+    const kernel = new Float32Array(klen);
+    let sum = 0;
+    for (let i = 0; i < klen; i++) {
+      const d = i - r;
+      kernel[i] = Math.exp(-d * d / (2 * sigma * sigma));
+      sum += kernel[i];
+    }
+    for (let i = 0; i < klen; i++) kernel[i] /= sum;
+    const tmp = new Float32Array(w * h);
+    const out = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let v = 0;
+        for (let k = 0; k < klen; k++) {
+          const nx = Math.max(0, Math.min(w - 1, x + k - r));
+          v += data[y * w + nx] * kernel[k];
+        }
+        tmp[y * w + x] = v;
+      }
+    }
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let v = 0;
+        for (let k = 0; k < klen; k++) {
+          const ny = Math.max(0, Math.min(h - 1, y + k - r));
+          v += tmp[ny * w + x] * kernel[k];
+        }
+        out[y * w + x] = v;
+      }
+    }
+    return out;
+  };
+}
+if (typeof sobelMag === 'undefined') {
+  var sobelMag = function(data, w, h) {
+    const N = w * h, m = new Float32Array(N), lum = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const idx = i * 4;
+      lum[i] = 0.2126 * data[idx] + 0.7152 * data[idx + 1] + 0.0722 * data[idx + 2];
+    }
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const p = (dx, dy) => lum[(y + dy) * w + (x + dx)];
+        const gx = -p(-1,-1) - 2*p(-1,0) - p(-1,1) + p(1,-1) + 2*p(1,0) + p(1,1);
+        const gy = -p(-1,-1) - 2*p(0,-1) - p(1,-1) + p(-1,1) + 2*p(0,1) + p(1,1);
+        m[y * w + x] = Math.sqrt(gx * gx + gy * gy);
+      }
+    }
+    return m;
+  };
+}
+if (typeof cannyEdges === 'undefined') {
+  var cannyEdges = function(data, w, h) {
+    const N = w * h;
+    const gray = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const idx = i * 4;
+      gray[i] = 0.2126 * data[idx] + 0.7152 * data[idx + 1] + 0.0722 * data[idx + 2];
+    }
+    const blurred = gaussianBlur(gray, w, h, CANNY_BLUR_SIGMA);
+    const mag = new Float32Array(N);
+    const angle = new Uint8Array(N);
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const p = (dx, dy) => blurred[(y + dy) * w + (x + dx)];
+        const gx = -p(-1,-1) - 2*p(-1,0) - p(-1,1) + p(1,-1) + 2*p(1,0) + p(1,1);
+        const gy = -p(-1,-1) - 2*p(0,-1) - p(1,-1) + p(-1,1) + 2*p(0,1) + p(1,1);
+        mag[y * w + x] = Math.sqrt(gx * gx + gy * gy);
+        const a = Math.abs(Math.atan2(gy, gx) * 180 / Math.PI);
+        angle[y * w + x] = a < 22.5 || a >= 157.5 ? 0 : a < 67.5 ? 1 : a < 112.5 ? 2 : 3;
+      }
+    }
+    const nms = new Float32Array(N);
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const mv = mag[y * w + x];
+        if (!mv) continue;
+        let p, q;
+        switch (angle[y * w + x]) {
+          case 0: p = mag[y * w + x - 1];         q = mag[y * w + x + 1];         break;
+          case 1: p = mag[(y - 1) * w + x + 1];   q = mag[(y + 1) * w + x - 1];   break;
+          case 2: p = mag[(y - 1) * w + x];        q = mag[(y + 1) * w + x];        break;
+          default:p = mag[(y - 1) * w + x - 1];   q = mag[(y + 1) * w + x + 1];   break;
+        }
+        nms[y * w + x] = (mv >= p && mv >= q) ? mv : 0;
+      }
+    }
+    const STRONG = 2, WEAK = 1;
+    const edge = new Uint8Array(N);
+    for (let i = 0; i < N; i++) {
+      if      (nms[i] >= CANNY_THRESHOLD_HIGH) edge[i] = STRONG;
+      else if (nms[i] >= CANNY_THRESHOLD_LOW)  edge[i] = WEAK;
+    }
+    const bfsQ = new Int32Array(N); let head = 0, tail = 0;
+    for (let i = 0; i < N; i++) if (edge[i] === STRONG) bfsQ[tail++] = i;
+    while (head < tail) {
+      const pp = bfsQ[head++], px = pp % w, py = (pp / w) | 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const nx = px + dx, ny = py + dy;
+        if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+        const ni = ny * w + nx;
+        if (edge[ni] === WEAK) { edge[ni] = STRONG; bfsQ[tail++] = ni; }
+      }
+    }
+    const out = new Uint8Array(N);
+    for (let i = 0; i < N; i++) out[i] = edge[i] === STRONG ? 1 : 0;
+    return out;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Stage 1: Saliency Map Generation
 // ---------------------------------------------------------------------------
 
