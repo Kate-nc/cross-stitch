@@ -365,7 +365,25 @@ function ManagerApp() {
 
   return (
     <>
-      <Header page="manager" setModal={setModal} />
+      <Header page="manager" setModal={setModal} onBackupDownload={handleBackupDownload} onRestoreFile={handleRestoreFile} storageUsage={storageUsage} />
+      {backupStatus && (
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "8px 16px 0" }}>
+          <div style={{ padding: "10px 14px", borderRadius: 8, fontSize: 12, background: backupStatus.type === "error" ? "#fef2f2" : backupStatus.type === "confirm" ? "#fffbeb" : "#f0fdf4", border: `1px solid ${backupStatus.type === "error" ? "#fecaca" : backupStatus.type === "confirm" ? "#fde68a" : "#bbf7d0"}`, color: backupStatus.type === "error" ? "#dc2626" : backupStatus.type === "confirm" ? "#92400e" : "#15803d" }}>
+            <div>{backupStatus.message}</div>
+            {backupStatus.summary && (
+              <div style={{ fontSize: 11, marginTop: 4, color: "#71717a" }}>
+                {backupStatus.summary.projectCount} projects, {backupStatus.summary.threadCount} owned threads, {backupStatus.summary.patternCount} patterns
+              </div>
+            )}
+            {backupStatus.type === "confirm" && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button onClick={backupStatus.onConfirm} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, background: "#ea580c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>Yes, Restore</button>
+                <button onClick={() => setBackupStatus(null)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, background: "#fff", color: "#3f3f46", border: "1px solid #e4e4e7", borderRadius: 6, cursor: "pointer" }}>Cancel</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 16px" }}>
 
         <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: "2px solid #f4f4f5" }}>
@@ -680,45 +698,6 @@ function ManagerApp() {
                 </div>
               </div>
             )}
-            <div style={{ background: "#f8fafc", border: "1px solid #e4e4e7", borderRadius: 10, padding: "14px 16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#18181b" }}>Data &amp; Backup</div>
-                {storageUsage && (
-                  <div style={{ fontSize: 11, color: "#71717a" }}>
-                    Storage: {(storageUsage.used / 1024 / 1024).toFixed(1)} MB{storageUsage.quota ? ` / ~${(storageUsage.quota / 1024 / 1024).toFixed(0)} MB` : ""}{" "}{storageUsage.persistent ? "🔒 Protected" : "⏳ Temporary"}
-                  </div>
-                )}
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <button onClick={handleBackupDownload} style={{ padding: "7px 14px", fontSize: 12, fontWeight: 600, background: "#0d9488", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer" }}>
-                  💾 Export Full Backup
-                </button>
-                <label style={{ padding: "7px 14px", fontSize: 12, fontWeight: 600, background: "#fff", color: "#18181b", border: "1px solid #e4e4e7", borderRadius: 7, cursor: "pointer" }}>
-                  📂 Restore from Backup
-                  <input type="file" accept=".json" onChange={handleRestoreFile} style={{ display: "none" }} />
-                </label>
-              </div>
-              {backupStatus && (
-                <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 8, fontSize: 12, background: backupStatus.type === "error" ? "#fef2f2" : backupStatus.type === "confirm" ? "#fffbeb" : "#f0fdf4", border: `1px solid ${backupStatus.type === "error" ? "#fecaca" : backupStatus.type === "confirm" ? "#fde68a" : "#bbf7d0"}`, color: backupStatus.type === "error" ? "#dc2626" : backupStatus.type === "confirm" ? "#92400e" : "#15803d" }}>
-                  <div>{backupStatus.message}</div>
-                  {backupStatus.summary && (
-                    <div style={{ fontSize: 11, marginTop: 4, color: "#71717a" }}>
-                      {backupStatus.summary.projectCount} projects, {backupStatus.summary.threadCount} owned threads, {backupStatus.summary.patternCount} patterns
-                    </div>
-                  )}
-                  {backupStatus.type === "confirm" && (
-                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                      <button onClick={backupStatus.onConfirm} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, background: "#ea580c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
-                        Yes, Restore
-                      </button>
-                      <button onClick={() => setBackupStatus(null)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, background: "#fff", color: "#3f3f46", border: "1px solid #e4e4e7", borderRadius: 6, cursor: "pointer" }}>
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
             {storedProjects.length > 0 && (
               <div style={{ background: "#f8fafc", border: "1px solid #e4e4e7", borderRadius: 10, padding: "14px 16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
