@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v1';
+var CACHE_NAME = 'cross-stitch-cache-v2';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -27,6 +27,25 @@ var PRECACHE_URLS = [
   // Page-specific local scripts
   './home-screen.js',
   './palette-swap.js',
+
+  // Creator sub-components and hooks
+  './creator/context.js',
+  './creator/generate.js',
+  './creator/canvasRenderer.js',
+  './creator/exportPdf.js',
+  './creator/useCreatorState.js',
+  './creator/useEditHistory.js',
+  './creator/useCanvasInteraction.js',
+  './creator/useKeyboardShortcuts.js',
+  './creator/useProjectIO.js',
+  './creator/usePreview.js',
+  './creator/PatternCanvas.js',
+  './creator/ToolStrip.js',
+  './creator/Sidebar.js',
+  './creator/PatternTab.js',
+  './creator/ProjectTab.js',
+  './creator/LegendTab.js',
+  './creator/ExportTab.js',
   './tracker-app.js',
   './manager-app.js',
   './embroidery.js',

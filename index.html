@@ -16,7 +16,11 @@
 <link rel="prefetch" href="tracker-app.js">
 <link rel="prefetch" href="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
 <!-- Flag set before any Babel scripts so TrackerApp's guard fires correctly -->
-<script>window.__UNIFIED__=true;</script>
+<script>
+window.__UNIFIED__=true;
+window.onerror=function(m,s,l,c,e){var d=document.getElementById('root');if(d){d.innerHTML='<pre style="color:red;padding:20px;font:14px monospace;white-space:pre-wrap">ERROR: '+m+'\nSource: '+s+'\nLine: '+l+':'+c+'\n'+(e&&e.stack?e.stack:'')+'</pre>';}};
+window.addEventListener('unhandledrejection',function(e){console.error('Unhandled rejection:',e.reason);});
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
@@ -106,6 +110,17 @@ window.loadTrackerApp = function() {
 
 <script type="text/babel">
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
+
+class CreatorErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error('CreatorApp error:', error, info); }
+  render() {
+    if (this.state.error) return React.createElement('pre', {style:{color:'red',padding:20,fontSize:13,whiteSpace:'pre-wrap'}},
+      'CreatorApp Error: ' + this.state.error.message + '\n\n' + (this.state.error.stack || ''));
+    return this.props.children;
+  }
+}
 
 function confettiTier(pct){
   if(pct<2)return{color:"#16a34a",label:"Excellent"};
@@ -404,7 +419,7 @@ function UnifiedApp(){
 
     </div>}
     <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
-      <CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/>
+      <CreatorErrorBoundary><CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/></CreatorErrorBoundary>
     </div>
     <div style={{display:mode==='track'?'':'none'}}>
       {trackerMounted&&!trackerReady&&(

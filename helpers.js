@@ -12,7 +12,6 @@ function confettiTier(pct){
   if(pct<15)return{color:"#ea580c",label:"Challenging"};
   return{color:"#dc2626",label:"High confetti"};
 }
-window.confettiTier=confettiTier;
 
 function gridCoord(canvasRef,e,cellSize,gutter,snap=false){
   if(!canvasRef.current)return null;
