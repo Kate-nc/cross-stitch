@@ -1,8 +1,9 @@
 /* creator/generate.js — Pure pattern-generation pipeline.
    All inputs passed explicitly; returns { pat, pal, cmap, confettiData } or null.
    Uses globals: quantize, doDither, doMap, buildPalette, rgbToLab, dE,
-                 generateSaliencyMap, generateEdgeMap, removeOrphanStitches,
-                 analyzeConfetti, findSolid, applyGaussianBlur, applyMedianFilter
+                 generateSaliencyMap, generateEdgeMap, labelConnectedComponents,
+                 removeOrphanStitches, analyzeConfetti, findSolid,
+                 applyGaussianBlur, applyMedianFilter
    (all defined in colour-utils.js / constants.js). */
 
 // Strength → numeric pipeline parameters for the Stitch Cleanup pipeline.
@@ -46,7 +47,8 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     }
   }
 
-  var confettiRaw = analyzeConfetti(mapped, width, height);
+  var preLabels = labelConnectedComponents(mapped, width, height);
+  var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;
 
   if (stitchCleanup && stitchCleanup.enabled) {
@@ -54,8 +56,9 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
       ? stitchCleanup.strength : "balanced";
     var sp = STRENGTH_MAP[cleanupStrength];
     var edgeMap = stitchCleanup.protectDetails ? generateEdgeMap(raw, width, height) : null;
-    mapped = removeOrphanStitches(mapped, width, height, sp.maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: sp.saliencyMultiplier });
-    confettiClean = analyzeConfetti(mapped, width, height);
+    mapped = removeOrphanStitches(mapped, width, height, sp.maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: sp.saliencyMultiplier }, preLabels);
+    var postLabels = labelConnectedComponents(mapped, width, height);
+    confettiClean = analyzeConfetti(mapped, width, height, postLabels);
   }
 
   return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap };

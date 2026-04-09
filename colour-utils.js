@@ -916,6 +916,51 @@ function generateEdgeMap(data, w, h, { edgeDilation = 1 } = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Shared connected-components labelling (used by analyzeConfetti + removeOrphanStitches)
+// ---------------------------------------------------------------------------
+
+/**
+ * Labels all 4-connected components in the pattern grid.
+ * Cells with id '__skip__' or '__empty__' are labelled 0 and excluded.
+ *
+ * @param {Array}  mapped  Pattern array of palette entry objects
+ * @param {number} w       Grid width
+ * @param {number} h       Grid height
+ * @returns {{ labels: Int32Array, components: Map<number, { id, size, cells: number[] }> }}
+ */
+function labelConnectedComponents(mapped, w, h) {
+  const n = w * h;
+  const labels = new Int32Array(n);
+  const components = new Map();
+  let nextLabel = 1;
+
+  for (let i = 0; i < n; i++) {
+    if (labels[i] !== 0) continue;
+    const colorId = mapped[i].id;
+    if (colorId === '__skip__' || colorId === '__empty__') continue;
+
+    const label = nextLabel++;
+    const cells = [];
+    const stack = [i];
+    labels[i] = label;
+
+    while (stack.length > 0) {
+      const ci = stack.pop();
+      cells.push(ci);
+      const cx = ci % w, cy = (ci / w) | 0;
+      if (cx > 0     && labels[ci-1] === 0 && mapped[ci-1].id === colorId) { labels[ci-1] = label; stack.push(ci-1); }
+      if (cx < w - 1 && labels[ci+1] === 0 && mapped[ci+1].id === colorId) { labels[ci+1] = label; stack.push(ci+1); }
+      if (cy > 0     && labels[ci-w] === 0 && mapped[ci-w].id === colorId) { labels[ci-w] = label; stack.push(ci-w); }
+      if (cy < h - 1 && labels[ci+w] === 0 && mapped[ci+w].id === colorId) { labels[ci+w] = label; stack.push(ci+w); }
+    }
+
+    components.set(label, { id: colorId, size: cells.length, cells });
+  }
+
+  return { labels, components };
+}
+
+// ---------------------------------------------------------------------------
 // Stage 5: Edge-Protected Perceptual Orphan Removal
 // ---------------------------------------------------------------------------
 
@@ -944,7 +989,7 @@ function generateEdgeMap(data, w, h, { edgeDilation = 1 } = {}) {
  * @param {number}       [opts.saliencyMultiplier=2.0]    Scales effectiveMaxSize in flat areas
  * @param {number}       [opts.deTieBreakThreshold=1.0]   ΔE within which frequency wins
  */
-function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, saliencyMap = null, { saliencyMultiplier = 2.0, deTieBreakThreshold = 1.0 } = {}) {
+function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, saliencyMap = null, { saliencyMultiplier = 2.0, deTieBreakThreshold = 1.0 } = {}, precomputedLabels = null) {
   if (maxOrphanSize <= 0) return mapped;
 
   const len = mapped.length;
@@ -957,6 +1002,53 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, salie
   for (let i = 0; i < len; i++) {
     const id = mapped[i].id;
     if (!colorEntries[id]) colorEntries[id] = mapped[i];
+  }
+
+  // ─── Fast path: use pre-labelled components to skip the BFS entirely ───────
+  if (precomputedLabels) {
+    for (const [, comp] of precomputedLabels.components) {
+      if (comp.size > absoluteMaxSize) continue;
+      const cells = comp.cells, compCount = cells.length, tid = comp.id;
+
+      if (edgeMap) {
+        let onEdge = false;
+        for (let i = 0; i < compCount; i++) { if (edgeMap[cells[i]]) { onEdge = true; break; } }
+        if (onEdge) continue;
+      }
+
+      let effectiveMaxSize = maxOrphanSize;
+      if (saliencyMap) {
+        let saliencySum = 0;
+        for (let i = 0; i < compCount; i++) saliencySum += saliencyMap[cells[i]];
+        effectiveMaxSize = maxOrphanSize * (1.0 + (1.0 - saliencySum / compCount) * saliencyMultiplier);
+      }
+      if (compCount > effectiveMaxSize) continue;
+
+      const neighborFreq = {};
+      for (let i = 0; i < compCount; i++) {
+        const cidx = cells[i], cx = cidx % w, cy = (cidx / w) | 0;
+        const checkN = (ni) => {
+          const nid = mapped[ni].id;
+          if (nid !== tid && nid !== '__skip__' && nid !== '__empty__') neighborFreq[nid] = (neighborFreq[nid] || 0) + 1;
+        };
+        if (cx > 0)           checkN(cidx - 1);
+        if (cx < w - 1)       checkN(cidx + 1);
+        if (cy > 0)           checkN(cidx - w);
+        if (cy < h - 1)       checkN(cidx + w);
+        if (cx > 0 && cy > 0)         checkN(cidx - w - 1);
+        if (cx < w-1 && cy > 0)       checkN(cidx - w + 1);
+        if (cx > 0 && cy < h-1)       checkN(cidx + w - 1);
+        if (cx < w-1 && cy < h-1)     checkN(cidx + w + 1);
+      }
+
+      const orphanLab = mapped[cells[0]].lab;
+      let minDE = Infinity;
+      for (const nid in neighborFreq) { const entry = colorEntries[nid]; if (!entry) continue; const de = Math.sqrt(dE2(orphanLab, entry.lab)); if (de < minDE) minDE = de; }
+      let bestId = null, bestCount = -1;
+      for (const nid in neighborFreq) { const entry = colorEntries[nid]; if (!entry) continue; const de = Math.sqrt(dE2(orphanLab, entry.lab)); if (de - minDE <= deTieBreakThreshold) { if (neighborFreq[nid] > bestCount) { bestCount = neighborFreq[nid]; bestId = nid; } } }
+      if (bestId) { const replacement = colorEntries[bestId]; for (let i = 0; i < compCount; i++) mapped[cells[i]] = replacement; }
+    }
+    return mapped;
   }
 
   const vis  = new Uint8Array(len);
@@ -1090,15 +1182,31 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, salie
 //   total         — singles + smallClusters
 //   pct           — total / totalStitchable * 100
 //   colorConfetti — { [colorId]: count } mapping of confetti stitches per colour
-function analyzeConfetti(mapped, w, h) {
-  const len = mapped.length;
-  const vis = new Uint8Array(len);
-  const q = new Uint32Array(len);
-
+function analyzeConfetti(mapped, w, h, precomputedLabels = null) {
   let totalStitchable = 0;
   let singles = 0;
   let smallClusters = 0;
   const colorConfetti = {};
+
+  // ─── Fast path: use pre-labelled components ──────────────────────────────────
+  if (precomputedLabels) {
+    for (const [, comp] of precomputedLabels.components) {
+      totalStitchable += comp.size;
+      if (comp.size === 1) {
+        singles++;
+        colorConfetti[comp.id] = (colorConfetti[comp.id] || 0) + 1;
+      } else if (comp.size <= 3) {
+        smallClusters += comp.size;
+        colorConfetti[comp.id] = (colorConfetti[comp.id] || 0) + comp.size;
+      }
+    }
+    const total = singles + smallClusters;
+    return { singles, smallClusters, total, pct: totalStitchable > 0 ? (total / totalStitchable * 100) : 0, colorConfetti };
+  }
+
+  const len = mapped.length;
+  const vis = new Uint8Array(len);
+  const q = new Uint32Array(len);
 
   for (let startIdx = 0; startIdx < len; startIdx++) {
     if (vis[startIdx]) continue;
@@ -1136,4 +1244,4 @@ function analyzeConfetti(mapped, w, h) {
   return { singles, smallClusters, total, pct, colorConfetti };
 }
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, generateEdgeMap, removeOrphanStitches, analyzeConfetti }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti }; }
