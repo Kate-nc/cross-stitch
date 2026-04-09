@@ -37,7 +37,7 @@ function ManagerApp() {
   const [patterns, setPatterns] = useState([]); // Array of pattern objects
   const [activeProject, setActiveProject] = useState(null); // From Stitch Tracker IndexedDB
   const [storedProjects, setStoredProjects] = useState([]); // Cross-stitch projects from ProjectStorage
-  const [storageUsage, setStorageUsage] = useState(null); // { used, quota } bytes
+  const [storageUsage, setStorageUsage] = useState(null); // { used, quota, persistent } bytes
   const [searchQuery, setSearchQuery] = useState("");
   const [threadFilter, setThreadFilter] = useState("all"); // 'all', 'owned', 'tobuy', 'lowstock'
   const [patternFilter, setPatternFilter] = useState("all"); // 'all', 'wishlist', 'owned', 'inprogress', 'completed'
@@ -64,6 +64,7 @@ function ManagerApp() {
     // Load Manager Data
     const loadManagerData = async () => {
       try {
+        await ensurePersistence();
         const db = await openManagerDB();
         const tx = db.transaction(["manager_state"], "readwrite");
         const store = tx.objectStore("manager_state");
@@ -175,6 +176,7 @@ function ManagerApp() {
 
   function openManagerDB() {
     return new Promise((resolve, reject) => {
+      ensurePersistence();
       const req = indexedDB.open("stitch_manager_db", 1);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
@@ -634,7 +636,7 @@ function ManagerApp() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#18181b" }}>Saved Cross-Stitch Projects ({storedProjects.length})</div>
                   {storageUsage && (
                     <div style={{ fontSize: 11, color: "#71717a" }}>
-                      Storage: {(storageUsage.used / 1024 / 1024).toFixed(1)} MB{storageUsage.quota ? ` / ~${(storageUsage.quota / 1024 / 1024).toFixed(0)} MB` : ""}
+                      Storage: {(storageUsage.used / 1024 / 1024).toFixed(1)} MB{storageUsage.quota ? ` / ~${(storageUsage.quota / 1024 / 1024).toFixed(0)} MB` : ""}{" "}{storageUsage.persistent ? "🔒 Protected" : "⏳ Temporary"}
                     </div>
                   )}
                 </div>

@@ -32,6 +32,7 @@ const ProjectStorage = (() => {
 
   function getDB() {
     return new Promise((resolve, reject) => {
+      ensurePersistence();
       let request = indexedDB.open(DB_NAME, 2);
       request.onupgradeneeded = (e) => {
         let db = e.target.result;
@@ -166,12 +167,13 @@ const ProjectStorage = (() => {
     },
 
     // Estimate storage used by IndexedDB (requires navigator.storage API).
-    // Returns { used: bytes, quota: bytes } or null if unsupported.
+    // Returns { used: bytes, quota: bytes, persistent: boolean } or null if unsupported.
     async getStorageEstimate() {
       if (navigator.storage && navigator.storage.estimate) {
         try {
           const est = await navigator.storage.estimate();
-          return { used: est.usage || 0, quota: est.quota || 0 };
+          const persistent = navigator.storage.persisted ? await navigator.storage.persisted() : false;
+          return { used: est.usage || 0, quota: est.quota || 0, persistent };
         } catch (e) {}
       }
       return null;
