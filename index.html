@@ -226,7 +226,7 @@ const generatePreview=useCallback(()=>{
   let mapped=dith?doDither(raw,pw,ph,p,allowBlends,saliencyMapPrev,{confettiDitherThreshold:cdt}):doMap(raw,pw,ph,p,allowBlends);
   if(skipBg){let bl=rgbToLab(bgCol[0],bgCol[1],bgCol[2]);for(let i=0;i<mapped.length;i++){if(dE(rgbToLab(raw[i*4],raw[i*4+1],raw[i*4+2]),bl)<bgTh)mapped[i]={type:"skip",id:"__skip__",rgb:[255,255,255]};}}
   const confettiRaw=analyzeConfetti(mapped,pw,ph);
-  if(stitchCleanup.enabled){const{maxOrphanSize,saliencyMultiplier}=STRENGTH_MAP[stitchCleanup.strength];const edgeMapPrev=stitchCleanup.protectDetails?generateEdgeMap(raw,pw,ph):null;mapped=removeOrphanStitches(mapped,pw,ph,maxOrphanSize,edgeMapPrev,saliencyMapPrev,{saliencyMultiplier});}
+  if(stitchCleanup.enabled){const cleanupStrength=Object.prototype.hasOwnProperty.call(STRENGTH_MAP,stitchCleanup.strength)?stitchCleanup.strength:"balanced";const{maxOrphanSize,saliencyMultiplier}=STRENGTH_MAP[cleanupStrength];const edgeMapPrev=stitchCleanup.protectDetails?generateEdgeMap(raw,pw,ph):null;mapped=removeOrphanStitches(mapped,pw,ph,maxOrphanSize,edgeMapPrev,saliencyMapPrev,{saliencyMultiplier});}
   const confettiClean=stitchCleanup.enabled?analyzeConfetti(mapped,pw,ph):null;
 
   // Calculate preview statistics
