@@ -168,6 +168,19 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}
         {state.modal==="shortcuts"&&<SharedModals.Shortcuts onClose={()=>state.setModal(null)} page="creator" />}
       </div>
+      {state.busy&&<div style={{
+        position:"fixed",top:0,left:0,right:0,bottom:0,
+        background:"rgba(255,255,255,0.8)",zIndex:1000,
+        display:"flex",alignItems:"center",justifyContent:"center",
+        flexDirection:"column",gap:12
+      }}>
+        <div style={{
+          width:32,height:32,border:"3px solid #e4e4e7",
+          borderTopColor:"#0d9488",borderRadius:"50%",
+          animation:"spin 0.8s linear infinite"
+        }}/>
+        <div style={{fontSize:14,color:"#71717a",fontWeight:500}}>Generating pattern\u2026</div>
+      </div>}
     </window.CreatorContext.Provider>
   );
 }
