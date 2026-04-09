@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v2';
+var CACHE_NAME = 'cross-stitch-cache-v3';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -28,24 +28,9 @@ var PRECACHE_URLS = [
   './home-screen.js',
   './palette-swap.js',
 
-  // Creator sub-components and hooks
-  './creator/context.js',
-  './creator/generate.js',
-  './creator/canvasRenderer.js',
-  './creator/exportPdf.js',
-  './creator/useCreatorState.js',
-  './creator/useEditHistory.js',
-  './creator/useCanvasInteraction.js',
-  './creator/useKeyboardShortcuts.js',
-  './creator/useProjectIO.js',
-  './creator/usePreview.js',
-  './creator/PatternCanvas.js',
-  './creator/ToolStrip.js',
-  './creator/Sidebar.js',
-  './creator/PatternTab.js',
-  './creator/ProjectTab.js',
-  './creator/LegendTab.js',
-  './creator/ExportTab.js',
+  // Creator app bundle (compiled from creator/ sub-components)
+  './creator/bundle.js',
+  './creator-main.js',
   './tracker-app.js',
   './manager-app.js',
   './embroidery.js',

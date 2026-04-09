@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -15,6 +15,8 @@
 <!-- Prefetch lazy-loaded assets in the background at idle time -->
 <link rel="prefetch" href="tracker-app.js">
 <link rel="prefetch" href="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+<!-- Preload creator-main.js so the fetch() in loadCreatorMain starts before scripts execute -->
+<link rel="preload" href="creator-main.js" as="fetch" crossorigin>
 <!-- Flag set before any Babel scripts so TrackerApp's guard fires correctly -->
 <script>
 window.__UNIFIED__=true;
@@ -42,24 +44,8 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="backup-restore.js"></script>
 <script src="home-screen.js"></script>
 <script src="palette-swap.js"></script>
-<script src="creator/context.js"></script>
-<script src="creator/generate.js"></script>
-<script src="creator/canvasRenderer.js"></script>
-<script src="creator/exportPdf.js"></script>
-<script src="creator/useCreatorState.js"></script>
-<script src="creator/useEditHistory.js"></script>
-<script src="creator/useCanvasInteraction.js"></script>
-<script src="creator/useKeyboardShortcuts.js"></script>
-<script src="creator/useProjectIO.js"></script>
-<script src="creator/usePreview.js"></script>
-<script src="creator/PatternCanvas.js"></script>
-<script src="creator/ToolStrip.js"></script>
-<script src="creator/Sidebar.js"></script>
-<script src="creator/PatternTab.js"></script>
-<script src="creator/ProjectTab.js"></script>
-<script src="creator/LegendTab.js"></script>
-<script src="creator/ExportTab.js"></script>
-<!-- Lazy-load helpers — available to both regular and Babel scripts -->
+<script src="creator/bundle.js"></script>
+<!-- Lazy-load helpers â€” available to both regular and Babel scripts -->
 <script>
 window.loadScript = function(src) {
   if (document.querySelector('script[src="' + src + '"]')) return Promise.resolve();
@@ -96,9 +82,35 @@ window.loadTrackerApp = function() {
     try { localStorage.setItem(TRACKER_CACHE_KEY, compiled); } catch(e) {}
     var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
   }).catch(function() {
-    /* file:// or network error — fall back to Babel MutationObserver path */
+    /* file:// or network error â€” fall back to Babel MutationObserver path */
     window.__trackerLoading = false;
     var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'tracker-app.js';
+    document.head.appendChild(s);
+  });
+};
+/* Loads creator-main.js via Babel, caching compiled output in localStorage.
+   Falls back to direct text/babel tag if fetch is unavailable. */
+var CREATOR_CACHE_KEY = 'babel_creator_v1';
+window.loadCreatorMain = function() {
+  if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
+  window.__creatorMainLoading = true;
+  var cached = null;
+  try { cached = localStorage.getItem(CREATOR_CACHE_KEY); } catch(e) {}
+  if (cached) {
+    window.__creatorMainLoaded = true;
+    var s = document.createElement('script'); s.textContent = '(function(){' + cached + '})();'; document.head.appendChild(s); return;
+  }
+  fetch('creator-main.js').then(function(r) {
+    return r.ok ? r.text() : Promise.reject('fetch failed');
+  }).then(function(src) {
+    var compiled = Babel.transform(src, { presets: ['react'], filename: 'creator-main.js' }).code;
+    try { localStorage.setItem(CREATOR_CACHE_KEY, compiled); } catch(e) {}
+    window.__creatorMainLoaded = true;
+    var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
+  }).catch(function() {
+    /* file:// or network error â€” fall back to Babel MutationObserver path */
+    window.__creatorMainLoading = false;
+    var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'creator-main.js';
     document.head.appendChild(s);
   });
 };
@@ -108,338 +120,7 @@ window.loadTrackerApp = function() {
 <body>
 <div id="root"></div>
 
-<script type="text/babel">
-const{useState,useRef,useCallback,useEffect,useMemo}=React;
-
-class CreatorErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { error: null }; }
-  static getDerivedStateFromError(error) { return { error }; }
-  componentDidCatch(error, info) { console.error('CreatorApp error:', error, info); }
-  render() {
-    if (this.state.error) return React.createElement('pre', {style:{color:'red',padding:20,fontSize:13,whiteSpace:'pre-wrap'}},
-      'CreatorApp Error: ' + this.state.error.message + '\n\n' + (this.state.error.stack || ''));
-    return this.props.children;
-  }
-}
-
-function confettiTier(pct){
-  if(pct<2)return{color:"#16a34a",label:"Excellent"};
-  if(pct<5)return{color:"#65a30d",label:"Good"};
-  if(pct<8)return{color:"#d97706",label:"Moderate"};
-  if(pct<15)return{color:"#ea580c",label:"Challenging"};
-  return{color:"#dc2626",label:"High confetti"};
-}
-
-function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
-  const state = useCreatorState();
-  const history = useEditHistory(state);
-  const canvas = useCanvasInteraction(state, history);
-  const io = useProjectIO(state, history, {onSwitchToTrack});
-  usePreview(state);
-  useKeyboardShortcuts(state, history, io);
-
-  const ctx = {...state, ...history, ...canvas, ...io, isActive};
-
-  return (
-    <window.CreatorContext.Provider value={ctx}>
-      <input ref={state.loadRef} type="file" accept=".json" onChange={io.loadProject} style={{display:"none"}}/>
-      <Header page="creator" tab={state.tab} onPageChange={state.setTab}
-        onOpen={()=>state.loadRef.current.click()}
-        onSave={state.pat&&state.pal?io.saveProject:null}
-        onTrack={state.pat&&state.pal?io.handleOpenInTracker:null}
-        onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},ctx):null}
-        onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
-        setModal={state.setModal} />
-      {state.pat&&state.pal&&<ContextBar
-        name={state.projectName||(state.sW+'×'+state.sH+' pattern')}
-        dimensions={{width:state.sW,height:state.sH}}
-        palette={state.pal}
-        pct={null}
-        page="creator"
-        onTrack={io.handleOpenInTracker}
-        onSave={io.saveProject}
-        onNameChange={n=>state.setProjectName(n)}
-      />}
-      {state.namePromptOpen&&<NamePromptModal
-        defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
-        onConfirm={name=>{state.setProjectName(name);state.setNamePromptOpen(false);io.doSaveProject(name);}}
-        onCancel={()=>state.setNamePromptOpen(false)}
-      />}
-      <window.CreatorToolStrip/>
-      <div className="cs-page-content" style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
-        {state.loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{state.loadError}</div>}
-        {!state.img&&!state.pat&&<div
-            style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #0d9488":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#f0fdfa":"transparent",transition:"all 0.2s"}}
-            onDragOver={(e)=>{e.preventDefault();state.setIsDragging(true);}}
-            onDragEnter={(e)=>{e.preventDefault();state.setIsDragging(true);}}
-            onDragLeave={(e)=>{e.preventDefault();state.setIsDragging(false);}}
-            onDrop={(e)=>{e.preventDefault();state.setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0){io.handleFile(e.dataTransfer.files[0]);e.dataTransfer.clearData();}}}
-          >
-          <h1 style={{fontSize:28,fontWeight:700,color:"#18181b",marginBottom:8}}>Welcome to Cross Stitch Pattern Generator</h1>
-          <p style={{fontSize:15,color:"#71717a",marginBottom:32}}>Turn any photo into a detailed pattern, drop an image anywhere here, or continue working on an existing project.</p>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:24}}>
-            <div onClick={()=>state.fRef.current.click()} className="upload-area" style={{position:"relative"}}>
-              {state.isUploading&&<div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"rgba(255,255,255,0.8)",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:12,zIndex:10,fontWeight:600,color:"#0d9488"}}>Processing...</div>}
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#18181b",marginBottom:4}}>Create New Pattern</div><div style={{color:"#71717a",fontSize:14}}>Upload an image (JPG, PNG)</div></div>
-            </div>
-            <div onClick={()=>state.loadRef.current.click()} className="upload-area">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#18181b",marginBottom:4}}>Load Existing Project</div><div style={{color:"#71717a",fontSize:14}}>Open a saved JSON file</div></div>
-            </div>
-            <div onClick={state.startScratch} className="upload-area">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#18181b",marginBottom:4}}>Design from Scratch</div><div style={{color:"#71717a",fontSize:14}}>Start with a blank grid and paint by hand</div></div>
-            </div>
-          </div>
-        </div>}
-        <input ref={state.fRef} type="file" accept="image/*" onChange={io.handleFile} style={{display:"none"}}/>
-        {(state.img||state.pat)&&<div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
-          {state.tab!=="stitch"&&<div style={{flex:state.sidebarOpen?"0 0 280px":"0 0 auto",display:"flex",flexDirection:"column",gap:state.sidebarOpen?10:0,overflow:"hidden"}}>
-            {state.pat&&<button onClick={()=>state.setSidebarOpen(!state.sidebarOpen)} style={{padding:"5px 10px",fontSize:12,fontWeight:500,background:"#f4f4f5",border:"0.5px solid #e4e4e7",borderRadius:8,cursor:"pointer",color:"#71717a",alignSelf:state.sidebarOpen?"flex-end":"flex-start",whiteSpace:"nowrap"}}>{state.sidebarOpen?"◄ Hide":"► Settings"}</button>}
-            <window.CreatorSidebar/>
-          </div>}
-          <div style={{flex:1,minWidth:0}}>
-            {state.pat&&state.pal&&<div>
-              <window.CreatorPatternTab/>
-              <window.CreatorProjectTab/>
-              <window.CreatorLegendTab/>
-              <window.CreatorExportTab/>
-            </div>}
-            {!state.pat&&state.img&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:20}}>
-              <div className="card">
-                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a"}}>Original Image</div>
-                <div style={{position:"relative"}} ref={state.cropRef} onMouseDown={canvas.handleCropMouseDown} onMouseMove={canvas.handleCropMouseMove} onMouseUp={canvas.handleCropMouseUp} onMouseLeave={canvas.handleCropMouseUp}>
-                  <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.isCropping?"crosshair":(state.pickBg?"crosshair":"default"),opacity:state.isCropping?0.7:1}} onClick={canvas.srcClick}/>
-                  {state.isCropping&&state.cropRect&&<div style={{position:"absolute",left:state.cropRect.x,top:state.cropRect.y,width:state.cropRect.w,height:state.cropRect.h,border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
-                </div>
-                {state.isCropping?<div style={{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}}>
-                  <span style={{fontSize:11,color:"#a1a1aa"}}>Draw a rectangle</span>
-                  <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>{state.setIsCropping(false);state.setCropRect(null);}} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Cancel</button>
-                    <button onClick={canvas.applyCrop} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}}>Apply</button>
-                  </div>
-                </div>:<div style={{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}}>
-                  <span style={{fontSize:11,color:"#a1a1aa"}}>{state.origW}×{state.origH}px</span>
-                  <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Crop</button>
-                    <button onClick={()=>state.fRef.current.click()} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Change</button>
-                  </div>
-                </div>}
-                {state.pickBg&&<div style={{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}
-              </div>
-              {state.previewUrl&&<div className="card" style={{display:"flex",flexDirection:"column"}}>
-                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a"}}>Preview</div>
-                <div style={{padding:"0 14px 10px",flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <img src={state.previewUrl} alt="Preview" style={{maxWidth:"100%",maxHeight:"600px",borderRadius:6,border:"0.5px solid #e4e4e7",imageRendering:"pixelated"}}/>
-                </div>
-                {state.previewStats&&<div style={{padding:"10px 14px",borderTop:"0.5px solid #f4f4f5",background:"#fafafa",borderBottomLeftRadius:8,borderBottomRightRadius:8}}>
-                  <div style={{fontSize:11,fontWeight:600,color:"#71717a",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
-                    <div><div style={{fontSize:10,color:"#a1a1aa"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{state.previewStats.stitchable.toLocaleString()}</div></div>
-                    {state.skipBg&&<div><div style={{fontSize:10,color:"#a1a1aa"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{state.previewStats.skipped.toLocaleString()}</div></div>}
-                    <div><div style={{fontSize:10,color:"#a1a1aa"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{state.previewStats.uniqueColors}</div></div>
-                    <div><div style={{fontSize:10,color:"#a1a1aa"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{state.previewStats.estSkeins}</div></div>
-                    <div><div style={{fontSize:10,color:"#a1a1aa"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
-                    <div><div style={{fontSize:10,color:"#a1a1aa"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
-                  </div>
-                  {state.previewStats.confettiPct!=null&&(()=>{
-                    const t=confettiTier(state.previewStats.confettiPct);
-                    const tips={"Excellent":"Great stitch flow","Good":"Low confetti — pleasant to stitch","Moderate":"Some isolated stitches — try the Remove Orphans slider","Challenging":"High confetti — reduce colours or use Remove Orphans","High confetti":"Very tedious — strongly consider removing orphans"};
-                    return(
-                      <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #e4e4e7"}}>
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
-                          <span style={{fontSize:10,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
-                          <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18"}}>{t.label}</span>
-                        </div>
-                        <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <div style={{flex:1,height:5,background:"#e4e4e7",borderRadius:3,overflow:"hidden"}}>
-                            <div style={{height:"100%",width:Math.min(100,state.previewStats.confettiPct*4)+"%",background:t.color,borderRadius:3}}/>
-                          </div>
-                          <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString()} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
-                        </div>
-                        <div style={{fontSize:10,color:"#a1a1aa",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString()} after cleanup`:""}</div>
-                      </div>
-                    );
-                  })()}
-                </div>}
-              </div>}
-            </div>}
-          </div>
-        </div>}
-        {state.modal==="help"&&<SharedModals.Help onClose={()=>state.setModal(null)} />}
-        {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}
-        {state.modal==="shortcuts"&&<SharedModals.Shortcuts onClose={()=>state.setModal(null)} page="creator" />}
-      </div>
-    </window.CreatorContext.Provider>
-  );
-}
-
-function UnifiedApp(){
-  const[mode,setMode]=React.useState(()=>{
-    const p=new URLSearchParams(window.location.search);
-    if(p.get('mode')==='track') return 'track';
-    // Start on home screen by default
-    return 'home';
-  });
-  // Increment to force-remount CreatorApp (clears its state for "go home")
-  const[creatorResetKey,setCreatorResetKey]=React.useState(0);
-  // Lazy-mount TrackerApp on first switch; keep it alive after that.
-  const[trackerMounted,setTrackerMounted]=React.useState(()=>{
-    const p=new URLSearchParams(window.location.search);
-    return p.get('mode')==='track';
-  });
-  const[trackerReady,setTrackerReady]=React.useState(typeof window.TrackerApp!=='undefined');
-  // Holds the project object forwarded from Creator → Tracker to avoid DB round trip.
-  const pendingTrackerProject=React.useRef(null);
-  // Increment to force HomeScreen remount (refreshes data after project work)
-  const[homeKey,setHomeKey]=React.useState(0);
-
-  React.useEffect(()=>{
-    if(trackerReady)return;
-    // If opened directly in track mode, start loading TrackerApp immediately
-    if(mode==='track'&&typeof window.loadTrackerApp==='function') window.loadTrackerApp();
-    const poll=setInterval(()=>{if(typeof window.TrackerApp!=='undefined'){setTrackerReady(true);clearInterval(poll);}},50);
-    return()=>clearInterval(poll);
-  },[trackerReady]);
-
-  // switchToTrack accepts an optional {project, key} object from handleOpenInTracker.
-  const switchToTrack=React.useCallback((incomingProject)=>{
-    if(incomingProject) pendingTrackerProject.current=incomingProject;
-    if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
-    setTrackerMounted(true);
-    window.history.replaceState({},'','?mode=track');
-    setMode('track');
-  },[]);
-  const switchToDesign=React.useCallback(()=>{
-    window.history.replaceState({},'',window.location.pathname);
-    setMode('design');
-  },[]);
-  // goHome: shows the home screen, preserving project in auto-save
-  const goHome=React.useCallback(()=>{
-    window.history.replaceState({},'',window.location.pathname);
-    setHomeKey(k=>k+1);
-    setMode('home');
-  },[]);
-
-  React.useEffect(()=>{
-    window.__switchToTrack=switchToTrack;
-    window.__switchToDesign=switchToDesign;
-    window.__goHome=goHome;
-    return()=>{delete window.__switchToTrack;delete window.__switchToDesign;delete window.__goHome;};
-  },[switchToTrack,switchToDesign,goHome]);
-
-  // --- HomeScreen action handlers ---
-  const handleHomeOpenCreatorWithImage=React.useCallback((file)=>{
-    // Set the file onto a global so CreatorApp can pick it up on mount
-    window.__pendingCreatorFile=file;
-    if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
-    setCreatorResetKey(k=>k+1);
-    window.history.replaceState({},'',window.location.pathname);
-    setMode('design');
-  },[]);
-
-  const handleHomeOpenCreatorBlank=React.useCallback(()=>{
-    window.__pendingCreatorAction='scratch';
-    if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
-    setCreatorResetKey(k=>k+1);
-    window.history.replaceState({},'',window.location.pathname);
-    setMode('design');
-  },[]);
-
-  const handleHomeOpenFile=React.useCallback((file)=>{
-    const ext=file.name.split('.').pop().toLowerCase();
-    if(ext==='json'){
-      // Open in Creator (it handles JSON)
-      window.__pendingCreatorJsonFile=file;
-      setCreatorResetKey(k=>k+1);
-      window.history.replaceState({},'',window.location.pathname);
-      setMode('design');
-    } else if(ext==='oxs'||ext==='pdf'){
-      // Route to tracker import
-      window.__pendingTrackerImportFile=file;
-      if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
-      setTrackerMounted(true);
-      window.history.replaceState({},'','?mode=track');
-      setMode('track');
-    } else if(ext==='png'||ext==='jpg'||ext==='jpeg'){
-      window.__pendingCreatorFile=file;
-      if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
-      setCreatorResetKey(k=>k+1);
-      window.history.replaceState({},'',window.location.pathname);
-      setMode('design');
-    }
-  },[]);
-
-  const handleHomeImportPattern=React.useCallback((file)=>{
-    window.__pendingTrackerImportFile=file;
-    if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
-    setTrackerMounted(true);
-    window.history.replaceState({},'','?mode=track');
-    setMode('track');
-  },[]);
-
-  const handleHomeOpenProject=React.useCallback((projectMeta, targetMode)=>{
-    if(!projectMeta||!projectMeta.id) return;
-    ProjectStorage.setActiveProject(projectMeta.id);
-    if(targetMode==='tracker'){
-      ProjectStorage.get(projectMeta.id).then(fullProject=>{
-        if(fullProject){
-          switchToTrack({project:fullProject, key:Date.now()});
-        }
-      });
-    } else {
-      // Creator: set active, remount, it will auto-load from IndexedDB
-      setCreatorResetKey(k=>k+1);
-      window.history.replaceState({},'',window.location.pathname);
-      setMode('design');
-    }
-  },[switchToTrack]);
-
-  const handleHomeNavigateToStash=React.useCallback(()=>{
-    window.location.href='manager.html';
-  },[]);
-
-  const[homeModal,setHomeModal]=React.useState(null);
-
-  const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
-  return <>
-    {mode==='home'&&<div>
-      <Header page="home" tab="" onPageChange={()=>{}} setModal={setHomeModal} />
-      <HomeScreen
-        key={homeKey}
-        onOpenCreatorWithImage={handleHomeOpenCreatorWithImage}
-        onOpenCreatorBlank={handleHomeOpenCreatorBlank}
-        onOpenFile={handleHomeOpenFile}
-        onImportPattern={handleHomeImportPattern}
-        onOpenProject={handleHomeOpenProject}
-        onNavigateToStash={handleHomeNavigateToStash}
-      />
-      {homeModal==='help'&&<SharedModals.Help onClose={()=>setHomeModal(null)} />}
-
-    </div>}
-    <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
-      <CreatorErrorBoundary><CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/></CreatorErrorBoundary>
-    </div>
-    <div style={{display:mode==='track'?'':'none'}}>
-      {trackerMounted&&!trackerReady&&(
-        <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:12,color:'#71717a',fontSize:14}}>
-          <div style={{width:28,height:28,border:'2.5px solid #e4e4e7',borderTopColor:'#0d9488',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
-          Loading Stitch Tracker…
-        </div>
-      )}
-      {trackerMounted&&trackerReady&&T&&<T
-        onSwitchToDesign={switchToDesign}
-        onGoHome={goHome}
-        isActive={mode==='track'}
-        incomingProject={pendingTrackerProject.current}
-      />}
-    </div>
-  </>;
-}
-
-ReactDOM.createRoot(document.getElementById("root")).render(<UnifiedApp/>);
-</script>
+<script>window.loadCreatorMain();</script>
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 <script>
   if ('serviceWorker' in navigator) {
