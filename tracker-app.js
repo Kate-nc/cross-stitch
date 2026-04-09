@@ -10,6 +10,7 @@ const[stitchSpeed,setStitchSpeed]=useState(40);
 
 const[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
+const[autoSubModal,setAutoSubModal]=useState(null);
 const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
 const [pdfSettings, setPdfSettings] = useState({ chartStyle: 'symbols', cellSize: 3, paper: 'a4', orientation: 'portrait', gridInterval: 10, gridNumbers: true, centerMarks: true, legendLocation: 'separate', legendColumns: 2, coverPage: true, progressOverlay: false, separateBackstitch: false });
 const showCtr=true;
@@ -1221,27 +1222,41 @@ function handleSymbolReassignment(oldColorId, newThread) {
   setCmap(newCmap);
 }
 
-function handleAutoSubstitute() {
+const handleAutoSubstitute = useCallback(() => {
   if (!pat || !pal || !cmap || typeof StashBridge === "undefined") return;
 
   const replacements = [];
-  const replacementMap = {};
 
   skeinData.forEach(d => {
     if ((threadOwned[d.id] || "") !== "owned") {
       const alts = StashBridge.suggestAlternatives(d.id, 1, globalStash);
-      if (alts.length > 0 && alts[0].deltaE < 4.0) {
-        replacements.push({ oldId: d.id, newThread: alts[0] });
-        replacementMap[d.id] = alts[0];
+      if (alts.length > 0 && alts[0].deltaE < 10.0) {
+        replacements.push({
+          oldId: d.id,
+          oldName: d.name,
+          oldRgb: d.rgb,
+          newThread: alts[0],
+          selected: true
+        });
       }
     }
   });
 
   if (replacements.length === 0) {
-    setAdvanceToast("No suitable stash alternatives found.");
-    setTimeout(() => setAdvanceToast(null), 2500);
+    alert("No suitable stash alternatives found (ΔE < 10.0) for unowned threads.");
     return;
   }
+
+  setAutoSubModal(replacements);
+}, [pat, pal, cmap, skeinData, threadOwned, globalStash]);
+
+function applyAutoSubstitutions(replacementsToApply) {
+  if (replacementsToApply.length === 0) return;
+
+  const replacementMap = {};
+  replacementsToApply.forEach(r => {
+    replacementMap[r.oldId] = r.newThread;
+  });
 
   const currentPatState = JSON.parse(JSON.stringify(pat));
   const currentPalState = JSON.parse(JSON.stringify(pal));
@@ -1262,8 +1277,6 @@ function handleAutoSubstitute() {
     return p;
   });
 
-  // Handle possible duplicates if two old threads map to the same new thread, or an old thread maps to an existing thread.
-  // We need to merge counts and deduplicate by id while keeping the first symbol.
   const palMap = {};
   newPal.forEach(p => {
     if (palMap[p.id]) {
@@ -1296,8 +1309,7 @@ function handleAutoSubstitute() {
 
   setThreadOwned(prev => {
     const next = { ...prev };
-    replacements.forEach(({ oldId, newThread }) => {
-      // Mark stash-substituted threads as owned
+    replacementsToApply.forEach(({ oldId, newThread }) => {
       next[newThread.id] = "owned";
       delete next[oldId];
     });
@@ -1308,7 +1320,7 @@ function handleAutoSubstitute() {
   setPal(newPal);
   setCmap(newCmap);
 
-  setAdvanceToast(`Replaced ${replacements.length} missing colours with stash alternatives`);
+  setAdvanceToast(`Replaced ${replacementsToApply.length} missing colours with stash alternatives`);
   setTimeout(() => setAdvanceToast(null), 3000);
 }
 
@@ -2848,7 +2860,7 @@ return(
               <button onClick={()=>toggleOwned(d.id)} style={{fontSize:11,padding:"3px 10px",borderRadius:5,border:"1px solid "+(isOwned?"#bbf7d0":"#fed7aa"),background:isOwned?"#f0fdf4":"#fff7ed",color:isOwned?"#16a34a":"#ea580c",cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center"}}>{isOwned?"Owned":"To buy"}</button>
               {typeof StashBridge!=="undefined"&&<button onClick={(e)=>{e.stopPropagation();setAltOpen(altOpen===d.id?null:d.id);}} style={{fontSize:10,padding:"2px 6px",borderRadius:4,border:"1px solid #e0e7ff",background:altOpen===d.id?"#e0e7ff":"#fff",color:"#4338ca",cursor:"pointer",fontWeight:600}} title="Show similar threads from stash">≈</button>}
             </div>
-            {altOpen===d.id&&(()=>{const alts=StashBridge.suggestAlternatives(d.id,5,globalStash);return alts.length>0?<div style={{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}}><span style={{color:"#71717a",fontWeight:600}}>Similar in stash:</span>{alts.map(a=><span key={a.id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}}><span style={{width:10,height:10,borderRadius:2,background:`rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`,border:"1px solid #d4d4d8"}}/><span style={{fontWeight:600}}>DMC {a.id}</span><span style={{color:"#71717a"}}>{a.name}</span><span style={{color:"#a1a1aa"}}>ΔE {a.deltaE}</span><span style={{color:"#4338ca"}}>{a.owned}sk</span></span>)}</div>:<div style={{padding:"6px 12px 8px 36px",fontSize:11,color:"#a1a1aa"}}>No similar threads found in your stash.</div>;})()}
+            {altOpen===d.id&&(()=>{const alts=StashBridge.suggestAlternatives(d.id,5,globalStash);return alts.length>0?<div style={{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}}><span style={{color:"#71717a",fontWeight:600}}>Similar in stash:</span>{alts.map(a=><span key={a.id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}}><span style={{width:10,height:10,borderRadius:2,background:`rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`,border:"1px solid #d4d4d8"}}/><span style={{fontWeight:600}}>DMC {a.id}</span><span style={{color:"#71717a"}}>{a.name}</span><span style={{color:"#a1a1aa"}}>ΔE {a.deltaE}</span><span style={{color:"#4338ca"}}>{a.owned}sk</span><button onClick={(e)=>{e.stopPropagation();if(confirm(`Replace DMC ${d.id} with DMC ${a.id}?`)){handleSymbolReassignment(d.id, a);setThreadOwned(prev=>({...prev,[a.id]:"owned"}));}}} style={{fontSize:9,padding:"1px 4px",marginLeft:4,borderRadius:4,background:"#4f46e5",color:"#fff",border:"none",cursor:"pointer"}}>Substitute</button></span>)}</div>:<div style={{padding:"6px 12px 8px 36px",fontSize:11,color:"#a1a1aa"}}>No similar threads found in your stash.</div>;})()}
             </React.Fragment>;})}
         </div>
         <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
@@ -3035,6 +3047,59 @@ return(
 
   {modal==="shortcuts"&&<SharedModals.Shortcuts onClose={()=>setModal(null)} page="tracker" />}
 
+
+  {autoSubModal && (
+    <div className="modal-overlay" onClick={() => setAutoSubModal(null)}>
+      <div className="modal-content" style={{maxWidth:600}} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={() => setAutoSubModal(null)}>×</button>
+        <h3 style={{marginTop:0,marginBottom:15}}>Review Substitutions</h3>
+        <p style={{fontSize:13,color:"#71717a",marginBottom:20}}>Review the suggested stash alternatives for your missing threads.</p>
+        <div style={{display:"flex",flexDirection:"column",gap:10,maxHeight:400,overflow:"auto"}}>
+          {autoSubModal.map((r, i) => (
+            <label key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px",border:"1px solid #e4e4e7",borderRadius:8,background:r.selected?"#f0fdf4":"#fff",cursor:"pointer"}}>
+              <input type="checkbox" checked={r.selected} onChange={e => {
+                const updated = [...autoSubModal];
+                updated[i].selected = e.target.checked;
+                setAutoSubModal(updated);
+              }} style={{width:16,height:16,accentColor:"#16a34a"}} />
+
+              <div style={{display:"flex",flexDirection:"column",flex:1}}>
+                <span style={{fontSize:11,color:"#71717a",fontWeight:600,textTransform:"uppercase"}}>Replace</span>
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:500}}>
+                  <div style={{width:14,height:14,borderRadius:3,background:`rgb(${r.oldRgb[0]},${r.oldRgb[1]},${r.oldRgb[2]})`,border:"1px solid rgba(0,0,0,0.1)"}} />
+                  <span>DMC {r.oldId}</span>
+                  <span style={{color:"#71717a"}}>{r.oldName}</span>
+                </div>
+              </div>
+
+              <span style={{color:"#a1a1aa",fontSize:16}}>→</span>
+
+              <div style={{display:"flex",flexDirection:"column",flex:1}}>
+                <span style={{fontSize:11,color:"#71717a",fontWeight:600,textTransform:"uppercase"}}>With</span>
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:500}}>
+                  <div style={{width:14,height:14,borderRadius:3,background:`rgb(${r.newThread.rgb[0]},${r.newThread.rgb[1]},${r.newThread.rgb[2]})`,border:"1px solid rgba(0,0,0,0.1)"}} />
+                  <span>DMC {r.newThread.id}</span>
+                  <span style={{color:"#71717a"}}>{r.newThread.name}</span>
+                </div>
+              </div>
+
+              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",minWidth:60}}>
+                <span style={{fontSize:11,color:"#a1a1aa",fontWeight:600}}>ΔE {r.newThread.deltaE}</span>
+                <span style={{fontSize:11,color:"#16a34a",fontWeight:600}}>{r.newThread.owned} owned</span>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
+          <button onClick={() => setAutoSubModal(null)} style={{padding:"8px 16px",fontSize:13,borderRadius:6,border:"1px solid #d4d4d8",background:"#fff",cursor:"pointer"}}>Cancel</button>
+          <button onClick={() => {
+            applyAutoSubstitutions(autoSubModal.filter(r => r.selected));
+            setAutoSubModal(null);
+          }} style={{padding:"8px 16px",fontSize:13,borderRadius:6,border:"none",background:"#16a34a",color:"#fff",cursor:"pointer",fontWeight:600}}>Confirm & Replace</button>
+        </div>
+      </div>
+    </div>
+  )}
 
   {modal==="deduct_prompt"&&<div className="modal-overlay" onClick={()=>{setModal(null);setStashDeducted(true);}}>
     <div className="modal-content" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
