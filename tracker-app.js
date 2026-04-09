@@ -1208,13 +1208,21 @@ function handleSymbolReassignment(oldColorId, newThread) {
   newPal.forEach(p => { newCmap[p.id] = p; });
 
   // 5. Update thread owned status map to move the status if any
-  if (threadOwned[oldColorId]) {
-    setThreadOwned(prev => {
-      const next = { ...prev };
-      next[newThread.id] = prev[oldColorId];
-      delete next[oldColorId];
-      return next;
-    });
+  setThreadOwned(prev => {
+    const next = { ...prev };
+    next[newThread.id] = "owned";
+    delete next[oldColorId];
+    return next;
+  });
+
+  if (typeof StashBridge !== "undefined") {
+    (async () => {
+      const gs = globalStash[newThread.id] || {owned: 0};
+      if (gs.owned < 1) {
+        await StashBridge.updateThreadOwned(newThread.id, 1);
+      }
+      setGlobalStash(await StashBridge.getGlobalStash());
+    })();
   }
 
   setPat(newPat);
@@ -1319,6 +1327,20 @@ function applyAutoSubstitutions(replacementsToApply) {
   setPat(newPat);
   setPal(newPal);
   setCmap(newCmap);
+
+  if (typeof StashBridge !== "undefined") {
+    (async () => {
+      for (const { oldId, newThread } of replacementsToApply) {
+        // Technically old unowned threads shouldn't exist in Stash as owned anyway,
+        // but let's just make sure the new one is owned in the global stash if we just swapped it
+        const gs = globalStash[newThread.id] || {owned: 0};
+        if (gs.owned < 1) {
+          await StashBridge.updateThreadOwned(newThread.id, 1);
+        }
+      }
+      setGlobalStash(await StashBridge.getGlobalStash());
+    })();
+  }
 
   setAdvanceToast(`Replaced ${replacementsToApply.length} missing colours with stash alternatives`);
   setTimeout(() => setAdvanceToast(null), 3000);
@@ -2860,7 +2882,7 @@ return(
               <button onClick={()=>toggleOwned(d.id)} style={{fontSize:11,padding:"3px 10px",borderRadius:5,border:"1px solid "+(isOwned?"#bbf7d0":"#fed7aa"),background:isOwned?"#f0fdf4":"#fff7ed",color:isOwned?"#16a34a":"#ea580c",cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center"}}>{isOwned?"Owned":"To buy"}</button>
               {typeof StashBridge!=="undefined"&&<button onClick={(e)=>{e.stopPropagation();setAltOpen(altOpen===d.id?null:d.id);}} style={{fontSize:10,padding:"2px 6px",borderRadius:4,border:"1px solid #e0e7ff",background:altOpen===d.id?"#e0e7ff":"#fff",color:"#4338ca",cursor:"pointer",fontWeight:600}} title="Show similar threads from stash">≈</button>}
             </div>
-            {altOpen===d.id&&(()=>{const alts=StashBridge.suggestAlternatives(d.id,5,globalStash);return alts.length>0?<div style={{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}}><span style={{color:"#71717a",fontWeight:600}}>Similar in stash:</span>{alts.map(a=><span key={a.id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}}><span style={{width:10,height:10,borderRadius:2,background:`rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`,border:"1px solid #d4d4d8"}}/><span style={{fontWeight:600}}>DMC {a.id}</span><span style={{color:"#71717a"}}>{a.name}</span><span style={{color:"#a1a1aa"}}>ΔE {a.deltaE}</span><span style={{color:"#4338ca"}}>{a.owned}sk</span><button onClick={(e)=>{e.stopPropagation();if(confirm(`Replace DMC ${d.id} with DMC ${a.id}?`)){handleSymbolReassignment(d.id, a);setThreadOwned(prev=>({...prev,[a.id]:"owned"}));}}} style={{fontSize:9,padding:"1px 4px",marginLeft:4,borderRadius:4,background:"#4f46e5",color:"#fff",border:"none",cursor:"pointer"}}>Substitute</button></span>)}</div>:<div style={{padding:"6px 12px 8px 36px",fontSize:11,color:"#a1a1aa"}}>No similar threads found in your stash.</div>;})()}
+            {altOpen===d.id&&(()=>{const alts=StashBridge.suggestAlternatives(d.id,5,globalStash);return alts.length>0?<div style={{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}}><span style={{color:"#71717a",fontWeight:600}}>Similar in stash:</span>{alts.map(a=><span key={a.id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}}><span style={{width:10,height:10,borderRadius:2,background:`rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`,border:"1px solid #d4d4d8"}}/><span style={{fontWeight:600}}>DMC {a.id}</span><span style={{color:"#71717a"}}>{a.name}</span><span style={{color:"#a1a1aa"}}>ΔE {a.deltaE}</span><span style={{color:"#4338ca"}}>{a.owned}sk</span><button onClick={(e)=>{e.stopPropagation();if(confirm(`Replace DMC ${d.id} with DMC ${a.id}?`)){handleSymbolReassignment(d.id, a);}}} style={{fontSize:9,padding:"1px 4px",marginLeft:4,borderRadius:4,background:"#4f46e5",color:"#fff",border:"none",cursor:"pointer"}}>Substitute</button></span>)}</div>:<div style={{padding:"6px 12px 8px 36px",fontSize:11,color:"#a1a1aa"}}>No similar threads found in your stash.</div>;})()}
             </React.Fragment>;})}
         </div>
         <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
