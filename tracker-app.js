@@ -1816,7 +1816,7 @@ useEffect(()=>{
       if(e.key==="v"||e.key==="V"){
         const nextView=stitchView==="symbol"?"colour":stitchView==="colour"?"highlight":"symbol";
         setStitchView(nextView);
-        if(nextView==="highlight"){const valid=focusColour&&pal&&pal.find(p=>p.id===focusColour);if(!valid){const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];if(first)setFocusColour(first.id);}}
+        if(nextView==="highlight"&&!focusColour){const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];if(first)setFocusColour(first.id);}
         return;
       }
     }
@@ -1951,7 +1951,7 @@ return(
     </span>}
   <div className="tb-sdiv"/>
   <div className={"tb-grp"+(tStripCollapsed.view?" tb-hidden":"")}>
-    {[['symbol','Sym'],['colour','Col+Sym'],['highlight','HL']].map(([k,l])=><button key={k} className={"tb-btn"+(stitchView===k?" tb-btn--on":"")} title="Cycle view (V)" onClick={()=>{setStitchView(k);if(k==="highlight"){const valid=focusColour&&pal.find(p=>p.id===focusColour);if(!valid){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}}>{l}</button>)}
+    {[['symbol','Sym'],['colour','Col+Sym'],['highlight','HL']].map(([k,l])=><button key={k} className={"tb-btn"+(stitchView===k?" tb-btn--on":"")} title="Cycle view (V)" onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>)}
   </div>
   {stitchView==="highlight"&&<>
     <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fafafa",cursor:"pointer",lineHeight:1}} title="Previous colour">◀</button>

@@ -234,10 +234,7 @@ const SharedModals = {
           shRow(['5'], 'Erase'),
           shRow(['P'], 'Paint brush'),
           shRow(['F'], 'Fill bucket'),
-          shRow(['I'], 'Eyedropper — pick colour from canvas'),
-          shRow(['V'], 'Cycle view (Colour / Symbol / Both)'),
-          shRow(['S'], 'Cycle palette sort (Count → Hue → DMC # → Name → Remaining → Done %)'),
-          shRow([',', '.'], 'Step back / forward through recent colours'),
+          shRow(['V'], 'Cycle view mode'),
           shRow(['+', '−'], 'Zoom in / out'),
           shRow(['0'], 'Zoom to fit'),
         ])
