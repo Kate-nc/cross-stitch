@@ -80,7 +80,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
   );
 }
 
-function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, setModal, activeProject }) {
+function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
   React.useEffect(() => {
@@ -98,6 +98,42 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [fileMenuOpen]);
+
+  const [dataMenuOpen, setDataMenuOpen] = React.useState(false);
+  const dataMenuRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!dataMenuOpen) return;
+    function close(e) { if (dataMenuRef.current && !dataMenuRef.current.contains(e.target)) setDataMenuOpen(false); }
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [dataMenuOpen]);
+
+  // Inline backup/restore used by the File dropdown on non-manager pages
+  function handleInlineRestore(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var backup = JSON.parse(reader.result);
+        var check = BackupRestore.validate(backup);
+        if (!check.valid) { alert(check.error); return; }
+        var s = check.summary;
+        var when = s.createdAt ? new Date(s.createdAt).toLocaleString() : 'unknown date';
+        var msg = 'Restore backup from ' + when + '?\n\n'
+          + s.projectCount + ' projects \u00b7 ' + s.threadCount + ' owned threads \u00b7 ' + s.patternCount + ' patterns'
+          + '\n\nThis will replace all current data.';
+        if (!window.confirm(msg)) return;
+        BackupRestore.restore(backup)
+          .then(function () { window.location.reload(); })
+          .catch(function (err) { alert('Restore failed: ' + err.message); });
+      } catch (err) {
+        alert('Invalid file: could not parse JSON.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
 
   const creatorPages = [['pattern','Pattern'],['project','Project'],['legend','Threads'],['export','Export']];
   const activeLabel = creatorPages.find(p => p[0] === tab)?.[1] || 'Pattern';
@@ -207,6 +243,39 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('shortcuts'), 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, '⌨'),
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('help') }, 'Help'),
 
+        // Data dropdown (manager page only)
+        (onBackupDownload || onRestoreFile) &&
+          React.createElement('div', { ref: dataMenuRef, style: { position: 'relative', flexShrink: 0 } },
+            React.createElement('button', { className: 'tb-page-btn', onClick: () => setDataMenuOpen(o => !o) },
+              'Data',
+              React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 3 } }, '▾')
+            ),
+            dataMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 210 } },
+              storageUsage && React.createElement('div', { style: { padding: '8px 14px 6px', fontSize: 11, color: '#71717a', borderBottom: '1px solid #f4f4f5' } },
+                storageUsage.persistent ? '🔒 Protected' : '⏳ Temporary',
+                ' · ',
+                (storageUsage.used / 1024 / 1024).toFixed(1) + ' MB'
+                + (storageUsage.quota ? ' / ~' + (storageUsage.quota / 1024 / 1024).toFixed(0) + ' MB' : '')
+              ),
+              onBackupDownload && React.createElement('button', {
+                className: 'tb-page-dropdown-item',
+                onClick: () => { onBackupDownload(); setDataMenuOpen(false); }
+              }, '💾 Export Full Backup'),
+              onRestoreFile && React.createElement('label', {
+                className: 'tb-page-dropdown-item',
+                style: { display: 'block', cursor: 'pointer' }
+              },
+                '📂 Restore from Backup…',
+                React.createElement('input', {
+                  type: 'file',
+                  accept: '.json',
+                  style: { display: 'none' },
+                  onChange: (e) => { onRestoreFile(e); setDataMenuOpen(false); }
+                })
+              )
+            )
+          ),
+
         // File menu dropdown
         (onOpen || onSave || onTrack || onExportPDF || onNewProject) &&
           React.createElement('div', { ref: fileMenuRef, style: { position: 'relative', flexShrink: 0 } },
@@ -234,7 +303,25 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               onExportPDF && React.createElement('button', {
                 className: 'tb-page-dropdown-item',
                 onClick: () => { onExportPDF(); setFileMenuOpen(false); }
-              }, 'Export PDF…')
+              }, 'Export PDF…'),
+              // Backup / Restore — available on all pages when backup-restore.js is loaded
+              typeof BackupRestore !== 'undefined' && React.createElement('div', { style: { height: 1, background: '#f4f4f5', margin: '4px 0' } }),
+              typeof BackupRestore !== 'undefined' && React.createElement('button', {
+                className: 'tb-page-dropdown-item',
+                onClick: () => { setFileMenuOpen(false); BackupRestore.downloadBackup().catch(function(e) { alert('Backup failed: ' + e.message); }); }
+              }, '\ud83d\udcbe Export Backup'),
+              typeof BackupRestore !== 'undefined' && React.createElement('label', {
+                className: 'tb-page-dropdown-item',
+                style: { display: 'block', cursor: 'pointer' }
+              },
+                '\ud83d\udcc2 Restore from Backup…',
+                React.createElement('input', {
+                  type: 'file',
+                  accept: '.json',
+                  style: { display: 'none' },
+                  onChange: function(e) { setFileMenuOpen(false); handleInlineRestore(e); }
+                })
+              )
             )
           )
       )

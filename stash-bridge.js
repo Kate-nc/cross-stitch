@@ -5,6 +5,7 @@
 const StashBridge = (() => {
   function openManagerDB() {
     return new Promise((resolve, reject) => {
+      if (typeof ensurePersistence === 'function') ensurePersistence();
       const req = indexedDB.open("stitch_manager_db", 1);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;

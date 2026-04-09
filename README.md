@@ -79,6 +79,21 @@ Click **Save (.json)** in the Export tab to save your project, including:
 
 To resume, click **Open** and select your saved `.json` file. Projects can also be opened directly in the Stitch Tracker.
 
+## Offline Use & Installation
+
+The app works offline automatically after the first visit — no user action is needed beyond loading the page once while online. A service worker caches all required assets so subsequent visits work without a network connection.
+
+### Installing on Mobile
+- **iOS:** Tap the Share button → **Add to Home Screen**.
+- **Android:** Open the browser menu → **Install** or **Add to Home Screen**.
+
+### Installing on Desktop
+- **Chrome / Edge:** Click the install icon in the address bar, or use the browser menu → **Install Cross Stitch Pattern Generator**.
+
+### Data Storage
+
+The app stores project data in the browser's IndexedDB and localStorage. Clearing your browser data will remove all saved projects. Use **Save (.json)** regularly to keep external backups.
+
 ## Running Tests
 
 The project uses [Jest](https://jestjs.io/) for unit tests covering colour distance calculation and time formatting utilities.

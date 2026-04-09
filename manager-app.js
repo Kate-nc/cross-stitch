@@ -37,7 +37,7 @@ function ManagerApp() {
   const [patterns, setPatterns] = useState([]); // Array of pattern objects
   const [activeProject, setActiveProject] = useState(null); // From Stitch Tracker IndexedDB
   const [storedProjects, setStoredProjects] = useState([]); // Cross-stitch projects from ProjectStorage
-  const [storageUsage, setStorageUsage] = useState(null); // { used, quota } bytes
+  const [storageUsage, setStorageUsage] = useState(null); // { used, quota, persistent } bytes
   const [searchQuery, setSearchQuery] = useState("");
   const [threadFilter, setThreadFilter] = useState("all"); // 'all', 'owned', 'tobuy', 'lowstock'
   const [patternFilter, setPatternFilter] = useState("all"); // 'all', 'wishlist', 'owned', 'inprogress', 'completed'
@@ -57,6 +57,7 @@ function ManagerApp() {
     waste_factor: 0.20
   });
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [backupStatus, setBackupStatus] = useState(null); // { type: 'success'|'error'|'confirm', message, summary?, onConfirm? }
   const lowStockThreshold = 1;
 
   // Storage initialization
@@ -64,6 +65,7 @@ function ManagerApp() {
     // Load Manager Data
     const loadManagerData = async () => {
       try {
+        await ensurePersistence();
         const db = await openManagerDB();
         const tx = db.transaction(["manager_state"], "readwrite");
         const store = tx.objectStore("manager_state");
@@ -131,11 +133,13 @@ function ManagerApp() {
       }
     };
 
-    loadManagerData();
+    // Await loadManagerData so ensurePersistence() has settled before we read the
+    // storage estimate — otherwise the persistent flag races and shows false.
+    loadManagerData().then(() => {
+      ProjectStorage.getStorageEstimate().then(setStorageUsage).catch(() => {});
+    });
     loadActiveProject();
-    // Load all named cross-stitch projects and storage usage estimate
     ProjectStorage.listProjects().then(setStoredProjects).catch(err => console.error("Failed to list projects:", err));
-    ProjectStorage.getStorageEstimate().then(setStorageUsage).catch(() => {});
   }, []);
 
   // Auto-save Manager Data
@@ -175,6 +179,7 @@ function ManagerApp() {
 
   function openManagerDB() {
     return new Promise((resolve, reject) => {
+      ensurePersistence();
       const req = indexedDB.open("stitch_manager_db", 1);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
@@ -186,6 +191,52 @@ function ManagerApp() {
       req.onerror = (e) => reject(e.target.error);
     });
   }
+
+  const handleBackupDownload = async () => {
+    try {
+      setBackupStatus({ type: "success", message: "Creating backup..." });
+      await BackupRestore.downloadBackup();
+      setBackupStatus({ type: "success", message: "Backup downloaded!" });
+      setTimeout(() => setBackupStatus(null), 3000);
+    } catch (e) {
+      setBackupStatus({ type: "error", message: "Backup failed: " + e.message });
+    }
+  };
+
+  const handleRestoreFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const backup = JSON.parse(reader.result);
+        const check = BackupRestore.validate(backup);
+        if (!check.valid) {
+          setBackupStatus({ type: "error", message: check.error });
+          return;
+        }
+        setBackupStatus({
+          type: "confirm",
+          message: `Restore backup from ${check.summary.createdAt ? new Date(check.summary.createdAt).toLocaleString() : "unknown date"}? This will replace all current data.`,
+          summary: check.summary,
+          onConfirm: async () => {
+            try {
+              setBackupStatus({ type: "success", message: "Restoring..." });
+              await BackupRestore.restore(backup);
+              setBackupStatus({ type: "success", message: "Restored! Reloading..." });
+              setTimeout(() => window.location.reload(), 1000);
+            } catch (err) {
+              setBackupStatus({ type: "error", message: "Restore failed: " + err.message });
+            }
+          }
+        });
+      } catch (err) {
+        setBackupStatus({ type: "error", message: "Invalid file: could not parse JSON." });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   const updateThread = (id, field, value) => {
     setThreads(prev => {
@@ -313,7 +364,25 @@ function ManagerApp() {
 
   return (
     <>
-      <Header page="manager" setModal={setModal} />
+      <Header page="manager" setModal={setModal} onBackupDownload={handleBackupDownload} onRestoreFile={handleRestoreFile} storageUsage={storageUsage} />
+      {backupStatus && (
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "8px 16px 0" }}>
+          <div style={{ padding: "10px 14px", borderRadius: 8, fontSize: 12, background: backupStatus.type === "error" ? "#fef2f2" : backupStatus.type === "confirm" ? "#fffbeb" : "#f0fdf4", border: `1px solid ${backupStatus.type === "error" ? "#fecaca" : backupStatus.type === "confirm" ? "#fde68a" : "#bbf7d0"}`, color: backupStatus.type === "error" ? "#dc2626" : backupStatus.type === "confirm" ? "#92400e" : "#15803d" }}>
+            <div>{backupStatus.message}</div>
+            {backupStatus.summary && (
+              <div style={{ fontSize: 11, marginTop: 4, color: "#71717a" }}>
+                {backupStatus.summary.projectCount} projects, {backupStatus.summary.threadCount} owned threads, {backupStatus.summary.patternCount} patterns
+              </div>
+            )}
+            {backupStatus.type === "confirm" && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button onClick={backupStatus.onConfirm} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, background: "#ea580c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>Yes, Restore</button>
+                <button onClick={() => setBackupStatus(null)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, background: "#fff", color: "#3f3f46", border: "1px solid #e4e4e7", borderRadius: 6, cursor: "pointer" }}>Cancel</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 16px" }}>
 
         <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: "2px solid #f4f4f5" }}>
@@ -632,11 +701,6 @@ function ManagerApp() {
               <div style={{ background: "#f8fafc", border: "1px solid #e4e4e7", borderRadius: 10, padding: "14px 16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#18181b" }}>Saved Cross-Stitch Projects ({storedProjects.length})</div>
-                  {storageUsage && (
-                    <div style={{ fontSize: 11, color: "#71717a" }}>
-                      Storage: {(storageUsage.used / 1024 / 1024).toFixed(1)} MB{storageUsage.quota ? ` / ~${(storageUsage.quota / 1024 / 1024).toFixed(0)} MB` : ""}
-                    </div>
-                  )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {storedProjects.map(p => {
