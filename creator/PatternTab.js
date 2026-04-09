@@ -38,11 +38,23 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     var isUnused = ctx.isScratchMode && p.count === 0;
     var chip = h("div", {
       key: p.id,
+      role: "button",
+      tabIndex: 0,
       onClick: function() {
         if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {
           ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
         } else {
           ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+        }
+      },
+      onKeyDown: function(e) {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {
+            ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
+          } else {
+            ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+          }
         }
       },
       style: {

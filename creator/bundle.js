@@ -26,6 +26,54 @@ window.STRENGTH_MAP = {
 };
 
 /**
+ * Shared quantize → map/dither → bg-removal → confetti → orphan-removal pipeline.
+ * Called by both generatePreview and runGenerationPipeline so the two stay in sync.
+ *
+ * @param {Uint8ClampedArray} raw    RGBA pixel data (smoothing already applied)
+ * @param {number}            width  Grid width in stitches
+ * @param {number}            height Grid height in stitches
+ * @param {object}            opts   Pipeline settings
+ * @returns {{ mapped, palette, confettiRaw, confettiClean, saliencyMap }} or null
+ */
+window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts) {
+  var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
+  var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
+  var stitchCleanup = opts.stitchCleanup;
+
+  var p = quantize(raw, width, height, maxC);
+  if (!p.length) return null;
+
+  var saliencyMap = generateSaliencyMap(raw, width, height);
+  var cdt = dith && stitchCleanup.smoothDithering ? 4.0 : 0.0;
+  var mapped = dith
+    ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt })
+    : doMap(raw, width, height, p, allowBlends);
+
+  if (skipBg) {
+    var bl = rgbToLab(bgCol[0], bgCol[1], bgCol[2]);
+    for (var i = 0; i < mapped.length; i++) {
+      if (dE(rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), bl) < bgTh) {
+        mapped[i] = { type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] };
+      }
+    }
+  }
+
+  var confettiRaw = analyzeConfetti(mapped, width, height);
+  var confettiClean = null;
+
+  if (stitchCleanup && stitchCleanup.enabled) {
+    var cleanupStrength = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
+      ? stitchCleanup.strength : "balanced";
+    var sp = STRENGTH_MAP[cleanupStrength];
+    var edgeMap = stitchCleanup.protectDetails ? generateEdgeMap(raw, width, height) : null;
+    mapped = removeOrphanStitches(mapped, width, height, sp.maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: sp.saliencyMultiplier });
+    confettiClean = analyzeConfetti(mapped, width, height);
+  }
+
+  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap };
+};
+
+/**
  * Run the full image-to-pattern generation pipeline.
  *
  * @param {HTMLImageElement} img  - Source image
@@ -52,23 +100,13 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 
-  var p = quantize(raw, sW, sH, maxC);
-  if (!p.length) return null;
+  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup });
+  if (!pipelineResult) return null;
 
-  var saliencyMap = generateSaliencyMap(raw, sW, sH);
-  var cdtGen = dith && stitchCleanup.smoothDithering ? 4.0 : 0.0;
-  var mapped = dith
-    ? doDither(raw, sW, sH, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdtGen })
-    : doMap(raw, sW, sH, p, allowBlends);
-
-  if (skipBg) {
-    var bl = rgbToLab(bgCol[0], bgCol[1], bgCol[2]);
-    for (var i = 0; i < mapped.length; i++) {
-      if (dE(rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), bl) < bgTh) {
-        mapped[i] = { type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] };
-      }
-    }
-  }
+  var mapped = pipelineResult.mapped;
+  var p = pipelineResult.palette;
+  var rawConfetti = pipelineResult.confettiRaw;
+  var cleanConfetti = pipelineResult.confettiClean || pipelineResult.confettiRaw;
 
   if (minSt > 0) {
     for (var pass = 0; pass < 3; pass++) {
@@ -125,18 +163,6 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
       if (nr) mapped[k3] = findSolid(m3.lab || rgbToLab(raw[k3 * 4], raw[k3 * 4 + 1], raw[k3 * 4 + 2]), kp);
     }
   }
-
-  var rawConfetti = analyzeConfetti(mapped, sW, sH);
-
-  if (stitchCleanup.enabled) {
-    var strengthKey = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
-      ? stitchCleanup.strength : "balanced";
-    var sp = STRENGTH_MAP[strengthKey];
-    var edgeMap = stitchCleanup.protectDetails ? generateEdgeMap(raw, sW, sH) : null;
-    mapped = removeOrphanStitches(mapped, sW, sH, sp.maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: sp.saliencyMultiplier });
-  }
-
-  var cleanConfetti = stitchCleanup.enabled ? analyzeConfetti(mapped, sW, sH) : rawConfetti;
 
   var palResult = buildPalette(mapped);
   return {
@@ -2405,29 +2431,11 @@ window.usePreview = function usePreview(state) {
       if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);
       else applyMedianFilter(raw, pw, ph, smooth);
     }
-    var p = quantize(raw, pw, ph, maxC); if (!p.length) return;
-    var saliencyMapPrev = generateSaliencyMap(raw, pw, ph);
-    var cdt = dith && stitchCleanup.smoothDithering ? 4.0 : 0.0;
-    var mapped = dith
-      ? doDither(raw, pw, ph, p, allowBlends, saliencyMapPrev, { confettiDitherThreshold: cdt })
-      : doMap(raw, pw, ph, p, allowBlends);
-    if (skipBg) {
-      var bl = rgbToLab(bgCol[0], bgCol[1], bgCol[2]);
-      for (var i = 0; i < mapped.length; i++) {
-        if (dE(rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), bl) < bgTh) {
-          mapped[i] = { type: "skip", id: "__skip__", rgb: [255, 255, 255] };
-        }
-      }
-    }
-    var confettiRaw = analyzeConfetti(mapped, pw, ph);
-    if (stitchCleanup.enabled) {
-      var cleanupStrength = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
-        ? stitchCleanup.strength : "balanced";
-      var sp = STRENGTH_MAP[cleanupStrength];
-      var edgeMapPrev = stitchCleanup.protectDetails ? generateEdgeMap(raw, pw, ph) : null;
-      mapped = removeOrphanStitches(mapped, pw, ph, sp.maxOrphanSize, edgeMapPrev, saliencyMapPrev, { saliencyMultiplier: sp.saliencyMultiplier });
-    }
-    var confettiClean = stitchCleanup.enabled ? analyzeConfetti(mapped, pw, ph) : null;
+    var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup });
+    if (!pipelineResult) return;
+    var mapped = pipelineResult.mapped;
+    var confettiRaw = pipelineResult.confettiRaw;
+    var confettiClean = pipelineResult.confettiClean;
 
     var stitchable = 0, skipped = 0, colorCounts = {};
     for (var j = 0; j < mapped.length; j++) {
@@ -2812,14 +2820,19 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Inline Toggle component (used only in Stitch Cleanup section) ──────────
   function Toggle(props) {
-    return h("label", {
+    return h("div", {
+      role: "switch",
+      tabIndex: 0,
+      "aria-checked": props.checked,
+      onClick: function() { props.onChange(!props.checked); },
+      onKeyDown: function(e) {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          props.onChange(!props.checked);
+        }
+      },
       style:{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:8,userSelect:"none"}
     },
-      h("input", {
-        type:"checkbox", checked:props.checked,
-        onChange:function(e){props.onChange(e.target.checked);},
-        style:{position:"absolute",opacity:0,width:1,height:1,margin:0,padding:0,pointerEvents:"none"}
-      }),
       h("span", {"aria-hidden":"true", style:{position:"relative",display:"inline-block",width:32,height:18,flexShrink:0}},
         h("span", {style:{display:"block",position:"absolute",inset:0,borderRadius:9,
           background:props.checked?"#0d9488":"#d4d4d8",transition:"background 0.15s"}}),
@@ -3233,11 +3246,23 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     var isUnused = ctx.isScratchMode && p.count === 0;
     var chip = h("div", {
       key: p.id,
+      role: "button",
+      tabIndex: 0,
       onClick: function() {
         if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {
           ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
         } else {
           ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+        }
+      },
+      onKeyDown: function(e) {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {
+            ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
+          } else {
+            ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+          }
         }
       },
       style: {
