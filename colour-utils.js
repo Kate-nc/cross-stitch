@@ -293,6 +293,115 @@ function applyGaussianBlur(data, w, h, sigma) {
   return data;
 }
 
+// ---------------------------------------------------------------------------
+// Stage 1: Saliency Map Generation
+// ---------------------------------------------------------------------------
+
+/**
+ * In-place Gaussian blur for a single-channel Float32Array (separable 1-D passes).
+ * @param {Float32Array} data - flat array of length w*h, modified in place
+ * @param {number} w
+ * @param {number} h
+ * @param {number} sigma - standard deviation in pixels
+ */
+function _gaussianBlur1(data, w, h, sigma) {
+  const radius = Math.ceil(sigma * 3);
+  const kLen = 2 * radius + 1;
+  const kernel = new Float32Array(kLen);
+  let kSum = 0;
+  for (let i = 0; i < kLen; i++) {
+    const x = i - radius;
+    kernel[i] = Math.exp(-(x * x) / (2 * sigma * sigma));
+    kSum += kernel[i];
+  }
+  for (let i = 0; i < kLen; i++) kernel[i] /= kSum;
+
+  const N = w * h;
+  const temp = new Float32Array(N);
+
+  // Horizontal pass
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let val = 0;
+      for (let k = -radius; k <= radius; k++) {
+        let nx = x + k;
+        if (nx < 0) nx = 0; else if (nx >= w) nx = w - 1;
+        val += data[y * w + nx] * kernel[k + radius];
+      }
+      temp[y * w + x] = val;
+    }
+  }
+
+  // Vertical pass (write back into data)
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      let val = 0;
+      for (let k = -radius; k <= radius; k++) {
+        let ny = y + k;
+        if (ny < 0) ny = 0; else if (ny >= h) ny = h - 1;
+        val += temp[ny * w + x] * kernel[k + radius];
+      }
+      data[y * w + x] = val;
+    }
+  }
+}
+
+/**
+ * Generates a per-pixel "detail importance" saliency map normalized to 0.0–1.0.
+ *
+ * Uses the Sobel gradient magnitude (via the global `sobelMag` from embroidery.js)
+ * to detect high-frequency edge regions, then normalizes and optionally blurs the
+ * result so that nearby pixels share similar importance scores.
+ *
+ * @param {Uint8ClampedArray} data  RGBA pixel data, length = w*h*4
+ * @param {number}            w     image width in pixels
+ * @param {number}            h     image height in pixels
+ * @param {object}            [opts]
+ * @param {number}            [opts.sigma=3.0]  Gaussian blur sigma in pixels (0 = no blur)
+ * @returns {Float32Array}          per-pixel saliency scores, length = w*h, values in [0, 1]
+ */
+function generateSaliencyMap(data, w, h, { sigma = 3.0 } = {}) {
+  const N = w * h;
+
+  // Step 1: Compute Sobel gradient magnitude.
+  // sobelMag is a global function defined in embroidery.js.
+  const mag = sobelMag(data, w, h); // Float32Array, length N
+
+  // Step 2: Normalize to 0.0–1.0.
+  let minVal = Infinity, maxVal = -Infinity;
+  for (let i = 0; i < N; i++) {
+    if (mag[i] < minVal) minVal = mag[i];
+    if (mag[i] > maxVal) maxVal = mag[i];
+  }
+  const saliency = new Float32Array(N);
+  const range = maxVal - minVal;
+  if (range > 0) {
+    for (let i = 0; i < N; i++) {
+      saliency[i] = (mag[i] - minVal) / range;
+    }
+  }
+  // If range === 0 (flat image), saliency stays all-zero — correct behavior.
+
+  // Step 3: Optional Gaussian blur to smooth importance zone boundaries.
+  if (sigma > 0) {
+    _gaussianBlur1(saliency, w, h, sigma);
+    // Re-normalize after blurring (blur can compress the range near boundaries).
+    let bMin = Infinity, bMax = -Infinity;
+    for (let i = 0; i < N; i++) {
+      if (saliency[i] < bMin) bMin = saliency[i];
+      if (saliency[i] > bMax) bMax = saliency[i];
+    }
+    const bRange = bMax - bMin;
+    if (bRange > 0) {
+      for (let i = 0; i < N; i++) {
+        saliency[i] = (saliency[i] - bMin) / bRange;
+      }
+    }
+  }
+
+  return saliency;
+}
+
 function removeOrphanStitches(mapped, w, h, maxOrphanSize) {
   if (maxOrphanSize <= 0) return mapped;
   let len = mapped.length;
@@ -450,4 +559,4 @@ function analyzeConfetti(mapped, w, h) {
   return { singles, smallClusters, total, pct, colorConfetti };
 }
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, removeOrphanStitches, analyzeConfetti }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, removeOrphanStitches, analyzeConfetti }; }
