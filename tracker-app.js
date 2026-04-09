@@ -1816,7 +1816,7 @@ useEffect(()=>{
       if(e.key==="v"||e.key==="V"){
         const nextView=stitchView==="symbol"?"colour":stitchView==="colour"?"highlight":"symbol";
         setStitchView(nextView);
-        if(nextView==="highlight"){const valid=focusColour&&pal.find(p=>p.id===focusColour);if(!valid){const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];if(first)setFocusColour(first.id);}}
+        if(nextView==="highlight"){const valid=focusColour&&pal&&pal.find(p=>p.id===focusColour);if(!valid){const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];if(first)setFocusColour(first.id);}}
         return;
       }
     }

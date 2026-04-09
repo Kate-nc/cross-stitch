@@ -170,6 +170,7 @@ const isDraggingRef=useRef(false);
 const dragChangesRef=useRef([]);
 const dragCellsRef=useRef(new Set());
 const dragActionRef=useRef(null);
+const dragPatRef=useRef(null);
 const[projectName,setProjectName]=useState("");
 const[namePromptOpen,setNamePromptOpen]=useState(false);
 const G=28;
@@ -1193,7 +1194,7 @@ useEffect(()=>renderExport(),[renderExport]);
 
 function handlePatClick(e){
   if(!pcRef.current||!pat)return;
-  let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch");
+  let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch"||activeTool==="eraseBs");
   if(!gc)return;let{gx,gy}=gc;
 
   if (activeTool === "eyedropper") {
@@ -1275,10 +1276,23 @@ function handlePatClick(e){
 }
 
 function applyBrush(gx, gy, action) {
+  // Check if there are any new (unprocessed) cells in the brush area before doing any work
+  let hasNewCells = false;
+  for (let dy = 0; dy < brushSize && !hasNewCells; dy++) {
+    for (let dx = 0; dx < brushSize && !hasNewCells; dx++) {
+      let x = gx + dx; let y = gy + dy;
+      if (x < 0 || x >= sW || y < 0 || y >= sH) continue;
+      if (!dragCellsRef.current.has(y * sW + x)) hasNewCells = true;
+    }
+  }
+  if (!hasNewCells) return;
+
   let changes = [];
-  let np = pat ? pat.slice() : null;
+  // Use the working pat ref during drag to avoid stale state; fall back to pat on first call
+  let np = action === "paint" ? (dragPatRef.current ? dragPatRef.current.slice() : (pat ? pat.slice() : null)) : null;
   let nm = new Map(halfStitches);
   let colorEntry = selectedColorId && cmap ? cmap[selectedColorId] : null;
+  let halfStitchChanged = false;
 
   for (let dy = 0; dy < brushSize; dy++) {
     for (let dx = 0; dx < brushSize; dx++) {
@@ -1309,11 +1323,11 @@ function applyBrush(gx, gy, action) {
             }
          }
       } else if (action === "erase-half") {
-         nm.delete(idx);
+         if (nm.has(idx)) { nm.delete(idx); halfStitchChanged = true; }
          // Visual erase update
-         if (pcRef.current && np) {
+         if (halfStitchChanged && pcRef.current && pat) {
             let ctx = pcRef.current.getContext('2d');
-            let bg = np[idx].id === "__empty__" || np[idx].id === "__skip__" ? "#ffffff" : (cmap[np[idx].id] ? `rgb(${cmap[np[idx].id].rgb})` : "#ffffff");
+            let bg = pat[idx].id === "__empty__" || pat[idx].id === "__skip__" ? "#ffffff" : (cmap[pat[idx].id] ? `rgb(${cmap[pat[idx].id].rgb})` : "#ffffff");
             ctx.fillStyle = bg;
             ctx.fillRect(G + x * cs, G + y * cs, cs, cs);
          }
@@ -1321,7 +1335,7 @@ function applyBrush(gx, gy, action) {
          let dir = action.replace("half-", "");
          let ce = colorEntry;
          if (!ce) {
-            let m = np[idx];
+            let m = pat && pat[idx];
             if(m && m.id !== "__skip__" && m.id !== "__empty__" && cmap) ce = cmap[m.id];
          }
          if (!ce) continue;
@@ -1332,14 +1346,16 @@ function applyBrush(gx, gy, action) {
          } else {
              nm.set(idx, {...existing, [dir]: {id: ce.id, rgb: ce.rgb}});
          }
+         halfStitchChanged = true;
       }
     }
   }
 
   if (action === "paint" && changes.length > 0) {
     dragChangesRef.current.push(...changes);
+    dragPatRef.current = np;
     setPat(np);
-  } else if (action !== "paint") {
+  } else if (action !== "paint" && halfStitchChanged) {
      setHalfStitches(nm);
 
      // Note: Unlike paint, fractional stitches and erasing don't currently have a dedicated undo history
@@ -1351,7 +1367,7 @@ function handlePatMouseDown(e) {
   if (e.button !== 0) return; // Only left click
   if (!pcRef.current || !pat) return;
 
-  let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch");
+  let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch"||activeTool==="eraseBs");
   if(!gc)return;let{gx,gy}=gc;
 
   // Normal click for eyedropper, fill, backstitch, eraseBs
@@ -1360,21 +1376,24 @@ function handlePatMouseDown(e) {
       return;
   }
 
+  let dragAction = null;
+  if (activeTool === "paint" && selectedColorId && cmap) {
+     dragAction = "paint";
+  } else if (halfStitchTool) {
+     dragAction = halfStitchTool === "erase" ? "erase-half" : `half-${halfStitchTool}`;
+  }
+
+  if (!dragAction) return;
+
+  dragActionRef.current = dragAction;
   isDraggingRef.current = true;
   dragChangesRef.current = [];
   dragCellsRef.current.clear();
-
-  if (activeTool === "paint" && selectedColorId && cmap) {
-     dragActionRef.current = "paint";
-     applyBrush(gx, gy, "paint");
-  } else if (halfStitchTool) {
-     dragActionRef.current = halfStitchTool === "erase" ? "erase-half" : `half-${halfStitchTool}`;
-     applyBrush(gx, gy, dragActionRef.current);
-  }
+  applyBrush(gx, gy, dragAction);
 }
 
 function handlePatMouseMove(e){
-  if(!pcRef.current||!pat||!activeTool)return;
+  if(!pcRef.current||!pat||(!activeTool&&!halfStitchTool))return;
   let gc=gridCoord(pcRef,e,cs,G,activeTool==="backstitch"||activeTool==="eraseBs");
   if(!gc)return;
   if(!hoverCoords||hoverCoords.gx!==gc.gx||hoverCoords.gy!==gc.gy)setHoverCoords(gc);
@@ -1395,9 +1414,11 @@ function handlePatMouseUp(e) {
              return n;
          });
          setRedoHistory([]);
-         let{pal:np2,cmap:nc}=buildPaletteWithScratch(pat);
+         const finalPat = dragPatRef.current || pat;
+         let{pal:np2,cmap:nc}=buildPaletteWithScratch(finalPat);
          setPal(np2);setCmap(nc);
      }
+     dragPatRef.current = null;
   }
 }
 
