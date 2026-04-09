@@ -77,157 +77,339 @@ function rgbToHex(rgb) {
 
 var PALETTE_PRESETS = [
   {
-    id: "spring-pastels", name: "Spring Pastels", category: "seasonal",
+    id: "rocky_coastline",
+    name: "Rocky coastline",
+    category: "nature",
+    description: "Slate, sea spray, kelp green, sand, stormy grey",
     tiers: {
-      8:  ["#FFB7C5","#FFDAB9","#FFFACD","#C1FFC1","#B0E0E6","#E6E6FA","#F4A7B9","#ACE1AF"],
-      16: ["#FFB7C5","#FFDAB9","#FFFACD","#C1FFC1","#B0E0E6","#E6E6FA","#F4A7B9","#ACE1AF",
-           "#FFC1CC","#FFE4B5","#FFFFF0","#98FB98","#87CEEB","#D8BFD8","#FFF0F5","#F5FFFA"],
-      24: ["#FFB7C5","#FFDAB9","#FFFACD","#C1FFC1","#B0E0E6","#E6E6FA","#F4A7B9","#ACE1AF",
-           "#FFC1CC","#FFE4B5","#FFFFF0","#98FB98","#87CEEB","#D8BFD8","#FFF0F5","#F5FFFA",
-           "#FFD1DC","#FFEFD5","#FFFFE0","#90EE90","#ADD8E6","#DDA0DD","#FFF5EE","#E0FFE0"]
+      8:  ["#708090","#B0E0E6","#2E8B57","#C2B280","#4A4A4A","#F5F5F0","#5F9EA0","#D2B48C"],
+      16: ["#708090","#B0E0E6","#2E8B57","#C2B280","#4A4A4A","#F5F5F0","#5F9EA0","#D2B48C",
+           "#36454F","#87CEEB","#6B8E23","#A0937D","#1C3A3A","#DCDCDC","#3CB371","#8B8378"],
+      24: ["#708090","#B0E0E6","#2E8B57","#C2B280","#4A4A4A","#F5F5F0","#5F9EA0","#D2B48C",
+           "#36454F","#87CEEB","#6B8E23","#A0937D","#1C3A3A","#DCDCDC","#3CB371","#8B8378",
+           "#2F4F4F","#ADD8E6","#4F6D3B","#E8DCC8","#696969","#7B9EA8","#9DB4A0","#BDB5A1"]
     }
   },
   {
-    id: "summer-brights", name: "Summer Brights", category: "seasonal",
+    id: "desert_at_dusk",
+    name: "Desert at dusk",
+    category: "nature",
+    description: "Terracotta, sand gold, cactus, purple dusk",
     tiers: {
-      8:  ["#FF4500","#FFD700","#00CED1","#FF69B4","#32CD32","#FF8C00","#1E90FF","#FF1493"],
-      16: ["#FF4500","#FFD700","#00CED1","#FF69B4","#32CD32","#FF8C00","#1E90FF","#FF1493",
-           "#FF6347","#FFFF00","#00BFFF","#FF7F50","#7CFC00","#FFA500","#4169E1","#DC143C"],
-      24: ["#FF4500","#FFD700","#00CED1","#FF69B4","#32CD32","#FF8C00","#1E90FF","#FF1493",
-           "#FF6347","#FFFF00","#00BFFF","#FF7F50","#7CFC00","#FFA500","#4169E1","#DC143C",
-           "#E74C3C","#F1C40F","#00FA9A","#E91E63","#00FF7F","#E67E22","#6495ED","#C71585"]
+      8:  ["#CD5C5C","#DAA520","#6B8E23","#7B68AE","#F4A460","#FFB6C1","#2F4F4F","#FFF8DC"],
+      16: ["#CD5C5C","#DAA520","#6B8E23","#7B68AE","#F4A460","#FFB6C1","#2F4F4F","#FFF8DC",
+           "#8B4513","#C19A6B","#556B2F","#9370DB","#E8927C","#DDA0DD","#4A3728","#FFE4B5"],
+      24: ["#CD5C5C","#DAA520","#6B8E23","#7B68AE","#F4A460","#FFB6C1","#2F4F4F","#FFF8DC",
+           "#8B4513","#C19A6B","#556B2F","#9370DB","#E8927C","#DDA0DD","#4A3728","#FFE4B5",
+           "#A0522D","#E6C87D","#808000","#6A5ACD","#D2A679","#C9A0DC","#3D3021","#F5E6CC"]
     }
   },
   {
-    id: "autumn-warm", name: "Autumn Warm", category: "seasonal",
+    id: "cherry_blossom",
+    name: "Cherry blossom",
+    category: "nature",
+    description: "Delicate spring pinks, dark branches, soft greens",
     tiers: {
-      8:  ["#8B4513","#CD853F","#DAA520","#B22222","#556B2F","#D2691E","#CC5500","#8B6914"],
-      16: ["#8B4513","#CD853F","#DAA520","#B22222","#556B2F","#D2691E","#CC5500","#8B6914",
-           "#A0522D","#DEB887","#B8860B","#800000","#6B8E23","#A52A2A","#E2725B","#BDB76B"],
-      24: ["#8B4513","#CD853F","#DAA520","#B22222","#556B2F","#D2691E","#CC5500","#8B6914",
-           "#A0522D","#DEB887","#B8860B","#800000","#6B8E23","#A52A2A","#E2725B","#BDB76B",
-           "#5C4033","#F5DEB3","#C4A000","#DC143C","#4B5320","#993300","#D2B48C","#808000"]
+      8:  ["#FFB7C5","#8B6914","#90EE90","#FFFAFA","#C71585","#DDA0DD","#556B2F","#F5F5DC"],
+      16: ["#FFB7C5","#8B6914","#90EE90","#FFFAFA","#C71585","#DDA0DD","#556B2F","#F5F5DC",
+           "#FF91A4","#A0522D","#6B8E23","#FFF0F5","#DB7093","#E6D5E8","#3B4A2B","#FFE4E1"],
+      24: ["#FFB7C5","#8B6914","#90EE90","#FFFAFA","#C71585","#DDA0DD","#556B2F","#F5F5DC",
+           "#FF91A4","#A0522D","#6B8E23","#FFF0F5","#DB7093","#E6D5E8","#3B4A2B","#FFE4E1",
+           "#FFC0CB","#6B4423","#77AB59","#F8E8EE","#B03060","#C8A2C8","#4A5D23","#FAEBD7"]
     }
   },
   {
-    id: "winter-cool", name: "Winter Cool", category: "seasonal",
+    id: "coral_reef",
+    name: "Coral reef",
+    category: "nature",
+    description: "Turquoise, hot coral, anemone purple, sunlit sand",
     tiers: {
-      8:  ["#4682B4","#708090","#B0C4DE","#DCDCDC","#5F9EA0","#2F4F4F","#778899","#F0F8FF"],
-      16: ["#4682B4","#708090","#B0C4DE","#DCDCDC","#5F9EA0","#2F4F4F","#778899","#F0F8FF",
-           "#6495ED","#A9A9A9","#ADD8E6","#E8E8E8","#87CEEB","#3B3B3B","#C0C0C0","#F5F5F5"],
-      24: ["#4682B4","#708090","#B0C4DE","#DCDCDC","#5F9EA0","#2F4F4F","#778899","#F0F8FF",
-           "#6495ED","#A9A9A9","#ADD8E6","#E8E8E8","#87CEEB","#3B3B3B","#C0C0C0","#F5F5F5",
-           "#4169E1","#696969","#87CEFA","#D3D3D3","#00CED1","#1C1C1C","#808080","#FFFFFF"]
+      8:  ["#40E0D0","#FF7F50","#9370DB","#F5DEB3","#FFD700","#FF1493","#00CED1","#FFFACD"],
+      16: ["#40E0D0","#FF7F50","#9370DB","#F5DEB3","#FFD700","#FF1493","#00CED1","#FFFACD",
+           "#20B2AA","#E6735A","#8A5FC7","#DEC49B","#FFB347","#C71585","#008B8B","#FFF8DC"],
+      24: ["#40E0D0","#FF7F50","#9370DB","#F5DEB3","#FFD700","#FF1493","#00CED1","#FFFACD",
+           "#20B2AA","#E6735A","#8A5FC7","#DEC49B","#FFB347","#C71585","#008B8B","#FFF8DC",
+           "#5F9EA0","#FF6347","#7B68AE","#C2B280","#DAA520","#DB7093","#2E8B57","#F0E68C"]
     }
   },
   {
-    id: "sunset-glow", name: "Sunset Glow", category: "mood",
+    id: "autumn_woodland",
+    name: "Autumn woodland",
+    category: "nature",
+    description: "Copper, mushroom beige, berry red, moss, bark",
     tiers: {
-      8:  ["#FF6347","#FF7F50","#FFD700","#FF4500","#DC143C","#8B008B","#FF8C00","#FFB347"],
-      16: ["#FF6347","#FF7F50","#FFD700","#FF4500","#DC143C","#8B008B","#FF8C00","#FFB347",
-           "#FF2400","#FFA07A","#FFCC00","#E65100","#AB274F","#9B59B6","#F39C12","#FFD1A4"],
-      24: ["#FF6347","#FF7F50","#FFD700","#FF4500","#DC143C","#8B008B","#FF8C00","#FFB347",
-           "#FF2400","#FFA07A","#FFCC00","#E65100","#AB274F","#9B59B6","#F39C12","#FFD1A4",
-           "#C0392B","#E9967A","#DAA520","#CC3300","#C71585","#6A0DAD","#D35400","#FFDEAD"]
+      8:  ["#B87333","#D2B48C","#8B0000","#6B8E23","#5C4033","#DAA520","#F4A460","#556B2F"],
+      16: ["#B87333","#D2B48C","#8B0000","#6B8E23","#5C4033","#DAA520","#F4A460","#556B2F",
+           "#CD853F","#E8DCC8","#A52A2A","#808000","#3B2716","#C19A6B","#DEB887","#2E4F2E"],
+      24: ["#B87333","#D2B48C","#8B0000","#6B8E23","#5C4033","#DAA520","#F4A460","#556B2F",
+           "#CD853F","#E8DCC8","#A52A2A","#808000","#3B2716","#C19A6B","#DEB887","#2E4F2E",
+           "#A0522D","#F5F0E1","#CC0000","#4F6D3B","#8B7355","#B8860B","#C4A882","#3D5229"]
     }
   },
   {
-    id: "midnight-dreams", name: "Midnight Dreams", category: "mood",
+    id: "thunderstorm",
+    name: "Thunderstorm",
+    category: "weather",
+    description: "Dramatic darks, lightning white, bruised purple, cold rain blue",
     tiers: {
-      8:  ["#191970","#000080","#483D8B","#2E0854","#301934","#1B1B2F","#0F4C75","#2C003E"],
-      16: ["#191970","#000080","#483D8B","#2E0854","#301934","#1B1B2F","#0F4C75","#2C003E",
-           "#0D0D5E","#00004D","#6A5ACD","#4B0082","#1F0318","#162447","#1A5276","#4A0E4E"],
-      24: ["#191970","#000080","#483D8B","#2E0854","#301934","#1B1B2F","#0F4C75","#2C003E",
-           "#0D0D5E","#00004D","#6A5ACD","#4B0082","#1F0318","#162447","#1A5276","#4A0E4E",
-           "#0B0B45","#00003B","#7B68EE","#5D0076","#120524","#0E1A40","#1F618D","#5B2C6F"]
+      8:  ["#36454F","#FFFAFA","#4682B4","#483D8B","#778899","#B0C4DE","#191970","#C0C0C0"],
+      16: ["#36454F","#FFFAFA","#4682B4","#483D8B","#778899","#B0C4DE","#191970","#C0C0C0",
+           "#2F4F4F","#DCDCDC","#5B7FA5","#6A5ACD","#696969","#87CEEB","#0C0C3A","#A9A9A9"],
+      24: ["#36454F","#FFFAFA","#4682B4","#483D8B","#778899","#B0C4DE","#191970","#C0C0C0",
+           "#2F4F4F","#DCDCDC","#5B7FA5","#6A5ACD","#696969","#87CEEB","#0C0C3A","#A9A9A9",
+           "#1C2833","#F5F5F5","#3D6E8E","#7B68AE","#808080","#6699CC","#1B2A4A","#BCC6CC"]
     }
   },
   {
-    id: "ocean-breeze", name: "Ocean Breeze", category: "mood",
+    id: "tropical_sunrise",
+    name: "Tropical sunrise",
+    category: "weather",
+    description: "Mango, hibiscus pink, ocean teal, palm green, radiant gold",
     tiers: {
-      8:  ["#006994","#40E0D0","#00CED1","#20B2AA","#5F9EA0","#B0E0E6","#008B8B","#48D1CC"],
-      16: ["#006994","#40E0D0","#00CED1","#20B2AA","#5F9EA0","#B0E0E6","#008B8B","#48D1CC",
-           "#007BA7","#7FFFD4","#00BFFF","#2E8B57","#6B8E9B","#E0FFFF","#006D6F","#66CDAA"],
-      24: ["#006994","#40E0D0","#00CED1","#20B2AA","#5F9EA0","#B0E0E6","#008B8B","#48D1CC",
-           "#007BA7","#7FFFD4","#00BFFF","#2E8B57","#6B8E9B","#E0FFFF","#006D6F","#66CDAA",
-           "#004E66","#AFEEEE","#87CEEB","#3CB371","#4682B4","#F0FFFF","#005F5F","#8FBC8F"]
+      8:  ["#FF8C00","#FF1493","#008B8B","#228B22","#FFD700","#FF6347","#20B2AA","#FFF8DC"],
+      16: ["#FF8C00","#FF1493","#008B8B","#228B22","#FFD700","#FF6347","#20B2AA","#FFF8DC",
+           "#CC7000","#C71585","#006666","#2E8B57","#DAA520","#E55B3C","#5F9EA0","#FFE4B5"],
+      24: ["#FF8C00","#FF1493","#008B8B","#228B22","#FFD700","#FF6347","#20B2AA","#FFF8DC",
+           "#CC7000","#C71585","#006666","#2E8B57","#DAA520","#E55B3C","#5F9EA0","#FFE4B5",
+           "#FF4500","#DB7093","#2F4F4F","#6B8E23","#B8860B","#CD5C5C","#40E0D0","#FFDAB9"]
     }
   },
   {
-    id: "forest-haven", name: "Forest Haven", category: "mood",
+    id: "victorian_garden",
+    name: "Victorian garden",
+    category: "cultural",
+    description: "Dusty rose, sage, plum, antique gold, cream",
     tiers: {
-      8:  ["#228B22","#006400","#2E8B57","#556B2F","#8B4513","#6B8E23","#3CB371","#A0522D"],
-      16: ["#228B22","#006400","#2E8B57","#556B2F","#8B4513","#6B8E23","#3CB371","#A0522D",
-           "#32CD32","#004D00","#008080","#808000","#654321","#9ACD32","#66CDAA","#8B6914"],
-      24: ["#228B22","#006400","#2E8B57","#556B2F","#8B4513","#6B8E23","#3CB371","#A0522D",
-           "#32CD32","#004D00","#008080","#808000","#654321","#9ACD32","#66CDAA","#8B6914",
-           "#00FF00","#003300","#20B2AA","#4B5320","#3E2723","#ADFF2F","#2E7D32","#795548"]
+      8:  ["#BC8F8F","#8FBC8F","#8E4585","#BDB76B","#FFFDD0","#C08081","#556B2F","#D4A574"],
+      16: ["#BC8F8F","#8FBC8F","#8E4585","#BDB76B","#FFFDD0","#C08081","#556B2F","#D4A574",
+           "#9B7A7A","#6B8E6B","#6A2E6B","#8B7D3C","#F5F0E1","#A06060","#3D4F2A","#C19A6B"],
+      24: ["#BC8F8F","#8FBC8F","#8E4585","#BDB76B","#FFFDD0","#C08081","#556B2F","#D4A574",
+           "#9B7A7A","#6B8E6B","#6A2E6B","#8B7D3C","#F5F0E1","#A06060","#3D4F2A","#C19A6B",
+           "#D4A4A4","#A0C0A0","#7B3B7B","#DAC77D","#FAF5E6","#8B6060","#4A5D34","#E8D4BC"]
     }
   },
   {
-    id: "jewel-tones", name: "Jewel Tones", category: "artistic",
+    id: "japanese_ukiyoe",
+    name: "Japanese ukiyo-e",
+    category: "cultural",
+    description: "Deep indigo, vermillion, matcha green, rice paper, charcoal",
     tiers: {
-      8:  ["#9B111E","#0F52BA","#50C878","#9966CC","#E0115F","#FF8C00","#0047AB","#009B7D"],
-      16: ["#9B111E","#0F52BA","#50C878","#9966CC","#E0115F","#FF8C00","#0047AB","#009B7D",
-           "#722F37","#1560BD","#3B7A57","#7851A9","#C41E3A","#E65100","#4169E1","#00A86B"],
-      24: ["#9B111E","#0F52BA","#50C878","#9966CC","#E0115F","#FF8C00","#0047AB","#009B7D",
-           "#722F37","#1560BD","#3B7A57","#7851A9","#C41E3A","#E65100","#4169E1","#00A86B",
-           "#960018","#0000CD","#2E8B57","#6A0DAD","#B22222","#CC7000","#00308F","#006B3C"]
+      8:  ["#264348","#E34234","#7BA05B","#F5F0E1","#36454F","#DAA520","#B22222","#8FBC8F"],
+      16: ["#264348","#E34234","#7BA05B","#F5F0E1","#36454F","#DAA520","#B22222","#8FBC8F",
+           "#1A2F35","#C13525","#556B2F","#E8DCC8","#1C1C1C","#C19A6B","#8B0000","#6B8E6B"],
+      24: ["#264348","#E34234","#7BA05B","#F5F0E1","#36454F","#DAA520","#B22222","#8FBC8F",
+           "#1A2F35","#C13525","#556B2F","#E8DCC8","#1C1C1C","#C19A6B","#8B0000","#6B8E6B",
+           "#3D5E65","#FF6347","#4A7A3D","#FAF0E6","#4A4A4A","#E6C87D","#CD5C5C","#A0C0A0"]
     }
   },
   {
-    id: "scandinavian-minimal", name: "Scandinavian Minimal", category: "artistic",
+    id: "moroccan_tiles",
+    name: "Moroccan tiles",
+    category: "cultural",
+    description: "Cobalt blue, saffron yellow, terracotta, jade, crisp white",
     tiers: {
-      8:  ["#F5F5DC","#D2B48C","#8FBC8F","#696969","#FFFFF0","#BC8F8F","#C4B6A0","#A3B9C6"],
-      16: ["#F5F5DC","#D2B48C","#8FBC8F","#696969","#FFFFF0","#BC8F8F","#C4B6A0","#A3B9C6",
-           "#FAF0E6","#C2A278","#ACB78E","#808080","#F5F5F0","#D4A5A5","#B0A08C","#8EAAB5"],
-      24: ["#F5F5DC","#D2B48C","#8FBC8F","#696969","#FFFFF0","#BC8F8F","#C4B6A0","#A3B9C6",
-           "#FAF0E6","#C2A278","#ACB78E","#808080","#F5F5F0","#D4A5A5","#B0A08C","#8EAAB5",
-           "#E8DCC8","#B8956A","#7D9B7D","#585858","#FFFDE7","#CDA4A4","#A89882","#7A9AA8"]
+      8:  ["#0047AB","#F4C430","#C04000","#00A86B","#FFFAFA","#FF6347","#4682B4","#DAA520"],
+      16: ["#0047AB","#F4C430","#C04000","#00A86B","#FFFAFA","#FF6347","#4682B4","#DAA520",
+           "#003380","#E6B420","#8B2500","#2E8B57","#F5F0E1","#CD5C5C","#6699CC","#B8860B"],
+      24: ["#0047AB","#F4C430","#C04000","#00A86B","#FFFAFA","#FF6347","#4682B4","#DAA520",
+           "#003380","#E6B420","#8B2500","#2E8B57","#F5F0E1","#CD5C5C","#6699CC","#B8860B",
+           "#1B2A4A","#FFD700","#A0522D","#3CB371","#DCDCDC","#E55B3C","#5B7FA5","#C19A6B"]
     }
   },
   {
-    id: "dusty-rose", name: "Dusty Rose", category: "artistic",
+    id: "folk_art",
+    name: "Folk art",
+    category: "cultural",
+    description: "Barn red, sky blue, sunflower, forest green, cream",
     tiers: {
-      8:  ["#DCAE96","#E8B4B8","#C48793","#967E76","#D4A5A5","#F5E6CC","#B5838D","#E5C1C1"],
-      16: ["#DCAE96","#E8B4B8","#C48793","#967E76","#D4A5A5","#F5E6CC","#B5838D","#E5C1C1",
-           "#C9A090","#D4919A","#A66B7A","#7D6969","#C4928F","#EBD8B7","#9E6B76","#D9ACAC"],
-      24: ["#DCAE96","#E8B4B8","#C48793","#967E76","#D4A5A5","#F5E6CC","#B5838D","#E5C1C1",
-           "#C9A090","#D4919A","#A66B7A","#7D6969","#C4928F","#EBD8B7","#9E6B76","#D9ACAC",
-           "#B69080","#C07080","#8E5C6A","#6B5858","#B48080","#E0CCA3","#875060","#CCA0A0"]
+      8:  ["#7C0A02","#87CEEB","#FFDA03","#228B22","#FFFDD0","#1C1C1C","#CD853F","#4169E1"],
+      16: ["#7C0A02","#87CEEB","#FFDA03","#228B22","#FFFDD0","#1C1C1C","#CD853F","#4169E1",
+           "#A52A2A","#ADD8E6","#DAA520","#2E8B57","#F5F0E1","#36454F","#8B7355","#6495ED"],
+      24: ["#7C0A02","#87CEEB","#FFDA03","#228B22","#FFFDD0","#1C1C1C","#CD853F","#4169E1",
+           "#A52A2A","#ADD8E6","#DAA520","#2E8B57","#F5F0E1","#36454F","#8B7355","#6495ED",
+           "#CC0000","#B0C4DE","#FFD700","#556B2F","#FAF5E6","#4A4A4A","#D2B48C","#5B7FA5"]
     }
   },
   {
-    id: "cottage-garden", name: "Cottage Garden", category: "artistic",
+    id: "nordic_knit",
+    name: "Nordic knit",
+    category: "cultural",
+    description: "Cream, charcoal, rust, fjord blue, pine green",
     tiers: {
-      8:  ["#C71585","#DA70D6","#228B22","#FFD700","#FF69B4","#8FBC8F","#9932CC","#FFA07A"],
-      16: ["#C71585","#DA70D6","#228B22","#FFD700","#FF69B4","#8FBC8F","#9932CC","#FFA07A",
-           "#DB7093","#BA55D3","#32CD32","#F0E68C","#FF1493","#66CDAA","#8B008B","#FF6347"],
-      24: ["#C71585","#DA70D6","#228B22","#FFD700","#FF69B4","#8FBC8F","#9932CC","#FFA07A",
-           "#DB7093","#BA55D3","#32CD32","#F0E68C","#FF1493","#66CDAA","#8B008B","#FF6347",
-           "#FF00FF","#EE82EE","#006400","#FFE4B5","#FF85A1","#2E8B57","#6B3FA0","#FA8072"]
+      8:  ["#FFFDD0","#36454F","#B7410E","#4682B4","#2E4F3E","#CD853F","#778899","#F5F5DC"],
+      16: ["#FFFDD0","#36454F","#B7410E","#4682B4","#2E4F3E","#CD853F","#778899","#F5F5DC",
+           "#FAF0E6","#1C1C1C","#8B2500","#5B7FA5","#3D5229","#A0522D","#696969","#E8DCC8"],
+      24: ["#FFFDD0","#36454F","#B7410E","#4682B4","#2E4F3E","#CD853F","#778899","#F5F5DC",
+           "#FAF0E6","#1C1C1C","#8B2500","#5B7FA5","#3D5229","#A0522D","#696969","#E8DCC8",
+           "#FFFFF0","#4A4A4A","#CC5500","#6699CC","#4A6E50","#D2B48C","#B0B0B0","#D4C4A8"]
     }
   },
   {
-    id: "warm-mono", name: "Warm Monochrome", category: "monochrome",
+    id: "patisserie",
+    name: "Patisserie",
+    category: "food",
+    description: "Macaron pink, pistachio, vanilla cream, caramel, berry",
     tiers: {
-      8:  ["#3E1F00","#5C3317","#8B4513","#A0522D","#CD853F","#DEB887","#F5DEB3","#FAEBD7"],
-      16: ["#3E1F00","#4B2509","#5C3317","#6E3B1F","#8B4513","#9B5523","#A0522D","#B8763E",
-           "#CD853F","#D4A060","#DEB887","#E8CDA0","#F5DEB3","#F7E4C7","#FAEBD7","#FDF5E6"],
-      24: ["#3E1F00","#452205","#4B2509","#54300F","#5C3317","#65391B","#6E3B1F","#7A4019",
-           "#8B4513","#93501B","#9B5523","#A46030","#AD6B3A","#B8763E","#C28448","#CD853F",
-           "#D4A060","#DEB887","#E3C498","#E8CDA0","#F0D9B0","#F5DEB3","#FAEBD7","#FDF5E6"]
+      8:  ["#FFB7C5","#93C572","#FFFDD0","#C68E17","#8E4585","#FFE4E1","#DAA520","#F5F5DC"],
+      16: ["#FFB7C5","#93C572","#FFFDD0","#C68E17","#8E4585","#FFE4E1","#DAA520","#F5F5DC",
+           "#FF91A4","#6B8E23","#FAF0E6","#A07010","#6A2E6B","#FFC0CB","#B8860B","#E8DCC8"],
+      24: ["#FFB7C5","#93C572","#FFFDD0","#C68E17","#8E4585","#FFE4E1","#DAA520","#F5F5DC",
+           "#FF91A4","#6B8E23","#FAF0E6","#A07010","#6A2E6B","#FFC0CB","#B8860B","#E8DCC8",
+           "#DB7093","#77AB59","#FFFFF0","#8B6914","#C08081","#FFD1DC","#C19A6B","#D4C4A8"]
     }
   },
   {
-    id: "cool-mono", name: "Cool Monochrome", category: "monochrome",
+    id: "coffee_shop",
+    name: "Coffee shop",
+    category: "food",
+    description: "Espresso, milk foam, caramel, cinnamon, a touch of sage",
     tiers: {
-      8:  ["#1C1C1C","#2F4F4F","#708090","#778899","#B0C4DE","#C0C0C0","#DCDCDC","#F0F8FF"],
-      16: ["#1C1C1C","#2B2B2B","#2F4F4F","#4A6972","#708090","#748B9C","#778899","#8C9DAE",
-           "#B0C4DE","#B8C8D8","#C0C0C0","#CCCCCC","#DCDCDC","#E8E8E8","#F0F8FF","#FFFFFF"],
-      24: ["#1C1C1C","#232323","#2B2B2B","#2F4F4F","#3D5C64","#4A6972","#587880","#668690",
-           "#708090","#748B9C","#778899","#808FA0","#8C9DAE","#9AACBE","#B0C4DE","#B8C8D8",
-           "#C0C0C0","#C8C8C8","#CCCCCC","#D5D5D5","#DCDCDC","#E8E8E8","#F0F8FF","#FFFFFF"]
+      8:  ["#3C1414","#FFFDD0","#C68E17","#D2691E","#8FBC8F","#8B7355","#F5DEB3","#A0522D"],
+      16: ["#3C1414","#FFFDD0","#C68E17","#D2691E","#8FBC8F","#8B7355","#F5DEB3","#A0522D",
+           "#1C0C0C","#FAF0E6","#A07010","#8B4513","#6B8E6B","#5C4033","#DEB887","#CD853F"],
+      24: ["#3C1414","#FFFDD0","#C68E17","#D2691E","#8FBC8F","#8B7355","#F5DEB3","#A0522D",
+           "#1C0C0C","#FAF0E6","#A07010","#8B4513","#6B8E6B","#5C4033","#DEB887","#CD853F",
+           "#2A1010","#E8DCC8","#B8860B","#C19A6B","#556B2F","#6B4423","#F5F0E1","#BC8F8F"]
+    }
+  },
+  {
+    id: "spice_market",
+    name: "Spice market",
+    category: "food",
+    description: "Turmeric, paprika, cardamom green, saffron, clove brown",
+    tiers: {
+      8:  ["#E3A857","#C04000","#6B8E23","#F4C430","#5C4033","#CD853F","#8B4513","#DAA520"],
+      16: ["#E3A857","#C04000","#6B8E23","#F4C430","#5C4033","#CD853F","#8B4513","#DAA520",
+           "#C19A6B","#8B2500","#556B2F","#E6B420","#3B2716","#A0522D","#6B4423","#B8860B"],
+      24: ["#E3A857","#C04000","#6B8E23","#F4C430","#5C4033","#CD853F","#8B4513","#DAA520",
+           "#C19A6B","#8B2500","#556B2F","#E6B420","#3B2716","#A0522D","#6B4423","#B8860B",
+           "#FFD700","#A52A2A","#808000","#FFF8DC","#2F1F10","#D2B48C","#4A3520","#E6C87D"]
+    }
+  },
+  {
+    id: "gingham_picnic",
+    name: "Gingham picnic",
+    category: "textile",
+    description: "Cherry red, white, sky blue, grass green, butter yellow",
+    tiers: {
+      8:  ["#DC143C","#FFFAFA","#87CEEB","#4CAF50","#FFFACD","#FF6347","#ADD8E6","#F5F5DC"],
+      16: ["#DC143C","#FFFAFA","#87CEEB","#4CAF50","#FFFACD","#FF6347","#ADD8E6","#F5F5DC",
+           "#B22222","#F5F0E1","#6699CC","#228B22","#FFD700","#CD5C5C","#B0C4DE","#DEB887"],
+      24: ["#DC143C","#FFFAFA","#87CEEB","#4CAF50","#FFFACD","#FF6347","#ADD8E6","#F5F5DC",
+           "#B22222","#F5F0E1","#6699CC","#228B22","#FFD700","#CD5C5C","#B0C4DE","#DEB887",
+           "#8B0000","#DCDCDC","#4682B4","#2E8B57","#DAA520","#A52A2A","#5B7FA5","#C2B280"]
+    }
+  },
+  {
+    id: "indigo_shibori",
+    name: "Indigo shibori",
+    category: "textile",
+    description: "Deep indigo gradations with white and warm grey accents",
+    tiers: {
+      8:  ["#1A0533","#FFFAFA","#ADD8E6","#A9A9A9","#1B2A4A","#B0C4DE","#4B0082","#E6E6FA"],
+      16: ["#1A0533","#FFFAFA","#ADD8E6","#A9A9A9","#1B2A4A","#B0C4DE","#4B0082","#E6E6FA",
+           "#0C0122","#F5F5F5","#87CEEB","#808080","#264366","#6699CC","#2E0854","#D8D8E8"],
+      24: ["#1A0533","#FFFAFA","#ADD8E6","#A9A9A9","#1B2A4A","#B0C4DE","#4B0082","#E6E6FA",
+           "#0C0122","#F5F5F5","#87CEEB","#808080","#264366","#6699CC","#2E0854","#D8D8E8",
+           "#100028","#DCDCDC","#5B7FA5","#C0C0C0","#36456B","#778899","#3D1A70","#C8C8F0"]
+    }
+  },
+  {
+    id: "mid_century_modern",
+    name: "Mid-century modern",
+    category: "interiors",
+    description: "Mustard, teal, burnt orange, walnut brown, cream",
+    tiers: {
+      8:  ["#DAA520","#008080","#CC5500","#5C4033","#FFFDD0","#FF8C00","#2E8B57","#D2B48C"],
+      16: ["#DAA520","#008080","#CC5500","#5C4033","#FFFDD0","#FF8C00","#2E8B57","#D2B48C",
+           "#B8860B","#006666","#A0522D","#3B2716","#FAF0E6","#E07000","#20735C","#C19A6B"],
+      24: ["#DAA520","#008080","#CC5500","#5C4033","#FFFDD0","#FF8C00","#2E8B57","#D2B48C",
+           "#B8860B","#006666","#A0522D","#3B2716","#FAF0E6","#E07000","#20735C","#C19A6B",
+           "#C19A3D","#2F4F4F","#8B4513","#6B4423","#E8DCC8","#CD853F","#4F7D6E","#DEB887"]
+    }
+  },
+  {
+    id: "coastal_cottage",
+    name: "Coastal cottage",
+    category: "interiors",
+    description: "Driftwood, sea glass, sand, navy, coral pop",
+    tiers: {
+      8:  ["#8B7D6B","#66CDAA","#C2B280","#1B2A4A","#FF7F50","#F5F5DC","#4682B4","#B0C4DE"],
+      16: ["#8B7D6B","#66CDAA","#C2B280","#1B2A4A","#FF7F50","#F5F5DC","#4682B4","#B0C4DE",
+           "#6B5D4B","#3CB371","#A09570","#0C1A30","#E6735A","#FAF0E6","#5B7FA5","#87CEEB"],
+      24: ["#8B7D6B","#66CDAA","#C2B280","#1B2A4A","#FF7F50","#F5F5DC","#4682B4","#B0C4DE",
+           "#6B5D4B","#3CB371","#A09570","#0C1A30","#E6735A","#FAF0E6","#5B7FA5","#87CEEB",
+           "#A09080","#5F9EA0","#D2C5A8","#36456B","#CD5C5C","#FFFAFA","#6699CC","#ADD8E6"]
+    }
+  },
+  {
+    id: "parisian_apartment",
+    name: "Parisian apartment",
+    category: "interiors",
+    description: "Charcoal, blush, gold, marble white, dusty blue",
+    tiers: {
+      8:  ["#36454F","#FFB6C1","#DAA520","#FFFAFA","#6699CC","#C0C0C0","#D4A574","#F5F5F5"],
+      16: ["#36454F","#FFB6C1","#DAA520","#FFFAFA","#6699CC","#C0C0C0","#D4A574","#F5F5F5",
+           "#1C1C1C","#FF91A4","#B8860B","#E8E8E8","#5B7FA5","#A9A9A9","#BC8F8F","#DCDCDC"],
+      24: ["#36454F","#FFB6C1","#DAA520","#FFFAFA","#6699CC","#C0C0C0","#D4A574","#F5F5F5",
+           "#1C1C1C","#FF91A4","#B8860B","#E8E8E8","#5B7FA5","#A9A9A9","#BC8F8F","#DCDCDC",
+           "#4A4A4A","#FFC0CB","#C19A6B","#F0F0F0","#4682B4","#808080","#C19A3D","#B0B0B0"]
+    }
+  },
+  {
+    id: "candy_shop",
+    name: "Candy shop",
+    category: "whimsical",
+    description: "Bubblegum, mint, lemon, tangerine, blueberry",
+    tiers: {
+      8:  ["#FF69B4","#98FF98","#FFFACD","#FF8C00","#4169E1","#FFB6C1","#00CED1","#FFD700"],
+      16: ["#FF69B4","#98FF98","#FFFACD","#FF8C00","#4169E1","#FFB6C1","#00CED1","#FFD700",
+           "#FF1493","#3CB371","#FFF8DC","#CC7000","#0047AB","#FFC0CB","#20B2AA","#DAA520"],
+      24: ["#FF69B4","#98FF98","#FFFACD","#FF8C00","#4169E1","#FFB6C1","#00CED1","#FFD700",
+           "#FF1493","#3CB371","#FFF8DC","#CC7000","#0047AB","#FFC0CB","#20B2AA","#DAA520",
+           "#DB7093","#90EE90","#F0E68C","#FF6347","#6495ED","#FFE4E1","#40E0D0","#F4C430"]
+    }
+  },
+  {
+    id: "storybook",
+    name: "Storybook",
+    category: "whimsical",
+    description: "Brick red, adventure green, sky blue, gold, parchment",
+    tiers: {
+      8:  ["#B22222","#2E8B57","#87CEEB","#DAA520","#F5F0E1","#8B0000","#4682B4","#FFD700"],
+      16: ["#B22222","#2E8B57","#87CEEB","#DAA520","#F5F0E1","#8B0000","#4682B4","#FFD700",
+           "#CD5C5C","#228B22","#ADD8E6","#B8860B","#FFFDD0","#A52A2A","#5B7FA5","#C19A6B"],
+      24: ["#B22222","#2E8B57","#87CEEB","#DAA520","#F5F0E1","#8B0000","#4682B4","#FFD700",
+           "#CD5C5C","#228B22","#ADD8E6","#B8860B","#FFFDD0","#A52A2A","#5B7FA5","#C19A6B",
+           "#CC0000","#6B8E23","#B0C4DE","#E6C87D","#FAF5E6","#36454F","#6699CC","#D2B48C"]
+    }
+  },
+  {
+    id: "under_the_sea",
+    name: "Under the sea",
+    category: "whimsical",
+    description: "Deep ocean, mermaid teal, starfish coral, sand, pearl",
+    tiers: {
+      8:  ["#003366","#20B2AA","#FF7F50","#C2B280","#FFFAFA","#4682B4","#FF6347","#E0FFFF"],
+      16: ["#003366","#20B2AA","#FF7F50","#C2B280","#FFFAFA","#4682B4","#FF6347","#E0FFFF",
+           "#001A33","#008B8B","#E6735A","#A09570","#F5F5F5","#5B7FA5","#CD5C5C","#B0E0E6"],
+      24: ["#003366","#20B2AA","#FF7F50","#C2B280","#FFFAFA","#4682B4","#FF6347","#E0FFFF",
+           "#001A33","#008B8B","#E6735A","#A09570","#F5F5F5","#5B7FA5","#CD5C5C","#B0E0E6",
+           "#0C2D48","#5F9EA0","#FFD700","#DEC49B","#DCDCDC","#6699CC","#DB7093","#ADD8E6"]
+    }
+  },
+  {
+    id: "fireworks_night",
+    name: "Fireworks night",
+    category: "festive",
+    description: "Midnight sky, spark gold, rocket red, blue burst, smoke",
+    tiers: {
+      8:  ["#0C0C1D","#FFD700","#FF0000","#1E90FF","#A9A9A9","#FF69B4","#4169E1","#FFA500"],
+      16: ["#0C0C1D","#FFD700","#FF0000","#1E90FF","#A9A9A9","#FF69B4","#4169E1","#FFA500",
+           "#191970","#DAA520","#CC0000","#4682B4","#808080","#FF1493","#0047AB","#FF8C00"],
+      24: ["#0C0C1D","#FFD700","#FF0000","#1E90FF","#A9A9A9","#FF69B4","#4169E1","#FFA500",
+           "#191970","#DAA520","#CC0000","#4682B4","#808080","#FF1493","#0047AB","#FF8C00",
+           "#1B2A4A","#F4C430","#8B0000","#6495ED","#C0C0C0","#DB7093","#5B7FA5","#E6C87D"]
     }
   }
 ];
