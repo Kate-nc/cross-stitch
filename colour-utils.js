@@ -101,7 +101,135 @@ function quantize(data,w,h,n){
   }
   return pl;
 }
-function doDither(data,w,h,pal,allowBlends=true){let d=new Float32Array(w*h*3);for(let i=0;i<w*h;i++){d[i*3]=data[i*4];d[i*3+1]=data[i*4+1];d[i*3+2]=data[i*4+2];}let r=new Array(w*h);for(let y=0;y<h;y++)for(let x=0;x<w;x++){let idx=y*w+x,cr=Math.max(0,Math.min(255,d[idx*3])),cg=Math.max(0,Math.min(255,d[idx*3+1])),cb=Math.max(0,Math.min(255,d[idx*3+2]));let m=findBest(rgbToLab(cr,cg,cb),pal,allowBlends);r[idx]=m;let eR=cr-m.rgb[0],eG=cg-m.rgb[1],eB=cb-m.rgb[2];if(x+1<w){let ni=(y*w+x+1)*3;d[ni]+=eR*7/16;d[ni+1]+=eG*7/16;d[ni+2]+=eB*7/16;}if(y+1<h){if(x>0){let ni2=((y+1)*w+x-1)*3;d[ni2]+=eR*3/16;d[ni2+1]+=eG*3/16;d[ni2+2]+=eB*3/16;}let ni3=((y+1)*w+x)*3;d[ni3]+=eR*5/16;d[ni3+1]+=eG*5/16;d[ni3+2]+=eB*5/16;if(x+1<w){let ni4=((y+1)*w+x+1)*3;d[ni4]+=eR*1/16;d[ni4+1]+=eG*1/16;d[ni4+2]+=eB*1/16;}}}return r;}
+/**
+ * Floyd-Steinberg dithering with Stage 2 confetti-aware color selection.
+ *
+ * When selecting the closest palette color for a pixel, if none of the four
+ * already-processed neighbors share that color, the algorithm checks whether
+ * a "second-best" color that *does* match a neighbor is within a perceptual
+ * penalty threshold. If so, it uses the second-best color to avoid creating
+ * an isolated stitch. The threshold is scaled by `(1 - saliency)` so that
+ * high-detail areas are unaffected.
+ *
+ * @param {Uint8ClampedArray} data           RGBA source pixels
+ * @param {number}            w
+ * @param {number}            h
+ * @param {Array}             pal            palette entries (each has .id, .rgb, .lab)
+ * @param {boolean}           [allowBlends]  passed through to findBest
+ * @param {Float32Array}      [saliencyMap]  per-pixel saliency scores 0–1; if omitted,
+ *                                           treated as all-zero (maximum smoothing)
+ * @param {object}            [opts]
+ * @param {number}            [opts.confettiDitherThreshold=4.0]  base Delta-E² penalty
+ *                                           the algorithm accepts to avoid an isolate
+ */
+function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { confettiDitherThreshold = 4.0 } = {}) {
+  const N = w * h;
+
+  // Working buffer in float so error diffusion doesn't clip
+  const d = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    d[i * 3]     = data[i * 4];
+    d[i * 3 + 1] = data[i * 4 + 1];
+    d[i * 3 + 2] = data[i * 4 + 2];
+  }
+
+  const r = new Array(N);
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = y * w + x;
+
+      const cr = Math.max(0, Math.min(255, d[idx * 3]));
+      const cg = Math.max(0, Math.min(255, d[idx * 3 + 1]));
+      const cb = Math.max(0, Math.min(255, d[idx * 3 + 2]));
+      const targetLab = rgbToLab(cr, cg, cb);
+
+      // --- Stage 2: confetti-aware color selection ---
+      // Find best color via the normal path first.
+      const best = findBest(targetLab, pal, allowBlends);
+
+      // Compute the effective threshold, scaled by (1 - saliency).
+      const saliency = saliencyMap ? saliencyMap[idx] : 0;
+      const effectiveThreshold = confettiDitherThreshold * (1.0 - saliency);
+      // dE2 returns squared Lab distance (ΔE²). The brief specifies the penalty
+      // check as:  dE2(target, secondBest) - dE2(target, best) < threshold
+      // so we compare the difference of squared distances against the raw threshold.
+      // (Squaring both sides of a ΔE comparison would over-tighten the bound.)
+
+      let chosen = best;
+
+      if (effectiveThreshold > 0) {
+        // Collect the up to 4 already-processed neighbors:
+        //   top-left (y-1, x-1), top (y-1, x), top-right (y-1, x+1), left (y, x-1)
+        const neighborIds = new Set();
+        if (y > 0) {
+          if (x > 0)     neighborIds.add(r[idx - w - 1].id);
+                         neighborIds.add(r[idx - w].id);
+          if (x < w - 1) neighborIds.add(r[idx - w + 1].id);
+        }
+        if (x > 0)       neighborIds.add(r[idx - 1].id);
+
+        // If the best color is already represented in a neighbor, no confetti risk.
+        if (!neighborIds.has(best.id)) {
+          // Find the closest palette color that shares a neighbor's ID.
+          let secondBest = null;
+          let secondBestDistSq = Infinity;
+
+          for (let pi = 0; pi < pal.length; pi++) {
+            const entry = pal[pi];
+            if (!neighborIds.has(entry.id)) continue;
+            const distSq = dE2(targetLab, entry.lab);
+            if (distSq < secondBestDistSq) {
+              secondBestDistSq = distSq;
+              secondBest = entry;
+            }
+          }
+
+          if (secondBest !== null) {
+            const bestDistSq = dE2(targetLab, best.lab);
+            const penalty = secondBestDistSq - bestDistSq;
+            if (penalty < effectiveThreshold) {
+              chosen = secondBest;
+            }
+          }
+        }
+      }
+
+      r[idx] = chosen;
+
+      // Floyd-Steinberg error diffusion
+      const eR = cr - chosen.rgb[0];
+      const eG = cg - chosen.rgb[1];
+      const eB = cb - chosen.rgb[2];
+
+      if (x + 1 < w) {
+        const ni = (idx + 1) * 3;
+        d[ni]     += eR * 7 / 16;
+        d[ni + 1] += eG * 7 / 16;
+        d[ni + 2] += eB * 7 / 16;
+      }
+      if (y + 1 < h) {
+        if (x > 0) {
+          const ni2 = (idx + w - 1) * 3;
+          d[ni2]     += eR * 3 / 16;
+          d[ni2 + 1] += eG * 3 / 16;
+          d[ni2 + 2] += eB * 3 / 16;
+        }
+        const ni3 = (idx + w) * 3;
+        d[ni3]     += eR * 5 / 16;
+        d[ni3 + 1] += eG * 5 / 16;
+        d[ni3 + 2] += eB * 5 / 16;
+        if (x + 1 < w) {
+          const ni4 = (idx + w + 1) * 3;
+          d[ni4]     += eR * 1 / 16;
+          d[ni4 + 1] += eG * 1 / 16;
+          d[ni4 + 2] += eB * 1 / 16;
+        }
+      }
+    }
+  }
+  return r;
+}
 function doMap(data, w, h, pal, allowBlends = true) {
   let r = new Array(w * h);
   let cache = new Map();
@@ -293,101 +421,659 @@ function applyGaussianBlur(data, w, h, sigma) {
   return data;
 }
 
-function removeOrphanStitches(mapped, w, h, maxOrphanSize) {
-  if (maxOrphanSize <= 0) return mapped;
-  let len = mapped.length;
-  let vis = new Uint8Array(len);
+// ---------------------------------------------------------------------------
+// Image processing primitives (Gaussian blur, Sobel, Canny).
+// These are defined as function declarations in embroidery.js for embroidery
+// pages.  The fallbacks below ensure they are available when colour-utils.js
+// is loaded without embroidery.js (e.g. the creator app).
+// Use globalThis for CANNY_* defaults so this file does not create hoisted
+// script-scope bindings that can mask globals or conflict with later const
+// declarations in embroidery.js.
+// ---------------------------------------------------------------------------
+if (typeof globalThis.CANNY_BLUR_SIGMA === 'undefined') {
+  globalThis.CANNY_BLUR_SIGMA = 1.4;
+}
+if (typeof globalThis.CANNY_THRESHOLD_LOW === 'undefined') {
+  globalThis.CANNY_THRESHOLD_LOW = 30;
+}
+if (typeof globalThis.CANNY_THRESHOLD_HIGH === 'undefined') {
+  globalThis.CANNY_THRESHOLD_HIGH = 80;
+}
+if (typeof gaussianBlur === 'undefined') {
+  var gaussianBlur = function(data, w, h, sigma) {
+    const r = Math.ceil(3 * sigma) | 0;
+    const klen = 2 * r + 1;
+    const kernel = new Float32Array(klen);
+    let sum = 0;
+    for (let i = 0; i < klen; i++) {
+      const d = i - r;
+      kernel[i] = Math.exp(-d * d / (2 * sigma * sigma));
+      sum += kernel[i];
+    }
+    for (let i = 0; i < klen; i++) kernel[i] /= sum;
+    const tmp = new Float32Array(w * h);
+    const out = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let v = 0;
+        for (let k = 0; k < klen; k++) {
+          const nx = Math.max(0, Math.min(w - 1, x + k - r));
+          v += data[y * w + nx] * kernel[k];
+        }
+        tmp[y * w + x] = v;
+      }
+    }
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let v = 0;
+        for (let k = 0; k < klen; k++) {
+          const ny = Math.max(0, Math.min(h - 1, y + k - r));
+          v += tmp[ny * w + x] * kernel[k];
+        }
+        out[y * w + x] = v;
+      }
+    }
+    return out;
+  };
+}
+if (typeof sobelMag === 'undefined') {
+  var sobelMag = function(data, w, h) {
+    const N = w * h, m = new Float32Array(N), lum = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const idx = i * 4;
+      lum[i] = 0.2126 * data[idx] + 0.7152 * data[idx + 1] + 0.0722 * data[idx + 2];
+    }
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const p = (dx, dy) => lum[(y + dy) * w + (x + dx)];
+        const gx = -p(-1,-1) - 2*p(-1,0) - p(-1,1) + p(1,-1) + 2*p(1,0) + p(1,1);
+        const gy = -p(-1,-1) - 2*p(0,-1) - p(1,-1) + p(-1,1) + 2*p(0,1) + p(1,1);
+        m[y * w + x] = Math.sqrt(gx * gx + gy * gy);
+      }
+    }
+    return m;
+  };
+}
+if (typeof cannyEdges === 'undefined') {
+  var cannyEdges = function(data, w, h) {
+    const N = w * h;
+    const gray = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const idx = i * 4;
+      gray[i] = 0.2126 * data[idx] + 0.7152 * data[idx + 1] + 0.0722 * data[idx + 2];
+    }
+    const blurred = gaussianBlur(gray, w, h, CANNY_BLUR_SIGMA);
+    const mag = new Float32Array(N);
+    const angle = new Uint8Array(N);
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const p = (dx, dy) => blurred[(y + dy) * w + (x + dx)];
+        const gx = -p(-1,-1) - 2*p(-1,0) - p(-1,1) + p(1,-1) + 2*p(1,0) + p(1,1);
+        const gy = -p(-1,-1) - 2*p(0,-1) - p(1,-1) + p(-1,1) + 2*p(0,1) + p(1,1);
+        mag[y * w + x] = Math.sqrt(gx * gx + gy * gy);
+        const a = Math.abs(Math.atan2(gy, gx) * 180 / Math.PI);
+        angle[y * w + x] = a < 22.5 || a >= 157.5 ? 0 : a < 67.5 ? 1 : a < 112.5 ? 2 : 3;
+      }
+    }
+    const nms = new Float32Array(N);
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const mv = mag[y * w + x];
+        if (!mv) continue;
+        let p, q;
+        switch (angle[y * w + x]) {
+          case 0: p = mag[y * w + x - 1];         q = mag[y * w + x + 1];         break;
+          case 1: p = mag[(y - 1) * w + x + 1];   q = mag[(y + 1) * w + x - 1];   break;
+          case 2: p = mag[(y - 1) * w + x];        q = mag[(y + 1) * w + x];        break;
+          default:p = mag[(y - 1) * w + x - 1];   q = mag[(y + 1) * w + x + 1];   break;
+        }
+        nms[y * w + x] = (mv >= p && mv >= q) ? mv : 0;
+      }
+    }
+    const STRONG = 2, WEAK = 1;
+    const edge = new Uint8Array(N);
+    for (let i = 0; i < N; i++) {
+      if      (nms[i] >= CANNY_THRESHOLD_HIGH) edge[i] = STRONG;
+      else if (nms[i] >= CANNY_THRESHOLD_LOW)  edge[i] = WEAK;
+    }
+    const bfsQ = new Int32Array(N); let head = 0, tail = 0;
+    for (let i = 0; i < N; i++) if (edge[i] === STRONG) bfsQ[tail++] = i;
+    while (head < tail) {
+      const pp = bfsQ[head++], px = pp % w, py = (pp / w) | 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const nx = px + dx, ny = py + dy;
+        if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+        const ni = ny * w + nx;
+        if (edge[ni] === WEAK) { edge[ni] = STRONG; bfsQ[tail++] = ni; }
+      }
+    }
+    const out = new Uint8Array(N);
+    for (let i = 0; i < N; i++) out[i] = edge[i] === STRONG ? 1 : 0;
+    return out;
+  };
+}
 
-  // Pre-allocate queue to avoid small array allocations
-  // The max queue size inside an orphan search is very small, but we use a safely sized queue
-  let q = new Uint32Array(maxOrphanSize * 4 + 10);
-  let comp = new Uint32Array(maxOrphanSize + 1);
+// ---------------------------------------------------------------------------
+// Stage 1: Saliency Map Generation
+// ---------------------------------------------------------------------------
+
+/**
+ * In-place Gaussian blur for a single-channel Float32Array (separable 1-D passes).
+ * @param {Float32Array} data - flat array of length w*h, modified in place
+ * @param {number} w
+ * @param {number} h
+ * @param {number} sigma - standard deviation in pixels
+ */
+function _gaussianBlur1(data, w, h, sigma) {
+  const radius = Math.ceil(sigma * 3);
+  const kLen = 2 * radius + 1;
+  const kernel = new Float32Array(kLen);
+  let kSum = 0;
+  for (let i = 0; i < kLen; i++) {
+    const x = i - radius;
+    kernel[i] = Math.exp(-(x * x) / (2 * sigma * sigma));
+    kSum += kernel[i];
+  }
+  for (let i = 0; i < kLen; i++) kernel[i] /= kSum;
+
+  const N = w * h;
+  const temp = new Float32Array(N);
+
+  // Horizontal pass
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let val = 0;
+      for (let k = -radius; k <= radius; k++) {
+        let nx = x + k;
+        if (nx < 0) nx = 0; else if (nx >= w) nx = w - 1;
+        val += data[y * w + nx] * kernel[k + radius];
+      }
+      temp[y * w + x] = val;
+    }
+  }
+
+  // Vertical pass (write back into data)
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      let val = 0;
+      for (let k = -radius; k <= radius; k++) {
+        let ny = y + k;
+        if (ny < 0) ny = 0; else if (ny >= h) ny = h - 1;
+        val += temp[ny * w + x] * kernel[k + radius];
+      }
+      data[y * w + x] = val;
+    }
+  }
+}
+
+/**
+ * Generates a per-pixel "detail importance" saliency map normalized to 0.0–1.0.
+ *
+ * Uses the Sobel gradient magnitude (via the global `sobelMag` from embroidery.js)
+ * to detect high-frequency edge regions, then normalizes and optionally blurs the
+ * result so that nearby pixels share similar importance scores.
+ *
+ * @param {Uint8ClampedArray} data  RGBA pixel data, length = w*h*4
+ * @param {number}            w     image width in pixels
+ * @param {number}            h     image height in pixels
+ * @param {object}            [opts]
+ * @param {number}            [opts.sigma=3.0]  Gaussian blur sigma in pixels (0 = no blur)
+ * @returns {Float32Array}          per-pixel saliency scores, length = w*h, values in [0, 1]
+ */
+function generateSaliencyMap(data, w, h, { sigma = 3.0 } = {}) {
+  const N = w * h;
+
+  // Step 1: Compute Sobel gradient magnitude.
+  // sobelMag is a global function defined in embroidery.js.
+  const mag = sobelMag(data, w, h); // Float32Array, length N
+
+  // Step 2: Normalize to 0.0–1.0.
+  let minVal = Infinity, maxVal = -Infinity;
+  for (let i = 0; i < N; i++) {
+    if (mag[i] < minVal) minVal = mag[i];
+    if (mag[i] > maxVal) maxVal = mag[i];
+  }
+  const saliency = new Float32Array(N);
+  const range = maxVal - minVal;
+  if (range > 0) {
+    for (let i = 0; i < N; i++) {
+      saliency[i] = (mag[i] - minVal) / range;
+    }
+  }
+  // If range === 0 (flat image), saliency stays all-zero — correct behavior.
+
+  // Step 3: Optional Gaussian blur to smooth importance zone boundaries.
+  if (sigma > 0) {
+    _gaussianBlur1(saliency, w, h, sigma);
+    // Re-normalize after blurring (blur can compress the range near boundaries).
+    let bMin = Infinity, bMax = -Infinity;
+    for (let i = 0; i < N; i++) {
+      if (saliency[i] < bMin) bMin = saliency[i];
+      if (saliency[i] > bMax) bMax = saliency[i];
+    }
+    const bRange = bMax - bMin;
+    if (bRange > 0) {
+      for (let i = 0; i < N; i++) {
+        saliency[i] = (saliency[i] - bMin) / bRange;
+      }
+    }
+  }
+
+  return saliency;
+}
+
+// ---------------------------------------------------------------------------
+// Stage 3: Multi-Stage Morphological Cleaning
+// ---------------------------------------------------------------------------
+
+/**
+ * Apply binary erosion to a Uint8Array mask in-place using a 3×3 cross structuring element.
+ * A pixel survives only if all 4-connected neighbors (N, S, E, W) in the mask are also 1.
+ */
+function _erode3Cross(mask, w, h, out) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (!mask[i]) { out[i] = 0; continue; }
+      const up    = y > 0     ? mask[(y - 1) * w + x] : 0;
+      const down  = y < h - 1 ? mask[(y + 1) * w + x] : 0;
+      const left  = x > 0     ? mask[y * w + (x - 1)] : 0;
+      const right = x < w - 1 ? mask[y * w + (x + 1)] : 0;
+      out[i] = (up && down && left && right) ? 1 : 0;
+    }
+  }
+}
+
+/**
+ * Apply binary dilation to a Uint8Array mask in-place using a 3×3 cross structuring element.
+ * A pixel is set if it, or any 4-connected neighbor, is 1 in the source mask.
+ */
+function _dilate3Cross(mask, w, h, out) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (mask[i]) { out[i] = 1; continue; }
+      const up    = y > 0     ? mask[(y - 1) * w + x] : 0;
+      const down  = y < h - 1 ? mask[(y + 1) * w + x] : 0;
+      const left  = x > 0     ? mask[y * w + (x - 1)] : 0;
+      const right = x < w - 1 ? mask[y * w + (x + 1)] : 0;
+      out[i] = (up || down || left || right) ? 1 : 0;
+    }
+  }
+}
+
+/**
+ * Morphological opening: erode then dilate.
+ * Returns a new Uint8Array (does not mutate the input).
+ */
+function _morphOpen(mask, w, h) {
+  const tmp = new Uint8Array(mask.length);
+  const out = new Uint8Array(mask.length);
+  _erode3Cross(mask, w, h, tmp);
+  _dilate3Cross(tmp, w, h, out);
+  return out;
+}
+
+/**
+ * Morphological closing: dilate then erode.
+ * Returns a new Uint8Array (does not mutate the input).
+ */
+function _morphClose(mask, w, h) {
+  const tmp = new Uint8Array(mask.length);
+  const out = new Uint8Array(mask.length);
+  _dilate3Cross(mask, w, h, tmp);
+  _erode3Cross(tmp, w, h, out);
+  return out;
+}
+
+/**
+ * Stage 3: Morphological cleaning of a quantized pattern.
+ *
+ * For each unique color ID (processed most-common-first so large background
+ * regions get priority), builds a binary mask, applies morphological opening
+ * then closing, and writes the result back. Pixels claimed by multiple masks
+ * or none are resolved by neighbor-count confidence; ties broken by dE2.
+ *
+ * @param {Array}   mapped   Array of palette entry objects from doDither/doMap
+ * @param {number}  w
+ * @param {number}  h
+ * @param {Uint8ClampedArray|null} sourceData  Original RGBA pixels (used for dE2 tie-breaking)
+ * @param {object}  [opts]
+ * @param {number}  [opts.minPixelCount=20]  Skip colors with fewer pixels than this
+ * @returns {Array}  The mutated mapped array
+ */
+function morphologicalClean(mapped, w, h, sourceData = null, { minPixelCount = 20 } = {}) {
+  const N = w * h;
+
+  // Count pixels per color and build an index of color entries
+  const counts = {};
+  const colorEntry = {};
+  for (let i = 0; i < N; i++) {
+    const id = mapped[i].id;
+    if (id === '__skip__' || id === '__empty__') continue;
+    counts[id] = (counts[id] || 0) + 1;
+    if (!colorEntry[id]) colorEntry[id] = mapped[i];
+  }
+
+  // Sort colors: most common first for conflict resolution priority
+  const colorIds = Object.keys(counts).filter(id => counts[id] >= minPixelCount);
+  colorIds.sort((a, b) => counts[b] - counts[a]);
+
+  if (colorIds.length === 0) return mapped;
+
+  // For each qualifying color: apply opening then closing
+  // cleaned[colorId] = processed Uint8Array mask
+  const cleaned = {};
+  const buf1 = new Uint8Array(N);
+
+  for (const id of colorIds) {
+    // Build binary mask
+    for (let i = 0; i < N; i++) buf1[i] = mapped[i].id === id ? 1 : 0;
+    // Opening (remove tiny protrusions), then closing (fill small holes)
+    const opened = _morphOpen(buf1, w, h);
+    cleaned[id] = _morphClose(opened, w, h);
+  }
+
+  // Resolve conflicts / unclaimed pixels:
+  // For every pixel, find which cleaned masks claim it.
+  // Build a flat result array starting from the original mapping.
+  const result = new Array(N);
+  for (let i = 0; i < N; i++) result[i] = mapped[i];
+
+  // claim[i] = colorId string, or null if unclaimed
+  // We process most-common first, so the first claimer wins unless confidence resolves it.
+  const claim = new Array(N).fill(null);
+
+  for (const id of colorIds) {
+    const mask = cleaned[id];
+    for (let i = 0; i < N; i++) {
+      if (!mask[i]) continue;
+      if (claim[i] === null) {
+        claim[i] = id;
+      } else {
+        // Conflict: compare neighbor counts for each claimer vs. current pixel
+        const incumbent = claim[i];
+        const score = (testId) => {
+          const x = i % w, y = (i / w) | 0;
+          let n = 0;
+          if (x > 0)     n += mapped[i - 1].id === testId ? 1 : 0;
+          if (x < w - 1) n += mapped[i + 1].id === testId ? 1 : 0;
+          if (y > 0)     n += mapped[i - w].id === testId ? 1 : 0;
+          if (y < h - 1) n += mapped[i + w].id === testId ? 1 : 0;
+          return n;
+        };
+        const sNew = score(id);
+        const sOld = score(incumbent);
+        if (sNew > sOld) {
+          claim[i] = id;
+        } else if (sNew === sOld && sourceData) {
+          // Tie-break with perceptual distance to original pixel
+          const si = i * 4;
+          const origLab = rgbToLab(sourceData[si], sourceData[si + 1], sourceData[si + 2]);
+          const dNew = dE2(origLab, colorEntry[id].lab);
+          const dOld = dE2(origLab, colorEntry[incumbent].lab);
+          if (dNew < dOld) claim[i] = id;
+        }
+      }
+    }
+  }
+
+  // Write results back: only update pixels that were actually processed and have a claim
+  for (let i = 0; i < N; i++) {
+    const id = mapped[i].id;
+    if (id === '__skip__' || id === '__empty__') continue;
+    if (!cleaned[id]) continue; // color was below minPixelCount — leave as-is
+
+    const winner = claim[i];
+    if (winner !== null && winner !== id) {
+      result[i] = colorEntry[winner];
+    }
+    // Unclaimed (claim[i] === null): pixel was eroded away from all processed masks.
+    // Resolve by most-common neighbor color, same as removeOrphanStitches.
+    if (winner === null) {
+      const x = i % w, y = (i / w) | 0;
+      const neighborCounts = {};
+      const check = (ni) => {
+        const nid = mapped[ni].id;
+        if (nid !== '__skip__' && nid !== '__empty__' && cleaned[nid]) {
+          neighborCounts[nid] = (neighborCounts[nid] || 0) + 1;
+        }
+      };
+      if (x > 0)     check(i - 1);
+      if (x < w - 1) check(i + 1);
+      if (y > 0)     check(i - w);
+      if (y < h - 1) check(i + w);
+      let bestNid = null, bestN = -1;
+      for (const nid in neighborCounts) {
+        if (neighborCounts[nid] > bestN) { bestN = neighborCounts[nid]; bestNid = nid; }
+      }
+      if (bestNid && colorEntry[bestNid]) {
+        result[i] = colorEntry[bestNid];
+      }
+    }
+  }
+
+  // Copy result back into mapped (maintain reference for callers)
+  for (let i = 0; i < N; i++) mapped[i] = result[i];
+  return mapped;
+}
+
+// ---------------------------------------------------------------------------
+// Stage 4: Edge Map Generation
+// ---------------------------------------------------------------------------
+
+/**
+ * One pass of binary dilation with a 3×3 square structuring element.
+ * Returns a new Uint8Array; does not mutate the input.
+ */
+function _dilate3Square(mask, w, h) {
+  const N = w * h;
+  const out = new Uint8Array(N);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (mask[i]) { out[i] = 1; continue; }
+      let set = 0;
+      for (let dy = -1; dy <= 1 && !set; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h) continue;
+        for (let dx = -1; dx <= 1 && !set; dx++) {
+          if (!dy && !dx) continue;
+          const nx = x + dx;
+          if (nx >= 0 && nx < w && mask[ny * w + nx]) set = 1;
+        }
+      }
+      out[i] = set;
+    }
+  }
+  return out;
+}
+
+/**
+ * Stage 4: Generate a boolean edge mask from the source image.
+ *
+ * Calls the global `cannyEdges` function from embroidery.js, then optionally
+ * dilates the result so stitches immediately adjacent to an edge are also
+ * protected from orphan removal in Stage 5.
+ *
+ * @param {Uint8ClampedArray} data           RGBA source pixels
+ * @param {number}            w
+ * @param {number}            h
+ * @param {object}            [opts]
+ * @param {number}            [opts.edgeDilation=1]  Dilation radius in pixels (0 = no buffer)
+ * @returns {Uint8Array}  Boolean edge mask of length w*h (1 = edge pixel)
+ */
+function generateEdgeMap(data, w, h, { edgeDilation = 1 } = {}) {
+  // cannyEdges is a global defined in embroidery.js
+  let edges = cannyEdges(data, w, h); // Uint8Array, 0/1
+
+  for (let pass = 0; pass < edgeDilation; pass++) {
+    edges = _dilate3Square(edges, w, h);
+  }
+
+  return edges;
+}
+
+// ---------------------------------------------------------------------------
+// Stage 5: Edge-Protected Perceptual Orphan Removal
+// ---------------------------------------------------------------------------
+
+/**
+ * Remove small isolated color clusters ("orphan stitches") from a quantized pattern.
+ *
+ * Enhancements over the original frequency-based pass:
+ *  - Edge protection: clusters overlapping the edge map are skipped entirely.
+ *  - Saliency-scaled threshold: orphans in low-saliency (background) regions are
+ *    eligible for removal even if they are somewhat larger.
+ *  - Perceptual replacement: the replacement color minimizes dE2 to the orphan
+ *    color (not merely the most-frequent border neighbor). Frequency is only used
+ *    as a tie-break when two candidates are within deTieBreakThreshold ΔE.
+ *
+ * Backward-compatible: callers that pass only the original four arguments get the
+ * same old behavior (edgeMap=null, saliencyMap=null → no edge protection, no
+ * saliency scaling, and perceptual selection still improves replacement quality).
+ *
+ * @param {Array}        mapped
+ * @param {number}       w
+ * @param {number}       h
+ * @param {number}       maxOrphanSize         Base pixel threshold for orphan eligibility
+ * @param {Uint8Array}   [edgeMap]             From generateEdgeMap(); null = no protection
+ * @param {Float32Array} [saliencyMap]         From generateSaliencyMap(); null = no scaling
+ * @param {object}       [opts]
+ * @param {number}       [opts.saliencyMultiplier=2.0]    Scales effectiveMaxSize in flat areas
+ * @param {number}       [opts.deTieBreakThreshold=1.0]   ΔE within which frequency wins
+ */
+function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, saliencyMap = null, { saliencyMultiplier = 2.0, deTieBreakThreshold = 1.0 } = {}) {
+  if (maxOrphanSize <= 0) return mapped;
+
+  const len = mapped.length;
+
+  // Maximum BFS exploration bound: effectiveMaxSize is maximised when saliency=0
+  const absoluteMaxSize = Math.ceil(maxOrphanSize * (1.0 + saliencyMultiplier));
+
+  // Pre-build a color-entry lookup to avoid O(n) scans per orphan
+  const colorEntries = {};
+  for (let i = 0; i < len; i++) {
+    const id = mapped[i].id;
+    if (!colorEntries[id]) colorEntries[id] = mapped[i];
+  }
+
+  const vis  = new Uint8Array(len);
+  // Queue sized for full image to be safe (components exceeding absoluteMaxSize are drained)
+  const q    = new Uint32Array(len);
+  const comp = new Uint32Array(absoluteMaxSize + 2);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      let idx = y * w + x;
-      if (vis[idx] || mapped[idx].id === "__skip__") continue;
+      const idx = y * w + x;
+      if (vis[idx]) continue;
+      const m = mapped[idx];
+      if (m.id === '__skip__' || m.id === '__empty__') { vis[idx] = 1; continue; }
 
-      let tid = mapped[idx].id;
-      let qHead = 0;
-      let qTail = 0;
-      let compCount = 0;
+      const tid = m.id;
+      let qHead = 0, qTail = 0, compCount = 0;
 
       q[qTail++] = idx;
       vis[idx] = 1;
 
       while (qHead < qTail) {
-        let curr = q[qHead++];
-        if (compCount <= maxOrphanSize) {
-            comp[compCount++] = curr;
-        }
-        if (compCount > maxOrphanSize) break;
+        const curr = q[qHead++];
 
-        let cx = curr % w;
-        let cy = Math.floor(curr / w);
+        if (compCount <= absoluteMaxSize) comp[compCount++] = curr;
 
-        // unrolled neighbors: left, right, up, down
-        if (cx > 0) {
-            let nidx = curr - 1;
-            if (!vis[nidx] && mapped[nidx].id === tid) { vis[nidx] = 1; q[qTail++] = nidx; }
-        }
-        if (cx < w - 1) {
-            let nidx = curr + 1;
-            if (!vis[nidx] && mapped[nidx].id === tid) { vis[nidx] = 1; q[qTail++] = nidx; }
-        }
-        if (cy > 0) {
-            let nidx = curr - w;
-            if (!vis[nidx] && mapped[nidx].id === tid) { vis[nidx] = 1; q[qTail++] = nidx; }
-        }
-        if (cy < h - 1) {
-            let nidx = curr + w;
-            if (!vis[nidx] && mapped[nidx].id === tid) { vis[nidx] = 1; q[qTail++] = nidx; }
-        }
+        // If already beyond the absolute limit stop expanding (drain handled below)
+        if (compCount > absoluteMaxSize) break;
+
+        const cx = curr % w, cy = (curr / w) | 0;
+        if (cx > 0)     { const n = curr - 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+        if (cx < w - 1) { const n = curr + 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+        if (cy > 0)     { const n = curr - w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+        if (cy < h - 1) { const n = curr + w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
       }
 
-      if (compCount <= maxOrphanSize) {
-        let counts = {};
+      // Drain remainder so all component pixels are marked visited
+      while (qHead < qTail) {
+        const curr = q[qHead++];
+        const cx = curr % w, cy = (curr / w) | 0;
+        if (cx > 0)     { const n = curr - 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+        if (cx < w - 1) { const n = curr + 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+        if (cy > 0)     { const n = curr - w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+        if (cy < h - 1) { const n = curr + w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
+      }
+
+      // Component exceeds the absolute maximum — cannot be an orphan
+      if (compCount > absoluteMaxSize) continue;
+
+      // --- Stage 5, step 2: Edge protection ---
+      if (edgeMap) {
+        let onEdge = false;
         for (let i = 0; i < compCount; i++) {
-          let cidx = comp[i];
-          let cx = cidx % w;
-          let cy = Math.floor(cidx / w);
-
-          let l = cx > 0, r = cx < w - 1, u = cy > 0, d = cy < h - 1;
-
-          if (l) { let nid = mapped[cidx - 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-          if (r) { let nid = mapped[cidx + 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-          if (u) { let nid = mapped[cidx - w].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-          if (d) { let nid = mapped[cidx + w].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-
-          if (l && u) { let nid = mapped[cidx - w - 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-          if (r && u) { let nid = mapped[cidx - w + 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-          if (l && d) { let nid = mapped[cidx + w - 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
-          if (r && d) { let nid = mapped[cidx + w + 1].id; if (nid !== tid && nid !== "__skip__") counts[nid] = (counts[nid] || 0) + 1; }
+          if (edgeMap[comp[i]]) { onEdge = true; break; }
         }
+        if (onEdge) continue;
+      }
 
-        let bestId = null;
-        let bestCount = -1;
-        for (let nid in counts) {
-          if (counts[nid] > bestCount) {
-            bestCount = counts[nid];
+      // --- Stage 5, step 3: Saliency-scaled effective max size ---
+      let effectiveMaxSize = maxOrphanSize;
+      if (saliencyMap) {
+        let saliencySum = 0;
+        for (let i = 0; i < compCount; i++) saliencySum += saliencyMap[comp[i]];
+        const meanSaliency = saliencySum / compCount;
+        effectiveMaxSize = maxOrphanSize * (1.0 + (1.0 - meanSaliency) * saliencyMultiplier);
+      }
+
+      if (compCount > effectiveMaxSize) continue;
+
+      // --- Stage 5, step 4: Perceptual replacement color selection ---
+      // Collect 8-neighbor border colors with their frequency
+      const neighborFreq = {};
+      for (let i = 0; i < compCount; i++) {
+        const cidx = comp[i];
+        const cx = cidx % w, cy = (cidx / w) | 0;
+        const checkN = (ni) => {
+          const nid = mapped[ni].id;
+          if (nid !== tid && nid !== '__skip__' && nid !== '__empty__') {
+            neighborFreq[nid] = (neighborFreq[nid] || 0) + 1;
+          }
+        };
+        if (cx > 0)             checkN(cidx - 1);
+        if (cx < w - 1)         checkN(cidx + 1);
+        if (cy > 0)             checkN(cidx - w);
+        if (cy < h - 1)         checkN(cidx + w);
+        if (cx > 0 && cy > 0)         checkN(cidx - w - 1);
+        if (cx < w-1 && cy > 0)       checkN(cidx - w + 1);
+        if (cx > 0 && cy < h-1)       checkN(cidx + w - 1);
+        if (cx < w-1 && cy < h-1)     checkN(cidx + w + 1);
+      }
+
+      // Find the minimum ΔE distance to the orphan's Lab color
+      const orphanLab = m.lab;
+      let minDE = Infinity;
+      for (const nid in neighborFreq) {
+        const entry = colorEntries[nid];
+        if (!entry) continue;
+        const de = Math.sqrt(dE2(orphanLab, entry.lab));
+        if (de < minDE) minDE = de;
+      }
+
+      // Among candidates within deTieBreakThreshold of minDE, prefer by frequency
+      let bestId = null, bestCount = -1;
+      for (const nid in neighborFreq) {
+        const entry = colorEntries[nid];
+        if (!entry) continue;
+        const de = Math.sqrt(dE2(orphanLab, entry.lab));
+        if (de - minDE <= deTieBreakThreshold) {
+          if (neighborFreq[nid] > bestCount) {
+            bestCount = neighborFreq[nid];
             bestId = nid;
           }
         }
+      }
 
-        if (bestId) {
-          let replacement = null;
-          for (let j = 0; j < len; j++) {
-            if (mapped[j].id === bestId) {
-              replacement = mapped[j];
-              break;
-            }
-          }
-          if (replacement) {
-            for (let i = 0; i < compCount; i++) {
-              mapped[comp[i]] = replacement;
-            }
-          }
-        }
+      if (bestId) {
+        const replacement = colorEntries[bestId];
+        for (let i = 0; i < compCount; i++) mapped[comp[i]] = replacement;
       }
     }
   }
@@ -450,4 +1136,4 @@ function analyzeConfetti(mapped, w, h) {
   return { singles, smallClusters, total, pct, colorConfetti };
 }
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, removeOrphanStitches, analyzeConfetti }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, generateEdgeMap, removeOrphanStitches, analyzeConfetti }; }
