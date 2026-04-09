@@ -34,6 +34,7 @@ var PRECACHE_URLS = [
   // Lazy-loaded local assets
   './pdf-importer.js',
   './pdf.worker.min.js',
+  './backup-restore.js',
 
   // External CDN dependencies (exact versioned URLs from HTML)
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',

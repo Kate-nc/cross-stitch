@@ -57,6 +57,8 @@ function ManagerApp() {
     waste_factor: 0.20
   });
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [backupStatus, setBackupStatus] = useState(null); // { type: 'success'|'error'|'confirm', message, summary?, onConfirm? }
+  const backupFileRef = useCallback(node => { if (node) node.value = ""; }, []);
   const lowStockThreshold = 1;
 
   // Storage initialization
@@ -190,6 +192,52 @@ function ManagerApp() {
       req.onerror = (e) => reject(e.target.error);
     });
   }
+
+  const handleBackupDownload = async () => {
+    try {
+      setBackupStatus({ type: "success", message: "Creating backup..." });
+      await BackupRestore.downloadBackup();
+      setBackupStatus({ type: "success", message: "Backup downloaded!" });
+      setTimeout(() => setBackupStatus(null), 3000);
+    } catch (e) {
+      setBackupStatus({ type: "error", message: "Backup failed: " + e.message });
+    }
+  };
+
+  const handleRestoreFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const backup = JSON.parse(reader.result);
+        const check = BackupRestore.validate(backup);
+        if (!check.valid) {
+          setBackupStatus({ type: "error", message: check.error });
+          return;
+        }
+        setBackupStatus({
+          type: "confirm",
+          message: `Restore backup from ${check.summary.createdAt ? new Date(check.summary.createdAt).toLocaleString() : "unknown date"}? This will replace all current data.`,
+          summary: check.summary,
+          onConfirm: async () => {
+            try {
+              setBackupStatus({ type: "success", message: "Restoring..." });
+              await BackupRestore.restore(backup);
+              setBackupStatus({ type: "success", message: "Restored! Reloading..." });
+              setTimeout(() => window.location.reload(), 1000);
+            } catch (err) {
+              setBackupStatus({ type: "error", message: "Restore failed: " + err.message });
+            }
+          }
+        });
+      } catch (err) {
+        setBackupStatus({ type: "error", message: "Invalid file: could not parse JSON." });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   const updateThread = (id, field, value) => {
     setThreads(prev => {
@@ -632,15 +680,49 @@ function ManagerApp() {
                 </div>
               </div>
             )}
+            <div style={{ background: "#f8fafc", border: "1px solid #e4e4e7", borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#18181b" }}>Data &amp; Backup</div>
+                {storageUsage && (
+                  <div style={{ fontSize: 11, color: "#71717a" }}>
+                    Storage: {(storageUsage.used / 1024 / 1024).toFixed(1)} MB{storageUsage.quota ? ` / ~${(storageUsage.quota / 1024 / 1024).toFixed(0)} MB` : ""}{" "}{storageUsage.persistent ? "🔒 Protected" : "⏳ Temporary"}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <button onClick={handleBackupDownload} style={{ padding: "7px 14px", fontSize: 12, fontWeight: 600, background: "#0d9488", color: "#fff", border: "none", borderRadius: 7, cursor: "pointer" }}>
+                  💾 Export Full Backup
+                </button>
+                <label style={{ padding: "7px 14px", fontSize: 12, fontWeight: 600, background: "#fff", color: "#18181b", border: "1px solid #e4e4e7", borderRadius: 7, cursor: "pointer" }}>
+                  📂 Restore from Backup
+                  <input type="file" accept=".json" onChange={handleRestoreFile} style={{ display: "none" }} />
+                </label>
+              </div>
+              {backupStatus && (
+                <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 8, fontSize: 12, background: backupStatus.type === "error" ? "#fef2f2" : backupStatus.type === "confirm" ? "#fffbeb" : "#f0fdf4", border: `1px solid ${backupStatus.type === "error" ? "#fecaca" : backupStatus.type === "confirm" ? "#fde68a" : "#bbf7d0"}`, color: backupStatus.type === "error" ? "#dc2626" : backupStatus.type === "confirm" ? "#92400e" : "#15803d" }}>
+                  <div>{backupStatus.message}</div>
+                  {backupStatus.summary && (
+                    <div style={{ fontSize: 11, marginTop: 4, color: "#71717a" }}>
+                      {backupStatus.summary.projectCount} projects, {backupStatus.summary.threadCount} owned threads, {backupStatus.summary.patternCount} patterns
+                    </div>
+                  )}
+                  {backupStatus.type === "confirm" && (
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <button onClick={backupStatus.onConfirm} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, background: "#ea580c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
+                        Yes, Restore
+                      </button>
+                      <button onClick={() => setBackupStatus(null)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, background: "#fff", color: "#3f3f46", border: "1px solid #e4e4e7", borderRadius: 6, cursor: "pointer" }}>
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             {storedProjects.length > 0 && (
               <div style={{ background: "#f8fafc", border: "1px solid #e4e4e7", borderRadius: 10, padding: "14px 16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#18181b" }}>Saved Cross-Stitch Projects ({storedProjects.length})</div>
-                  {storageUsage && (
-                    <div style={{ fontSize: 11, color: "#71717a" }}>
-                      Storage: {(storageUsage.used / 1024 / 1024).toFixed(1)} MB{storageUsage.quota ? ` / ~${(storageUsage.quota / 1024 / 1024).toFixed(0)} MB` : ""}{" "}{storageUsage.persistent ? "🔒 Protected" : "⏳ Temporary"}
-                    </div>
-                  )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {storedProjects.map(p => {
