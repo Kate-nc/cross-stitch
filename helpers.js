@@ -5,6 +5,15 @@ function fmtTimeL(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);if(h>0)r
 
 function skeinEst(stitchCount,fabricCt){if(typeof stitchesToSkeins==='function'){const result=stitchesToSkeins({stitchCount:stitchCount,fabricCount:fabricCt,strandsUsed:2,wasteFactor:0.20});return Math.max(1,result.skeinsToBuy);}return 1;}
 
+function confettiTier(pct){
+  if(pct<2)return{color:"#16a34a",label:"Excellent"};
+  if(pct<5)return{color:"#65a30d",label:"Good"};
+  if(pct<8)return{color:"#d97706",label:"Moderate"};
+  if(pct<15)return{color:"#ea580c",label:"Challenging"};
+  return{color:"#dc2626",label:"High confetti"};
+}
+window.confettiTier=confettiTier;
+
 function gridCoord(canvasRef,e,cellSize,gutter,snap=false){
   if(!canvasRef.current)return null;
   let rect=canvasRef.current.getBoundingClientRect();

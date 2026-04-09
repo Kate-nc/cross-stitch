@@ -1,0 +1,390 @@
+/* creator/Sidebar.js — Settings sidebar for the Creator app.
+   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
+   Depends on: Section, SliderRow, Tooltip (components.js), CreatorContext (context.js) */
+
+window.CreatorSidebar = function CreatorSidebar() {
+  var ctx = React.useContext(window.CreatorContext);
+  var h = React.createElement;
+
+  if (!ctx.sidebarOpen) return null;
+
+  // ── Inline Toggle component (used only in Stitch Cleanup section) ──────────
+  function Toggle(props) {
+    return h("label", {
+      style:{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:8,userSelect:"none"}
+    },
+      h("input", {
+        type:"checkbox", checked:props.checked,
+        onChange:function(e){props.onChange(e.target.checked);},
+        style:{position:"absolute",opacity:0,width:1,height:1,margin:0,padding:0,pointerEvents:"none"}
+      }),
+      h("span", {"aria-hidden":"true", style:{position:"relative",display:"inline-block",width:32,height:18,flexShrink:0}},
+        h("span", {style:{display:"block",position:"absolute",inset:0,borderRadius:9,
+          background:props.checked?"#0d9488":"#d4d4d8",transition:"background 0.15s"}}),
+        h("span", {style:{display:"block",position:"absolute",width:14,height:14,top:2,
+          left:props.checked?16:2,borderRadius:"50%",background:"#fff",
+          transition:"left 0.15s",boxShadow:"0 1px 3px rgba(0,0,0,0.18)"}})
+      ),
+      h("span", {style:{flex:1}},
+        h("span", {style:{fontSize:12,fontWeight:500,color:"#18181b",display:"block"}}, props.label),
+        props.help && h("span", {style:{fontSize:10,color:"#a1a1aa",display:"block",marginTop:1}}, props.help)
+      )
+    );
+  }
+
+  // ── Crop image card ──────────────────────────────────────────────────────────
+  var imageCard = (ctx.pat && ctx.img && ctx.img.src) ? h("div", {className:"card"},
+    h("div", {
+      style:{position:"relative"}, ref:ctx.cropRef,
+      onMouseDown:ctx.handleCropMouseDown,
+      onMouseMove:ctx.handleCropMouseMove,
+      onMouseUp:ctx.handleCropMouseUp,
+      onMouseLeave:ctx.handleCropMouseUp
+    },
+      h("img", {
+        src:ctx.img.src, alt:"",
+        style:{width:"100%",display:"block",
+          cursor:ctx.isCropping?"crosshair":(ctx.pickBg?"crosshair":"default"),
+          opacity:ctx.isCropping?0.7:1
+        },
+        onClick:ctx.srcClick
+      }),
+      ctx.isCropping && ctx.cropRect && h("div", {style:{
+        position:"absolute",left:ctx.cropRect.x,top:ctx.cropRect.y,
+        width:ctx.cropRect.w,height:ctx.cropRect.h,
+        border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",
+        boxSizing:"border-box",pointerEvents:"none"
+      }})
+    ),
+    ctx.isCropping
+      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}},
+          h("span", {style:{fontSize:11,color:"#a1a1aa"}}, "Draw a rectangle"),
+          h("div", {style:{display:"flex",gap:6}},
+            h("button", {
+              onClick:function(){ctx.setIsCropping(false); ctx.setCropRect(null);},
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}
+            }, "Cancel"),
+            h("button", {
+              onClick:ctx.applyCrop,
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}
+            }, "Apply")
+          )
+        )
+      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}},
+          h("span", {style:{fontSize:11,color:"#a1a1aa"}}, ctx.origW+"×"+ctx.origH+"px"),
+          h("div", {style:{display:"flex",gap:6}},
+            h("button", {
+              onClick:function(){ctx.setIsCropping(true); ctx.setCropRect(null);},
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}
+            }, "Crop"),
+            h("button", {
+              onClick:function(){ctx.fRef.current.click();},
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}
+            }, "Change")
+          )
+        ),
+    ctx.pickBg && h("div", {style:{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}},
+      "Click to pick BG"
+    )
+  ) : null;
+
+  // ── Colours section (scratch mode) ─────────────────────────────────────────
+  var coloursBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#0d9488",background:"#f0fdfa",padding:"1px 8px",borderRadius:10}},
+    (ctx.displayPal ? ctx.displayPal.filter(function(p){return p.count>0;}).length : 0)+" used"
+  );
+  var coloursSection = ctx.isScratchMode ? h(Section, {
+    title:"Colours", isOpen:ctx.colPickerOpen, onToggle:ctx.setColPickerOpen, badge:coloursBadge
+  },
+    h("div", {style:{marginTop:8}},
+      h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#f4f4f5",borderRadius:8}},
+        [["1","Add colour","→"],["2","Select chip","→"],["3","Paint!",""]].map(function(item,i) {
+          return h(React.Fragment, {key:i},
+            h("div", {style:{display:"flex",alignItems:"center",gap:4}},
+              h("span", {style:{width:16,height:16,borderRadius:"50%",background:"#0d9488",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
+              h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
+            ),
+            item[2] && h("span", {style:{fontSize:10,color:"#a1a1aa"}}, item[2])
+          );
+        })
+      ),
+      h("input", {
+        type:"text", placeholder:"Search by DMC # or name\u2026",
+        value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);},
+        style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e4e4e7",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
+      }),
+      h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
+        ctx.dmcFiltered.slice(0,60).map(function(d) {
+          var inPal = ctx.cmap && ctx.cmap[d.id];
+          return h(Tooltip, {key:d.id, text:inPal?"Already in your palette":"Click to add to your palette", width:160},
+            h("div", {
+              onClick:function(){ctx.addScratchColour(d);},
+              style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,cursor:"pointer",
+                background:inPal?"#f0fdfa":"#fff",
+                border:inPal?"1px solid #99f6e4":"1px solid transparent",
+                opacity:inPal?0.7:1,width:"100%"}
+            },
+              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #d4d4d8"}}),
+              h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#18181b"}}, d.id),
+              h("span", {style:{fontSize:11,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#a1a1aa"}}, "+")
+            )
+          );
+        }),
+        ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#a1a1aa",padding:"8px 0",textAlign:"center"}}, "No colours found")
+      )
+    )
+  ) : null;
+
+  // ── Dimensions section ──────────────────────────────────────────────────────
+  var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
+  var dimSection = h(Section, {title:"Dimensions", isOpen:ctx.dimOpen, onToggle:ctx.setDimOpen, badge:dimBadge},
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
+      h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
+      h("span", null, "Lock aspect ratio"),
+      h(Tooltip, {text:"Keep the original photo's width-to-height ratio when resizing", width:200},
+        h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
+      )
+    ),
+    ctx.arLock
+      ? h("div", null,
+          h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
+          h("div", {style:{fontSize:10,color:"#a1a1aa",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
+        )
+      : h("div", {style:{display:"flex",gap:10}},
+          h("div", {style:{flex:1}},
+            h("label", {style:{fontSize:11,color:"#a1a1aa",display:"block",marginBottom:2}}, "Width"),
+            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,fontSize:13}})
+          ),
+          h("div", {style:{flex:1}},
+            h("label", {style:{fontSize:11,color:"#a1a1aa",display:"block",marginBottom:2}}, "Height"),
+            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,fontSize:13}})
+          )
+        )
+  );
+
+  // ── Palette section (non-scratch) ───────────────────────────────────────────
+  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:ctx.palOpen, onToggle:ctx.setPalOpen},
+    h("div", {style:{marginTop:8}},
+      h("label", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
+        h("span", {style:{fontSize:11,color:"#a1a1aa",fontWeight:600}}, "Max colours"),
+        h(Tooltip, {text:"Limits the colour palette. Fewer colours = faster to stitch but less detail", width:200},
+          h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
+        )
+      ),
+      h(SliderRow, {label:"", value:ctx.maxC, min:10, max:40, onChange:ctx.setMaxC})
+    ),
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
+      h("input", {type:"checkbox", checked:ctx.allowBlends, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
+      h("span", null, "Allow blended threads"),
+      h(Tooltip, {text:"Two threads together. Creates smoother gradients but requires more thread manipulation", width:200},
+        h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
+      )
+    ),
+    h("div", {style:{marginTop:8}},
+      h("label", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
+        h("span", {style:{fontSize:11,color:"#a1a1aa",fontWeight:600}}, "Min stitches per colour"),
+        h(Tooltip, {text:"Removes tiny colour patches that would be tedious to stitch. 0 = keep all", width:220},
+          h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
+        )
+      ),
+      h(SliderRow, {label:"", value:ctx.minSt, min:0, max:50, onChange:ctx.setMinSt, format:function(v){return v===0?"Off":v;}})
+    ),
+    h("button", {
+      onClick:function(){ctx.setPalAdvanced(function(o){return !o;});},
+      style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#71717a",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
+    },
+      h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+      "Dithering",
+      ctx.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block",marginLeft:2}}) : null
+    ),
+    ctx.palAdvanced && h(React.Fragment, null,
+      h("div", {style:{marginTop:6,padding:"8px 10px",background:"#fff7ed",borderRadius:8,border:"0.5px solid #fed7aa",fontSize:10,color:"#b45309"}},
+        "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
+      ),
+      h("div", {style:{display:"flex",gap:6,marginTop:6}},
+        h("div", {style:{display:"flex",gap:2,background:"#f4f4f5",borderRadius:8,padding:2,flex:1}},
+          h("button", {
+            onClick:function(){ctx.setDith(false);},
+            style:{padding:"5px 12px",fontSize:12,fontWeight:!ctx.dith?500:400,background:!ctx.dith?"#fff":"transparent",borderRadius:6,color:!ctx.dith?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:!ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+          }, "Direct"),
+          h("button", {
+            onClick:function(){ctx.setDith(true);},
+            style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.dith?500:400,background:ctx.dith?"#fff":"transparent",borderRadius:6,color:ctx.dith?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+          }, "Dithered")
+        )
+      )
+    )
+  ) : null;
+
+  // ── Stitch Cleanup section (non-scratch) ────────────────────────────────────
+  var cleanupSection = !ctx.isScratchMode ? (function() {
+    var sc2 = ctx.stitchCleanup;
+    var scBadge = h("span", {style:{
+      fontSize:11,fontWeight:500,padding:"1px 8px",borderRadius:10,
+      color:sc2.enabled?"#0d9488":"#a1a1aa",background:sc2.enabled?"#f0fdfa":"#f4f4f5"
+    }}, sc2.enabled ? "On \u2014 "+(sc2.strength[0].toUpperCase()+sc2.strength.slice(1)) : "Off");
+    var strengthKeys=["gentle","balanced","thorough"];
+    var strengthLabels=["Gentle","Balanced","Thorough"];
+    var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
+    var strengthIdx=strengthKeys.indexOf(sc2.strength);
+    return h(Section, {title:"Stitch Cleanup", isOpen:ctx.cleanupOpen, onToggle:ctx.setCleanupOpen, badge:scBadge},
+      h("div", {style:{marginTop:8}},
+        h(Toggle, {
+          checked:sc2.enabled,
+          onChange:function(v){ctx.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
+          label:"Stitch Cleanup",
+          help:"Automatically removes scattered single stitches that are hard to sew. Turn off if you want to keep the full dithered detail."
+        }),
+        sc2.enabled && h(React.Fragment, null,
+          h("div", {style:{marginBottom:10,padding:"8px 10px",background:"#f0fdfa",borderRadius:8,border:"0.5px solid #99f6e4",fontSize:11,color:"#0d9488",fontWeight:500}},
+            "Removes scattered single stitches (confetti) that are impractical to sew \u2014 especially in dithered areas and gradients."
+          ),
+          h("div", {style:{marginTop:4,marginBottom:10}},
+            h("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}},
+              h("span", {style:{fontSize:12,color:"#52525b",fontWeight:500}}, "Cleanup strength"),
+              h(Tooltip, {text:"How aggressively scattered stitches are merged into nearby colors. Gentle keeps more detail. Thorough creates smoother, easier-to-sew blocks.", width:220},
+                h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
+              )
+            ),
+            h("input", {
+              type:"range",min:0,max:2,step:1,value:strengthIdx,
+              onChange:function(e){ctx.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[+e.target.value]});});},
+              style:{width:"100%",accentColor:"#0d9488"}
+            }),
+            h("div", {style:{display:"flex",justifyContent:"space-between",marginTop:6,gap:4}},
+              strengthLabels.map(function(l,i) {
+                return h(Tooltip, {key:l, text:strengthDescs[i], width:160},
+                  h("span", {
+                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#a1a1aa",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
+                    onClick:function(){ctx.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
+                  }, l)
+                );
+              })
+            )
+          ),
+          h(Toggle, {
+            checked:sc2.protectDetails,
+            onChange:function(v){ctx.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},
+            label:"Protect fine details",
+            help:"Uses edge detection to preserve small stitches in important outlines \u2014 eyes, lettering, thin lines. Turn off for simpler designs."
+          }),
+          h(Toggle, {
+            checked:sc2.smoothDithering,
+            onChange:function(v){ctx.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});});},
+            label:"Smooth dithering",
+            help:"Reduces confetti during dithering itself (before cleanup runs). Cleaner output, but may slightly shift colors in gradient areas."
+          })
+        )
+      )
+    );
+  })() : null;
+
+  // ── Fabric & Floss section ──────────────────────────────────────────────────
+  var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
+  var fabSection = h(Section, {title:"Fabric & Floss", isOpen:ctx.fabOpen, onToggle:ctx.setFabOpen, badge:fabBadge},
+    h("div", {style:{marginTop:8}},
+      h("label", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
+        h("span", {style:{fontSize:12,color:"#71717a",fontWeight:600}}, "Fabric count"),
+        h(Tooltip, {text:"Stitches per inch. Higher count = finer, more detailed work. 14ct Aida is most common", width:220},
+          h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
+        )
+      ),
+      h("select", {
+        value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
+        style:{width:"100%",padding:"6px 10px",borderRadius:8,border:"0.5px solid #e4e4e7",fontSize:13,background:"#fff"}
+      }, FABRIC_COUNTS.map(function(f) {
+        return h("option", {key:f.ct, value:f.ct}, f.label);
+      })),
+      h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
+    )
+  );
+
+  // ── Adjustments section (non-scratch) ──────────────────────────────────────
+  var adjBadge = (ctx.bri||ctx.con||ctx.sat||ctx.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}) : null;
+  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:ctx.adjOpen, onToggle:ctx.setAdjOpen, badge:adjBadge},
+    h("div", {style:{marginTop:8}},
+      h("label", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
+        h("span", {style:{fontSize:12,color:"#52525b",fontWeight:500}}, "Smooth (Noise Reduction)"),
+        h(Tooltip, {text:"Blur filter to reduce grainy or pixelated photos. Median is gentler, Gaussian is stronger", width:220},
+          h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
+        )
+      ),
+      h(SliderRow, {label:"", value:ctx.smooth, min:0, max:4, step:0.1, onChange:ctx.setSmooth, format:function(v){return v===0?"Off":v.toFixed(1);}}),
+      ctx.smooth===0 && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
+      ctx.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
+        h("div", {style:{display:"flex",gap:2,background:"#f4f4f5",borderRadius:8,padding:2,flex:1}},
+          h("button", {onClick:function(){ctx.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="median"?500:400,background:ctx.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="median"?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median"),
+          h("button", {onClick:function(){ctx.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="gaussian"?500:400,background:ctx.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="gaussian"?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
+        )
+      ),
+      h(SliderRow, {label:"Brightness", value:ctx.bri, min:-50, max:50, onChange:ctx.setBri, format:function(v){return (v>0?"+":"")+v+"%";}}),
+      h(SliderRow, {label:"Contrast", value:ctx.con, min:-50, max:50, onChange:ctx.setCon, format:function(v){return (v>0?"+":"")+v+"%";}}),
+      h(SliderRow, {label:"Saturation", value:ctx.sat, min:-50, max:50, onChange:ctx.setSat, format:function(v){return (v>0?"+":"")+v+"%";}})
+    )
+  ) : null;
+
+  // ── Background section (non-scratch) ───────────────────────────────────────
+  var bgBadge = ctx.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}) : null;
+  var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:ctx.bgOpen, onToggle:ctx.setBgOpen, badge:bgBadge},
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}},
+      h("input", {type:"checkbox", checked:ctx.skipBg, onChange:function(e){ctx.setSkipBg(e.target.checked);}}),
+      h("span", null, "Skip background"),
+      h(Tooltip, {text:"Remove a solid background colour (like white or a studio backdrop) from the pattern", width:220},
+        h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
+      )
+    ),
+    ctx.skipBg && h("div", {style:{marginTop:10}},
+      h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
+        h("div", {
+          onClick:function(){ctx.setPickBg(true);},
+          style:{width:24,height:24,borderRadius:6,background:"rgb("+ctx.bgCol+")",border:"2px solid #e4e4e7",cursor:"pointer"}
+        }),
+        h("button", {
+          onClick:function(){ctx.setPickBg(true);},
+          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}
+        }, "Pick")
+      ),
+      h("label", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
+        h("span", {style:{fontSize:11,color:"#a1a1aa",fontWeight:600}}, "Tolerance"),
+        h(Tooltip, {text:"How similar a colour must be to the background to be removed. Higher = removes more", width:220},
+          h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
+        )
+      ),
+      h(SliderRow, {label:"", value:ctx.bgTh, min:3, max:50, onChange:ctx.setBgTh}),
+      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#f4f4f5",borderRadius:8,fontSize:11,color:"#71717a"}},
+        h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
+        h("button", {
+          onClick:ctx.autoCrop,
+          style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #d4d4d8",borderRadius:6,cursor:"pointer",color:"#18181b"}
+        }, "Auto-Crop to Stitches")
+      )
+    )
+  ) : null;
+
+  // ── Generate / Reset button ─────────────────────────────────────────────────
+  var actionBtn = ctx.isScratchMode
+    ? h("button", {
+        onClick:function(){ctx.initBlankGrid(ctx.sW, ctx.sH);},
+        style:{padding:"12px 20px",fontSize:15,fontWeight:600,background:"#dc2626",color:"#fff",border:"none",borderRadius:10,cursor:"pointer"}
+      }, "Reset Canvas")
+    : h("button", {
+        onClick:ctx.generate, disabled:ctx.busy,
+        style:{padding:"12px 20px",fontSize:15,fontWeight:600,
+          background:ctx.busy?"#a1a1aa":"#0d9488",color:"#fff",
+          border:"none",borderRadius:10,cursor:ctx.busy?"wait":"pointer"}
+      }, ctx.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
+
+  return h(React.Fragment, null,
+    imageCard,
+    coloursSection,
+    dimSection,
+    palSection,
+    cleanupSection,
+    fabSection,
+    adjSection,
+    bgSection,
+    ctx.pat && ctx.pal && ctx.paletteSwap && ctx.paletteSwap.shiftSection,
+    ctx.pat && ctx.pal && ctx.paletteSwap && ctx.paletteSwap.presetSection,
+    actionBtn
+  );
+};
