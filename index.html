@@ -2034,12 +2034,15 @@ return(
               <span style={{display:"block",position:"absolute",inset:0,borderRadius:9,background:checked?"#0d9488":"#d4d4d8",transition:"background 0.15s"}}/>
               <span style={{display:"block",position:"absolute",width:14,height:14,top:2,left:checked?16:2,borderRadius:"50%",background:"#fff",transition:"left 0.15s",boxShadow:"0 1px 3px rgba(0,0,0,0.18)"}}/>
             </span>
-            <span style={{fontSize:12,fontWeight:500,color:"#18181b",flex:1}}>{label}</span>
-            {help&&<Tooltip text={help} width={220}><span style={{fontSize:11,color:"#a1a1aa",cursor:"help",flexShrink:0}}>ⓘ</span></Tooltip>}
+            <span style={{flex:1}}>
+              <span style={{fontSize:12,fontWeight:500,color:"#18181b",display:"block"}}>{label}</span>
+              {help&&<span style={{fontSize:10,color:"#a1a1aa",display:"block",marginTop:1}}>{help}</span>}
+            </span>
           </label>
         );
         const strengthLabels=["Gentle","Balanced","Thorough"];
         const strengthKeys=["gentle","balanced","thorough"];
+        const strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
         const strengthIdx=strengthKeys.indexOf(stitchCleanup.strength);
         return(
           <Section title="Stitch Cleanup" isOpen={cleanupOpen} onToggle={setCleanupOpen} badge={scBadge}>
@@ -2051,6 +2054,9 @@ return(
                 help="Automatically removes scattered single stitches that are hard to sew. Turn off if you want to keep the full dithered detail."
               />
               {stitchCleanup.enabled&&<>
+                <div style={{marginBottom:10,padding:"8px 10px",background:"#f0fdfa",borderRadius:8,border:"0.5px solid #99f6e4",fontSize:11,color:"#0d9488",fontWeight:500}}>
+                  Removes scattered single stitches (confetti) that are impractical to sew — especially in dithered areas and gradients.
+                </div>
                 <div style={{marginTop:4,marginBottom:10}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                     <span style={{fontSize:12,color:"#52525b",fontWeight:500}}>Cleanup strength</span>
@@ -2062,12 +2068,14 @@ return(
                     onChange={e=>setStitchCleanup(sc=>({...sc,strength:strengthKeys[+e.target.value]}))}
                     style={{width:"100%",accentColor:"#0d9488"}}
                   />
-                  <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:6,gap:4}}>
                     {strengthLabels.map((l,i)=>(
-                      <span key={l} style={{fontSize:10,color:strengthIdx===i?"#0d9488":"#a1a1aa",fontWeight:strengthIdx===i?600:400,cursor:"pointer"}}
-                        onClick={()=>setStitchCleanup(sc=>({...sc,strength:strengthKeys[i]}))}>
-                        {l}
-                      </span>
+                      <Tooltip key={l} text={strengthDescs[i]} width={160}>
+                        <span style={{fontSize:10,color:strengthIdx===i?"#0d9488":"#a1a1aa",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"}}
+                          onClick={()=>setStitchCleanup(sc=>({...sc,strength:strengthKeys[i]}))}>
+                          {l}
+                        </span>
+                      </Tooltip>
                     ))}
                   </div>
                 </div>
@@ -2075,13 +2083,13 @@ return(
                   checked={stitchCleanup.protectDetails}
                   onChange={v=>setStitchCleanup(sc=>({...sc,protectDetails:v}))}
                   label="Protect fine details"
-                  help="Uses edge detection to keep small stitches that form important outlines — like eyes, lettering, or thin lines. Turn off for simpler designs where you want maximum smoothing."
+                  help="Uses edge detection to preserve small stitches in important outlines — eyes, lettering, thin lines. Turn off for simpler designs."
                 />
                 <Toggle
                   checked={stitchCleanup.smoothDithering}
                   onChange={v=>setStitchCleanup(sc=>({...sc,smoothDithering:v}))}
                   label="Smooth dithering"
-                  help="Reduces scattered stitches during the dithering step itself, before cleanup runs. Produces cleaner results but may slightly shift colors in gradient areas."
+                  help="Reduces confetti during dithering itself (before cleanup runs). Cleaner output, but may slightly shift colors in gradient areas."
                 />
               </>}
             </div>
