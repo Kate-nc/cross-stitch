@@ -88,11 +88,13 @@ self.addEventListener('fetch', function (event) {
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).then(function (response) {
-        // Cache the latest copy for offline use
-        var clone = response.clone();
-        caches.open(CACHE_NAME).then(function (cache) {
-          cache.put(event.request, clone);
-        });
+        // Cache the latest copy for offline use only when the response succeeded
+        if (response.ok && response.type === 'basic') {
+          var clone = response.clone();
+          caches.open(CACHE_NAME).then(function (cache) {
+            cache.put(event.request, clone);
+          });
+        }
         return response;
       }).catch(function () {
         return caches.match(event.request).then(function (cached) {
