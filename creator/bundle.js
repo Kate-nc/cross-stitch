@@ -709,7 +709,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       else if (param > 1) { xx = lx2; yy = ly2; }
       else { xx = lx1 + param * C; yy = ly1 + param * D; }
       var dx = hxb - xx, dy = hyb - yy;
-      if (Math.sqrt(dx * dx + dy * dy) <= 0.4) {
+      if (Math.sqrt(dx * dx + dy * dy) <= 0.7) {
         ctx2d.strokeStyle = "#ef4444";
         ctx2d.lineWidth = Math.max(2, cSz * 0.25);
         ctx2d.beginPath(); ctx2d.moveTo(gut + lx1 * cSz, gut + ly1 * cSz); ctx2d.lineTo(gut + lx2 * cSz, gut + ly2 * cSz); ctx2d.stroke();
@@ -2376,6 +2376,9 @@ window.useCreatorState = function useCreatorState() {
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
 
+  // Eyedropper feedback
+  var _edEmpty = useState(false);    var eyedropperEmpty = _edEmpty[0], setEyedropperEmpty = _edEmpty[1];
+
   // Refs
   var pcRef      = useRef(null);
   var fRef       = useRef(null);
@@ -2847,6 +2850,8 @@ window.useCreatorState = function useCreatorState() {
     setBrushAndActivate, setTool, setHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
     toggleOwned, generate,
+    // Eyedropper feedback
+    eyedropperEmpty, setEyedropperEmpty,
     // PaletteSwap
     paletteSwap,
     // Magic Wand
@@ -3252,12 +3257,14 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var cell = pat[idx0];
       if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
         state.setSelectedColorId(cell.id);
-        state.setBrushAndActivate("paint");
       } else {
         var hs0 = halfStitches.get(idx0);
         if (hs0) {
-          if (hs0.fwd && cmap[hs0.fwd.id]) { state.setSelectedColorId(hs0.fwd.id); state.setBrushAndActivate("paint"); }
-          else if (hs0.bck && cmap[hs0.bck.id]) { state.setSelectedColorId(hs0.bck.id); state.setBrushAndActivate("paint"); }
+          if (hs0.fwd && cmap[hs0.fwd.id]) { state.setSelectedColorId(hs0.fwd.id); }
+          else if (hs0.bck && cmap[hs0.bck.id]) { state.setSelectedColorId(hs0.bck.id); }
+        } else {
+          state.setEyedropperEmpty(true);
+          setTimeout(function() { state.setEyedropperEmpty(false); }, 1200);
         }
       }
       return;
@@ -3268,21 +3275,6 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var idx1 = gy * sW + gx;
       if (halfStitchTool === "erase") {
         var nm0 = new Map(halfStitches); nm0.delete(idx1); state.setHalfStitches(nm0);
-        if (bsLines.length > 0) {
-          var ci = -1, md = Infinity;
-          bsLines.forEach(function(ln, i) {
-            var A = gx - ln.x1, B = gy - ln.y1, C = ln.x2 - ln.x1, D = ln.y2 - ln.y1;
-            var dot = A * C + B * D, lenSq = C * C + D * D, param = -1;
-            if (lenSq !== 0) param = dot / lenSq;
-            var xx, yy;
-            if (param < 0) { xx = ln.x1; yy = ln.y1; }
-            else if (param > 1) { xx = ln.x2; yy = ln.y2; }
-            else { xx = ln.x1 + param * C; yy = ln.y1 + param * D; }
-            var d = Math.sqrt(Math.pow(gx - xx, 2) + Math.pow(gy - yy, 2));
-            if (d < md) { md = d; ci = i; }
-          });
-          if (md <= 0.6 && ci >= 0) { var nb = bsLines.slice(); nb.splice(ci, 1); state.setBsLines(nb); }
-        }
         return;
       }
       var dir1 = halfStitchTool;
@@ -3360,7 +3352,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         var dx = gx - xx, dy = gy - yy, d = Math.sqrt(dx * dx + dy * dy);
         if (d < mmd) { mmd = d; mci = i; }
       });
-      if (mmd <= 0.4 && mci >= 0) { var nBs2 = bsLines.slice(); nBs2.splice(mci, 1); state.setBsLines(nBs2); }
+      if (mmd <= 0.7 && mci >= 0) { var nBs2 = bsLines.slice(); nBs2.splice(mci, 1); state.setBsLines(nBs2); }
     }
   }
 
@@ -4703,11 +4695,15 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     },
       h("button", {
         className:"tb-btn"+(ctx.brushMode==="paint"?" tb-btn--on":""),
-        onClick:function(){ctx.setBrushAndActivate("paint");}, title:"Paint (P)"
+        onClick:function(){if(!ctx.selectedColorId){return;}ctx.setBrushAndActivate("paint");},
+        title:ctx.selectedColorId?"Paint (P)":"Select a colour first",
+        disabled:!ctx.selectedColorId
       }, "Paint"),
       h("button", {
         className:"tb-btn"+(ctx.brushMode==="fill"?" tb-btn--on":""),
-        onClick:function(){ctx.setBrushAndActivate("fill");}, title:"Fill (F)"
+        onClick:function(){if(!ctx.selectedColorId){return;}ctx.setBrushAndActivate("fill");},
+        title:ctx.selectedColorId?"Fill (F)":"Select a colour first",
+        disabled:!ctx.selectedColorId
       }, "Fill"),
       h("button", {
         className:"tb-btn"+(ctx.activeTool==="eyedropper"?" tb-btn--on":""),
@@ -5777,8 +5773,23 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   // Build status text
   var statusText;
-  if (ctx.stitchType === "cross") {
-    statusText = "Cross stitch \u2014 " + (ctx.brushMode === "fill" ? "fill" : "paint") + " mode. Select a colour chip below.";
+  if (ctx.eyedropperEmpty) {
+    statusText = "\u26A0 That cell is empty \u2014 no colour to sample.";
+  } else if (ctx.activeTool === "eyedropper") {
+    statusText = "Eyedropper \u2014 click a cell to sample its colour.";
+  } else if (ctx.activeTool === "magicWand") {
+    statusText = "Magic Wand \u2014 click to select by colour. Shift+click to add, Alt+click to subtract.";
+  } else if (ctx.activeTool === "lasso") {
+    statusText = "Lasso (" + (ctx.lassoMode || "freehand") + ") \u2014 " +
+      (ctx.lassoMode === "freehand" ? "drag to paint selection." :
+       ctx.lassoMode === "polygon" ? "click to place anchor points. Click near start to close." :
+       "click to place anchors; snaps to colour edges.");
+  } else if (ctx.stitchType === "cross") {
+    if (!ctx.selectedColorId) {
+      statusText = "Cross stitch \u2014 select a colour chip below to start " + (ctx.brushMode === "fill" ? "filling" : "painting") + ".";
+    } else {
+      statusText = "Cross stitch \u2014 " + (ctx.brushMode === "fill" ? "fill" : "paint") + " mode. Select a colour chip below.";
+    }
   } else if (ctx.stitchType === "half-fwd") {
     statusText = "Half stitch / \u2014 click cells to place.";
   } else if (ctx.stitchType === "half-bck") {
@@ -5786,7 +5797,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   } else if (ctx.stitchType === "backstitch") {
     statusText = "Backstitch \u2014 click grid intersections. Right-click to cancel.";
   } else if (ctx.stitchType === "erase") {
-    statusText = "Erase \u2014 click to remove stitches and backstitch lines.";
+    statusText = "Erase \u2014 click to remove stitches. Use backstitch erase (Bs tool) for backstitch lines.";
   } else {
     statusText = "Select a colour chip below, then choose a stitch type above.";
   }
@@ -5891,7 +5902,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h("div", {
       ref:ctx.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(ctx.activeTool||ctx.halfStitchTool)?"crosshair":"default"}
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:ctx.activeTool==="eyedropper"?"copy":ctx.activeTool==="magicWand"?"pointer":ctx.activeTool==="lasso"?"crosshair":ctx.activeTool==="fill"?"cell":(ctx.activeTool==="eraseAll"||ctx.activeTool==="eraseBs")?"not-allowed":(ctx.activeTool||ctx.halfStitchTool)?"crosshair":"default"}
     },
       h(window.PatternCanvas, null)
     ),

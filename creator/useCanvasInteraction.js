@@ -266,12 +266,14 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var cell = pat[idx0];
       if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
         state.setSelectedColorId(cell.id);
-        state.setBrushAndActivate("paint");
       } else {
         var hs0 = halfStitches.get(idx0);
         if (hs0) {
-          if (hs0.fwd && cmap[hs0.fwd.id]) { state.setSelectedColorId(hs0.fwd.id); state.setBrushAndActivate("paint"); }
-          else if (hs0.bck && cmap[hs0.bck.id]) { state.setSelectedColorId(hs0.bck.id); state.setBrushAndActivate("paint"); }
+          if (hs0.fwd && cmap[hs0.fwd.id]) { state.setSelectedColorId(hs0.fwd.id); }
+          else if (hs0.bck && cmap[hs0.bck.id]) { state.setSelectedColorId(hs0.bck.id); }
+        } else {
+          state.setEyedropperEmpty(true);
+          setTimeout(function() { state.setEyedropperEmpty(false); }, 1200);
         }
       }
       return;
@@ -282,21 +284,6 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var idx1 = gy * sW + gx;
       if (halfStitchTool === "erase") {
         var nm0 = new Map(halfStitches); nm0.delete(idx1); state.setHalfStitches(nm0);
-        if (bsLines.length > 0) {
-          var ci = -1, md = Infinity;
-          bsLines.forEach(function(ln, i) {
-            var A = gx - ln.x1, B = gy - ln.y1, C = ln.x2 - ln.x1, D = ln.y2 - ln.y1;
-            var dot = A * C + B * D, lenSq = C * C + D * D, param = -1;
-            if (lenSq !== 0) param = dot / lenSq;
-            var xx, yy;
-            if (param < 0) { xx = ln.x1; yy = ln.y1; }
-            else if (param > 1) { xx = ln.x2; yy = ln.y2; }
-            else { xx = ln.x1 + param * C; yy = ln.y1 + param * D; }
-            var d = Math.sqrt(Math.pow(gx - xx, 2) + Math.pow(gy - yy, 2));
-            if (d < md) { md = d; ci = i; }
-          });
-          if (md <= 0.6 && ci >= 0) { var nb = bsLines.slice(); nb.splice(ci, 1); state.setBsLines(nb); }
-        }
         return;
       }
       var dir1 = halfStitchTool;
@@ -374,7 +361,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         var dx = gx - xx, dy = gy - yy, d = Math.sqrt(dx * dx + dy * dy);
         if (d < mmd) { mmd = d; mci = i; }
       });
-      if (mmd <= 0.4 && mci >= 0) { var nBs2 = bsLines.slice(); nBs2.splice(mci, 1); state.setBsLines(nBs2); }
+      if (mmd <= 0.7 && mci >= 0) { var nBs2 = bsLines.slice(); nBs2.splice(mci, 1); state.setBsLines(nBs2); }
     }
   }
 

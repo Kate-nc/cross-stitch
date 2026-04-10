@@ -149,6 +149,9 @@ window.useCreatorState = function useCreatorState() {
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
 
+  // Eyedropper feedback
+  var _edEmpty = useState(false);    var eyedropperEmpty = _edEmpty[0], setEyedropperEmpty = _edEmpty[1];
+
   // Refs
   var pcRef      = useRef(null);
   var fRef       = useRef(null);
@@ -620,6 +623,8 @@ window.useCreatorState = function useCreatorState() {
     setBrushAndActivate, setTool, setHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
     toggleOwned, generate,
+    // Eyedropper feedback
+    eyedropperEmpty, setEyedropperEmpty,
     // PaletteSwap
     paletteSwap,
     // Magic Wand

@@ -107,11 +107,15 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     },
       h("button", {
         className:"tb-btn"+(ctx.brushMode==="paint"?" tb-btn--on":""),
-        onClick:function(){ctx.setBrushAndActivate("paint");}, title:"Paint (P)"
+        onClick:function(){if(!ctx.selectedColorId){return;}ctx.setBrushAndActivate("paint");},
+        title:ctx.selectedColorId?"Paint (P)":"Select a colour first",
+        disabled:!ctx.selectedColorId
       }, "Paint"),
       h("button", {
         className:"tb-btn"+(ctx.brushMode==="fill"?" tb-btn--on":""),
-        onClick:function(){ctx.setBrushAndActivate("fill");}, title:"Fill (F)"
+        onClick:function(){if(!ctx.selectedColorId){return;}ctx.setBrushAndActivate("fill");},
+        title:ctx.selectedColorId?"Fill (F)":"Select a colour first",
+        disabled:!ctx.selectedColorId
       }, "Fill"),
       h("button", {
         className:"tb-btn"+(ctx.activeTool==="eyedropper"?" tb-btn--on":""),

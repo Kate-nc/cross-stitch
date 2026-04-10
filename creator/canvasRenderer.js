@@ -526,7 +526,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       else if (param > 1) { xx = lx2; yy = ly2; }
       else { xx = lx1 + param * C; yy = ly1 + param * D; }
       var dx = hxb - xx, dy = hyb - yy;
-      if (Math.sqrt(dx * dx + dy * dy) <= 0.4) {
+      if (Math.sqrt(dx * dx + dy * dy) <= 0.7) {
         ctx2d.strokeStyle = "#ef4444";
         ctx2d.lineWidth = Math.max(2, cSz * 0.25);
         ctx2d.beginPath(); ctx2d.moveTo(gut + lx1 * cSz, gut + ly1 * cSz); ctx2d.lineTo(gut + lx2 * cSz, gut + ly2 * cSz); ctx2d.stroke();

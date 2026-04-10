@@ -26,8 +26,23 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   // Build status text
   var statusText;
-  if (ctx.stitchType === "cross") {
-    statusText = "Cross stitch \u2014 " + (ctx.brushMode === "fill" ? "fill" : "paint") + " mode. Select a colour chip below.";
+  if (ctx.eyedropperEmpty) {
+    statusText = "\u26A0 That cell is empty \u2014 no colour to sample.";
+  } else if (ctx.activeTool === "eyedropper") {
+    statusText = "Eyedropper \u2014 click a cell to sample its colour.";
+  } else if (ctx.activeTool === "magicWand") {
+    statusText = "Magic Wand \u2014 click to select by colour. Shift+click to add, Alt+click to subtract.";
+  } else if (ctx.activeTool === "lasso") {
+    statusText = "Lasso (" + (ctx.lassoMode || "freehand") + ") \u2014 " +
+      (ctx.lassoMode === "freehand" ? "drag to paint selection." :
+       ctx.lassoMode === "polygon" ? "click to place anchor points. Click near start to close." :
+       "click to place anchors; snaps to colour edges.");
+  } else if (ctx.stitchType === "cross") {
+    if (!ctx.selectedColorId) {
+      statusText = "Cross stitch \u2014 select a colour chip below to start " + (ctx.brushMode === "fill" ? "filling" : "painting") + ".";
+    } else {
+      statusText = "Cross stitch \u2014 " + (ctx.brushMode === "fill" ? "fill" : "paint") + " mode. Select a colour chip below.";
+    }
   } else if (ctx.stitchType === "half-fwd") {
     statusText = "Half stitch / \u2014 click cells to place.";
   } else if (ctx.stitchType === "half-bck") {
@@ -35,7 +50,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   } else if (ctx.stitchType === "backstitch") {
     statusText = "Backstitch \u2014 click grid intersections. Right-click to cancel.";
   } else if (ctx.stitchType === "erase") {
-    statusText = "Erase \u2014 click to remove stitches and backstitch lines.";
+    statusText = "Erase \u2014 click to remove stitches. Use backstitch erase (Bs tool) for backstitch lines.";
   } else {
     statusText = "Select a colour chip below, then choose a stitch type above.";
   }
@@ -140,7 +155,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h("div", {
       ref:ctx.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(ctx.activeTool||ctx.halfStitchTool)?"crosshair":"default"}
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:ctx.activeTool==="eyedropper"?"copy":ctx.activeTool==="magicWand"?"pointer":ctx.activeTool==="lasso"?"crosshair":ctx.activeTool==="fill"?"cell":(ctx.activeTool==="eraseAll"||ctx.activeTool==="eraseBs")?"not-allowed":(ctx.activeTool||ctx.halfStitchTool)?"crosshair":"default"}
     },
       h(window.PatternCanvas, null)
     ),
