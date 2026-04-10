@@ -62,18 +62,20 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var preLabels = labelConnectedComponents(mapped, width, height);
   var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;
+  var preCleanupIds = null;
 
   if (stitchCleanup && stitchCleanup.enabled) {
     var cleanupStrength = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
       ? stitchCleanup.strength : "balanced";
     var sp = STRENGTH_MAP[cleanupStrength];
     var edgeMap = stitchCleanup.protectDetails ? generateEdgeMap(raw, width, height) : null;
+    preCleanupIds = mapped.map(function(m) { return m.id; });
     mapped = removeOrphanStitches(mapped, width, height, sp.maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: sp.saliencyMultiplier }, preLabels);
     var postLabels = labelConnectedComponents(mapped, width, height);
     confettiClean = analyzeConfetti(mapped, width, height, postLabels);
   }
 
-  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap };
+  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds };
 };
 
 /**
@@ -173,6 +175,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     pal: palResult.pal,
     cmap: palResult.cmap,
     confettiData: { raw: rawConfetti, clean: cleanConfetti },
+    preCleanupIds: pipelineResult.preCleanupIds,
   };
 };
 
@@ -447,6 +450,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   var halfStitches = state.halfStitches;
   var showOverlayImg = state.showOverlay && !!img && !!img.src;
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
+  var showCleanupDiff = state.showCleanupDiff;
+  var cleanupDiff = state.cleanupDiff;
 
   ctx2d.fillStyle = "#fff";
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
@@ -530,6 +535,24 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
             if (sym) drawHalfSymbol(ctx2d, px, py, cSz, dir, sym, view === "both" ? (luminance(hs.rgb) < 128 ? "#fff" : "#000") : "#333");
           }
         });
+      }
+    }
+  }
+
+  // Cleanup diff overlay (magenta at 40%, below gridlines)
+  if (showCleanupDiff && cleanupDiff && cleanupDiff.mask) {
+    ctx2d.fillStyle = "rgba(255,0,255,0.4)";
+    for (var doy = 0; doy < dH; doy++) {
+      for (var dox = 0; dox < dW; dox++) {
+        var doi = (offY + doy) * sW + (offX + dox);
+        if (cleanupDiff.mask[doi] === 1) {
+          var doPx = gut + dox * cSz;
+          var doPy = gut + doy * cSz;
+          // If a colour is highlighted, only show diff overlay for that colour
+          var doCell = pat[doi];
+          if (hiId && doCell && doCell.id !== hiId) continue;
+          ctx2d.fillRect(doPx, doPy, cSz, cSz);
+        }
       }
     }
   }
@@ -1266,6 +1289,11 @@ window.useCreatorState = function useCreatorState() {
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var previewTimerRef = useRef(null);
 
+  // Cleanup diff state
+  var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
+  var _showCleanupDiff  = useState(false); var showCleanupDiff  = _showCleanupDiff[0],  setShowCleanupDiff  = _showCleanupDiff[1];
+  var _preCleanupPrevIds= useState(null);  var preCleanupPreviewIds = _preCleanupPrevIds[0], setPreCleanupPreviewIds = _preCleanupPrevIds[1];
+
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
@@ -1497,6 +1525,25 @@ window.useCreatorState = function useCreatorState() {
     setDone(new Uint8Array(result.mapped.length));
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
     setEditHistory([]); setRedoHistory([]);
+    // Compute cleanup diff mask from preCleanupIds
+    setShowCleanupDiff(false);
+    if (result.preCleanupIds && result.preCleanupIds.length === result.mapped.length) {
+      var mask = new Uint8Array(result.mapped.length);
+      var count = 0;
+      var byColour = {};
+      for (var di = 0; di < result.mapped.length; di++) {
+        var preId = result.preCleanupIds[di];
+        var postId = result.mapped[di].id;
+        if (preId !== postId && preId !== "__skip__") {
+          mask[di] = 1;
+          count++;
+          byColour[postId] = (byColour[postId] || 0) + 1;
+        }
+      }
+      setCleanupDiff(count > 0 ? { mask: mask, count: count, byColour: byColour } : null);
+    } else {
+      setCleanupDiff(null);
+    }
     if (!hasGenerated) {
       setDimOpen(false); setPalOpen(false); setFabOpen(false);
       setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
@@ -1571,7 +1618,7 @@ window.useCreatorState = function useCreatorState() {
               stitchCleanup: stitchCleanup, allowBlends: allowBlends,
             });
             if (!result) { setBusy(false); return; }
-            applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData });
+            applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds });
           } catch (err) { console.error(err); setBusy(false); }
         }, 50);
         return;
@@ -1688,6 +1735,8 @@ window.useCreatorState = function useCreatorState() {
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
     previewTimerRef, projectName, setProjectName,
     namePromptOpen, setNamePromptOpen,
+    cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
+      preCleanupPreviewIds, setPreCleanupPreviewIds,
     pcRef, fRef, scrollRef, expRef, loadRef,
     prevSW, prevSH, projectIdRef, userActedRef, stripRef, overflowRef,
     G, EDIT_HISTORY_MAX,
@@ -2832,6 +2881,8 @@ window.usePreview = function usePreview(state) {
       }
       pcx.putImageData(imgData, 0, 0); return pc.toDataURL();
     }
+  var orphans = state.orphans;
+  var showCleanupDiff = state.showCleanupDiff;
 
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
@@ -2850,6 +2901,8 @@ window.usePreview = function usePreview(state) {
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
       var confettiClean = pipelineResult.confettiClean;
+  var preCleanupIds = pipelineResult.preCleanupIds || null;
+  state.setPreCleanupPreviewIds(preCleanupIds);
 
       var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
       for (var j = 0; j < mapped.length; j++) {
@@ -2900,6 +2953,16 @@ window.usePreview = function usePreview(state) {
         }
       }
       pcx.putImageData(imgData, 0, 0);
+      // Diff overlay on preview thumbnail
+      if (showCleanupDiff && orphans > 0 && preCleanupIds) {
+        pcx.fillStyle = "rgba(255,0,255,0.45)";
+        for (var pi = 0; pi < mapped.length; pi++) {
+          if (preCleanupIds[pi] !== mapped[pi].id && preCleanupIds[pi] !== "__skip__") {
+            var pcs2 = 1; // each preview pixel is 1px
+            pcx.fillRect(pi % pw, Math.floor(pi / pw), pcs2, pcs2);
+          }
+        }
+      }
       state.setPreviewUrl(pc.toDataURL());
       if (hasHeat) {
         var hc = document.createElement("canvas"); hc.width = pw; hc.height = ph;
@@ -2913,6 +2976,7 @@ window.usePreview = function usePreview(state) {
     state.img, state.sW, state.sH, state.maxC, state.bri, state.con, state.sat,
     state.dith, state.skipBg, state.bgCol, state.bgTh, state.smooth, state.smoothType,
     state.stitchCleanup, state.fabricCt, state.allowBlends,
+    state.orphans, state.showCleanupDiff,
   ]);
 
   React.useEffect(function() {
@@ -2978,6 +3042,7 @@ window.PatternCanvas = function PatternCanvas() {
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
     ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
     ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool
+  ctx.showCleanupDiff, ctx.cleanupDiff
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
@@ -3520,6 +3585,37 @@ window.CreatorSidebar = function CreatorSidebar() {
       })()
     ),
     ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}},
+          ctx.orphans > 0 && ctx.pat && ctx.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+            h("button", {
+              onClick:function(){ctx.setShowCleanupDiff(function(d){return !d;});},
+              style:{
+                fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
+                border:ctx.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e4e4e7",
+                background:ctx.showCleanupDiff?"#f0fdfa":"#fff",
+                color:ctx.showCleanupDiff?"#0d9488":"#71717a",
+                fontWeight:ctx.showCleanupDiff?600:400,
+                display:"flex",alignItems:"center",gap:4,lineHeight:1.4
+              }
+            }, "\uD83D\uDC41\uFE0F " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
+          ),
+          ctx.showCleanupDiff && ctx.cleanupDiff && h("div", {style:{
+            fontSize:11,color:"#71717a",padding:"6px 10px",
+            background:"#fdf4ff",border:"1px solid #f0abfc",borderRadius:8,
+            marginTop:4,lineHeight:1.5
+          }},
+            h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
+            ctx.cleanupDiff.count.toLocaleString(), " stitches changed",
+            ctx.totalStitchable > 0 ? " (" + (ctx.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
+            Object.keys(ctx.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#a1a1aa"}},
+              Object.entries(ctx.cleanupDiff.byColour)
+                .sort(function(a,b){return b[1]-a[1];})
+                .slice(0,4)
+                .map(function(e){return "DMC "+e[0]+": "+e[1];})
+                .join(" \xB7 ") +
+                (Object.keys(ctx.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(ctx.cleanupDiff.byColour).length - 4) + " more" : "")
+            )
+          ),
+          ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}},
       "Preview estimate: removes ~", (ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
       " (", ((ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles) / Math.max(1, ctx.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),

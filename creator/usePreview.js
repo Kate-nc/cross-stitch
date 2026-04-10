@@ -51,6 +51,8 @@ window.usePreview = function usePreview(state) {
       }
       pcx.putImageData(imgData, 0, 0); return pc.toDataURL();
     }
+  var orphans = state.orphans;
+  var showCleanupDiff = state.showCleanupDiff;
 
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
@@ -69,6 +71,8 @@ window.usePreview = function usePreview(state) {
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
       var confettiClean = pipelineResult.confettiClean;
+  var preCleanupIds = pipelineResult.preCleanupIds || null;
+  state.setPreCleanupPreviewIds(preCleanupIds);
 
       var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
       for (var j = 0; j < mapped.length; j++) {
@@ -119,6 +123,16 @@ window.usePreview = function usePreview(state) {
         }
       }
       pcx.putImageData(imgData, 0, 0);
+      // Diff overlay on preview thumbnail
+      if (showCleanupDiff && orphans > 0 && preCleanupIds) {
+        pcx.fillStyle = "rgba(255,0,255,0.45)";
+        for (var pi = 0; pi < mapped.length; pi++) {
+          if (preCleanupIds[pi] !== mapped[pi].id && preCleanupIds[pi] !== "__skip__") {
+            var pcs2 = 1; // each preview pixel is 1px
+            pcx.fillRect(pi % pw, Math.floor(pi / pw), pcs2, pcs2);
+          }
+        }
+      }
       state.setPreviewUrl(pc.toDataURL());
       if (hasHeat) {
         var hc = document.createElement("canvas"); hc.width = pw; hc.height = ph;
@@ -132,6 +146,7 @@ window.usePreview = function usePreview(state) {
     state.img, state.sW, state.sH, state.maxC, state.bri, state.con, state.sat,
     state.dith, state.skipBg, state.bgCol, state.bgTh, state.smooth, state.smoothType,
     state.stitchCleanup, state.fabricCt, state.allowBlends,
+    state.orphans, state.showCleanupDiff,
   ]);
 
   React.useEffect(function() {

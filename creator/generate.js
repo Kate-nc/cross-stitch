@@ -50,18 +50,20 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var preLabels = labelConnectedComponents(mapped, width, height);
   var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;
+  var preCleanupIds = null;
 
   if (stitchCleanup && stitchCleanup.enabled) {
     var cleanupStrength = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
       ? stitchCleanup.strength : "balanced";
     var sp = STRENGTH_MAP[cleanupStrength];
     var edgeMap = stitchCleanup.protectDetails ? generateEdgeMap(raw, width, height) : null;
+    preCleanupIds = mapped.map(function(m) { return m.id; });
     mapped = removeOrphanStitches(mapped, width, height, sp.maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: sp.saliencyMultiplier }, preLabels);
     var postLabels = labelConnectedComponents(mapped, width, height);
     confettiClean = analyzeConfetti(mapped, width, height, postLabels);
   }
 
-  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap };
+  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds };
 };
 
 /**
@@ -161,5 +163,6 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     pal: palResult.pal,
     cmap: palResult.cmap,
     confettiData: { raw: rawConfetti, clean: cleanConfetti },
+    preCleanupIds: pipelineResult.preCleanupIds,
   };
 };
