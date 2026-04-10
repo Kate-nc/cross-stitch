@@ -2400,6 +2400,9 @@ window.useCreatorState = function useCreatorState() {
   // Context menu
   var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
 
+  // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
+  var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
+
   // Toast notifications
   var _toasts = useState([]);        var toasts = _toasts[0], setToasts = _toasts[1];
   var toastIdRef = useRef(0);
@@ -2815,6 +2818,12 @@ window.useCreatorState = function useCreatorState() {
   });
   lassoCancelRef.current = lasso.cancelLasso;
 
+  // Syncs op mode across both selection tools
+  function setSelectionOpMode(mode) {
+    wand.setWandOpMode(mode);
+    lasso.setLassoOpMode(mode);
+  }
+
   // ─── Scratch resize effect ───────────────────────────────────────────────────
   useEffect(function() {
     if (!isScratchMode || !pat) return;
@@ -2894,6 +2903,8 @@ window.useCreatorState = function useCreatorState() {
     contextMenu, setContextMenu,
     // Toast notifications
     toasts, addToast, dismissToast,
+    // Selection modifier key state (null | "add" | "subtract" | "intersect")
+    selectionModifier, setSelectionModifier,
     // PaletteSwap
     paletteSwap,
     // Magic Wand
@@ -2901,6 +2912,7 @@ window.useCreatorState = function useCreatorState() {
     wandTolerance: wand.wandTolerance, setWandTolerance: wand.setWandTolerance,
     wandContiguous: wand.wandContiguous, setWandContiguous: wand.setWandContiguous,
     wandOpMode: wand.wandOpMode, setWandOpMode: wand.setWandOpMode,
+    setSelectionOpMode: setSelectionOpMode,
     wandPanel: wand.wandPanel, setWandPanel: wand.setWandPanel,
     confettiThreshold: wand.confettiThreshold, setConfettiThreshold: wand.setConfettiThreshold,
     confettiPreview: wand.confettiPreview, setConfettiPreview: wand.setConfettiPreview,
@@ -5106,10 +5118,14 @@ window.MagicWandPanel = function MagicWandPanel() {
   var h = React.createElement;
 
   if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
-  if (ctx.activeTool !== "magicWand" && !ctx.hasSelection) return null;
+  if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso" && !ctx.hasSelection) return null;
 
+  var isSelTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
   var hasSelection = ctx.hasSelection;
   var panel = ctx.wandPanel;
+
+  // The "effective" op mode: modifier key pressed right now beats the persistent setting
+  var effectiveMode = ctx.selectionModifier || ctx.wandOpMode;
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   function btn(label, onClick, opts) {
@@ -5131,15 +5147,39 @@ window.MagicWandPanel = function MagicWandPanel() {
     });
   }
 
+  // ─── Op mode buttons (shared across wand + lasso) ───────────────────────────
+  // btn variant that shows both persistent-active and modifier-active states
+  function opBtn(label, mode, title) {
+    var isPersistent = ctx.wandOpMode === mode;
+    var isModifier   = ctx.selectionModifier === mode;
+    var className = "tb-btn" +
+      (isPersistent ? " tb-btn--on" : "") +
+      (isModifier   ? " tb-btn--mod-active" : "");
+    return h("button", {
+      className: className,
+      onClick: function() { ctx.setSelectionOpMode(mode); },
+      title: title,
+      style: { fontSize: 11, padding: "3px 8px", position: "relative" }
+    }, label,
+      isModifier && h("span", {
+        style: { position: "absolute", top: -4, right: -4, background: "#f59e0b",
+          color: "#fff", borderRadius: 99, fontSize: 8, width: 12, height: 12,
+          display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
+          boxShadow: "0 0 0 1px #fff", pointerEvents: "none" }
+      }, "\u2022")
+    );
+  }
+
   // ─── Wand options bar ────────────────────────────────────────────────────────
-  var wandOptionsBar = (ctx.activeTool === "magicWand") ? h("div", {
+  var toolLabel = ctx.activeTool === "lasso" ? "\uD83E\uDD1F Lasso" : "\u2728 Wand";
+  var wandOptionsBar = isSelTool ? h("div", {
     style: { display: "flex", alignItems: "center", gap: 8, padding: "5px 10px",
       background: "#f0f9ff", borderBottom: "1px solid #bae6fd", flexWrap: "wrap", fontSize: 11 }
   },
-    h("span", { style: { fontWeight: 600, color: "#0369a1" } }, "\u2728 Wand"),
+    h("span", { style: { fontWeight: 600, color: "#0369a1" } }, toolLabel),
     h("div", { className: "tb-sdiv" }),
-    // Tolerance
-    h("label", { style: { display: "flex", alignItems: "center", gap: 4, color: "#52525b" } },
+    // Tolerance (wand only)
+    ctx.activeTool === "magicWand" && h("label", { style: { display: "flex", alignItems: "center", gap: 4, color: "#52525b" } },
       "Tolerance:",
       h("input", {
         type: "range", min: 0, max: 100, step: 1, value: ctx.wandTolerance,
@@ -5150,20 +5190,23 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("span", { style: { fontSize: 9, color: "#94a3b8", marginLeft: 2 } },
         ctx.wandTolerance === 0 ? "(exact)" : ctx.wandTolerance <= 5 ? "(similar)" : ctx.wandTolerance <= 15 ? "(broad)" : "(very broad)")
     ),
-    h("div", { className: "tb-sdiv" }),
-    // Contiguous toggle
-    h("div", { className: "tb-grp" },
+    ctx.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
+    // Contiguous toggle (wand only)
+    ctx.activeTool === "magicWand" && h("div", { className: "tb-grp" },
       btn("Contiguous", function() { ctx.setWandContiguous(true); }, { active: ctx.wandContiguous }),
       btn("Global", function() { ctx.setWandContiguous(false); }, { active: !ctx.wandContiguous })
     ),
     h("div", { className: "tb-sdiv" }),
-    // Op mode
+    // Op mode — shared across wand and lasso.
+    // Buttons: persistent mode shows tb-btn--on; modifier-held shows tb-btn--mod-active
     h("div", { className: "tb-grp" },
-      btn("Replace", function() { ctx.setWandOpMode("replace"); }, { active: ctx.wandOpMode === "replace", title: "Replace selection" }),
-      btn("+", function() { ctx.setWandOpMode("add"); }, { active: ctx.wandOpMode === "add", title: "Add to selection (or hold Shift)" }),
-      btn("\u2212", function() { ctx.setWandOpMode("subtract"); }, { active: ctx.wandOpMode === "subtract", title: "Subtract from selection (or hold Alt)" }),
-      btn("\u2229", function() { ctx.setWandOpMode("intersect"); }, { active: ctx.wandOpMode === "intersect", title: "Intersect with selection (or hold Shift+Alt)" })
-    )
+      opBtn("New",       "replace",   "New selection — replaces any existing (default)"),
+      opBtn("+",         "add",        "Add to selection (or hold Shift)"),
+      opBtn("\u2212",    "subtract",   "Subtract from selection (or hold Alt)"),
+      opBtn("\u2229",    "intersect",  "Intersect with selection (or hold Shift+Alt)")
+    ),
+    // Keyboard hint
+    h("span", { style: { fontSize: 9, color: "#94a3b8", marginLeft: 4 } }, "Shift / Alt / Shift+Alt")
   ) : null;
 
   // ─── Selection status bar ────────────────────────────────────────────────────
@@ -6071,6 +6114,28 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   if (!(ctx.pat && ctx.pal)) return null;
   if (ctx.tab !== "pattern") return null;
 
+  // Track Shift/Alt modifier keys when a selection tool is active.
+  // Updates ctx.selectionModifier so MagicWandPanel can show the effective mode.
+  React.useEffect(function() {
+    if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso") {
+      ctx.setSelectionModifier(null);
+      return;
+    }
+    function update(e) {
+      if (e.shiftKey && e.altKey)  ctx.setSelectionModifier("intersect");
+      else if (e.shiftKey)         ctx.setSelectionModifier("add");
+      else if (e.altKey)           ctx.setSelectionModifier("subtract");
+      else                         ctx.setSelectionModifier(null);
+    }
+    window.addEventListener("keydown", update);
+    window.addEventListener("keyup",   update);
+    return function() {
+      window.removeEventListener("keydown", update);
+      window.removeEventListener("keyup",   update);
+      ctx.setSelectionModifier(null);
+    };
+  }, [ctx.activeTool]);
+
   // PaletteSwap confirm view takes over when active
   if (ctx.paletteSwap && ctx.paletteSwap.showConfirm) {
     return ctx.paletteSwap.confirmView || null;
@@ -6083,9 +6148,11 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   } else if (ctx.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
   } else if (ctx.activeTool === "magicWand") {
-    statusText = "Magic Wand \u2014 click to select by colour. Shift+click to add, Alt+click to subtract.";
+    var wModLabel = ctx.selectionModifier === "add" ? "[+] Add" : ctx.selectionModifier === "subtract" ? "[\u2212] Subtract" : ctx.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
+    statusText = "Magic Wand \u2014 click to select by colour" + (wModLabel ? " \u2022 " + wModLabel : ". Shift=add, Alt=subtract.");
   } else if (ctx.activeTool === "lasso") {
-    statusText = "Lasso (" + (ctx.lassoMode || "freehand") + ") \u2014 " +
+    var lModLabel = ctx.selectionModifier === "add" ? "[+] Add" : ctx.selectionModifier === "subtract" ? "[\u2212] Subtract" : ctx.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
+    statusText = "Lasso (" + (ctx.lassoMode || "freehand") + ")" + (lModLabel ? " \u2022 " + lModLabel : "") + " \u2014 " +
       (ctx.lassoMode === "freehand" ? "drag to paint selection." :
        ctx.lassoMode === "polygon" ? "click to place anchor points. Click near start to close." :
        "click to place anchors; snaps to colour edges.");
@@ -6207,7 +6274,19 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h("div", {
       ref:ctx.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:ctx.activeTool==="eyedropper"?"copy":ctx.activeTool==="magicWand"?"pointer":ctx.activeTool==="lasso"?"crosshair":ctx.activeTool==="fill"?"cell":(ctx.activeTool==="eraseAll"||ctx.activeTool==="eraseBs")?"not-allowed":(ctx.activeTool||ctx.halfStitchTool)?"crosshair":"default"},
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(function(){
+        var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
+        var efMode = selTool ? (ctx.selectionModifier || ctx.wandOpMode) : null;
+        if (ctx.activeTool === "eyedropper") return "copy";
+        if (selTool && efMode === "add") return "cell";
+        if (selTool && efMode === "subtract") return "zoom-out";
+        if (ctx.activeTool === "magicWand") return "pointer";
+        if (ctx.activeTool === "lasso") return "crosshair";
+        if (ctx.activeTool === "fill") return "cell";
+        if (ctx.activeTool === "eraseAll" || ctx.activeTool === "eraseBs") return "not-allowed";
+        if (ctx.activeTool || ctx.halfStitchTool) return "crosshair";
+        return "default";
+      })()},
       onContextMenu: function(e) {
         // Right-click context menu (except when backstitch has a special right-click action)
         if (ctx.activeTool === "backstitch" && ctx.bsStart) return;

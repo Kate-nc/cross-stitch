@@ -155,6 +155,9 @@ window.useCreatorState = function useCreatorState() {
   // Context menu
   var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
 
+  // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
+  var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
+
   // Toast notifications
   var _toasts = useState([]);        var toasts = _toasts[0], setToasts = _toasts[1];
   var toastIdRef = useRef(0);
@@ -570,6 +573,12 @@ window.useCreatorState = function useCreatorState() {
   });
   lassoCancelRef.current = lasso.cancelLasso;
 
+  // Syncs op mode across both selection tools
+  function setSelectionOpMode(mode) {
+    wand.setWandOpMode(mode);
+    lasso.setLassoOpMode(mode);
+  }
+
   // ─── Scratch resize effect ───────────────────────────────────────────────────
   useEffect(function() {
     if (!isScratchMode || !pat) return;
@@ -649,6 +658,8 @@ window.useCreatorState = function useCreatorState() {
     contextMenu, setContextMenu,
     // Toast notifications
     toasts, addToast, dismissToast,
+    // Selection modifier key state (null | "add" | "subtract" | "intersect")
+    selectionModifier, setSelectionModifier,
     // PaletteSwap
     paletteSwap,
     // Magic Wand
@@ -656,6 +667,7 @@ window.useCreatorState = function useCreatorState() {
     wandTolerance: wand.wandTolerance, setWandTolerance: wand.setWandTolerance,
     wandContiguous: wand.wandContiguous, setWandContiguous: wand.setWandContiguous,
     wandOpMode: wand.wandOpMode, setWandOpMode: wand.setWandOpMode,
+    setSelectionOpMode: setSelectionOpMode,
     wandPanel: wand.wandPanel, setWandPanel: wand.setWandPanel,
     confettiThreshold: wand.confettiThreshold, setConfettiThreshold: wand.setConfettiThreshold,
     confettiPreview: wand.confettiPreview, setConfettiPreview: wand.setConfettiPreview,

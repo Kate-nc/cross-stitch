@@ -7,10 +7,14 @@ window.MagicWandPanel = function MagicWandPanel() {
   var h = React.createElement;
 
   if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
-  if (ctx.activeTool !== "magicWand" && !ctx.hasSelection) return null;
+  if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso" && !ctx.hasSelection) return null;
 
+  var isSelTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
   var hasSelection = ctx.hasSelection;
   var panel = ctx.wandPanel;
+
+  // The "effective" op mode: modifier key pressed right now beats the persistent setting
+  var effectiveMode = ctx.selectionModifier || ctx.wandOpMode;
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   function btn(label, onClick, opts) {
@@ -32,15 +36,39 @@ window.MagicWandPanel = function MagicWandPanel() {
     });
   }
 
+  // ─── Op mode buttons (shared across wand + lasso) ───────────────────────────
+  // btn variant that shows both persistent-active and modifier-active states
+  function opBtn(label, mode, title) {
+    var isPersistent = ctx.wandOpMode === mode;
+    var isModifier   = ctx.selectionModifier === mode;
+    var className = "tb-btn" +
+      (isPersistent ? " tb-btn--on" : "") +
+      (isModifier   ? " tb-btn--mod-active" : "");
+    return h("button", {
+      className: className,
+      onClick: function() { ctx.setSelectionOpMode(mode); },
+      title: title,
+      style: { fontSize: 11, padding: "3px 8px", position: "relative" }
+    }, label,
+      isModifier && h("span", {
+        style: { position: "absolute", top: -4, right: -4, background: "#f59e0b",
+          color: "#fff", borderRadius: 99, fontSize: 8, width: 12, height: 12,
+          display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
+          boxShadow: "0 0 0 1px #fff", pointerEvents: "none" }
+      }, "\u2022")
+    );
+  }
+
   // ─── Wand options bar ────────────────────────────────────────────────────────
-  var wandOptionsBar = (ctx.activeTool === "magicWand") ? h("div", {
+  var toolLabel = ctx.activeTool === "lasso" ? "\uD83E\uDD1F Lasso" : "\u2728 Wand";
+  var wandOptionsBar = isSelTool ? h("div", {
     style: { display: "flex", alignItems: "center", gap: 8, padding: "5px 10px",
       background: "#f0f9ff", borderBottom: "1px solid #bae6fd", flexWrap: "wrap", fontSize: 11 }
   },
-    h("span", { style: { fontWeight: 600, color: "#0369a1" } }, "\u2728 Wand"),
+    h("span", { style: { fontWeight: 600, color: "#0369a1" } }, toolLabel),
     h("div", { className: "tb-sdiv" }),
-    // Tolerance
-    h("label", { style: { display: "flex", alignItems: "center", gap: 4, color: "#52525b" } },
+    // Tolerance (wand only)
+    ctx.activeTool === "magicWand" && h("label", { style: { display: "flex", alignItems: "center", gap: 4, color: "#52525b" } },
       "Tolerance:",
       h("input", {
         type: "range", min: 0, max: 100, step: 1, value: ctx.wandTolerance,
@@ -51,20 +79,23 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("span", { style: { fontSize: 9, color: "#94a3b8", marginLeft: 2 } },
         ctx.wandTolerance === 0 ? "(exact)" : ctx.wandTolerance <= 5 ? "(similar)" : ctx.wandTolerance <= 15 ? "(broad)" : "(very broad)")
     ),
-    h("div", { className: "tb-sdiv" }),
-    // Contiguous toggle
-    h("div", { className: "tb-grp" },
+    ctx.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
+    // Contiguous toggle (wand only)
+    ctx.activeTool === "magicWand" && h("div", { className: "tb-grp" },
       btn("Contiguous", function() { ctx.setWandContiguous(true); }, { active: ctx.wandContiguous }),
       btn("Global", function() { ctx.setWandContiguous(false); }, { active: !ctx.wandContiguous })
     ),
     h("div", { className: "tb-sdiv" }),
-    // Op mode
+    // Op mode — shared across wand and lasso.
+    // Buttons: persistent mode shows tb-btn--on; modifier-held shows tb-btn--mod-active
     h("div", { className: "tb-grp" },
-      btn("Replace", function() { ctx.setWandOpMode("replace"); }, { active: ctx.wandOpMode === "replace", title: "Replace selection" }),
-      btn("+", function() { ctx.setWandOpMode("add"); }, { active: ctx.wandOpMode === "add", title: "Add to selection (or hold Shift)" }),
-      btn("\u2212", function() { ctx.setWandOpMode("subtract"); }, { active: ctx.wandOpMode === "subtract", title: "Subtract from selection (or hold Alt)" }),
-      btn("\u2229", function() { ctx.setWandOpMode("intersect"); }, { active: ctx.wandOpMode === "intersect", title: "Intersect with selection (or hold Shift+Alt)" })
-    )
+      opBtn("New",       "replace",   "New selection — replaces any existing (default)"),
+      opBtn("+",         "add",        "Add to selection (or hold Shift)"),
+      opBtn("\u2212",    "subtract",   "Subtract from selection (or hold Alt)"),
+      opBtn("\u2229",    "intersect",  "Intersect with selection (or hold Shift+Alt)")
+    ),
+    // Keyboard hint
+    h("span", { style: { fontSize: 9, color: "#94a3b8", marginLeft: 4 } }, "Shift / Alt / Shift+Alt")
   ) : null;
 
   // ─── Selection status bar ────────────────────────────────────────────────────

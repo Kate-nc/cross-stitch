@@ -19,6 +19,28 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   if (!(ctx.pat && ctx.pal)) return null;
   if (ctx.tab !== "pattern") return null;
 
+  // Track Shift/Alt modifier keys when a selection tool is active.
+  // Updates ctx.selectionModifier so MagicWandPanel can show the effective mode.
+  React.useEffect(function() {
+    if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso") {
+      ctx.setSelectionModifier(null);
+      return;
+    }
+    function update(e) {
+      if (e.shiftKey && e.altKey)  ctx.setSelectionModifier("intersect");
+      else if (e.shiftKey)         ctx.setSelectionModifier("add");
+      else if (e.altKey)           ctx.setSelectionModifier("subtract");
+      else                         ctx.setSelectionModifier(null);
+    }
+    window.addEventListener("keydown", update);
+    window.addEventListener("keyup",   update);
+    return function() {
+      window.removeEventListener("keydown", update);
+      window.removeEventListener("keyup",   update);
+      ctx.setSelectionModifier(null);
+    };
+  }, [ctx.activeTool]);
+
   // PaletteSwap confirm view takes over when active
   if (ctx.paletteSwap && ctx.paletteSwap.showConfirm) {
     return ctx.paletteSwap.confirmView || null;
@@ -31,9 +53,11 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   } else if (ctx.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
   } else if (ctx.activeTool === "magicWand") {
-    statusText = "Magic Wand \u2014 click to select by colour. Shift+click to add, Alt+click to subtract.";
+    var wModLabel = ctx.selectionModifier === "add" ? "[+] Add" : ctx.selectionModifier === "subtract" ? "[\u2212] Subtract" : ctx.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
+    statusText = "Magic Wand \u2014 click to select by colour" + (wModLabel ? " \u2022 " + wModLabel : ". Shift=add, Alt=subtract.");
   } else if (ctx.activeTool === "lasso") {
-    statusText = "Lasso (" + (ctx.lassoMode || "freehand") + ") \u2014 " +
+    var lModLabel = ctx.selectionModifier === "add" ? "[+] Add" : ctx.selectionModifier === "subtract" ? "[\u2212] Subtract" : ctx.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
+    statusText = "Lasso (" + (ctx.lassoMode || "freehand") + ")" + (lModLabel ? " \u2022 " + lModLabel : "") + " \u2014 " +
       (ctx.lassoMode === "freehand" ? "drag to paint selection." :
        ctx.lassoMode === "polygon" ? "click to place anchor points. Click near start to close." :
        "click to place anchors; snaps to colour edges.");
@@ -155,7 +179,19 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h("div", {
       ref:ctx.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:ctx.activeTool==="eyedropper"?"copy":ctx.activeTool==="magicWand"?"pointer":ctx.activeTool==="lasso"?"crosshair":ctx.activeTool==="fill"?"cell":(ctx.activeTool==="eraseAll"||ctx.activeTool==="eraseBs")?"not-allowed":(ctx.activeTool||ctx.halfStitchTool)?"crosshair":"default"},
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(function(){
+        var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
+        var efMode = selTool ? (ctx.selectionModifier || ctx.wandOpMode) : null;
+        if (ctx.activeTool === "eyedropper") return "copy";
+        if (selTool && efMode === "add") return "cell";
+        if (selTool && efMode === "subtract") return "zoom-out";
+        if (ctx.activeTool === "magicWand") return "pointer";
+        if (ctx.activeTool === "lasso") return "crosshair";
+        if (ctx.activeTool === "fill") return "cell";
+        if (ctx.activeTool === "eraseAll" || ctx.activeTool === "eraseBs") return "not-allowed";
+        if (ctx.activeTool || ctx.halfStitchTool) return "crosshair";
+        return "default";
+      })()},
       onContextMenu: function(e) {
         // Right-click context menu (except when backstitch has a special right-click action)
         if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
