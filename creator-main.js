@@ -154,10 +154,23 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
         onPointerMove={handlePointerMove}
         onPointerUp={function(e){
           dragging.current=false;
-          if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;} // FIX 2: flush rAF
+          if(pendingPosRef.current!==null&&pendingPosRef.current!==undefined){
+            splitPosRef.current=pendingPosRef.current;
+            setSplitPos(pendingPosRef.current);
+            pendingPosRef.current=null;
+          }
+          if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;} // FIX 2: flush pending position before clearing rAF
           if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
         }}
-        onPointerCancel={function(){dragging.current=false;if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}}} // FIX 3
+        onPointerCancel={function(){
+          dragging.current=false;
+          if(pendingPosRef.current!==null&&pendingPosRef.current!==undefined){
+            splitPosRef.current=pendingPosRef.current;
+            setSplitPos(pendingPosRef.current);
+            pendingPosRef.current=null;
+          }
+          if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}
+        }} // FIX 3
         onPointerLeave={function(){if(!dragging.current)setZoomPos(null);}}>
         <img src={originalSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt="Original"/>       {/* FIX 4 */}
         <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`}}>
