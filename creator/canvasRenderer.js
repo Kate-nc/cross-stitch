@@ -433,7 +433,9 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     // Dashed "marching ants" border around selection boundary
     ctx2d.strokeStyle = "rgba(37,99,235,0.9)";
     ctx2d.lineWidth = Math.max(1, cSz * 0.1);
-    ctx2d.setLineDash([Math.max(2, cSz * 0.3), Math.max(2, cSz * 0.2)]);
+    var antsDash = Math.max(2, cSz * 0.3), antsGap = Math.max(2, cSz * 0.2);
+    ctx2d.setLineDash([antsDash, antsGap]);
+    ctx2d.lineDashOffset = -(state.antsOffset || 0);
     for (var by = 0; by < dH; by++) {
       for (var bx = 0; bx < dW; bx++) {
         var bidx = (offY + by) * sW + (offX + bx);

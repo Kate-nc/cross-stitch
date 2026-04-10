@@ -439,6 +439,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         }}/>
         <div style={{fontSize:14,color:"#71717a",fontWeight:500}}>Generating pattern\u2026</div>
       </div>}
+      <window.CreatorToastContainer/>
     </window.CreatorContext.Provider>
   );
 }

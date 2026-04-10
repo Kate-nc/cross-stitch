@@ -41,6 +41,7 @@ window.useEditHistory = function useEditHistory(state) {
     });
     var result = buildPaletteWithScratch(np);
     state.setPal(result.pal); state.setCmap(result.cmap);
+    if (state.addToast) state.addToast("Undo: reverted " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
   }
 
   function redoEdit() {
@@ -80,6 +81,7 @@ window.useEditHistory = function useEditHistory(state) {
     });
     var result = buildPaletteWithScratch(np);
     state.setPal(result.pal); state.setCmap(result.cmap);
+    if (state.addToast) state.addToast("Redo: restored " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
   }
 
   return { undoEdit: undoEdit, redoEdit: redoEdit };

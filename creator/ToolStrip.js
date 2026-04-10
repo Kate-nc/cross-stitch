@@ -269,6 +269,41 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       ctx.selectedColorId
     ) : null;
 
+  // Active tool indicator badge
+  var badgeLabel, badgeBg, badgeColor, badgeDot;
+  if (ctx.activeTool === "eyedropper") {
+    badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#eab308";
+  } else if (ctx.activeTool === "magicWand") {
+    badgeLabel = "Magic Wand"; badgeBg = "#f3e8ff"; badgeColor = "#6b21a8"; badgeDot = "#a855f7";
+  } else if (ctx.activeTool === "lasso") {
+    var lm = ctx.lassoMode === "polygon" ? "Polygon" : ctx.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
+    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#fff7ed"; badgeColor = "#9a3412"; badgeDot = "#f97316";
+  } else if (ctx.stitchType === "erase" || ctx.activeTool === "eraseAll" || ctx.activeTool === "eraseBs") {
+    badgeLabel = "Erase"; badgeBg = "#fef2f2"; badgeColor = "#991b1b"; badgeDot = "#ef4444";
+  } else if (ctx.stitchType === "backstitch") {
+    badgeLabel = "Backstitch"; badgeBg = "#f5f5f5"; badgeColor = "#404040"; badgeDot = "#737373";
+  } else if (ctx.stitchType === "half-fwd") {
+    badgeLabel = "Half /"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
+  } else if (ctx.stitchType === "half-bck") {
+    badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
+  } else if (ctx.brushMode === "fill") {
+    badgeLabel = "Fill"; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+  } else if (ctx.brushMode === "paint") {
+    var szTxt = ctx.brushSize > 1 ? " " + ctx.brushSize + "\xD7" + ctx.brushSize : "";
+    badgeLabel = "Paint" + szTxt; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+  } else {
+    badgeLabel = null;
+  }
+  var toolBadge = badgeLabel ? h("span", {
+    style:{fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,
+      padding:"2px 8px 2px 6px",borderRadius:10,background:badgeBg,color:badgeColor,
+      flexShrink:0,letterSpacing:0.2,lineHeight:1.4,border:"1px solid " + badgeDot + "33"}
+  },
+    h("span", {style:{width:6,height:6,borderRadius:"50%",background:badgeDot,display:"inline-block",
+      boxShadow:"0 0 4px " + badgeDot + "66"}}),
+    badgeLabel
+  ) : null;
+
   // Zoom group
   var zoomGrp = h("div", {className:"tb-zoom-grp"},
     h("span", {className:"tb-zoom-lbl"}, "Zoom"),
@@ -367,6 +402,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       selectGrp,
       viewGrp,
       colChip,
+      toolBadge,
       h("div", {className:"tb-flex"}),
       zoomGrp,
       undoRedo,

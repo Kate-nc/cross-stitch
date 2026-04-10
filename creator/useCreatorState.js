@@ -155,6 +155,23 @@ window.useCreatorState = function useCreatorState() {
   // Context menu
   var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
 
+  // Toast notifications
+  var _toasts = useState([]);        var toasts = _toasts[0], setToasts = _toasts[1];
+  var toastIdRef = useRef(0);
+  var addToast = useCallback(function(message, opts) {
+    opts = opts || {};
+    var id = ++toastIdRef.current;
+    var toast = { id: id, message: message, type: opts.type || "info", duration: opts.duration || 2500 };
+    setToasts(function(prev) { return prev.concat([toast]); });
+    setTimeout(function() {
+      setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
+    }, toast.duration);
+    return id;
+  }, []);
+  var dismissToast = useCallback(function(id) {
+    setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
+  }, []);
+
   // Refs
   var pcRef      = useRef(null);
   var fRef       = useRef(null);
@@ -630,6 +647,8 @@ window.useCreatorState = function useCreatorState() {
     eyedropperEmpty, setEyedropperEmpty,
     // Context menu
     contextMenu, setContextMenu,
+    // Toast notifications
+    toasts, addToast, dismissToast,
     // PaletteSwap
     paletteSwap,
     // Magic Wand

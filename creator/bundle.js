@@ -616,7 +616,9 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     // Dashed "marching ants" border around selection boundary
     ctx2d.strokeStyle = "rgba(37,99,235,0.9)";
     ctx2d.lineWidth = Math.max(1, cSz * 0.1);
-    ctx2d.setLineDash([Math.max(2, cSz * 0.3), Math.max(2, cSz * 0.2)]);
+    var antsDash = Math.max(2, cSz * 0.3), antsGap = Math.max(2, cSz * 0.2);
+    ctx2d.setLineDash([antsDash, antsGap]);
+    ctx2d.lineDashOffset = -(state.antsOffset || 0);
     for (var by = 0; by < dH; by++) {
       for (var bx = 0; bx < dW; bx++) {
         var bidx = (offY + by) * sW + (offX + bx);
@@ -2382,6 +2384,23 @@ window.useCreatorState = function useCreatorState() {
   // Context menu
   var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
 
+  // Toast notifications
+  var _toasts = useState([]);        var toasts = _toasts[0], setToasts = _toasts[1];
+  var toastIdRef = useRef(0);
+  var addToast = useCallback(function(message, opts) {
+    opts = opts || {};
+    var id = ++toastIdRef.current;
+    var toast = { id: id, message: message, type: opts.type || "info", duration: opts.duration || 2500 };
+    setToasts(function(prev) { return prev.concat([toast]); });
+    setTimeout(function() {
+      setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
+    }, toast.duration);
+    return id;
+  }, []);
+  var dismissToast = useCallback(function(id) {
+    setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
+  }, []);
+
   // Refs
   var pcRef      = useRef(null);
   var fRef       = useRef(null);
@@ -2857,6 +2876,8 @@ window.useCreatorState = function useCreatorState() {
     eyedropperEmpty, setEyedropperEmpty,
     // Context menu
     contextMenu, setContextMenu,
+    // Toast notifications
+    toasts, addToast, dismissToast,
     // PaletteSwap
     paletteSwap,
     // Magic Wand
@@ -2948,6 +2969,7 @@ window.useEditHistory = function useEditHistory(state) {
     });
     var result = buildPaletteWithScratch(np);
     state.setPal(result.pal); state.setCmap(result.cmap);
+    if (state.addToast) state.addToast("Undo: reverted " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
   }
 
   function redoEdit() {
@@ -2987,6 +3009,7 @@ window.useEditHistory = function useEditHistory(state) {
     });
     var result = buildPaletteWithScratch(np);
     state.setPal(result.pal); state.setCmap(result.cmap);
+    if (state.addToast) state.addToast("Redo: restored " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
   }
 
   return { undoEdit: undoEdit, redoEdit: redoEdit };
@@ -3226,6 +3249,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         else if (hs.bck && cmap[hs.bck.id]) { state.setSelectedColorId(hs.bck.id); }
       } else {
         state.setEyedropperEmpty(true);
+        if (state.addToast) state.addToast("That cell is empty \u2014 no colour to sample.", {type:"warning", duration:1500});
         setTimeout(function() { state.setEyedropperEmpty(false); }, 1200);
       }
     }
@@ -3975,6 +3999,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var safeName = (finalName || "cross-stitch-project").replace(/[^a-zA-Z0-9_\- ]/g, "").trim() || "cross-stitch-project";
     a.download = safeName + ".json";
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    if (state.addToast) state.addToast("Project saved as \"" + safeName + ".json\"", {type:"success", duration:2500});
   }
 
   // ─── saveProject ─────────────────────────────────────────────────────────────
@@ -4534,6 +4559,36 @@ window.PatternCanvas = function PatternCanvas() {
   // at most one full render fires per frame.
   var rafRef = React.useRef(null);
 
+  // Marching ants animation offset
+  var antsOffsetRef = React.useRef(0);
+  var antsIntervalRef = React.useRef(null);
+
+  // ── Effect: Animated marching ants for selection mask
+  React.useEffect(function() {
+    var hasSelection = ctx.selectionMask || ctx.lassoPreviewMask;
+    if (!hasSelection) {
+      if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
+      antsOffsetRef.current = 0;
+      return;
+    }
+    if (antsIntervalRef.current) return; // already running
+    antsIntervalRef.current = setInterval(function() {
+      antsOffsetRef.current = (antsOffsetRef.current + 1) % 20;
+      var canvas = ctx.pcRef.current;
+      if (!canvas || !baseCacheRef.current) return;
+      if (ctx.isDraggingRef && ctx.isDraggingRef.current) return;
+      var context = canvas.getContext("2d");
+      context.putImageData(baseCacheRef.current, 0, 0);
+      var prevOffset = ctx.antsOffset;
+      ctx.antsOffset = antsOffsetRef.current;
+      drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, ctx.cs, G, ctx);
+      ctx.antsOffset = prevOffset;
+    }, 120);
+    return function() {
+      if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
+    };
+  }, [ctx.selectionMask, ctx.lassoPreviewMask, ctx.cs, ctx.sW, ctx.sH]);
+
   // ── Effect 1: Full render (base + overlay). Fires when pattern content changes.
   // Uses RAF so rapid zoom-slider drags collapse into a single paint per frame.
   React.useEffect(function() {
@@ -4880,6 +4935,41 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       ctx.selectedColorId
     ) : null;
 
+  // Active tool indicator badge
+  var badgeLabel, badgeBg, badgeColor, badgeDot;
+  if (ctx.activeTool === "eyedropper") {
+    badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#eab308";
+  } else if (ctx.activeTool === "magicWand") {
+    badgeLabel = "Magic Wand"; badgeBg = "#f3e8ff"; badgeColor = "#6b21a8"; badgeDot = "#a855f7";
+  } else if (ctx.activeTool === "lasso") {
+    var lm = ctx.lassoMode === "polygon" ? "Polygon" : ctx.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
+    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#fff7ed"; badgeColor = "#9a3412"; badgeDot = "#f97316";
+  } else if (ctx.stitchType === "erase" || ctx.activeTool === "eraseAll" || ctx.activeTool === "eraseBs") {
+    badgeLabel = "Erase"; badgeBg = "#fef2f2"; badgeColor = "#991b1b"; badgeDot = "#ef4444";
+  } else if (ctx.stitchType === "backstitch") {
+    badgeLabel = "Backstitch"; badgeBg = "#f5f5f5"; badgeColor = "#404040"; badgeDot = "#737373";
+  } else if (ctx.stitchType === "half-fwd") {
+    badgeLabel = "Half /"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
+  } else if (ctx.stitchType === "half-bck") {
+    badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
+  } else if (ctx.brushMode === "fill") {
+    badgeLabel = "Fill"; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+  } else if (ctx.brushMode === "paint") {
+    var szTxt = ctx.brushSize > 1 ? " " + ctx.brushSize + "\xD7" + ctx.brushSize : "";
+    badgeLabel = "Paint" + szTxt; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+  } else {
+    badgeLabel = null;
+  }
+  var toolBadge = badgeLabel ? h("span", {
+    style:{fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,
+      padding:"2px 8px 2px 6px",borderRadius:10,background:badgeBg,color:badgeColor,
+      flexShrink:0,letterSpacing:0.2,lineHeight:1.4,border:"1px solid " + badgeDot + "33"}
+  },
+    h("span", {style:{width:6,height:6,borderRadius:"50%",background:badgeDot,display:"inline-block",
+      boxShadow:"0 0 4px " + badgeDot + "66"}}),
+    badgeLabel
+  ) : null;
+
   // Zoom group
   var zoomGrp = h("div", {className:"tb-zoom-grp"},
     h("span", {className:"tb-zoom-lbl"}, "Zoom"),
@@ -4978,6 +5068,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       selectGrp,
       viewGrp,
       colChip,
+      toolBadge,
       h("div", {className:"tb-flex"}),
       zoomGrp,
       undoRedo,
@@ -5763,6 +5854,61 @@ window.CreatorSidebar = function CreatorSidebar() {
     ctx.pat && ctx.pal && ctx.paletteSwap && ctx.paletteSwap.shiftSection,
     ctx.pat && ctx.pal && ctx.paletteSwap && ctx.paletteSwap.presetSection,
     actionBtn
+  );
+};
+
+
+/* ─── Toast.js ─── */
+/* creator/Toast.js — Toast notification overlay.
+   Reads from CreatorContext. Shows temporary messages that auto-dismiss.
+   Depends on: CreatorContext (context.js) */
+
+window.CreatorToastContainer = function CreatorToastContainer() {
+  var ctx = React.useContext(window.CreatorContext);
+  var h = React.createElement;
+  if (!ctx.toasts || ctx.toasts.length === 0) return null;
+
+  var typeStyles = {
+    info:    { bg: "#f0f9ff", border: "#bae6fd", color: "#0369a1", icon: "\u2139\uFE0F" },
+    success: { bg: "#f0fdf4", border: "#bbf7d0", color: "#166534", icon: "\u2705" },
+    warning: { bg: "#fffbeb", border: "#fde68a", color: "#92400e", icon: "\u26A0\uFE0F" },
+    error:   { bg: "#fef2f2", border: "#fecaca", color: "#991b1b", icon: "\u274C" }
+  };
+
+  return h("div", {
+    style: {
+      position: "fixed", bottom: 20, right: 20, zIndex: 10000,
+      display: "flex", flexDirection: "column-reverse", gap: 8,
+      pointerEvents: "none", maxWidth: 340
+    }
+  },
+    ctx.toasts.map(function(toast) {
+      var ts = typeStyles[toast.type] || typeStyles.info;
+      return h("div", {
+        key: toast.id,
+        style: {
+          pointerEvents: "auto",
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "8px 14px", borderRadius: 10,
+          background: ts.bg, border: "1px solid " + ts.border,
+          color: ts.color, fontSize: 12, fontWeight: 500,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+          animation: "toast-in 0.25s ease-out",
+          fontFamily: "inherit", lineHeight: 1.4, maxWidth: 340
+        }
+      },
+        h("span", { style: { fontSize: 14, flexShrink: 0 } }, ts.icon),
+        h("span", { style: { flex: 1 } }, toast.message),
+        h("button", {
+          onClick: function() { ctx.dismissToast(toast.id); },
+          style: {
+            background: "none", border: "none", cursor: "pointer",
+            color: ts.color, opacity: 0.6, fontSize: 14, padding: 0,
+            lineHeight: 1, flexShrink: 0
+          }
+        }, "\xD7")
+      );
+    })
   );
 };
 

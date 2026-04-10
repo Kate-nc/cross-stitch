@@ -230,6 +230,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         else if (hs.bck && cmap[hs.bck.id]) { state.setSelectedColorId(hs.bck.id); }
       } else {
         state.setEyedropperEmpty(true);
+        if (state.addToast) state.addToast("That cell is empty \u2014 no colour to sample.", {type:"warning", duration:1500});
         setTimeout(function() { state.setEyedropperEmpty(false); }, 1200);
       }
     }
