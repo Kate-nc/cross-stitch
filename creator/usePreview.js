@@ -3,70 +3,140 @@
    Expects state object from useCreatorState. */
 
 window.usePreview = function usePreview(state) {
+  var rawCacheRef = React.useRef(null); // { sig, raw, pw, ph } — geometric cache
+  var fullPassTimerRef = React.useRef(null); // pending setTimeout for full dither pass
+
   var generatePreview = React.useCallback(function() {
+    if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; }
     var img = state.img, sW = state.sW, sH = state.sH;
     var maxC = state.maxC, bri = state.bri, con = state.con, sat = state.sat;
     var dith = state.dith, skipBg = state.skipBg, bgCol = state.bgCol, bgTh = state.bgTh;
     var smooth = state.smooth, smoothType = state.smoothType;
     var stitchCleanup = state.stitchCleanup, fabricCt = state.fabricCt;
-    var allowBlends = state.allowBlends, confettiData = state.confettiData;
+    var allowBlends = state.allowBlends;
 
     if (!img || !img.src) return;
-    var pw = Math.min(100, sW), ph = Math.round(pw / (sW / sH));
+    var MAX_PREVIEW_AREA = 40000;
+    var pw = sW, ph = sH;
+    if (pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
+    if (pw < 10) pw = 10;
     if (ph < 1) ph = 1;
-    var c = document.createElement("canvas"); c.width = pw; c.height = ph;
-    var cx = c.getContext("2d");
-    cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-    cx.drawImage(img, 0, 0, pw, ph); cx.filter = "none";
-    var raw = cx.getImageData(0, 0, pw, ph).data;
-    if (smooth > 0) {
-      if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);
-      else applyMedianFilter(raw, pw, ph, smooth);
+
+    // --- Geometric (image-drawing) cache: skip canvas if only pipeline settings changed ---
+    var raw;
+    var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType;
+    if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
+      raw = rawCacheRef.current.raw;
+    } else {
+      var c = document.createElement("canvas"); c.width = pw; c.height = ph;
+      var cx = c.getContext("2d");
+      cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
+      cx.drawImage(img, 0, 0, pw, ph); cx.filter = "none";
+      raw = cx.getImageData(0, 0, pw, ph).data;
+      if (smooth > 0) {
+        if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);
+        else applyMedianFilter(raw, pw, ph, smooth);
+      }
+      rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
     }
-    var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup });
-    if (!pipelineResult) return;
-    var mapped = pipelineResult.mapped;
-    var confettiRaw = pipelineResult.confettiRaw;
-    var confettiClean = pipelineResult.confettiClean;
 
-    var stitchable = 0, skipped = 0, colorCounts = {};
-    for (var j = 0; j < mapped.length; j++) {
-      var m = mapped[j];
-      if (m.id === "__skip__") { skipped++; }
-      else { stitchable++; colorCounts[m.id] = (colorCounts[m.id] || 0) + 1; }
+    // Helper: render a mapped array to a data URL
+    function renderUrl(mapped) {
+      var pc = document.createElement("canvas"); pc.width = pw; pc.height = ph;
+      var pcx = pc.getContext("2d"); var imgData = pcx.createImageData(pw, ph); var d = imgData.data;
+      for (var i = 0; i < mapped.length; i++) {
+        var mm = mapped[i]; var idx = i * 4;
+        if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=255; }
+        else { d[idx]=mm.rgb[0]; d[idx+1]=mm.rgb[1]; d[idx+2]=mm.rgb[2]; d[idx+3]=255; }
+      }
+      pcx.putImageData(imgData, 0, 0); return pc.toDataURL();
     }
-    var uniqueColors = Object.keys(colorCounts).length;
-    var scaleFactor = (sW * sH) / (pw * ph);
-    var estSkeins = 0;
-    Object.values(colorCounts).forEach(function(ct) { estSkeins += skeinEst(Math.round(ct * scaleFactor), fabricCt); });
 
-    state.setPreviewStats({
-      stitchable: Math.round(stitchable * scaleFactor),
-      skipped: Math.round(skipped * scaleFactor),
-      uniqueColors: uniqueColors,
-      estSkeins: estSkeins,
-      confettiPct: confettiRaw.pct,
-      confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
-      confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
-    });
+    // Progressive preview: if dithering is on, show a fast map-only result immediately,
+    // then let React commit that frame before running the full dither pass.
+    if (dith) {
+      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null });
+      if (fastResult) state.setPreviewUrl(renderUrl(fastResult.mapped));
+      fullPassTimerRef.current = setTimeout(runFull, 0);
+      return;
+    }
+    runFull();
 
-    var pc = document.createElement("canvas");
-    var pcs = Math.max(3, Math.floor(260 / pw));
-    pc.width = pw * pcs; pc.height = ph * pcs;
-    var pcx = pc.getContext("2d");
-    for (var row = 0; row < ph; row++) {
-      for (var col = 0; col < pw; col++) {
-        var mm = mapped[row * pw + col];
-        pcx.fillStyle = mm.id === "__skip__" ? "#f0f0f0" : "rgb(" + mm.rgb[0] + "," + mm.rgb[1] + "," + mm.rgb[2] + ")";
-        pcx.fillRect(col * pcs, row * pcs, pcs, pcs);
+    function runFull() {
+      fullPassTimerRef.current = null;
+      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup });
+      if (!pipelineResult) return;
+      var mapped = pipelineResult.mapped;
+      var confettiRaw = pipelineResult.confettiRaw;
+      var confettiClean = pipelineResult.confettiClean;
+
+      var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
+      for (var j = 0; j < mapped.length; j++) {
+        var m = mapped[j];
+        if (m.id === "__skip__") { skipped++; }
+        else { stitchable++; colorCounts[m.id] = (colorCounts[m.id] || 0) + 1; if (!colorRgbs[m.id]) colorRgbs[m.id] = m.rgb; }
+      }
+      var uniqueColors = Object.keys(colorCounts).length;
+      var scaleFactor = (sW * sH) / (pw * ph);
+      var estSkeins = 0;
+      Object.values(colorCounts).forEach(function(ct) { estSkeins += skeinEst(Math.round(ct * scaleFactor), fabricCt); });
+
+      state.setPreviewStats({
+        stitchable: Math.round(stitchable * scaleFactor),
+        skipped: Math.round(skipped * scaleFactor),
+        uniqueColors: uniqueColors,
+        estSkeins: estSkeins,
+        confettiPct: confettiRaw.pct,
+        confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
+        confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
+      });
+
+      var colorList = Object.keys(colorCounts).map(function(id) {
+        return { id: id, rgb: colorRgbs[id], count: colorCounts[id] };
+      }).sort(function(a, b) { return b.count - a.count; });
+      state.setPreviewColors(colorList);
+      state.setPreviewMapped(mapped);
+      state.setPreviewDims({ pw: pw, ph: ph });
+
+      // Render preview canvas and compute confetti heatmap in same loop
+      var pc = document.createElement("canvas"); pc.width = pw; pc.height = ph;
+      var pcx = pc.getContext("2d");
+      var imgData = pcx.createImageData(pw, ph); var d = imgData.data;
+      var hData = pcx.createImageData(pw, ph); var hd = hData.data;
+      var hasHeat = false;
+      for (var i = 0; i < mapped.length; i++) {
+        var mm = mapped[i]; var idx = i * 4;
+        if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=255; }
+        else {
+          d[idx]=mm.rgb[0]; d[idx+1]=mm.rgb[1]; d[idx+2]=mm.rgb[2]; d[idx+3]=255;
+          var row = Math.floor(i / pw), col = i % pw;
+          var isolated = true;
+          if (col > 0 && mapped[i - 1].id === mm.id) isolated = false;
+          if (isolated && col < pw - 1 && mapped[i + 1].id === mm.id) isolated = false;
+          if (isolated && row > 0 && mapped[i - pw].id === mm.id) isolated = false;
+          if (isolated && row < ph - 1 && mapped[i + pw].id === mm.id) isolated = false;
+          if (isolated) { hd[idx]=255; hd[idx+1]=60; hd[idx+2]=0; hd[idx+3]=220; hasHeat = true; }
+        }
+      }
+      pcx.putImageData(imgData, 0, 0);
+      state.setPreviewUrl(pc.toDataURL());
+      if (hasHeat) {
+        var hc = document.createElement("canvas"); hc.width = pw; hc.height = ph;
+        var hcx = hc.getContext("2d"); hcx.putImageData(hData, 0, 0);
+        state.setPreviewHeatmap(hc.toDataURL());
+      } else {
+        state.setPreviewHeatmap(null);
       }
     }
-    state.setPreviewUrl(pc.toDataURL());
   }, [
     state.img, state.sW, state.sH, state.maxC, state.bri, state.con, state.sat,
     state.dith, state.skipBg, state.bgCol, state.bgTh, state.smooth, state.smoothType,
     state.stitchCleanup, state.fabricCt, state.allowBlends,
   ]);
+
+  React.useEffect(function() {
+    return function() { if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; } };
+  }, []);
 
   React.useEffect(function() {
     if (!state.img) return;
