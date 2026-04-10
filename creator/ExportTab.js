@@ -46,7 +46,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     }, "\uD83E\uDDF5 Open in Stitch Tracker \u2192"),
 
     h(Section, {title:"PDF Export"},
-      h("p", {style:{fontSize:12,color:"#71717a",margin:"8px 0 10px"}},
+      h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},
         "Multi-page PDF with legend and chart."
       ),
       h("div", {style:{display:"flex",gap:16,alignItems:"center",marginBottom:10}},
@@ -54,7 +54,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           "Chart Mode:",
           h("select", {
             value:ctx.pdfDisplayMode, onChange:function(e){ctx.setPdfDisplayMode(e.target.value);},
-            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #d4d4d8",fontSize:12,background:"#fff"}
+            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
           },
             h("option", {value:"color_symbol"}, "Color + Symbols"),
             h("option", {value:"symbol"}, "Symbols Only"),
@@ -65,7 +65,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           "Cell Size:",
           h("select", {
             value:ctx.pdfCellSize, onChange:function(e){ctx.setPdfCellSize(Number(e.target.value));},
-            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #d4d4d8",fontSize:12,background:"#fff"}
+            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
           },
             h("option", {value:2.5}, "Small (2.5mm)"),
             h("option", {value:3}, "Medium (3mm)"),
@@ -92,7 +92,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           style:{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}
         }, "Cover Sheet PDF")
       ),
-      h("p", {style:{fontSize:11,color:"#a1a1aa",marginTop:8}},
+      h("p", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
         "The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes \u2014 perfect for tucking into your project bag."
       )
     ),
@@ -110,23 +110,23 @@ window.CreatorExportTab = function CreatorExportTab() {
           h("button", {
             onClick:function(){ctx.setExportPage(function(p){return Math.max(0,p-1);});},
             disabled:ctx.exportPage===0,
-            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}
+            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
           }, "\u25C4"),
           h("span", {style:{fontSize:12}}, "Page "+(ctx.exportPage+1)+"/"+ctx.totPg),
           h("button", {
             onClick:function(){ctx.setExportPage(function(p){return Math.min(ctx.totPg-1,p+1);});},
             disabled:ctx.exportPage>=ctx.totPg-1,
-            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}
+            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
           }, "\u25BA")
         )
       ),
-      h("div", {style:{overflow:"auto",maxHeight:400,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#fff"}},
+      h("div", {style:{overflow:"auto",maxHeight:400,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#fff"}},
         h("canvas", {ref:ctx.expRef, style:{display:"block"}})
       )
     ),
 
     h(Section, {title:"Save / Load"},
-      h("p", {style:{fontSize:12,color:"#71717a",margin:"8px 0 10px"}},
+      h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},
         "Saves pattern for later editing or opening in Stitch Tracker."
       ),
       h("div", {style:{display:"flex",gap:8}},
@@ -136,7 +136,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         }, "Save (.json)"),
         h("button", {
           onClick:function(){ctx.loadRef.current.click();},
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}
+          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Load")
       )
     )

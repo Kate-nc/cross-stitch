@@ -816,7 +816,7 @@ function SwatchBox(props) {
     style: {
       display: "inline-block", width: sz, height: sz, borderRadius: 3,
       background: "rgb(" + props.rgb[0] + "," + props.rgb[1] + "," + props.rgb[2] + ")",
-      border: "1px solid #d4d4d8", flexShrink: 0, cursor: props.onClick ? "pointer" : "default"
+      border: "1px solid #cbd5e1", flexShrink: 0, cursor: props.onClick ? "pointer" : "default"
     },
     onClick: props.onClick || null
   });
@@ -829,8 +829,8 @@ function LockToggle(props) {
     title: locked ? "Unlock this colour" : "Lock this colour",
     style: {
       width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center",
-      borderRadius: 4, border: locked ? "1px solid #fde68a" : "1px solid #e4e4e7",
-      background: locked ? "#fef3c7" : "#fff", color: locked ? "#b45309" : "#a1a1aa",
+      borderRadius: 4, border: locked ? "1px solid #fde68a" : "1px solid #e2e8f0",
+      background: locked ? "#fef3c7" : "#fff", color: locked ? "#b45309" : "#94a3b8",
       cursor: "pointer", fontSize: 11, padding: 0, lineHeight: 1
     }
   }, locked ? "\uD83D\uDD12" : "\uD83D\uDD13");
@@ -865,9 +865,9 @@ function QuickShiftButtons(props) {
         onClick: function() { props.onChange(a); },
         style: {
           padding: "4px 10px", fontSize: 11, fontWeight: 500, borderRadius: 12, cursor: "pointer",
-          border: active ? "1px solid #1D9E75" : "1px solid #e4e4e7",
+          border: active ? "1px solid #0d9488" : "1px solid #e2e8f0",
           background: active ? "#f0fdfa" : "#fff",
-          color: active ? "#1D9E75" : "#71717a"
+          color: active ? "#0d9488" : "#475569"
         }
       }, a + "\u00B0");
     })
@@ -882,11 +882,11 @@ function SimilarPopover(props) {
   return React.createElement("div", {
     style: {
       position: "absolute", top: "100%", right: 0, zIndex: 20,
-      background: "#fff", border: "1px solid #e4e4e7", borderRadius: 8,
+      background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8,
       boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 6, minWidth: 200
     }
   },
-    React.createElement("div", { style: { fontSize: 10, color: "#a1a1aa", marginBottom: 4, fontWeight: 600 } }, "Similar DMC threads"),
+    React.createElement("div", { style: { fontSize: 10, color: "#94a3b8", marginBottom: 4, fontWeight: 600 } }, "Similar DMC threads"),
     filtered.map(function(s) {
       return React.createElement("div", {
         key: s.thread.id,
@@ -895,12 +895,12 @@ function SimilarPopover(props) {
           display: "flex", alignItems: "center", gap: 6, padding: "3px 4px",
           borderRadius: 4, cursor: "pointer", fontSize: 11
         },
-        onMouseEnter: function(e) { e.currentTarget.style.background = "#f4f4f5"; },
+        onMouseEnter: function(e) { e.currentTarget.style.background = "#f1f5f9"; },
         onMouseLeave: function(e) { e.currentTarget.style.background = "transparent"; }
       },
         React.createElement(SwatchBox, { rgb: s.thread.rgb }),
         React.createElement("span", { style: { fontWeight: 600, minWidth: 36 } }, s.thread.id),
-        React.createElement("span", { style: { color: "#71717a", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, s.thread.name),
+        React.createElement("span", { style: { color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, s.thread.name),
         React.createElement(DEBadge, { dE: s.dE })
       );
     })
@@ -919,7 +919,7 @@ function DmcPickerPopover(props) {
   return React.createElement("div", {
     style: {
       position: "absolute", top: "100%", left: 0, zIndex: 20,
-      background: "#fff", border: "1px solid #e4e4e7", borderRadius: 8,
+      background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8,
       boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 6, width: 260
     },
     onClick: function(e) { e.stopPropagation(); }
@@ -928,7 +928,7 @@ function DmcPickerPopover(props) {
       type: "text", placeholder: "Search DMC # or name\u2026", value: search,
       onChange: function(e) { setSearch(e.target.value); },
       autoFocus: true,
-      style: { width: "100%", padding: "5px 8px", border: "0.5px solid #e4e4e7", borderRadius: 6, fontSize: 12, marginBottom: 4, boxSizing: "border-box" }
+      style: { width: "100%", padding: "5px 8px", border: "0.5px solid #e2e8f0", borderRadius: 6, fontSize: 12, marginBottom: 4, boxSizing: "border-box" }
     }),
     React.createElement("div", { style: { maxHeight: 200, overflow: "auto" } },
       filtered.map(function(d) {
@@ -939,12 +939,12 @@ function DmcPickerPopover(props) {
             display: "flex", alignItems: "center", gap: 6, padding: "3px 6px",
             borderRadius: 4, cursor: "pointer", fontSize: 11
           },
-          onMouseEnter: function(e) { e.currentTarget.style.background = "#f4f4f5"; },
+          onMouseEnter: function(e) { e.currentTarget.style.background = "#f1f5f9"; },
           onMouseLeave: function(e) { e.currentTarget.style.background = "transparent"; }
         },
           React.createElement(SwatchBox, { rgb: d.rgb }),
           React.createElement("span", { style: { fontWeight: 600, minWidth: 36 } }, d.id),
-          React.createElement("span", { style: { color: "#71717a", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, d.name)
+          React.createElement("span", { style: { color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, d.name)
         );
       })
     )
@@ -969,15 +969,15 @@ function MappingTableRow(props) {
     props.onOverride(m.source.id, thread);
   }
 
-  return React.createElement("tr", { style: { borderBottom: "0.5px solid #f4f4f5", opacity: m.locked ? 0.5 : 1 } },
+  return React.createElement("tr", { style: { borderBottom: "0.5px solid #f1f5f9", opacity: m.locked ? 0.5 : 1 } },
     React.createElement("td", { style: { padding: "4px 6px" } },
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
         React.createElement(SwatchBox, { rgb: m.source.rgb }),
         React.createElement("span", { style: { fontFamily: "monospace", fontSize: 11, fontWeight: 600 } }, m.source.id),
-        React.createElement("span", { style: { fontSize: 11, color: "#71717a" } }, m.source.name || "")
+        React.createElement("span", { style: { fontSize: 11, color: "#475569" } }, m.source.name || "")
       )
     ),
-    React.createElement("td", { style: { padding: "4px 2px", fontSize: 13, color: "#a1a1aa" } }, "\u2192"),
+    React.createElement("td", { style: { padding: "4px 2px", fontSize: 13, color: "#94a3b8" } }, "\u2192"),
     React.createElement("td", {
       style: { padding: "4px 6px", position: "relative", cursor: m.locked ? "default" : "pointer" },
       onClick: function() { if (!m.locked) setShowPicker(!showPicker); }
@@ -985,11 +985,11 @@ function MappingTableRow(props) {
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
         React.createElement(SwatchBox, { rgb: m.dest.rgb }),
         React.createElement("span", { style: { fontFamily: "monospace", fontSize: 11, fontWeight: 600 } }, m.dest.id),
-        React.createElement("span", { style: { fontSize: 11, color: "#71717a" } }, m.dest.name || "")
+        React.createElement("span", { style: { fontSize: 11, color: "#475569" } }, m.dest.name || "")
       ),
       showPicker && React.createElement(DmcPickerPopover, { onSelect: handleSelectPicker })
     ),
-    React.createElement("td", { style: { padding: "4px 6px", textAlign: "right", fontSize: 11, color: "#a1a1aa" } }, (props.count || 0).toLocaleString()),
+    React.createElement("td", { style: { padding: "4px 6px", textAlign: "right", fontSize: 11, color: "#94a3b8" } }, (props.count || 0).toLocaleString()),
     React.createElement("td", { style: { padding: "4px 6px" } },
       m.locked
         ? React.createElement("span", { style: { fontSize: 10, color: "#b45309", background: "#fef3c7", padding: "1px 6px", borderRadius: 8 } }, "Locked")
@@ -999,7 +999,7 @@ function MappingTableRow(props) {
       !m.locked && React.createElement("button", {
         onClick: function(e) { e.stopPropagation(); setShowSimilar(!showSimilar); },
         style: {
-          fontSize: 10, color: "#1D9E75", background: "#f0fdfa",
+          fontSize: 10, color: "#0d9488", background: "#f0fdfa",
           border: "0.5px solid #99f6e4", borderRadius: 4, padding: "2px 6px", cursor: "pointer"
         }
       }, "Similar"),
@@ -1023,23 +1023,23 @@ function PresetCard(props) {
     className: "ps-preset-card" + (selected ? " ps-preset-card--selected" : ""),
     style: {
       borderRadius: 8, padding: 10, cursor: "pointer",
-      border: selected ? "2px solid #1D9E75" : "1px solid #e4e4e7",
+      border: selected ? "2px solid #0d9488" : "1px solid #e2e8f0",
       background: selected ? "#f0fdfa" : "#fff"
     }
   },
-    React.createElement("div", { style: { fontSize: 11, fontWeight: 500, marginBottom: 4, color: "#18181b" } }, p.name),
+    React.createElement("div", { style: { fontSize: 11, fontWeight: 500, marginBottom: 4, color: "#1e293b" } }, p.name),
     React.createElement("div", { style: { display: "flex", gap: 2, flexWrap: "wrap" } },
       swatchColours.map(function(hex, i) {
         return React.createElement("span", {
           key: i,
           style: {
             width: 16, height: 16, borderRadius: 2, display: "inline-block",
-            background: hex, border: "1px solid #d4d4d8"
+            background: hex, border: "1px solid #cbd5e1"
           }
         });
       })
     ),
-    React.createElement("div", { style: { fontSize: 10, color: "#a1a1aa", marginTop: 3 } }, "8 / 16 / 24 colours")
+    React.createElement("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "8 / 16 / 24 colours")
   );
 }
 
@@ -1326,8 +1326,8 @@ function usePaletteSwap(props) {
         value: activeMode === "shift" ? shiftDeg : -1,
         onChange: function(v) { setShiftDeg(v); setActiveMode("shift"); setActivePreset(null); setMappingOverrides(null); }
       }),
-      React.createElement("div", { style: { borderTop: "0.5px solid #e4e4e7", margin: "4px 0" } }),
-      React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#71717a", marginBottom: 2 } }, "Colour mapping preview"),
+      React.createElement("div", { style: { borderTop: "0.5px solid #e2e8f0", margin: "4px 0" } }),
+      React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#475569", marginBottom: 2 } }, "Colour mapping preview"),
       React.createElement("div", { style: { maxHeight: 250, overflow: "auto" } },
         sortedPal.map(function(entry) {
           var m = finalMapping[entry.id];
@@ -1339,10 +1339,10 @@ function usePaletteSwap(props) {
             React.createElement(LockToggle, { locked: lockedIds.has(entry.id), onToggle: function() { toggleLock(entry.id); } }),
             React.createElement(SwatchBox, { rgb: m.source.rgb }),
             React.createElement("span", { style: { fontFamily: "monospace", minWidth: 32 } }, m.source.id),
-            React.createElement("span", { style: { color: "#a1a1aa" } }, "\u2192"),
+            React.createElement("span", { style: { color: "#94a3b8" } }, "\u2192"),
             React.createElement(SwatchBox, { rgb: m.dest.rgb }),
             React.createElement("span", { style: { fontFamily: "monospace", minWidth: 32 } }, m.dest.id),
-            React.createElement("span", { style: { color: "#71717a", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, m.dest.name || ""),
+            React.createElement("span", { style: { color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, m.dest.name || ""),
             m.locked
               ? React.createElement("span", { style: { fontSize: 10, color: "#b45309", background: "#fef3c7", padding: "1px 6px", borderRadius: 8 } }, "Locked")
               : React.createElement(DEBadge, { dE: m.dE })
@@ -1364,14 +1364,14 @@ function usePaletteSwap(props) {
           disabled: !hasChange,
           style: {
             flex: 1, padding: "8px", fontSize: 13, fontWeight: 600, borderRadius: 8, cursor: hasChange ? "pointer" : "default",
-            background: hasChange ? "#1D9E75" : "#a1a1aa", color: "#fff", border: "none"
+            background: hasChange ? "#0d9488" : "#94a3b8", color: "#fff", border: "none"
           }
         }, "Preview & Apply"),
         React.createElement("button", {
           onClick: function() { setShiftDeg(0); setActivePreset(null); setMappingOverrides(null); },
           style: {
             padding: "8px 12px", fontSize: 12, borderRadius: 8, cursor: "pointer",
-            background: "#fff", color: "#71717a", border: "1px solid #e4e4e7"
+            background: "#fff", color: "#475569", border: "1px solid #e2e8f0"
           }
         }, "Reset")
       )
@@ -1385,7 +1385,7 @@ function usePaletteSwap(props) {
     React.createElement("div", { style: { marginTop: 8, display: "flex", flexDirection: "column", gap: 8 } },
       // Tab switcher
       React.createElement("div", {
-        style: { display: "flex", gap: 2, background: "#f4f4f5", borderRadius: 8, padding: 2 }
+        style: { display: "flex", gap: 2, background: "#f1f5f9", borderRadius: 8, padding: 2 }
       },
         ["themes", "harmony", "saved"].map(function(t) {
           var label = t.charAt(0).toUpperCase() + t.slice(1);
@@ -1396,7 +1396,7 @@ function usePaletteSwap(props) {
             style: {
               flex: 1, padding: "5px 8px", fontSize: 11, fontWeight: active ? 500 : 400,
               background: active ? "#fff" : "transparent", borderRadius: 6,
-              color: active ? "#18181b" : "#71717a", border: "none", cursor: "pointer",
+              color: active ? "#1e293b" : "#475569", border: "none", cursor: "pointer",
               boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none"
             }
           }, label);
@@ -1424,9 +1424,9 @@ function usePaletteSwap(props) {
         ),
         // Tier selector (visible when a preset is selected)
         activePreset && activeMode === "preset" && React.createElement("div", {
-          style: { background: "#f9fafb", borderRadius: 8, padding: "8px 10px", border: "0.5px solid #e4e4e7" }
+          style: { background: "#f9fafb", borderRadius: 8, padding: "8px 10px", border: "0.5px solid #e2e8f0" }
         },
-          React.createElement("div", { style: { fontSize: 10, fontWeight: 600, color: "#71717a", marginBottom: 6, textTransform: "uppercase" } }, "Palette size"),
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 600, color: "#475569", marginBottom: 6, textTransform: "uppercase" } }, "Palette size"),
           React.createElement("div", { style: { display: "flex", gap: 4 } },
             [null, 8, 16, 24].map(function(t) {
               var isAuto = t === null;
@@ -1438,9 +1438,9 @@ function usePaletteSwap(props) {
                 style: {
                   flex: 1, padding: "5px 6px", fontSize: 10, fontWeight: active ? 600 : 400,
                   borderRadius: 6, cursor: "pointer",
-                  border: active ? "1px solid #1D9E75" : "1px solid #e4e4e7",
+                  border: active ? "1px solid #0d9488" : "1px solid #e2e8f0",
                   background: active ? "#f0fdfa" : "#fff",
-                  color: active ? "#1D9E75" : "#71717a"
+                  color: active ? "#0d9488" : "#475569"
                 }
               }, label);
             })
@@ -1461,11 +1461,11 @@ function usePaletteSwap(props) {
                 colours.map(function(hex, i) {
                   return React.createElement("span", {
                     key: i,
-                    style: { width: 14, height: 14, borderRadius: 2, background: hex, border: "1px solid #d4d4d8", display: "inline-block" }
+                    style: { width: 14, height: 14, borderRadius: 2, background: hex, border: "1px solid #cbd5e1", display: "inline-block" }
                   });
                 })
               ),
-              React.createElement("div", { style: { fontSize: 10, color: "#71717a" } }, info)
+              React.createElement("div", { style: { fontSize: 10, color: "#475569" } }, info)
             );
           })()
         )
@@ -1478,7 +1478,7 @@ function usePaletteSwap(props) {
             htmlFor: "harmony-base-colour-input",
             style: {
               width: 28, height: 28, borderRadius: 6, display: "inline-block",
-              background: harmonyBase, border: "2px solid #e4e4e7", cursor: "pointer"
+              background: harmonyBase, border: "2px solid #e2e8f0", cursor: "pointer"
             }
           }),
           React.createElement("input", {
@@ -1494,7 +1494,7 @@ function usePaletteSwap(props) {
               if (/^#[0-9a-fA-F]{6}$/.test(v)) { setHarmonyBase(v); setActiveMode("harmony"); setMappingOverrides(null); }
               else setHarmonyBase(v);
             },
-            style: { fontFamily: "monospace", width: 80, padding: "4px 8px", border: "0.5px solid #e4e4e7", borderRadius: 6, fontSize: 12 }
+            style: { fontFamily: "monospace", width: 80, padding: "4px 8px", border: "0.5px solid #e2e8f0", borderRadius: 6, fontSize: 12 }
           })
         ),
         React.createElement("div", { style: { display: "flex", gap: 4, flexWrap: "wrap" } },
@@ -1505,9 +1505,9 @@ function usePaletteSwap(props) {
               onClick: function() { setHarmonyType(ht); setActiveMode("harmony"); setMappingOverrides(null); },
               style: {
                 padding: "4px 10px", fontSize: 11, fontWeight: 500, borderRadius: 12, cursor: "pointer",
-                border: active ? "1px solid #1D9E75" : "1px solid #e4e4e7",
+                border: active ? "1px solid #0d9488" : "1px solid #e2e8f0",
                 background: active ? "#f0fdfa" : "#fff",
-                color: active ? "#1D9E75" : "#71717a"
+                color: active ? "#0d9488" : "#475569"
               }
             }, ht);
           })
@@ -1524,9 +1524,9 @@ function usePaletteSwap(props) {
               style: {
                 flex: 1, padding: "4px 6px", fontSize: 10, fontWeight: active ? 600 : 400,
                 borderRadius: 6, cursor: "pointer",
-                border: active ? "1px solid #1D9E75" : "1px solid #e4e4e7",
+                border: active ? "1px solid #0d9488" : "1px solid #e2e8f0",
                 background: active ? "#f0fdfa" : "#fff",
-                color: active ? "#1D9E75" : "#71717a"
+                color: active ? "#0d9488" : "#475569"
               }
             }, label);
           })
@@ -1535,7 +1535,7 @@ function usePaletteSwap(props) {
           harmonyDmc.map(function(m, i) {
             return React.createElement("div", { key: i, style: { textAlign: "center" } },
               React.createElement(SwatchBox, { rgb: m.rgb, size: 22 }),
-              React.createElement("div", { style: { fontSize: 9, color: "#a1a1aa" } }, m.id)
+              React.createElement("div", { style: { fontSize: 9, color: "#94a3b8" } }, m.id)
             );
           })
         ),
@@ -1544,7 +1544,7 @@ function usePaletteSwap(props) {
           disabled: activeMode !== "harmony",
           style: {
             padding: "8px", fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: activeMode === "harmony" ? "pointer" : "default",
-            background: activeMode === "harmony" ? "#1D9E75" : "#a1a1aa", color: "#fff", border: "none"
+            background: activeMode === "harmony" ? "#0d9488" : "#94a3b8", color: "#fff", border: "none"
           }
         }, "Preview Harmony")
       ),
@@ -1552,13 +1552,13 @@ function usePaletteSwap(props) {
       // Saved tab
       presetTab === "saved" && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } },
         customPalettes.length === 0 && React.createElement("div", {
-          style: { fontSize: 11, color: "#a1a1aa", textAlign: "center", padding: "12px 0" }
+          style: { fontSize: 11, color: "#94a3b8", textAlign: "center", padding: "12px 0" }
         }, "No saved palettes yet. Apply a swap and click \u201CSave palette\u201D."),
         customPalettes.map(function(cp, idx) {
           return React.createElement("div", {
             key: idx,
             style: {
-              borderRadius: 8, padding: 8, border: "1px solid #e4e4e7", background: "#fff",
+              borderRadius: 8, padding: 8, border: "1px solid #e2e8f0", background: "#fff",
               display: "flex", flexDirection: "column", gap: 4
             }
           },
@@ -1574,7 +1574,7 @@ function usePaletteSwap(props) {
                     setMappingOverrides(null);
                     setShowConfirm(true);
                   },
-                  style: { fontSize: 10, padding: "2px 8px", borderRadius: 6, border: "1px solid #99f6e4", background: "#f0fdfa", color: "#1D9E75", cursor: "pointer" }
+                  style: { fontSize: 10, padding: "2px 8px", borderRadius: 6, border: "1px solid #99f6e4", background: "#f0fdfa", color: "#0d9488", cursor: "pointer" }
                 }, "Apply"),
                 React.createElement("button", {
                   onClick: function() { deleteCustomPalette(idx); },
@@ -1586,7 +1586,7 @@ function usePaletteSwap(props) {
               cp.colours.slice(0, 8).map(function(hex, ci) {
                 return React.createElement("span", {
                   key: ci,
-                  style: { width: 14, height: 14, borderRadius: 2, background: hex, border: "1px solid #d4d4d8", display: "inline-block" }
+                  style: { width: 14, height: 14, borderRadius: 2, background: hex, border: "1px solid #cbd5e1", display: "inline-block" }
                 });
               })
             )
@@ -1596,16 +1596,16 @@ function usePaletteSwap(props) {
 
       // Custom hex input at bottom
       presetTab === "themes" && React.createElement("div", {
-        style: { display: "flex", gap: 4, alignItems: "center", borderTop: "0.5px solid #e4e4e7", paddingTop: 6 }
+        style: { display: "flex", gap: 4, alignItems: "center", borderTop: "0.5px solid #e2e8f0", paddingTop: 6 }
       },
         React.createElement("input", {
           type: "text", placeholder: "#hex", value: customHex,
           onChange: function(e) { setCustomHex(e.target.value); },
-          style: { fontFamily: "monospace", width: 72, padding: "4px 8px", border: "0.5px solid #e4e4e7", borderRadius: 6, fontSize: 12 }
+          style: { fontFamily: "monospace", width: 72, padding: "4px 8px", border: "0.5px solid #e2e8f0", borderRadius: 6, fontSize: 12 }
         }),
         React.createElement("button", {
           onClick: addCustomHexColour,
-          style: { fontSize: 11, padding: "4px 10px", borderRadius: 6, border: "1px solid #e4e4e7", background: "#fafafa", cursor: "pointer" }
+          style: { fontSize: 11, padding: "4px 10px", borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8f9fa", cursor: "pointer" }
         }, "+ Add")
       ),
 
@@ -1616,7 +1616,7 @@ function usePaletteSwap(props) {
           onClick: function() { setShowConfirm(true); },
           style: {
             padding: "8px", fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: "pointer",
-            background: "#1D9E75", color: "#fff", border: "none"
+            background: "#0d9488", color: "#fff", border: "none"
           }
         }, "Preview \u201C" + pName + "\u201D");
       })()
@@ -1626,32 +1626,32 @@ function usePaletteSwap(props) {
   // ───────────── Main Content: Confirmation View ─────────────
   var confirmView = showConfirm ? React.createElement("div", {
     className: "ps-confirm-overlay",
-    style: { background: "#fff", borderRadius: 10, border: "1px solid #e4e4e7", padding: 16 }
+    style: { background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0", padding: 16 }
   },
     // Preview canvases
     React.createElement("div", { style: { display: "flex", gap: 12, marginBottom: 16 } },
       React.createElement("div", { style: { flex: 1 } },
-        React.createElement("div", { style: { fontSize: 11, color: "#a1a1aa", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 } }, "Before"),
-        React.createElement("div", { style: { borderRadius: 8, background: "#f4f4f5", overflow: "hidden", aspectRatio: sW + "/" + sH } },
+        React.createElement("div", { style: { fontSize: 11, color: "#94a3b8", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 } }, "Before"),
+        React.createElement("div", { style: { borderRadius: 8, background: "#f1f5f9", overflow: "hidden", aspectRatio: sW + "/" + sH } },
           React.createElement("canvas", { ref: beforeRef, style: { width: "100%", height: "100%", display: "block", imageRendering: "pixelated" } })
         )
       ),
       React.createElement("div", { style: { flex: 1 } },
-        React.createElement("div", { style: { fontSize: 11, color: "#a1a1aa", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 } },
+        React.createElement("div", { style: { fontSize: 11, color: "#94a3b8", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 } },
           "After" + (activeMode === "shift" ? " (" + shiftDeg + "\u00B0 shift)" : activeMode === "preset" && activePreset ? " (\u201C" + ((getPresetById(activePreset) || {}).name || activePreset) + "\u201D)" : "")
         ),
-        React.createElement("div", { style: { borderRadius: 8, background: "#f4f4f5", overflow: "hidden", aspectRatio: sW + "/" + sH } },
+        React.createElement("div", { style: { borderRadius: 8, background: "#f1f5f9", overflow: "hidden", aspectRatio: sW + "/" + sH } },
           React.createElement("canvas", { ref: afterRef, style: { width: "100%", height: "100%", display: "block", imageRendering: "pixelated" } })
         )
       )
     ),
 
     // Mapping table
-    React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#71717a", marginBottom: 4 } }, "Colour mapping"),
+    React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#475569", marginBottom: 4 } }, "Colour mapping"),
     React.createElement("div", { style: { overflow: "auto", maxHeight: 300, marginBottom: 12 } },
       React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
         React.createElement("thead", null,
-          React.createElement("tr", { style: { fontSize: 10, textTransform: "uppercase", color: "#a1a1aa" } },
+          React.createElement("tr", { style: { fontSize: 10, textTransform: "uppercase", color: "#94a3b8" } },
             React.createElement("th", { style: { textAlign: "left", padding: "2px 6px", fontWeight: 600 } }, "Source"),
             React.createElement("th", { style: { padding: "2px 2px" } }),
             React.createElement("th", { style: { textAlign: "left", padding: "2px 6px", fontWeight: 600 } }, "Destination"),
@@ -1709,28 +1709,28 @@ function usePaletteSwap(props) {
     React.createElement("div", {
       style: {
         display: "flex", alignItems: "center", gap: 8,
-        background: "#fafafa", borderTop: "0.5px solid #e4e4e7", padding: "10px 0", marginTop: 8
+        background: "#f8f9fa", borderTop: "0.5px solid #e2e8f0", padding: "10px 0", marginTop: 8
       }
     },
       React.createElement("button", {
         onClick: savePalette,
         style: {
           fontSize: 12, padding: "8px 14px", borderRadius: 8, cursor: "pointer",
-          background: "#fff", color: "#71717a", border: "1px solid #e4e4e7", marginRight: "auto"
+          background: "#fff", color: "#475569", border: "1px solid #e2e8f0", marginRight: "auto"
         }
       }, "Save palette"),
       React.createElement("button", {
         onClick: function() { setShowConfirm(false); },
         style: {
           fontSize: 12, padding: "8px 14px", borderRadius: 8, cursor: "pointer",
-          background: "#fff", color: "#71717a", border: "1px solid #e4e4e7"
+          background: "#fff", color: "#475569", border: "1px solid #e2e8f0"
         }
       }, "Cancel"),
       React.createElement("button", {
         onClick: applySwap,
         style: {
           fontSize: 13, fontWeight: 600, padding: "8px 20px", borderRadius: 8, cursor: "pointer",
-          background: "#1D9E75", color: "#fff", border: "none"
+          background: "#0d9488", color: "#fff", border: "none"
         }
       }, "Apply Swap")
     )

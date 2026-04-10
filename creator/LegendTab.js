@@ -15,24 +15,24 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   return h("div", null,
     h("div", {style:{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}},
-      h("span", {style:{fontSize:12,color:"#71717a"}}, "Fabric:"),
+      h("span", {style:{fontSize:12,color:"#475569"}}, "Fabric:"),
       h("select", {
         value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{padding:"4px 10px",borderRadius:6,border:"0.5px solid #e4e4e7",fontSize:12,background:"#fff"}
+        style:{padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",fontSize:12,background:"#fff"}
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("span", {style:{fontSize:11,color:"#a1a1aa"}}, "Total skeins: "+ctx.totalSkeins)
+      h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Total skeins: "+ctx.totalSkeins)
     ),
     h("div", {style:{overflow:"auto",maxHeight:540}},
       h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
         h("thead", null,
-          h("tr", {style:{background:"#fafafa"}},
+          h("tr", {style:{background:"#f8f9fa"}},
             headerCols.map(function(hd, i) {
               return h("th", {
                 key:i,
-                style:{padding:"8px 10px",textAlign:i>=5?"right":"left",borderBottom:"2px solid #e4e4e7",
-                  color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}
+                style:{padding:"8px 10px",textAlign:i>=5?"right":"left",borderBottom:"2px solid #e2e8f0",
+                  color:"#475569",fontWeight:600,fontSize:11,textTransform:"uppercase"}
               }, hd);
             })
           )
@@ -44,7 +44,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             var confettiCount = ctx.confettiData && ctx.confettiData.clean && ctx.confettiData.clean.colorConfetti
               ? ctx.confettiData.clean.colorConfetti[p.id]
               : null;
-            var nameCell = h("td", {style:{padding:"6px 10px",fontSize:11,color:"#71717a"}},
+            var nameCell = h("td", {style:{padding:"6px 10px",fontSize:11,color:"#475569"}},
               p.type === "blend"
                 ? p.threads[0].name + " + " + p.threads[1].name
                 : p.name,
@@ -56,11 +56,11 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             return h("tr", {
               key:i,
               onClick:function(){ctx.setHiId(ctx.hiId===p.id?null:p.id); ctx.setTab("pattern");},
-              style:{borderBottom:"0.5px solid #f4f4f5",cursor:"pointer",background:ctx.hiId===p.id?"#fff7ed":"transparent"}
+              style:{borderBottom:"0.5px solid #f1f5f9",cursor:"pointer",background:ctx.hiId===p.id?"#fff7ed":"transparent"}
             },
               h("td", {style:{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}, p.symbol),
               h("td", {style:{padding:"6px 10px"}},
-                h("div", {style:{width:24,height:24,borderRadius:5,background:"rgb("+p.rgb+")",border:"0.5px solid #e4e4e7",display:"inline-block"}})
+                h("div", {style:{width:24,height:24,borderRadius:5,background:"rgb("+p.rgb+")",border:"0.5px solid #e2e8f0",display:"inline-block"}})
               ),
               h("td", {style:{padding:"6px 10px",fontWeight:600}}, p.id),
               nameCell,
@@ -74,7 +74,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
               h("td", {style:{padding:"6px 10px",textAlign:"right"}}, p.count.toLocaleString()),
               h("td", {style:{padding:"6px 10px",textAlign:"right",fontWeight:600}}, sk),
               ctx.done && h("td", {style:{padding:"6px 10px",textAlign:"right"}},
-                h("span", {style:{color:dc.done>=dc.total?"#16a34a":"#71717a"}}, dc.done+"/"+dc.total)
+                h("span", {style:{color:dc.done>=dc.total?"#16a34a":"#475569"}}, dc.done+"/"+dc.total)
               )
             );
           })

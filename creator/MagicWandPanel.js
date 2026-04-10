@@ -31,7 +31,7 @@ window.MagicWandPanel = function MagicWandPanel() {
   function swatch(rgb) {
     return h("span", {
       style: { display: "inline-block", width: 12, height: 12, borderRadius: 2,
-        background: "rgb(" + (rgb || [128,128,128]) + ")", border: "1px solid #d4d4d8",
+        background: "rgb(" + (rgb || [128,128,128]) + ")", border: "1px solid #cbd5e1",
         verticalAlign: "middle", marginRight: 3 }
     });
   }

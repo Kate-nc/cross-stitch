@@ -51,14 +51,14 @@ window.CreatorSidebar = function CreatorSidebar() {
     },
       h("span", {"aria-hidden":"true", style:{position:"relative",display:"inline-block",width:32,height:18,flexShrink:0}},
         h("span", {style:{display:"block",position:"absolute",inset:0,borderRadius:9,
-          background:props.checked?"#0d9488":"#d4d4d8",transition:"background 0.15s"}}),
+          background:props.checked?"#0d9488":"#cbd5e1",transition:"background 0.15s"}}),
         h("span", {style:{display:"block",position:"absolute",width:14,height:14,top:2,
           left:props.checked?16:2,borderRadius:"50%",background:"#fff",
           transition:"left 0.15s",boxShadow:"0 1px 3px rgba(0,0,0,0.18)"}})
       ),
       h("span", {style:{flex:1}},
-        h("span", {style:{fontSize:12,fontWeight:500,color:"#18181b",display:"block"}}, props.label),
-        props.help && h("span", {style:{fontSize:10,color:"#a1a1aa",display:"block",marginTop:1}}, props.help)
+        h("span", {style:{fontSize:12,fontWeight:500,color:"#1e293b",display:"block"}}, props.label),
+        props.help && h("span", {style:{fontSize:10,color:"#94a3b8",display:"block",marginTop:1}}, props.help)
       )
     );
   }
@@ -89,12 +89,12 @@ window.CreatorSidebar = function CreatorSidebar() {
       }})
     ),
     ctx.isCropping
-      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}},
-          h("span", {style:{fontSize:11,color:"#a1a1aa"}}, "Draw a rectangle"),
+      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
+          h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Draw a rectangle"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){ctx.setIsCropping(false); ctx.setCropRect(null);},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Cancel"),
             h("button", {
               onClick:ctx.applyCrop,
@@ -102,16 +102,16 @@ window.CreatorSidebar = function CreatorSidebar() {
             }, "Apply")
           )
         )
-      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}},
-          h("span", {style:{fontSize:11,color:"#a1a1aa"}}, ctx.origW+"×"+ctx.origH+"px"),
+      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
+          h("span", {style:{fontSize:11,color:"#94a3b8"}}, ctx.origW+"×"+ctx.origH+"px"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){ctx.setIsCropping(true); ctx.setCropRect(null);},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Crop"),
             h("button", {
               onClick:function(){ctx.fRef.current.click();},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Change")
           )
         ),
@@ -128,21 +128,21 @@ window.CreatorSidebar = function CreatorSidebar() {
     title:"Colours", isOpen:ctx.colPickerOpen, onToggle:ctx.setColPickerOpen, badge:coloursBadge
   },
     h("div", {style:{marginTop:8}},
-      h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#f4f4f5",borderRadius:8}},
+      h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#f1f5f9",borderRadius:8}},
         [["1","Add colour","→"],["2","Select chip","→"],["3","Paint!",""]].map(function(item,i) {
           return h(React.Fragment, {key:i},
             h("div", {style:{display:"flex",alignItems:"center",gap:4}},
               h("span", {style:{width:16,height:16,borderRadius:"50%",background:"#0d9488",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
               h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
             ),
-            item[2] && h("span", {style:{fontSize:10,color:"#a1a1aa"}}, item[2])
+            item[2] && h("span", {style:{fontSize:10,color:"#94a3b8"}}, item[2])
           );
         })
       ),
       h("input", {
         type:"text", placeholder:"Search by DMC # or name\u2026",
         value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);},
-        style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e4e4e7",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
+        style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e2e8f0",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
       }),
       h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
         ctx.dmcFiltered.slice(0,60).map(function(d) {
@@ -155,20 +155,20 @@ window.CreatorSidebar = function CreatorSidebar() {
                 border:inPal?"1px solid #99f6e4":"1px solid transparent",
                 opacity:inPal?0.7:1,width:"100%"}
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #d4d4d8"}}),
-              h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#18181b"}}, d.id),
-              h("span", {style:{fontSize:11,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#a1a1aa"}}, "+")
+              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1"}}),
+              h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1e293b"}}, d.id),
+              h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#94a3b8"}}, "+")
             )
           );
         }),
-        ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#a1a1aa",padding:"8px 0",textAlign:"center"}}, "No colours found")
+        ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#94a3b8",padding:"8px 0",textAlign:"center"}}, "No colours found")
       )
     )
   ) : null;
 
   // ── Dimensions section ──────────────────────────────────────────────────────
-  var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
+  var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
   var dimSection = h(Section, {title:"Dimensions", isOpen:ctx.dimOpen, onToggle:ctx.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
@@ -178,16 +178,16 @@ window.CreatorSidebar = function CreatorSidebar() {
     ctx.arLock
       ? h("div", null,
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
-          h("div", {style:{fontSize:10,color:"#a1a1aa",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
+          h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
         )
       : h("div", {style:{display:"flex",gap:10}},
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#a1a1aa",display:"block",marginBottom:2}}, "Width"),
-            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,fontSize:13}})
+            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Width"),
+            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
           ),
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#a1a1aa",display:"block",marginBottom:2}}, "Height"),
-            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,fontSize:13}})
+            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Height"),
+            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
           )
         )
   );
@@ -221,10 +221,10 @@ window.CreatorSidebar = function CreatorSidebar() {
         } else {
           desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#dc2626",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
         }
-        return h("div", {style:{fontSize:11,color:"#71717a",marginTop:4,lineHeight:1.5}}, desc);
+        return h("div", {style:{fontSize:11,color:"#475569",marginTop:4,lineHeight:1.5}}, desc);
       })()
     ),
-    ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}},
+    ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
       "Preview estimate: removes ~", (ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
       " (", ((ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles) / Math.max(1, ctx.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),
@@ -233,23 +233,23 @@ window.CreatorSidebar = function CreatorSidebar() {
         onClick:function(){ctx.setShowCleanupDiff(function(d){return !d;});},
         style:{
           fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-          border:ctx.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e4e4e7",
+          border:ctx.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e2e8f0",
           background:ctx.showCleanupDiff?"#f0fdfa":"#fff",
-          color:ctx.showCleanupDiff?"#0d9488":"#71717a",
+          color:ctx.showCleanupDiff?"#0d9488":"#475569",
           fontWeight:ctx.showCleanupDiff?600:400,
           display:"flex",alignItems:"center",gap:4,lineHeight:1.4
         }
       }, "\uD83D\uDC41\uFE0F " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
     ),
     ctx.showCleanupDiff && ctx.cleanupDiff && h("div", {style:{
-      fontSize:11,color:"#71717a",padding:"6px 10px",
+      fontSize:11,color:"#475569",padding:"6px 10px",
       background:"#fdf4ff",border:"1px solid #f0abfc",borderRadius:8,
       marginTop:4,lineHeight:1.5
     }},
       h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
       ctx.cleanupDiff.count.toLocaleString(), " stitches changed",
       ctx.totalStitchable > 0 ? " (" + (ctx.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-      Object.keys(ctx.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#a1a1aa"}},
+      Object.keys(ctx.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#94a3b8"}},
         Object.entries(ctx.cleanupDiff.byColour)
           .sort(function(a,b){return b[1]-a[1];})
           .slice(0,4)
@@ -275,7 +275,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     })(),
     h("button", {
       onClick:function(){ctx.setPalAdvanced(function(o){return !o;});},
-      style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#71717a",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
+      style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
     },
       h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
       "Dithering",
@@ -286,17 +286,17 @@ window.CreatorSidebar = function CreatorSidebar() {
         "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
       ),
       h("div", {style:{display:"flex",gap:6,marginTop:6}},
-        h("div", {style:{display:"flex",gap:2,background:"#f4f4f5",borderRadius:8,padding:2,flex:1}},
+        h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Maps each pixel directly to its closest DMC colour. Fewer scattered stitches", width:200},
             h("button", {
               onClick:function(){ctx.setDith(false);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:!ctx.dith?500:400,background:!ctx.dith?"#fff":"transparent",borderRadius:6,color:!ctx.dith?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:!ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              style:{padding:"5px 12px",fontSize:12,fontWeight:!ctx.dith?500:400,background:!ctx.dith?"#fff":"transparent",borderRadius:6,color:!ctx.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:!ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Direct")
           ),
           h(Tooltip, {text:"Uses Floyd-Steinberg error diffusion for smoother colour gradients, but creates more scattered stitches", width:220},
             h("button", {
               onClick:function(){ctx.setDith(true);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.dith?500:400,background:ctx.dith?"#fff":"transparent",borderRadius:6,color:ctx.dith?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.dith?500:400,background:ctx.dith?"#fff":"transparent",borderRadius:6,color:ctx.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Dithered")
           )
         )
@@ -309,7 +309,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var sc2 = ctx.stitchCleanup;
     var scBadge = h("span", {style:{
       fontSize:11,fontWeight:500,padding:"1px 8px",borderRadius:10,
-      color:sc2.enabled?"#0d9488":"#a1a1aa",background:sc2.enabled?"#f0fdfa":"#f4f4f5"
+      color:sc2.enabled?"#0d9488":"#94a3b8",background:sc2.enabled?"#f0fdfa":"#f1f5f9"
     }}, sc2.enabled ? "On \u2014 "+(sc2.strength[0].toUpperCase()+sc2.strength.slice(1)) : "Off");
     var strengthKeys=["gentle","balanced","thorough"];
     var strengthLabels=["Gentle","Balanced","Thorough"];
@@ -341,7 +341,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               strengthLabels.map(function(l,i) {
                 return h(Tooltip, {key:l, text:strengthDescs[i], width:160},
                   h("span", {
-                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#a1a1aa",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
+                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#94a3b8",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
                     onClick:function(){ctx.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
                   }, l)
                 );
@@ -366,20 +366,20 @@ window.CreatorSidebar = function CreatorSidebar() {
   })() : null;
 
   // ── Fabric & Floss section ──────────────────────────────────────────────────
-  var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
+  var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
   var fabSection = h(Section, {title:"Fabric & Floss", isOpen:ctx.fabOpen, onToggle:ctx.setFabOpen, badge:fabBadge},
     h("div", {style:{marginTop:8}},
       h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
-        h("span", {style:{fontSize:12,color:"#71717a",fontWeight:600}}, "Fabric count"),
+        h("span", {style:{fontSize:12,color:"#475569",fontWeight:600}}, "Fabric count"),
         h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
       ),
       h("select", {
         value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{width:"100%",padding:"6px 10px",borderRadius:8,border:"0.5px solid #e4e4e7",fontSize:13,background:"#fff"}
+        style:{width:"100%",padding:"6px 10px",borderRadius:8,border:"0.5px solid #e2e8f0",fontSize:13,background:"#fff"}
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
+      h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
     )
   );
 
@@ -390,14 +390,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(SliderRow, {label:"Smooth", value:ctx.smooth, min:0, max:4, step:0.1, onChange:ctx.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
         helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
-      ctx.smooth===0 && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
+      ctx.smooth===0 && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
       ctx.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
-        h("div", {style:{display:"flex",gap:2,background:"#f4f4f5",borderRadius:8,padding:2,flex:1}},
+        h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
-            h("button", {onClick:function(){ctx.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="median"?500:400,background:ctx.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="median"?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
+            h("button", {onClick:function(){ctx.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="median"?500:400,background:ctx.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="median"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
           ),
           h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:180},
-            h("button", {onClick:function(){ctx.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="gaussian"?500:400,background:ctx.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="gaussian"?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
+            h("button", {onClick:function(){ctx.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="gaussian"?500:400,background:ctx.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="gaussian"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
           )
         )
       ),
@@ -419,20 +419,20 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
         h("div", {
           onClick:function(){ctx.setPickBg(true);},
-          style:{width:24,height:24,borderRadius:6,background:"rgb("+ctx.bgCol+")",border:"2px solid #e4e4e7",cursor:"pointer"}
+          style:{width:24,height:24,borderRadius:6,background:"rgb("+ctx.bgCol+")",border:"2px solid #e2e8f0",cursor:"pointer"}
         }),
         h("button", {
           onClick:function(){ctx.setPickBg(true);},
-          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}
+          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa",cursor:"pointer"}
         }, "Pick")
       ),
       h(SliderRow, {label:"Tolerance", value:ctx.bgTh, min:3, max:50, onChange:ctx.setBgTh,
         helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
-      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#f4f4f5",borderRadius:8,fontSize:11,color:"#71717a"}},
+      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#f1f5f9",borderRadius:8,fontSize:11,color:"#475569"}},
         h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
         h("button", {
           onClick:ctx.autoCrop,
-          style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #d4d4d8",borderRadius:6,cursor:"pointer",color:"#18181b"}
+          style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,cursor:"pointer",color:"#1e293b"}
         }, "Auto-Crop to Stitches")
       )
     )
@@ -447,7 +447,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     : h("button", {
         onClick:ctx.generate, disabled:ctx.busy,
         style:{padding:"12px 20px",fontSize:15,fontWeight:600,
-          background:ctx.busy?"#a1a1aa":"#0d9488",color:"#fff",
+          background:ctx.busy?"#94a3b8":"#0d9488",color:"#fff",
           border:"none",borderRadius:10,cursor:ctx.busy?"wait":"pointer"}
       }, ctx.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 

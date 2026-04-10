@@ -228,7 +228,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     ctx2d.globalAlpha = 1.0;
   }
 
-  ctx2d.fillStyle = "#a1a1aa";
+  ctx2d.fillStyle = "#94a3b8";
   ctx2d.font = Math.max(7, Math.min(11, cSz * 0.5)) + "px system-ui";
   ctx2d.textAlign = "center";
   ctx2d.textBaseline = "middle";
@@ -462,7 +462,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     ctx2d.globalAlpha = 1.0;
   }
 
-  ctx2d.fillStyle = "#a1a1aa";
+  ctx2d.fillStyle = "#94a3b8";
   ctx2d.font = Math.max(7, Math.min(11, cSz * 0.5)) + "px system-ui";
   ctx2d.textAlign = "center";
   ctx2d.textBaseline = "middle";
@@ -4839,7 +4839,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       className:"tb-grp",
       style:{display:"flex",alignItems:"center",gap:4,opacity:(ctx.selectedColorId||ctx.stitchType==="erase")?1:0.6}
     },
-      h("span", {style:{fontSize:10,color:"#71717a",textTransform:"uppercase",fontWeight:600}}, "Size"),
+      h("span", {style:{fontSize:10,color:"#475569",textTransform:"uppercase",fontWeight:600}}, "Size"),
       [1,2,3].map(function(sz) {
         return h("button", {
           key:sz,
@@ -4856,7 +4856,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("div", {key:"sdiv-bs", className:"tb-sdiv"}),
     h("label", {
       key:"bs-cont",
-      style:{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#71717a",flexShrink:0}
+      style:{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#475569",flexShrink:0}
     },
       h("input", {
         type:"checkbox", checked:ctx.bsContinuous,
@@ -4935,7 +4935,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       className:"tb-btn",
       onClick:function(){ if (ctx.cancelLasso) ctx.cancelLasso(); if (ctx.clearSelection) ctx.clearSelection(); },
       title:"Clear selection / cancel lasso (Esc)",
-      style:{fontSize:9,padding:"2px 5px",color:"#71717a"}
+      style:{fontSize:9,padding:"2px 5px",color:"#475569"}
     }, (ctx.selectionCount || 0).toLocaleString()+" sel")
   ];
 
@@ -4959,14 +4959,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId]) ?
     h("span", {
       style:{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,
-        background:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"#e0f2fe":"#f4f4f5",
+        background:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"#e0f2fe":"#f1f5f9",
         flexShrink:0,
         border:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"1px solid #7dd3fc":"none"
       }
     },
       h("span", {style:{width:10,height:10,borderRadius:2,
         background:"rgb("+ctx.cmap[ctx.selectedColorId].rgb+")",
-        border:"1px solid #d4d4d8",display:"inline-block"}}),
+        border:"1px solid #cbd5e1",display:"inline-block"}}),
       ctx.selectedColorId
     ) : null;
 
@@ -5042,7 +5042,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:function(){ctx.setShowOverlay(function(v){return !v;});}
     },
       h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-        border:"2px solid "+(ctx.showOverlay?"#1D9E75":"#d4d4d8")}}),
+        border:"2px solid "+(ctx.showOverlay?"#0d9488":"#cbd5e1")}}),
       " Overlay"+(ctx.showOverlay?" \u2713":"")
     ),
     ctx.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
@@ -5148,7 +5148,7 @@ window.MagicWandPanel = function MagicWandPanel() {
   function swatch(rgb) {
     return h("span", {
       style: { display: "inline-block", width: 12, height: 12, borderRadius: 2,
-        background: "rgb(" + (rgb || [128,128,128]) + ")", border: "1px solid #d4d4d8",
+        background: "rgb(" + (rgb || [128,128,128]) + ")", border: "1px solid #cbd5e1",
         verticalAlign: "middle", marginRight: 3 }
     });
   }
@@ -5530,14 +5530,14 @@ window.CreatorSidebar = function CreatorSidebar() {
     },
       h("span", {"aria-hidden":"true", style:{position:"relative",display:"inline-block",width:32,height:18,flexShrink:0}},
         h("span", {style:{display:"block",position:"absolute",inset:0,borderRadius:9,
-          background:props.checked?"#0d9488":"#d4d4d8",transition:"background 0.15s"}}),
+          background:props.checked?"#0d9488":"#cbd5e1",transition:"background 0.15s"}}),
         h("span", {style:{display:"block",position:"absolute",width:14,height:14,top:2,
           left:props.checked?16:2,borderRadius:"50%",background:"#fff",
           transition:"left 0.15s",boxShadow:"0 1px 3px rgba(0,0,0,0.18)"}})
       ),
       h("span", {style:{flex:1}},
-        h("span", {style:{fontSize:12,fontWeight:500,color:"#18181b",display:"block"}}, props.label),
-        props.help && h("span", {style:{fontSize:10,color:"#a1a1aa",display:"block",marginTop:1}}, props.help)
+        h("span", {style:{fontSize:12,fontWeight:500,color:"#1e293b",display:"block"}}, props.label),
+        props.help && h("span", {style:{fontSize:10,color:"#94a3b8",display:"block",marginTop:1}}, props.help)
       )
     );
   }
@@ -5568,12 +5568,12 @@ window.CreatorSidebar = function CreatorSidebar() {
       }})
     ),
     ctx.isCropping
-      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}},
-          h("span", {style:{fontSize:11,color:"#a1a1aa"}}, "Draw a rectangle"),
+      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
+          h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Draw a rectangle"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){ctx.setIsCropping(false); ctx.setCropRect(null);},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Cancel"),
             h("button", {
               onClick:ctx.applyCrop,
@@ -5581,16 +5581,16 @@ window.CreatorSidebar = function CreatorSidebar() {
             }, "Apply")
           )
         )
-      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}},
-          h("span", {style:{fontSize:11,color:"#a1a1aa"}}, ctx.origW+"×"+ctx.origH+"px"),
+      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
+          h("span", {style:{fontSize:11,color:"#94a3b8"}}, ctx.origW+"×"+ctx.origH+"px"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){ctx.setIsCropping(true); ctx.setCropRect(null);},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Crop"),
             h("button", {
               onClick:function(){ctx.fRef.current.click();},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Change")
           )
         ),
@@ -5607,21 +5607,21 @@ window.CreatorSidebar = function CreatorSidebar() {
     title:"Colours", isOpen:ctx.colPickerOpen, onToggle:ctx.setColPickerOpen, badge:coloursBadge
   },
     h("div", {style:{marginTop:8}},
-      h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#f4f4f5",borderRadius:8}},
+      h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#f1f5f9",borderRadius:8}},
         [["1","Add colour","→"],["2","Select chip","→"],["3","Paint!",""]].map(function(item,i) {
           return h(React.Fragment, {key:i},
             h("div", {style:{display:"flex",alignItems:"center",gap:4}},
               h("span", {style:{width:16,height:16,borderRadius:"50%",background:"#0d9488",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
               h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
             ),
-            item[2] && h("span", {style:{fontSize:10,color:"#a1a1aa"}}, item[2])
+            item[2] && h("span", {style:{fontSize:10,color:"#94a3b8"}}, item[2])
           );
         })
       ),
       h("input", {
         type:"text", placeholder:"Search by DMC # or name\u2026",
         value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);},
-        style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e4e4e7",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
+        style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e2e8f0",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
       }),
       h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
         ctx.dmcFiltered.slice(0,60).map(function(d) {
@@ -5634,20 +5634,20 @@ window.CreatorSidebar = function CreatorSidebar() {
                 border:inPal?"1px solid #99f6e4":"1px solid transparent",
                 opacity:inPal?0.7:1,width:"100%"}
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #d4d4d8"}}),
-              h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#18181b"}}, d.id),
-              h("span", {style:{fontSize:11,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#a1a1aa"}}, "+")
+              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1"}}),
+              h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1e293b"}}, d.id),
+              h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#94a3b8"}}, "+")
             )
           );
         }),
-        ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#a1a1aa",padding:"8px 0",textAlign:"center"}}, "No colours found")
+        ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#94a3b8",padding:"8px 0",textAlign:"center"}}, "No colours found")
       )
     )
   ) : null;
 
   // ── Dimensions section ──────────────────────────────────────────────────────
-  var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
+  var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
   var dimSection = h(Section, {title:"Dimensions", isOpen:ctx.dimOpen, onToggle:ctx.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
@@ -5657,16 +5657,16 @@ window.CreatorSidebar = function CreatorSidebar() {
     ctx.arLock
       ? h("div", null,
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
-          h("div", {style:{fontSize:10,color:"#a1a1aa",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
+          h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
         )
       : h("div", {style:{display:"flex",gap:10}},
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#a1a1aa",display:"block",marginBottom:2}}, "Width"),
-            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,fontSize:13}})
+            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Width"),
+            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
           ),
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#a1a1aa",display:"block",marginBottom:2}}, "Height"),
-            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,fontSize:13}})
+            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Height"),
+            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
           )
         )
   );
@@ -5700,10 +5700,10 @@ window.CreatorSidebar = function CreatorSidebar() {
         } else {
           desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#dc2626",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
         }
-        return h("div", {style:{fontSize:11,color:"#71717a",marginTop:4,lineHeight:1.5}}, desc);
+        return h("div", {style:{fontSize:11,color:"#475569",marginTop:4,lineHeight:1.5}}, desc);
       })()
     ),
-    ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}},
+    ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
       "Preview estimate: removes ~", (ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
       " (", ((ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles) / Math.max(1, ctx.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),
@@ -5712,23 +5712,23 @@ window.CreatorSidebar = function CreatorSidebar() {
         onClick:function(){ctx.setShowCleanupDiff(function(d){return !d;});},
         style:{
           fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-          border:ctx.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e4e4e7",
+          border:ctx.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e2e8f0",
           background:ctx.showCleanupDiff?"#f0fdfa":"#fff",
-          color:ctx.showCleanupDiff?"#0d9488":"#71717a",
+          color:ctx.showCleanupDiff?"#0d9488":"#475569",
           fontWeight:ctx.showCleanupDiff?600:400,
           display:"flex",alignItems:"center",gap:4,lineHeight:1.4
         }
       }, "\uD83D\uDC41\uFE0F " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
     ),
     ctx.showCleanupDiff && ctx.cleanupDiff && h("div", {style:{
-      fontSize:11,color:"#71717a",padding:"6px 10px",
+      fontSize:11,color:"#475569",padding:"6px 10px",
       background:"#fdf4ff",border:"1px solid #f0abfc",borderRadius:8,
       marginTop:4,lineHeight:1.5
     }},
       h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
       ctx.cleanupDiff.count.toLocaleString(), " stitches changed",
       ctx.totalStitchable > 0 ? " (" + (ctx.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-      Object.keys(ctx.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#a1a1aa"}},
+      Object.keys(ctx.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#94a3b8"}},
         Object.entries(ctx.cleanupDiff.byColour)
           .sort(function(a,b){return b[1]-a[1];})
           .slice(0,4)
@@ -5754,7 +5754,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     })(),
     h("button", {
       onClick:function(){ctx.setPalAdvanced(function(o){return !o;});},
-      style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#71717a",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
+      style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
     },
       h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
       "Dithering",
@@ -5765,17 +5765,17 @@ window.CreatorSidebar = function CreatorSidebar() {
         "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
       ),
       h("div", {style:{display:"flex",gap:6,marginTop:6}},
-        h("div", {style:{display:"flex",gap:2,background:"#f4f4f5",borderRadius:8,padding:2,flex:1}},
+        h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Maps each pixel directly to its closest DMC colour. Fewer scattered stitches", width:200},
             h("button", {
               onClick:function(){ctx.setDith(false);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:!ctx.dith?500:400,background:!ctx.dith?"#fff":"transparent",borderRadius:6,color:!ctx.dith?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:!ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              style:{padding:"5px 12px",fontSize:12,fontWeight:!ctx.dith?500:400,background:!ctx.dith?"#fff":"transparent",borderRadius:6,color:!ctx.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:!ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Direct")
           ),
           h(Tooltip, {text:"Uses Floyd-Steinberg error diffusion for smoother colour gradients, but creates more scattered stitches", width:220},
             h("button", {
               onClick:function(){ctx.setDith(true);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.dith?500:400,background:ctx.dith?"#fff":"transparent",borderRadius:6,color:ctx.dith?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.dith?500:400,background:ctx.dith?"#fff":"transparent",borderRadius:6,color:ctx.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Dithered")
           )
         )
@@ -5788,7 +5788,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var sc2 = ctx.stitchCleanup;
     var scBadge = h("span", {style:{
       fontSize:11,fontWeight:500,padding:"1px 8px",borderRadius:10,
-      color:sc2.enabled?"#0d9488":"#a1a1aa",background:sc2.enabled?"#f0fdfa":"#f4f4f5"
+      color:sc2.enabled?"#0d9488":"#94a3b8",background:sc2.enabled?"#f0fdfa":"#f1f5f9"
     }}, sc2.enabled ? "On \u2014 "+(sc2.strength[0].toUpperCase()+sc2.strength.slice(1)) : "Off");
     var strengthKeys=["gentle","balanced","thorough"];
     var strengthLabels=["Gentle","Balanced","Thorough"];
@@ -5820,7 +5820,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               strengthLabels.map(function(l,i) {
                 return h(Tooltip, {key:l, text:strengthDescs[i], width:160},
                   h("span", {
-                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#a1a1aa",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
+                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#94a3b8",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
                     onClick:function(){ctx.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
                   }, l)
                 );
@@ -5845,20 +5845,20 @@ window.CreatorSidebar = function CreatorSidebar() {
   })() : null;
 
   // ── Fabric & Floss section ──────────────────────────────────────────────────
-  var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
+  var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
   var fabSection = h(Section, {title:"Fabric & Floss", isOpen:ctx.fabOpen, onToggle:ctx.setFabOpen, badge:fabBadge},
     h("div", {style:{marginTop:8}},
       h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
-        h("span", {style:{fontSize:12,color:"#71717a",fontWeight:600}}, "Fabric count"),
+        h("span", {style:{fontSize:12,color:"#475569",fontWeight:600}}, "Fabric count"),
         h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
       ),
       h("select", {
         value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{width:"100%",padding:"6px 10px",borderRadius:8,border:"0.5px solid #e4e4e7",fontSize:13,background:"#fff"}
+        style:{width:"100%",padding:"6px 10px",borderRadius:8,border:"0.5px solid #e2e8f0",fontSize:13,background:"#fff"}
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
+      h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
     )
   );
 
@@ -5869,14 +5869,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(SliderRow, {label:"Smooth", value:ctx.smooth, min:0, max:4, step:0.1, onChange:ctx.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
         helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
-      ctx.smooth===0 && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
+      ctx.smooth===0 && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
       ctx.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
-        h("div", {style:{display:"flex",gap:2,background:"#f4f4f5",borderRadius:8,padding:2,flex:1}},
+        h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
-            h("button", {onClick:function(){ctx.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="median"?500:400,background:ctx.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="median"?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
+            h("button", {onClick:function(){ctx.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="median"?500:400,background:ctx.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="median"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
           ),
           h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:180},
-            h("button", {onClick:function(){ctx.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="gaussian"?500:400,background:ctx.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="gaussian"?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
+            h("button", {onClick:function(){ctx.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="gaussian"?500:400,background:ctx.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="gaussian"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
           )
         )
       ),
@@ -5898,20 +5898,20 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
         h("div", {
           onClick:function(){ctx.setPickBg(true);},
-          style:{width:24,height:24,borderRadius:6,background:"rgb("+ctx.bgCol+")",border:"2px solid #e4e4e7",cursor:"pointer"}
+          style:{width:24,height:24,borderRadius:6,background:"rgb("+ctx.bgCol+")",border:"2px solid #e2e8f0",cursor:"pointer"}
         }),
         h("button", {
           onClick:function(){ctx.setPickBg(true);},
-          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}
+          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa",cursor:"pointer"}
         }, "Pick")
       ),
       h(SliderRow, {label:"Tolerance", value:ctx.bgTh, min:3, max:50, onChange:ctx.setBgTh,
         helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
-      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#f4f4f5",borderRadius:8,fontSize:11,color:"#71717a"}},
+      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#f1f5f9",borderRadius:8,fontSize:11,color:"#475569"}},
         h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
         h("button", {
           onClick:ctx.autoCrop,
-          style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #d4d4d8",borderRadius:6,cursor:"pointer",color:"#18181b"}
+          style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,cursor:"pointer",color:"#1e293b"}
         }, "Auto-Crop to Stitches")
       )
     )
@@ -5926,7 +5926,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     : h("button", {
         onClick:ctx.generate, disabled:ctx.busy,
         style:{padding:"12px 20px",fontSize:15,fontWeight:600,
-          background:ctx.busy?"#a1a1aa":"#0d9488",color:"#fff",
+          background:ctx.busy?"#94a3b8":"#0d9488",color:"#fff",
           border:"none",borderRadius:10,cursor:ctx.busy?"wait":"pointer"}
       }, ctx.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
@@ -6039,37 +6039,37 @@ window.CreatorContextMenu = function CreatorContextMenu() {
         display:"block", width:"100%", textAlign:"left",
         padding:"5px 12px", fontSize:12, fontFamily:"inherit",
         border:"none", background:opts.disabled ? "transparent" : "transparent",
-        color:opts.disabled ? "#a1a1aa" : "#18181b",
+        color:opts.disabled ? "#94a3b8" : "#1e293b",
         cursor:opts.disabled ? "default" : "pointer",
         borderRadius:4
       },
-      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "#f4f4f5"; },
+      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "#f1f5f9"; },
       onMouseLeave: function(e) { e.target.style.background = "transparent"; }
     }, label);
   }
 
   function sep() {
-    return h("div", {style:{height:1,background:"#e4e4e7",margin:"3px 0"}});
+    return h("div", {style:{height:1,background:"#e2e8f0",margin:"3px 0"}});
   }
 
   return h("div", {
     style:{
       position:"fixed", left:menu.x, top:menu.y, zIndex:9999,
-      background:"#fff", border:"1px solid #d4d4d8", borderRadius:8,
+      background:"#fff", border:"1px solid #cbd5e1", borderRadius:8,
       boxShadow:"0 4px 16px rgba(0,0,0,0.12)", padding:"4px 0",
       minWidth:180, maxWidth:240
     }
   },
     // Header: cell info
     hasCellColour && h("div", {
-      style:{padding:"5px 12px 4px",fontSize:11,color:"#71717a",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #f4f4f5",marginBottom:2}
+      style:{padding:"5px 12px 4px",fontSize:11,color:"#475569",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #f1f5f9",marginBottom:2}
     },
-      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid #d4d4d8",
+      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
         background:"rgb("+cellInfo.rgb+")"}}),
       "DMC " + cellInfo.id + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
     ),
     !hasCellColour && h("div", {
-      style:{padding:"5px 12px 4px",fontSize:11,color:"#a1a1aa",borderBottom:"1px solid #f4f4f5",marginBottom:2}
+      style:{padding:"5px 12px 4px",fontSize:11,color:"#94a3b8",borderBottom:"1px solid #f1f5f9",marginBottom:2}
     }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
 
     // Pick this colour
@@ -6234,19 +6234,19 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
         cursor:"pointer",fontSize:11,
         border: ips ? (isHsTool ? "2px solid #0284c7" : "2px solid #0d9488")
-               : ihs ? "2px solid #ea580c" : "0.5px solid #e4e4e7",
+               : ihs ? "2px solid #ea580c" : "0.5px solid #e2e8f0",
         background: ips ? (isHsTool ? "#e0f2fe" : "#f0fdfa")
                    : ihs ? "#fff7ed" : "#fff",
         opacity: isUnused ? 0.6 : 1
       }
     },
-      h("span", {className:"creator-palette-chip-swatch",style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}),
-      h("span", {style:{fontFamily:"monospace",color:"#71717a"}}, p.symbol),
+      h("span", {className:"creator-palette-chip-swatch",style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}),
+      h("span", {style:{fontFamily:"monospace",color:"#475569"}}, p.symbol),
       h("span", {style:{fontWeight:500}}, p.id),
       isUnused && h("span", {
         className:"creator-palette-chip-remove",
         onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
-        style:{fontSize:9,color:"#a1a1aa",cursor:"pointer",marginLeft:2,lineHeight:1}
+        style:{fontSize:9,color:"#94a3b8",cursor:"pointer",marginLeft:2,lineHeight:1}
       }, "\xD7")
     );
     if (ctx.isScratchMode) {
@@ -6260,15 +6260,15 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   return h("div", null,
     ctx.cs < 6 && (ctx.view === "symbol" || ctx.view === "both") && h("div", {
-      style:{fontSize:12,color:"#71717a",marginBottom:6,background:"#f4f4f5",padding:"6px 10px",borderRadius:8}
+      style:{fontSize:12,color:"#475569",marginBottom:6,background:"#f1f5f9",padding:"6px 10px",borderRadius:8}
     }, "To see symbols, you may need to zoom in."),
 
     ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
-      style:{fontSize:12,color:"#a1a1aa",padding:"8px 12px",background:"#f4f4f5",borderRadius:8,marginBottom:8,textAlign:"center"}
+      style:{fontSize:12,color:"#94a3b8",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
     }, "Add colours using the Colours panel on the left, then select Paint or Fill to begin."),
 
     !ctx.shortcutsHintDismissed && h("div", {
-      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
+      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
     },
       h("span", null, "\uD83D\uDCA1 Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
@@ -6302,7 +6302,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h("div", {
       ref:ctx.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(function(){
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#f1f5f9",cursor:(function(){
         var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
         if (ctx.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
@@ -6344,18 +6344,18 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }
       return h("div", {className:"tb-status", style:{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
         h("span", null, parts[0]),
-        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#a1a1aa",flexShrink:0}}, parts[1]),
+        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#94a3b8",flexShrink:0}}, parts[1]),
         parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
           ctx.cmap && ctx.pat && ctx.hoverCoords && (function() {
             var hIdx2 = ctx.hoverCoords.gy * ctx.sW + ctx.hoverCoords.gx;
             var hCell2 = ctx.pat[hIdx2];
             if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
-              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #d4d4d8",
+              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
                 background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
             }
             return null;
           })(),
-          h("span", {style:{fontSize:10,color:"#71717a"}}, parts[2])
+          h("span", {style:{fontSize:10,color:"#475569"}}, parts[2])
         )
       );
     })(),
@@ -6382,7 +6382,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       " Click a colour chip below to select it, then paint on the canvas"
     ),
 
-    h("div", {style:{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}},
+    h("div", {style:{marginTop:8,borderRadius:8,background:"#f8f9fa",padding:"8px 12px",border:"0.5px solid #e2e8f0"}},
       h("div", {className:"creator-pattern-chips",style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
     )
   );
@@ -6417,16 +6417,16 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     ];
 
     var difficultyBadge = ctx.difficulty && h("div", {
-      style:{marginTop:12,padding:"8px 12px",background:"#fafafa",borderRadius:8,border:"0.5px solid #e4e4e7",display:"flex",alignItems:"center",gap:10}
+      style:{marginTop:12,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0",display:"flex",alignItems:"center",gap:10}
     },
-      h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
+      h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
       h("div", {style:{display:"flex",gap:2}},
         [1,2,3,4].map(function(s) {
-          return h("span", {key:s, style:{fontSize:16,color:s<=ctx.difficulty.stars?ctx.difficulty.color:"#e4e4e7"}}, "\u2605");
+          return h("span", {key:s, style:{fontSize:16,color:s<=ctx.difficulty.stars?ctx.difficulty.color:"#e2e8f0"}}, "\u2605");
         })
       ),
       h("span", {style:{fontSize:13,fontWeight:700,color:ctx.difficulty.color}}, ctx.difficulty.label),
-      h("span", {style:{fontSize:11,color:"#a1a1aa",marginLeft:"auto"}},
+      h("span", {style:{fontSize:11,color:"#94a3b8",marginLeft:"auto"}},
         ctx.pal.length + " colours \xB7 " + (ctx.blendCount > 0 ? ctx.blendCount + " blends \xB7 " : "") + ctx.totalStitchable.toLocaleString() + " stitches"
       )
     );
@@ -6435,20 +6435,20 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       var cd = ctx.confettiData.clean;
       var t = confettiTier(cd.pct);
       var barW = Math.max(3, Math.min(100, Math.round(100 - cd.pct * 5)));
-      return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#fafafa",borderRadius:8,border:"0.5px solid #e4e4e7"}},
+      return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0"}},
         h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
-          h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
+          h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
           h("span", {style:{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18",marginLeft:"auto"}}, t.label)
         ),
         h("div", {style:{display:"flex",alignItems:"center",gap:8}},
-          h("div", {style:{flex:1,height:6,background:"#e4e4e7",borderRadius:3,overflow:"hidden"}},
+          h("div", {style:{flex:1,height:6,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}},
             h("div", {style:{height:"100%",width:barW+"%",background:t.color,borderRadius:3,transition:"width 0.4s"}})
           ),
           h("span", {style:{fontSize:12,fontWeight:600,color:t.color,flexShrink:0}},
             cd.singles.toLocaleString() + " isolated (" + cd.pct.toFixed(1) + "%)"
           )
         ),
-        ctx.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#a1a1aa",marginTop:4}},
+        ctx.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:4}},
           ctx.confettiData.raw.singles.toLocaleString() + " before orphan removal"
         )
       );
@@ -6468,8 +6468,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       },
         rows.map(function(r, i) {
           return h("div", {key:i},
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
-            h("div", {style:{fontSize:14,fontWeight:600,color:"#18181b"}}, r[1])
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
+            h("div", {style:{fontSize:14,fontWeight:600,color:"#1e293b"}}, r[1])
           );
         })
       ),
@@ -6489,20 +6489,20 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         }),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px",marginTop:10}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#18181b"}},
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
+            h("div", {style:{fontSize:16,fontWeight:700,color:"#1e293b"}},
               fmtTimeL(Math.round(ctx.totalStitchable / ctx.stitchSpeed * 3600))
             )
           ),
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
             h("div", {style:{fontSize:16,fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"#16a34a":"#0d9488"}},
               ctx.doneCount >= ctx.totalStitchable ? "Done!" : fmtTimeL(Math.round((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed * 3600))
             )
           )
         ),
         ctx.totalTime > 0 && ctx.doneCount > 0 && h("div", {
-          style:{marginTop:8,padding:"8px 12px",background:"#fafafa",borderRadius:8,border:"0.5px solid #e4e4e7",fontSize:12,color:"#71717a"}
+          style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0",fontSize:12,color:"#475569"}
         }, "Based on your actual sessions: " + Math.round(ctx.doneCount / (ctx.totalTime / 3600)) + " stitches/hr average")
       )
     );
@@ -6519,9 +6519,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       h("div", {style:{marginTop:8,overflow:"auto"}},
         h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
           h("thead", null,
-            h("tr", {style:{background:"#fafafa"}},
+            h("tr", {style:{background:"#f8f9fa"}},
               ["Fabric","Width","Height","With margin"].map(function(hd, i) {
-                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid #e4e4e7",color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}}, hd);
+                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid #e2e8f0",color:"#475569",fontWeight:600,fontSize:11,textTransform:"uppercase"}}, hd);
               })
             )
           ),
@@ -6533,12 +6533,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var isCurrent = f.ct === ctx.fabricCt;
               return h("tr", {
                 key:f.ct,
-                style:{borderBottom:"0.5px solid #f4f4f5",background:isCurrent?"#f0fdfa":"transparent"}
+                style:{borderBottom:"0.5px solid #f1f5f9",background:isCurrent?"#f0fdfa":"transparent"}
               },
                 h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}}, f.label+(isCurrent?" \u2713":"")),
                 h("td", {style:{padding:"6px 10px"}}, wIn.toFixed(1)+"\u2033 / "+wCm.toFixed(1)+" cm"),
                 h("td", {style:{padding:"6px 10px"}}, hIn.toFixed(1)+"\u2033 / "+hCm.toFixed(1)+" cm"),
-                h("td", {style:{padding:"6px 10px",fontSize:11,color:"#a1a1aa"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
+                h("td", {style:{padding:"6px 10px",fontSize:11,color:"#94a3b8"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
               );
             })
           )
@@ -6552,30 +6552,30 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     return h(Section, {title:"Cost Estimate", defaultOpen:false},
       h("div", {style:{marginTop:8}},
         h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
-          h("span", {style:{fontSize:12,color:"#71717a"}}, "Price per skein (\xA3)"),
+          h("span", {style:{fontSize:12,color:"#475569"}}, "Price per skein (\xA3)"),
           h("input", {
             type:"number", value:ctx.skeinPrice, min:0, step:0.05,
             onChange:function(e){ctx.setSkeinPrice(Math.max(0,parseFloat(e.target.value)||0));},
-            style:{width:70,padding:"5px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,fontSize:13,textAlign:"right"}
+            style:{width:70,padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13,textAlign:"right"}
           })
         ),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#18181b"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
-            h("div", {style:{fontSize:11,color:"#a1a1aa"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
+            h("div", {style:{fontSize:16,fontWeight:700,color:"#1e293b"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
+            h("div", {style:{fontSize:11,color:"#94a3b8"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
           ),
           ctx.toBuyCount < ctx.skeinData.length && h("div", null,
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
             h("div", {style:{fontSize:16,fontWeight:700,color:"#ea580c"}},
               "\xA3"+(ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)*ctx.skeinPrice).toFixed(2)
             ),
-            h("div", {style:{fontSize:11,color:"#a1a1aa"}},
+            h("div", {style:{fontSize:11,color:"#94a3b8"}},
               ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)+" skeins"
             )
           )
         ),
-        h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:8}},
+        h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
           "Doesn\u2019t include fabric, needles, hoop, or frame. DMC skeins typically \xA30.85\u2013\xA31.10 in UK shops."
         )
       )
@@ -6588,11 +6588,11 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       h("div", {style:{marginTop:8,display:"flex",gap:12,marginBottom:10}},
         h("div", {style:{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}},
           h("span", {style:{fontWeight:700,color:"#16a34a"}}, ctx.ownedCount), " ",
-          h("span", {style:{color:"#71717a"}}, "owned")
+          h("span", {style:{color:"#475569"}}, "owned")
         ),
         h("div", {style:{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}},
           h("span", {style:{fontWeight:700,color:"#ea580c"}}, ctx.toBuyList.length), " ",
-          h("span", {style:{color:"#71717a"}}, "to buy")
+          h("span", {style:{color:"#475569"}}, "to buy")
         ),
         h("div", {style:{marginLeft:"auto",display:"flex",gap:4}},
           h("button", {
@@ -6605,7 +6605,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           }, "Own all"),
           h("button", {
             onClick:function(){ctx.setThreadOwned({});},
-            style:{fontSize:11,padding:"4px 10px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",color:"#71717a",cursor:"pointer"}
+            style:{fontSize:11,padding:"4px 10px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",cursor:"pointer"}
           }, "Clear")
         )
       ),
@@ -6620,12 +6620,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             h("div", {
               style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,
                 background:isOwned?"#f0fdf4":"#fff",
-                border:"1px solid "+(isOwned?"#bbf7d0":"#f4f4f5")}
+                border:"1px solid "+(isOwned?"#bbf7d0":"#f1f5f9")}
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #d4d4d8",flexShrink:0}}),
+              h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1",flexShrink:0}}),
               h("span", {style:{fontWeight:700,fontSize:13,minWidth:44}}, "DMC "+d.id),
-              h("span", {style:{fontSize:11,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              h("span", {style:{fontSize:11,color:"#a1a1aa",flexShrink:0}}, d.skeins+"sk"),
+              h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              h("span", {style:{fontSize:11,color:"#94a3b8",flexShrink:0}}, d.skeins+"sk"),
               h("button", {
                 onClick:function(){ctx.toggleOwned(d.id);},
                 style:{fontSize:11,padding:"3px 10px",borderRadius:5,cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center",
@@ -6652,18 +6652,18 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var alts = StashBridge.suggestAlternatives(d.id, 5, ctx.globalStash);
               return alts.length > 0
                 ? h("div", {style:{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}},
-                    h("span", {style:{color:"#71717a",fontWeight:600}}, "Similar in stash:"),
+                    h("span", {style:{color:"#475569",fontWeight:600}}, "Similar in stash:"),
                     alts.map(function(a) {
                       return h("span", {key:a.id, style:{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}},
-                        h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid #d4d4d8"}}),
+                        h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid #cbd5e1"}}),
                         h("span", {style:{fontWeight:600}}, "DMC "+a.id),
-                        h("span", {style:{color:"#71717a"}}, a.name),
-                        h("span", {style:{color:"#a1a1aa"}}, "\u0394E "+a.deltaE),
+                        h("span", {style:{color:"#475569"}}, a.name),
+                        h("span", {style:{color:"#94a3b8"}}, "\u0394E "+a.deltaE),
                         h("span", {style:{color:"#4338ca"}}, a.owned+"sk")
                       );
                     })
                   )
-                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:11,color:"#a1a1aa"}},
+                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:11,color:"#94a3b8"}},
                     "No similar threads found in your stash."
                   );
             })()
@@ -6687,7 +6687,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}
         }, "Kit This Project")
       ),
-      ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e4e4e7",background:"#fafafa",fontSize:12}},
+      ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8f9fa",fontSize:12}},
         h("div", {style:{fontWeight:700,marginBottom:4}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
         ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"#16a34a",fontWeight:600}}, "\u2713 You have everything!"),
         ctx.kittingResult.missing.length > 0 && h("div", null,
@@ -6704,7 +6704,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var lines = ctx.kittingResult.missing.concat(ctx.kittingResult.short);
               ctx.copyText(lines.join("\n"), "kit");
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer"}
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer"}
           }, "Copy gaps"),
           typeof StashBridge !== "undefined" && h("button", {
             onClick:function(){
@@ -6718,7 +6718,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           }, "Mark all To Buy"),
           h("button", {
             onClick:function(){ctx.setKittingResult(null);},
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",marginLeft:"auto"}
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",marginLeft:"auto"}
           }, "Dismiss")
         )
       ),
@@ -6735,7 +6735,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             var txt=ctx.skeinData.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
             ctx.copyText(txt, "full");
           },
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}
+          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Copy Full List")
       ),
       ctx.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")
@@ -6770,24 +6770,24 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   return h("div", null,
     h("div", {style:{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}},
-      h("span", {style:{fontSize:12,color:"#71717a"}}, "Fabric:"),
+      h("span", {style:{fontSize:12,color:"#475569"}}, "Fabric:"),
       h("select", {
         value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{padding:"4px 10px",borderRadius:6,border:"0.5px solid #e4e4e7",fontSize:12,background:"#fff"}
+        style:{padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",fontSize:12,background:"#fff"}
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("span", {style:{fontSize:11,color:"#a1a1aa"}}, "Total skeins: "+ctx.totalSkeins)
+      h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Total skeins: "+ctx.totalSkeins)
     ),
     h("div", {style:{overflow:"auto",maxHeight:540}},
       h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
         h("thead", null,
-          h("tr", {style:{background:"#fafafa"}},
+          h("tr", {style:{background:"#f8f9fa"}},
             headerCols.map(function(hd, i) {
               return h("th", {
                 key:i,
-                style:{padding:"8px 10px",textAlign:i>=5?"right":"left",borderBottom:"2px solid #e4e4e7",
-                  color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}
+                style:{padding:"8px 10px",textAlign:i>=5?"right":"left",borderBottom:"2px solid #e2e8f0",
+                  color:"#475569",fontWeight:600,fontSize:11,textTransform:"uppercase"}
               }, hd);
             })
           )
@@ -6799,7 +6799,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             var confettiCount = ctx.confettiData && ctx.confettiData.clean && ctx.confettiData.clean.colorConfetti
               ? ctx.confettiData.clean.colorConfetti[p.id]
               : null;
-            var nameCell = h("td", {style:{padding:"6px 10px",fontSize:11,color:"#71717a"}},
+            var nameCell = h("td", {style:{padding:"6px 10px",fontSize:11,color:"#475569"}},
               p.type === "blend"
                 ? p.threads[0].name + " + " + p.threads[1].name
                 : p.name,
@@ -6811,11 +6811,11 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             return h("tr", {
               key:i,
               onClick:function(){ctx.setHiId(ctx.hiId===p.id?null:p.id); ctx.setTab("pattern");},
-              style:{borderBottom:"0.5px solid #f4f4f5",cursor:"pointer",background:ctx.hiId===p.id?"#fff7ed":"transparent"}
+              style:{borderBottom:"0.5px solid #f1f5f9",cursor:"pointer",background:ctx.hiId===p.id?"#fff7ed":"transparent"}
             },
               h("td", {style:{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}, p.symbol),
               h("td", {style:{padding:"6px 10px"}},
-                h("div", {style:{width:24,height:24,borderRadius:5,background:"rgb("+p.rgb+")",border:"0.5px solid #e4e4e7",display:"inline-block"}})
+                h("div", {style:{width:24,height:24,borderRadius:5,background:"rgb("+p.rgb+")",border:"0.5px solid #e2e8f0",display:"inline-block"}})
               ),
               h("td", {style:{padding:"6px 10px",fontWeight:600}}, p.id),
               nameCell,
@@ -6829,7 +6829,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
               h("td", {style:{padding:"6px 10px",textAlign:"right"}}, p.count.toLocaleString()),
               h("td", {style:{padding:"6px 10px",textAlign:"right",fontWeight:600}}, sk),
               ctx.done && h("td", {style:{padding:"6px 10px",textAlign:"right"}},
-                h("span", {style:{color:dc.done>=dc.total?"#16a34a":"#71717a"}}, dc.done+"/"+dc.total)
+                h("span", {style:{color:dc.done>=dc.total?"#16a34a":"#475569"}}, dc.done+"/"+dc.total)
               )
             );
           })
@@ -6889,7 +6889,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     }, "\uD83E\uDDF5 Open in Stitch Tracker \u2192"),
 
     h(Section, {title:"PDF Export"},
-      h("p", {style:{fontSize:12,color:"#71717a",margin:"8px 0 10px"}},
+      h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},
         "Multi-page PDF with legend and chart."
       ),
       h("div", {style:{display:"flex",gap:16,alignItems:"center",marginBottom:10}},
@@ -6897,7 +6897,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           "Chart Mode:",
           h("select", {
             value:ctx.pdfDisplayMode, onChange:function(e){ctx.setPdfDisplayMode(e.target.value);},
-            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #d4d4d8",fontSize:12,background:"#fff"}
+            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
           },
             h("option", {value:"color_symbol"}, "Color + Symbols"),
             h("option", {value:"symbol"}, "Symbols Only"),
@@ -6908,7 +6908,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           "Cell Size:",
           h("select", {
             value:ctx.pdfCellSize, onChange:function(e){ctx.setPdfCellSize(Number(e.target.value));},
-            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #d4d4d8",fontSize:12,background:"#fff"}
+            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
           },
             h("option", {value:2.5}, "Small (2.5mm)"),
             h("option", {value:3}, "Medium (3mm)"),
@@ -6935,7 +6935,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           style:{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}
         }, "Cover Sheet PDF")
       ),
-      h("p", {style:{fontSize:11,color:"#a1a1aa",marginTop:8}},
+      h("p", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
         "The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes \u2014 perfect for tucking into your project bag."
       )
     ),
@@ -6953,23 +6953,23 @@ window.CreatorExportTab = function CreatorExportTab() {
           h("button", {
             onClick:function(){ctx.setExportPage(function(p){return Math.max(0,p-1);});},
             disabled:ctx.exportPage===0,
-            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}
+            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
           }, "\u25C4"),
           h("span", {style:{fontSize:12}}, "Page "+(ctx.exportPage+1)+"/"+ctx.totPg),
           h("button", {
             onClick:function(){ctx.setExportPage(function(p){return Math.min(ctx.totPg-1,p+1);});},
             disabled:ctx.exportPage>=ctx.totPg-1,
-            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}
+            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
           }, "\u25BA")
         )
       ),
-      h("div", {style:{overflow:"auto",maxHeight:400,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#fff"}},
+      h("div", {style:{overflow:"auto",maxHeight:400,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#fff"}},
         h("canvas", {ref:ctx.expRef, style:{display:"block"}})
       )
     ),
 
     h(Section, {title:"Save / Load"},
-      h("p", {style:{fontSize:12,color:"#71717a",margin:"8px 0 10px"}},
+      h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},
         "Saves pattern for later editing or opening in Stitch Tracker."
       ),
       h("div", {style:{display:"flex",gap:8}},
@@ -6979,7 +6979,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         }, "Save (.json)"),
         h("button", {
           onClick:function(){ctx.loadRef.current.click();},
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}
+          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Load")
       )
     )

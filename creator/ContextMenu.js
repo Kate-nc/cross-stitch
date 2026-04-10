@@ -35,37 +35,37 @@ window.CreatorContextMenu = function CreatorContextMenu() {
         display:"block", width:"100%", textAlign:"left",
         padding:"5px 12px", fontSize:12, fontFamily:"inherit",
         border:"none", background:opts.disabled ? "transparent" : "transparent",
-        color:opts.disabled ? "#a1a1aa" : "#18181b",
+        color:opts.disabled ? "#94a3b8" : "#1e293b",
         cursor:opts.disabled ? "default" : "pointer",
         borderRadius:4
       },
-      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "#f4f4f5"; },
+      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "#f1f5f9"; },
       onMouseLeave: function(e) { e.target.style.background = "transparent"; }
     }, label);
   }
 
   function sep() {
-    return h("div", {style:{height:1,background:"#e4e4e7",margin:"3px 0"}});
+    return h("div", {style:{height:1,background:"#e2e8f0",margin:"3px 0"}});
   }
 
   return h("div", {
     style:{
       position:"fixed", left:menu.x, top:menu.y, zIndex:9999,
-      background:"#fff", border:"1px solid #d4d4d8", borderRadius:8,
+      background:"#fff", border:"1px solid #cbd5e1", borderRadius:8,
       boxShadow:"0 4px 16px rgba(0,0,0,0.12)", padding:"4px 0",
       minWidth:180, maxWidth:240
     }
   },
     // Header: cell info
     hasCellColour && h("div", {
-      style:{padding:"5px 12px 4px",fontSize:11,color:"#71717a",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #f4f4f5",marginBottom:2}
+      style:{padding:"5px 12px 4px",fontSize:11,color:"#475569",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #f1f5f9",marginBottom:2}
     },
-      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid #d4d4d8",
+      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
         background:"rgb("+cellInfo.rgb+")"}}),
       "DMC " + cellInfo.id + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
     ),
     !hasCellColour && h("div", {
-      style:{padding:"5px 12px 4px",fontSize:11,color:"#a1a1aa",borderBottom:"1px solid #f4f4f5",marginBottom:2}
+      style:{padding:"5px 12px 4px",fontSize:11,color:"#94a3b8",borderBottom:"1px solid #f1f5f9",marginBottom:2}
     }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
 
     // Pick this colour

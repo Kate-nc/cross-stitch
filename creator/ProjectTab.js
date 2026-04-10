@@ -25,16 +25,16 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     ];
 
     var difficultyBadge = ctx.difficulty && h("div", {
-      style:{marginTop:12,padding:"8px 12px",background:"#fafafa",borderRadius:8,border:"0.5px solid #e4e4e7",display:"flex",alignItems:"center",gap:10}
+      style:{marginTop:12,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0",display:"flex",alignItems:"center",gap:10}
     },
-      h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
+      h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
       h("div", {style:{display:"flex",gap:2}},
         [1,2,3,4].map(function(s) {
-          return h("span", {key:s, style:{fontSize:16,color:s<=ctx.difficulty.stars?ctx.difficulty.color:"#e4e4e7"}}, "\u2605");
+          return h("span", {key:s, style:{fontSize:16,color:s<=ctx.difficulty.stars?ctx.difficulty.color:"#e2e8f0"}}, "\u2605");
         })
       ),
       h("span", {style:{fontSize:13,fontWeight:700,color:ctx.difficulty.color}}, ctx.difficulty.label),
-      h("span", {style:{fontSize:11,color:"#a1a1aa",marginLeft:"auto"}},
+      h("span", {style:{fontSize:11,color:"#94a3b8",marginLeft:"auto"}},
         ctx.pal.length + " colours \xB7 " + (ctx.blendCount > 0 ? ctx.blendCount + " blends \xB7 " : "") + ctx.totalStitchable.toLocaleString() + " stitches"
       )
     );
@@ -43,20 +43,20 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       var cd = ctx.confettiData.clean;
       var t = confettiTier(cd.pct);
       var barW = Math.max(3, Math.min(100, Math.round(100 - cd.pct * 5)));
-      return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#fafafa",borderRadius:8,border:"0.5px solid #e4e4e7"}},
+      return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0"}},
         h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
-          h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
+          h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
           h("span", {style:{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18",marginLeft:"auto"}}, t.label)
         ),
         h("div", {style:{display:"flex",alignItems:"center",gap:8}},
-          h("div", {style:{flex:1,height:6,background:"#e4e4e7",borderRadius:3,overflow:"hidden"}},
+          h("div", {style:{flex:1,height:6,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}},
             h("div", {style:{height:"100%",width:barW+"%",background:t.color,borderRadius:3,transition:"width 0.4s"}})
           ),
           h("span", {style:{fontSize:12,fontWeight:600,color:t.color,flexShrink:0}},
             cd.singles.toLocaleString() + " isolated (" + cd.pct.toFixed(1) + "%)"
           )
         ),
-        ctx.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#a1a1aa",marginTop:4}},
+        ctx.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:4}},
           ctx.confettiData.raw.singles.toLocaleString() + " before orphan removal"
         )
       );
@@ -76,8 +76,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       },
         rows.map(function(r, i) {
           return h("div", {key:i},
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
-            h("div", {style:{fontSize:14,fontWeight:600,color:"#18181b"}}, r[1])
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
+            h("div", {style:{fontSize:14,fontWeight:600,color:"#1e293b"}}, r[1])
           );
         })
       ),
@@ -97,20 +97,20 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         }),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px",marginTop:10}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#18181b"}},
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
+            h("div", {style:{fontSize:16,fontWeight:700,color:"#1e293b"}},
               fmtTimeL(Math.round(ctx.totalStitchable / ctx.stitchSpeed * 3600))
             )
           ),
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
             h("div", {style:{fontSize:16,fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"#16a34a":"#0d9488"}},
               ctx.doneCount >= ctx.totalStitchable ? "Done!" : fmtTimeL(Math.round((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed * 3600))
             )
           )
         ),
         ctx.totalTime > 0 && ctx.doneCount > 0 && h("div", {
-          style:{marginTop:8,padding:"8px 12px",background:"#fafafa",borderRadius:8,border:"0.5px solid #e4e4e7",fontSize:12,color:"#71717a"}
+          style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0",fontSize:12,color:"#475569"}
         }, "Based on your actual sessions: " + Math.round(ctx.doneCount / (ctx.totalTime / 3600)) + " stitches/hr average")
       )
     );
@@ -127,9 +127,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       h("div", {style:{marginTop:8,overflow:"auto"}},
         h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
           h("thead", null,
-            h("tr", {style:{background:"#fafafa"}},
+            h("tr", {style:{background:"#f8f9fa"}},
               ["Fabric","Width","Height","With margin"].map(function(hd, i) {
-                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid #e4e4e7",color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}}, hd);
+                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid #e2e8f0",color:"#475569",fontWeight:600,fontSize:11,textTransform:"uppercase"}}, hd);
               })
             )
           ),
@@ -141,12 +141,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var isCurrent = f.ct === ctx.fabricCt;
               return h("tr", {
                 key:f.ct,
-                style:{borderBottom:"0.5px solid #f4f4f5",background:isCurrent?"#f0fdfa":"transparent"}
+                style:{borderBottom:"0.5px solid #f1f5f9",background:isCurrent?"#f0fdfa":"transparent"}
               },
                 h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}}, f.label+(isCurrent?" \u2713":"")),
                 h("td", {style:{padding:"6px 10px"}}, wIn.toFixed(1)+"\u2033 / "+wCm.toFixed(1)+" cm"),
                 h("td", {style:{padding:"6px 10px"}}, hIn.toFixed(1)+"\u2033 / "+hCm.toFixed(1)+" cm"),
-                h("td", {style:{padding:"6px 10px",fontSize:11,color:"#a1a1aa"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
+                h("td", {style:{padding:"6px 10px",fontSize:11,color:"#94a3b8"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
               );
             })
           )
@@ -160,30 +160,30 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     return h(Section, {title:"Cost Estimate", defaultOpen:false},
       h("div", {style:{marginTop:8}},
         h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
-          h("span", {style:{fontSize:12,color:"#71717a"}}, "Price per skein (\xA3)"),
+          h("span", {style:{fontSize:12,color:"#475569"}}, "Price per skein (\xA3)"),
           h("input", {
             type:"number", value:ctx.skeinPrice, min:0, step:0.05,
             onChange:function(e){ctx.setSkeinPrice(Math.max(0,parseFloat(e.target.value)||0));},
-            style:{width:70,padding:"5px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,fontSize:13,textAlign:"right"}
+            style:{width:70,padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13,textAlign:"right"}
           })
         ),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#18181b"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
-            h("div", {style:{fontSize:11,color:"#a1a1aa"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
+            h("div", {style:{fontSize:16,fontWeight:700,color:"#1e293b"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
+            h("div", {style:{fontSize:11,color:"#94a3b8"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
           ),
           ctx.toBuyCount < ctx.skeinData.length && h("div", null,
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
             h("div", {style:{fontSize:16,fontWeight:700,color:"#ea580c"}},
               "\xA3"+(ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)*ctx.skeinPrice).toFixed(2)
             ),
-            h("div", {style:{fontSize:11,color:"#a1a1aa"}},
+            h("div", {style:{fontSize:11,color:"#94a3b8"}},
               ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)+" skeins"
             )
           )
         ),
-        h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:8}},
+        h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
           "Doesn\u2019t include fabric, needles, hoop, or frame. DMC skeins typically \xA30.85\u2013\xA31.10 in UK shops."
         )
       )
@@ -196,11 +196,11 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       h("div", {style:{marginTop:8,display:"flex",gap:12,marginBottom:10}},
         h("div", {style:{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}},
           h("span", {style:{fontWeight:700,color:"#16a34a"}}, ctx.ownedCount), " ",
-          h("span", {style:{color:"#71717a"}}, "owned")
+          h("span", {style:{color:"#475569"}}, "owned")
         ),
         h("div", {style:{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}},
           h("span", {style:{fontWeight:700,color:"#ea580c"}}, ctx.toBuyList.length), " ",
-          h("span", {style:{color:"#71717a"}}, "to buy")
+          h("span", {style:{color:"#475569"}}, "to buy")
         ),
         h("div", {style:{marginLeft:"auto",display:"flex",gap:4}},
           h("button", {
@@ -213,7 +213,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           }, "Own all"),
           h("button", {
             onClick:function(){ctx.setThreadOwned({});},
-            style:{fontSize:11,padding:"4px 10px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",color:"#71717a",cursor:"pointer"}
+            style:{fontSize:11,padding:"4px 10px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",cursor:"pointer"}
           }, "Clear")
         )
       ),
@@ -228,12 +228,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             h("div", {
               style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,
                 background:isOwned?"#f0fdf4":"#fff",
-                border:"1px solid "+(isOwned?"#bbf7d0":"#f4f4f5")}
+                border:"1px solid "+(isOwned?"#bbf7d0":"#f1f5f9")}
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #d4d4d8",flexShrink:0}}),
+              h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1",flexShrink:0}}),
               h("span", {style:{fontWeight:700,fontSize:13,minWidth:44}}, "DMC "+d.id),
-              h("span", {style:{fontSize:11,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              h("span", {style:{fontSize:11,color:"#a1a1aa",flexShrink:0}}, d.skeins+"sk"),
+              h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              h("span", {style:{fontSize:11,color:"#94a3b8",flexShrink:0}}, d.skeins+"sk"),
               h("button", {
                 onClick:function(){ctx.toggleOwned(d.id);},
                 style:{fontSize:11,padding:"3px 10px",borderRadius:5,cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center",
@@ -260,18 +260,18 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var alts = StashBridge.suggestAlternatives(d.id, 5, ctx.globalStash);
               return alts.length > 0
                 ? h("div", {style:{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}},
-                    h("span", {style:{color:"#71717a",fontWeight:600}}, "Similar in stash:"),
+                    h("span", {style:{color:"#475569",fontWeight:600}}, "Similar in stash:"),
                     alts.map(function(a) {
                       return h("span", {key:a.id, style:{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}},
-                        h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid #d4d4d8"}}),
+                        h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid #cbd5e1"}}),
                         h("span", {style:{fontWeight:600}}, "DMC "+a.id),
-                        h("span", {style:{color:"#71717a"}}, a.name),
-                        h("span", {style:{color:"#a1a1aa"}}, "\u0394E "+a.deltaE),
+                        h("span", {style:{color:"#475569"}}, a.name),
+                        h("span", {style:{color:"#94a3b8"}}, "\u0394E "+a.deltaE),
                         h("span", {style:{color:"#4338ca"}}, a.owned+"sk")
                       );
                     })
                   )
-                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:11,color:"#a1a1aa"}},
+                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:11,color:"#94a3b8"}},
                     "No similar threads found in your stash."
                   );
             })()
@@ -295,7 +295,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}
         }, "Kit This Project")
       ),
-      ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e4e4e7",background:"#fafafa",fontSize:12}},
+      ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8f9fa",fontSize:12}},
         h("div", {style:{fontWeight:700,marginBottom:4}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
         ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"#16a34a",fontWeight:600}}, "\u2713 You have everything!"),
         ctx.kittingResult.missing.length > 0 && h("div", null,
@@ -312,7 +312,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var lines = ctx.kittingResult.missing.concat(ctx.kittingResult.short);
               ctx.copyText(lines.join("\n"), "kit");
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer"}
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer"}
           }, "Copy gaps"),
           typeof StashBridge !== "undefined" && h("button", {
             onClick:function(){
@@ -326,7 +326,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           }, "Mark all To Buy"),
           h("button", {
             onClick:function(){ctx.setKittingResult(null);},
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",marginLeft:"auto"}
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",marginLeft:"auto"}
           }, "Dismiss")
         )
       ),
@@ -343,7 +343,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             var txt=ctx.skeinData.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
             ctx.copyText(txt, "full");
           },
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}
+          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Copy Full List")
       ),
       ctx.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")

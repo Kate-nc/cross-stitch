@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrossStitch — Stash</title>
+<style>
+/* ============================================================
+   SHARED DESIGN SYSTEM
+   ============================================================ */
+:root{--bg:#f8f9fa;--surface:#ffffff;--surface-2:#f1f5f9;--border:#e2e8f0;--border-2:#cbd5e1;--text:#1e293b;--text-2:#475569;--text-3:#94a3b8;--teal:#0d9488;--teal-bg:#f0fdfa;--teal-ring:rgba(13,148,136,0.3);--amber:#f59e0b;--red:#ef4444;--green:#22c55e;--radius:8px;--radius-lg:12px;--shadow-sm:0 1px 3px rgba(0,0,0,0.04);--shadow-md:0 4px 12px rgba(0,0,0,0.06);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+button{font-family:inherit;}
+.g-header{height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:4px;flex-shrink:0;z-index:50;}
+.g-logo{font-weight:800;font-size:15px;color:var(--teal);margin-right:12px;letter-spacing:-0.3px;cursor:pointer;white-space:nowrap;}
+.g-nav{display:flex;gap:2px;}
+.g-nav a{text-decoration:none;font-size:13px;font-weight:500;padding:6px 14px;border-radius:var(--radius);color:var(--text-3);transition:all 0.12s;position:relative;}
+.g-nav a:hover{background:var(--surface-2);color:var(--text-2);}
+.g-nav a.active{color:var(--teal);font-weight:600;}
+.g-nav a.active::after{content:'';position:absolute;bottom:-13px;left:12px;right:12px;height:2px;background:var(--teal);border-radius:2px;}
+.g-spacer{flex:1;}
+.g-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:var(--radius);cursor:pointer;white-space:nowrap;}
+.g-btn:hover{border-color:var(--border-2);background:var(--surface-2);}
+.g-btn--primary{background:var(--teal);color:#fff;border-color:var(--teal);}
+
+/* ---------- STASH MANAGER LAYOUT ----------
+   DESIGN DECISION: The stash manager has NO canvas — it's a data/inventory
+   page.  Instead of a toolbar pill + right panel, it uses:
+     - A centred tab bar (Threads / Patterns) for the two sub-sections.
+     - A search/filter bar below the tabs.
+     - A scrollable card grid as the main content.
+     - A contextual right panel that shows details for the *selected*
+       thread or pattern, replacing modal-heavy workflows.
+   Why: The current manager uses card-expand (accordion) for thread details
+   and modals for pattern editing.  Moving details to a right panel keeps
+   them visible while browsing the list, matching the Figma "inspect"
+   paradigm.  This avoids the context-switching of opening/closing modals
+   and makes comparison easier (see thread card + details simultaneously).
+*/
+
+/* Sub-tab bar */
+.tab-bar{height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:4px;flex-shrink:0;}
+.stab{display:flex;align-items:center;gap:6px;padding:8px 20px;border-radius:10px;font-size:13px;font-weight:500;color:var(--text-3);cursor:pointer;border:none;background:transparent;transition:all 0.12s;}
+.stab:hover{background:var(--surface-2);color:var(--text-2);}
+.stab.on{background:var(--teal);color:#fff;box-shadow:0 2px 8px var(--teal-ring);font-weight:600;}
+.stab .icon{font-size:16px;}
+.stab .cnt{font-size:10px;background:rgba(255,255,255,0.25);padding:1px 7px;border-radius:8px;font-weight:700;}
+.stab:not(.on) .cnt{background:var(--surface-2);color:var(--text-3);}
+
+/* Search/filter bar */
+.filter-bar{padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.filter-bar input{flex:1;max-width:300px;padding:7px 12px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);color:var(--text);}
+.filter-bar input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 2px var(--teal-ring);}
+.chip{padding:5px 12px;font-size:11px;font-weight:500;border:1px solid var(--border);background:var(--surface);color:var(--text-3);border-radius:16px;cursor:pointer;white-space:nowrap;}
+.chip:hover{border-color:var(--border-2);color:var(--text-2);}
+.chip.on{background:var(--teal);color:#fff;border-color:var(--teal);}
+
+/* Stats strip */
+.stats-strip{padding:8px 20px;display:flex;gap:16px;font-size:12px;color:var(--text-3);flex-shrink:0;border-bottom:1px solid var(--surface-2);}
+.stats-strip .stat{display:flex;align-items:center;gap:4px;}
+.stats-strip .stat .val{font-weight:700;color:var(--text);}
+
+/* Main content area */
+.main{flex:1;display:flex;overflow:hidden;}
+
+/* ---------- THREAD GRID (Scrollable centre content) ----------
+   DESIGN DECISION: Two-column card grid replaces the current single-column
+   accordion list.  Each card is compact: swatch + DMC + name + owned count
+   + partial gauge.  Clicking a card selects it and shows details in the
+   right panel (no expansion).
+   Why: The current accordion pattern means opening one thread card pushes
+   all others down, losing your scroll position.  A grid + detail panel
+   lets you scan and browse without layout shifts.  The grid also makes
+   better use of horizontal space on wide monitors.
+*/
+.content{flex:1;overflow-y:auto;padding:16px 20px;}
+.thread-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;}
+.tcard{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;transition:all 0.12s;}
+.tcard:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm);}
+.tcard.on{border-color:var(--teal);box-shadow:0 0 0 2px var(--teal-ring);background:var(--teal-bg);}
+.tcard .sw{width:32px;height:32px;border-radius:8px;border:2px solid var(--border);flex-shrink:0;}
+.tcard .info{flex:1;min-width:0;}
+.tcard .info .id{font-weight:700;font-size:13px;}
+.tcard .info .nm{font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tcard .owned{font-size:13px;font-weight:700;color:var(--text);background:var(--surface-2);width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;flex-shrink:0;}
+.tcard .gauge{display:flex;gap:2px;flex-shrink:0;}
+.tcard .gauge .seg{width:4px;height:14px;border-radius:2px;background:var(--surface-2);}
+.tcard .gauge .seg.full{background:var(--teal);}
+.tcard .gauge .seg.warn{background:var(--amber);}
+.tcard .badge-low{font-size:9px;font-weight:700;color:var(--amber);background:#fef3c7;padding:1px 6px;border-radius:8px;white-space:nowrap;}
+
+/* ---------- PATTERN CARDS ---------- */
+.pat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;}
+.pcard{padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;transition:all 0.12s;}
+.pcard:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm);}
+.pcard.on{border-color:var(--teal);box-shadow:0 0 0 2px var(--teal-ring);background:var(--teal-bg);}
+.pcard .ptitle{font-weight:700;font-size:14px;margin-bottom:2px;display:flex;align-items:center;gap:6px;}
+.pcard .pdesigner{font-size:11px;color:var(--text-3);margin-bottom:6px;}
+.pcard .ptags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;}
+.pcard .ptags .tag{font-size:10px;padding:2px 8px;background:var(--surface-2);border-radius:10px;color:var(--text-2);}
+.pcard .pmeta{display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);}
+.pcard .status{font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;}
+.pcard .status.wishlist{background:#fef3c7;color:#92400e;}
+.pcard .status.owned{background:#dbeafe;color:#1e40af;}
+.pcard .status.progress{background:#fce7f3;color:#9d174d;}
+.pcard .status.done{background:#dcfce7;color:#166534;}
+
+/* ---------- RIGHT PANEL — STASH VERSION ----------
+   DESIGN DECISION: The right panel shows details of the *selected*
+   thread or pattern, with inline editing (quantity +/-, partial gauge,
+   to-buy toggle) — no modal needed for common operations.
+   Why: The current manager opens expanded panels or modals for any edit.
+   An always-visible detail panel means users can click through threads
+   and see details instantly.  "Used in patterns" cross-reference is 
+   shown here (currently only visible via hovering thread conflict cards).
+*/
+.rpanel{width:280px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;}
+.rp-s{padding:14px 16px;border-bottom:1px solid var(--surface-2);}
+.rp-s:last-child{border-bottom:none;}
+.rp-h{font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;}
+.rp-h .badge{font-size:10px;font-weight:500;background:var(--teal-bg);color:var(--teal);padding:2px 6px;border-radius:10px;text-transform:none;letter-spacing:0;}
+
+/* Thread detail card */
+.td-swatch{width:80px;height:80px;border-radius:var(--radius-lg);border:2px solid var(--border);margin:0 auto 10px;}
+.td-title{text-align:center;margin-bottom:12px;}
+.td-title .dmc{font-size:20px;font-weight:800;}
+.td-title .nm{font-size:12px;color:var(--text-3);}
+.td-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:12px;border-bottom:1px solid var(--surface-2);}
+.td-row:last-child{border-bottom:none;}
+.td-row .lbl{color:var(--text-3);}
+.td-row .val{font-weight:600;}
+.qty-ctrl{display:flex;align-items:center;gap:6px;}
+.qty-ctrl button{width:26px;height:26px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer;font-size:14px;color:var(--text-2);display:flex;align-items:center;justify-content:center;}
+.qty-ctrl button:hover{background:var(--surface);border-color:var(--teal);}
+.qty-ctrl .num{font-size:16px;font-weight:700;min-width:24px;text-align:center;}
+
+/* Partial gauge (large) */
+.gauge-lg{display:flex;gap:4px;justify-content:center;margin:8px 0;}
+.gauge-lg .seg{width:28px;height:28px;border-radius:6px;border:2px solid var(--border);background:var(--surface-2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-3);transition:all 0.12s;}
+.gauge-lg .seg:hover{border-color:var(--teal);}
+.gauge-lg .seg.full{background:var(--teal);border-color:var(--teal);color:#fff;}
+
+/* Used-in list */
+.used-in{display:flex;flex-direction:column;gap:4px;}
+.used-in .ui-row{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:6px;font-size:11px;color:var(--text-2);}
+.used-in .ui-row:hover{background:var(--surface-2);}
+.used-in .ui-row .need{font-weight:600;margin-left:auto;color:var(--text-3);font-size:10px;}
+
+/* Smart alert cards */
+.alert-card{padding:10px 12px;border-radius:var(--radius);margin-bottom:8px;font-size:12px;}
+.alert-card.warn{background:#fef3c7;border:1px solid #fde68a;color:#92400e;}
+.alert-card.danger{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;}
+.alert-card.success{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;}
+.alert-card .at{font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:4px;}
+
+.ann{position:fixed;background:#6366f1;color:#fff;font-size:11px;padding:6px 12px;border-radius:6px;z-index:200;pointer-events:none;font-weight:600;box-shadow:0 2px 12px rgba(99,102,241,0.35);max-width:220px;line-height:1.4;}
+</style>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<div class="g-header">
+  <span class="g-logo">✦ CrossStitch</span>
+  <nav class="g-nav">
+    <a href="preview-create.html">Create</a>
+    <a href="preview-track.html">Track</a>
+    <a href="preview-stash.html" class="active">Stash</a>
+  </nav>
+  <span class="g-spacer"></span>
+  <button class="g-btn">💾 Backup</button>
+  <button class="g-btn">📂 Restore</button>
+  <button class="g-btn g-btn--primary" style="margin-left:4px;">+ Add Pattern</button>
+</div>
+
+<!-- ============ SUB-TAB BAR ============ -->
+<div class="tab-bar">
+  <button class="stab on" onclick="showTab('threads')">
+    <span class="icon">🧵</span>
+    Thread Inventory
+    <span class="cnt">42</span>
+  </button>
+  <button class="stab" onclick="showTab('patterns')">
+    <span class="icon">📋</span>
+    Pattern Library
+    <span class="cnt">6</span>
+  </button>
+</div>
+
+<!-- ============ FILTER BAR ============ -->
+<div class="filter-bar" id="filterThreads">
+  <input type="text" placeholder="Search DMC number or name...">
+  <button class="chip on">All</button>
+  <button class="chip">Owned</button>
+  <button class="chip">To Buy</button>
+  <button class="chip">Low Stock</button>
+  <button class="chip">Remnants</button>
+</div>
+<div class="filter-bar" id="filterPatterns" style="display:none;">
+  <input type="text" placeholder="Search title, designer, tags...">
+  <button class="chip on">All</button>
+  <button class="chip">Wishlist</button>
+  <button class="chip">Owned</button>
+  <button class="chip">In Progress</button>
+  <button class="chip">Completed</button>
+  <select style="padding:5px 10px;font-size:11px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-2);margin-left:auto;">
+    <option>Sort: Recent</option>
+    <option>Sort: Name</option>
+    <option>Sort: Thread Count</option>
+  </select>
+</div>
+
+<!-- ============ STATS STRIP ============ -->
+<div class="stats-strip" id="statsThreads">
+  <div class="stat">✅ <span class="val">38</span> skeins owned</div>
+  <div class="stat">🛒 <span class="val">7</span> to buy</div>
+  <div class="stat">⚠️ <span class="val">3</span> low stock</div>
+</div>
+<div class="stats-strip" id="statsPatterns" style="display:none;">
+  <div class="stat">📋 <span class="val">6</span> patterns</div>
+  <div class="stat">🧵 <span class="val">84</span> threads needed</div>
+  <div class="stat">✅ <span class="val">2</span> fully kitted</div>
+</div>
+
+<!-- ============ MAIN ============ -->
+<div class="main">
+
+  <!-- CENTER: SCROLLABLE GRID -->
+  <div class="content" id="contentThreads">
+    <!-- Smart alerts -->
+    <div class="alert-card danger">
+      <div class="at">⚠ Thread Conflicts (2)</div>
+      DMC 321 &amp; DMC 550 are needed by multiple patterns but you have insufficient stock.
+    </div>
+    <div class="alert-card warn" style="margin-bottom:16px;">
+      <div class="at">📦 Low Stock (3)</div>
+      DMC 310, DMC 321, DMC 972 are below minimum stock level.
+    </div>
+
+    <div class="thread-grid" id="tgrid"></div>
+  </div>
+
+  <div class="content" id="contentPatterns" style="display:none;">
+    <!-- Active tracking banner -->
+    <div class="alert-card success" style="margin-bottom:12px;">
+      <div class="at">🟢 Currently Tracking</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Autumn Leaves — 4.9% complete</span>
+        <a href="preview-track.html" style="color:#065f46;font-weight:600;font-size:11px;">Go to Tracker →</a>
+      </div>
+    </div>
+
+    <div class="pat-grid" id="pgrid"></div>
+  </div>
+
+  <!-- RIGHT PANEL — DETAIL VIEW -->
+  <div class="rpanel" id="detailThread">
+
+    <!-- Thread Detail -->
+    <div class="rp-s" style="text-align:center;">
+      <div class="td-swatch" style="background:#c0392b;"></div>
+      <div class="td-title">
+        <div class="dmc">DMC 321</div>
+        <div class="nm">Red</div>
+      </div>
+    </div>
+
+    <div class="rp-s">
+      <div class="rp-h">Inventory</div>
+      <div class="td-row">
+        <span class="lbl">Full skeins</span>
+        <div class="qty-ctrl">
+          <button>−</button>
+          <span class="num">2</span>
+          <button>+</button>
+        </div>
+      </div>
+      <div class="td-row">
+        <span class="lbl">Min stock</span>
+        <div class="qty-ctrl">
+          <button>−</button>
+          <span class="num">1</span>
+          <button>+</button>
+        </div>
+      </div>
+      <div class="td-row">
+        <span class="lbl">Opened skein</span>
+        <span class="val" style="font-size:11px;">Mostly full</span>
+      </div>
+      <div style="margin-top:8px;">
+        <div style="font-size:10px;color:var(--text-3);margin-bottom:4px;text-align:center;">Opened skein level</div>
+        <div class="gauge-lg">
+          <div class="seg" title="None">—</div>
+          <div class="seg full" title="Mostly full">¾</div>
+          <div class="seg" title="About half">½</div>
+          <div class="seg" title="Remnant">¼</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rp-s">
+      <div class="rp-h">Used In <span class="badge">2 patterns</span></div>
+      <div class="used-in">
+        <div class="ui-row">📋 Autumn Leaves <span class="need">need 1.2 sk</span></div>
+        <div class="ui-row">📋 Rose Garden <span class="need">need 0.4 sk</span></div>
+      </div>
+    </div>
+
+    <div class="rp-s">
+      <div class="rp-h">Actions</div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <button class="g-btn" style="width:100%;justify-content:center;">🛒 Add to shopping list</button>
+        <button class="g-btn" style="width:100%;justify-content:center;">🔄 Find similar threads</button>
+        <button class="g-btn" style="width:100%;justify-content:center;color:var(--red);border-color:#fecaca;">🗑 Remove from inventory</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Pattern detail (hidden by default) -->
+  <div class="rpanel" id="detailPattern" style="display:none;">
+    <div class="rp-s">
+      <div style="font-size:16px;font-weight:800;margin-bottom:2px;">Rose Garden</div>
+      <div style="font-size:11px;color:var(--text-3);margin-bottom:8px;">by Jane Greenoff · 120×90</div>
+      <div style="display:flex;gap:4px;margin-bottom:8px;">
+        <span style="font-size:10px;padding:2px 8px;background:var(--surface-2);border-radius:10px;color:var(--text-2);">floral</span>
+        <span style="font-size:10px;padding:2px 8px;background:var(--surface-2);border-radius:10px;color:var(--text-2);">intermediate</span>
+      </div>
+      <span class="status owned" style="display:inline-block;">Owned</span>
+    </div>
+
+    <div class="rp-s">
+      <div class="rp-h">Thread Coverage <span class="badge">86%</span></div>
+      <div style="height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;border:1px solid var(--border);margin-bottom:8px;">
+        <div style="height:100%;width:86%;background:var(--teal);border-radius:3px;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);">22 of 26 threads in your stash. 4 missing.</div>
+    </div>
+
+    <div class="rp-s">
+      <div class="rp-h">Missing Threads</div>
+      <div class="used-in">
+        <div class="ui-row"><div style="width:12px;height:12px;border-radius:3px;background:#8e44ad;border:1px solid var(--border);"></div> 550 Violet VDk <span class="need">1 sk</span></div>
+        <div class="ui-row"><div style="width:12px;height:12px;border-radius:3px;background:#f39c12;border:1px solid var(--border);"></div> 972 Canary <span class="need">2 sk</span></div>
+        <div class="ui-row"><div style="width:12px;height:12px;border-radius:3px;background:#d35400;border:1px solid var(--border);"></div> 815 Garnet <span class="need">1 sk</span></div>
+        <div class="ui-row"><div style="width:12px;height:12px;border-radius:3px;background:#2c3e50;border:1px solid var(--border);"></div> 3799 Pewter <span class="need">1 sk</span></div>
+      </div>
+    </div>
+
+    <div class="rp-s">
+      <div class="rp-h">Actions</div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <button class="g-btn g-btn--primary" style="width:100%;justify-content:center;">▶ Start Tracking</button>
+        <button class="g-btn" style="width:100%;justify-content:center;">🛒 Shopping List</button>
+        <button class="g-btn" style="width:100%;justify-content:center;">✏️ Edit Pattern</button>
+        <button class="g-btn" style="width:100%;justify-content:center;color:var(--red);border-color:#fecaca;">🗑 Delete</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ANNOTATIONS -->
+<div class="ann" style="top:56px;left:50%;transform:translateX(-50%);">
+  Same header + nav tabs as Create/Track.<br>Sub-tabs for Threads vs Patterns.
+</div>
+<div class="ann" style="top:300px;right:8px;">
+  Right panel shows selected thread<br>or pattern detail — inline editing,<br>no modals for common actions.
+</div>
+<div class="ann" style="top:180px;left:20px;">
+  Smart alert cards float above the grid<br>for conflicts &amp; low stock. Scannable.
+</div>
+
+<script>
+const C=['#000','#c0392b','#e74c3c','#f39c12','#f1c40f','#27ae60','#2ecc71','#3498db','#2980b9','#8e44ad','#9b59b6','#1abc9c','#e67e22','#d35400','#2c3e50','#7f8c8d','#bdc3c7','#ecf0f1'];
+const N=['Black','Red','Christmas Red','Topaz','Canary','Green','Emerald Lt','Blue','Dk Blue','Violet VDk','Lilac Lt','Teal','Orange','Tangerine','Navy','Grey','Pearl','White'];
+const ids=['310','321','666','972','973','699','704','796','824','550','554','3849','740','741','3750','414','762','B5200'];
+
+// Thread grid
+const tg=document.getElementById('tgrid');
+ids.forEach((id,i)=>{
+  const owned=Math.floor(Math.random()*5);
+  const low=owned<=1&&Math.random()>0.5;
+  const gauge=Math.floor(Math.random()*5);
+  const d=document.createElement('div');
+  d.className='tcard'+(i===1?' on':'');
+  let ghtml='<div class="gauge">';
+  for(let s=0;s<4;s++) ghtml+=`<div class="seg${s<gauge?' full':''}${gauge===1&&s===0?' warn':''}"></div>`;
+  ghtml+='</div>';
+  d.innerHTML=`<div class="sw" style="background:${C[i]}"></div><div class="info"><div class="id">${id}</div><div class="nm">${N[i]}</div></div>${low?'<span class="badge-low">Low</span>':''}<div class="owned">${owned}</div>${ghtml}`;
+  tg.appendChild(d);
+});
+
+// Pattern grid
+const pg=document.getElementById('pgrid');
+const pats=[
+  {t:'Autumn Leaves',d:'Katie M.',tags:['nature','beginner'],th:18,s:'progress'},
+  {t:'Rose Garden',d:'Jane Greenoff',tags:['floral','intermediate'],th:26,s:'owned'},
+  {t:'Starry Night',d:'Van Gogh Series',tags:['art','advanced'],th:34,s:'wishlist'},
+  {t:'Celtic Knot Sampler',d:'Celtic Cross Stitch',tags:['geometric'],th:8,s:'done'},
+  {t:'Winter Robin',d:'DMC Official',tags:['wildlife','beginner'],th:14,s:'owned'},
+  {t:'Mountain Sunset',d:'Katie M.',tags:['landscape','intermediate'],th:22,s:'wishlist'},
+];
+const smap={wishlist:'Wishlist',owned:'Owned',progress:'In Progress',done:'Completed'};
+pats.forEach((p,i)=>{
+  const d=document.createElement('div');
+  d.className='pcard'+(i===1?' on':'');
+  d.innerHTML=`<div class="ptitle">${p.t}<span class="status ${p.s}">${smap[p.s]}</span></div><div class="pdesigner">by ${p.d}</div><div class="ptags">${p.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div><div class="pmeta"><span>${p.th} threads required</span></div>`;
+  pg.appendChild(d);
+});
+
+function showTab(tab){
+  const isT=tab==='threads';
+  document.querySelectorAll('.stab').forEach((s,i)=>s.classList.toggle('on',isT?i===0:i===1));
+  document.getElementById('filterThreads').style.display=isT?'flex':'none';
+  document.getElementById('filterPatterns').style.display=isT?'none':'flex';
+  document.getElementById('statsThreads').style.display=isT?'flex':'none';
+  document.getElementById('statsPatterns').style.display=isT?'none':'flex';
+  document.getElementById('contentThreads').style.display=isT?'block':'none';
+  document.getElementById('contentPatterns').style.display=isT?'none':'block';
+  document.getElementById('detailThread').style.display=isT?'flex':'none';
+  document.getElementById('detailPattern').style.display=isT?'none':'flex';
+}
+</script>
+</body>
+</html>

@@ -113,19 +113,19 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
         cursor:"pointer",fontSize:11,
         border: ips ? (isHsTool ? "2px solid #0284c7" : "2px solid #0d9488")
-               : ihs ? "2px solid #ea580c" : "0.5px solid #e4e4e7",
+               : ihs ? "2px solid #ea580c" : "0.5px solid #e2e8f0",
         background: ips ? (isHsTool ? "#e0f2fe" : "#f0fdfa")
                    : ihs ? "#fff7ed" : "#fff",
         opacity: isUnused ? 0.6 : 1
       }
     },
-      h("span", {className:"creator-palette-chip-swatch",style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}),
-      h("span", {style:{fontFamily:"monospace",color:"#71717a"}}, p.symbol),
+      h("span", {className:"creator-palette-chip-swatch",style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}),
+      h("span", {style:{fontFamily:"monospace",color:"#475569"}}, p.symbol),
       h("span", {style:{fontWeight:500}}, p.id),
       isUnused && h("span", {
         className:"creator-palette-chip-remove",
         onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
-        style:{fontSize:9,color:"#a1a1aa",cursor:"pointer",marginLeft:2,lineHeight:1}
+        style:{fontSize:9,color:"#94a3b8",cursor:"pointer",marginLeft:2,lineHeight:1}
       }, "\xD7")
     );
     if (ctx.isScratchMode) {
@@ -139,15 +139,15 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   return h("div", null,
     ctx.cs < 6 && (ctx.view === "symbol" || ctx.view === "both") && h("div", {
-      style:{fontSize:12,color:"#71717a",marginBottom:6,background:"#f4f4f5",padding:"6px 10px",borderRadius:8}
+      style:{fontSize:12,color:"#475569",marginBottom:6,background:"#f1f5f9",padding:"6px 10px",borderRadius:8}
     }, "To see symbols, you may need to zoom in."),
 
     ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
-      style:{fontSize:12,color:"#a1a1aa",padding:"8px 12px",background:"#f4f4f5",borderRadius:8,marginBottom:8,textAlign:"center"}
+      style:{fontSize:12,color:"#94a3b8",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
     }, "Add colours using the Colours panel on the left, then select Paint or Fill to begin."),
 
     !ctx.shortcutsHintDismissed && h("div", {
-      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
+      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
     },
       h("span", null, "\uD83D\uDCA1 Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
@@ -181,7 +181,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h("div", {
       ref:ctx.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(function(){
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#f1f5f9",cursor:(function(){
         var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
         if (ctx.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
@@ -223,18 +223,18 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }
       return h("div", {className:"tb-status", style:{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
         h("span", null, parts[0]),
-        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#a1a1aa",flexShrink:0}}, parts[1]),
+        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#94a3b8",flexShrink:0}}, parts[1]),
         parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
           ctx.cmap && ctx.pat && ctx.hoverCoords && (function() {
             var hIdx2 = ctx.hoverCoords.gy * ctx.sW + ctx.hoverCoords.gx;
             var hCell2 = ctx.pat[hIdx2];
             if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
-              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #d4d4d8",
+              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
                 background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
             }
             return null;
           })(),
-          h("span", {style:{fontSize:10,color:"#71717a"}}, parts[2])
+          h("span", {style:{fontSize:10,color:"#475569"}}, parts[2])
         )
       );
     })(),
@@ -261,7 +261,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       " Click a colour chip below to select it, then paint on the canvas"
     ),
 
-    h("div", {style:{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}},
+    h("div", {style:{marginTop:8,borderRadius:8,background:"#f8f9fa",padding:"8px 12px",border:"0.5px solid #e2e8f0"}},
       h("div", {className:"creator-pattern-chips",style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
     )
   );

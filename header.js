@@ -251,7 +251,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 3 } }, '▾')
             ),
             dataMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 210 } },
-              storageUsage && React.createElement('div', { style: { padding: '8px 14px 6px', fontSize: 11, color: '#71717a', borderBottom: '1px solid #f4f4f5' } },
+              storageUsage && React.createElement('div', { style: { padding: '8px 14px 6px', fontSize: 11, color: '#475569', borderBottom: '1px solid #f1f5f9' } },
                 storageUsage.persistent ? '🔒 Protected' : '⏳ Temporary',
                 ' · ',
                 (storageUsage.used / 1024 / 1024).toFixed(1) + ' MB'
@@ -305,7 +305,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 onClick: () => { onExportPDF(); setFileMenuOpen(false); }
               }, 'Export PDF…'),
               // Backup / Restore — available on all pages when backup-restore.js is loaded
-              typeof BackupRestore !== 'undefined' && React.createElement('div', { style: { height: 1, background: '#f4f4f5', margin: '4px 0' } }),
+              typeof BackupRestore !== 'undefined' && React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),
               typeof BackupRestore !== 'undefined' && React.createElement('button', {
                 className: 'tb-page-dropdown-item',
                 onClick: () => { setFileMenuOpen(false); BackupRestore.downloadBackup().catch(function(e) { alert('Backup failed: ' + e.message); }); }

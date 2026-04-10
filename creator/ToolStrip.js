@@ -138,7 +138,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       className:"tb-grp",
       style:{display:"flex",alignItems:"center",gap:4,opacity:(ctx.selectedColorId||ctx.stitchType==="erase")?1:0.6}
     },
-      h("span", {style:{fontSize:10,color:"#71717a",textTransform:"uppercase",fontWeight:600}}, "Size"),
+      h("span", {style:{fontSize:10,color:"#475569",textTransform:"uppercase",fontWeight:600}}, "Size"),
       [1,2,3].map(function(sz) {
         return h("button", {
           key:sz,
@@ -155,7 +155,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("div", {key:"sdiv-bs", className:"tb-sdiv"}),
     h("label", {
       key:"bs-cont",
-      style:{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#71717a",flexShrink:0}
+      style:{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#475569",flexShrink:0}
     },
       h("input", {
         type:"checkbox", checked:ctx.bsContinuous,
@@ -234,7 +234,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       className:"tb-btn",
       onClick:function(){ if (ctx.cancelLasso) ctx.cancelLasso(); if (ctx.clearSelection) ctx.clearSelection(); },
       title:"Clear selection / cancel lasso (Esc)",
-      style:{fontSize:9,padding:"2px 5px",color:"#71717a"}
+      style:{fontSize:9,padding:"2px 5px",color:"#475569"}
     }, (ctx.selectionCount || 0).toLocaleString()+" sel")
   ];
 
@@ -258,14 +258,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId]) ?
     h("span", {
       style:{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,
-        background:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"#e0f2fe":"#f4f4f5",
+        background:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"#e0f2fe":"#f1f5f9",
         flexShrink:0,
         border:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"1px solid #7dd3fc":"none"
       }
     },
       h("span", {style:{width:10,height:10,borderRadius:2,
         background:"rgb("+ctx.cmap[ctx.selectedColorId].rgb+")",
-        border:"1px solid #d4d4d8",display:"inline-block"}}),
+        border:"1px solid #cbd5e1",display:"inline-block"}}),
       ctx.selectedColorId
     ) : null;
 
@@ -341,7 +341,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:function(){ctx.setShowOverlay(function(v){return !v;});}
     },
       h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-        border:"2px solid "+(ctx.showOverlay?"#1D9E75":"#d4d4d8")}}),
+        border:"2px solid "+(ctx.showOverlay?"#0d9488":"#cbd5e1")}}),
       " Overlay"+(ctx.showOverlay?" \u2713":"")
     ),
     ctx.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
