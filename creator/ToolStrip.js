@@ -6,12 +6,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
 
-  // Local dropdown state
-  var _sdo = React.useState(false); var stitchDropOpen = _sdo[0], setStitchDropOpen = _sdo[1];
-  var _seldo = React.useState(false); var selectDropOpen = _seldo[0], setSelectDropOpen = _seldo[1];
+  // Local state
   var _swe = React.useState(false); var swatchExpanded = _swe[0], setSwatchExpanded = _swe[1];
-  var stitchDropRef = React.useRef(null);
-  var selectDropRef = React.useRef(null);
 
   // ResizeObserver: progressively collapse strip groups when narrow
   React.useEffect(function() {
@@ -29,21 +25,22 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { obs.disconnect(); if (frame) cancelAnimationFrame(frame); };
   }, []);
 
-  // Close all dropdowns on outside click
+  // Close overflow menu on outside click
   React.useEffect(function() {
-    if (!stitchDropOpen && !selectDropOpen && !ctx.overflowOpen) return;
+    if (!ctx.overflowOpen) return;
     function close(e) {
-      if (stitchDropRef.current && !stitchDropRef.current.contains(e.target)) setStitchDropOpen(false);
-      if (selectDropRef.current && !selectDropRef.current.contains(e.target)) setSelectDropOpen(false);
       if (ctx.overflowRef.current && !ctx.overflowRef.current.contains(e.target)) ctx.setOverflowOpen(false);
     }
     document.addEventListener("pointerdown", close);
     return function() { document.removeEventListener("pointerdown", close); };
-  }, [stitchDropOpen, selectDropOpen, ctx.overflowOpen]);
+  }, [ctx.overflowOpen]);
 
   if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
 
   var sc = ctx.stripCollapsed || {};
+
+  // Palette data sorted by usage — needed early for auto-select
+  var palData = (ctx.displayPal || ctx.pal || []).slice().sort(function(a,b){return (b.count||0)-(a.count||0);});
   var svgX = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
     h("line", {x1:"1",y1:"11",x2:"11",y2:"1",stroke:"currentColor",strokeWidth:"1.8"}),
     h("line", {x1:"1",y1:"1",x2:"11",y2:"11",stroke:"currentColor",strokeWidth:"1.8"}));
@@ -85,20 +82,23 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var brushGrp = [
     h("div", {
       key:"brush-grp",
-      className:"tb-grp"+(sc.brush?" tb-hidden":""),
-      style:{opacity: ctx.selectedColorId ? 1 : 0.6}
+      className:"tb-grp"+(sc.brush?" tb-hidden":"")
     },
       h("button", {
         className:"tb-btn"+(ctx.brushMode==="paint" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
-        onClick:function(){if(!ctx.selectedColorId){return;}ctx.setBrushAndActivate("paint"); ctx.selectStitchType("cross");},
-        title:ctx.selectedColorId?"Paint (P)":"Select a colour first",
-        disabled:!ctx.selectedColorId
+        onClick:function(){
+          if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
+          ctx.setBrushAndActivate("paint"); ctx.selectStitchType("cross");
+        },
+        title:"Paint (P)"
       }, "Paint"),
       h("button", {
         className:"tb-btn"+(ctx.brushMode==="fill" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
-        onClick:function(){if(!ctx.selectedColorId){return;}ctx.setBrushAndActivate("fill"); ctx.selectStitchType("cross");},
-        title:ctx.selectedColorId?"Fill (F)":"Select a colour first",
-        disabled:!ctx.selectedColorId
+        onClick:function(){
+          if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
+          ctx.setBrushAndActivate("fill"); ctx.selectStitchType("cross");
+        },
+        title:"Fill (F)"
       }, "Fill"),
       h("button", {
         className:"tb-btn"+(ctx.stitchType==="erase"?" tb-btn--red":""),
@@ -123,19 +123,18 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var activeSM = stitchMeta[ctx.stitchType] || stitchMeta["cross"];
   var stitchDrop = showStitchGrp ? [
     h("div", {key:"sdiv-stitch", className:"tb-sdiv"}),
-    h("div", {key:"stitch-drop", className:"tb-drop-wrap", ref:stitchDropRef},
+    h("div", {key:"stitch-drop", className:"tb-drop-wrap"},
       h("button", {
         className:"tb-btn tb-drop-btn " + activeSM.cls,
-        onClick:function(){setStitchDropOpen(function(o){return !o;});},
         title:"Stitch type"
       }, activeSM.icon, activeSM.label, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
-      stitchDropOpen && h("div", {className:"tb-dropdown"},
+      h("div", {className:"tb-dropdown"},
         Object.keys(stitchMeta).map(function(k) {
           var m = stitchMeta[k];
           return h("button", {
             key:k,
             className:"tb-drop-item" + (ctx.stitchType===k?" tb-drop-item--on":""),
-            onClick:function(){ctx.selectStitchType(k); setStitchDropOpen(false);}
+            onClick:function(){ctx.selectStitchType(k);}
           }, m.icon, m.label);
         })
       )
@@ -143,8 +142,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   ] : null;
 
   // Colour swatch strip — second toolbar row, sorted by usage, with expand
-  var palDataRaw = ctx.displayPal || ctx.pal || [];
-  var palData = palDataRaw.slice().sort(function(a,b){ return (b.count||0)-(a.count||0); });
   var SWATCH_INIT = 20;
   var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
   var swatchRow = showStitchGrp && palData.length > 0 ? h("div", {className:"swatch-strip-row"},
@@ -235,19 +232,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
                  "Select";
   var selectDrop = [
     h("div", {key:"sdiv-select", className:"tb-sdiv"}),
-    h("div", {key:"select-drop", className:"tb-drop-wrap", ref:selectDropRef},
+    h("div", {key:"select-drop", className:"tb-drop-wrap"},
       h("button", {
-        className:"tb-btn tb-drop-btn" + (isSelectActive || selectDropOpen ? " tb-btn--on" : ""),
-        onClick:function(){setSelectDropOpen(function(o){return !o;});},
+        className:"tb-btn tb-drop-btn" + (isSelectActive ? " tb-btn--on" : ""),
         title:"Selection tools"
       }, selIcon, selLabel, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
-      selectDropOpen && h("div", {className:"tb-dropdown"},
+      h("div", {className:"tb-dropdown"},
         h("button", {
           className:"tb-drop-item"+(ctx.activeTool==="magicWand"?" tb-drop-item--on":""),
           onClick:function(){
-            if (ctx.activeTool==="magicWand") { ctx.setActiveTool(null); }
+            if (ctx.activeTool==="magicWand") ctx.setActiveTool(null);
             else { ctx.setActiveTool("magicWand"); ctx.setHalfStitchTool(null); ctx.setBsStart(null); if (ctx.cancelLasso) ctx.cancelLasso(); }
-            setSelectDropOpen(false);
           }
         }, svgWand, "Magic Wand"),
         h("button", {
@@ -256,7 +251,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="freehand";
             if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
             else{ctx.setActiveTool("lasso");ctx.setLassoMode("freehand");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
-            setSelectDropOpen(false);
           }
         }, svgFreehand, "Freehand"),
         h("button", {
@@ -265,7 +259,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="polygon";
             if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
             else{ctx.setActiveTool("lasso");ctx.setLassoMode("polygon");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
-            setSelectDropOpen(false);
           }
         }, svgPolygon, "Polygon"),
         h("button", {
@@ -274,13 +267,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="magnetic";
             if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
             else{ctx.setActiveTool("lasso");ctx.setLassoMode("magnetic");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
-            setSelectDropOpen(false);
           }
         }, svgMagnetic, "Magnetic"),
         (ctx.hasSelection || ctx.lassoInProgress) && h("div", {style:{borderTop:"1px solid var(--border)",marginTop:3,paddingTop:3}},
           h("button", {
             className:"tb-drop-item",
-            onClick:function(){if(ctx.cancelLasso)ctx.cancelLasso();if(ctx.clearSelection)ctx.clearSelection();setSelectDropOpen(false);}
+            onClick:function(){if(ctx.cancelLasso)ctx.cancelLasso();if(ctx.clearSelection)ctx.clearSelection();}
           }, "\u2715 Clear (", (ctx.selectionCount||0).toLocaleString(), ")")
         )
       )
