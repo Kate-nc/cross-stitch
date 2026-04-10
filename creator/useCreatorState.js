@@ -313,6 +313,8 @@ window.useCreatorState = function useCreatorState() {
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
     setHalfStitches(new Map()); setHalfStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
+    setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
+    setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
   }
 
   function initBlankGrid(w, h) {

@@ -135,6 +135,10 @@ window.usePreview = function usePreview(state) {
   ]);
 
   React.useEffect(function() {
+    return function() { if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; } };
+  }, []);
+
+  React.useEffect(function() {
     if (!state.img) return;
     var timer = state.previewTimerRef.current;
     if (timer) clearTimeout(timer);

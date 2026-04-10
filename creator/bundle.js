@@ -1440,6 +1440,8 @@ window.useCreatorState = function useCreatorState() {
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
     setHalfStitches(new Map()); setHalfStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
+    setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
+    setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
   }
 
   function initBlankGrid(w, h) {
@@ -2912,6 +2914,10 @@ window.usePreview = function usePreview(state) {
     state.dith, state.skipBg, state.bgCol, state.bgTh, state.smooth, state.smoothType,
     state.stitchCleanup, state.fabricCt, state.allowBlends,
   ]);
+
+  React.useEffect(function() {
+    return function() { if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; } };
+  }, []);
 
   React.useEffect(function() {
     if (!state.img) return;

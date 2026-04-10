@@ -96,9 +96,11 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
     if (!prevPreviewRef.current || prevPreviewRef.current === previewSrc) { prevPreviewRef.current = previewSrc; return; }
     var prevSrc = prevPreviewRef.current;
     prevPreviewRef.current = previewSrc;
+    var cancelled = false;
     var imgA = new Image(), imgB = new Image();
     var loaded = 0;
     function onLoad() {
+      if (cancelled) return;
       if (++loaded < 2) return;
       var w = imgB.naturalWidth, h = imgB.naturalHeight;
       if (!w || !h) return;
@@ -119,6 +121,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
     }
     imgA.onload = onLoad; imgB.onload = onLoad;
     imgA.src = prevSrc; imgB.src = previewSrc;
+    return function() { cancelled = true; };
   }, [previewSrc]);
 
   useEffect(function() {
