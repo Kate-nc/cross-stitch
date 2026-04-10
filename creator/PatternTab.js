@@ -6,6 +6,16 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
 
+  var _dismissed = React.useState(false); var confettiBannerDismissed = _dismissed[0], setConfettiBannerDismissed = _dismissed[1];
+  var prevConfettiKeyRef = React.useRef(null);
+  React.useEffect(function() {
+    var newKey = ctx.confettiData ? (ctx.confettiData.raw.singles + "|" + ctx.confettiData.clean.singles) : null;
+    if (prevConfettiKeyRef.current !== newKey) {
+      prevConfettiKeyRef.current = newKey;
+      if (newKey) setConfettiBannerDismissed(false);
+    }
+  }, [ctx.confettiData]);
+
   if (!(ctx.pat && ctx.pal)) return null;
   if (ctx.tab !== "pattern") return null;
 
@@ -107,6 +117,24 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         style:{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}
       }, "\xD7")
     ),
+
+    !confettiBannerDismissed && ctx.confettiData && ctx.orphans > 0 && (function() {
+      var rawSingles = ctx.confettiData.raw.singles;
+      var cleanSingles = ctx.confettiData.clean.singles;
+      var removed = rawSingles - cleanSingles;
+      var totalStitchable = ctx.pat ? ctx.pat.filter(function(m){return m.id!=="__skip__"&&m.id!=="__empty__";}).length : 1;
+      var pctOfTotal = removed / Math.max(1, totalStitchable) * 100;
+      if (pctOfTotal < 15) return null;
+      return h("div", {
+        style:{padding:"8px 12px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,fontSize:12,color:"#991b1b",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}
+      },
+        h("span", null, "\u26A0\uFE0F Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
+        h("button", {
+          onClick:function(){setConfettiBannerDismissed(true);},
+          style:{background:"none",border:"none",color:"#991b1b",cursor:"pointer",fontSize:14,flexShrink:0,marginLeft:8}
+        }, "\xD7")
+      );
+    })(),
 
     h("div", {
       ref:ctx.scrollRef,

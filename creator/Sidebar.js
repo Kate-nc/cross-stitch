@@ -6,6 +6,31 @@ window.CreatorSidebar = function CreatorSidebar() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
 
+  function getCleanupWarning(sW, sH, orphans, previewStats) {
+    if (orphans === 0) return null;
+    var area = sW * sH;
+    if (area <= 900 && orphans > 0) {
+      return {level:"danger",message:"Your grid is very small ("+sW+"\xD7"+sH+"). Any orphan removal may destroy fine details. Consider turning it off or increasing grid size."};
+    }
+    if (area <= 1600 && orphans >= 2) {
+      return {level:"danger",message:"Orphan removal level "+orphans+" is aggressive for a "+sW+"\xD7"+sH+" grid. Important details like eyes, text, or thin lines may be lost. Consider using level 1 or increasing grid size."};
+    }
+    if (area <= 2500 && orphans >= 3) {
+      return {level:"warning",message:"Level 3 cleanup on a "+sW+"\xD7"+sH+" grid may remove more detail than expected. Try level 1 or 2 first."};
+    }
+    if (previewStats && previewStats.confettiSingles != null && previewStats.confettiCleanSingles != null) {
+      var removed = previewStats.confettiSingles - previewStats.confettiCleanSingles;
+      var pctRemoved = removed / Math.max(1, previewStats.stitchable) * 100;
+      if (pctRemoved > 20) {
+        return {level:"danger",message:"Cleanup would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). This will likely cause visible detail loss. Consider reducing the cleanup level."};
+      }
+      if (pctRemoved > 10) {
+        return {level:"warning",message:"Cleanup would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). Check the preview to make sure you\u2019re happy with the result."};
+      }
+    }
+    return null;
+  }
+
   if (!ctx.sidebarOpen) return null;
 
   // ── Inline Toggle component (used only in Stitch Cleanup section) ──────────
@@ -195,6 +220,45 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       h(SliderRow, {label:"", value:ctx.minSt, min:0, max:50, onChange:ctx.setMinSt, format:function(v){return v===0?"Off":v;}})
     ),
+    h("div", {style:{marginTop:8}},
+      h("label", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
+        h("span", {style:{fontSize:11,color:"#a1a1aa",fontWeight:600}}, "Remove Orphans"),
+        h(Tooltip, {text:"Removes isolated stitches with no same-colour neighbour. Higher levels remove larger isolated clusters.", width:220},
+          h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
+        )
+      ),
+      h(SliderRow, {label:"", value:ctx.orphans, min:0, max:3, onChange:ctx.setOrphans, format:function(v){return v===0?"Off":String(v);}}),
+      ctx.orphans > 0 && (function() {
+        var desc;
+        if (ctx.orphans === 1) {
+          desc = h("span", null, "Removes ", h("strong", null, "isolated single stitches"), " \u2014 cells with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets clusters of exactly 1 stitch.");
+        } else if (ctx.orphans === 2) {
+          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
+        } else {
+          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#dc2626",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+        }
+        return h("div", {style:{fontSize:11,color:"#71717a",marginTop:4,lineHeight:1.5}}, desc);
+      })()
+    ),
+    ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}},
+      "Preview estimate: removes ~", (ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
+      " (", ((ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles) / Math.max(1, ctx.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
+    ),
+    (function() {
+      var warning = getCleanupWarning(ctx.sW, ctx.sH, ctx.orphans, ctx.previewStats);
+      if (!warning) return null;
+      var isDanger = warning.level === "danger";
+      return h("div", {style:{
+        marginTop:6,padding:"8px 10px",borderRadius:8,fontSize:11,lineHeight:1.5,
+        background:isDanger?"#fef2f2":"#fffbeb",
+        border:"1px solid "+(isDanger?"#fecaca":"#fde68a"),
+        color:isDanger?"#991b1b":"#92400e",
+        display:"flex",alignItems:"flex-start",gap:6
+      }},
+        h("span", {style:{fontSize:14,lineHeight:1,flexShrink:0}}, isDanger?"\u26A0\uFE0F":"\uD83D\uDCA1"),
+        h("span", null, warning.message)
+      );
+    })(),
     h("button", {
       onClick:function(){ctx.setPalAdvanced(function(o){return !o;});},
       style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#71717a",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
