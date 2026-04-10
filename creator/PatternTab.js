@@ -155,14 +155,57 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h("div", {
       ref:ctx.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:ctx.activeTool==="eyedropper"?"copy":ctx.activeTool==="magicWand"?"pointer":ctx.activeTool==="lasso"?"crosshair":ctx.activeTool==="fill"?"cell":(ctx.activeTool==="eraseAll"||ctx.activeTool==="eraseBs")?"not-allowed":(ctx.activeTool||ctx.halfStitchTool)?"crosshair":"default"}
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:ctx.activeTool==="eyedropper"?"copy":ctx.activeTool==="magicWand"?"pointer":ctx.activeTool==="lasso"?"crosshair":ctx.activeTool==="fill"?"cell":(ctx.activeTool==="eraseAll"||ctx.activeTool==="eraseBs")?"not-allowed":(ctx.activeTool||ctx.halfStitchTool)?"crosshair":"default"},
+      onContextMenu: function(e) {
+        // Right-click context menu (except when backstitch has a special right-click action)
+        if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
+        e.preventDefault();
+        var pcRef = ctx.pcRef;
+        if (!pcRef.current || !ctx.pat) return;
+        var gc = gridCoord(pcRef, e, ctx.cs, ctx.G, false);
+        if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
+        var idx = gc.gy * ctx.sW + gc.gx;
+        var cell = ctx.pat[idx];
+        ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
+      }
     },
       h(window.PatternCanvas, null)
     ),
 
+    // Context menu overlay
+    ctx.contextMenu && h(window.CreatorContextMenu, null),
+
     h(window.MagicWandPanel, null),
 
-    h("div", {className:"tb-status"}, statusText),
+    // Enhanced status bar: tool hint + coordinates + colour-under-cursor
+    (function() {
+      var parts = [statusText];
+      if (ctx.hoverCoords && ctx.hoverCoords.gx >= 0 && ctx.hoverCoords.gx < ctx.sW && ctx.hoverCoords.gy >= 0 && ctx.hoverCoords.gy < ctx.sH) {
+        parts.push("X: " + (ctx.hoverCoords.gx + 1) + ", Y: " + (ctx.hoverCoords.gy + 1));
+        var hIdx = ctx.hoverCoords.gy * ctx.sW + ctx.hoverCoords.gx;
+        var hCell = ctx.pat[hIdx];
+        if (hCell && hCell.id !== "__skip__" && hCell.id !== "__empty__" && ctx.cmap && ctx.cmap[hCell.id]) {
+          var info = ctx.cmap[hCell.id];
+          parts.push("DMC " + info.id + (info.name ? " " + info.name : "") + " (" + (info.count || 0) + " st)");
+        }
+      }
+      return h("div", {className:"tb-status", style:{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
+        h("span", null, parts[0]),
+        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#a1a1aa",flexShrink:0}}, parts[1]),
+        parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
+          ctx.cmap && ctx.pat && ctx.hoverCoords && (function() {
+            var hIdx2 = ctx.hoverCoords.gy * ctx.sW + ctx.hoverCoords.gx;
+            var hCell2 = ctx.pat[hIdx2];
+            if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
+              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #d4d4d8",
+                background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
+            }
+            return null;
+          })(),
+          h("span", {style:{fontSize:10,color:"#71717a"}}, parts[2])
+        )
+      );
+    })(),
 
     h("div", {style:{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}},
       ctx.editHistory.length > 0 && h("button", {

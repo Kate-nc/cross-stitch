@@ -217,6 +217,24 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   // ─── handlePatClick ──────────────────────────────────────────────────────────
+  function doEyedropSample(pat, cmap, sW, sH, halfStitches, gx, gy) {
+    if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+    var idx = gy * sW + gx;
+    var cell = pat[idx];
+    if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
+      state.setSelectedColorId(cell.id);
+    } else {
+      var hs = halfStitches.get(idx);
+      if (hs) {
+        if (hs.fwd && cmap[hs.fwd.id]) { state.setSelectedColorId(hs.fwd.id); }
+        else if (hs.bck && cmap[hs.bck.id]) { state.setSelectedColorId(hs.bck.id); }
+      } else {
+        state.setEyedropperEmpty(true);
+        setTimeout(function() { state.setEyedropperEmpty(false); }, 1200);
+      }
+    }
+  }
+
   function handlePatClick(e) {
     var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
     var cs = state.cs, G = state.G, pcRef = state.pcRef;
@@ -231,6 +249,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var gc = gridCoord(pcRef, e, cs, G, activeTool === "backstitch");
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
+
+    // Temporary eyedropper: Alt+click samples colour without switching tool
+    if (e.altKey && activeTool !== "magicWand" && activeTool !== "lasso") {
+      doEyedropSample(pat, cmap, sW, sH, halfStitches, gx, gy);
+      return;
+    }
 
     if (activeTool === "lasso") {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
@@ -261,21 +285,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
 
     if (activeTool === "eyedropper") {
-      if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
-      var idx0 = gy * sW + gx;
-      var cell = pat[idx0];
-      if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
-        state.setSelectedColorId(cell.id);
-      } else {
-        var hs0 = halfStitches.get(idx0);
-        if (hs0) {
-          if (hs0.fwd && cmap[hs0.fwd.id]) { state.setSelectedColorId(hs0.fwd.id); }
-          else if (hs0.bck && cmap[hs0.bck.id]) { state.setSelectedColorId(hs0.bck.id); }
-        } else {
-          state.setEyedropperEmpty(true);
-          setTimeout(function() { state.setEyedropperEmpty(false); }, 1200);
-        }
-      }
+      doEyedropSample(pat, cmap, sW, sH, halfStitches, gx, gy);
       return;
     }
 
@@ -372,6 +382,14 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
     var selectedColorId = state.selectedColorId, cmap = state.cmap;
     if (!pcRef.current || !pat) return;
+
+    // Temporary eyedropper: Alt+click samples colour without switching tool
+    if (e.altKey && activeTool !== "magicWand" && activeTool !== "lasso") {
+      var gc0 = gridCoord(pcRef, e, cs, G, false);
+      if (gc0) doEyedropSample(pat, cmap, state.sW, state.sH, state.halfStitches, gc0.gx, gc0.gy);
+      return;
+    }
+
     if (!activeTool && !halfStitchTool) return;
     var gc = gridCoord(pcRef, e, cs, G, activeTool === "backstitch");
     if (!gc) return;

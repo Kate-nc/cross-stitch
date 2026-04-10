@@ -152,6 +152,9 @@ window.useCreatorState = function useCreatorState() {
   // Eyedropper feedback
   var _edEmpty = useState(false);    var eyedropperEmpty = _edEmpty[0], setEyedropperEmpty = _edEmpty[1];
 
+  // Context menu
+  var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
+
   // Refs
   var pcRef      = useRef(null);
   var fRef       = useRef(null);
@@ -625,6 +628,8 @@ window.useCreatorState = function useCreatorState() {
     toggleOwned, generate,
     // Eyedropper feedback
     eyedropperEmpty, setEyedropperEmpty,
+    // Context menu
+    contextMenu, setContextMenu,
     // PaletteSwap
     paletteSwap,
     // Magic Wand

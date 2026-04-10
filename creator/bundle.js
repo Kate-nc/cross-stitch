@@ -2379,6 +2379,9 @@ window.useCreatorState = function useCreatorState() {
   // Eyedropper feedback
   var _edEmpty = useState(false);    var eyedropperEmpty = _edEmpty[0], setEyedropperEmpty = _edEmpty[1];
 
+  // Context menu
+  var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
+
   // Refs
   var pcRef      = useRef(null);
   var fRef       = useRef(null);
@@ -2852,6 +2855,8 @@ window.useCreatorState = function useCreatorState() {
     toggleOwned, generate,
     // Eyedropper feedback
     eyedropperEmpty, setEyedropperEmpty,
+    // Context menu
+    contextMenu, setContextMenu,
     // PaletteSwap
     paletteSwap,
     // Magic Wand
@@ -3208,6 +3213,24 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   // ─── handlePatClick ──────────────────────────────────────────────────────────
+  function doEyedropSample(pat, cmap, sW, sH, halfStitches, gx, gy) {
+    if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+    var idx = gy * sW + gx;
+    var cell = pat[idx];
+    if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
+      state.setSelectedColorId(cell.id);
+    } else {
+      var hs = halfStitches.get(idx);
+      if (hs) {
+        if (hs.fwd && cmap[hs.fwd.id]) { state.setSelectedColorId(hs.fwd.id); }
+        else if (hs.bck && cmap[hs.bck.id]) { state.setSelectedColorId(hs.bck.id); }
+      } else {
+        state.setEyedropperEmpty(true);
+        setTimeout(function() { state.setEyedropperEmpty(false); }, 1200);
+      }
+    }
+  }
+
   function handlePatClick(e) {
     var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
     var cs = state.cs, G = state.G, pcRef = state.pcRef;
@@ -3222,6 +3245,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var gc = gridCoord(pcRef, e, cs, G, activeTool === "backstitch");
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
+
+    // Temporary eyedropper: Alt+click samples colour without switching tool
+    if (e.altKey && activeTool !== "magicWand" && activeTool !== "lasso") {
+      doEyedropSample(pat, cmap, sW, sH, halfStitches, gx, gy);
+      return;
+    }
 
     if (activeTool === "lasso") {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
@@ -3252,21 +3281,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
 
     if (activeTool === "eyedropper") {
-      if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
-      var idx0 = gy * sW + gx;
-      var cell = pat[idx0];
-      if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
-        state.setSelectedColorId(cell.id);
-      } else {
-        var hs0 = halfStitches.get(idx0);
-        if (hs0) {
-          if (hs0.fwd && cmap[hs0.fwd.id]) { state.setSelectedColorId(hs0.fwd.id); }
-          else if (hs0.bck && cmap[hs0.bck.id]) { state.setSelectedColorId(hs0.bck.id); }
-        } else {
-          state.setEyedropperEmpty(true);
-          setTimeout(function() { state.setEyedropperEmpty(false); }, 1200);
-        }
-      }
+      doEyedropSample(pat, cmap, sW, sH, halfStitches, gx, gy);
       return;
     }
 
@@ -3363,6 +3378,14 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
     var selectedColorId = state.selectedColorId, cmap = state.cmap;
     if (!pcRef.current || !pat) return;
+
+    // Temporary eyedropper: Alt+click samples colour without switching tool
+    if (e.altKey && activeTool !== "magicWand" && activeTool !== "lasso") {
+      var gc0 = gridCoord(pcRef, e, cs, G, false);
+      if (gc0) doEyedropSample(pat, cmap, state.sW, state.sH, state.halfStitches, gc0.gx, gc0.gy);
+      return;
+    }
+
     if (!activeTool && !halfStitchTool) return;
     var gc = gridCoord(pcRef, e, cs, G, activeTool === "backstitch");
     if (!gc) return;
@@ -5744,6 +5767,123 @@ window.CreatorSidebar = function CreatorSidebar() {
 };
 
 
+/* ─── ContextMenu.js ─── */
+/* creator/ContextMenu.js — Right-click context menu for the pattern canvas.
+   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
+   Depends on: CreatorContext (context.js) */
+
+window.CreatorContextMenu = function CreatorContextMenu() {
+  var ctx = React.useContext(window.CreatorContext);
+  var h = React.createElement;
+  var menu = ctx.contextMenu;
+  if (!menu) return null;
+
+  var cell = menu.cell;
+  var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
+  var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
+
+  // Close menu on outside click or Escape
+  React.useEffect(function() {
+    function close() { ctx.setContextMenu(null); }
+    function onKey(e) { if (e.key === "Escape") close(); }
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", onKey);
+    return function() {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  function item(label, onClick, opts) {
+    opts = opts || {};
+    return h("button", {
+      key: label,
+      onPointerDown: function(e) { e.stopPropagation(); },
+      onClick: function(e) { e.stopPropagation(); onClick(); ctx.setContextMenu(null); },
+      disabled: opts.disabled,
+      style: {
+        display:"block", width:"100%", textAlign:"left",
+        padding:"5px 12px", fontSize:12, fontFamily:"inherit",
+        border:"none", background:opts.disabled ? "transparent" : "transparent",
+        color:opts.disabled ? "#a1a1aa" : "#18181b",
+        cursor:opts.disabled ? "default" : "pointer",
+        borderRadius:4
+      },
+      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "#f4f4f5"; },
+      onMouseLeave: function(e) { e.target.style.background = "transparent"; }
+    }, label);
+  }
+
+  function sep() {
+    return h("div", {style:{height:1,background:"#e4e4e7",margin:"3px 0"}});
+  }
+
+  return h("div", {
+    style:{
+      position:"fixed", left:menu.x, top:menu.y, zIndex:9999,
+      background:"#fff", border:"1px solid #d4d4d8", borderRadius:8,
+      boxShadow:"0 4px 16px rgba(0,0,0,0.12)", padding:"4px 0",
+      minWidth:180, maxWidth:240
+    }
+  },
+    // Header: cell info
+    hasCellColour && h("div", {
+      style:{padding:"5px 12px 4px",fontSize:11,color:"#71717a",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #f4f4f5",marginBottom:2}
+    },
+      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid #d4d4d8",
+        background:"rgb("+cellInfo.rgb+")"}}),
+      "DMC " + cellInfo.id + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
+    ),
+    !hasCellColour && h("div", {
+      style:{padding:"5px 12px 4px",fontSize:11,color:"#a1a1aa",borderBottom:"1px solid #f4f4f5",marginBottom:2}
+    }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
+
+    // Pick this colour
+    item("\uD83D\uDCA7 Pick this colour", function() {
+      if (cellInfo) ctx.setSelectedColorId(cellInfo.id);
+    }, {disabled: !hasCellColour}),
+
+    // Fill from here — switch to fill tool so user can click the area
+    item("\uD83E\uDEA3 Switch to fill tool", function() {
+      ctx.selectStitchType("cross");
+      ctx.setBrushAndActivate("fill");
+    }, {disabled: !ctx.selectedColorId}),
+
+    sep(),
+
+    // Select similar
+    item("\u2728 Select similar (wand)", function() {
+      ctx.setActiveTool("magicWand");
+      ctx.setHalfStitchTool(null);
+      ctx.setBsStart(null);
+      ctx.applyWandSelect(menu.gx, menu.gy, ctx.wandOpMode);
+    }, {disabled: !hasCellColour}),
+
+    // Select all of this colour
+    item("\uD83C\uDFA8 Select all of this colour", function() {
+      if (cellInfo) ctx.selectAllOfColorId(cellInfo.id);
+    }, {disabled: !hasCellColour}),
+
+    sep(),
+
+    // Highlight this colour
+    item(ctx.hiId === (cellInfo ? cellInfo.id : null) ? "\uD83D\uDD0D Remove highlight" : "\uD83D\uDD0E Highlight this colour", function() {
+      if (cellInfo) ctx.setHiId(ctx.hiId === cellInfo.id ? null : cellInfo.id);
+    }, {disabled: !hasCellColour}),
+
+    // Stitch info
+    hasCellColour && item("\u2139\uFE0F Stitch info", function() {
+      if (cellInfo) {
+        ctx.setActiveTool("magicWand");
+        ctx.setHalfStitchTool(null);
+        ctx.applyWandSelect(menu.gx, menu.gy, "replace");
+        ctx.setWandPanel("info");
+      }
+    })
+  );
+};
+
+
 /* ─── PatternTab.js ─── */
 /* creator/PatternTab.js — The pattern view tab (canvas area + palette chips).
    Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
@@ -5902,14 +6042,57 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h("div", {
       ref:ctx.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:ctx.activeTool==="eyedropper"?"copy":ctx.activeTool==="magicWand"?"pointer":ctx.activeTool==="lasso"?"crosshair":ctx.activeTool==="fill"?"cell":(ctx.activeTool==="eraseAll"||ctx.activeTool==="eraseBs")?"not-allowed":(ctx.activeTool||ctx.halfStitchTool)?"crosshair":"default"}
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:ctx.activeTool==="eyedropper"?"copy":ctx.activeTool==="magicWand"?"pointer":ctx.activeTool==="lasso"?"crosshair":ctx.activeTool==="fill"?"cell":(ctx.activeTool==="eraseAll"||ctx.activeTool==="eraseBs")?"not-allowed":(ctx.activeTool||ctx.halfStitchTool)?"crosshair":"default"},
+      onContextMenu: function(e) {
+        // Right-click context menu (except when backstitch has a special right-click action)
+        if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
+        e.preventDefault();
+        var pcRef = ctx.pcRef;
+        if (!pcRef.current || !ctx.pat) return;
+        var gc = gridCoord(pcRef, e, ctx.cs, ctx.G, false);
+        if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
+        var idx = gc.gy * ctx.sW + gc.gx;
+        var cell = ctx.pat[idx];
+        ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
+      }
     },
       h(window.PatternCanvas, null)
     ),
 
+    // Context menu overlay
+    ctx.contextMenu && h(window.CreatorContextMenu, null),
+
     h(window.MagicWandPanel, null),
 
-    h("div", {className:"tb-status"}, statusText),
+    // Enhanced status bar: tool hint + coordinates + colour-under-cursor
+    (function() {
+      var parts = [statusText];
+      if (ctx.hoverCoords && ctx.hoverCoords.gx >= 0 && ctx.hoverCoords.gx < ctx.sW && ctx.hoverCoords.gy >= 0 && ctx.hoverCoords.gy < ctx.sH) {
+        parts.push("X: " + (ctx.hoverCoords.gx + 1) + ", Y: " + (ctx.hoverCoords.gy + 1));
+        var hIdx = ctx.hoverCoords.gy * ctx.sW + ctx.hoverCoords.gx;
+        var hCell = ctx.pat[hIdx];
+        if (hCell && hCell.id !== "__skip__" && hCell.id !== "__empty__" && ctx.cmap && ctx.cmap[hCell.id]) {
+          var info = ctx.cmap[hCell.id];
+          parts.push("DMC " + info.id + (info.name ? " " + info.name : "") + " (" + (info.count || 0) + " st)");
+        }
+      }
+      return h("div", {className:"tb-status", style:{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
+        h("span", null, parts[0]),
+        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#a1a1aa",flexShrink:0}}, parts[1]),
+        parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
+          ctx.cmap && ctx.pat && ctx.hoverCoords && (function() {
+            var hIdx2 = ctx.hoverCoords.gy * ctx.sW + ctx.hoverCoords.gx;
+            var hCell2 = ctx.pat[hIdx2];
+            if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
+              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #d4d4d8",
+                background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
+            }
+            return null;
+          })(),
+          h("span", {style:{fontSize:10,color:"#71717a"}}, parts[2])
+        )
+      );
+    })(),
 
     h("div", {style:{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}},
       ctx.editHistory.length > 0 && h("button", {

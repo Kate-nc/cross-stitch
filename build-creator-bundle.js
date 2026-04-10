@@ -26,6 +26,7 @@ const ORDER = [
   'ToolStrip.js',
   'MagicWandPanel.js',
   'Sidebar.js',
+  'ContextMenu.js',
   'PatternTab.js',
   'ProjectTab.js',
   'LegendTab.js',
