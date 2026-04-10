@@ -1277,6 +1277,8 @@ window.useCreatorState = function useCreatorState() {
   var userActedRef = useRef(false);
   var stripRef   = useRef(null);
   var overflowRef= useRef(null);
+  var workerRef      = useRef(null); // null | Worker | 'unavailable'
+  var applyResultRef = useRef(null); // updated each render, captures fresh state
 
   var G = 28;
 
@@ -1475,34 +1477,113 @@ window.useCreatorState = function useCreatorState() {
   }
 
   // ─── Generate callback ───────────────────────────────────────────────────────
+
+  // Updated on every render so the worker/fallback result handler always sees
+  // fresh captured values for hasGenerated, sW, etc.
+  applyResultRef.current = function(result) {
+    setConfettiData(result.confettiData);
+    setPal(result.pal); setCmap(result.cmap); setPat(result.mapped);
+    setDone(new Uint8Array(result.mapped.length));
+    setParkMarkers([]); setTab("pattern"); setThreadOwned({});
+    setEditHistory([]); setRedoHistory([]);
+    if (!hasGenerated) {
+      setDimOpen(false); setPalOpen(false); setFabOpen(false);
+      setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
+      setHasGenerated(true);
+    }
+    var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
+    setTimeout(function() { setZoom(z); }, 0);
+    setBusy(false);
+  };
+
+  // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
+  // Workers are blocked (e.g., file:// protocol).
+  function getOrCreateWorker() {
+    if (workerRef.current === 'unavailable') return null;
+    if (!workerRef.current) {
+      try {
+        var w = new Worker('generate-worker.js');
+        w.onmessage = function(e) {
+          var msg = e.data;
+          if (msg.type === 'error') {
+            console.error('Worker generation error:', msg.message, msg.stack || '');
+            setBusy(false);
+            return;
+          }
+          if (msg.type === 'result') {
+            applyResultRef.current(msg);
+          }
+        };
+        w.onerror = function(err) {
+          console.error('Worker uncaught error:', err.message);
+          setBusy(false);
+        };
+        workerRef.current = w;
+      } catch (ex) {
+        console.warn('Web Worker unavailable, falling back to main thread:', ex);
+        workerRef.current = 'unavailable';
+        return null;
+      }
+    }
+    return workerRef.current;
+  }
+
   var generate = useCallback(function() {
     if (!img) return;
     setBusy(true); setHiId(null); setExportPage(0);
-    setTimeout(function() {
-      try {
-        var result = runGenerationPipeline(img, {
-          sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat,
-          dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
-          minSt: minSt, smooth: smooth, smoothType: smoothType,
-          stitchCleanup: stitchCleanup, allowBlends: allowBlends,
-        });
-        if (!result) { setBusy(false); return; }
-        setConfettiData(result.confettiData);
-        setPal(result.pal); setCmap(result.cmap); setPat(result.pat);
-        setDone(new Uint8Array(result.pat.length));
-        setParkMarkers([]); setTab("pattern"); setThreadOwned({});
-        setEditHistory([]); setRedoHistory([]);
-        if (!hasGenerated) {
-          setDimOpen(false); setPalOpen(false); setFabOpen(false);
-          setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
-          setHasGenerated(true);
-        }
-        var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
-        setTimeout(function() { setZoom(z); }, 0);
-      } catch (err) { console.error(err); }
-      setBusy(false);
-    }, 50);
+
+    // Extract pixel data here (requires canvas — must stay on main thread)
+    var c = document.createElement("canvas");
+    c.width = sW; c.height = sH;
+    var cx = c.getContext("2d");
+    cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
+    cx.drawImage(img, 0, 0, sW, sH);
+    cx.filter = "none";
+    var imageData = cx.getImageData(0, 0, sW, sH);
+
+    var worker = getOrCreateWorker();
+    if (!worker) {
+      // Fallback: run synchronously on main thread (e.g. file:// protocol)
+      setTimeout(function() {
+        try {
+          var result = runGenerationPipeline(img, {
+            sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat,
+            dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+            minSt: minSt, smooth: smooth, smoothType: smoothType,
+            stitchCleanup: stitchCleanup, allowBlends: allowBlends,
+          });
+          if (!result) { setBusy(false); return; }
+          applyResultRef.current({ mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData });
+        } catch (err) { console.error(err); setBusy(false); }
+      }, 50);
+      return;
+    }
+
+    // Post to worker — transfer the pixel buffer (zero-copy)
+    worker.postMessage({
+      type: 'generate',
+      pixels: imageData.data.buffer,
+      width: sW,
+      height: sH,
+      settings: {
+        maxC: maxC, dith: dith, allowBlends: allowBlends,
+        skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+        minSt: minSt, smooth: smooth, smoothType: smoothType,
+        stitchCleanup: stitchCleanup,
+      },
+    }, [imageData.data.buffer]);
+
   }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, hasGenerated, allowBlends]);
+
+  // Terminate the worker when the component unmounts to prevent memory leaks
+  useEffect(function() {
+    return function() {
+      if (workerRef.current && workerRef.current !== 'unavailable') {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
+    };
+  }, []);
 
   // ─── Palette swap integration ────────────────────────────────────────────────
   var paletteSwap = usePaletteSwap({
