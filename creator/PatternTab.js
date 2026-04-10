@@ -48,6 +48,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     var isUnused = ctx.isScratchMode && p.count === 0;
     var chip = h("div", {
       key: p.id,
+      className: "creator-palette-chip",
       role: "button",
       tabIndex: 0,
       "aria-pressed": ips || ihs,
@@ -79,10 +80,11 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         opacity: isUnused ? 0.6 : 1
       }
     },
-      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}),
+      h("span", {className:"creator-palette-chip-swatch",style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}),
       h("span", {style:{fontFamily:"monospace",color:"#71717a"}}, p.symbol),
       h("span", {style:{fontWeight:500}}, p.id),
       isUnused && h("span", {
+        className:"creator-palette-chip-remove",
         onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
         style:{fontSize:9,color:"#a1a1aa",cursor:"pointer",marginLeft:2,lineHeight:1}
       }, "\xD7")
@@ -168,7 +170,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     ),
 
     h("div", {style:{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}},
-      h("div", {style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
+      h("div", {className:"creator-pattern-chips",style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
     )
   );
 };

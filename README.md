@@ -103,6 +103,13 @@ npm install
 npm test
 ```
 
+For touch-focused browser automation across the Creator, Tracker, and Stash Manager, install the Playwright browser once and then run the end-to-end suite:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
 ## File Structure
 
 ```

@@ -29,8 +29,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       if (ctx.overflowRef.current && !ctx.overflowRef.current.contains(e.target))
         ctx.setOverflowOpen(false);
     }
-    document.addEventListener("mousedown", close);
-    return function() { document.removeEventListener("mousedown", close); };
+    document.addEventListener("pointerdown", close);
+    return function() { document.removeEventListener("pointerdown", close); };
   }, [ctx.overflowOpen]);
 
   if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;

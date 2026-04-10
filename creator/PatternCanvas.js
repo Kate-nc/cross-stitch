@@ -41,8 +41,8 @@ window.PatternCanvas = function PatternCanvas() {
   }, [
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
     ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
-    ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool
-  ctx.showCleanupDiff, ctx.cleanupDiff
+    ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool,
+    ctx.showCleanupDiff, ctx.cleanupDiff
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
@@ -67,11 +67,18 @@ window.PatternCanvas = function PatternCanvas() {
 
   return h("canvas", {
     ref: ctx.pcRef,
-    style: { display: "block" },
-    onMouseDown:  ctx.handlePatMouseDown,
-    onMouseUp:    ctx.handlePatMouseUp,
-    onMouseMove:  ctx.handlePatMouseMove,
-    onMouseLeave: ctx.handlePatMouseLeave,
+    style: {
+      display: "block",
+      touchAction: "none",
+      userSelect: "none",
+      WebkitUserSelect: "none",
+      WebkitTouchCallout: "none"
+    },
+    onPointerDown:   ctx.handlePatPointerDown,
+    onPointerUp:     ctx.handlePatPointerUp,
+    onPointerMove:   ctx.handlePatPointerMove,
+    onPointerLeave:  ctx.handlePatPointerLeave,
+    onPointerCancel: ctx.handlePatPointerCancel,
     onContextMenu: function(e) {
       if (ctx.activeTool === "backstitch" && ctx.bsStart) {
         e.preventDefault();
