@@ -133,6 +133,10 @@ window.useCreatorState = function useCreatorState() {
   var _prevStats= useState(null);    var previewStats = _prevStats[0], setPreviewStats = _prevStats[1];
   var _confetti = useState(null);    var confettiData = _confetti[0], setConfettiData = _confetti[1];
   var _prevHeat = useState(null);    var previewHeatmap = _prevHeat[0], setPreviewHeatmap = _prevHeat[1];
+  var _prevMapped = useState(null);  var previewMapped = _prevMapped[0], setPreviewMapped = _prevMapped[1];
+  var _prevColors = useState(null);  var previewColors = _prevColors[0], setPreviewColors = _prevColors[1];
+  var _prevDims   = useState(null);  var previewDims   = _prevDims[0],   setPreviewDims   = _prevDims[1];
+  var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var previewTimerRef = useRef(null);
 
   // Project identity
@@ -551,6 +555,8 @@ window.useCreatorState = function useCreatorState() {
     altOpen, setAltOpen, previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
     previewHeatmap, setPreviewHeatmap,
+    previewMapped, setPreviewMapped, previewColors, setPreviewColors,
+    previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
     previewTimerRef, projectName, setProjectName,
     namePromptOpen, setNamePromptOpen,
     pcRef, fRef, scrollRef, expRef, loadRef,

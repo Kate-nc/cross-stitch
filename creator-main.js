@@ -27,25 +27,153 @@ function confettiTier(pct){
   return{color:"#dc2626",label:"High confetti"};
 }
 
-function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, width, height}) {
+function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, width, height}) {
   const [splitPos, setSplitPos] = useState(50);
   const splitPosRef = useRef(50);
   const containerRef = useRef(null);
   const dragging = useRef(false);
-  // Feature 2: auto-sweep
+  // auto-sweep
   const [sweeping, setSweeping] = useState(false);
   const sweepAnimRef = useRef(null);
   const sweepDirRef = useRef(1);
-  // Feature 1: zoom lens
+  // zoom lens
   const [zoomPos, setZoomPos] = useState(null);
   const altHeld = useRef(false);
   const [altDown, setAltDown] = useState(false);
-  // Feature 3: diff overlay
+  // diff overlay
   const [showDiff, setShowDiff] = useState(false);
   const [diffUrl, setDiffUrl] = useState(null);
   const prevPreviewRef = useRef(null);
-  // Feature 4: heatmap overlay
+  // heatmap overlay
   const [showHeatmap, setShowHeatmap] = useState(false);
+
+  useEffect(function() {
+    if (!sweeping) { if (sweepAnimRef.current) cancelAnimationFrame(sweepAnimRef.current); return; }
+    var last = null;
+    function tick(ts) {
+      if (last == null) last = ts;
+      var dt = ts - last; last = ts;
+      splitPosRef.current += sweepDirRef.current * 80 * dt / 1000;
+      if (splitPosRef.current >= 90) { splitPosRef.current = 90; sweepDirRef.current = -1; }
+      else if (splitPosRef.current <= 10) { splitPosRef.current = 10; sweepDirRef.current = 1; }
+      setSplitPos(splitPosRef.current);
+      sweepAnimRef.current = requestAnimationFrame(tick);
+    }
+    sweepAnimRef.current = requestAnimationFrame(tick);
+    return function() { if (sweepAnimRef.current) cancelAnimationFrame(sweepAnimRef.current); };
+  }, [sweeping]);
+
+  useEffect(function() {
+    function onKeyDown(e) { if (e.key === 'Alt') { altHeld.current = true; setAltDown(true); } }
+    function onKeyUp(e) { if (e.key === 'Alt') { altHeld.current = false; setAltDown(false); setZoomPos(null); } }
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keyup', onKeyUp, true);
+    return function() { window.removeEventListener('keydown', onKeyDown, true); window.removeEventListener('keyup', onKeyUp, true); };
+  }, []);
+
+  useEffect(function() {
+    if (!previewSrc) { prevPreviewRef.current = null; setDiffUrl(null); return; }
+    if (!prevPreviewRef.current || prevPreviewRef.current === previewSrc) { prevPreviewRef.current = previewSrc; return; }
+    var prevSrc = prevPreviewRef.current;
+    prevPreviewRef.current = previewSrc;
+    var imgA = new Image(), imgB = new Image();
+    var loaded = 0;
+    function onLoad() {
+      if (++loaded < 2) return;
+      var w = imgB.naturalWidth, h = imgB.naturalHeight;
+      if (!w || !h) return;
+      var ca = document.createElement('canvas'); ca.width = w; ca.height = h;
+      var cxa = ca.getContext('2d'); cxa.drawImage(imgA, 0, 0, w, h);
+      var da = cxa.getImageData(0, 0, w, h).data;
+      var cb = document.createElement('canvas'); cb.width = w; cb.height = h;
+      var cxb = cb.getContext('2d'); cxb.drawImage(imgB, 0, 0, w, h);
+      var db = cxb.getImageData(0, 0, w, h).data;
+      var out = cxb.createImageData(w, h); var od = out.data;
+      for (var i = 0; i < da.length; i += 4) {
+        if (Math.abs(da[i]-db[i]) + Math.abs(da[i+1]-db[i+1]) + Math.abs(da[i+2]-db[i+2]) > 12) {
+          od[i] = 255; od[i+1] = 80; od[i+2] = 0; od[i+3] = 200;
+        }
+      }
+      cxb.putImageData(out, 0, 0);
+      setDiffUrl(cb.toDataURL());
+    }
+    imgA.onload = onLoad; imgB.onload = onLoad;
+    imgA.src = prevSrc; imgB.src = previewSrc;
+  }, [previewSrc]);
+
+  useEffect(function() {
+    if (!diffUrl) return;
+    setShowDiff(true);
+    var t = setTimeout(function() { setShowDiff(false); }, 1500);
+    return function() { clearTimeout(t); };
+  }, [diffUrl]);
+
+  function handlePointerMove(e) {
+    if (altHeld.current && containerRef.current) {
+      var rect = containerRef.current.getBoundingClientRect();
+      if (rect.width > 0) setZoomPos({cx: e.clientX - rect.left, cy: e.clientY - rect.top, W: rect.width, H: rect.height});
+    } else if (zoomPos) { setZoomPos(null); }
+    if (!dragging.current || !containerRef.current) return;
+    var rect2 = containerRef.current.getBoundingClientRect();
+    var newPos = Math.max(5, Math.min(95, ((e.clientX - rect2.left) / rect2.width) * 100));
+    splitPosRef.current = newPos; setSplitPos(newPos);
+  }
+
+  var LENS = 140, ZOOM = 2.5;
+
+  return (
+    <div>
+      <div ref={containerRef}
+        style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:altDown?"zoom-in":"ew-resize",borderRadius:8,border:"0.5px solid #e4e4e7",userSelect:"none",touchAction:"none"}}
+        onPointerDown={function(e){if(altHeld.current)return;dragging.current=true;setSweeping(false);e.currentTarget.setPointerCapture(e.pointerId);}}
+        onPointerMove={handlePointerMove}
+        onPointerUp={function(e){dragging.current=false;if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);}}
+        onPointerLeave={function(){if(!dragging.current)setZoomPos(null);}}>
+        <img src={originalSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt="Original"/>
+        <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`}}>
+          <img src={previewSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>
+        </div>
+        {showDiff&&diffUrl&&<img src={diffUrl} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",pointerEvents:"none",zIndex:4}} alt="" aria-hidden="true"/>}
+        {showHeatmap&&heatmapSrc&&<img src={heatmapSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
+        {highlightSrc&&<img src={highlightSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:6}} alt="" aria-hidden="true"/>}
+        <div style={{position:"absolute",top:0,bottom:0,left:`${splitPos}%`,width:3,background:"#fff",boxShadow:"0 0 4px rgba(0,0,0,0.3)",transform:"translateX(-50%)",zIndex:2,pointerEvents:"none"}}>
+          <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:28,height:28,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#71717a"}}>⟺</div>
+        </div>
+        <span style={{position:"absolute",top:8,left:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>Original</span>
+        <span style={{position:"absolute",top:8,right:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>Preview</span>
+        {zoomPos&&(function(){
+          var cx=zoomPos.cx,cy=zoomPos.cy,W=zoomPos.W,H=zoomPos.H;
+          var bgSzW=W*ZOOM,bgSzH=H*ZOOM;
+          var bgX=-(cx*ZOOM-LENS/2),bgY=-(cy*ZOOM-LENS/2);
+          var lensL=Math.max(0,Math.min(W-LENS,cx-LENS/2));
+          var lensT=Math.max(0,Math.min(H-LENS,cy-LENS/2));
+          var splitInLensPct=Math.max(0,Math.min(100,((splitPos/100*W)-lensL)/LENS*100));
+          return (
+            <div style={{position:"absolute",left:lensL,top:lensT,width:LENS,height:LENS,borderRadius:"50%",overflow:"hidden",border:"2px solid #fff",boxShadow:"0 2px 12px rgba(0,0,0,0.4)",zIndex:10,pointerEvents:"none"}}>
+              <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,backgroundImage:`url('${originalSrc}')`,backgroundSize:`${bgSzW}px ${bgSzH}px`,backgroundPosition:`${bgX}px ${bgY}px`,backgroundRepeat:"no-repeat"}}/>
+              <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitInLensPct}%)`,backgroundImage:`url('${previewSrc}')`,backgroundSize:`${bgSzW}px ${bgSzH}px`,backgroundPosition:`${bgX}px ${bgY}px`,backgroundRepeat:"no-repeat",imageRendering:"pixelated"}}/>
+            </div>
+          );
+        })()}
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6,flexWrap:"wrap"}}>
+        <button type="button" onClick={function(){setSweeping(function(s){if(!s){sweepDirRef.current=1;splitPosRef.current=splitPos;}return !s;});}}
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:sweeping?"#0d9488":"#fafafa",color:sweeping?"#fff":"#71717a",fontWeight:500}}>
+          {sweeping?"⏸ Pause":"▶ Auto-sweep"}
+        </button>
+        {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#ea580c":"#e4e4e7"),borderRadius:6,background:showDiff?"#fff7ed":"#fafafa",color:showDiff?"#ea580c":"#71717a",fontWeight:500}}>
+          {showDiff?"Hide changes":"Show changes"}
+        </button>}
+        {heatmapSrc&&<button type="button" onClick={function(){setShowHeatmap(function(h){return !h;});}}
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#dc2626":"#e4e4e7"),borderRadius:6,background:showHeatmap?"#fef2f2":"#fafafa",color:showHeatmap?"#dc2626":"#71717a",fontWeight:500}}>
+          {showHeatmap?"Hide heatmap":"🔥 Confetti heatmap"}
+        </button>}
+        <span style={{fontSize:10,color:"#a1a1aa"}}>Hold Alt to zoom</span>
+      </div>
+    </div>
+  );
+}
 
   // Sweep via requestAnimationFrame
   useEffect(function() {
@@ -254,6 +382,27 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           {state.tab!=="stitch"&&<div style={{flex:state.sidebarOpen?"0 0 280px":"0 0 auto",display:"flex",flexDirection:"column",gap:state.sidebarOpen?10:0,overflow:"hidden"}}>
             {state.pat&&<button onClick={()=>state.setSidebarOpen(!state.sidebarOpen)} style={{padding:"5px 10px",fontSize:12,fontWeight:500,background:"#f4f4f5",border:"0.5px solid #e4e4e7",borderRadius:8,cursor:"pointer",color:"#71717a",alignSelf:state.sidebarOpen?"flex-end":"flex-start",whiteSpace:"nowrap"}}>{state.sidebarOpen?"◄ Hide":"► Settings"}</button>}
             <window.CreatorSidebar/>
+            {!state.pat&&state.img&&<div className="card" style={{overflow:"hidden",flexShrink:0}}>
+              <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#71717a"}}>Original Image</div>
+              <div style={{position:"relative"}} ref={state.cropRef} onMouseDown={canvas.handleCropMouseDown} onMouseMove={canvas.handleCropMouseMove} onMouseUp={canvas.handleCropMouseUp} onMouseLeave={canvas.handleCropMouseUp}>
+                <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.isCropping?"crosshair":(state.pickBg?"crosshair":"default"),opacity:state.isCropping?0.7:1}} onClick={canvas.srcClick}/>
+                {state.isCropping&&state.cropRect&&<div style={{position:"absolute",left:state.cropRect.x,top:state.cropRect.y,width:state.cropRect.w,height:state.cropRect.h,border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
+              </div>
+              {state.isCropping?<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}}>
+                <span style={{fontSize:10,color:"#a1a1aa"}}>Draw a rectangle</span>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>{state.setIsCropping(false);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Cancel</button>
+                  <button onClick={canvas.applyCrop} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}}>Apply</button>
+                </div>
+              </div>:<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}}>
+                <span style={{fontSize:10,color:"#a1a1aa"}}>{state.origW}×{state.origH}px</span>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Crop</button>
+                  <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Change</button>
+                </div>
+              </div>}
+              {state.pickBg&&<div style={{padding:"5px 10px",fontSize:10,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}
+            </div>}
           </div>}
           <div style={{flex:1,minWidth:0}}>
             {state.pat&&state.pal&&<div>
@@ -263,31 +412,14 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               <window.CreatorExportTab/>
             </div>}
             {!state.pat&&state.img&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
-              <div className="card">
+              {!state.previewUrl&&<div className="card" style={{overflow:"hidden"}}>
                 <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a"}}>Original Image</div>
-                <div style={{position:"relative"}} ref={state.cropRef} onMouseDown={canvas.handleCropMouseDown} onMouseMove={canvas.handleCropMouseMove} onMouseUp={canvas.handleCropMouseUp} onMouseLeave={canvas.handleCropMouseUp}>
-                  <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.isCropping?"crosshair":(state.pickBg?"crosshair":"default"),opacity:state.isCropping?0.7:1}} onClick={canvas.srcClick}/>
-                  {state.isCropping&&state.cropRect&&<div style={{position:"absolute",left:state.cropRect.x,top:state.cropRect.y,width:state.cropRect.w,height:state.cropRect.h,border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
-                </div>
-                {state.isCropping?<div style={{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}}>
-                  <span style={{fontSize:11,color:"#a1a1aa"}}>Draw a rectangle</span>
-                  <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>{state.setIsCropping(false);state.setCropRect(null);}} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Cancel</button>
-                    <button onClick={canvas.applyCrop} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}}>Apply</button>
-                  </div>
-                </div>:<div style={{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}}>
-                  <span style={{fontSize:11,color:"#a1a1aa"}}>{state.origW}×{state.origH}px</span>
-                  <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Crop</button>
-                    <button onClick={()=>state.fRef.current.click()} style={{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}}>Change</button>
-                  </div>
-                </div>}
-                {state.pickBg&&<div style={{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}
-              </div>
+                <img src={state.img.src} style={{width:"100%",display:"block"}} alt="Original"/>
+              </div>}
               {state.previewUrl&&<div className="card">
-                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a"}}>Preview Comparison</div>
+                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a"}}>Preview</div>
                 <div style={{padding:"0 14px 10px"}}>
-                  <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} width={state.sW} height={state.sH}/>
+                  <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH}/>
                 </div>
               </div>}
               {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
@@ -319,6 +451,38 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                     </div>
                   );
                 })()}
+                {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid #e4e4e7"}}>
+                  <div style={{fontSize:10,fontWeight:600,color:"#a1a1aa",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
+                  <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>
+                    {state.previewColors.map(function(pcol){
+                      var sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
+                      var n=(typeof DMC!=='undefined'&&Array.isArray(DMC))?DMC.find(function(d){return d.id===pcol.id;}):null;
+                      return(
+                        <div key={pcol.id}
+                          style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",borderRadius:4,cursor:"default"}}
+                          onMouseEnter={function(){
+                            if(!state.previewMapped||!state.previewDims)return;
+                            var pw=state.previewDims.pw,ph=state.previewDims.ph;
+                            var hc=document.createElement('canvas');hc.width=pw;hc.height=ph;
+                            var hcx=hc.getContext('2d');
+                            var hi=hcx.createImageData(pw,ph);var hd=hi.data;
+                            var tid=pcol.id;
+                            for(var k=0;k<state.previewMapped.length;k++){var kidx=k*4;var km=state.previewMapped[k];
+                              if(km.id===tid){hd[kidx]=255;hd[kidx+1]=255;hd[kidx+2]=255;hd[kidx+3]=180;}
+                              else if(km.id!=='__skip__'&&km.id!=='__empty__'){hd[kidx]=0;hd[kidx+1]=0;hd[kidx+2]=0;hd[kidx+3]=130;}
+                            }
+                            hcx.putImageData(hi,0,0);state.setPreviewHighlight(hc.toDataURL());
+                          }}
+                          onMouseLeave={function(){state.setPreviewHighlight(null);}}>
+                          <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid rgba(0,0,0,0.12)"}}/>
+                          <span style={{fontSize:10,fontWeight:600,color:"#71717a",flexShrink:0,minWidth:28}}>{pcol.id}</span>
+                          <span style={{fontSize:10,color:"#a1a1aa",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
+                          <span style={{fontSize:10,fontWeight:600,color:"#18181b",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString()}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>}
               </div>}
             </div>}
           </div>
