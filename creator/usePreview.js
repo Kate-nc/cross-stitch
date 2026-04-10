@@ -23,29 +23,11 @@ window.usePreview = function usePreview(state) {
       if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);
       else applyMedianFilter(raw, pw, ph, smooth);
     }
-    var p = quantize(raw, pw, ph, maxC); if (!p.length) return;
-    var saliencyMapPrev = generateSaliencyMap(raw, pw, ph);
-    var cdt = dith && stitchCleanup.smoothDithering ? 4.0 : 0.0;
-    var mapped = dith
-      ? doDither(raw, pw, ph, p, allowBlends, saliencyMapPrev, { confettiDitherThreshold: cdt })
-      : doMap(raw, pw, ph, p, allowBlends);
-    if (skipBg) {
-      var bl = rgbToLab(bgCol[0], bgCol[1], bgCol[2]);
-      for (var i = 0; i < mapped.length; i++) {
-        if (dE(rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), bl) < bgTh) {
-          mapped[i] = { type: "skip", id: "__skip__", rgb: [255, 255, 255] };
-        }
-      }
-    }
-    var confettiRaw = analyzeConfetti(mapped, pw, ph);
-    if (stitchCleanup.enabled) {
-      var cleanupStrength = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
-        ? stitchCleanup.strength : "balanced";
-      var sp = STRENGTH_MAP[cleanupStrength];
-      var edgeMapPrev = stitchCleanup.protectDetails ? generateEdgeMap(raw, pw, ph) : null;
-      mapped = removeOrphanStitches(mapped, pw, ph, sp.maxOrphanSize, edgeMapPrev, saliencyMapPrev, { saliencyMultiplier: sp.saliencyMultiplier });
-    }
-    var confettiClean = stitchCleanup.enabled ? analyzeConfetti(mapped, pw, ph) : null;
+    var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup });
+    if (!pipelineResult) return;
+    var mapped = pipelineResult.mapped;
+    var confettiRaw = pipelineResult.confettiRaw;
+    var confettiClean = pipelineResult.confettiClean;
 
     var stitchable = 0, skipped = 0, colorCounts = {};
     for (var j = 0; j < mapped.length; j++) {

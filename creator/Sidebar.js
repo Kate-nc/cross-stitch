@@ -10,14 +10,20 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Inline Toggle component (used only in Stitch Cleanup section) ──────────
   function Toggle(props) {
-    return h("label", {
+    return h("div", {
+      role: "switch",
+      tabIndex: 0,
+      "aria-checked": props.checked,
+      onClick: function() { props.onChange(!props.checked); },
+      onKeyDown: function(e) {
+        if (e.repeat) return;
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          props.onChange(!props.checked);
+        }
+      },
       style:{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:8,userSelect:"none"}
     },
-      h("input", {
-        type:"checkbox", checked:props.checked,
-        onChange:function(e){props.onChange(e.target.checked);},
-        style:{position:"absolute",opacity:0,width:1,height:1,margin:0,padding:0,pointerEvents:"none"}
-      }),
       h("span", {"aria-hidden":"true", style:{position:"relative",display:"inline-block",width:32,height:18,flexShrink:0}},
         h("span", {style:{display:"block",position:"absolute",inset:0,borderRadius:9,
           background:props.checked?"#0d9488":"#d4d4d8",transition:"background 0.15s"}}),
