@@ -225,12 +225,23 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
 
 
 function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
-  const state = useCreatorState();
-  const history = useEditHistory(state);
-  const canvas = useCanvasInteraction(state, history);
-  const io = useProjectIO(state, history, {onSwitchToTrack});
-  usePreview(state);
-  useKeyboardShortcuts(state, history, io);
+  const useCreatorStateHook = window.useCreatorState;
+  const useEditHistoryHook = window.useEditHistory;
+  const useCanvasInteractionHook = window.useCanvasInteraction;
+  const useProjectIOHook = window.useProjectIO;
+  const usePreviewHook = window.usePreview;
+  const useKeyboardShortcutsHook = window.useKeyboardShortcuts;
+
+  if (!useCreatorStateHook || !useEditHistoryHook || !useCanvasInteractionHook || !useProjectIOHook || !usePreviewHook || !useKeyboardShortcutsHook) {
+    throw new Error("Creator dependencies failed to load. Refresh the page to fetch the latest creator bundle.");
+  }
+
+  const state = useCreatorStateHook();
+  const history = useEditHistoryHook(state);
+  const canvas = useCanvasInteractionHook(state, history);
+  const io = useProjectIOHook(state, history, {onSwitchToTrack});
+  usePreviewHook(state);
+  useKeyboardShortcutsHook(state, history, io);
 
   const ctx = {...state, ...history, ...canvas, ...io, isActive};
 
