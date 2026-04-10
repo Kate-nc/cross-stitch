@@ -1313,7 +1313,7 @@ function usePaletteSwap(props) {
 
   // ───────────── Sidebar: Shift Colours Section ─────────────
   var shiftSection = React.createElement(Section, {
-    title: "Shift Colours", defaultOpen: true
+    title: "Shift Colours", defaultOpen: false
   },
     React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginTop: 8 } },
       React.createElement(HueSpectrumBar, null),

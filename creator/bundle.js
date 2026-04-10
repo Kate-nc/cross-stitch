@@ -6039,13 +6039,13 @@ window.CreatorSidebar = function CreatorSidebar() {
   var actionBtn = ctx.isScratchMode
     ? h("button", {
         onClick:function(){ctx.initBlankGrid(ctx.sW, ctx.sH);},
-        style:{padding:"12px 20px",fontSize:15,fontWeight:600,background:"#dc2626",color:"#fff",border:"none",borderRadius:10,cursor:"pointer"}
+        style:{padding:"8px 14px",fontSize:12,fontWeight:600,background:"#dc2626",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}
       }, "Reset Canvas")
     : h("button", {
         onClick:ctx.generate, disabled:ctx.busy,
-        style:{padding:"12px 20px",fontSize:15,fontWeight:600,
+        style:{padding:"8px 14px",fontSize:12,fontWeight:600,
           background:ctx.busy?"#94a3b8":"#0d9488",color:"#fff",
-          border:"none",borderRadius:10,cursor:ctx.busy?"wait":"pointer"}
+          border:"none",borderRadius:8,cursor:ctx.busy?"wait":"pointer"}
       }, ctx.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
   return h(React.Fragment, null,
