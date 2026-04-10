@@ -27,7 +27,7 @@ function confettiTier(pct){
   return{color:"#dc2626",label:"High confetti"};
 }
 
-function ComparisonSlider({originalSrc, previewSrc, width, height}) {
+function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, width, height}) {
   const [splitPos, setSplitPos] = useState(50);
   const splitPosRef = useRef(50);
   const containerRef = useRef(null);
@@ -44,6 +44,8 @@ function ComparisonSlider({originalSrc, previewSrc, width, height}) {
   const [showDiff, setShowDiff] = useState(false);
   const [diffUrl, setDiffUrl] = useState(null);
   const prevPreviewRef = useRef(null);
+  // Feature 4: heatmap overlay
+  const [showHeatmap, setShowHeatmap] = useState(false);
 
   // Sweep via requestAnimationFrame
   useEffect(function() {
@@ -144,6 +146,7 @@ function ComparisonSlider({originalSrc, previewSrc, width, height}) {
           <img src={previewSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>
         </div>
         {showDiff&&diffUrl&&<img src={diffUrl} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",pointerEvents:"none",zIndex:4}} alt="" aria-hidden="true"/>}
+        {showHeatmap&&heatmapSrc&&<img src={heatmapSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
         <div style={{position:"absolute",top:0,bottom:0,left:`${splitPos}%`,width:3,background:"#fff",boxShadow:"0 0 4px rgba(0,0,0,0.3)",transform:"translateX(-50%)",zIndex:2,pointerEvents:"none"}}>
           <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:28,height:28,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#71717a"}}>⟺</div>
         </div>
@@ -169,9 +172,13 @@ function ComparisonSlider({originalSrc, previewSrc, width, height}) {
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:sweeping?"#0d9488":"#fafafa",color:sweeping?"#fff":"#71717a",fontWeight:500}}>
           {sweeping?"⏸ Pause":"▶ Auto-sweep"}
         </button>
-        {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
+        {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}  
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#ea580c":"#e4e4e7"),borderRadius:6,background:showDiff?"#fff7ed":"#fafafa",color:showDiff?"#ea580c":"#71717a",fontWeight:500}}>
           {showDiff?"Hide changes":"Show changes"}
+        </button>}
+        {heatmapSrc&&<button type="button" onClick={function(){setShowHeatmap(function(h){return !h;});}}
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#dc2626":"#e4e4e7"),borderRadius:6,background:showHeatmap?"#fef2f2":"#fafafa",color:showHeatmap?"#dc2626":"#71717a",fontWeight:500}}>
+          {showHeatmap?"Hide heatmap":"🔥 Confetti heatmap"}
         </button>}
         <span style={{fontSize:10,color:"#a1a1aa"}}>Hold Alt to zoom</span>
       </div>
@@ -280,7 +287,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               {state.previewUrl&&<div className="card">
                 <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a"}}>Preview Comparison</div>
                 <div style={{padding:"0 14px 10px"}}>
-                  <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} width={state.sW} height={state.sH}/>
+                  <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} width={state.sW} height={state.sH}/>
                 </div>
               </div>}
               {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>

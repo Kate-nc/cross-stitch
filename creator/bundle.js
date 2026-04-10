@@ -1259,6 +1259,7 @@ window.useCreatorState = function useCreatorState() {
   var _prevUrl  = useState(null);    var previewUrl = _prevUrl[0], setPreviewUrl = _prevUrl[1];
   var _prevStats= useState(null);    var previewStats = _prevStats[0], setPreviewStats = _prevStats[1];
   var _confetti = useState(null);    var confettiData = _confetti[0], setConfettiData = _confetti[1];
+  var _prevHeat = useState(null);    var previewHeatmap = _prevHeat[0], setPreviewHeatmap = _prevHeat[1];
   var previewTimerRef = useRef(null);
 
   // Project identity
@@ -1676,6 +1677,7 @@ window.useCreatorState = function useCreatorState() {
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen, previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
+    previewHeatmap, setPreviewHeatmap,
     previewTimerRef, projectName, setProjectName,
     namePromptOpen, setNamePromptOpen,
     pcRef, fRef, scrollRef, expRef, loadRef,
@@ -2774,6 +2776,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
    Expects state object from useCreatorState. */
 
 window.usePreview = function usePreview(state) {
+  // Improvement 5: cache raw pixel buffer keyed on geometric parameters so
+  // only pipeline-affecting settings trigger a re-draw of the source image.
+  var rawCacheRef = React.useRef(null); // { sig, raw, pw, ph }
+
   var generatePreview = React.useCallback(function() {
     var img = state.img, sW = state.sW, sH = state.sH;
     var maxC = state.maxC, bri = state.bri, con = state.con, sat = state.sat;
@@ -2788,15 +2794,24 @@ window.usePreview = function usePreview(state) {
     if (pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
     if (pw < 10) pw = 10;
     if (ph < 1) ph = 1;
-    var c = document.createElement("canvas"); c.width = pw; c.height = ph;
-    var cx = c.getContext("2d");
-    cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-    cx.drawImage(img, 0, 0, pw, ph); cx.filter = "none";
-    var raw = cx.getImageData(0, 0, pw, ph).data;
-    if (smooth > 0) {
-      if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);
-      else applyMedianFilter(raw, pw, ph, smooth);
+
+    var raw;
+    var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType;
+    if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
+      raw = rawCacheRef.current.raw;
+    } else {
+      var c = document.createElement("canvas"); c.width = pw; c.height = ph;
+      var cx = c.getContext("2d");
+      cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
+      cx.drawImage(img, 0, 0, pw, ph); cx.filter = "none";
+      raw = cx.getImageData(0, 0, pw, ph).data;
+      if (smooth > 0) {
+        if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);
+        else applyMedianFilter(raw, pw, ph, smooth);
+      }
+      rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
     }
+
     var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup });
     if (!pipelineResult) return;
     var mapped = pipelineResult.mapped;
@@ -2829,13 +2844,33 @@ window.usePreview = function usePreview(state) {
     var pcx = pc.getContext("2d");
     var imgData = pcx.createImageData(pw, ph);
     var d = imgData.data;
+    // Improvement 4: build confetti heatmap alongside the preview
+    var hData = pcx.createImageData(pw, ph);
+    var hd = hData.data;
+    var hasHeat = false;
     for (var i = 0; i < mapped.length; i++) {
       var mm = mapped[i]; var idx = i * 4;
       if (mm.id === "__skip__") { d[idx] = 240; d[idx+1] = 240; d[idx+2] = 240; d[idx+3] = 255; }
-      else { d[idx] = mm.rgb[0]; d[idx+1] = mm.rgb[1]; d[idx+2] = mm.rgb[2]; d[idx+3] = 255; }
+      else {
+        d[idx] = mm.rgb[0]; d[idx+1] = mm.rgb[1]; d[idx+2] = mm.rgb[2]; d[idx+3] = 255;
+        var row = Math.floor(i / pw), col = i % pw;
+        var isolated = true;
+        if (col > 0 && mapped[i - 1].id === mm.id) isolated = false;
+        if (isolated && col < pw - 1 && mapped[i + 1].id === mm.id) isolated = false;
+        if (isolated && row > 0 && mapped[i - pw].id === mm.id) isolated = false;
+        if (isolated && row < ph - 1 && mapped[i + pw].id === mm.id) isolated = false;
+        if (isolated) { hd[idx] = 255; hd[idx+1] = 60; hd[idx+2] = 0; hd[idx+3] = 220; hasHeat = true; }
+      }
     }
     pcx.putImageData(imgData, 0, 0);
     state.setPreviewUrl(pc.toDataURL());
+    if (hasHeat) {
+      var hc = document.createElement("canvas"); hc.width = pw; hc.height = ph;
+      var hcx = hc.getContext("2d"); hcx.putImageData(hData, 0, 0);
+      state.setPreviewHeatmap(hc.toDataURL());
+    } else {
+      state.setPreviewHeatmap(null);
+    }
   }, [
     state.img, state.sW, state.sH, state.maxC, state.bri, state.con, state.sat,
     state.dith, state.skipBg, state.bgCol, state.bgTh, state.smooth, state.smoothType,

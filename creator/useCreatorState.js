@@ -132,6 +132,7 @@ window.useCreatorState = function useCreatorState() {
   var _prevUrl  = useState(null);    var previewUrl = _prevUrl[0], setPreviewUrl = _prevUrl[1];
   var _prevStats= useState(null);    var previewStats = _prevStats[0], setPreviewStats = _prevStats[1];
   var _confetti = useState(null);    var confettiData = _confetti[0], setConfettiData = _confetti[1];
+  var _prevHeat = useState(null);    var previewHeatmap = _prevHeat[0], setPreviewHeatmap = _prevHeat[1];
   var previewTimerRef = useRef(null);
 
   // Project identity
@@ -549,6 +550,7 @@ window.useCreatorState = function useCreatorState() {
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen, previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
+    previewHeatmap, setPreviewHeatmap,
     previewTimerRef, projectName, setProjectName,
     namePromptOpen, setNamePromptOpen,
     pcRef, fRef, scrollRef, expRef, loadRef,
