@@ -142,7 +142,6 @@ window.useCreatorState = function useCreatorState() {
   // Cleanup diff state
   var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
   var _showCleanupDiff  = useState(false); var showCleanupDiff  = _showCleanupDiff[0],  setShowCleanupDiff  = _showCleanupDiff[1];
-  var _preCleanupPrevIds= useState(null);  var preCleanupPreviewIds = _preCleanupPrevIds[0], setPreCleanupPreviewIds = _preCleanupPrevIds[1];
 
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
@@ -586,7 +585,6 @@ window.useCreatorState = function useCreatorState() {
     previewTimerRef, projectName, setProjectName,
     namePromptOpen, setNamePromptOpen,
     cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
-      preCleanupPreviewIds, setPreCleanupPreviewIds,
     pcRef, fRef, scrollRef, expRef, loadRef,
     prevSW, prevSH, projectIdRef, userActedRef, stripRef, overflowRef,
     G, EDIT_HISTORY_MAX,

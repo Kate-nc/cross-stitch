@@ -330,7 +330,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                 <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>Preview</span>
                   {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#a1a1aa"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
-                              {state.orphans>0&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
+                              {state.stitchCleanup&&state.stitchCleanup.enabled&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
                                 <button
                                   onClick={()=>state.setShowCleanupDiff(d=>!d)}
                                   style={{fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",

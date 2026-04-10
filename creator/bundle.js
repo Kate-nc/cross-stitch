@@ -1292,7 +1292,6 @@ window.useCreatorState = function useCreatorState() {
   // Cleanup diff state
   var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
   var _showCleanupDiff  = useState(false); var showCleanupDiff  = _showCleanupDiff[0],  setShowCleanupDiff  = _showCleanupDiff[1];
-  var _preCleanupPrevIds= useState(null);  var preCleanupPreviewIds = _preCleanupPrevIds[0], setPreCleanupPreviewIds = _preCleanupPrevIds[1];
 
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
@@ -1736,7 +1735,6 @@ window.useCreatorState = function useCreatorState() {
     previewTimerRef, projectName, setProjectName,
     namePromptOpen, setNamePromptOpen,
     cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
-      preCleanupPreviewIds, setPreCleanupPreviewIds,
     pcRef, fRef, scrollRef, expRef, loadRef,
     prevSW, prevSH, projectIdRef, userActedRef, stripRef, overflowRef,
     G, EDIT_HISTORY_MAX,
@@ -1924,6 +1922,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     pinchStateRef.current = {
       startDist: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y),
       startZoom: state.zoom,
+      lastAppliedZoom: state.zoom,
       focalX: scrollRef.current.scrollLeft + (midX - rect.left),
       focalY: scrollRef.current.scrollTop + (midY - rect.top),
     };
@@ -1939,7 +1938,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
     if (!dist || !pinch.startDist) return;
     var nextZoom = Math.max(0.05, Math.min(3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
-    if (nextZoom === state.zoom) return;
+    if (nextZoom === pinch.lastAppliedZoom) return;
+    pinch.lastAppliedZoom = nextZoom;
     state.setZoom(nextZoom);
     requestAnimationFrame(function() {
       if (!scrollRef.current || !pcRef.current) return;
@@ -3199,7 +3199,6 @@ window.usePreview = function usePreview(state) {
       var confettiRaw = pipelineResult.confettiRaw;
       var confettiClean = pipelineResult.confettiClean;
   var preCleanupIds = pipelineResult.preCleanupIds || null;
-  state.setPreCleanupPreviewIds(preCleanupIds);
 
       var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
       for (var j = 0; j < mapped.length; j++) {
@@ -3251,7 +3250,7 @@ window.usePreview = function usePreview(state) {
       }
       pcx.putImageData(imgData, 0, 0);
       // Diff overlay on preview thumbnail
-      if (showCleanupDiff && orphans > 0 && preCleanupIds) {
+      if (showCleanupDiff && stitchCleanup && stitchCleanup.enabled && preCleanupIds) {
         pcx.fillStyle = "rgba(255,0,255,0.45)";
         for (var pi = 0; pi < mapped.length; pi++) {
           if (preCleanupIds[pi] !== mapped[pi].id && preCleanupIds[pi] !== "__skip__") {
@@ -3893,7 +3892,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       "Preview estimate: removes ~", (ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
       " (", ((ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles) / Math.max(1, ctx.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),
-    ctx.orphans > 0 && ctx.pat && ctx.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+    ctx.pat && ctx.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
       h("button", {
         onClick:function(){ctx.setShowCleanupDiff(function(d){return !d;});},
         style:{

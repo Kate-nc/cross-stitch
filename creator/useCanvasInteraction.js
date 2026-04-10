@@ -76,6 +76,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     pinchStateRef.current = {
       startDist: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y),
       startZoom: state.zoom,
+      lastAppliedZoom: state.zoom,
       focalX: scrollRef.current.scrollLeft + (midX - rect.left),
       focalY: scrollRef.current.scrollTop + (midY - rect.top),
     };
@@ -91,7 +92,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
     if (!dist || !pinch.startDist) return;
     var nextZoom = Math.max(0.05, Math.min(3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
-    if (nextZoom === state.zoom) return;
+    if (nextZoom === pinch.lastAppliedZoom) return;
+    pinch.lastAppliedZoom = nextZoom;
     state.setZoom(nextZoom);
     requestAnimationFrame(function() {
       if (!scrollRef.current || !pcRef.current) return;

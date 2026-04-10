@@ -72,7 +72,6 @@ window.usePreview = function usePreview(state) {
       var confettiRaw = pipelineResult.confettiRaw;
       var confettiClean = pipelineResult.confettiClean;
   var preCleanupIds = pipelineResult.preCleanupIds || null;
-  state.setPreCleanupPreviewIds(preCleanupIds);
 
       var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
       for (var j = 0; j < mapped.length; j++) {
@@ -124,7 +123,7 @@ window.usePreview = function usePreview(state) {
       }
       pcx.putImageData(imgData, 0, 0);
       // Diff overlay on preview thumbnail
-      if (showCleanupDiff && orphans > 0 && preCleanupIds) {
+      if (showCleanupDiff && stitchCleanup && stitchCleanup.enabled && preCleanupIds) {
         pcx.fillStyle = "rgba(255,0,255,0.45)";
         for (var pi = 0; pi < mapped.length; pi++) {
           if (preCleanupIds[pi] !== mapped[pi].id && preCleanupIds[pi] !== "__skip__") {
