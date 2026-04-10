@@ -27,6 +27,40 @@ function confettiTier(pct){
   return{color:"#dc2626",label:"High confetti"};
 }
 
+function ComparisonSlider({originalSrc, previewSrc, width, height}) {
+  const [splitPos, setSplitPos] = useState(50);
+  const containerRef = useRef(null);
+  const dragging = useRef(false);
+  function handleMove(e) {
+    if (!dragging.current || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const clientX = e.clientX != null ? e.clientX : (e.touches&&e.touches[0]?e.touches[0].clientX:null);
+    if (clientX == null) return;
+    setSplitPos(Math.max(5, Math.min(95, ((clientX - rect.left) / rect.width) * 100)));
+  }
+  return (
+    <div ref={containerRef}
+      style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:"ew-resize",borderRadius:8,border:"0.5px solid #e4e4e7",userSelect:"none"}}
+      onMouseDown={()=>dragging.current=true}
+      onMouseMove={handleMove}
+      onMouseUp={()=>dragging.current=false}
+      onMouseLeave={()=>dragging.current=false}
+      onTouchStart={(e)=>{e.preventDefault();dragging.current=true;}}
+      onTouchMove={handleMove}
+      onTouchEnd={()=>dragging.current=false}>
+      <img src={originalSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt="Original"/>
+      <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`}}>
+        <img src={previewSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>
+      </div>
+      <div style={{position:"absolute",top:0,bottom:0,left:`${splitPos}%`,width:3,background:"#fff",boxShadow:"0 0 4px rgba(0,0,0,0.3)",transform:"translateX(-50%)",zIndex:2,pointerEvents:"none"}}>
+        <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:28,height:28,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#71717a"}}>⟺</div>
+      </div>
+      <span style={{position:"absolute",top:8,left:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>Original</span>
+      <span style={{position:"absolute",top:8,right:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>Preview</span>
+    </div>
+  );
+}
+
 function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const state = useCreatorState();
   const history = useEditHistory(state);
@@ -103,7 +137,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               <window.CreatorLegendTab/>
               <window.CreatorExportTab/>
             </div>}
-            {!state.pat&&state.img&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:20}}>
+            {!state.pat&&state.img&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
               <div className="card">
                 <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a"}}>Original Image</div>
                 <div style={{position:"relative"}} ref={state.cropRef} onMouseDown={canvas.handleCropMouseDown} onMouseMove={canvas.handleCropMouseMove} onMouseUp={canvas.handleCropMouseUp} onMouseLeave={canvas.handleCropMouseUp}>
@@ -125,41 +159,41 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                 </div>}
                 {state.pickBg&&<div style={{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}
               </div>
-              {state.previewUrl&&<div className="card" style={{display:"flex",flexDirection:"column"}}>
-                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a"}}>Preview</div>
-                <div style={{padding:"0 14px 10px",flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <img src={state.previewUrl} alt="Preview" style={{maxWidth:"100%",maxHeight:"600px",borderRadius:6,border:"0.5px solid #e4e4e7",imageRendering:"pixelated"}}/>
+              {state.previewUrl&&<div className="card">
+                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a"}}>Preview Comparison</div>
+                <div style={{padding:"0 14px 10px"}}>
+                  <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} width={state.sW} height={state.sH}/>
                 </div>
-                {state.previewStats&&<div style={{padding:"10px 14px",borderTop:"0.5px solid #f4f4f5",background:"#fafafa",borderBottomLeftRadius:8,borderBottomRightRadius:8}}>
-                  <div style={{fontSize:11,fontWeight:600,color:"#71717a",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
-                    <div><div style={{fontSize:10,color:"#a1a1aa"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{state.previewStats.stitchable.toLocaleString()}</div></div>
-                    {state.skipBg&&<div><div style={{fontSize:10,color:"#a1a1aa"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{state.previewStats.skipped.toLocaleString()}</div></div>}
-                    <div><div style={{fontSize:10,color:"#a1a1aa"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{state.previewStats.uniqueColors}</div></div>
-                    <div><div style={{fontSize:10,color:"#a1a1aa"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{state.previewStats.estSkeins}</div></div>
-                    <div><div style={{fontSize:10,color:"#a1a1aa"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
-                    <div><div style={{fontSize:10,color:"#a1a1aa"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
-                  </div>
-                  {state.previewStats.confettiPct!=null&&(()=>{
-                    const t=confettiTier(state.previewStats.confettiPct);
-                    const tips={"Excellent":"Great stitch flow","Good":"Low confetti — pleasant to stitch","Moderate":"Some isolated stitches — try the Remove Orphans slider","Challenging":"High confetti — reduce colours or use Remove Orphans","High confetti":"Very tedious — strongly consider removing orphans"};
-                    return(
-                      <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #e4e4e7"}}>
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
-                          <span style={{fontSize:10,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
-                          <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18"}}>{t.label}</span>
-                        </div>
-                        <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <div style={{flex:1,height:5,background:"#e4e4e7",borderRadius:3,overflow:"hidden"}}>
-                            <div style={{height:"100%",width:Math.min(100,state.previewStats.confettiPct*4)+"%",background:t.color,borderRadius:3}}/>
-                          </div>
-                          <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString()} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
-                        </div>
-                        <div style={{fontSize:10,color:"#a1a1aa",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString()} after cleanup`:""}</div>
+              </div>}
+              {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
+                <div style={{fontSize:11,fontWeight:600,color:"#71717a",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
+                  <div><div style={{fontSize:10,color:"#a1a1aa"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{state.previewStats.stitchable.toLocaleString()}</div></div>
+                  {state.skipBg&&<div><div style={{fontSize:10,color:"#a1a1aa"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{state.previewStats.skipped.toLocaleString()}</div></div>}
+                  <div><div style={{fontSize:10,color:"#a1a1aa"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{state.previewStats.uniqueColors}</div></div>
+                  <div><div style={{fontSize:10,color:"#a1a1aa"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{state.previewStats.estSkeins}</div></div>
+                  <div><div style={{fontSize:10,color:"#a1a1aa"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
+                  <div><div style={{fontSize:10,color:"#a1a1aa"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#18181b"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
+                </div>
+                {state.previewStats.confettiPct!=null&&(()=>{
+                  const t=confettiTier(state.previewStats.confettiPct);
+                  const tips={"Excellent":"Great stitch flow","Good":"Low confetti — pleasant to stitch","Moderate":"Some isolated stitches — try the Remove Orphans slider","Challenging":"High confetti — reduce colours or use Remove Orphans","High confetti":"Very tedious — strongly consider removing orphans"};
+                  return(
+                    <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #e4e4e7"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
+                        <span style={{fontSize:10,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
+                        <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18"}}>{t.label}</span>
                       </div>
-                    );
-                  })()}
-                </div>}
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <div style={{flex:1,height:5,background:"#e4e4e7",borderRadius:3,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:Math.min(100,state.previewStats.confettiPct*4)+"%",background:t.color,borderRadius:3}}/>
+                        </div>
+                        <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString()} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
+                      </div>
+                      <div style={{fontSize:10,color:"#a1a1aa",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString()} after cleanup`:""}</div>
+                    </div>
+                  );
+                })()}
               </div>}
             </div>}
           </div>

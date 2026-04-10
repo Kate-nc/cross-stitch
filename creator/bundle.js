@@ -2783,7 +2783,10 @@ window.usePreview = function usePreview(state) {
     var allowBlends = state.allowBlends, confettiData = state.confettiData;
 
     if (!img || !img.src) return;
-    var pw = Math.min(100, sW), ph = Math.round(pw / (sW / sH));
+    var MAX_PREVIEW_AREA = 40000;
+    var pw = sW, ph = sH;
+    if (pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
+    if (pw < 10) pw = 10;
     if (ph < 1) ph = 1;
     var c = document.createElement("canvas"); c.width = pw; c.height = ph;
     var cx = c.getContext("2d");
@@ -2822,16 +2825,16 @@ window.usePreview = function usePreview(state) {
     });
 
     var pc = document.createElement("canvas");
-    var pcs = Math.max(3, Math.floor(260 / pw));
-    pc.width = pw * pcs; pc.height = ph * pcs;
+    pc.width = pw; pc.height = ph;
     var pcx = pc.getContext("2d");
-    for (var row = 0; row < ph; row++) {
-      for (var col = 0; col < pw; col++) {
-        var mm = mapped[row * pw + col];
-        pcx.fillStyle = mm.id === "__skip__" ? "#f0f0f0" : "rgb(" + mm.rgb[0] + "," + mm.rgb[1] + "," + mm.rgb[2] + ")";
-        pcx.fillRect(col * pcs, row * pcs, pcs, pcs);
-      }
+    var imgData = pcx.createImageData(pw, ph);
+    var d = imgData.data;
+    for (var i = 0; i < mapped.length; i++) {
+      var mm = mapped[i]; var idx = i * 4;
+      if (mm.id === "__skip__") { d[idx] = 240; d[idx+1] = 240; d[idx+2] = 240; d[idx+3] = 255; }
+      else { d[idx] = mm.rgb[0]; d[idx+1] = mm.rgb[1]; d[idx+2] = mm.rgb[2]; d[idx+3] = 255; }
     }
+    pcx.putImageData(imgData, 0, 0);
     state.setPreviewUrl(pc.toDataURL());
   }, [
     state.img, state.sW, state.sH, state.maxC, state.bri, state.con, state.sat,
