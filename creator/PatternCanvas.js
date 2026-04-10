@@ -93,7 +93,8 @@ window.PatternCanvas = function PatternCanvas() {
     // structural deps — needed so the overlay is redrawn correctly when these change
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.tab,
     ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.halfStitchTool, ctx.bsLines,
-    ctx.lassoMode, ctx.lassoPoints, ctx.lassoPreviewMask, ctx.lassoCursor, ctx.lassoInProgress
+    ctx.lassoMode, ctx.lassoPoints, ctx.lassoPreviewMask, ctx.lassoCursor, ctx.lassoInProgress,
+    ctx.selectionMask, ctx.confettiPreview
   ]);
 
   return h("canvas", {

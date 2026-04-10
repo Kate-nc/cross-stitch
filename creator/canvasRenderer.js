@@ -415,67 +415,6 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     });
   }
 
-  // ─── Selection mask overlay ─────────────────────────────────────────────────
-  var selectionMask = state.selectionMask;
-  var confettiPreview = state.confettiPreview; // Set|null from magic wand
-  if (selectionMask) {
-    ctx2d.save();
-    // Semi-transparent blue tint over selected cells
-    ctx2d.fillStyle = "rgba(59,130,246,0.25)";
-    for (var sy = 0; sy < dH; sy++) {
-      for (var sx2 = 0; sx2 < dW; sx2++) {
-        var si = (offY + sy) * sW + (offX + sx2);
-        if (selectionMask[si]) {
-          ctx2d.fillRect(gut + sx2 * cSz, gut + sy * cSz, cSz, cSz);
-        }
-      }
-    }
-    // Dashed "marching ants" border around selection boundary
-    ctx2d.strokeStyle = "rgba(37,99,235,0.9)";
-    ctx2d.lineWidth = Math.max(1, cSz * 0.1);
-    var antsDash = Math.max(2, cSz * 0.3), antsGap = Math.max(2, cSz * 0.2);
-    ctx2d.setLineDash([antsDash, antsGap]);
-    ctx2d.lineDashOffset = -(state.antsOffset || 0);
-    for (var by = 0; by < dH; by++) {
-      for (var bx = 0; bx < dW; bx++) {
-        var bidx = (offY + by) * sW + (offX + bx);
-        if (!selectionMask[bidx]) continue;
-        var bpx = gut + bx * cSz, bpy = gut + by * cSz;
-        // top edge
-        if (by === 0 || !selectionMask[bidx - sW]) {
-          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx + cSz, bpy); ctx2d.stroke();
-        }
-        // bottom edge
-        if (by === dH - 1 || !selectionMask[bidx + sW]) {
-          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy + cSz); ctx2d.lineTo(bpx + cSz, bpy + cSz); ctx2d.stroke();
-        }
-        // left edge
-        if (bx === 0 || !selectionMask[bidx - 1]) {
-          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx, bpy + cSz); ctx2d.stroke();
-        }
-        // right edge
-        if (bx === dW - 1 || !selectionMask[bidx + 1]) {
-          ctx2d.beginPath(); ctx2d.moveTo(bpx + cSz, bpy); ctx2d.lineTo(bpx + cSz, bpy + cSz); ctx2d.stroke();
-        }
-      }
-    }
-    ctx2d.setLineDash([]);
-    ctx2d.restore();
-  }
-
-  // Confetti preview: highlight stitches flagged for removal
-  if (confettiPreview && confettiPreview.size > 0) {
-    ctx2d.save();
-    ctx2d.fillStyle = "rgba(239,68,68,0.45)";
-    confettiPreview.forEach(function(ci) {
-      var cx2 = (ci % sW) - offX, cy2 = (Math.floor(ci / sW)) - offY;
-      if (cx2 >= 0 && cx2 < dW && cy2 >= 0 && cy2 < dH) {
-        ctx2d.fillRect(gut + cx2 * cSz, gut + cy2 * cSz, cSz, cSz);
-      }
-    });
-    ctx2d.restore();
-  }
-
   // Outer border
   ctx2d.strokeStyle = "rgba(0,0,0,0.4)";
   ctx2d.lineWidth = 2;
@@ -586,6 +525,64 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
         }
       }
     }
+  }
+
+  // ─── Selection mask overlay ─────────────────────────────────────────────────
+  var selectionMask = state.selectionMask;
+  var confettiPreview = state.confettiPreview;
+  var sW = state.sW;
+  if (selectionMask) {
+    ctx2d.save();
+    // Semi-transparent blue tint over selected cells
+    ctx2d.fillStyle = "rgba(59,130,246,0.25)";
+    for (var sy = 0; sy < dH; sy++) {
+      for (var sx2 = 0; sx2 < dW; sx2++) {
+        var si = (offY + sy) * sW + (offX + sx2);
+        if (selectionMask[si]) {
+          ctx2d.fillRect(gut + sx2 * cSz, gut + sy * cSz, cSz, cSz);
+        }
+      }
+    }
+    // Dashed "marching ants" border around selection boundary
+    ctx2d.strokeStyle = "rgba(37,99,235,0.9)";
+    ctx2d.lineWidth = Math.max(1, cSz * 0.1);
+    var antsDash = Math.max(2, cSz * 0.3), antsGap = Math.max(2, cSz * 0.2);
+    ctx2d.setLineDash([antsDash, antsGap]);
+    ctx2d.lineDashOffset = -(state.antsOffset || 0);
+    for (var by = 0; by < dH; by++) {
+      for (var bx = 0; bx < dW; bx++) {
+        var bidx = (offY + by) * sW + (offX + bx);
+        if (!selectionMask[bidx]) continue;
+        var bpx = gut + bx * cSz, bpy = gut + by * cSz;
+        if (by === 0 || !selectionMask[bidx - sW]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx + cSz, bpy); ctx2d.stroke();
+        }
+        if (by === dH - 1 || !selectionMask[bidx + sW]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy + cSz); ctx2d.lineTo(bpx + cSz, bpy + cSz); ctx2d.stroke();
+        }
+        if (bx === 0 || !selectionMask[bidx - 1]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx, bpy + cSz); ctx2d.stroke();
+        }
+        if (bx === dW - 1 || !selectionMask[bidx + 1]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx + cSz, bpy); ctx2d.lineTo(bpx + cSz, bpy + cSz); ctx2d.stroke();
+        }
+      }
+    }
+    ctx2d.setLineDash([]);
+    ctx2d.restore();
+  }
+
+  // Confetti preview: highlight stitches flagged for removal
+  if (confettiPreview && confettiPreview.size > 0) {
+    ctx2d.save();
+    ctx2d.fillStyle = "rgba(239,68,68,0.45)";
+    confettiPreview.forEach(function(ci) {
+      var cx2 = (ci % sW) - offX, cy2 = (Math.floor(ci / sW)) - offY;
+      if (cx2 >= 0 && cx2 < dW && cy2 >= 0 && cy2 < dH) {
+        ctx2d.fillRect(gut + cx2 * cSz, gut + cy2 * cSz, cSz, cSz);
+      }
+    });
+    ctx2d.restore();
   }
 
   // ─── Lasso in-progress overlay ───────────────────────────────────────────────
