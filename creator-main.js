@@ -27,11 +27,13 @@ function confettiTier(pct){
   return{color:"#dc2626",label:"High confetti"};
 }
 
-function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, width, height}) {
+function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, width, height, previewPw, previewPh}) {
   const [splitPos, setSplitPos] = useState(50);
   const splitPosRef = useRef(50);
   const containerRef = useRef(null);
   const dragging = useRef(false);
+  const rafRef = useRef(null);       // FIX 2: rAF throttle handle
+  const pendingPosRef = useRef(null); // FIX 2: latest pending position
   // auto-sweep
   const [sweeping, setSweeping] = useState(false);
   const sweepAnimRef = useRef(null);
@@ -46,6 +48,24 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   const prevPreviewRef = useRef(null);
   // heatmap overlay
   const [showHeatmap, setShowHeatmap] = useState(false);
+
+  // FIX 2: compute clamped split% from a pointer event
+  function computePos(e) {
+    if (!containerRef.current) return null;
+    var rect = containerRef.current.getBoundingClientRect();
+    return Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
+  }
+  // FIX 2: schedule a single setSplitPos call per animation frame
+  function scheduleUpdate(pos) {
+    pendingPosRef.current = pos;
+    splitPosRef.current = pos;
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(function() {
+        rafRef.current = null;
+        setSplitPos(pendingPosRef.current);
+      });
+    }
+  }
 
   useEffect(function() {
     if (!sweeping) { if (sweepAnimRef.current) cancelAnimationFrame(sweepAnimRef.current); return; }
@@ -113,10 +133,9 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
       var rect = containerRef.current.getBoundingClientRect();
       if (rect.width > 0) setZoomPos({cx: e.clientX - rect.left, cy: e.clientY - rect.top, W: rect.width, H: rect.height});
     } else if (zoomPos) { setZoomPos(null); }
-    if (!dragging.current || !containerRef.current) return;
-    var rect2 = containerRef.current.getBoundingClientRect();
-    var newPos = Math.max(5, Math.min(95, ((e.clientX - rect2.left) / rect2.width) * 100));
-    splitPosRef.current = newPos; setSplitPos(newPos);
+    if (!dragging.current) return;
+    var pos = computePos(e); // FIX 2: use helper
+    if (pos !== null) scheduleUpdate(pos); // FIX 2: rAF throttle
   }
 
   var LENS = 140, ZOOM = 2.5;
@@ -125,22 +144,34 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
     <div>
       <div ref={containerRef}
         style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:altDown?"zoom-in":"ew-resize",borderRadius:8,border:"0.5px solid #e4e4e7",userSelect:"none",touchAction:"none"}}
-        onPointerDown={function(e){if(altHeld.current)return;dragging.current=true;setSweeping(false);e.currentTarget.setPointerCapture(e.pointerId);}}
+        onPointerDown={function(e){
+          if(altHeld.current)return;
+          dragging.current=true; setSweeping(false);
+          e.currentTarget.setPointerCapture(e.pointerId);
+          var pos=computePos(e); // FIX 1: snap divider to click position immediately
+          if(pos!==null){splitPosRef.current=pos;setSplitPos(pos);}
+        }}
         onPointerMove={handlePointerMove}
-        onPointerUp={function(e){dragging.current=false;if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);}}
+        onPointerUp={function(e){
+          dragging.current=false;
+          if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;} // FIX 2: flush rAF
+          if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
+        }}
+        onPointerCancel={function(){dragging.current=false;if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}}} // FIX 3
         onPointerLeave={function(){if(!dragging.current)setZoomPos(null);}}>
-        <img src={originalSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt="Original"/>
+        <img src={originalSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt="Original"/>       {/* FIX 4 */}
         <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`}}>
-          <img src={previewSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>
+          <img src={previewSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>  {/* FIX 4 */}
         </div>
         {showDiff&&diffUrl&&<img src={diffUrl} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",pointerEvents:"none",zIndex:4}} alt="" aria-hidden="true"/>}
         {showHeatmap&&heatmapSrc&&<img src={heatmapSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
         {highlightSrc&&<img src={highlightSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:6}} alt="" aria-hidden="true"/>}
-        <div style={{position:"absolute",top:0,bottom:0,left:`${splitPos}%`,width:3,background:"#fff",boxShadow:"0 0 4px rgba(0,0,0,0.3)",transform:"translateX(-50%)",zIndex:2,pointerEvents:"none"}}>
+        <div style={{position:"absolute",top:0,bottom:0,left:`${splitPos}%`,width:3,background:"#fff",boxShadow:"0 0 4px rgba(0,0,0,0.3)",transform:"translateX(-50%)",zIndex:2,pointerEvents:"none",willChange:"left"}}> {/* FIX 5 */}
           <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:28,height:28,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#71717a"}}>⟺</div>
         </div>
         <span style={{position:"absolute",top:8,left:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>Original</span>
         <span style={{position:"absolute",top:8,right:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>Preview</span>
+        {previewPw&&previewPh&&<span style={{position:"absolute",bottom:8,right:8,fontSize:9,fontWeight:500,color:"#fff",background:"rgba(0,0,0,0.45)",padding:"2px 6px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{previewPw}×{previewPh} px</span>}
         {zoomPos&&(function(){
           var cx=zoomPos.cx,cy=zoomPos.cy,W=zoomPos.W,H=zoomPos.H;
           var bgSzW=W*ZOOM,bgSzH=H*ZOOM;
@@ -280,9 +311,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                 <img src={state.img.src} style={{width:"100%",display:"block"}} alt="Original"/>
               </div>}
               {state.previewUrl&&<div className="card">
-                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a"}}>Preview</div>
+                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span>Preview</span>
+                  {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#a1a1aa"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
+                </div>
                 <div style={{padding:"0 14px 10px"}}>
-                  <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH}/>
+                  <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH} previewPw={state.previewDims&&state.previewDims.pw} previewPh={state.previewDims&&state.previewDims.ph}/>
                 </div>
               </div>}
               {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
