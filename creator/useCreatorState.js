@@ -317,7 +317,9 @@ window.useCreatorState = function useCreatorState() {
   }
   function setBrushAndActivate(mode) {
     setBrushMode(mode);
-    if (activeTool === "paint" || activeTool === "fill") setActiveTool(mode);
+    setActiveTool(mode);
+    setHalfStitchTool(null);
+    setBsStart(null);
   }
   function setTool(tool) {
     if (activeTool === tool) { setActiveTool(null); setBsStart(null); return; }

@@ -132,6 +132,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         if (action === "paint" && np) {
           if (np[idx].id === "__skip__") continue;
           if (!colorEntry) continue;
+          var selMask = state.selectionMask;
+          if (selMask && !selMask[idx]) continue;
           if (np[idx].id !== colorEntry.id) {
             dragChangesRef.current.push({ idx: idx, old: Object.assign({}, np[idx]) });
             np[idx] = Object.assign({}, colorEntry);
@@ -321,9 +323,11 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (activeTool === "fill") {
         var ch = [], vis = new Set(), q = [idx2], tid = pat[idx2].id;
         if (tid === pe.id) return;
+        var selMask2 = state.selectionMask;
         while (q.length) {
           var id2 = q.pop();
           if (vis.has(id2)) continue; vis.add(id2);
+          if (selMask2 && !selMask2[id2]) continue;
           if (pat[id2].id !== tid) continue;
           ch.push({ idx: id2, old: Object.assign({}, pat[id2]) });
           var x2 = id2 % sW, y2 = Math.floor(id2 / sW);
