@@ -152,6 +152,7 @@ window.useCreatorState = function useCreatorState() {
   var overflowRef= useRef(null);
   var workerRef      = useRef(null); // null | Worker | 'unavailable'
   var applyResultRef = useRef(null); // updated each render, captures fresh state
+  var genReqIdRef    = useRef(0);    // incremented per generation; stale results are discarded
 
   var G = 28;
 
@@ -354,6 +355,9 @@ window.useCreatorState = function useCreatorState() {
   // Updated on every render so the worker/fallback result handler always sees
   // fresh captured values for hasGenerated, sW, etc.
   applyResultRef.current = function(result) {
+    // Discard results from a superseded generation or a mismatched grid size
+    if (result.reqId !== genReqIdRef.current) { setBusy(false); return; }
+    if (result.mapped && result.mapped.length !== sW * sH) { setBusy(false); return; }
     setConfettiData(result.confettiData);
     setPal(result.pal); setCmap(result.cmap); setPat(result.mapped);
     setDone(new Uint8Array(result.mapped.length));
@@ -380,6 +384,8 @@ window.useCreatorState = function useCreatorState() {
           var msg = e.data;
           if (msg.type === 'error') {
             console.error('Worker generation error:', msg.message, msg.stack || '');
+            w.terminate();
+            workerRef.current = null;
             setBusy(false);
             return;
           }
@@ -389,6 +395,8 @@ window.useCreatorState = function useCreatorState() {
         };
         w.onerror = function(err) {
           console.error('Worker uncaught error:', err.message);
+          w.terminate();
+          workerRef.current = 'unavailable';
           setBusy(false);
         };
         workerRef.current = w;
@@ -404,6 +412,7 @@ window.useCreatorState = function useCreatorState() {
   var generate = useCallback(function() {
     if (!img) return;
     setBusy(true); setHiId(null); setExportPage(0);
+    var reqId = ++genReqIdRef.current;
 
     var startGeneration = function() {
       // Extract pixel data here (requires canvas — must stay on main thread)
@@ -419,6 +428,7 @@ window.useCreatorState = function useCreatorState() {
       if (!worker) {
         // Fallback: run synchronously on main thread (e.g. file:// protocol)
         setTimeout(function() {
+          if (reqId !== genReqIdRef.current) { setBusy(false); return; }
           try {
             var result = runGenerationPipeline(img, {
               sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat,
@@ -427,7 +437,7 @@ window.useCreatorState = function useCreatorState() {
               stitchCleanup: stitchCleanup, allowBlends: allowBlends,
             });
             if (!result) { setBusy(false); return; }
-            applyResultRef.current({ mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData });
+            applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData });
           } catch (err) { console.error(err); setBusy(false); }
         }, 50);
         return;
@@ -436,6 +446,7 @@ window.useCreatorState = function useCreatorState() {
       // Post to worker — transfer the pixel buffer (zero-copy)
       worker.postMessage({
         type: 'generate',
+        reqId: reqId,
         pixels: imageData.data.buffer,
         width: sW,
         height: sH,

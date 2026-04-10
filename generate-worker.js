@@ -4,12 +4,12 @@
 
    Message protocol:
      Main → Worker:
-       { type: 'generate', pixels: ArrayBuffer, width: number, height: number,
+       { type: 'generate', reqId: number, pixels: ArrayBuffer, width: number, height: number,
          settings: { maxC, dith, allowBlends, skipBg, bgCol, bgTh, minSt,
                      smooth, smoothType, stitchCleanup } }
 
      Worker → Main:
-       { type: 'result', mapped, pal, cmap, confettiData }
+       { type: 'result', reqId: number, mapped, pal, cmap, confettiData }
        { type: 'error',  message: string, stack?: string }
 
    Dependencies (imported via importScripts — all pure, no DOM):
@@ -37,6 +37,7 @@ self.onmessage = function(e) {
   var msg = e.data;
   if (msg.type !== 'generate') return;
 
+  var reqId    = msg.reqId;
   var pixels   = msg.pixels;   // ArrayBuffer transferred from main thread
   var width    = msg.width;
   var height   = msg.height;
@@ -178,6 +179,7 @@ self.onmessage = function(e) {
     // ── 6. Send result to main thread ─────────────────────────────────────────
     self.postMessage({
       type: 'result',
+      reqId: reqId,
       mapped: mapped,
       pal: palResult.pal,
       cmap: palResult.cmap,

@@ -1279,6 +1279,7 @@ window.useCreatorState = function useCreatorState() {
   var overflowRef= useRef(null);
   var workerRef      = useRef(null); // null | Worker | 'unavailable'
   var applyResultRef = useRef(null); // updated each render, captures fresh state
+  var genReqIdRef    = useRef(0);    // incremented per generation; stale results are discarded
 
   var G = 28;
 
@@ -1481,6 +1482,9 @@ window.useCreatorState = function useCreatorState() {
   // Updated on every render so the worker/fallback result handler always sees
   // fresh captured values for hasGenerated, sW, etc.
   applyResultRef.current = function(result) {
+    // Discard results from a superseded generation or a mismatched grid size
+    if (result.reqId !== genReqIdRef.current) { setBusy(false); return; }
+    if (result.mapped && result.mapped.length !== sW * sH) { setBusy(false); return; }
     setConfettiData(result.confettiData);
     setPal(result.pal); setCmap(result.cmap); setPat(result.mapped);
     setDone(new Uint8Array(result.mapped.length));
@@ -1507,6 +1511,8 @@ window.useCreatorState = function useCreatorState() {
           var msg = e.data;
           if (msg.type === 'error') {
             console.error('Worker generation error:', msg.message, msg.stack || '');
+            w.terminate();
+            workerRef.current = null;
             setBusy(false);
             return;
           }
@@ -1516,6 +1522,8 @@ window.useCreatorState = function useCreatorState() {
         };
         w.onerror = function(err) {
           console.error('Worker uncaught error:', err.message);
+          w.terminate();
+          workerRef.current = 'unavailable';
           setBusy(false);
         };
         workerRef.current = w;
@@ -1531,48 +1539,58 @@ window.useCreatorState = function useCreatorState() {
   var generate = useCallback(function() {
     if (!img) return;
     setBusy(true); setHiId(null); setExportPage(0);
+    var reqId = ++genReqIdRef.current;
 
-    // Extract pixel data here (requires canvas — must stay on main thread)
-    var c = document.createElement("canvas");
-    c.width = sW; c.height = sH;
-    var cx = c.getContext("2d");
-    cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-    cx.drawImage(img, 0, 0, sW, sH);
-    cx.filter = "none";
-    var imageData = cx.getImageData(0, 0, sW, sH);
+    var startGeneration = function() {
+      // Extract pixel data here (requires canvas — must stay on main thread)
+      var c = document.createElement("canvas");
+      c.width = sW; c.height = sH;
+      var cx = c.getContext("2d");
+      cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
+      cx.drawImage(img, 0, 0, sW, sH);
+      cx.filter = "none";
+      var imageData = cx.getImageData(0, 0, sW, sH);
 
-    var worker = getOrCreateWorker();
-    if (!worker) {
-      // Fallback: run synchronously on main thread (e.g. file:// protocol)
-      setTimeout(function() {
-        try {
-          var result = runGenerationPipeline(img, {
-            sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat,
-            dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
-            minSt: minSt, smooth: smooth, smoothType: smoothType,
-            stitchCleanup: stitchCleanup, allowBlends: allowBlends,
-          });
-          if (!result) { setBusy(false); return; }
-          applyResultRef.current({ mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData });
-        } catch (err) { console.error(err); setBusy(false); }
-      }, 50);
-      return;
+      var worker = getOrCreateWorker();
+      if (!worker) {
+        // Fallback: run synchronously on main thread (e.g. file:// protocol)
+        setTimeout(function() {
+          if (reqId !== genReqIdRef.current) { setBusy(false); return; }
+          try {
+            var result = runGenerationPipeline(img, {
+              sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat,
+              dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+              minSt: minSt, smooth: smooth, smoothType: smoothType,
+              stitchCleanup: stitchCleanup, allowBlends: allowBlends,
+            });
+            if (!result) { setBusy(false); return; }
+            applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData });
+          } catch (err) { console.error(err); setBusy(false); }
+        }, 50);
+        return;
+      }
+
+      // Post to worker — transfer the pixel buffer (zero-copy)
+      worker.postMessage({
+        type: 'generate',
+        reqId: reqId,
+        pixels: imageData.data.buffer,
+        width: sW,
+        height: sH,
+        settings: {
+          maxC: maxC, dith: dith, allowBlends: allowBlends,
+          skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+          minSt: minSt, smooth: smooth, smoothType: smoothType,
+          stitchCleanup: stitchCleanup,
+        },
+      }, [imageData.data.buffer]);
+    };
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(startGeneration);
+    } else {
+      setTimeout(startGeneration, 0);
     }
-
-    // Post to worker — transfer the pixel buffer (zero-copy)
-    worker.postMessage({
-      type: 'generate',
-      pixels: imageData.data.buffer,
-      width: sW,
-      height: sH,
-      settings: {
-        maxC: maxC, dith: dith, allowBlends: allowBlends,
-        skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
-        minSt: minSt, smooth: smooth, smoothType: smoothType,
-        stitchCleanup: stitchCleanup,
-      },
-    }, [imageData.data.buffer]);
-
   }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, hasGenerated, allowBlends]);
 
   // Terminate the worker when the component unmounts to prevent memory leaks
