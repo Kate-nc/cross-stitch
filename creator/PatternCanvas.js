@@ -49,6 +49,10 @@ window.PatternCanvas = function PatternCanvas() {
   React.useEffect(function() {
     if (!ctx.pat || !ctx.cmap || !ctx.pcRef.current || ctx.tab !== "pattern") return;
     if (!baseCacheRef.current) return; // base not ready yet — Effect 1 will draw everything
+    // Skip restoring the base cache while a drag-draw is in progress: applyBrush
+    // imperatively paints directly onto the canvas and the overlay-only redraw
+    // must not overwrite those uncommitted pixels with the stale cached image.
+    if (ctx.isDraggingRef && ctx.isDraggingRef.current) return;
     var canvas = ctx.pcRef.current;
     var context = canvas.getContext("2d");
     context.putImageData(baseCacheRef.current, 0, 0);

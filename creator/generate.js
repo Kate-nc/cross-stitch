@@ -33,7 +33,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
-  var cdt = dith && stitchCleanup.smoothDithering ? 4.0 : 0.0;
+  var cdt = dith && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
   var mapped = dith
     ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt })
     : doMap(raw, width, height, p, allowBlends);

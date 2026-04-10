@@ -16,6 +16,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       "aria-checked": props.checked,
       onClick: function() { props.onChange(!props.checked); },
       onKeyDown: function(e) {
+        if (e.repeat) return;
         if (e.key === ' ' || e.key === 'Enter') {
           e.preventDefault();
           props.onChange(!props.checked);

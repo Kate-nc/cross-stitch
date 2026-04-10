@@ -40,6 +40,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       key: p.id,
       role: "button",
       tabIndex: 0,
+      "aria-pressed": ips || ihs,
       onClick: function() {
         if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {
           ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
@@ -48,6 +49,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         }
       },
       onKeyDown: function(e) {
+        if (e.repeat) return;
         if (e.key === ' ' || e.key === 'Enter') {
           e.preventDefault();
           if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {

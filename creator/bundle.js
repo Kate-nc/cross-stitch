@@ -45,7 +45,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
-  var cdt = dith && stitchCleanup.smoothDithering ? 4.0 : 0.0;
+  var cdt = dith && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
   var mapped = dith
     ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt })
     : doMap(raw, width, height, p, allowBlends);
@@ -2167,6 +2167,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     applyCrop: applyCrop,
     srcClick: srcClick,
     autoCrop: autoCrop,
+    isDraggingRef: isDraggingRef,
   };
 };
 
@@ -2805,6 +2806,10 @@ window.PatternCanvas = function PatternCanvas() {
   React.useEffect(function() {
     if (!ctx.pat || !ctx.cmap || !ctx.pcRef.current || ctx.tab !== "pattern") return;
     if (!baseCacheRef.current) return; // base not ready yet — Effect 1 will draw everything
+    // Skip restoring the base cache while a drag-draw is in progress: applyBrush
+    // imperatively paints directly onto the canvas and the overlay-only redraw
+    // must not overwrite those uncommitted pixels with the stale cached image.
+    if (ctx.isDraggingRef && ctx.isDraggingRef.current) return;
     var canvas = ctx.pcRef.current;
     var context = canvas.getContext("2d");
     context.putImageData(baseCacheRef.current, 0, 0);
@@ -3128,6 +3133,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       "aria-checked": props.checked,
       onClick: function() { props.onChange(!props.checked); },
       onKeyDown: function(e) {
+        if (e.repeat) return;
         if (e.key === ' ' || e.key === 'Enter') {
           e.preventDefault();
           props.onChange(!props.checked);
@@ -3550,6 +3556,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       key: p.id,
       role: "button",
       tabIndex: 0,
+      "aria-pressed": ips || ihs,
       onClick: function() {
         if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {
           ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
@@ -3558,6 +3565,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         }
       },
       onKeyDown: function(e) {
+        if (e.repeat) return;
         if (e.key === ' ' || e.key === 'Enter') {
           e.preventDefault();
           if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {

@@ -477,5 +477,6 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     applyCrop: applyCrop,
     srcClick: srcClick,
     autoCrop: autoCrop,
+    isDraggingRef: isDraggingRef,
   };
 };
