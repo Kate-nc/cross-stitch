@@ -575,6 +575,65 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     });
   }
 
+  // ─── Selection mask overlay ─────────────────────────────────────────────────
+  var selectionMask = state.selectionMask;
+  var confettiPreview = state.confettiPreview; // Set|null from magic wand
+  if (selectionMask) {
+    ctx2d.save();
+    // Semi-transparent blue tint over selected cells
+    ctx2d.fillStyle = "rgba(59,130,246,0.25)";
+    for (var sy = 0; sy < dH; sy++) {
+      for (var sx2 = 0; sx2 < dW; sx2++) {
+        var si = (offY + sy) * sW + (offX + sx2);
+        if (selectionMask[si]) {
+          ctx2d.fillRect(gut + sx2 * cSz, gut + sy * cSz, cSz, cSz);
+        }
+      }
+    }
+    // Dashed "marching ants" border around selection boundary
+    ctx2d.strokeStyle = "rgba(37,99,235,0.9)";
+    ctx2d.lineWidth = Math.max(1, cSz * 0.1);
+    ctx2d.setLineDash([Math.max(2, cSz * 0.3), Math.max(2, cSz * 0.2)]);
+    for (var by = 0; by < dH; by++) {
+      for (var bx = 0; bx < dW; bx++) {
+        var bidx = (offY + by) * sW + (offX + bx);
+        if (!selectionMask[bidx]) continue;
+        var bpx = gut + bx * cSz, bpy = gut + by * cSz;
+        // top edge
+        if (by === 0 || !selectionMask[bidx - sW]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx + cSz, bpy); ctx2d.stroke();
+        }
+        // bottom edge
+        if (by === dH - 1 || !selectionMask[bidx + sW]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy + cSz); ctx2d.lineTo(bpx + cSz, bpy + cSz); ctx2d.stroke();
+        }
+        // left edge
+        if (bx === 0 || !selectionMask[bidx - 1]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx, bpy + cSz); ctx2d.stroke();
+        }
+        // right edge
+        if (bx === dW - 1 || !selectionMask[bidx + 1]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx + cSz, bpy); ctx2d.lineTo(bpx + cSz, bpy + cSz); ctx2d.stroke();
+        }
+      }
+    }
+    ctx2d.setLineDash([]);
+    ctx2d.restore();
+  }
+
+  // Confetti preview: highlight stitches flagged for removal
+  if (confettiPreview && confettiPreview.size > 0) {
+    ctx2d.save();
+    ctx2d.fillStyle = "rgba(239,68,68,0.45)";
+    confettiPreview.forEach(function(ci) {
+      var cx2 = (ci % sW) - offX, cy2 = (Math.floor(ci / sW)) - offY;
+      if (cx2 >= 0 && cx2 < dW && cy2 >= 0 && cy2 < dH) {
+        ctx2d.fillRect(gut + cx2 * cSz, gut + cy2 * cSz, cSz, cSz);
+      }
+    });
+    ctx2d.restore();
+  }
+
   // Outer border
   ctx2d.strokeStyle = "rgba(0,0,0,0.4)";
   ctx2d.lineWidth = 2;
@@ -1124,6 +1183,537 @@ window.exportCoverSheet = async function exportCoverSheet(data) {
 };
 
 
+/* ─── useMagicWand.js ─── */
+/* creator/useMagicWand.js — Magic Wand selection engine.
+   Provides flood-fill + global colour selection, modifier key modes,
+   and all Phase-2/3 selection-based operations.
+   Depends on globals: React, skeinEst (helpers.js), rgbToLab (colour-utils.js), DMC */
+
+window.useMagicWand = function useMagicWand(state) {
+  var useMemo = React.useMemo;
+
+  // ─── Wand UI state (owned here, exposed via return) ──────────────────────────
+  var _mask       = React.useState(null);    // Uint8Array|null, length = sW*sH
+  var selectionMask = _mask[0], setSelectionMask = _mask[1];
+  var _tol        = React.useState(10);
+  var wandTolerance = _tol[0], setWandTolerance = _tol[1];
+  var _contiguous = React.useState(true);
+  var wandContiguous = _contiguous[0], setWandContiguous = _contiguous[1];
+  var _opMode     = React.useState("replace"); // "replace"|"add"|"subtract"|"intersect"
+  var wandOpMode  = _opMode[0], setWandOpMode = _opMode[1];
+
+  // Panel for Phase-2/3 operations
+  var _panel      = React.useState(null);    // null|"confetti"|"reduce"|"replace"|"info"|"outline"
+  var wandPanel   = _panel[0], setWandPanel = _panel[1];
+
+  // sub-state for confetti-in-selection
+  var _cfThresh   = React.useState(2);
+  var confettiThreshold = _cfThresh[0], setConfettiThreshold = _cfThresh[1];
+  var _cfPreview  = React.useState(null);    // Set of indices flagged for replacement
+  var confettiPreview = _cfPreview[0], setConfettiPreview = _cfPreview[1];
+
+  // sub-state for colour reduction
+  var _redTarget  = React.useState(3);
+  var reduceTarget = _redTarget[0], setReduceTarget = _redTarget[1];
+  var _redPreview = React.useState(null);    // [{from, to, count}]
+  var reducePreview = _redPreview[0], setReducePreview = _redPreview[1];
+
+  // sub-state for colour replacement
+  var _repSrc     = React.useState(null);    // color id
+  var replaceSource = _repSrc[0], setReplaceSource = _repSrc[1];
+  var _repDst     = React.useState(null);    // color id
+  var replaceDest = _repDst[0], setReplaceDest = _repDst[1];
+  var _repFuzz    = React.useState(false);
+  var replaceFuzzy = _repFuzz[0], setReplaceFuzzy = _repFuzz[1];
+  var _repFuzzTol = React.useState(5);
+  var replaceFuzzyTol = _repFuzzTol[0], setReplaceFuzzyTol = _repFuzzTol[1];
+
+  // sub-state for outline generation
+  var _outlineColor = React.useState("310");
+  var outlineColor  = _outlineColor[0], setOutlineColor = _outlineColor[1];
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+  function labFromEntry(entry) {
+    if (entry && entry.lab) return entry.lab;
+    if (entry && entry.rgb) {
+      if (typeof rgbToLab === "function") return rgbToLab(entry.rgb[0], entry.rgb[1], entry.rgb[2]);
+      return { L: entry.rgb[0], a: entry.rgb[1], b: entry.rgb[2] };
+    }
+    return { L: 0, a: 0, b: 0 };
+  }
+
+  function deltaE(la, lb) {
+    var dL = la.L - lb.L, da = la.a - lb.a, db = la.b - lb.b;
+    return Math.sqrt(dL * dL + da * da + db * db);
+  }
+
+  function getCellLab(idx, pat, cmap) {
+    var cell = pat[idx];
+    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return null;
+    var entry = cmap ? cmap[cell.id] : null;
+    return labFromEntry(entry || cell);
+  }
+
+  // ─── Core selection operations ───────────────────────────────────────────────
+
+  // Flood-fill BFS from (startX,startY), selects all 4-connected cells within tolerance
+  function floodSelect(pat, cmap, sW, sH, startX, startY, tolerance) {
+    var mask = new Uint8Array(sW * sH);
+    var startIdx = startY * sW + startX;
+    var startCell = pat[startIdx];
+    if (!startCell || startCell.id === "__skip__" || startCell.id === "__empty__") return mask;
+    var startLab = getCellLab(startIdx, pat, cmap);
+    if (!startLab) return mask;
+
+    var visited = new Uint8Array(sW * sH);
+    var queue = [startIdx];
+    visited[startIdx] = 1;
+
+    while (queue.length) {
+      var idx = queue.pop();
+      var lab = getCellLab(idx, pat, cmap);
+      if (!lab) continue;
+      if (deltaE(startLab, lab) > tolerance) continue;
+      mask[idx] = 1;
+      var x = idx % sW, y = (idx - x) / sW;
+      if (x > 0)      { var ni = idx - 1;  if (!visited[ni]) { visited[ni] = 1; queue.push(ni); } }
+      if (x < sW - 1) { var ni = idx + 1;  if (!visited[ni]) { visited[ni] = 1; queue.push(ni); } }
+      if (y > 0)      { var ni = idx - sW; if (!visited[ni]) { visited[ni] = 1; queue.push(ni); } }
+      if (y < sH - 1) { var ni = idx + sW; if (!visited[ni]) { visited[ni] = 1; queue.push(ni); } }
+    }
+    return mask;
+  }
+
+  // Global scan: selects ALL cells matching startCell within tolerance
+  function globalSelect(pat, cmap, sW, sH, startX, startY, tolerance) {
+    var mask = new Uint8Array(sW * sH);
+    var startIdx = startY * sW + startX;
+    var startCell = pat[startIdx];
+    if (!startCell || startCell.id === "__skip__" || startCell.id === "__empty__") return mask;
+    var startLab = getCellLab(startIdx, pat, cmap);
+    if (!startLab) return mask;
+    for (var i = 0; i < pat.length; i++) {
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      var lab = getCellLab(i, pat, cmap);
+      if (!lab) continue;
+      if (deltaE(startLab, lab) <= tolerance) mask[i] = 1;
+    }
+    return mask;
+  }
+
+  // Merge newMask into existing mask using the specified operation mode
+  function mergeMasks(existing, newMask, opMode, size) {
+    var out = new Uint8Array(size);
+    for (var i = 0; i < size; i++) {
+      var e = existing ? existing[i] : 0;
+      var n = newMask[i];
+      if (opMode === "add")        out[i] = (e || n) ? 1 : 0;
+      else if (opMode === "subtract")  out[i] = (e && !n) ? 1 : 0;
+      else if (opMode === "intersect") out[i] = (e && n) ? 1 : 0;
+      else                         out[i] = n; // replace
+    }
+    return out;
+  }
+
+  // ─── Actions: plain functions (no useCallback — matches codebase pattern) ────
+
+  function applyWandSelect(gx, gy, opMode) {
+    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    if (!pat || !cmap) return;
+    if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+    var newMask = wandContiguous
+      ? floodSelect(pat, cmap, sW, sH, gx, gy, wandTolerance)
+      : globalSelect(pat, cmap, sW, sH, gx, gy, wandTolerance);
+    var merged = mergeMasks(selectionMask, newMask, opMode, sW * sH);
+    setSelectionMask(merged);
+  }
+
+  function clearSelection() {
+    setSelectionMask(null);
+    setConfettiPreview(null);
+    setReducePreview(null);
+    setWandPanel(null);
+  }
+
+  function invertSelection() {
+    var pat = state.pat, sW = state.sW, sH = state.sH;
+    if (!pat) return;
+    var out = new Uint8Array(sW * sH);
+    for (var i = 0; i < pat.length; i++) {
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__") continue;
+      out[i] = selectionMask && selectionMask[i] ? 0 : 1;
+    }
+    setSelectionMask(out);
+  }
+
+  function selectAll() {
+    var pat = state.pat, sW = state.sW, sH = state.sH;
+    if (!pat) return;
+    var out = new Uint8Array(sW * sH);
+    for (var i = 0; i < pat.length; i++) {
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__") continue;
+      out[i] = 1;
+    }
+    setSelectionMask(out);
+  }
+
+  function selectAllOfColorId(colorId, opMode) {
+    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    if (!pat || !cmap) return;
+    var entry = cmap[colorId];
+    if (!entry) return;
+    var startLab = labFromEntry(entry);
+    var newMask = new Uint8Array(sW * sH);
+    for (var i = 0; i < pat.length; i++) {
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      var lab = getCellLab(i, pat, cmap);
+      if (!lab) continue;
+      if (deltaE(startLab, lab) <= wandTolerance) newMask[i] = 1;
+    }
+    var merged = mergeMasks(selectionMask, newMask, opMode || "replace", sW * sH);
+    setSelectionMask(merged);
+  }
+
+  // ─── Derived: selection count ────────────────────────────────────────────────
+  var selectionCount = 0;
+  if (selectionMask) {
+    for (var _si = 0; _si < selectionMask.length; _si++) if (selectionMask[_si]) selectionCount++;
+  }
+  var hasSelection = selectionCount > 0;
+
+  // ─── Phase 2.1: Confetti cleanup in selection ────────────────────────────────
+
+  function buildConfettiPreview(threshold) {
+    var pat = state.pat, mask = selectionMask, sW = state.sW, sH = state.sH;
+    if (!pat || !mask) return null;
+    var flagged = new Set();
+    var visited = new Uint8Array(pat.length);
+
+    for (var start = 0; start < pat.length; start++) {
+      if (!mask[start] || visited[start]) continue;
+      var cell = pat[start];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      var tid = cell.id;
+      var cluster = [];
+      var q = [start];
+      visited[start] = 1;
+      while (q.length) {
+        var idx = q.pop();
+        cluster.push(idx);
+        var x = idx % sW, y = (idx - (idx % sW)) / sW;
+        if (x > 0)      { var ni = idx - 1;  if (!visited[ni] && mask[ni] && pat[ni] && pat[ni].id === tid) { visited[ni] = 1; q.push(ni); } }
+        if (x < sW - 1) { var ni = idx + 1;  if (!visited[ni] && mask[ni] && pat[ni] && pat[ni].id === tid) { visited[ni] = 1; q.push(ni); } }
+        if (y > 0)      { var ni = idx - sW; if (!visited[ni] && mask[ni] && pat[ni] && pat[ni].id === tid) { visited[ni] = 1; q.push(ni); } }
+        if (y < sH - 1) { var ni = idx + sW; if (!visited[ni] && mask[ni] && pat[ni] && pat[ni].id === tid) { visited[ni] = 1; q.push(ni); } }
+      }
+      if (cluster.length < threshold) cluster.forEach(function(i) { flagged.add(i); });
+    }
+    return flagged;
+  }
+
+  function previewConfettiCleanup() {
+    var flagged = buildConfettiPreview(confettiThreshold);
+    setConfettiPreview(flagged);
+  }
+
+  function applyConfettiCleanup() {
+    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    if (!pat || !selectionMask) return;
+    var flagged = buildConfettiPreview(confettiThreshold);
+    if (!flagged || flagged.size === 0) return;
+
+    var np = pat.slice();
+    var changes = [];
+    flagged.forEach(function(idx) {
+      var x = idx % sW, y = (idx - (idx % sW)) / sW;
+      var freq = {};
+      var nbrs = [];
+      if (x > 0)      nbrs.push(idx - 1);
+      if (x < sW - 1) nbrs.push(idx + 1);
+      if (y > 0)      nbrs.push(idx - sW);
+      if (y < sH - 1) nbrs.push(idx + sW);
+      nbrs.forEach(function(ni) {
+        var nc = pat[ni];
+        if (nc && nc.id !== "__skip__" && nc.id !== "__empty__") {
+          freq[nc.id] = (freq[nc.id] || 0) + 1;
+        }
+      });
+      var best = null, bestCt = -1;
+      Object.keys(freq).forEach(function(id) {
+        if (freq[id] > bestCt) { bestCt = freq[id]; best = id; }
+      });
+      if (best && cmap && cmap[best]) {
+        changes.push({ idx: idx, old: Object.assign({}, pat[idx]) });
+        np[idx] = Object.assign({}, cmap[best]);
+      }
+    });
+    if (!changes.length) return;
+
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "confettiCleanup", changes: changes }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    state.setPat(np);
+    var r = state.buildPaletteWithScratch(np);
+    state.setPal(r.pal); state.setCmap(r.cmap);
+    setConfettiPreview(null);
+  }
+
+  // ─── Phase 2.2: Colour reduction in selection ────────────────────────────────
+
+  function previewColorReduction() {
+    var pat = state.pat, cmap = state.cmap, mask = selectionMask;
+    if (!pat || !cmap || !mask) return;
+    var target = reduceTarget;
+    var counts = {};
+    for (var i = 0; i < pat.length; i++) {
+      if (!mask[i]) continue;
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      counts[cell.id] = (counts[cell.id] || 0) + 1;
+    }
+    var ids = Object.keys(counts);
+    if (ids.length <= target) { setReducePreview([]); return; }
+
+    var labs = {};
+    ids.forEach(function(id) {
+      var e = cmap[id];
+      labs[id] = e ? labFromEntry(e) : { L: 0, a: 0, b: 0 };
+    });
+
+    var activeIds = ids.slice();
+    var merges = [];
+
+    while (activeIds.length > target) {
+      var bestDE = Infinity, bestI = -1, bestJ = -1;
+      for (var a = 0; a < activeIds.length; a++) {
+        for (var b = a + 1; b < activeIds.length; b++) {
+          var de = deltaE(labs[activeIds[a]], labs[activeIds[b]]);
+          if (de < bestDE) { bestDE = de; bestI = a; bestJ = b; }
+        }
+      }
+      if (bestI < 0) break;
+      var idA = activeIds[bestI], idB = activeIds[bestJ];
+      var cntA = counts[idA] || 0, cntB = counts[idB] || 0;
+      var fromId, toId;
+      if (cntA <= cntB) { fromId = idA; toId = idB; }
+      else              { fromId = idB; toId = idA; }
+      merges.push({ from: fromId, to: toId, count: counts[fromId] || 0,
+        fromName: (cmap[fromId] ? cmap[fromId].name : fromId),
+        toName:   (cmap[toId]   ? cmap[toId].name   : toId) });
+      counts[toId] = (counts[toId] || 0) + (counts[fromId] || 0);
+      delete counts[fromId];
+      activeIds.splice(activeIds.indexOf(fromId), 1);
+    }
+    setReducePreview(merges);
+  }
+
+  function applyColorReduction() {
+    var pat = state.pat, cmap = state.cmap, mask = selectionMask;
+    var merges = reducePreview;
+    if (!pat || !cmap || !mask || !merges || !merges.length) return;
+
+    var remap = {};
+    merges.forEach(function(m) { remap[m.from] = m.to; });
+    function resolve(id) { var seen = new Set(); while (remap[id] && !seen.has(id)) { seen.add(id); id = remap[id]; } return id; }
+
+    var np = pat.slice();
+    var changes = [];
+    for (var i = 0; i < np.length; i++) {
+      if (!mask[i]) continue;
+      var cell = np[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      if (remap[cell.id]) {
+        var newId = resolve(cell.id);
+        var newEntry = cmap[newId];
+        if (newEntry) {
+          changes.push({ idx: i, old: Object.assign({}, cell) });
+          np[i] = Object.assign({}, newEntry);
+        }
+      }
+    }
+    if (!changes.length) return;
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "colorReduction", changes: changes }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    state.setPat(np);
+    var r = state.buildPaletteWithScratch(np);
+    state.setPal(r.pal); state.setCmap(r.cmap);
+    setReducePreview(null);
+  }
+
+  // ─── Phase 2.3: Colour replacement in selection ──────────────────────────────
+
+  var selectionReplaceColorCount = useMemo(function() {
+    var pat = state.pat, cmap = state.cmap;
+    if (!pat || !selectionMask || !replaceSource || !cmap) return 0;
+    var srcEntry = cmap[replaceSource];
+    if (!srcEntry) return 0;
+    var srcLab = labFromEntry(srcEntry);
+    var tol = replaceFuzzy ? replaceFuzzyTol : 0;
+    var c = 0;
+    for (var i = 0; i < pat.length; i++) {
+      if (!selectionMask[i]) continue;
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      var lab = getCellLab(i, pat, cmap);
+      if (!lab) continue;
+      if (deltaE(srcLab, lab) <= tol) c++;
+    }
+    return c;
+  }, [selectionMask, replaceSource, replaceFuzzy, replaceFuzzyTol, state.pat, state.cmap]);
+
+  function applyColorReplacement() {
+    var pat = state.pat, cmap = state.cmap;
+    if (!pat || !cmap || !selectionMask || !replaceSource || !replaceDest) return;
+    var srcEntry = cmap[replaceSource], dstEntry = cmap[replaceDest];
+    if (!srcEntry || !dstEntry) return;
+    var srcLab = labFromEntry(srcEntry);
+    var tol = replaceFuzzy ? replaceFuzzyTol : 0;
+    var np = pat.slice();
+    var changes = [];
+    for (var i = 0; i < np.length; i++) {
+      if (!selectionMask[i]) continue;
+      var cell = np[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      var lab = getCellLab(i, pat, cmap);
+      if (!lab) continue;
+      if (deltaE(srcLab, lab) <= tol) {
+        changes.push({ idx: i, old: Object.assign({}, cell) });
+        np[i] = Object.assign({}, dstEntry);
+      }
+    }
+    if (!changes.length) return;
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "colorReplace", changes: changes }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    state.setPat(np);
+    var r = state.buildPaletteWithScratch(np);
+    state.setPal(r.pal); state.setCmap(r.cmap);
+  }
+
+  // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
+
+  var selectionStats = useMemo(function() {
+    var pat = state.pat, cmap = state.cmap, fabricCt = state.fabricCt;
+    if (!pat || !cmap) return null;
+    var counts = {};
+    var total = 0;
+    for (var i = 0; i < pat.length; i++) {
+      var inSel = selectionMask ? selectionMask[i] : 1;
+      if (!inSel) continue;
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      counts[cell.id] = (counts[cell.id] || 0) + 1;
+      total++;
+    }
+    var rows = Object.entries(counts).sort(function(a, b) { return b[1] - a[1]; })
+      .map(function(e) {
+        var id = e[0], ct = e[1];
+        var entry = cmap[id] || {};
+        return { id: id, name: entry.name || id, rgb: entry.rgb || [128, 128, 128],
+          count: ct, skeins: skeinEst(ct, fabricCt || 14) };
+      });
+    var totalSkeins = rows.reduce(function(s, r) { return s + r.skeins; }, 0);
+    return { rows: rows, total: total, totalSkeins: totalSkeins, colors: rows.length };
+  }, [selectionMask, state.pat, state.cmap, state.fabricCt]);
+
+  // ─── Phase 3.2: Auto backstitch outline ─────────────────────────────────────
+
+  function applyOutlineGeneration() {
+    var pat = state.pat, mask = selectionMask;
+    var sW = state.sW, sH = state.sH, bsLines = state.bsLines;
+    var colorId = outlineColor;
+    if (!pat || !mask) return;
+
+    var newLines = [];
+    var edgeSet = new Set();
+
+    for (var idx = 0; idx < pat.length; idx++) {
+      if (!mask[idx]) continue;
+      var x = idx % sW, y = (idx - (idx % sW)) / sW;
+      var edges = [
+        { nx: x,   ny: y-1, ex: x,   ey: y,   ex2: x+1, ey2: y   },
+        { nx: x+1, ny: y,   ex: x+1, ey: y,   ex2: x+1, ey2: y+1 },
+        { nx: x,   ny: y+1, ex: x,   ey: y+1, ex2: x+1, ey2: y+1 },
+        { nx: x-1, ny: y,   ex: x,   ey: y,   ex2: x,   ey2: y+1 },
+      ];
+      for (var e = 0; e < edges.length; e++) {
+        var edge = edges[e];
+        var ni = edge.ny * sW + edge.nx;
+        var isBoundary = (edge.nx < 0 || edge.nx >= sW || edge.ny < 0 || edge.ny >= sH) || !mask[ni];
+        if (!isBoundary) continue;
+        var key = edge.ex + "," + edge.ey + "-" + edge.ex2 + "," + edge.ey2;
+        if (edgeSet.has(key)) continue;
+        edgeSet.add(key);
+        newLines.push({ x1: edge.ex, y1: edge.ey, x2: edge.ex2, y2: edge.ey2, colorId: colorId });
+      }
+    }
+    if (!newLines.length) return;
+
+    var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === colorId; }) : null;
+    var rgb = dmcEntry ? dmcEntry.rgb : [0, 0, 0];
+    var coloredLines = newLines.map(function(l) {
+      return { x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2, color: rgb };
+    });
+
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    var prevBs = bsLines;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "outlineGeneration", bsLines: prevBs }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    state.setBsLines(function(prev) { return prev.concat(coloredLines); });
+  }
+
+  // ─── Return ──────────────────────────────────────────────────────────────────
+  return {
+    selectionMask, setSelectionMask,
+    wandTolerance, setWandTolerance,
+    wandContiguous, setWandContiguous,
+    wandOpMode, setWandOpMode,
+    wandPanel, setWandPanel,
+    confettiThreshold, setConfettiThreshold,
+    confettiPreview, setConfettiPreview,
+    reduceTarget, setReduceTarget,
+    reducePreview, setReducePreview,
+    replaceSource, setReplaceSource,
+    replaceDest, setReplaceDest,
+    replaceFuzzy, setReplaceFuzzy,
+    replaceFuzzyTol, setReplaceFuzzyTol,
+    outlineColor, setOutlineColor,
+    // Actions
+    applyWandSelect, clearSelection, invertSelection, selectAll, selectAllOfColorId,
+    // Phase 2
+    previewConfettiCleanup, applyConfettiCleanup,
+    previewColorReduction, applyColorReduction,
+    selectionReplaceColorCount, applyColorReplacement,
+    // Phase 3
+    selectionStats, applyOutlineGeneration,
+    // Derived
+    selectionCount, hasSelection,
+  };
+};
+
+
 /* ─── useCreatorState.js ─── */
 /* creator/useCreatorState.js — All useState, useRef, useMemo, and derived
    helper functions for CreatorApp. Returned object becomes the base of
@@ -1265,6 +1855,7 @@ window.useCreatorState = function useCreatorState() {
   var _prevDims   = useState(null);  var previewDims   = _prevDims[0],   setPreviewDims   = _prevDims[1];
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var previewTimerRef = useRef(null);
+  var wandClearRef   = useRef(null);   // set after wand hook is called
 
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
@@ -1442,6 +2033,7 @@ window.useCreatorState = function useCreatorState() {
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
+    if (wandClearRef.current) wandClearRef.current();
   }
 
   function initBlankGrid(w, h) {
@@ -1629,6 +2221,18 @@ window.useCreatorState = function useCreatorState() {
     buildPaletteWithScratch: buildPaletteWithScratch,
   });
 
+  // ─── Magic Wand integration ──────────────────────────────────────────────────
+  var wand = useMagicWand({
+    pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt,
+    bsLines: bsLines, setBsLines: setBsLines,
+    editHistory: editHistory, setEditHistory: setEditHistory,
+    setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
+    setPat: setPat, setPal: setPal, setCmap: setCmap,
+    buildPaletteWithScratch: buildPaletteWithScratch,
+  });
+  // Keep wandClearRef updated each render so resetAll() can call it
+  wandClearRef.current = wand.clearSelection;
+
   // ─── Scratch resize effect ───────────────────────────────────────────────────
   useEffect(function() {
     if (!isScratchMode || !pat) return;
@@ -1703,6 +2307,33 @@ window.useCreatorState = function useCreatorState() {
     toggleOwned, generate,
     // PaletteSwap
     paletteSwap,
+    // Magic Wand
+    selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
+    wandTolerance: wand.wandTolerance, setWandTolerance: wand.setWandTolerance,
+    wandContiguous: wand.wandContiguous, setWandContiguous: wand.setWandContiguous,
+    wandOpMode: wand.wandOpMode, setWandOpMode: wand.setWandOpMode,
+    wandPanel: wand.wandPanel, setWandPanel: wand.setWandPanel,
+    confettiThreshold: wand.confettiThreshold, setConfettiThreshold: wand.setConfettiThreshold,
+    confettiPreview: wand.confettiPreview, setConfettiPreview: wand.setConfettiPreview,
+    reduceTarget: wand.reduceTarget, setReduceTarget: wand.setReduceTarget,
+    reducePreview: wand.reducePreview, setReducePreview: wand.setReducePreview,
+    replaceSource: wand.replaceSource, setReplaceSource: wand.setReplaceSource,
+    replaceDest: wand.replaceDest, setReplaceDest: wand.setReplaceDest,
+    replaceFuzzy: wand.replaceFuzzy, setReplaceFuzzy: wand.setReplaceFuzzy,
+    replaceFuzzyTol: wand.replaceFuzzyTol, setReplaceFuzzyTol: wand.setReplaceFuzzyTol,
+    outlineColor: wand.outlineColor, setOutlineColor: wand.setOutlineColor,
+    applyWandSelect: wand.applyWandSelect, clearSelection: wand.clearSelection,
+    invertSelection: wand.invertSelection, selectAll: wand.selectAll,
+    selectAllOfColorId: wand.selectAllOfColorId,
+    previewConfettiCleanup: wand.previewConfettiCleanup,
+    applyConfettiCleanup: wand.applyConfettiCleanup,
+    previewColorReduction: wand.previewColorReduction,
+    applyColorReduction: wand.applyColorReduction,
+    selectionReplaceColorCount: wand.selectionReplaceColorCount,
+    applyColorReplacement: wand.applyColorReplacement,
+    selectionStats: wand.selectionStats,
+    applyOutlineGeneration: wand.applyOutlineGeneration,
+    selectionCount: wand.selectionCount, hasSelection: wand.hasSelection,
   };
 };
 
@@ -1938,6 +2569,16 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
 
+    if (activeTool === "magicWand") {
+      if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+      var opMode = (e.shiftKey && e.altKey) ? "intersect"
+        : e.shiftKey ? "add"
+        : e.altKey ? "subtract"
+        : state.wandOpMode;
+      state.applyWandSelect(gx, gy, opMode);
+      return;
+    }
+
     if (activeTool === "eyedropper") {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
       var idx0 = gy * sW + gx;
@@ -2067,7 +2708,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
 
-    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs") {
+    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand") {
       handlePatClick(e);
       return;
     }
@@ -2299,12 +2940,15 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       if (mod && !e.shiftKey && e.key === "z") { e.preventDefault(); history.undoEdit(); return; }
       if ((mod && e.key === "y") || (mod && e.shiftKey && e.key === "z")) { e.preventDefault(); history.redoEdit(); return; }
       if (mod && e.key === "s") { e.preventDefault(); if (state.pat && state.pal) io.saveProject(); return; }
+      if (mod && !e.shiftKey && e.key === "a") { e.preventDefault(); if (state.pat) { state.selectAll(); } return; }
+      if (mod && e.shiftKey && (e.key === "i" || e.key === "I")) { e.preventDefault(); if (state.pat) { state.invertSelection(); } return; }
       if (mod) return;
 
       if (e.key === "Escape") {
         if (state.namePromptOpen) { state.setNamePromptOpen(false); return; }
         if (state.modal) { state.setModal(null); return; }
         if (state.overflowOpen) { state.setOverflowOpen(false); return; }
+        if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
         if (state.activeTool || state.halfStitchTool) {
           state.setActiveTool(null); state.setHalfStitchTool(null); state.setBsStart(null); return;
@@ -2322,6 +2966,11 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       if (e.key === "3") { state.selectStitchType("half-bck"); return; }
       if (e.key === "4") { state.selectStitchType("backstitch"); return; }
       if (e.key === "5") { state.selectStitchType("erase"); return; }
+      if (e.key === "w" || e.key === "W") {
+        if (state.activeTool === "magicWand") { state.setActiveTool(null); }
+        else { state.setActiveTool("magicWand"); state.setHalfStitchTool(null); state.setBsStart(null); }
+        return;
+      }
       if (e.key === "p" || e.key === "P") {
         if (!state.halfStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("paint");
         return;
@@ -2350,6 +2999,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     state.editHistory, state.redoHistory, state.pat, state.pal,
     state.namePromptOpen, state.modal, state.overflowOpen,
     state.selectedColorId, state.halfStitchTool, state.hiId,
+    state.hasSelection,
     history.undoEdit, history.redoEdit, io.saveProject,
   ]);
 };
@@ -2977,7 +3627,8 @@ window.PatternCanvas = function PatternCanvas() {
   }, [
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
     ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
-    ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool
+    ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool,
+    ctx.selectionMask, ctx.confettiPreview
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
@@ -3155,6 +3806,27 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ] : null;
 
+  // Magic Wand button
+  var wandGrp = [
+    h("div", {key:"sdiv-wand", className:"tb-sdiv"}),
+    h("button", {
+      key:"wand",
+      className:"tb-btn"+(ctx.activeTool==="magicWand"?" tb-btn--on":""),
+      onClick:function(){
+        if (ctx.activeTool === "magicWand") { ctx.setActiveTool(null); ctx.clearSelection(); }
+        else { ctx.setActiveTool("magicWand"); ctx.setHalfStitchTool(null); ctx.setBsStart(null); }
+      },
+      title:"Magic Wand \u2014 select by colour (W)"
+    }, "\u2728"),
+    ctx.hasSelection && h("button", {
+      key:"wand-clear",
+      className:"tb-btn",
+      onClick:function(){ ctx.clearSelection(); },
+      title:"Deselect (Esc)",
+      style:{fontSize:9,padding:"2px 5px",color:"#71717a"}
+    }, ctx.selectionCount.toLocaleString()+" sel")
+  ];
+
   // View group
   var viewGrp = [
     h("div", {key:"sdiv-view", className:"tb-sdiv"}),
@@ -3281,6 +3953,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       brushGrp,
       sizeGrp,
       bsCont,
+      wandGrp,
       viewGrp,
       colChip,
       h("div", {className:"tb-flex"}),
@@ -3289,6 +3962,315 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("div", {className:"tb-sdiv"}),
       overflowWrap
     )
+  );
+};
+
+
+/* ─── MagicWandPanel.js ─── */
+/* creator/MagicWandPanel.js — Floating panel for Magic Wand selection operations.
+   Renders when the magic wand tool is active and/or a selection exists.
+   Reads from CreatorContext. */
+
+window.MagicWandPanel = function MagicWandPanel() {
+  var ctx = React.useContext(window.CreatorContext);
+  var h = React.createElement;
+
+  if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
+  if (ctx.activeTool !== "magicWand" && !ctx.hasSelection) return null;
+
+  var hasSelection = ctx.hasSelection;
+  var panel = ctx.wandPanel;
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
+  function btn(label, onClick, opts) {
+    opts = opts || {};
+    return h("button", {
+      className: "tb-btn" + (opts.active ? " tb-btn--on" : "") + (opts.danger ? " tb-btn--red" : "") + (opts.green ? " tb-btn--green" : ""),
+      onClick: onClick,
+      disabled: opts.disabled,
+      title: opts.title || "",
+      style: Object.assign({ fontSize: 11, padding: "3px 8px" }, opts.style || {})
+    }, label);
+  }
+
+  function swatch(rgb) {
+    return h("span", {
+      style: { display: "inline-block", width: 12, height: 12, borderRadius: 2,
+        background: "rgb(" + (rgb || [128,128,128]) + ")", border: "1px solid #d4d4d8",
+        verticalAlign: "middle", marginRight: 3 }
+    });
+  }
+
+  // ─── Wand options bar ────────────────────────────────────────────────────────
+  var wandOptionsBar = (ctx.activeTool === "magicWand") ? h("div", {
+    style: { display: "flex", alignItems: "center", gap: 8, padding: "5px 10px",
+      background: "#f0f9ff", borderBottom: "1px solid #bae6fd", flexWrap: "wrap", fontSize: 11 }
+  },
+    h("span", { style: { fontWeight: 600, color: "#0369a1" } }, "\u2728 Wand"),
+    h("div", { className: "tb-sdiv" }),
+    // Tolerance
+    h("label", { style: { display: "flex", alignItems: "center", gap: 4, color: "#52525b" } },
+      "Tolerance:",
+      h("input", {
+        type: "range", min: 0, max: 100, step: 1, value: ctx.wandTolerance,
+        onChange: function(e) { ctx.setWandTolerance(Number(e.target.value)); },
+        style: { width: 80 }
+      }),
+      h("span", { style: { minWidth: 24, textAlign: "right" } }, ctx.wandTolerance)
+    ),
+    h("div", { className: "tb-sdiv" }),
+    // Contiguous toggle
+    h("div", { className: "tb-grp" },
+      btn("Contiguous", function() { ctx.setWandContiguous(true); }, { active: ctx.wandContiguous }),
+      btn("Global", function() { ctx.setWandContiguous(false); }, { active: !ctx.wandContiguous })
+    ),
+    h("div", { className: "tb-sdiv" }),
+    // Op mode
+    h("div", { className: "tb-grp" },
+      btn("Replace", function() { ctx.setWandOpMode("replace"); }, { active: ctx.wandOpMode === "replace", title: "Replace selection" }),
+      btn("+", function() { ctx.setWandOpMode("add"); }, { active: ctx.wandOpMode === "add", title: "Add to selection (or hold Shift)" }),
+      btn("\u2212", function() { ctx.setWandOpMode("subtract"); }, { active: ctx.wandOpMode === "subtract", title: "Subtract from selection (or hold Alt)" }),
+      btn("\u2229", function() { ctx.setWandOpMode("intersect"); }, { active: ctx.wandOpMode === "intersect", title: "Intersect with selection (or hold Shift+Alt)" })
+    )
+  ) : null;
+
+  // ─── Selection status bar ────────────────────────────────────────────────────
+  var selBar = hasSelection ? h("div", {
+    style: { display: "flex", alignItems: "center", gap: 8, padding: "4px 10px",
+      background: "#fefce8", borderBottom: "1px solid #fde68a", flexWrap: "wrap", fontSize: 11 }
+  },
+    h("span", { style: { fontWeight: 600, color: "#92400e" } },
+      "Selected: " + ctx.selectionCount.toLocaleString() + " stitch" + (ctx.selectionCount !== 1 ? "es" : "")
+    ),
+    h("div", { className: "tb-sdiv" }),
+    btn("Deselect (Esc)", ctx.clearSelection, { style: { fontSize: 10 } }),
+    btn("Invert (Ctrl+\u21E7+I)", ctx.invertSelection, { style: { fontSize: 10 } }),
+    btn("Select All (Ctrl+A)", ctx.selectAll, { style: { fontSize: 10 } }),
+    h("div", { className: "tb-sdiv" }),
+    // Operations
+    btn("Confetti\u2026", function() { ctx.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti", style: { fontSize: 10 } }),
+    btn("Reduce Colours\u2026", function() { ctx.setWandPanel(panel === "reduce" ? null : "reduce"); }, { active: panel === "reduce", style: { fontSize: 10 } }),
+    btn("Replace Colour\u2026", function() { ctx.setWandPanel(panel === "replace" ? null : "replace"); }, { active: panel === "replace", style: { fontSize: 10 } }),
+    btn("Stitch Info\u2026", function() { ctx.setWandPanel(panel === "info" ? null : "info"); }, { active: panel === "info", style: { fontSize: 10 } }),
+    btn("Generate Outline\u2026", function() { ctx.setWandPanel(panel === "outline" ? null : "outline"); }, { active: panel === "outline", style: { fontSize: 10 } })
+  ) : null;
+
+  // ─── Confetti panel ──────────────────────────────────────────────────────────
+  var confettiPanel = (panel === "confetti" && hasSelection) ? h("div", {
+    style: { padding: "10px 14px", background: "#fff7ed", borderBottom: "1px solid #fde68a",
+      display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
+  },
+    h("strong", { style: { color: "#7c2d12" } }, "Confetti Cleanup in Selection"),
+    h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
+      "Min cluster size:",
+      h("input", {
+        type: "range", min: 1, max: 10, step: 1, value: ctx.confettiThreshold,
+        onChange: function(e) { ctx.setConfettiThreshold(Number(e.target.value)); ctx.setConfettiPreview(null); },
+        style: { width: 70 }
+      }),
+      h("span", { style: { minWidth: 14 } }, ctx.confettiThreshold)
+    ),
+    ctx.confettiPreview
+      ? h("span", { style: { color: "#b45309" } }, ctx.confettiPreview.size + " stitches flagged")
+      : null,
+    btn("Preview", ctx.previewConfettiCleanup, { style: { fontSize: 10 } }),
+    btn("Apply", ctx.applyConfettiCleanup, {
+      green: true, disabled: !ctx.confettiPreview || !ctx.confettiPreview.size,
+      style: { fontSize: 10 }
+    }),
+    btn("\u00D7", function() { ctx.setWandPanel(null); ctx.setConfettiPreview(null); }, { style: { fontSize: 10 } })
+  ) : null;
+
+  // ─── Reduce colours panel ────────────────────────────────────────────────────
+  var selColors = ctx.selectionStats ? ctx.selectionStats.colors : 0;
+  var reducePanel = (panel === "reduce" && hasSelection) ? h("div", {
+    style: { padding: "10px 14px", background: "#f0fdf4", borderBottom: "1px solid #bbf7d0",
+      fontSize: 11 }
+  },
+    h("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 } },
+      h("strong", { style: { color: "#14532d" } }, "Simplify Colours in Selection"),
+      h("span", { style: { color: "#166534" } }, selColors + " colours in selection"),
+      h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
+        "Target:",
+        h("input", {
+          type: "number", min: 1, max: selColors, value: ctx.reduceTarget,
+          onChange: function(e) { ctx.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); ctx.setReducePreview(null); },
+          style: { width: 50, padding: "1px 4px" }
+        })
+      ),
+      btn("Preview merges", ctx.previewColorReduction, { style: { fontSize: 10 } }),
+      btn("Apply", ctx.applyColorReduction, {
+        green: true, disabled: !ctx.reducePreview || !ctx.reducePreview.length,
+        style: { fontSize: 10 }
+      }),
+      btn("\u00D7", function() { ctx.setWandPanel(null); ctx.setReducePreview(null); }, { style: { fontSize: 10 } })
+    ),
+    ctx.reducePreview && ctx.reducePreview.length ? h("div", {
+      style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #bbf7d0", paddingTop: 6 }
+    },
+      ctx.reducePreview.map(function(m, i) {
+        var fromE = ctx.cmap && ctx.cmap[m.from];
+        var toE   = ctx.cmap && ctx.cmap[m.to];
+        return h("div", { key: i, style: { display: "flex", alignItems: "center", gap: 5, marginBottom: 2 } },
+          swatch(fromE ? fromE.rgb : null), h("span", null, m.from + " " + m.fromName),
+          h("span", { style: { color: "#6b7280" } }, "\u2192"),
+          swatch(toE ? toE.rgb : null), h("span", null, m.to + " " + m.toName),
+          h("span", { style: { color: "#6b7280" } }, "(" + m.count + " stitches)")
+        );
+      })
+    ) : null
+  ) : null;
+
+  // ─── Replace colour panel ────────────────────────────────────────────────────
+  var replacePanel = (panel === "replace" && hasSelection) ? (function() {
+    var srcEntry = ctx.cmap && ctx.replaceSource ? ctx.cmap[ctx.replaceSource] : null;
+    var dstEntry = ctx.cmap && ctx.replaceDest   ? ctx.cmap[ctx.replaceDest]   : null;
+    var affectedCount = ctx.selectionReplaceColorCount;
+
+    // Color picker options from current palette
+    var palOpts = ctx.pal ? ctx.pal.map(function(p) {
+      return h("option", { key: p.id, value: p.id }, p.id + " " + p.name);
+    }) : [];
+
+    return h("div", {
+      style: { padding: "10px 14px", background: "#fdf4ff", borderBottom: "1px solid #e9d5ff",
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
+    },
+      h("strong", { style: { color: "#4a044e" } }, "Replace Colour in Selection"),
+      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
+        "Source:", srcEntry ? swatch(srcEntry.rgb) : null,
+        h("select", {
+          value: ctx.replaceSource || "",
+          onChange: function(e) { ctx.setReplaceSource(e.target.value || null); },
+          style: { fontSize: 11 }
+        }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
+      ),
+      h("span", { style: { color: "#6b7280" } }, "\u2192"),
+      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
+        "Target:", dstEntry ? swatch(dstEntry.rgb) : null,
+        h("select", {
+          value: ctx.replaceDest || "",
+          onChange: function(e) { ctx.setReplaceDest(e.target.value || null); },
+          style: { fontSize: 11 }
+        }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
+      ),
+      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
+        h("input", {
+          type: "checkbox", checked: ctx.replaceFuzzy,
+          onChange: function(e) { ctx.setReplaceFuzzy(e.target.checked); }
+        }), "Fuzzy",
+        ctx.replaceFuzzy ? [
+          h("input", { key: "tol", type: "range", min: 0, max: 20, step: 1, value: ctx.replaceFuzzyTol,
+            onChange: function(e) { ctx.setReplaceFuzzyTol(Number(e.target.value)); },
+            style: { width: 50 } }),
+          h("span", { key: "v" }, "\u0394E\u2264" + ctx.replaceFuzzyTol)
+        ] : null
+      ),
+      affectedCount > 0 ? h("span", { style: { color: "#7e22ce" } }, affectedCount + " stitches affected") : null,
+      btn("Apply", ctx.applyColorReplacement, {
+        green: true, disabled: !ctx.replaceSource || !ctx.replaceDest || !affectedCount,
+        style: { fontSize: 10 }
+      }),
+      btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
+    );
+  })() : null;
+
+  // ─── Stitch info panel ───────────────────────────────────────────────────────
+  var infoPanel = (panel === "info") ? (function() {
+    var stats = ctx.selectionStats;
+    if (!stats) return null;
+    var exportCSV = function() {
+      var lines = ["DMC,Name,Stitches,Skeins"];
+      stats.rows.forEach(function(r) {
+        lines.push([r.id, '"' + r.name + '"', r.count, r.skeins.toFixed(2)].join(","));
+      });
+      lines.push(["TOTAL","",stats.total, stats.totalSkeins.toFixed(2)].join(","));
+      var blob = new Blob([lines.join("\n")], { type: "text/csv" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "selection-info.csv";
+      a.click();
+    };
+    return h("div", {
+      style: { padding: "10px 14px", background: "#f0f9ff", borderBottom: "1px solid #bae6fd", fontSize: 11 }
+    },
+      h("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 } },
+        h("strong", { style: { color: "#0c4a6e" } }, hasSelection ? "Selection Info" : "Pattern Info"),
+        h("span", { style: { color: "#0369a1" } },
+          stats.total.toLocaleString() + " stitches, " + stats.colors + " colours, ~" + stats.totalSkeins.toFixed(1) + " skeins"),
+        btn("Export CSV", exportCSV, { style: { fontSize: 10 } }),
+        btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
+      ),
+      h("div", { style: { maxHeight: 140, overflowY: "auto" } },
+        h("table", { style: { borderCollapse: "collapse", width: "100%" } },
+          h("thead", null, h("tr", null,
+            h("th", { style: headStyle }, "Colour"),
+            h("th", { style: headStyle }, "DMC"),
+            h("th", { style: headStyle }, "Name"),
+            h("th", { style: { ...headStyle, textAlign: "right" } }, "Stitches"),
+            h("th", { style: { ...headStyle, textAlign: "right" } }, "Skeins")
+          )),
+          h("tbody", null,
+            stats.rows.map(function(r, i) {
+              return h("tr", { key: r.id, style: { background: i % 2 ? "#f8fafc" : "#fff" } },
+                h("td", { style: cellStyle }, swatch(r.rgb)),
+                h("td", { style: cellStyle }, r.id),
+                h("td", { style: cellStyle }, r.name),
+                h("td", { style: { ...cellStyle, textAlign: "right" } }, r.count.toLocaleString()),
+                h("td", { style: { ...cellStyle, textAlign: "right" } }, r.skeins.toFixed(2))
+              );
+            }),
+            h("tr", { style: { fontWeight: 700, borderTop: "1px solid #bae6fd" } },
+              h("td", { style: cellStyle, colSpan: 3 }, "Total"),
+              h("td", { style: { ...cellStyle, textAlign: "right" } }, stats.total.toLocaleString()),
+              h("td", { style: { ...cellStyle, textAlign: "right" } }, stats.totalSkeins.toFixed(2))
+            )
+          )
+        )
+      )
+    );
+  })() : null;
+
+  var headStyle = { textAlign: "left", padding: "2px 6px", borderBottom: "1px solid #bae6fd",
+    fontWeight: 600, color: "#0369a1", fontSize: 10, whiteSpace: "nowrap" };
+  var cellStyle = { padding: "2px 6px", fontSize: 11 };
+
+  // ─── Outline panel ───────────────────────────────────────────────────────────
+  var outlinePanel = (panel === "outline" && hasSelection) ? h("div", {
+    style: { padding: "10px 14px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0",
+      display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
+  },
+    h("strong", { style: { color: "#1e293b" } }, "Generate Backstitch Outline"),
+    h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
+      "Outline thread (DMC):",
+      h("input", {
+        type: "text", value: ctx.outlineColor,
+        onChange: function(e) { ctx.setOutlineColor(e.target.value.trim()); },
+        style: { width: 60, padding: "1px 4px", fontSize: 11 }
+      })
+    ),
+    (function() {
+      var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === ctx.outlineColor; }) : null;
+      return dmcEntry ? h("span", { style: { display: "flex", alignItems: "center", gap: 3 } },
+        swatch(dmcEntry.rgb), h("span", { style: { color: "#334155" } }, dmcEntry.name)
+      ) : h("span", { style: { color: "#ef4444" } }, "Unknown DMC");
+    })(),
+    btn("Generate", ctx.applyOutlineGeneration, {
+      green: true,
+      disabled: !(typeof DMC !== "undefined" && DMC.find(function(d) { return d.id === ctx.outlineColor; })),
+      style: { fontSize: 10 }
+    }),
+    btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
+  ) : null;
+
+  return h("div", { style: { borderBottom: "1px solid #e4e4e7" } },
+    wandOptionsBar,
+    selBar,
+    confettiPanel,
+    reducePanel,
+    replacePanel,
+    infoPanel,
+    outlinePanel
   );
 };
 
@@ -3877,6 +4859,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     },
       h(window.PatternCanvas, null)
     ),
+
+    h(window.MagicWandPanel, null),
 
     h("div", {className:"tb-status"}, statusText),
 

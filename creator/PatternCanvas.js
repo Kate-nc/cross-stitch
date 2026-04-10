@@ -41,7 +41,8 @@ window.PatternCanvas = function PatternCanvas() {
   }, [
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
     ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
-    ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool
+    ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool,
+    ctx.selectionMask, ctx.confettiPreview
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).

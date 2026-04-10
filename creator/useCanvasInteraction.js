@@ -139,6 +139,16 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
 
+    if (activeTool === "magicWand") {
+      if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+      var opMode = (e.shiftKey && e.altKey) ? "intersect"
+        : e.shiftKey ? "add"
+        : e.altKey ? "subtract"
+        : state.wandOpMode;
+      state.applyWandSelect(gx, gy, opMode);
+      return;
+    }
+
     if (activeTool === "eyedropper") {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
       var idx0 = gy * sW + gx;
@@ -268,7 +278,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
 
-    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs") {
+    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand") {
       handlePatClick(e);
       return;
     }

@@ -143,6 +143,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       h(window.PatternCanvas, null)
     ),
 
+    h(window.MagicWandPanel, null),
+
     h("div", {className:"tb-status"}, statusText),
 
     h("div", {style:{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}},

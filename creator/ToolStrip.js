@@ -135,6 +135,27 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ] : null;
 
+  // Magic Wand button
+  var wandGrp = [
+    h("div", {key:"sdiv-wand", className:"tb-sdiv"}),
+    h("button", {
+      key:"wand",
+      className:"tb-btn"+(ctx.activeTool==="magicWand"?" tb-btn--on":""),
+      onClick:function(){
+        if (ctx.activeTool === "magicWand") { ctx.setActiveTool(null); ctx.clearSelection(); }
+        else { ctx.setActiveTool("magicWand"); ctx.setHalfStitchTool(null); ctx.setBsStart(null); }
+      },
+      title:"Magic Wand \u2014 select by colour (W)"
+    }, "\u2728"),
+    ctx.hasSelection && h("button", {
+      key:"wand-clear",
+      className:"tb-btn",
+      onClick:function(){ ctx.clearSelection(); },
+      title:"Deselect (Esc)",
+      style:{fontSize:9,padding:"2px 5px",color:"#71717a"}
+    }, ctx.selectionCount.toLocaleString()+" sel")
+  ];
+
   // View group
   var viewGrp = [
     h("div", {key:"sdiv-view", className:"tb-sdiv"}),
@@ -261,6 +282,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       brushGrp,
       sizeGrp,
       bsCont,
+      wandGrp,
       viewGrp,
       colChip,
       h("div", {className:"tb-flex"}),

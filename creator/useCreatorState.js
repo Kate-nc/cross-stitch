@@ -138,6 +138,7 @@ window.useCreatorState = function useCreatorState() {
   var _prevDims   = useState(null);  var previewDims   = _prevDims[0],   setPreviewDims   = _prevDims[1];
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var previewTimerRef = useRef(null);
+  var wandClearRef   = useRef(null);   // set after wand hook is called
 
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
@@ -315,6 +316,7 @@ window.useCreatorState = function useCreatorState() {
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
+    if (wandClearRef.current) wandClearRef.current();
   }
 
   function initBlankGrid(w, h) {
@@ -502,6 +504,18 @@ window.useCreatorState = function useCreatorState() {
     buildPaletteWithScratch: buildPaletteWithScratch,
   });
 
+  // ─── Magic Wand integration ──────────────────────────────────────────────────
+  var wand = useMagicWand({
+    pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt,
+    bsLines: bsLines, setBsLines: setBsLines,
+    editHistory: editHistory, setEditHistory: setEditHistory,
+    setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
+    setPat: setPat, setPal: setPal, setCmap: setCmap,
+    buildPaletteWithScratch: buildPaletteWithScratch,
+  });
+  // Keep wandClearRef updated each render so resetAll() can call it
+  wandClearRef.current = wand.clearSelection;
+
   // ─── Scratch resize effect ───────────────────────────────────────────────────
   useEffect(function() {
     if (!isScratchMode || !pat) return;
@@ -576,5 +590,32 @@ window.useCreatorState = function useCreatorState() {
     toggleOwned, generate,
     // PaletteSwap
     paletteSwap,
+    // Magic Wand
+    selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
+    wandTolerance: wand.wandTolerance, setWandTolerance: wand.setWandTolerance,
+    wandContiguous: wand.wandContiguous, setWandContiguous: wand.setWandContiguous,
+    wandOpMode: wand.wandOpMode, setWandOpMode: wand.setWandOpMode,
+    wandPanel: wand.wandPanel, setWandPanel: wand.setWandPanel,
+    confettiThreshold: wand.confettiThreshold, setConfettiThreshold: wand.setConfettiThreshold,
+    confettiPreview: wand.confettiPreview, setConfettiPreview: wand.setConfettiPreview,
+    reduceTarget: wand.reduceTarget, setReduceTarget: wand.setReduceTarget,
+    reducePreview: wand.reducePreview, setReducePreview: wand.setReducePreview,
+    replaceSource: wand.replaceSource, setReplaceSource: wand.setReplaceSource,
+    replaceDest: wand.replaceDest, setReplaceDest: wand.setReplaceDest,
+    replaceFuzzy: wand.replaceFuzzy, setReplaceFuzzy: wand.setReplaceFuzzy,
+    replaceFuzzyTol: wand.replaceFuzzyTol, setReplaceFuzzyTol: wand.setReplaceFuzzyTol,
+    outlineColor: wand.outlineColor, setOutlineColor: wand.setOutlineColor,
+    applyWandSelect: wand.applyWandSelect, clearSelection: wand.clearSelection,
+    invertSelection: wand.invertSelection, selectAll: wand.selectAll,
+    selectAllOfColorId: wand.selectAllOfColorId,
+    previewConfettiCleanup: wand.previewConfettiCleanup,
+    applyConfettiCleanup: wand.applyConfettiCleanup,
+    previewColorReduction: wand.previewColorReduction,
+    applyColorReduction: wand.applyColorReduction,
+    selectionReplaceColorCount: wand.selectionReplaceColorCount,
+    applyColorReplacement: wand.applyColorReplacement,
+    selectionStats: wand.selectionStats,
+    applyOutlineGeneration: wand.applyOutlineGeneration,
+    selectionCount: wand.selectionCount, hasSelection: wand.hasSelection,
   };
 };
