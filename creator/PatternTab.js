@@ -177,6 +177,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       );
     })(),
 
+    h(window.MagicWandPanel, null),
+
     h("div", {
       ref:ctx.scrollRef,
       style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(function(){
@@ -210,8 +212,6 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     // Context menu overlay
     ctx.contextMenu && h(window.CreatorContextMenu, null),
-
-    h(window.MagicWandPanel, null),
 
     // Enhanced status bar: tool hint + coordinates + colour-under-cursor
     (function() {

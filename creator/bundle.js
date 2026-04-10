@@ -5147,9 +5147,30 @@ window.MagicWandPanel = function MagicWandPanel() {
     });
   }
 
+  // ─── Op mode SVG icons (match ToolStrip icon style) ─────────────────────────
+  // Each icon: dashed rect = selection box; second shape = mode indicator
+  var svgSelReplace = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("rect", {x:"1.5",y:"2",width:"9",height:"8",rx:"0.5",stroke:"currentColor",strokeWidth:"1.2",strokeDasharray:"2.5 1.5"})
+  );
+  var svgSelAdd = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("rect", {x:"1",y:"1.5",width:"6",height:"6",rx:"0.5",stroke:"currentColor",strokeWidth:"1.1",strokeDasharray:"2 1.5"}),
+    h("rect", {x:"5",y:"5",width:"6",height:"6",rx:"0.5",stroke:"currentColor",strokeWidth:"1.1"}),
+    h("line", {x1:"6.8",y1:"8",x2:"9.2",y2:"8",stroke:"currentColor",strokeWidth:"1.2",strokeLinecap:"round"}),
+    h("line", {x1:"8",y1:"6.8",x2:"8",y2:"9.2",stroke:"currentColor",strokeWidth:"1.2",strokeLinecap:"round"})
+  );
+  var svgSelSubtract = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("rect", {x:"1",y:"1.5",width:"6",height:"6",rx:"0.5",stroke:"currentColor",strokeWidth:"1.1",strokeDasharray:"2 1.5"}),
+    h("rect", {x:"5",y:"5",width:"6",height:"6",rx:"0.5",stroke:"currentColor",strokeWidth:"1.1"}),
+    h("line", {x1:"6.8",y1:"8",x2:"9.2",y2:"8",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round"})
+  );
+  var svgSelIntersect = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("rect", {x:"1",y:"1.5",width:"6.5",height:"6.5",rx:"0.5",stroke:"currentColor",strokeWidth:"1.1",strokeDasharray:"2 1.5"}),
+    h("rect", {x:"4.5",y:"4",width:"6.5",height:"6.5",rx:"0.5",stroke:"currentColor",strokeWidth:"1.1",strokeDasharray:"2 1.5"}),
+    h("rect", {x:"4.5",y:"4",width:"3",height:"4",rx:"0.3",fill:"currentColor",opacity:"0.35"})
+  );
+
   // ─── Op mode buttons (shared across wand + lasso) ───────────────────────────
-  // btn variant that shows both persistent-active and modifier-active states
-  function opBtn(label, mode, title) {
+  function opBtn(icon, label, mode, title) {
     var isPersistent = ctx.wandOpMode === mode;
     var isModifier   = ctx.selectionModifier === mode;
     var className = "tb-btn" +
@@ -5159,8 +5180,8 @@ window.MagicWandPanel = function MagicWandPanel() {
       className: className,
       onClick: function() { ctx.setSelectionOpMode(mode); },
       title: title,
-      style: { fontSize: 11, padding: "3px 8px", position: "relative" }
-    }, label,
+      style: { position: "relative" }
+    }, icon, label,
       isModifier && h("span", {
         style: { position: "absolute", top: -4, right: -4, background: "#f59e0b",
           color: "#fff", borderRadius: 99, fontSize: 8, width: 12, height: 12,
@@ -5170,64 +5191,63 @@ window.MagicWandPanel = function MagicWandPanel() {
     );
   }
 
-  // ─── Wand options bar ────────────────────────────────────────────────────────
-  var toolLabel = ctx.activeTool === "lasso" ? "\uD83E\uDD1F Lasso" : "\u2728 Wand";
-  var wandOptionsBar = isSelTool ? h("div", {
-    style: { display: "flex", alignItems: "center", gap: 8, padding: "5px 10px",
-      background: "#f0f9ff", borderBottom: "1px solid #bae6fd", flexWrap: "wrap", fontSize: 11 }
-  },
-    h("span", { style: { fontWeight: 600, color: "#0369a1" } }, toolLabel),
-    h("div", { className: "tb-sdiv" }),
-    // Tolerance (wand only)
-    ctx.activeTool === "magicWand" && h("label", { style: { display: "flex", alignItems: "center", gap: 4, color: "#52525b" } },
-      "Tolerance:",
-      h("input", {
-        type: "range", min: 0, max: 100, step: 1, value: ctx.wandTolerance,
-        onChange: function(e) { ctx.setWandTolerance(Number(e.target.value)); },
-        style: { width: 80 }
-      }),
-      h("span", { style: { minWidth: 24, textAlign: "right" } }, ctx.wandTolerance),
-      h("span", { style: { fontSize: 9, color: "#94a3b8", marginLeft: 2 } },
-        ctx.wandTolerance === 0 ? "(exact)" : ctx.wandTolerance <= 5 ? "(similar)" : ctx.wandTolerance <= 15 ? "(broad)" : "(very broad)")
-    ),
-    ctx.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
-    // Contiguous toggle (wand only)
-    ctx.activeTool === "magicWand" && h("div", { className: "tb-grp" },
-      btn("Contiguous", function() { ctx.setWandContiguous(true); }, { active: ctx.wandContiguous }),
-      btn("Global", function() { ctx.setWandContiguous(false); }, { active: !ctx.wandContiguous })
-    ),
-    h("div", { className: "tb-sdiv" }),
-    // Op mode — shared across wand and lasso.
-    // Buttons: persistent mode shows tb-btn--on; modifier-held shows tb-btn--mod-active
-    h("div", { className: "tb-grp" },
-      opBtn("New",       "replace",   "New selection — replaces any existing (default)"),
-      opBtn("+",         "add",        "Add to selection (or hold Shift)"),
-      opBtn("\u2212",    "subtract",   "Subtract from selection (or hold Alt)"),
-      opBtn("\u2229",    "intersect",  "Intersect with selection (or hold Shift+Alt)")
-    ),
-    // Keyboard hint
-    h("span", { style: { fontSize: 9, color: "#94a3b8", marginLeft: 4 } }, "Shift / Alt / Shift+Alt")
+  // ─── First toolbar row: tool options ─────────────────────────────────────────
+  var toolLabel = ctx.activeTool === "lasso" ? "Lasso" : "Wand";
+  var optionsRow = isSelTool ? h("div", { className: "tb-strip--sel" },
+    h("div", { className: "tb-strip-inner" },
+      h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } }, toolLabel),
+      h("div", { className: "tb-sdiv" }),
+      // Tolerance slider (wand only)
+      ctx.activeTool === "magicWand" && h("label", { style: { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } },
+        "Tolerance",
+        h("input", {
+          type: "range", min: 0, max: 100, step: 1, value: ctx.wandTolerance,
+          onChange: function(e) { ctx.setWandTolerance(Number(e.target.value)); },
+          style: { width: 80 }
+        }),
+        h("span", { style: { minWidth: 22, textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 11 } }, ctx.wandTolerance),
+        h("span", { style: { fontSize: 9, color: "var(--text-tertiary)", marginLeft: 1 } },
+          ctx.wandTolerance === 0 ? "(exact)" : ctx.wandTolerance <= 5 ? "(similar)" : ctx.wandTolerance <= 15 ? "(broad)" : "(very broad)")
+      ),
+      ctx.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
+      // Contiguous / Global toggle (wand only)
+      ctx.activeTool === "magicWand" && h("div", { className: "tb-grp" },
+        btn("Contiguous", function() { ctx.setWandContiguous(true); }, { active: ctx.wandContiguous, title: "Only select cells connected to the clicked cell" }),
+        btn("Global",     function() { ctx.setWandContiguous(false); }, { active: !ctx.wandContiguous, title: "Select all matching cells across the whole pattern" })
+      ),
+      h("div", { className: "tb-sdiv" }),
+      // Op mode buttons
+      h("div", { className: "tb-grp" },
+        opBtn(svgSelReplace,  "New",       "replace",   "New selection \u2014 replaces any existing"),
+        opBtn(svgSelAdd,      "Add",        "add",        "Add to selection (hold Shift)"),
+        opBtn(svgSelSubtract, "Subtract",  "subtract",   "Subtract from selection (hold Alt)"),
+        opBtn(svgSelIntersect,"Intersect", "intersect",  "Keep only the overlap (hold Shift+Alt)")
+      ),
+      h("span", { style: { fontSize: 9, color: "var(--text-tertiary)", marginLeft: 2, flexShrink: 0 } }, "Shift / Alt / Shift+Alt")
+    )
   ) : null;
 
-  // ─── Selection status bar ────────────────────────────────────────────────────
-  var selBar = hasSelection ? h("div", {
-    style: { display: "flex", alignItems: "center", gap: 8, padding: "4px 10px",
-      background: "#fefce8", borderBottom: "1px solid #fde68a", flexWrap: "wrap", fontSize: 11 }
-  },
-    h("span", { style: { fontWeight: 600, color: "#92400e" } },
-      "Selected: " + ctx.selectionCount.toLocaleString() + " stitch" + (ctx.selectionCount !== 1 ? "es" : "")
-    ),
-    h("div", { className: "tb-sdiv" }),
-    btn("Deselect (Esc)", ctx.clearSelection, { style: { fontSize: 10 } }),
-    btn("Invert (Ctrl+\u21E7+I)", ctx.invertSelection, { style: { fontSize: 10 } }),
-    btn("Select All (Ctrl+A)", ctx.selectAll, { style: { fontSize: 10 } }),
-    h("div", { className: "tb-sdiv" }),
-    // Operations
-    btn("Confetti\u2026", function() { ctx.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti", style: { fontSize: 10 } }),
-    btn("Reduce Colours\u2026", function() { ctx.setWandPanel(panel === "reduce" ? null : "reduce"); }, { active: panel === "reduce", style: { fontSize: 10 } }),
-    btn("Replace Colour\u2026", function() { ctx.setWandPanel(panel === "replace" ? null : "replace"); }, { active: panel === "replace", style: { fontSize: 10 } }),
-    btn("Stitch Info\u2026", function() { ctx.setWandPanel(panel === "info" ? null : "info"); }, { active: panel === "info", style: { fontSize: 10 } }),
-    btn("Generate Outline\u2026", function() { ctx.setWandPanel(panel === "outline" ? null : "outline"); }, { active: panel === "outline", style: { fontSize: 10 } })
+  // ─── Second toolbar row: selection status + operations ───────────────────────
+  var selRow = hasSelection ? h("div", { className: "tb-strip--sel" },
+    h("div", { className: "tb-strip-inner" },
+      h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } },
+        ctx.selectionCount.toLocaleString() + "\u00a0stitch" + (ctx.selectionCount !== 1 ? "es" : "") + " selected"
+      ),
+      h("div", { className: "tb-sdiv" }),
+      h("div", { className: "tb-grp" },
+        btn("Deselect", ctx.clearSelection,   { title: "Deselect all (Esc)" }),
+        btn("Invert",   ctx.invertSelection,  { title: "Invert selection (Ctrl+\u21E7+I)" }),
+        btn("All",      ctx.selectAll,        { title: "Select all stitches (Ctrl+A)" })
+      ),
+      h("div", { className: "tb-sdiv" }),
+      h("div", { className: "tb-grp" },
+        btn("Confetti\u2026",       function() { ctx.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti" }),
+        btn("Reduce Colours\u2026", function() { ctx.setWandPanel(panel === "reduce"   ? null : "reduce");    }, { active: panel === "reduce" }),
+        btn("Replace Colour\u2026", function() { ctx.setWandPanel(panel === "replace"  ? null : "replace");   }, { active: panel === "replace" }),
+        btn("Stitch Info\u2026",    function() { ctx.setWandPanel(panel === "info"     ? null : "info");      }, { active: panel === "info" }),
+        btn("Outline\u2026",        function() { ctx.setWandPanel(panel === "outline"  ? null : "outline");   }, { active: panel === "outline" })
+      )
+    )
   ) : null;
 
   // ─── Confetti panel ──────────────────────────────────────────────────────────
@@ -5438,9 +5458,9 @@ window.MagicWandPanel = function MagicWandPanel() {
     btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
   ) : null;
 
-  return h("div", { style: { borderBottom: "1px solid #e4e4e7" } },
-    wandOptionsBar,
-    selBar,
+  return h("div", null,
+    optionsRow,
+    selRow,
     confettiPanel,
     reducePanel,
     replacePanel,
@@ -6272,6 +6292,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       );
     })(),
 
+    h(window.MagicWandPanel, null),
+
     h("div", {
       ref:ctx.scrollRef,
       style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(function(){
@@ -6305,8 +6327,6 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     // Context menu overlay
     ctx.contextMenu && h(window.CreatorContextMenu, null),
-
-    h(window.MagicWandPanel, null),
 
     // Enhanced status bar: tool hint + coordinates + colour-under-cursor
     (function() {

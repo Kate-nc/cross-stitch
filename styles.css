@@ -175,6 +175,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tb-action-btn--orange:hover{background:#bf5029;filter:none;}
 /* Tool strip */
 .tb-strip{background:var(--surface-tertiary);border-bottom:0.5px solid var(--border);position:sticky;top:40px;z-index:99;height:38px;overflow:visible;}
+.tb-strip--sel{background:var(--surface-tertiary);border-bottom:0.5px solid var(--border);height:auto;overflow:visible;}
 .tb-strip-inner{max-width:1300px;margin:0 auto;padding:0 16px;height:100%;display:flex;align-items:center;gap:3px;overflow:visible;}
 .tb-sdiv{width:1px;height:20px;background:var(--border);flex-shrink:0;margin:0 2px;}
 .tb-grp{display:flex;gap:1px;background:var(--surface);border:0.5px solid var(--border);border-radius:7px;padding:2px;flex-shrink:0;}
