@@ -585,4 +585,92 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       }
     }
   }
+
+  // ─── Lasso in-progress overlay ───────────────────────────────────────────────
+  var lassoMode   = state.lassoMode;
+  var lassoPoints = state.lassoPoints;
+  var lassoCursor = state.lassoCursor;
+  var lassoPreviewMask = state.lassoPreviewMask;
+  var lassoInProgress  = state.lassoInProgress;
+
+  if (lassoMode && (lassoInProgress || (lassoPoints && lassoPoints.length > 0))) {
+    ctx2d.save();
+
+    if (lassoMode === "freehand" && lassoPreviewMask) {
+      // Tint cells painted by freehand drag
+      ctx2d.fillStyle = "rgba(16,185,129,0.35)";
+      for (var fi = 0; fi < lassoPreviewMask.length; fi++) {
+        if (!lassoPreviewMask[fi]) continue;
+        var lfx = (fi % state.sW) - offX;
+        var lfy = Math.floor(fi / state.sW) - offY;
+        if (lfx < 0 || lfx >= dW || lfy < 0 || lfy >= dH) continue;
+        ctx2d.fillRect(gut + lfx * cSz, gut + lfy * cSz, cSz, cSz);
+      }
+    }
+
+    if ((lassoMode === "polygon" || lassoMode === "magnetic") && lassoPoints && lassoPoints.length > 0) {
+      var pts = lassoPoints;
+
+      // Draw path lines between placed anchors
+      ctx2d.strokeStyle = lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)";
+      ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+      ctx2d.setLineDash([]);
+      if (pts.length > 1) {
+        ctx2d.beginPath();
+        ctx2d.moveTo(gut + (pts[0].x - offX) * cSz + cSz / 2, gut + (pts[0].y - offY) * cSz + cSz / 2);
+        for (var pi = 1; pi < pts.length; pi++) {
+          ctx2d.lineTo(gut + (pts[pi].x - offX) * cSz + cSz / 2, gut + (pts[pi].y - offY) * cSz + cSz / 2);
+        }
+        ctx2d.stroke();
+      }
+
+      // Dashed line from last anchor to cursor
+      if (lassoCursor) {
+        var nearStart = false;
+        if (pts.length >= 3) {
+          var csdx = lassoCursor.x - pts[0].x, csdy = lassoCursor.y - pts[0].y;
+          nearStart = Math.sqrt(csdx * csdx + csdy * csdy) <= 1.5;
+        }
+        var cursorColor = nearStart
+          ? (lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)")
+          : "rgba(100,100,100,0.5)";
+        var lastPt = pts[pts.length - 1];
+        ctx2d.strokeStyle = cursorColor;
+        ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+        ctx2d.setLineDash([Math.max(3, cSz * 0.3), Math.max(3, cSz * 0.3)]);
+        ctx2d.beginPath();
+        ctx2d.moveTo(gut + (lastPt.x - offX) * cSz + cSz / 2, gut + (lastPt.y - offY) * cSz + cSz / 2);
+        ctx2d.lineTo(gut + (lassoCursor.x - offX) * cSz + cSz / 2, gut + (lassoCursor.y - offY) * cSz + cSz / 2);
+        ctx2d.stroke();
+        ctx2d.setLineDash([]);
+
+        // Snap-to-close circle around start when near
+        if (nearStart) {
+          ctx2d.strokeStyle = lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)";
+          ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+          ctx2d.beginPath();
+          ctx2d.arc(
+            gut + (pts[0].x - offX) * cSz + cSz / 2,
+            gut + (pts[0].y - offY) * cSz + cSz / 2,
+            Math.max(5, cSz * 0.4), 0, Math.PI * 2
+          );
+          ctx2d.stroke();
+        }
+      }
+
+      // Anchor dots
+      var dotColor = lassoMode === "magnetic" ? "rgba(245,158,11,1)" : "rgba(99,102,241,1)";
+      for (var ai = 0; ai < pts.length; ai++) {
+        var ax = gut + (pts[ai].x - offX) * cSz + cSz / 2;
+        var ay = gut + (pts[ai].y - offY) * cSz + cSz / 2;
+        var r = ai === 0 ? Math.max(4, cSz * 0.3) : Math.max(2.5, cSz * 0.18);
+        ctx2d.fillStyle = "white";
+        ctx2d.beginPath(); ctx2d.arc(ax, ay, r + 1, 0, Math.PI * 2); ctx2d.fill();
+        ctx2d.fillStyle = dotColor;
+        ctx2d.beginPath(); ctx2d.arc(ax, ay, r, 0, Math.PI * 2); ctx2d.fill();
+      }
+    }
+
+    ctx2d.restore();
+  }
 };

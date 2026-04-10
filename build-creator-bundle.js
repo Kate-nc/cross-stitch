@@ -15,6 +15,7 @@ const ORDER = [
   'canvasRenderer.js',
   'exportPdf.js',
   'useMagicWand.js',
+  'useLassoSelect.js',
   'useCreatorState.js',
   'useEditHistory.js',
   'useCanvasInteraction.js',

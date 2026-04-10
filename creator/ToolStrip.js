@@ -135,25 +135,77 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ] : null;
 
-  // Magic Wand button
-  var wandGrp = [
-    h("div", {key:"sdiv-wand", className:"tb-sdiv"}),
-    h("button", {
-      key:"wand",
-      className:"tb-btn"+(ctx.activeTool==="magicWand"?" tb-btn--on":""),
-      onClick:function(){
-        if (ctx.activeTool === "magicWand") { ctx.setActiveTool(null); ctx.clearSelection(); }
-        else { ctx.setActiveTool("magicWand"); ctx.setHalfStitchTool(null); ctx.setBsStart(null); }
-      },
-      title:"Magic Wand \u2014 select by colour (W)"
-    }, "\u2728"),
-    ctx.hasSelection && h("button", {
-      key:"wand-clear",
+  // Selection tools: Magic Wand + Lasso / Freehand / Magnetic
+  var selectGrp = [
+    h("div", {key:"sdiv-select", className:"tb-sdiv"}),
+    h("div", {key:"select-grp", className:"tb-grp"},
+      h("button", {
+        key:"wand",
+        className:"tb-btn"+(ctx.activeTool==="magicWand"?" tb-btn--on":""),
+        onClick:function(){
+          if (ctx.activeTool === "magicWand") { ctx.setActiveTool(null); }
+          else {
+            ctx.setActiveTool("magicWand");
+            ctx.setHalfStitchTool(null);
+            ctx.setBsStart(null);
+            if (ctx.cancelLasso) ctx.cancelLasso();
+          }
+        },
+        title:"Magic Wand — select by colour (W)"
+      }, "✨"),
+      h("button", {
+        key:"freehand",
+        className:"tb-btn"+(ctx.activeTool==="lasso" && ctx.lassoMode==="freehand"?" tb-btn--on":""),
+        onClick:function(){
+          var same = ctx.activeTool === "lasso" && ctx.lassoMode === "freehand";
+          if (same) { ctx.cancelLasso(); ctx.setActiveTool(null); ctx.setLassoMode(null); }
+          else {
+            ctx.setActiveTool("lasso");
+            ctx.setLassoMode("freehand");
+            ctx.setHalfStitchTool(null);
+            ctx.setBsStart(null);
+          }
+        },
+        title:"Freehand selection"
+      }, "✎"),
+      h("button", {
+        key:"polygon",
+        className:"tb-btn"+(ctx.activeTool==="lasso" && ctx.lassoMode==="polygon"?" tb-btn--on":""),
+        onClick:function(){
+          var same = ctx.activeTool === "lasso" && ctx.lassoMode === "polygon";
+          if (same) { ctx.cancelLasso(); ctx.setActiveTool(null); ctx.setLassoMode(null); }
+          else {
+            ctx.setActiveTool("lasso");
+            ctx.setLassoMode("polygon");
+            ctx.setHalfStitchTool(null);
+            ctx.setBsStart(null);
+          }
+        },
+        title:"Polygon lasso selection"
+      }, "⬠"),
+      h("button", {
+        key:"magnetic",
+        className:"tb-btn"+(ctx.activeTool==="lasso" && ctx.lassoMode==="magnetic"?" tb-btn--on":""),
+        onClick:function(){
+          var same = ctx.activeTool === "lasso" && ctx.lassoMode === "magnetic";
+          if (same) { ctx.cancelLasso(); ctx.setActiveTool(null); ctx.setLassoMode(null); }
+          else {
+            ctx.setActiveTool("lasso");
+            ctx.setLassoMode("magnetic");
+            ctx.setHalfStitchTool(null);
+            ctx.setBsStart(null);
+          }
+        },
+        title:"Magnetic lasso selection"
+      }, "🧲")
+    ),
+    (ctx.hasSelection || ctx.lassoInProgress) && h("button", {
+      key:"select-clear",
       className:"tb-btn",
-      onClick:function(){ ctx.clearSelection(); },
-      title:"Deselect (Esc)",
+      onClick:function(){ if (ctx.cancelLasso) ctx.cancelLasso(); if (ctx.clearSelection) ctx.clearSelection(); },
+      title:"Clear selection / cancel lasso (Esc)",
       style:{fontSize:9,padding:"2px 5px",color:"#71717a"}
-    }, ctx.selectionCount.toLocaleString()+" sel")
+    }, (ctx.selectionCount || 0).toLocaleString()+" sel")
   ];
 
   // View group
@@ -282,7 +334,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       brushGrp,
       sizeGrp,
       bsCont,
-      wandGrp,
+      selectGrp,
       viewGrp,
       colChip,
       h("div", {className:"tb-flex"}),

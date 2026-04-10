@@ -232,6 +232,24 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
 
+    if (activeTool === "lasso") {
+      if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+      var opModeL = (e.shiftKey && e.altKey) ? "intersect"
+        : e.shiftKey ? "add"
+        : e.altKey ? "subtract"
+        : (state.lassoOpMode || state.wandOpMode || "replace");
+
+      if (state.lassoMode === "polygon" || state.lassoMode === "magnetic") {
+        // Close/finalise if user clicks near the start anchor after at least 3 points
+        if (state.isNearStart && state.isNearStart(gx, gy) && state.lassoPoints && state.lassoPoints.length >= 3) {
+          state.finalizeLasso(opModeL);
+        } else {
+          state.startLasso(gx, gy, opModeL);
+        }
+      }
+      return;
+    }
+
     if (activeTool === "magicWand") {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
       var opMode = (e.shiftKey && e.altKey) ? "intersect"
@@ -372,6 +390,20 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
 
+    if (activeTool === "lasso") {
+      if (gx < 0 || gx >= state.sW || gy < 0 || gy >= state.sH) return;
+      var opModeL = (e.shiftKey && e.altKey) ? "intersect"
+        : e.shiftKey ? "add"
+        : e.altKey ? "subtract"
+        : (state.lassoOpMode || state.wandOpMode || "replace");
+      if (state.lassoMode === "freehand") {
+        state.startLasso(gx, gy, opModeL);
+      } else {
+        handlePatClick(e);
+      }
+      return;
+    }
+
     if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand") {
       handlePatClick(e);
       return;
@@ -404,10 +436,21 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var hc = state.hoverCoords;
     if (!hc || hc.gx !== gc.gx || hc.gy !== gc.gy) state.setHoverCoords(gc);
+    if (activeTool === "lasso") {
+      if (gc.gx >= 0 && gc.gx < state.sW && gc.gy >= 0 && gc.gy < state.sH) {
+        state.setLassoCursor({ x: gc.gx, y: gc.gy });
+        if (state.lassoMode === "freehand" && state.lassoActive) state.extendLasso(gc.gx, gc.gy);
+      }
+      return;
+    }
     if (isDraggingRef.current) applyBrush(gc.gx, gc.gy, dragActionRef.current);
   }
 
   function handlePatMouseUp(e) {
+    if (state.activeTool === "lasso") {
+      if (state.lassoMode === "freehand" && state.lassoActive) state.finalizeLasso();
+      return;
+    }
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
 
@@ -464,6 +507,10 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handlePatMouseLeave(e) {
     state.setHoverCoords(null);
+    if (state.activeTool === "lasso" && state.lassoMode === "freehand" && state.lassoActive) {
+      state.finalizeLasso();
+      return;
+    }
     handlePatMouseUp(e);
   }
 

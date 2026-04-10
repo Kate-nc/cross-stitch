@@ -768,6 +768,94 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       }
     }
   }
+
+  // ─── Lasso in-progress overlay ───────────────────────────────────────────────
+  var lassoMode   = state.lassoMode;
+  var lassoPoints = state.lassoPoints;
+  var lassoCursor = state.lassoCursor;
+  var lassoPreviewMask = state.lassoPreviewMask;
+  var lassoInProgress  = state.lassoInProgress;
+
+  if (lassoMode && (lassoInProgress || (lassoPoints && lassoPoints.length > 0))) {
+    ctx2d.save();
+
+    if (lassoMode === "freehand" && lassoPreviewMask) {
+      // Tint cells painted by freehand drag
+      ctx2d.fillStyle = "rgba(16,185,129,0.35)";
+      for (var fi = 0; fi < lassoPreviewMask.length; fi++) {
+        if (!lassoPreviewMask[fi]) continue;
+        var lfx = (fi % state.sW) - offX;
+        var lfy = Math.floor(fi / state.sW) - offY;
+        if (lfx < 0 || lfx >= dW || lfy < 0 || lfy >= dH) continue;
+        ctx2d.fillRect(gut + lfx * cSz, gut + lfy * cSz, cSz, cSz);
+      }
+    }
+
+    if ((lassoMode === "polygon" || lassoMode === "magnetic") && lassoPoints && lassoPoints.length > 0) {
+      var pts = lassoPoints;
+
+      // Draw path lines between placed anchors
+      ctx2d.strokeStyle = lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)";
+      ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+      ctx2d.setLineDash([]);
+      if (pts.length > 1) {
+        ctx2d.beginPath();
+        ctx2d.moveTo(gut + (pts[0].x - offX) * cSz + cSz / 2, gut + (pts[0].y - offY) * cSz + cSz / 2);
+        for (var pi = 1; pi < pts.length; pi++) {
+          ctx2d.lineTo(gut + (pts[pi].x - offX) * cSz + cSz / 2, gut + (pts[pi].y - offY) * cSz + cSz / 2);
+        }
+        ctx2d.stroke();
+      }
+
+      // Dashed line from last anchor to cursor
+      if (lassoCursor) {
+        var nearStart = false;
+        if (pts.length >= 3) {
+          var csdx = lassoCursor.x - pts[0].x, csdy = lassoCursor.y - pts[0].y;
+          nearStart = Math.sqrt(csdx * csdx + csdy * csdy) <= 1.5;
+        }
+        var cursorColor = nearStart
+          ? (lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)")
+          : "rgba(100,100,100,0.5)";
+        var lastPt = pts[pts.length - 1];
+        ctx2d.strokeStyle = cursorColor;
+        ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+        ctx2d.setLineDash([Math.max(3, cSz * 0.3), Math.max(3, cSz * 0.3)]);
+        ctx2d.beginPath();
+        ctx2d.moveTo(gut + (lastPt.x - offX) * cSz + cSz / 2, gut + (lastPt.y - offY) * cSz + cSz / 2);
+        ctx2d.lineTo(gut + (lassoCursor.x - offX) * cSz + cSz / 2, gut + (lassoCursor.y - offY) * cSz + cSz / 2);
+        ctx2d.stroke();
+        ctx2d.setLineDash([]);
+
+        // Snap-to-close circle around start when near
+        if (nearStart) {
+          ctx2d.strokeStyle = lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)";
+          ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+          ctx2d.beginPath();
+          ctx2d.arc(
+            gut + (pts[0].x - offX) * cSz + cSz / 2,
+            gut + (pts[0].y - offY) * cSz + cSz / 2,
+            Math.max(5, cSz * 0.4), 0, Math.PI * 2
+          );
+          ctx2d.stroke();
+        }
+      }
+
+      // Anchor dots
+      var dotColor = lassoMode === "magnetic" ? "rgba(245,158,11,1)" : "rgba(99,102,241,1)";
+      for (var ai = 0; ai < pts.length; ai++) {
+        var ax = gut + (pts[ai].x - offX) * cSz + cSz / 2;
+        var ay = gut + (pts[ai].y - offY) * cSz + cSz / 2;
+        var r = ai === 0 ? Math.max(4, cSz * 0.3) : Math.max(2.5, cSz * 0.18);
+        ctx2d.fillStyle = "white";
+        ctx2d.beginPath(); ctx2d.arc(ax, ay, r + 1, 0, Math.PI * 2); ctx2d.fill();
+        ctx2d.fillStyle = dotColor;
+        ctx2d.beginPath(); ctx2d.arc(ax, ay, r, 0, Math.PI * 2); ctx2d.fill();
+      }
+    }
+
+    ctx2d.restore();
+  }
 };
 
 
@@ -1737,6 +1825,371 @@ window.useMagicWand = function useMagicWand(state) {
 };
 
 
+/* ─── useLassoSelect.js ─── */
+/* creator/useLassoSelect.js — Lasso / freehand / magnetic selection engine.
+   Provides three lasso sub-modes that all produce a selectionMask compatible
+   with the magic wand system (same Uint8Array format, same opMode merging).
+
+   Sub-modes:
+     "freehand"  — drag-paint: cells the cursor passes through are selected.
+     "polygon"   — click to place anchor points; auto-closes when cursor nears
+                   the starting point; finalises with a point-in-polygon test.
+     "magnetic"  — like polygon but each step snaps to the nearest colour-edge
+                   boundary as the user drags.
+
+   Exposed via window.useLassoSelect(state).
+   Depends on globals: React (CDN), rgbToLab (colour-utils.js) */
+
+window.useLassoSelect = function useLassoSelect(state) {
+  var useState = React.useState;
+  var useMemo  = React.useMemo;
+
+  // ─── Lasso state ─────────────────────────────────────────────────────────────
+  // Which lasso sub-tool is active:  null | "freehand" | "polygon" | "magnetic"
+  var _lm  = useState(null);
+  var lassoMode = _lm[0], setLassoMode = _lm[1];
+
+  // Points accumulated during the current in-progress lasso gesture.
+  // For freehand: every cell coord touched.
+  // For polygon/magnetic: the placed anchor points.
+  var _pts = useState(null);   // null | Array<{x,y}>
+  var lassoPoints = _pts[0], setLassoPoints = _pts[1];
+
+  // Whether a drag/trace gesture is currently active (mousedown held).
+  var _act = useState(false);
+  var lassoActive = _act[0], setLassoActive = _act[1];
+
+  // Cursor position (grid coords) for live preview line in polygon/magnetic mode.
+  var _cur = useState(null);   // null | {x,y}
+  var lassoCursor = _cur[0], setLassoCursor = _cur[1];
+
+  // Live preview mask shown while the gesture is in progress.
+  var _pv  = useState(null);   // Uint8Array | null
+  var lassoPreviewMask = _pv[0], setLassoPreviewMask = _pv[1];
+
+  // opMode to use when finalising (mirrors wandOpMode, defaults to "replace").
+  var _op  = useState("replace");
+  var lassoOpMode = _op[0], setLassoOpMode = _op[1];
+
+  // ─── Grid helpers ─────────────────────────────────────────────────────────────
+
+  // Bresenham line — returns all integer grid cells on the segment from (x0,y0) to (x1,y1)
+  function bresenham(x0, y0, x1, y1) {
+    var cells = [];
+    var dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    var sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    var err = dx - dy;
+    for (;;) {
+      cells.push({ x: x0, y: y0 });
+      if (x0 === x1 && y0 === y1) break;
+      var e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x0 += sx; }
+      if (e2 < dx)  { err += dx; y0 += sy; }
+    }
+    return cells;
+  }
+
+  // Point-in-polygon test for integer grid cell centres.
+  // `poly` is an Array of {x,y} in grid coords.
+  // Uses the ray-casting algorithm.
+  function cellsInPolygon(poly, sW, sH) {
+    var mask = new Uint8Array(sW * sH);
+    if (poly.length < 3) return mask;
+
+    // Axis-aligned bounding box to limit the scan
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (var k = 0; k < poly.length; k++) {
+      if (poly[k].x < minX) minX = poly[k].x;
+      if (poly[k].x > maxX) maxX = poly[k].x;
+      if (poly[k].y < minY) minY = poly[k].y;
+      if (poly[k].y > maxY) maxY = poly[k].y;
+    }
+    minX = Math.max(0, Math.floor(minX));
+    maxX = Math.min(sW - 1, Math.ceil(maxX));
+    minY = Math.max(0, Math.floor(minY));
+    maxY = Math.min(sH - 1, Math.ceil(maxY));
+
+    for (var cy = minY; cy <= maxY; cy++) {
+      for (var cx = minX; cx <= maxX; cx++) {
+        var px = cx + 0.5, py = cy + 0.5;  // cell centre
+        var inside = false;
+        var j = poly.length - 1;
+        for (var i = 0; i < poly.length; i++) {
+          var xi = poly[i].x, yi = poly[i].y;
+          var xj = poly[j].x, yj = poly[j].y;
+          if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+            inside = !inside;
+          }
+          j = i;
+        }
+        if (inside) mask[cy * sW + cx] = 1;
+      }
+    }
+    return mask;
+  }
+
+  // Merge newMask into an existing selection mask — matches useMagicWand.mergeMasks
+  function mergeMasks(existing, newMask, opMode, size) {
+    var out = new Uint8Array(size);
+    for (var i = 0; i < size; i++) {
+      var e = existing ? existing[i] : 0;
+      var n = newMask[i];
+      if (opMode === "add")        out[i] = (e || n) ? 1 : 0;
+      else if (opMode === "subtract")  out[i] = (e && !n) ? 1 : 0;
+      else if (opMode === "intersect") out[i] = (e && n)  ? 1 : 0;
+      else                         out[i] = n;  // replace
+    }
+    return out;
+  }
+
+  // ─── Magnetic-lasso helpers ───────────────────────────────────────────────────
+
+  // Returns a LAB value for a grid cell (uses cmap entry if available).
+  function cellLab(pat, cmap, idx) {
+    var cell = pat[idx];
+    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return null;
+    var entry = cmap ? cmap[cell.id] : null;
+    if (entry && entry.lab) return entry.lab;
+    var rgb = (entry && entry.rgb) ? entry.rgb : (cell.rgb || null);
+    if (!rgb) return null;
+    if (typeof rgbToLab === "function") return rgbToLab(rgb[0], rgb[1], rgb[2]);
+    return { L: rgb[0], a: rgb[1], b: rgb[2] };
+  }
+
+  // Colour-edge strength at a position: maximum LAB ΔE to any 4-connected neighbour.
+  // Higher value = stronger edge (bigger colour difference).
+  function edgeStrength(pat, cmap, sW, sH, x, y) {
+    var idx  = y * sW + x;
+    var lab0 = cellLab(pat, cmap, idx);
+    if (!lab0) return 0;
+    var maxDE = 0;
+    var nbrs = [];
+    if (x > 0)      nbrs.push(y  * sW + (x - 1));
+    if (x < sW - 1) nbrs.push(y  * sW + (x + 1));
+    if (y > 0)      nbrs.push((y - 1) * sW + x);
+    if (y < sH - 1) nbrs.push((y + 1) * sW + x);
+    for (var n = 0; n < nbrs.length; n++) {
+      var lab1 = cellLab(pat, cmap, nbrs[n]);
+      if (!lab1) continue;
+      var dL = lab0.L - lab1.L, da = lab0.a - lab1.a, db = lab0.b - lab1.b;
+      var de = Math.sqrt(dL * dL + da * da + db * db);
+      if (de > maxDE) maxDE = de;
+    }
+    return maxDE;
+  }
+
+  // Intelligent scissors / magnetic lasso: finds the cost-minimal path between
+  // two grid points that prefers to follow colour boundaries.
+  // Uses Dijkstra's on an 8-connected grid; cost = 1 / (1 + edgeStrength).
+  // Returns an array of {x,y} grid points on the path.
+  function magneticPath(pat, cmap, sW, sH, x0, y0, x1, y1) {
+    var MAX_DIST = Math.min(sW * sH, 2500); // cap search for performance
+    var size = sW * sH;
+    var dist = new Float32Array(size).fill(Infinity);
+    var prev = new Int32Array(size).fill(-1);
+    var start = y0 * sW + x0;
+    var end   = y1 * sW + x1;
+    dist[start] = 0;
+
+    // Min-heap (simple priority queue via sorted array for small grids)
+    // For large grids we cap at MAX_DIST nodes visited.
+    var heap = [{ idx: start, cost: 0 }];
+    var visited = 0;
+
+    while (heap.length > 0 && visited < MAX_DIST) {
+      // Extract minimum
+      heap.sort(function(a, b) { return a.cost - b.cost; });
+      var top = heap.shift();
+      var cur = top.idx;
+      if (cur === end) break;
+      if (top.cost > dist[cur]) continue;
+      visited++;
+
+      var cx2 = cur % sW, cy2 = Math.floor(cur / sW);
+      // 8-connected neighbours
+      for (var dy = -1; dy <= 1; dy++) {
+        for (var dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          var nx = cx2 + dx, ny = cy2 + dy;
+          if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue;
+          var ni = ny * sW + nx;
+          var es = edgeStrength(pat, cmap, sW, sH, nx, ny);
+          // Diagonal moves cost √2, cardinal cost 1; invert edge (reward boundaries)
+          var move = (dx !== 0 && dy !== 0) ? 1.414 : 1.0;
+          var edgeCost = move / (1 + es);
+          var nd = dist[cur] + edgeCost;
+          if (nd < dist[ni]) {
+            dist[ni] = nd;
+            prev[ni] = cur;
+            heap.push({ idx: ni, cost: nd });
+          }
+        }
+      }
+    }
+
+    // Reconstruct path
+    var path = [];
+    var c = end;
+    while (c !== -1 && c !== start) {
+      path.push({ x: c % sW, y: Math.floor(c / sW) });
+      c = prev[c];
+    }
+    path.push({ x: x0, y: y0 });
+    path.reverse();
+    return path;
+  }
+
+  // Build a mask for a polygon-lasso from the current lassoPoints + snap path.
+  // For magnetic: we expand each segment into a Bresenham/magnetic line first,
+  //               building the full boundary polygon, then fill with ray-casting.
+  function buildMaskFromPoints(pts, mode, pat, cmap, sW, sH) {
+    if (!pts || pts.length < 2) return new Uint8Array(sW * sH);
+    if (mode === "freehand") {
+      // For freehand, pts contains every cell touched — mark them all selected
+      var fm = new Uint8Array(sW * sH);
+      for (var f = 0; f < pts.length; f++) {
+        var fx = pts[f].x, fy = pts[f].y;
+        if (fx >= 0 && fx < sW && fy >= 0 && fy < sH) fm[fy * sW + fx] = 1;
+      }
+      return fm;
+    }
+    // For polygon and magnetic: expand segments into dense boundary, then fill
+    var boundary = [];
+    for (var s = 0; s < pts.length - 1; s++) {
+      var seg;
+      if (mode === "magnetic" && pat) {
+        seg = magneticPath(pat, cmap, sW, sH, pts[s].x, pts[s].y, pts[s + 1].x, pts[s + 1].y);
+      } else {
+        seg = bresenham(pts[s].x, pts[s].y, pts[s + 1].x, pts[s + 1].y);
+      }
+      // Don't duplicate the shared endpoint between segments
+      for (var b = 0; b < seg.length; b++) {
+        if (s > 0 && b === 0) continue;
+        boundary.push(seg[b]);
+      }
+    }
+    // Close the polygon (last → first segment)
+    var closeSeg = mode === "magnetic" && pat
+      ? magneticPath(pat, cmap, sW, sH, pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y)
+      : bresenham(pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y);
+    for (var c2 = 1; c2 < closeSeg.length; c2++) boundary.push(closeSeg[c2]);
+
+    return cellsInPolygon(boundary, sW, sH);
+  }
+
+  // ─── Public actions ───────────────────────────────────────────────────────────
+
+  // Called on mousedown when a lasso tool is active.
+  function startLasso(gx, gy, opMode) {
+    setLassoActive(true);
+    setLassoCursor({ x: gx, y: gy });
+    setLassoOpMode(opMode || "replace");
+    var mode = lassoMode;
+    if (mode === "freehand") {
+      setLassoPoints([{ x: gx, y: gy }]);
+      setLassoPreviewMask(null);
+    } else {
+      // polygon / magnetic: place first anchor
+      var existing = lassoPoints;
+      if (!existing || existing.length === 0) {
+        setLassoPoints([{ x: gx, y: gy }]);
+      } else {
+        // Add another anchor to existing path
+        setLassoPoints(function(prev) { return prev.concat([{ x: gx, y: gy }]); });
+      }
+      setLassoPreviewMask(null);
+    }
+  }
+
+  // Called on mousemove when lasso is active.
+  function extendLasso(gx, gy) {
+    setLassoCursor({ x: gx, y: gy });
+    var mode = lassoMode;
+    var pts  = lassoPoints;
+    if (!pts) return;
+
+    if (mode === "freehand") {
+      // Expand path with all cells on the line from last point to current
+      var last = pts[pts.length - 1];
+      if (last.x === gx && last.y === gy) return;
+      var seg = bresenham(last.x, last.y, gx, gy);
+      var newPts = pts.concat(seg.slice(1));
+      setLassoPoints(newPts);
+      // Update live preview mask
+      var sW = state.sW, sH = state.sH;
+      var pm = new Uint8Array(sW * sH);
+      for (var i = 0; i < newPts.length; i++) {
+        var nx = newPts[i].x, ny = newPts[i].y;
+        if (nx >= 0 && nx < sW && ny >= 0 && ny < sH) pm[ny * sW + nx] = 1;
+      }
+      setLassoPreviewMask(pm);
+    }
+    // polygon/magnetic: just update cursor for live preview line — no preview mask
+    // (mask is only built on finalize to keep it snappy)
+  }
+
+  // Finalise the current lasso gesture and commit to the selection mask.
+  // For freehand: commits the painted cells.
+  // For polygon/magnetic: performs point-in-polygon fill and commits.
+  function finalizeLasso(overrideOpMode) {
+    var mode = lassoMode;
+    var pts  = lassoPoints;
+    var pat  = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    var opMode = overrideOpMode || lassoOpMode || "replace";
+    if (!pts || pts.length < 2) {
+      cancelLasso();
+      return;
+    }
+    var newMask = buildMaskFromPoints(pts, mode, pat, cmap, sW, sH);
+    var merged  = mergeMasks(state.selectionMask, newMask, opMode, sW * sH);
+    state.setSelectionMask(merged);
+    setLassoPoints(null);
+    setLassoActive(false);
+    setLassoCursor(null);
+    setLassoPreviewMask(null);
+  }
+
+  // Discard the in-progress lasso gesture.
+  function cancelLasso() {
+    setLassoPoints(null);
+    setLassoActive(false);
+    setLassoCursor(null);
+    setLassoPreviewMask(null);
+  }
+
+  // Check whether the cursor is close enough to the start point to auto-close
+  // the polygon (used for click-placement polygon mode).
+  function isNearStart(gx, gy, threshold) {
+    var pts = lassoPoints;
+    if (!pts || pts.length < 3) return false;
+    var t = threshold === undefined ? 1.5 : threshold;
+    var dx = gx - pts[0].x, dy = gy - pts[0].y;
+    return Math.sqrt(dx * dx + dy * dy) <= t;
+  }
+
+  // Derived: number of points in the current lasso path
+  var lassoPointCount = useMemo(function() {
+    return lassoPoints ? lassoPoints.length : 0;
+  }, [lassoPoints]);
+
+  var lassoInProgress = lassoActive || (lassoPoints && lassoPoints.length > 0 && (lassoMode === "polygon" || lassoMode === "magnetic"));
+
+  return {
+    lassoMode, setLassoMode,
+    lassoPoints, setLassoPoints,
+    lassoActive, setLassoActive,
+    lassoCursor, setLassoCursor,
+    lassoPreviewMask, setLassoPreviewMask,
+    lassoOpMode, setLassoOpMode,
+    lassoPointCount, lassoInProgress,
+    startLasso, extendLasso, finalizeLasso, cancelLasso, isNearStart,
+    // expose helpers for overlay rendering (called from canvasRenderer)
+    bresenham: bresenham,
+    magneticPath: magneticPath,
+  };
+};
+
+
 /* ─── useCreatorState.js ─── */
 /* creator/useCreatorState.js — All useState, useRef, useMemo, and derived
    helper functions for CreatorApp. Returned object becomes the base of
@@ -1879,6 +2332,7 @@ window.useCreatorState = function useCreatorState() {
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
+  var lassoCancelRef = useRef(null);   // set after lasso hook is called
 
   // Cleanup diff state
   var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
@@ -2061,6 +2515,7 @@ window.useCreatorState = function useCreatorState() {
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
     if (wandClearRef.current) wandClearRef.current();
+    if (lassoCancelRef.current) lassoCancelRef.current();
   }
 
   function initBlankGrid(w, h) {
@@ -2279,6 +2734,12 @@ window.useCreatorState = function useCreatorState() {
   // Keep wandClearRef updated each render so resetAll() can call it
   wandClearRef.current = wand.clearSelection;
 
+  var lasso = useLassoSelect({
+    pat: pat, cmap: cmap, sW: sW, sH: sH,
+    selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
+  });
+  lassoCancelRef.current = lasso.cancelLasso;
+
   // ─── Scratch resize effect ───────────────────────────────────────────────────
   useEffect(function() {
     if (!isScratchMode || !pat) return;
@@ -2381,6 +2842,17 @@ window.useCreatorState = function useCreatorState() {
     selectionStats: wand.selectionStats,
     applyOutlineGeneration: wand.applyOutlineGeneration,
     selectionCount: wand.selectionCount, hasSelection: wand.hasSelection,
+    // Lasso Select
+    lassoMode: lasso.lassoMode, setLassoMode: lasso.setLassoMode,
+    lassoPoints: lasso.lassoPoints, setLassoPoints: lasso.setLassoPoints,
+    lassoActive: lasso.lassoActive, setLassoActive: lasso.setLassoActive,
+    lassoCursor: lasso.lassoCursor, setLassoCursor: lasso.setLassoCursor,
+    lassoPreviewMask: lasso.lassoPreviewMask, setLassoPreviewMask: lasso.setLassoPreviewMask,
+    lassoOpMode: lasso.lassoOpMode, setLassoOpMode: lasso.setLassoOpMode,
+    lassoPointCount: lasso.lassoPointCount, lassoInProgress: lasso.lassoInProgress,
+    startLasso: lasso.startLasso, extendLasso: lasso.extendLasso,
+    finalizeLasso: lasso.finalizeLasso, cancelLasso: lasso.cancelLasso,
+    isNearStart: lasso.isNearStart,
   };
 };
 
@@ -2709,6 +3181,24 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
 
+    if (activeTool === "lasso") {
+      if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+      var opModeL = (e.shiftKey && e.altKey) ? "intersect"
+        : e.shiftKey ? "add"
+        : e.altKey ? "subtract"
+        : (state.lassoOpMode || state.wandOpMode || "replace");
+
+      if (state.lassoMode === "polygon" || state.lassoMode === "magnetic") {
+        // Close/finalise if user clicks near the start anchor after at least 3 points
+        if (state.isNearStart && state.isNearStart(gx, gy) && state.lassoPoints && state.lassoPoints.length >= 3) {
+          state.finalizeLasso(opModeL);
+        } else {
+          state.startLasso(gx, gy, opModeL);
+        }
+      }
+      return;
+    }
+
     if (activeTool === "magicWand") {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
       var opMode = (e.shiftKey && e.altKey) ? "intersect"
@@ -2849,6 +3339,20 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
 
+    if (activeTool === "lasso") {
+      if (gx < 0 || gx >= state.sW || gy < 0 || gy >= state.sH) return;
+      var opModeL = (e.shiftKey && e.altKey) ? "intersect"
+        : e.shiftKey ? "add"
+        : e.altKey ? "subtract"
+        : (state.lassoOpMode || state.wandOpMode || "replace");
+      if (state.lassoMode === "freehand") {
+        state.startLasso(gx, gy, opModeL);
+      } else {
+        handlePatClick(e);
+      }
+      return;
+    }
+
     if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand") {
       handlePatClick(e);
       return;
@@ -2881,10 +3385,21 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var hc = state.hoverCoords;
     if (!hc || hc.gx !== gc.gx || hc.gy !== gc.gy) state.setHoverCoords(gc);
+    if (activeTool === "lasso") {
+      if (gc.gx >= 0 && gc.gx < state.sW && gc.gy >= 0 && gc.gy < state.sH) {
+        state.setLassoCursor({ x: gc.gx, y: gc.gy });
+        if (state.lassoMode === "freehand" && state.lassoActive) state.extendLasso(gc.gx, gc.gy);
+      }
+      return;
+    }
     if (isDraggingRef.current) applyBrush(gc.gx, gc.gy, dragActionRef.current);
   }
 
   function handlePatMouseUp(e) {
+    if (state.activeTool === "lasso") {
+      if (state.lassoMode === "freehand" && state.lassoActive) state.finalizeLasso();
+      return;
+    }
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
 
@@ -2941,6 +3456,10 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handlePatMouseLeave(e) {
     state.setHoverCoords(null);
+    if (state.activeTool === "lasso" && state.lassoMode === "freehand" && state.lassoActive) {
+      state.finalizeLasso();
+      return;
+    }
     handlePatMouseUp(e);
   }
 
@@ -3294,6 +3813,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.namePromptOpen) { state.setNamePromptOpen(false); return; }
         if (state.modal) { state.setModal(null); return; }
         if (state.overflowOpen) { state.setOverflowOpen(false); return; }
+        if (state.lassoInProgress) { state.cancelLasso(); return; }
         if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
         if (state.activeTool || state.halfStitchTool) {
@@ -3345,7 +3865,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     state.editHistory, state.redoHistory, state.pat, state.pal,
     state.namePromptOpen, state.modal, state.overflowOpen,
     state.selectedColorId, state.halfStitchTool, state.hiId,
-    state.hasSelection,
+    state.hasSelection, state.lassoInProgress,
     history.undoEdit, history.redoEdit, io.saveProject,
   ]);
 };
@@ -3988,6 +4508,8 @@ window.PatternCanvas = function PatternCanvas() {
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
     ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
     ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool,
+    ctx.selectionMask, ctx.confettiPreview,
+    ctx.lassoMode, ctx.lassoPoints, ctx.lassoPreviewMask, ctx.lassoCursor, ctx.lassoInProgress
     ctx.showCleanupDiff, ctx.cleanupDiff
   ]);
 
@@ -4008,7 +4530,8 @@ window.PatternCanvas = function PatternCanvas() {
     ctx.hoverCoords, ctx.selectedColorId, ctx.bsStart,
     // structural deps — needed so the overlay is redrawn correctly when these change
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.tab,
-    ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.halfStitchTool, ctx.bsLines
+    ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.halfStitchTool, ctx.bsLines,
+    ctx.lassoMode, ctx.lassoPoints, ctx.lassoPreviewMask, ctx.lassoCursor, ctx.lassoInProgress
   ]);
 
   return h("canvas", {
@@ -4173,25 +4696,77 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ] : null;
 
-  // Magic Wand button
-  var wandGrp = [
-    h("div", {key:"sdiv-wand", className:"tb-sdiv"}),
-    h("button", {
-      key:"wand",
-      className:"tb-btn"+(ctx.activeTool==="magicWand"?" tb-btn--on":""),
-      onClick:function(){
-        if (ctx.activeTool === "magicWand") { ctx.setActiveTool(null); ctx.clearSelection(); }
-        else { ctx.setActiveTool("magicWand"); ctx.setHalfStitchTool(null); ctx.setBsStart(null); }
-      },
-      title:"Magic Wand \u2014 select by colour (W)"
-    }, "\u2728"),
-    ctx.hasSelection && h("button", {
-      key:"wand-clear",
+  // Selection tools: Magic Wand + Lasso / Freehand / Magnetic
+  var selectGrp = [
+    h("div", {key:"sdiv-select", className:"tb-sdiv"}),
+    h("div", {key:"select-grp", className:"tb-grp"},
+      h("button", {
+        key:"wand",
+        className:"tb-btn"+(ctx.activeTool==="magicWand"?" tb-btn--on":""),
+        onClick:function(){
+          if (ctx.activeTool === "magicWand") { ctx.setActiveTool(null); }
+          else {
+            ctx.setActiveTool("magicWand");
+            ctx.setHalfStitchTool(null);
+            ctx.setBsStart(null);
+            if (ctx.cancelLasso) ctx.cancelLasso();
+          }
+        },
+        title:"Magic Wand — select by colour (W)"
+      }, "✨"),
+      h("button", {
+        key:"freehand",
+        className:"tb-btn"+(ctx.activeTool==="lasso" && ctx.lassoMode==="freehand"?" tb-btn--on":""),
+        onClick:function(){
+          var same = ctx.activeTool === "lasso" && ctx.lassoMode === "freehand";
+          if (same) { ctx.cancelLasso(); ctx.setActiveTool(null); ctx.setLassoMode(null); }
+          else {
+            ctx.setActiveTool("lasso");
+            ctx.setLassoMode("freehand");
+            ctx.setHalfStitchTool(null);
+            ctx.setBsStart(null);
+          }
+        },
+        title:"Freehand selection"
+      }, "✎"),
+      h("button", {
+        key:"polygon",
+        className:"tb-btn"+(ctx.activeTool==="lasso" && ctx.lassoMode==="polygon"?" tb-btn--on":""),
+        onClick:function(){
+          var same = ctx.activeTool === "lasso" && ctx.lassoMode === "polygon";
+          if (same) { ctx.cancelLasso(); ctx.setActiveTool(null); ctx.setLassoMode(null); }
+          else {
+            ctx.setActiveTool("lasso");
+            ctx.setLassoMode("polygon");
+            ctx.setHalfStitchTool(null);
+            ctx.setBsStart(null);
+          }
+        },
+        title:"Polygon lasso selection"
+      }, "⬠"),
+      h("button", {
+        key:"magnetic",
+        className:"tb-btn"+(ctx.activeTool==="lasso" && ctx.lassoMode==="magnetic"?" tb-btn--on":""),
+        onClick:function(){
+          var same = ctx.activeTool === "lasso" && ctx.lassoMode === "magnetic";
+          if (same) { ctx.cancelLasso(); ctx.setActiveTool(null); ctx.setLassoMode(null); }
+          else {
+            ctx.setActiveTool("lasso");
+            ctx.setLassoMode("magnetic");
+            ctx.setHalfStitchTool(null);
+            ctx.setBsStart(null);
+          }
+        },
+        title:"Magnetic lasso selection"
+      }, "🧲")
+    ),
+    (ctx.hasSelection || ctx.lassoInProgress) && h("button", {
+      key:"select-clear",
       className:"tb-btn",
-      onClick:function(){ ctx.clearSelection(); },
-      title:"Deselect (Esc)",
+      onClick:function(){ if (ctx.cancelLasso) ctx.cancelLasso(); if (ctx.clearSelection) ctx.clearSelection(); },
+      title:"Clear selection / cancel lasso (Esc)",
       style:{fontSize:9,padding:"2px 5px",color:"#71717a"}
-    }, ctx.selectionCount.toLocaleString()+" sel")
+    }, (ctx.selectionCount || 0).toLocaleString()+" sel")
   ];
 
   // View group
@@ -4320,7 +4895,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       brushGrp,
       sizeGrp,
       bsCont,
-      wandGrp,
+      selectGrp,
       viewGrp,
       colChip,
       h("div", {className:"tb-flex"}),

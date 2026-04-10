@@ -23,6 +23,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.namePromptOpen) { state.setNamePromptOpen(false); return; }
         if (state.modal) { state.setModal(null); return; }
         if (state.overflowOpen) { state.setOverflowOpen(false); return; }
+        if (state.lassoInProgress) { state.cancelLasso(); return; }
         if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
         if (state.activeTool || state.halfStitchTool) {
@@ -74,7 +75,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     state.editHistory, state.redoHistory, state.pat, state.pal,
     state.namePromptOpen, state.modal, state.overflowOpen,
     state.selectedColorId, state.halfStitchTool, state.hiId,
-    state.hasSelection,
+    state.hasSelection, state.lassoInProgress,
     history.undoEdit, history.redoEdit, io.saveProject,
   ]);
 };

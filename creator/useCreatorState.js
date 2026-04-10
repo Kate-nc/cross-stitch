@@ -139,6 +139,7 @@ window.useCreatorState = function useCreatorState() {
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
+  var lassoCancelRef = useRef(null);   // set after lasso hook is called
 
   // Cleanup diff state
   var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
@@ -321,6 +322,7 @@ window.useCreatorState = function useCreatorState() {
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
     if (wandClearRef.current) wandClearRef.current();
+    if (lassoCancelRef.current) lassoCancelRef.current();
   }
 
   function initBlankGrid(w, h) {
@@ -539,6 +541,12 @@ window.useCreatorState = function useCreatorState() {
   // Keep wandClearRef updated each render so resetAll() can call it
   wandClearRef.current = wand.clearSelection;
 
+  var lasso = useLassoSelect({
+    pat: pat, cmap: cmap, sW: sW, sH: sH,
+    selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
+  });
+  lassoCancelRef.current = lasso.cancelLasso;
+
   // ─── Scratch resize effect ───────────────────────────────────────────────────
   useEffect(function() {
     if (!isScratchMode || !pat) return;
@@ -641,5 +649,16 @@ window.useCreatorState = function useCreatorState() {
     selectionStats: wand.selectionStats,
     applyOutlineGeneration: wand.applyOutlineGeneration,
     selectionCount: wand.selectionCount, hasSelection: wand.hasSelection,
+    // Lasso Select
+    lassoMode: lasso.lassoMode, setLassoMode: lasso.setLassoMode,
+    lassoPoints: lasso.lassoPoints, setLassoPoints: lasso.setLassoPoints,
+    lassoActive: lasso.lassoActive, setLassoActive: lasso.setLassoActive,
+    lassoCursor: lasso.lassoCursor, setLassoCursor: lasso.setLassoCursor,
+    lassoPreviewMask: lasso.lassoPreviewMask, setLassoPreviewMask: lasso.setLassoPreviewMask,
+    lassoOpMode: lasso.lassoOpMode, setLassoOpMode: lasso.setLassoOpMode,
+    lassoPointCount: lasso.lassoPointCount, lassoInProgress: lasso.lassoInProgress,
+    startLasso: lasso.startLasso, extendLasso: lasso.extendLasso,
+    finalizeLasso: lasso.finalizeLasso, cancelLasso: lasso.cancelLasso,
+    isNearStart: lasso.isNearStart,
   };
 };
