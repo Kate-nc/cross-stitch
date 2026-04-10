@@ -5545,6 +5545,91 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
   }
 
+  // ── Palette chips (top of right panel, when pattern loaded) ─────────────────
+  var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
+    var displayPal = ctx.displayPal || ctx.pal || [];
+    var isHsTool = ctx.halfStitchTool && ctx.halfStitchTool !== "erase";
+    var isPaintMode = ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool;
+    var selInfo = ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId];
+    var chips = displayPal.map(function(p) {
+      var ips = isPaintMode && ctx.selectedColorId === p.id;
+      var ihs = ctx.hiId === p.id;
+      var isUnused = ctx.isScratchMode && p.count === 0;
+      return h("div", {
+        key: p.id,
+        role: "button",
+        tabIndex: 0,
+        "aria-pressed": ips || ihs,
+        onClick: function() {
+          if (isPaintMode) {
+            ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
+          } else {
+            ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+          }
+        },
+        onKeyDown: function(e) {
+          if (e.repeat) return;
+          if (e.key === " " || e.key === "Enter") {
+            e.preventDefault();
+            if (isPaintMode) {
+              ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
+            } else {
+              ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+            }
+          }
+        },
+        style: {
+          display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
+          cursor:"pointer",fontSize:11,
+          border: ips ? "2px solid #0d9488" : ihs ? "2px solid #ea580c" : "0.5px solid #e2e8f0",
+          background: ips ? "#f0fdfa" : ihs ? "#fff7ed" : "#fff",
+          opacity: isUnused ? 0.6 : 1
+        }
+      },
+        h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}),
+        h("span", {style:{fontFamily:"monospace",color:"#475569",fontSize:10}}, p.symbol),
+        h("span", {style:{fontWeight:500}}, p.id),
+        isUnused && h("span", {
+          onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
+          style:{fontSize:9,color:"#94a3b8",cursor:"pointer",marginLeft:2,lineHeight:1}
+        }, "\xD7")
+      );
+    });
+    return h("div", {style:{borderBottom:"0.5px solid var(--border)",padding:"10px 12px 12px"}},
+      h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}},
+        h("span", {style:{fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}, "Palette"),
+        h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+      ),
+      isPaintMode && h("div", {
+        style:{
+          marginBottom:8,padding:"5px 8px",borderRadius:7,
+          background: selInfo ? "#f0fdfa" : "#fffbeb",
+          border: selInfo ? "1px solid #99f6e4" : "1px solid #fde68a",
+          display:"flex",alignItems:"center",gap:7,fontSize:11,minHeight:30
+        }
+      },
+        selInfo
+          ? h(React.Fragment, null,
+              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid #cbd5e1"}}),
+              h("span", {style:{fontWeight:600,color:"#0d9488"}}, "DMC " + selInfo.id),
+              h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
+              h("button", {
+                onClick:function(){ctx.setSelectedColorId(null);},
+                title:"Clear selection",
+                style:{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:13,lineHeight:1,padding:"0 2px",flexShrink:0}
+              }, "\xD7")
+            )
+          : h(React.Fragment, null,
+              h("span", {style:{fontSize:12}}, "\uD83D\uDC46"),
+              h("span", {style:{color:"#92400e"}}, "Select a colour to paint \u2014 or right-click the canvas")
+            )
+      ),
+      displayPal.length > 0
+        ? h("div", {className:"creator-pattern-chips", style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
+        : h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textAlign:"center",padding:"8px 0"}}, "No colours yet")
+    );
+  })() : null;
+
   // ── Crop image card ──────────────────────────────────────────────────────────
   var imageCard = (ctx.pat && ctx.img && ctx.img.src) ? h("div", {className:"card"},
     h("div", {
@@ -5934,6 +6019,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       }, ctx.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
   return h(React.Fragment, null,
+    palChipsSection,
     imageCard,
     coloursSection,
     dimSection,
@@ -6187,9 +6273,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
        "click to place anchors; snaps to colour edges.");
   } else if (ctx.stitchType === "cross") {
     if (!ctx.selectedColorId) {
-      statusText = "Cross stitch \u2014 select a colour chip below to start " + (ctx.brushMode === "fill" ? "filling" : "painting") + ".";
+      statusText = "Cross stitch \u2014 select a colour in the panel, or right-click the canvas to pick one.";
     } else {
-      statusText = "Cross stitch \u2014 " + (ctx.brushMode === "fill" ? "fill" : "paint") + " mode. Select a colour chip below.";
+      statusText = "Cross stitch \u2014 " + (ctx.brushMode === "fill" ? "fill" : "paint") + " mode. Right-click any cell to change colour.";
     }
   } else if (ctx.stitchType === "half-fwd") {
     statusText = "Half stitch / \u2014 click cells to place.";
@@ -6200,66 +6286,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   } else if (ctx.stitchType === "erase") {
     statusText = "Erase \u2014 click to remove stitches. Use backstitch erase (Bs tool) for backstitch lines.";
   } else {
-    statusText = "Select a colour chip below, then choose a stitch type above.";
+    statusText = "Select a colour in the panel on the right, then choose a stitch type above.";
   }
-
-  // Palette chips
-  var chips = (ctx.displayPal || ctx.pal || []).map(function(p) {
-    var isHsTool = ctx.halfStitchTool && ctx.halfStitchTool !== "erase";
-    var ips = (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) && ctx.selectedColorId === p.id;
-    var ihs = ctx.hiId === p.id;
-    var isUnused = ctx.isScratchMode && p.count === 0;
-    var chip = h("div", {
-      key: p.id,
-      className: "creator-palette-chip",
-      role: "button",
-      tabIndex: 0,
-      "aria-pressed": ips || ihs,
-      onClick: function() {
-        if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {
-          ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
-        } else {
-          ctx.setHiId(ctx.hiId === p.id ? null : p.id);
-        }
-      },
-      onKeyDown: function(e) {
-        if (e.repeat) return;
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {
-            ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
-          } else {
-            ctx.setHiId(ctx.hiId === p.id ? null : p.id);
-          }
-        }
-      },
-      style: {
-        display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
-        cursor:"pointer",fontSize:11,
-        border: ips ? (isHsTool ? "2px solid #0284c7" : "2px solid #0d9488")
-               : ihs ? "2px solid #ea580c" : "0.5px solid #e2e8f0",
-        background: ips ? (isHsTool ? "#e0f2fe" : "#f0fdfa")
-                   : ihs ? "#fff7ed" : "#fff",
-        opacity: isUnused ? 0.6 : 1
-      }
-    },
-      h("span", {className:"creator-palette-chip-swatch",style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}),
-      h("span", {style:{fontFamily:"monospace",color:"#475569"}}, p.symbol),
-      h("span", {style:{fontWeight:500}}, p.id),
-      isUnused && h("span", {
-        className:"creator-palette-chip-remove",
-        onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
-        style:{fontSize:9,color:"#94a3b8",cursor:"pointer",marginLeft:2,lineHeight:1}
-      }, "\xD7")
-    );
-    if (ctx.isScratchMode) {
-      var tipText = ips ? "Currently selected \u2014 click canvas to paint"
-                   : isUnused ? "Click to select \u00B7 no stitches yet"
-                   : "Click to select this colour for painting";
-      return h(Tooltip, {key:p.id, text:tipText, width:180}, chip);
-    }
-    return chip;
-  });
 
   return h("div", null,
     ctx.cs < 6 && (ctx.view === "symbol" || ctx.view === "both") && h("div", {
@@ -6268,7 +6296,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
       style:{fontSize:12,color:"#94a3b8",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
-    }, "Add colours using the Colours panel on the left, then select Paint or Fill to begin."),
+    }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
     !ctx.shortcutsHintDismissed && h("div", {
       style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
@@ -6324,6 +6352,14 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
         var idx = gc.gy * ctx.sW + gc.gx;
         var cell = ctx.pat[idx];
+        // In paint/fill mode, right-click directly picks the colour (eyedropper gesture)
+        var rcIsHsTool = ctx.halfStitchTool && ctx.halfStitchTool !== "erase";
+        if ((ctx.activeTool === "paint" || ctx.activeTool === "fill" || rcIsHsTool) &&
+            cell && cell.id !== "__skip__" && cell.id !== "__empty__" &&
+            ctx.cmap && ctx.cmap[cell.id]) {
+          ctx.setSelectedColorId(cell.id);
+          return;
+        }
         ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
       }
     },
@@ -6378,16 +6414,6 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }, "Clear \u2715")
     ),
 
-    ctx.isScratchMode && (ctx.activeTool === "paint" || ctx.activeTool === "fill") && !ctx.selectedColorId && ctx.displayPal && ctx.displayPal.length > 0 && h("div", {
-      style:{marginBottom:6,padding:"5px 10px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:8,fontSize:11,color:"#92400e",display:"flex",alignItems:"center",gap:6}
-    },
-      h("span", {style:{fontSize:13}}, "\uD83D\uDC47"),
-      " Click a colour chip below to select it, then paint on the canvas"
-    ),
-
-    h("div", {style:{marginTop:8,borderRadius:8,background:"#f8f9fa",padding:"8px 12px",border:"0.5px solid #e2e8f0"}},
-      h("div", {className:"creator-pattern-chips",style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
-    )
   );
 };
 
