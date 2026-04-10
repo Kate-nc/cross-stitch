@@ -5,7 +5,7 @@
 window.CreatorSidebar = function CreatorSidebar() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
-  var _pco = React.useState(true); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
+  var _pco = React.useState(false); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
 
   function getCleanupWarning(sW, sH, orphans, previewStats) {
     if (orphans === 0) return null;
@@ -548,6 +548,28 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   return h(React.Fragment, null,
     palChipsSection,
+    // ── View toggle (Colour / Symbol / Both) ───────────────────────────────────
+    (ctx.pat && ctx.pal) ? h("div", {
+      style:{borderBottom:"0.5px solid var(--border)",padding:"8px 12px",display:"flex",alignItems:"center",gap:8}
+    },
+      h("span", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginRight:4}}, "View"),
+      h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:8,padding:2,flex:1}},
+        [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
+          return h("button", {
+            key:kl[0],
+            onClick:function(){ctx.setView(kl[0]);},
+            title:"Cycle view (V)",
+            style:{
+              flex:1,padding:"4px 6px",fontSize:11,fontWeight:ctx.view===kl[0]?600:400,
+              border:"none",cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+              background:ctx.view===kl[0]?"var(--surface)":"transparent",
+              color:ctx.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
+              boxShadow:ctx.view===kl[0]?"var(--shadow-sm)":"none"
+            }
+          }, kl[1]);
+        })
+      )
+    ) : null,
     imageCard,
     coloursSection,
     dimSection,
