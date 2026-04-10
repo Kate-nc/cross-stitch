@@ -128,6 +128,37 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ] : null;
 
+  // Colour swatch strip — visible when paint/fill mode active and palette exists
+  var palData = ctx.displayPal || ctx.pal || [];
+  var swatchStrip = showStitchGrp && palData.length > 0 ? [
+    h("div", {key:"sdiv-swatches", className:"tb-sdiv"}),
+    h("div", {
+      key:"swatch-strip",
+      style:{
+        display:"flex",alignItems:"center",gap:2,
+        maxWidth:180,overflowX:"auto",overflowY:"hidden",
+        scrollbarWidth:"none",flexShrink:1
+      }
+    },
+      palData.map(function(p) {
+        var isSel = ctx.selectedColorId === p.id;
+        return h("button", {
+          key: p.id,
+          onClick: function() { ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id); },
+          title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : ""),
+          style:{
+            width:18, height:18, flexShrink:0,
+            borderRadius:3, cursor:"pointer", padding:0,
+            background:"rgb("+p.rgb+")",
+            border: isSel ? "2px solid #0d9488" : "1.5px solid rgba(0,0,0,0.15)",
+            boxShadow: isSel ? "0 0 0 1.5px #fff inset" : "none",
+            outline:"none"
+          }
+        });
+      })
+    )
+  ] : null;
+
   // Brush size group
   var showBrushSize = (
     ((ctx.stitchType === "cross" || ctx.stitchType === "half-fwd" || ctx.stitchType === "half-bck") && ctx.brushMode === "paint") ||
@@ -400,6 +431,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("div", {ref:ctx.stripRef, className:"pill"},
       brushGrp,
       stitchGrp,
+      swatchStrip,
       sizeGrp,
       bsCont,
       selectGrp,

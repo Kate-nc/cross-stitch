@@ -4829,6 +4829,37 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ] : null;
 
+  // Colour swatch strip — visible when paint/fill mode active and palette exists
+  var palData = ctx.displayPal || ctx.pal || [];
+  var swatchStrip = showStitchGrp && palData.length > 0 ? [
+    h("div", {key:"sdiv-swatches", className:"tb-sdiv"}),
+    h("div", {
+      key:"swatch-strip",
+      style:{
+        display:"flex",alignItems:"center",gap:2,
+        maxWidth:180,overflowX:"auto",overflowY:"hidden",
+        scrollbarWidth:"none",flexShrink:1
+      }
+    },
+      palData.map(function(p) {
+        var isSel = ctx.selectedColorId === p.id;
+        return h("button", {
+          key: p.id,
+          onClick: function() { ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id); },
+          title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : ""),
+          style:{
+            width:18, height:18, flexShrink:0,
+            borderRadius:3, cursor:"pointer", padding:0,
+            background:"rgb("+p.rgb+")",
+            border: isSel ? "2px solid #0d9488" : "1.5px solid rgba(0,0,0,0.15)",
+            boxShadow: isSel ? "0 0 0 1.5px #fff inset" : "none",
+            outline:"none"
+          }
+        });
+      })
+    )
+  ] : null;
+
   // Brush size group
   var showBrushSize = (
     ((ctx.stitchType === "cross" || ctx.stitchType === "half-fwd" || ctx.stitchType === "half-bck") && ctx.brushMode === "paint") ||
@@ -5101,6 +5132,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("div", {ref:ctx.stripRef, className:"pill"},
       brushGrp,
       stitchGrp,
+      swatchStrip,
       sizeGrp,
       bsCont,
       selectGrp,
@@ -5486,6 +5518,7 @@ window.MagicWandPanel = function MagicWandPanel() {
 window.CreatorSidebar = function CreatorSidebar() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
+  var _pco = React.useState(true); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
 
   function getCleanupWarning(sW, sH, orphans, previewStats) {
     if (orphans === 0) return null;
@@ -5595,11 +5628,18 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, "\xD7")
       );
     });
-    return h("div", {style:{borderBottom:"0.5px solid var(--border)",padding:"10px 12px 12px"}},
-      h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}},
-        h("span", {style:{fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}, "Palette"),
+    return h("div", {style:{borderBottom:"0.5px solid var(--border)"}},
+      h("div", {
+        onClick:function(){setPalChipsOpen(function(o){return !o;});},
+        style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px 8px",cursor:"pointer",userSelect:"none"}
+      },
+        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+          h("span", {style:{fontSize:9,color:"var(--text-tertiary)",display:"inline-block",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          h("span", {style:{fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
+        ),
         h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
       ),
+      palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
       isPaintMode && h("div", {
         style:{
           marginBottom:8,padding:"5px 8px",borderRadius:7,
@@ -5627,6 +5667,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       displayPal.length > 0
         ? h("div", {className:"creator-pattern-chips", style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
         : h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textAlign:"center",padding:"8px 0"}}, "No colours yet")
+      )
     );
   })() : null;
 
