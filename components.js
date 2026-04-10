@@ -1,15 +1,22 @@
 function Tooltip({text,children,width=180}){
   const[show,setShow]=React.useState(false);
   const[pos,setPos]=React.useState({x:0,y:0});
+  React.useEffect(()=>{
+    if(!show) return;
+    const dismiss=()=>setShow(false);
+    document.addEventListener('click',dismiss);
+    return ()=>document.removeEventListener('click',dismiss);
+  },[show]);
   return React.createElement("div",{
     style:{position:"relative",display:"inline-flex"},
     onMouseEnter:e=>{const r=e.currentTarget.getBoundingClientRect();setPos({x:r.left+r.width/2,y:r.top});setShow(true);},
-    onMouseLeave:()=>setShow(false)
+    onMouseLeave:()=>setShow(false),
+    onClick:e=>{if(e.pointerType==='touch'||e.pointerType==='pen'){const r=e.currentTarget.getBoundingClientRect();setPos({x:r.left+r.width/2,y:r.top});setShow(s=>!s);}}
   },
     children,
     show&&ReactDOM.createPortal(
       React.createElement("div",{style:{
-        position:"fixed",left:pos.x,top:pos.y-10,
+        position:"fixed",left:Math.max(width/2+8,Math.min(pos.x,window.innerWidth-width/2-8)),top:pos.y-10,
         transform:"translate(-50%,-100%)",
         background:"#18181b",color:"#fff",fontSize:11,lineHeight:"1.45",
         padding:"6px 10px",borderRadius:7,maxWidth:width,width:"max-content",
@@ -25,6 +32,13 @@ function Tooltip({text,children,width=180}){
         }})
       ),
       document.body
+    )
+  );
+}
+function InfoIcon({text,width}){
+  return React.createElement("span",{style:{display:"inline-flex",alignItems:"center",flexShrink:0},onClick:function(e){e.preventDefault();e.stopPropagation();}},
+    React.createElement(Tooltip,{text:text,width:width||200},
+      React.createElement("span",{style:{cursor:"help",color:"#a1a1aa",fontSize:12,lineHeight:1,display:"inline-flex",alignItems:"center"}},"\u24D8")
     )
   );
 }
@@ -51,15 +65,14 @@ function Section({title,children,isOpen,onToggle,defaultOpen=true,badge=null}){
     currentOpen&&React.createElement("div", {style:{padding:"0 16px 16px"}}, children)
   );
 }
-function SliderRow({label,value,min,max,step=1,onChange,suffix="",format=null}){
+function SliderRow({label,value,min,max,step=1,onChange,suffix="",format=null,helpText=null}){
   return React.createElement("div", {style:{marginBottom:2}},
     React.createElement("div", {style:{display:"flex",justifyContent:"space-between",fontSize:12,color:"#71717a",marginBottom:3}},
-      React.createElement("span", null, label),
+      React.createElement("span", {style:{display:"flex",alignItems:"center",gap:3}}, label, helpText&&React.createElement(InfoIcon,{text:helpText})),
       React.createElement("span", {style:{fontWeight:600,color:"#18181b"}}, format?format(value):value, suffix)
     ),
     React.createElement("input", {type:"range", min:min, max:max, step:step, value:value, onChange:e=>onChange(Number(e.target.value)), style:{width:"100%"}})
   );
-
 }
 
 // ═══ Stats Components ═══

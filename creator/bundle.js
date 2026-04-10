@@ -3468,9 +3468,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
-      h(Tooltip, {text:"Keep the original photo's width-to-height ratio when resizing", width:200},
-        h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
-      )
+      h(InfoIcon, {text:"Keep width and height proportional when resizing", width:200})
     ),
     ctx.arLock
       ? h("div", null,
@@ -3492,38 +3490,23 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:ctx.palOpen, onToggle:ctx.setPalOpen},
     h("div", {style:{marginTop:8}},
-      h("label", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
-        h("span", {style:{fontSize:11,color:"#a1a1aa",fontWeight:600}}, "Max colours"),
-        h(Tooltip, {text:"Limits the colour palette. Fewer colours = faster to stitch but less detail", width:200},
-          h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
-        )
-      ),
-      h(SliderRow, {label:"", value:ctx.maxC, min:10, max:40, onChange:ctx.setMaxC})
+      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:40, onChange:ctx.setMaxC,
+        helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"})
     ),
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
       h("input", {type:"checkbox", checked:ctx.allowBlends, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
-      h(Tooltip, {text:"Two threads together. Creates smoother gradients but requires more thread manipulation", width:200},
-        h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
-      )
+      h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
     ),
     h("div", {style:{marginTop:8}},
-      h("label", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
-        h("span", {style:{fontSize:11,color:"#a1a1aa",fontWeight:600}}, "Min stitches per colour"),
-        h(Tooltip, {text:"Removes tiny colour patches that would be tedious to stitch. 0 = keep all", width:220},
-          h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
-        )
-      ),
-      h(SliderRow, {label:"", value:ctx.minSt, min:0, max:50, onChange:ctx.setMinSt, format:function(v){return v===0?"Off":v;}})
+      h(SliderRow, {label:"Min stitches per colour", value:ctx.minSt, min:0, max:50, onChange:ctx.setMinSt,
+        format:function(v){return v===0?"Off":v;},
+        helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
     ),
     h("div", {style:{marginTop:8}},
-      h("label", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
-        h("span", {style:{fontSize:11,color:"#a1a1aa",fontWeight:600}}, "Remove Orphans"),
-        h(Tooltip, {text:"Removes isolated stitches with no same-colour neighbour. Higher levels remove larger isolated clusters.", width:220},
-          h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
-        )
-      ),
-      h(SliderRow, {label:"", value:ctx.orphans, min:0, max:3, onChange:ctx.setOrphans, format:function(v){return v===0?"Off":String(v);}}),
+      h(SliderRow, {label:"Remove Orphans", value:ctx.orphans, min:0, max:3, onChange:ctx.setOrphans,
+        format:function(v){return v===0?"Off":String(v);},
+        helpText:"Removes isolated stitches with no same-colour neighbours — reduces confetti and makes the pattern easier to stitch"}),
       ctx.orphans > 0 && (function() {
         var desc;
         if (ctx.orphans === 1) {
@@ -3569,14 +3552,18 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       h("div", {style:{display:"flex",gap:6,marginTop:6}},
         h("div", {style:{display:"flex",gap:2,background:"#f4f4f5",borderRadius:8,padding:2,flex:1}},
-          h("button", {
-            onClick:function(){ctx.setDith(false);},
-            style:{padding:"5px 12px",fontSize:12,fontWeight:!ctx.dith?500:400,background:!ctx.dith?"#fff":"transparent",borderRadius:6,color:!ctx.dith?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:!ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
-          }, "Direct"),
-          h("button", {
-            onClick:function(){ctx.setDith(true);},
-            style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.dith?500:400,background:ctx.dith?"#fff":"transparent",borderRadius:6,color:ctx.dith?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
-          }, "Dithered")
+          h(Tooltip, {text:"Maps each pixel directly to its closest DMC colour. Fewer scattered stitches", width:200},
+            h("button", {
+              onClick:function(){ctx.setDith(false);},
+              style:{padding:"5px 12px",fontSize:12,fontWeight:!ctx.dith?500:400,background:!ctx.dith?"#fff":"transparent",borderRadius:6,color:!ctx.dith?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:!ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+            }, "Direct")
+          ),
+          h(Tooltip, {text:"Uses Floyd-Steinberg error diffusion for smoother colour gradients, but creates more scattered stitches", width:220},
+            h("button", {
+              onClick:function(){ctx.setDith(true);},
+              style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.dith?500:400,background:ctx.dith?"#fff":"transparent",borderRadius:6,color:ctx.dith?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+            }, "Dithered")
+          )
         )
       )
     )
@@ -3606,11 +3593,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             "Removes scattered single stitches (confetti) that are impractical to sew \u2014 especially in dithered areas and gradients."
           ),
           h("div", {style:{marginTop:4,marginBottom:10}},
-            h("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}},
+            h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
               h("span", {style:{fontSize:12,color:"#52525b",fontWeight:500}}, "Cleanup strength"),
-              h(Tooltip, {text:"How aggressively scattered stitches are merged into nearby colors. Gentle keeps more detail. Thorough creates smoother, easier-to-sew blocks.", width:220},
-                h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
-              )
+              h(InfoIcon, {text:"How aggressively scattered stitches are merged into nearby colours. Gentle keeps more detail. Thorough creates smoother, easier-to-sew blocks.", width:220})
             ),
             h("input", {
               type:"range",min:0,max:2,step:1,value:strengthIdx,
@@ -3649,11 +3634,9 @@ window.CreatorSidebar = function CreatorSidebar() {
   var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
   var fabSection = h(Section, {title:"Fabric & Floss", isOpen:ctx.fabOpen, onToggle:ctx.setFabOpen, badge:fabBadge},
     h("div", {style:{marginTop:8}},
-      h("label", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
+      h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
         h("span", {style:{fontSize:12,color:"#71717a",fontWeight:600}}, "Fabric count"),
-        h(Tooltip, {text:"Stitches per inch. Higher count = finer, more detailed work. 14ct Aida is most common", width:220},
-          h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
-        )
+        h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
       ),
       h("select", {
         value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
@@ -3669,18 +3652,18 @@ window.CreatorSidebar = function CreatorSidebar() {
   var adjBadge = (ctx.bri||ctx.con||ctx.sat||ctx.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}) : null;
   var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:ctx.adjOpen, onToggle:ctx.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:8}},
-      h("label", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
-        h("span", {style:{fontSize:12,color:"#52525b",fontWeight:500}}, "Smooth (Noise Reduction)"),
-        h(Tooltip, {text:"Blur filter to reduce grainy or pixelated photos. Median is gentler, Gaussian is stronger", width:220},
-          h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
-        )
-      ),
-      h(SliderRow, {label:"", value:ctx.smooth, min:0, max:4, step:0.1, onChange:ctx.setSmooth, format:function(v){return v===0?"Off":v.toFixed(1);}}),
+      h(SliderRow, {label:"Smooth", value:ctx.smooth, min:0, max:4, step:0.1, onChange:ctx.setSmooth,
+        format:function(v){return v===0?"Off":v.toFixed(1);},
+        helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
       ctx.smooth===0 && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
       ctx.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
         h("div", {style:{display:"flex",gap:2,background:"#f4f4f5",borderRadius:8,padding:2,flex:1}},
-          h("button", {onClick:function(){ctx.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="median"?500:400,background:ctx.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="median"?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median"),
-          h("button", {onClick:function(){ctx.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="gaussian"?500:400,background:ctx.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="gaussian"?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
+          h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
+            h("button", {onClick:function(){ctx.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="median"?500:400,background:ctx.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="median"?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
+          ),
+          h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:180},
+            h("button", {onClick:function(){ctx.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="gaussian"?500:400,background:ctx.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="gaussian"?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
+          )
         )
       ),
       h(SliderRow, {label:"Brightness", value:ctx.bri, min:-50, max:50, onChange:ctx.setBri, format:function(v){return (v>0?"+":"")+v+"%";}}),
@@ -3695,9 +3678,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}},
       h("input", {type:"checkbox", checked:ctx.skipBg, onChange:function(e){ctx.setSkipBg(e.target.checked);}}),
       h("span", null, "Skip background"),
-      h(Tooltip, {text:"Remove a solid background colour (like white or a studio backdrop) from the pattern", width:220},
-        h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
-      )
+      h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})
     ),
     ctx.skipBg && h("div", {style:{marginTop:10}},
       h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
@@ -3710,13 +3691,8 @@ window.CreatorSidebar = function CreatorSidebar() {
           style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}
         }, "Pick")
       ),
-      h("label", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}},
-        h("span", {style:{fontSize:11,color:"#a1a1aa",fontWeight:600}}, "Tolerance"),
-        h(Tooltip, {text:"How similar a colour must be to the background to be removed. Higher = removes more", width:220},
-          h("span", {style:{fontSize:11,color:"#a1a1aa",cursor:"help"}}, "\u24D8")
-        )
-      ),
-      h(SliderRow, {label:"", value:ctx.bgTh, min:3, max:50, onChange:ctx.setBgTh}),
+      h(SliderRow, {label:"Tolerance", value:ctx.bgTh, min:3, max:50, onChange:ctx.setBgTh,
+        helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
       ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#f4f4f5",borderRadius:8,fontSize:11,color:"#71717a"}},
         h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
         h("button", {
