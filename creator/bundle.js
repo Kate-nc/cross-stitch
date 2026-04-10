@@ -4829,36 +4829,33 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ] : null;
 
-  // Colour swatch strip — visible when paint/fill mode active and palette exists
+  // Colour swatch strip — second toolbar row, visible when paint/fill mode active
   var palData = ctx.displayPal || ctx.pal || [];
-  var swatchStrip = showStitchGrp && palData.length > 0 ? [
-    h("div", {key:"sdiv-swatches", className:"tb-sdiv"}),
-    h("div", {
-      key:"swatch-strip",
-      style:{
-        display:"flex",alignItems:"center",gap:2,
-        maxWidth:180,overflowX:"auto",overflowY:"hidden",
-        scrollbarWidth:"none",flexShrink:1
-      }
+  var swatchRow = showStitchGrp && palData.length > 0 ? h("div", {className:"swatch-strip-row"},
+    h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
+    ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId] ? h("span", {
+      style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0}
     },
-      palData.map(function(p) {
-        var isSel = ctx.selectedColorId === p.id;
-        return h("button", {
-          key: p.id,
-          onClick: function() { ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id); },
-          title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : ""),
-          style:{
-            width:18, height:18, flexShrink:0,
-            borderRadius:3, cursor:"pointer", padding:0,
-            background:"rgb("+p.rgb+")",
-            border: isSel ? "2px solid #0d9488" : "1.5px solid rgba(0,0,0,0.15)",
-            boxShadow: isSel ? "0 0 0 1.5px #fff inset" : "none",
-            outline:"none"
-          }
-        });
-      })
-    )
-  ] : null;
+      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[ctx.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block"}}),
+      h("span", {style:{fontWeight:600,color:"#0d9488"}}, ctx.selectedColorId)
+    ) : h("span", {style:{fontSize:10,color:"#94a3b8",marginRight:6,flexShrink:0}}, "none selected"),
+    palData.map(function(p) {
+      var isSel = ctx.selectedColorId === p.id;
+      return h("button", {
+        key: p.id,
+        onClick: function() { ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id); },
+        title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : ""),
+        style:{
+          width:20, height:20, flexShrink:0,
+          borderRadius:4, cursor:"pointer", padding:0,
+          background:"rgb("+p.rgb+")",
+          border: isSel ? "2px solid #0d9488" : "1.5px solid rgba(0,0,0,0.15)",
+          boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
+          outline:"none"
+        }
+      });
+    })
+  ) : null;
 
   // Brush size group
   var showBrushSize = (
@@ -5128,21 +5125,25 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     overflowMenu
   );
 
-  return h("div", {className:"toolbar-row"},
-    h("div", {ref:ctx.stripRef, className:"pill"},
-      brushGrp,
-      stitchGrp,
-      swatchStrip,
-      sizeGrp,
-      bsCont,
-      selectGrp,
-      viewGrp,
-      colChip,
-      toolBadge,
-      zoomGrp,
-      undoRedo,
-      h("div", {className:"tb-sdiv"}),
-      overflowWrap
+  return h(React.Fragment, null,
+    h("div", {className:"toolbar-row"},
+      h("div", {className:"pill-row"},
+        h("div", {ref:ctx.stripRef, className:"pill"},
+          brushGrp,
+          stitchGrp,
+          sizeGrp,
+          bsCont,
+          selectGrp,
+          viewGrp,
+          colChip,
+          toolBadge,
+          zoomGrp,
+          undoRedo,
+          h("div", {className:"tb-sdiv"}),
+          overflowWrap
+        )
+      ),
+      swatchRow
     )
   );
 };
