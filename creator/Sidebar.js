@@ -31,7 +31,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     return null;
   }
 
-  if (!ctx.sidebarOpen) return null;
+  // Note: sidebar always renders — now shown as a right panel (rpanel)
+  // The sidebarOpen state is kept for accordion sections but the panel itself stays visible
 
   // ── Inline Toggle component (used only in Stitch Cleanup section) ──────────
   function Toggle(props) {

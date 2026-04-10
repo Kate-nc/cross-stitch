@@ -271,7 +271,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onCancel={()=>state.setNamePromptOpen(false)}
       />}
       <window.CreatorToolStrip/>
-      <div className="cs-page-content" style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
+      <div className="cs-page-content" style={{padding:"20px 16px"}}>
         {state.loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{state.loadError}</div>}
         {!state.img&&!state.pat&&<div
             style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #0d9488":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#f0fdfa":"transparent",transition:"all 0.2s"}}
@@ -299,40 +299,15 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           </div>
         </div>}
         <input ref={state.fRef} type="file" accept="image/*" onChange={io.handleFile} style={{display:"none"}}/>
-        {(state.img||state.pat)&&<div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
-          {state.tab!=="stitch"&&<div style={{flex:state.sidebarOpen?"0 0 280px":"0 0 auto",display:"flex",flexDirection:"column",gap:state.sidebarOpen?10:0,overflow:"hidden"}}>
-            {state.pat&&<button onClick={()=>state.setSidebarOpen(!state.sidebarOpen)} style={{padding:"5px 10px",fontSize:12,fontWeight:500,background:"#f1f5f9",border:"0.5px solid #e2e8f0",borderRadius:8,cursor:"pointer",color:"#475569",alignSelf:state.sidebarOpen?"flex-end":"flex-start",whiteSpace:"nowrap"}}>{state.sidebarOpen?"◄ Hide":"► Settings"}</button>}
-            <window.CreatorSidebar/>
-            {!state.pat&&state.img&&<div className="card" style={{overflow:"hidden",flexShrink:0}}>
-              <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#475569"}}>Original Image</div>
-              <div style={{position:"relative"}} ref={state.cropRef} onMouseDown={canvas.handleCropMouseDown} onMouseMove={canvas.handleCropMouseMove} onMouseUp={canvas.handleCropMouseUp} onMouseLeave={canvas.handleCropMouseUp}>
-                <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.isCropping?"crosshair":(state.pickBg?"crosshair":"default"),opacity:state.isCropping?0.7:1}} onClick={canvas.srcClick}/>
-                {state.isCropping&&state.cropRect&&<div style={{position:"absolute",left:state.cropRect.x,top:state.cropRect.y,width:state.cropRect.w,height:state.cropRect.h,border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
-              </div>
-              {state.isCropping?<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}}>
-                <span style={{fontSize:10,color:"#94a3b8"}}>Draw a rectangle</span>
-                <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>{state.setIsCropping(false);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Cancel</button>
-                  <button onClick={canvas.applyCrop} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}}>Apply</button>
-                </div>
-              </div>:<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}}>
-                <span style={{fontSize:10,color:"#94a3b8"}}>{state.origW}×{state.origH}px</span>
-                <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Crop</button>
-                  <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Change</button>
-                </div>
-              </div>}
-              {state.pickBg&&<div style={{padding:"5px 10px",fontSize:10,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}
-            </div>}
-          </div>}
-          <div style={{flex:1,minWidth:0}}>
+        {(state.img||state.pat)&&<div className="cs-main">
+          <div className="canvas-area">
             {state.pat&&state.pal&&<div>
               <window.CreatorPatternTab/>
               <window.CreatorProjectTab/>
               <window.CreatorLegendTab/>
               <window.CreatorExportTab/>
             </div>}
-            {!state.pat&&state.img&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+            {!state.pat&&state.img&&<div style={{display:"flex",flexDirection:"column",gap:16,padding:"20px 16px"}}>
               {!state.previewUrl&&<div className="card" style={{overflow:"hidden"}}>
                 <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#475569"}}>Original Image</div>
                 <img src={state.img.src} style={{width:"100%",display:"block"}} alt="Original"/>
@@ -421,6 +396,30 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               </div>}
             </div>}
           </div>
+          {state.tab!=="stitch"&&<div className="rpanel">
+            <window.CreatorSidebar/>
+            {!state.pat&&state.img&&<div className="card" style={{overflow:"hidden"}}>
+              <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#475569"}}>Original Image</div>
+              <div style={{position:"relative"}} ref={state.cropRef} onMouseDown={canvas.handleCropMouseDown} onMouseMove={canvas.handleCropMouseMove} onMouseUp={canvas.handleCropMouseUp} onMouseLeave={canvas.handleCropMouseUp}>
+                <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.isCropping?"crosshair":(state.pickBg?"crosshair":"default"),opacity:state.isCropping?0.7:1}} onClick={canvas.srcClick}/>
+                {state.isCropping&&state.cropRect&&<div style={{position:"absolute",left:state.cropRect.x,top:state.cropRect.y,width:state.cropRect.w,height:state.cropRect.h,border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
+              </div>
+              {state.isCropping?<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}}>
+                <span style={{fontSize:10,color:"#94a3b8"}}>Draw a rectangle</span>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>{state.setIsCropping(false);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Cancel</button>
+                  <button onClick={canvas.applyCrop} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}}>Apply</button>
+                </div>
+              </div>:<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}}>
+                <span style={{fontSize:10,color:"#94a3b8"}}>{state.origW}×{state.origH}px</span>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Crop</button>
+                  <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Change</button>
+                </div>
+              </div>}
+              {state.pickBg&&<div style={{padding:"5px 10px",fontSize:10,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}
+            </div>}
+          </div>}
         </div>}
         {state.modal==="help"&&<SharedModals.Help onClose={()=>state.setModal(null)} />}
         {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}

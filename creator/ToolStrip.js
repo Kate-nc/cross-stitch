@@ -73,61 +73,64 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("line", {x1:"8.3",y1:"1.5",x2:"9.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"})
   );
 
-  // Stitch type group
-  var stitchGrp = h("div", {className:"tb-grp"},
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="cross"?" tb-btn--green":""),
-      onClick:function(){ctx.selectStitchType("cross");}, title:"Cross stitch (1)"
-    }, svgX, "Cross"),
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="half-fwd"?" tb-btn--blue":""),
-      onClick:function(){ctx.selectStitchType("half-fwd");}, title:"Half stitch / (2)"
-    }, svgFwd, "Half /"),
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="half-bck"?" tb-btn--blue":""),
-      onClick:function(){ctx.selectStitchType("half-bck");}, title:"Half stitch \\ (3)"
-    }, svgBck, "Half \\"),
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="backstitch"?" tb-btn--on":""),
-      onClick:function(){ctx.selectStitchType("backstitch");}, title:"Backstitch (4)"
-    }, "Bs"),
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="erase"?" tb-btn--red":""),
-      onClick:function(){ctx.selectStitchType("erase");}, title:"Erase (5)"
-    }, svgErase, "Erase")
-  );
-
-  // Brush group — shown when cross stitch
-  var brushGrp = (ctx.stitchType === "cross") ? [
-    h("div", {key:"sdiv-brush", className:"tb-sdiv"}),
+  // Brush group — always shown (first choice)
+  var brushGrp = [
     h("div", {
       key:"brush-grp",
       className:"tb-grp"+(sc.brush?" tb-hidden":""),
       style:{opacity: ctx.selectedColorId ? 1 : 0.6}
     },
       h("button", {
-        className:"tb-btn"+(ctx.brushMode==="paint"?" tb-btn--on":""),
-        onClick:function(){if(!ctx.selectedColorId){return;}ctx.setBrushAndActivate("paint");},
+        className:"tb-btn"+(ctx.brushMode==="paint" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
+        onClick:function(){if(!ctx.selectedColorId){return;}ctx.setBrushAndActivate("paint"); ctx.selectStitchType("cross");},
         title:ctx.selectedColorId?"Paint (P)":"Select a colour first",
         disabled:!ctx.selectedColorId
       }, "Paint"),
       h("button", {
-        className:"tb-btn"+(ctx.brushMode==="fill"?" tb-btn--on":""),
-        onClick:function(){if(!ctx.selectedColorId){return;}ctx.setBrushAndActivate("fill");},
+        className:"tb-btn"+(ctx.brushMode==="fill" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
+        onClick:function(){if(!ctx.selectedColorId){return;}ctx.setBrushAndActivate("fill"); ctx.selectStitchType("cross");},
         title:ctx.selectedColorId?"Fill (F)":"Select a colour first",
         disabled:!ctx.selectedColorId
       }, "Fill"),
       h("button", {
+        className:"tb-btn"+(ctx.stitchType==="erase"?" tb-btn--red":""),
+        onClick:function(){ctx.selectStitchType("erase");}, title:"Erase (5)"
+      }, svgErase, "Erase"),
+      h("button", {
         className:"tb-btn"+(ctx.activeTool==="eyedropper"?" tb-btn--on":""),
         onClick:function(){ctx.setActiveTool("eyedropper"); ctx.setBsStart(null); ctx.setHalfStitchTool(null);},
         title:"Eyedropper (I)"
-      }, "Pick Color")
+      }, "Pick")
+    )
+  ];
+
+  // Stitch type group — shown only when paint or fill is the active brush mode
+  var showStitchGrp = (ctx.brushMode==="paint" || ctx.brushMode==="fill") && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase";
+  var stitchGrp = showStitchGrp ? [
+    h("div", {key:"sdiv-stitch", className:"tb-sdiv"}),
+    h("div", {key:"stitch-grp", className:"tb-grp"},
+      h("button", {
+        className:"tb-btn"+(ctx.stitchType==="cross"?" tb-btn--green":""),
+        onClick:function(){ctx.selectStitchType("cross");}, title:"Cross stitch (1)"
+      }, svgX, "Cross"),
+      h("button", {
+        className:"tb-btn"+(ctx.stitchType==="half-fwd"?" tb-btn--blue":""),
+        onClick:function(){ctx.selectStitchType("half-fwd");}, title:"Half stitch / (2)"
+      }, svgFwd, "Half /"),
+      h("button", {
+        className:"tb-btn"+(ctx.stitchType==="half-bck"?" tb-btn--blue":""),
+        onClick:function(){ctx.selectStitchType("half-bck");}, title:"Half stitch \\ (3)"
+      }, svgBck, "Half \\"),
+      h("button", {
+        className:"tb-btn"+(ctx.stitchType==="backstitch"?" tb-btn--on":""),
+        onClick:function(){ctx.selectStitchType("backstitch");}, title:"Backstitch (4)"
+      }, "Bs")
     )
   ] : null;
 
   // Brush size group
   var showBrushSize = (
-    (ctx.stitchType === "cross" && ctx.brushMode === "paint") ||
+    ((ctx.stitchType === "cross" || ctx.stitchType === "half-fwd" || ctx.stitchType === "half-bck") && ctx.brushMode === "paint") ||
     ctx.stitchType === "erase" ||
     (ctx.halfStitchTool && ctx.halfStitchTool !== "erase")
   ) && ctx.activeTool !== "eyedropper";
@@ -393,17 +396,16 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     overflowMenu
   );
 
-  return h("div", {className:"tb-strip"},
-    h("div", {ref:ctx.stripRef, className:"tb-strip-inner"},
-      stitchGrp,
+  return h("div", {className:"toolbar-row"},
+    h("div", {ref:ctx.stripRef, className:"pill"},
       brushGrp,
+      stitchGrp,
       sizeGrp,
       bsCont,
       selectGrp,
       viewGrp,
       colChip,
       toolBadge,
-      h("div", {className:"tb-flex"}),
       zoomGrp,
       undoRedo,
       h("div", {className:"tb-sdiv"}),
