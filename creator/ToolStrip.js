@@ -46,6 +46,32 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var svgErase = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
     h("line", {x1:"2",y1:"2",x2:"10",y2:"10",stroke:"currentColor",strokeWidth:"1.5"}),
     h("line", {x1:"10",y1:"2",x2:"2",y2:"10",stroke:"currentColor",strokeWidth:"1.5"}));
+  var svgWand = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("line", {x1:"2.2",y1:"9.8",x2:"8.7",y2:"3.3",stroke:"currentColor",strokeWidth:"1.6",strokeLinecap:"round"}),
+    h("line", {x1:"8.8",y1:"1.1",x2:"8.8",y2:"3.1",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"}),
+    h("line", {x1:"7.8",y1:"2.1",x2:"9.8",y2:"2.1",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"}),
+    h("line", {x1:"7.4",y1:"0.9",x2:"10.2",y2:"3.7",stroke:"currentColor",strokeWidth:"0.9",strokeLinecap:"round"}),
+    h("line", {x1:"10.2",y1:"0.9",x2:"7.4",y2:"3.7",stroke:"currentColor",strokeWidth:"0.9",strokeLinecap:"round"})
+  );
+  var svgFreehand = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("path", {d:"M2 8.3C2 5.6 4.1 3.5 6.2 3.5C8.2 3.5 9.5 4.7 9.5 6.1C9.5 7.6 8.4 8.8 6.9 8.8C5.9 8.8 5.3 8.2 5.3 7.5C5.3 6.8 5.9 6.2 6.7 6.2",stroke:"currentColor",strokeWidth:"1.3",strokeLinecap:"round",strokeLinejoin:"round"}),
+    h("circle", {cx:"6.7",cy:"6.2",r:"0.9",fill:"currentColor"})
+  );
+  var svgPolygon = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("path", {d:"M2 8.5L3.5 2.5H8.6L10 7.7L5.4 10.1Z",stroke:"currentColor",strokeWidth:"1.2",strokeLinejoin:"round"}),
+    h("circle", {cx:"3.5",cy:"2.5",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"8.6",cy:"2.5",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"10",cy:"7.7",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"5.4",cy:"10.1",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"2",cy:"8.5",r:"0.8",fill:"currentColor"})
+  );
+  var svgMagnetic = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("path", {d:"M3 2.2V6.1C3 7.9 4.4 9.4 6 9.4C7.6 9.4 9 7.9 9 6.1V2.2",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round"}),
+    h("line", {x1:"3",y1:"2.2",x2:"3",y2:"4.1",stroke:"currentColor",strokeWidth:"2.1",strokeLinecap:"round"}),
+    h("line", {x1:"9",y1:"2.2",x2:"9",y2:"4.1",stroke:"currentColor",strokeWidth:"2.1",strokeLinecap:"round"}),
+    h("line", {x1:"2.3",y1:"1.5",x2:"3.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"}),
+    h("line", {x1:"8.3",y1:"1.5",x2:"9.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"})
+  );
 
   // Stitch type group
   var stitchGrp = h("div", {className:"tb-grp"},
@@ -152,7 +178,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           }
         },
         title:"Magic Wand — select by colour (W)"
-      }, "✨"),
+      }, svgWand),
       h("button", {
         key:"freehand",
         className:"tb-btn"+(ctx.activeTool==="lasso" && ctx.lassoMode==="freehand"?" tb-btn--on":""),
@@ -167,7 +193,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           }
         },
         title:"Freehand selection"
-      }, "✎"),
+      }, svgFreehand),
       h("button", {
         key:"polygon",
         className:"tb-btn"+(ctx.activeTool==="lasso" && ctx.lassoMode==="polygon"?" tb-btn--on":""),
@@ -182,7 +208,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           }
         },
         title:"Polygon lasso selection"
-      }, "⬠"),
+      }, svgPolygon),
       h("button", {
         key:"magnetic",
         className:"tb-btn"+(ctx.activeTool==="lasso" && ctx.lassoMode==="magnetic"?" tb-btn--on":""),
@@ -197,7 +223,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           }
         },
         title:"Magnetic lasso selection"
-      }, "🧲")
+      }, svgMagnetic)
     ),
     (ctx.hasSelection || ctx.lassoInProgress) && h("button", {
       key:"select-clear",

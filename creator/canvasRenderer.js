@@ -610,18 +610,38 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
 
     if ((lassoMode === "polygon" || lassoMode === "magnetic") && lassoPoints && lassoPoints.length > 0) {
       var pts = lassoPoints;
-
-      // Draw path lines between placed anchors
-      ctx2d.strokeStyle = lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)";
-      ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
-      ctx2d.setLineDash([]);
-      if (pts.length > 1) {
+      var drawPath = function(pathPts, dashed, strokeStyle) {
+        if (!pathPts || !pathPts.length) return;
+        ctx2d.strokeStyle = strokeStyle;
+        ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+        ctx2d.setLineDash(dashed ? [Math.max(3, cSz * 0.3), Math.max(3, cSz * 0.3)] : []);
         ctx2d.beginPath();
-        ctx2d.moveTo(gut + (pts[0].x - offX) * cSz + cSz / 2, gut + (pts[0].y - offY) * cSz + cSz / 2);
-        for (var pi = 1; pi < pts.length; pi++) {
-          ctx2d.lineTo(gut + (pts[pi].x - offX) * cSz + cSz / 2, gut + (pts[pi].y - offY) * cSz + cSz / 2);
+        ctx2d.moveTo(gut + (pathPts[0].x - offX) * cSz + cSz / 2, gut + (pathPts[0].y - offY) * cSz + cSz / 2);
+        for (var pp = 1; pp < pathPts.length; pp++) {
+          ctx2d.lineTo(gut + (pathPts[pp].x - offX) * cSz + cSz / 2, gut + (pathPts[pp].y - offY) * cSz + cSz / 2);
         }
         ctx2d.stroke();
+        ctx2d.setLineDash([]);
+      };
+      var makeSeg = function(a, b) {
+        if (!a || !b) return [];
+        if (lassoMode === "magnetic" && state.lassoMagneticPath && state.pat && state.cmap) {
+          return state.lassoMagneticPath(state.pat, state.cmap, state.sW, state.sH, a.x, a.y, b.x, b.y);
+        }
+        if (state.lassoLinePath) return state.lassoLinePath(a.x, a.y, b.x, b.y);
+        return [a, b];
+      };
+
+      if (pts.length > 1) {
+        var committedPath = [];
+        for (var pi = 1; pi < pts.length; pi++) {
+          var segPath = makeSeg(pts[pi - 1], pts[pi]);
+          for (var sp = 0; sp < segPath.length; sp++) {
+            if (committedPath.length && sp === 0) continue;
+            committedPath.push(segPath[sp]);
+          }
+        }
+        drawPath(committedPath, false, lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)");
       }
 
       // Dashed line from last anchor to cursor
@@ -635,14 +655,8 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
           ? (lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)")
           : "rgba(100,100,100,0.5)";
         var lastPt = pts[pts.length - 1];
-        ctx2d.strokeStyle = cursorColor;
-        ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
-        ctx2d.setLineDash([Math.max(3, cSz * 0.3), Math.max(3, cSz * 0.3)]);
-        ctx2d.beginPath();
-        ctx2d.moveTo(gut + (lastPt.x - offX) * cSz + cSz / 2, gut + (lastPt.y - offY) * cSz + cSz / 2);
-        ctx2d.lineTo(gut + (lassoCursor.x - offX) * cSz + cSz / 2, gut + (lassoCursor.y - offY) * cSz + cSz / 2);
-        ctx2d.stroke();
-        ctx2d.setLineDash([]);
+        var previewTarget = nearStart ? pts[0] : lassoCursor;
+        drawPath(makeSeg(lastPt, previewTarget), true, cursorColor);
 
         // Snap-to-close circle around start when near
         if (nearStart) {

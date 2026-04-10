@@ -660,5 +660,8 @@ window.useCreatorState = function useCreatorState() {
     startLasso: lasso.startLasso, extendLasso: lasso.extendLasso,
     finalizeLasso: lasso.finalizeLasso, cancelLasso: lasso.cancelLasso,
     isNearStart: lasso.isNearStart,
+    lassoLinePath: lasso.bresenham,
+    lassoMagneticPath: lasso.magneticPath,
+    lassoBoundaryPath: lasso.buildBoundaryPath,
   };
 };

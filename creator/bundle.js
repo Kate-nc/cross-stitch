@@ -793,18 +793,38 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
 
     if ((lassoMode === "polygon" || lassoMode === "magnetic") && lassoPoints && lassoPoints.length > 0) {
       var pts = lassoPoints;
-
-      // Draw path lines between placed anchors
-      ctx2d.strokeStyle = lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)";
-      ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
-      ctx2d.setLineDash([]);
-      if (pts.length > 1) {
+      var drawPath = function(pathPts, dashed, strokeStyle) {
+        if (!pathPts || !pathPts.length) return;
+        ctx2d.strokeStyle = strokeStyle;
+        ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+        ctx2d.setLineDash(dashed ? [Math.max(3, cSz * 0.3), Math.max(3, cSz * 0.3)] : []);
         ctx2d.beginPath();
-        ctx2d.moveTo(gut + (pts[0].x - offX) * cSz + cSz / 2, gut + (pts[0].y - offY) * cSz + cSz / 2);
-        for (var pi = 1; pi < pts.length; pi++) {
-          ctx2d.lineTo(gut + (pts[pi].x - offX) * cSz + cSz / 2, gut + (pts[pi].y - offY) * cSz + cSz / 2);
+        ctx2d.moveTo(gut + (pathPts[0].x - offX) * cSz + cSz / 2, gut + (pathPts[0].y - offY) * cSz + cSz / 2);
+        for (var pp = 1; pp < pathPts.length; pp++) {
+          ctx2d.lineTo(gut + (pathPts[pp].x - offX) * cSz + cSz / 2, gut + (pathPts[pp].y - offY) * cSz + cSz / 2);
         }
         ctx2d.stroke();
+        ctx2d.setLineDash([]);
+      };
+      var makeSeg = function(a, b) {
+        if (!a || !b) return [];
+        if (lassoMode === "magnetic" && state.lassoMagneticPath && state.pat && state.cmap) {
+          return state.lassoMagneticPath(state.pat, state.cmap, state.sW, state.sH, a.x, a.y, b.x, b.y);
+        }
+        if (state.lassoLinePath) return state.lassoLinePath(a.x, a.y, b.x, b.y);
+        return [a, b];
+      };
+
+      if (pts.length > 1) {
+        var committedPath = [];
+        for (var pi = 1; pi < pts.length; pi++) {
+          var segPath = makeSeg(pts[pi - 1], pts[pi]);
+          for (var sp = 0; sp < segPath.length; sp++) {
+            if (committedPath.length && sp === 0) continue;
+            committedPath.push(segPath[sp]);
+          }
+        }
+        drawPath(committedPath, false, lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)");
       }
 
       // Dashed line from last anchor to cursor
@@ -818,14 +838,8 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
           ? (lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)")
           : "rgba(100,100,100,0.5)";
         var lastPt = pts[pts.length - 1];
-        ctx2d.strokeStyle = cursorColor;
-        ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
-        ctx2d.setLineDash([Math.max(3, cSz * 0.3), Math.max(3, cSz * 0.3)]);
-        ctx2d.beginPath();
-        ctx2d.moveTo(gut + (lastPt.x - offX) * cSz + cSz / 2, gut + (lastPt.y - offY) * cSz + cSz / 2);
-        ctx2d.lineTo(gut + (lassoCursor.x - offX) * cSz + cSz / 2, gut + (lassoCursor.y - offY) * cSz + cSz / 2);
-        ctx2d.stroke();
-        ctx2d.setLineDash([]);
+        var previewTarget = nearStart ? pts[0] : lassoCursor;
+        drawPath(makeSeg(lastPt, previewTarget), true, cursorColor);
 
         // Snap-to-close circle around start when near
         if (nearStart) {
@@ -1978,12 +1992,24 @@ window.useLassoSelect = function useLassoSelect(state) {
     return maxDE;
   }
 
+  function buildEdgeWindow(sW, sH, x0, y0, x1, y1) {
+    var dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    var pad = Math.max(8, Math.min(36, Math.ceil(Math.max(dx, dy) * 0.35)));
+    return {
+      minX: Math.max(0, Math.min(x0, x1) - pad),
+      maxX: Math.min(sW - 1, Math.max(x0, x1) + pad),
+      minY: Math.max(0, Math.min(y0, y1) - pad),
+      maxY: Math.min(sH - 1, Math.max(y0, y1) + pad)
+    };
+  }
+
   // Intelligent scissors / magnetic lasso: finds the cost-minimal path between
   // two grid points that prefers to follow colour boundaries.
-  // Uses Dijkstra's on an 8-connected grid; cost = 1 / (1 + edgeStrength).
+  // Uses A* on a bounded 8-connected window so longer segments still resolve.
   // Returns an array of {x,y} grid points on the path.
   function magneticPath(pat, cmap, sW, sH, x0, y0, x1, y1) {
-    var MAX_DIST = Math.min(sW * sH, 2500); // cap search for performance
+    if (x0 === x1 && y0 === y1) return [{ x: x0, y: y0 }];
+    var win = buildEdgeWindow(sW, sH, x0, y0, x1, y1);
     var size = sW * sH;
     var dist = new Float32Array(size).fill(Infinity);
     var prev = new Int32Array(size).fill(-1);
@@ -1991,43 +2017,47 @@ window.useLassoSelect = function useLassoSelect(state) {
     var end   = y1 * sW + x1;
     dist[start] = 0;
 
-    // Min-heap (simple priority queue via sorted array for small grids)
-    // For large grids we cap at MAX_DIST nodes visited.
-    var heap = [{ idx: start, cost: 0 }];
-    var visited = 0;
+    function heuristic(x, y) {
+      return Math.sqrt(Math.pow(x1 - x, 2) + Math.pow(y1 - y, 2)) * 0.35;
+    }
 
-    while (heap.length > 0 && visited < MAX_DIST) {
-      // Extract minimum
+    var heap = [{ idx: start, cost: heuristic(x0, y0) }];
+    var closed = new Uint8Array(size);
+
+    while (heap.length > 0) {
       heap.sort(function(a, b) { return a.cost - b.cost; });
       var top = heap.shift();
       var cur = top.idx;
       if (cur === end) break;
-      if (top.cost > dist[cur]) continue;
-      visited++;
+      if (closed[cur]) continue;
+      closed[cur] = 1;
 
       var cx2 = cur % sW, cy2 = Math.floor(cur / sW);
-      // 8-connected neighbours
       for (var dy = -1; dy <= 1; dy++) {
         for (var dx = -1; dx <= 1; dx++) {
           if (dx === 0 && dy === 0) continue;
           var nx = cx2 + dx, ny = cy2 + dy;
           if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue;
+          if (nx < win.minX || nx > win.maxX || ny < win.minY || ny > win.maxY) continue;
           var ni = ny * sW + nx;
+          if (closed[ni]) continue;
           var es = edgeStrength(pat, cmap, sW, sH, nx, ny);
-          // Diagonal moves cost √2, cardinal cost 1; invert edge (reward boundaries)
-          var move = (dx !== 0 && dy !== 0) ? 1.414 : 1.0;
-          var edgeCost = move / (1 + es);
-          var nd = dist[cur] + edgeCost;
+          var move = (dx !== 0 && dy !== 0) ? 1.41421356237 : 1.0;
+          var edgeReward = Math.min(0.82, es / 36);
+          var centerBias = 0;
+          if (dx !== 0 && dy !== 0) centerBias = 0.04;
+          var nd = dist[cur] + move * (1 - edgeReward) + centerBias;
           if (nd < dist[ni]) {
             dist[ni] = nd;
             prev[ni] = cur;
-            heap.push({ idx: ni, cost: nd });
+            heap.push({ idx: ni, cost: nd + heuristic(nx, ny) });
           }
         }
       }
     }
 
-    // Reconstruct path
+    if (prev[end] === -1) return bresenham(x0, y0, x1, y1);
+
     var path = [];
     var c = end;
     while (c !== -1 && c !== start) {
@@ -2037,6 +2067,28 @@ window.useLassoSelect = function useLassoSelect(state) {
     path.push({ x: x0, y: y0 });
     path.reverse();
     return path;
+  }
+
+  function buildBoundaryPath(pts, mode, pat, cmap, sW, sH, includeClose) {
+    var boundary = [];
+    if (!pts || pts.length < 1) return boundary;
+    if (mode === "freehand") return pts.slice();
+    for (var s = 0; s < pts.length - 1; s++) {
+      var seg = mode === "magnetic" && pat
+        ? magneticPath(pat, cmap, sW, sH, pts[s].x, pts[s].y, pts[s + 1].x, pts[s + 1].y)
+        : bresenham(pts[s].x, pts[s].y, pts[s + 1].x, pts[s + 1].y);
+      for (var b = 0; b < seg.length; b++) {
+        if (s > 0 && b === 0) continue;
+        boundary.push(seg[b]);
+      }
+    }
+    if (includeClose && pts.length > 1) {
+      var closeSeg = mode === "magnetic" && pat
+        ? magneticPath(pat, cmap, sW, sH, pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y)
+        : bresenham(pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y);
+      for (var c2 = 1; c2 < closeSeg.length; c2++) boundary.push(closeSeg[c2]);
+    }
+    return boundary;
   }
 
   // Build a mask for a polygon-lasso from the current lassoPoints + snap path.
@@ -2054,26 +2106,7 @@ window.useLassoSelect = function useLassoSelect(state) {
       return fm;
     }
     // For polygon and magnetic: expand segments into dense boundary, then fill
-    var boundary = [];
-    for (var s = 0; s < pts.length - 1; s++) {
-      var seg;
-      if (mode === "magnetic" && pat) {
-        seg = magneticPath(pat, cmap, sW, sH, pts[s].x, pts[s].y, pts[s + 1].x, pts[s + 1].y);
-      } else {
-        seg = bresenham(pts[s].x, pts[s].y, pts[s + 1].x, pts[s + 1].y);
-      }
-      // Don't duplicate the shared endpoint between segments
-      for (var b = 0; b < seg.length; b++) {
-        if (s > 0 && b === 0) continue;
-        boundary.push(seg[b]);
-      }
-    }
-    // Close the polygon (last → first segment)
-    var closeSeg = mode === "magnetic" && pat
-      ? magneticPath(pat, cmap, sW, sH, pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y)
-      : bresenham(pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y);
-    for (var c2 = 1; c2 < closeSeg.length; c2++) boundary.push(closeSeg[c2]);
-
+    var boundary = buildBoundaryPath(pts, mode, pat, cmap, sW, sH, true);
     return cellsInPolygon(boundary, sW, sH);
   }
 
@@ -2186,6 +2219,7 @@ window.useLassoSelect = function useLassoSelect(state) {
     // expose helpers for overlay rendering (called from canvasRenderer)
     bresenham: bresenham,
     magneticPath: magneticPath,
+    buildBoundaryPath: buildBoundaryPath,
   };
 };
 
@@ -2853,6 +2887,9 @@ window.useCreatorState = function useCreatorState() {
     startLasso: lasso.startLasso, extendLasso: lasso.extendLasso,
     finalizeLasso: lasso.finalizeLasso, cancelLasso: lasso.cancelLasso,
     isNearStart: lasso.isNearStart,
+    lassoLinePath: lasso.bresenham,
+    lassoMagneticPath: lasso.magneticPath,
+    lassoBoundaryPath: lasso.buildBoundaryPath,
   };
 };
 
@@ -4605,6 +4642,32 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var svgErase = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
     h("line", {x1:"2",y1:"2",x2:"10",y2:"10",stroke:"currentColor",strokeWidth:"1.5"}),
     h("line", {x1:"10",y1:"2",x2:"2",y2:"10",stroke:"currentColor",strokeWidth:"1.5"}));
+  var svgWand = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("line", {x1:"2.2",y1:"9.8",x2:"8.7",y2:"3.3",stroke:"currentColor",strokeWidth:"1.6",strokeLinecap:"round"}),
+    h("line", {x1:"8.8",y1:"1.1",x2:"8.8",y2:"3.1",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"}),
+    h("line", {x1:"7.8",y1:"2.1",x2:"9.8",y2:"2.1",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"}),
+    h("line", {x1:"7.4",y1:"0.9",x2:"10.2",y2:"3.7",stroke:"currentColor",strokeWidth:"0.9",strokeLinecap:"round"}),
+    h("line", {x1:"10.2",y1:"0.9",x2:"7.4",y2:"3.7",stroke:"currentColor",strokeWidth:"0.9",strokeLinecap:"round"})
+  );
+  var svgFreehand = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("path", {d:"M2 8.3C2 5.6 4.1 3.5 6.2 3.5C8.2 3.5 9.5 4.7 9.5 6.1C9.5 7.6 8.4 8.8 6.9 8.8C5.9 8.8 5.3 8.2 5.3 7.5C5.3 6.8 5.9 6.2 6.7 6.2",stroke:"currentColor",strokeWidth:"1.3",strokeLinecap:"round",strokeLinejoin:"round"}),
+    h("circle", {cx:"6.7",cy:"6.2",r:"0.9",fill:"currentColor"})
+  );
+  var svgPolygon = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("path", {d:"M2 8.5L3.5 2.5H8.6L10 7.7L5.4 10.1Z",stroke:"currentColor",strokeWidth:"1.2",strokeLinejoin:"round"}),
+    h("circle", {cx:"3.5",cy:"2.5",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"8.6",cy:"2.5",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"10",cy:"7.7",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"5.4",cy:"10.1",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"2",cy:"8.5",r:"0.8",fill:"currentColor"})
+  );
+  var svgMagnetic = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("path", {d:"M3 2.2V6.1C3 7.9 4.4 9.4 6 9.4C7.6 9.4 9 7.9 9 6.1V2.2",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round"}),
+    h("line", {x1:"3",y1:"2.2",x2:"3",y2:"4.1",stroke:"currentColor",strokeWidth:"2.1",strokeLinecap:"round"}),
+    h("line", {x1:"9",y1:"2.2",x2:"9",y2:"4.1",stroke:"currentColor",strokeWidth:"2.1",strokeLinecap:"round"}),
+    h("line", {x1:"2.3",y1:"1.5",x2:"3.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"}),
+    h("line", {x1:"8.3",y1:"1.5",x2:"9.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"})
+  );
 
   // Stitch type group
   var stitchGrp = h("div", {className:"tb-grp"},
@@ -4711,7 +4774,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           }
         },
         title:"Magic Wand — select by colour (W)"
-      }, "✨"),
+      }, svgWand),
       h("button", {
         key:"freehand",
         className:"tb-btn"+(ctx.activeTool==="lasso" && ctx.lassoMode==="freehand"?" tb-btn--on":""),
@@ -4726,7 +4789,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           }
         },
         title:"Freehand selection"
-      }, "✎"),
+      }, svgFreehand),
       h("button", {
         key:"polygon",
         className:"tb-btn"+(ctx.activeTool==="lasso" && ctx.lassoMode==="polygon"?" tb-btn--on":""),
@@ -4741,7 +4804,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           }
         },
         title:"Polygon lasso selection"
-      }, "⬠"),
+      }, svgPolygon),
       h("button", {
         key:"magnetic",
         className:"tb-btn"+(ctx.activeTool==="lasso" && ctx.lassoMode==="magnetic"?" tb-btn--on":""),
@@ -4756,7 +4819,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           }
         },
         title:"Magnetic lasso selection"
-      }, "🧲")
+      }, svgMagnetic)
     ),
     (ctx.hasSelection || ctx.lassoInProgress) && h("button", {
       key:"select-clear",

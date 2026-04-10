@@ -150,12 +150,24 @@ window.useLassoSelect = function useLassoSelect(state) {
     return maxDE;
   }
 
+  function buildEdgeWindow(sW, sH, x0, y0, x1, y1) {
+    var dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    var pad = Math.max(8, Math.min(36, Math.ceil(Math.max(dx, dy) * 0.35)));
+    return {
+      minX: Math.max(0, Math.min(x0, x1) - pad),
+      maxX: Math.min(sW - 1, Math.max(x0, x1) + pad),
+      minY: Math.max(0, Math.min(y0, y1) - pad),
+      maxY: Math.min(sH - 1, Math.max(y0, y1) + pad)
+    };
+  }
+
   // Intelligent scissors / magnetic lasso: finds the cost-minimal path between
   // two grid points that prefers to follow colour boundaries.
-  // Uses Dijkstra's on an 8-connected grid; cost = 1 / (1 + edgeStrength).
+  // Uses A* on a bounded 8-connected window so longer segments still resolve.
   // Returns an array of {x,y} grid points on the path.
   function magneticPath(pat, cmap, sW, sH, x0, y0, x1, y1) {
-    var MAX_DIST = Math.min(sW * sH, 2500); // cap search for performance
+    if (x0 === x1 && y0 === y1) return [{ x: x0, y: y0 }];
+    var win = buildEdgeWindow(sW, sH, x0, y0, x1, y1);
     var size = sW * sH;
     var dist = new Float32Array(size).fill(Infinity);
     var prev = new Int32Array(size).fill(-1);
@@ -163,43 +175,47 @@ window.useLassoSelect = function useLassoSelect(state) {
     var end   = y1 * sW + x1;
     dist[start] = 0;
 
-    // Min-heap (simple priority queue via sorted array for small grids)
-    // For large grids we cap at MAX_DIST nodes visited.
-    var heap = [{ idx: start, cost: 0 }];
-    var visited = 0;
+    function heuristic(x, y) {
+      return Math.sqrt(Math.pow(x1 - x, 2) + Math.pow(y1 - y, 2)) * 0.35;
+    }
 
-    while (heap.length > 0 && visited < MAX_DIST) {
-      // Extract minimum
+    var heap = [{ idx: start, cost: heuristic(x0, y0) }];
+    var closed = new Uint8Array(size);
+
+    while (heap.length > 0) {
       heap.sort(function(a, b) { return a.cost - b.cost; });
       var top = heap.shift();
       var cur = top.idx;
       if (cur === end) break;
-      if (top.cost > dist[cur]) continue;
-      visited++;
+      if (closed[cur]) continue;
+      closed[cur] = 1;
 
       var cx2 = cur % sW, cy2 = Math.floor(cur / sW);
-      // 8-connected neighbours
       for (var dy = -1; dy <= 1; dy++) {
         for (var dx = -1; dx <= 1; dx++) {
           if (dx === 0 && dy === 0) continue;
           var nx = cx2 + dx, ny = cy2 + dy;
           if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue;
+          if (nx < win.minX || nx > win.maxX || ny < win.minY || ny > win.maxY) continue;
           var ni = ny * sW + nx;
+          if (closed[ni]) continue;
           var es = edgeStrength(pat, cmap, sW, sH, nx, ny);
-          // Diagonal moves cost √2, cardinal cost 1; invert edge (reward boundaries)
-          var move = (dx !== 0 && dy !== 0) ? 1.414 : 1.0;
-          var edgeCost = move / (1 + es);
-          var nd = dist[cur] + edgeCost;
+          var move = (dx !== 0 && dy !== 0) ? 1.41421356237 : 1.0;
+          var edgeReward = Math.min(0.82, es / 36);
+          var centerBias = 0;
+          if (dx !== 0 && dy !== 0) centerBias = 0.04;
+          var nd = dist[cur] + move * (1 - edgeReward) + centerBias;
           if (nd < dist[ni]) {
             dist[ni] = nd;
             prev[ni] = cur;
-            heap.push({ idx: ni, cost: nd });
+            heap.push({ idx: ni, cost: nd + heuristic(nx, ny) });
           }
         }
       }
     }
 
-    // Reconstruct path
+    if (prev[end] === -1) return bresenham(x0, y0, x1, y1);
+
     var path = [];
     var c = end;
     while (c !== -1 && c !== start) {
@@ -209,6 +225,28 @@ window.useLassoSelect = function useLassoSelect(state) {
     path.push({ x: x0, y: y0 });
     path.reverse();
     return path;
+  }
+
+  function buildBoundaryPath(pts, mode, pat, cmap, sW, sH, includeClose) {
+    var boundary = [];
+    if (!pts || pts.length < 1) return boundary;
+    if (mode === "freehand") return pts.slice();
+    for (var s = 0; s < pts.length - 1; s++) {
+      var seg = mode === "magnetic" && pat
+        ? magneticPath(pat, cmap, sW, sH, pts[s].x, pts[s].y, pts[s + 1].x, pts[s + 1].y)
+        : bresenham(pts[s].x, pts[s].y, pts[s + 1].x, pts[s + 1].y);
+      for (var b = 0; b < seg.length; b++) {
+        if (s > 0 && b === 0) continue;
+        boundary.push(seg[b]);
+      }
+    }
+    if (includeClose && pts.length > 1) {
+      var closeSeg = mode === "magnetic" && pat
+        ? magneticPath(pat, cmap, sW, sH, pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y)
+        : bresenham(pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y);
+      for (var c2 = 1; c2 < closeSeg.length; c2++) boundary.push(closeSeg[c2]);
+    }
+    return boundary;
   }
 
   // Build a mask for a polygon-lasso from the current lassoPoints + snap path.
@@ -226,26 +264,7 @@ window.useLassoSelect = function useLassoSelect(state) {
       return fm;
     }
     // For polygon and magnetic: expand segments into dense boundary, then fill
-    var boundary = [];
-    for (var s = 0; s < pts.length - 1; s++) {
-      var seg;
-      if (mode === "magnetic" && pat) {
-        seg = magneticPath(pat, cmap, sW, sH, pts[s].x, pts[s].y, pts[s + 1].x, pts[s + 1].y);
-      } else {
-        seg = bresenham(pts[s].x, pts[s].y, pts[s + 1].x, pts[s + 1].y);
-      }
-      // Don't duplicate the shared endpoint between segments
-      for (var b = 0; b < seg.length; b++) {
-        if (s > 0 && b === 0) continue;
-        boundary.push(seg[b]);
-      }
-    }
-    // Close the polygon (last → first segment)
-    var closeSeg = mode === "magnetic" && pat
-      ? magneticPath(pat, cmap, sW, sH, pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y)
-      : bresenham(pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y);
-    for (var c2 = 1; c2 < closeSeg.length; c2++) boundary.push(closeSeg[c2]);
-
+    var boundary = buildBoundaryPath(pts, mode, pat, cmap, sW, sH, true);
     return cellsInPolygon(boundary, sW, sH);
   }
 
@@ -358,5 +377,6 @@ window.useLassoSelect = function useLassoSelect(state) {
     // expose helpers for overlay rendering (called from canvasRenderer)
     bresenham: bresenham,
     magneticPath: magneticPath,
+    buildBoundaryPath: buildBoundaryPath,
   };
 };
