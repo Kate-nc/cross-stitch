@@ -66,11 +66,12 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Crop image card ──────────────────────────────────────────────────────────
   var imageCard = (ctx.pat && ctx.img && ctx.img.src) ? h("div", {className:"card"},
     h("div", {
-      style:{position:"relative"}, ref:ctx.cropRef,
-      onMouseDown:ctx.handleCropMouseDown,
-      onMouseMove:ctx.handleCropMouseMove,
-      onMouseUp:ctx.handleCropMouseUp,
-      onMouseLeave:ctx.handleCropMouseUp
+      style:{position:"relative",touchAction:"none",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none"}, ref:ctx.cropRef,
+      onPointerDown:ctx.handleCropPointerDown,
+      onPointerMove:ctx.handleCropPointerMove,
+      onPointerUp:ctx.handleCropPointerUp,
+      onPointerCancel:ctx.handleCropPointerCancel,
+      onPointerLeave:ctx.handleCropPointerUp
     },
       h("img", {
         src:ctx.img.src, alt:"",
@@ -226,6 +227,36 @@ window.CreatorSidebar = function CreatorSidebar() {
     ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}},
       "Preview estimate: removes ~", (ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
       " (", ((ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles) / Math.max(1, ctx.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
+    ),
+    ctx.pat && ctx.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+      h("button", {
+        onClick:function(){ctx.setShowCleanupDiff(function(d){return !d;});},
+        style:{
+          fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
+          border:ctx.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e4e4e7",
+          background:ctx.showCleanupDiff?"#f0fdfa":"#fff",
+          color:ctx.showCleanupDiff?"#0d9488":"#71717a",
+          fontWeight:ctx.showCleanupDiff?600:400,
+          display:"flex",alignItems:"center",gap:4,lineHeight:1.4
+        }
+      }, "\uD83D\uDC41\uFE0F " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
+    ),
+    ctx.showCleanupDiff && ctx.cleanupDiff && h("div", {style:{
+      fontSize:11,color:"#71717a",padding:"6px 10px",
+      background:"#fdf4ff",border:"1px solid #f0abfc",borderRadius:8,
+      marginTop:4,lineHeight:1.5
+    }},
+      h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
+      ctx.cleanupDiff.count.toLocaleString(), " stitches changed",
+      ctx.totalStitchable > 0 ? " (" + (ctx.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
+      Object.keys(ctx.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#a1a1aa"}},
+        Object.entries(ctx.cleanupDiff.byColour)
+          .sort(function(a,b){return b[1]-a[1];})
+          .slice(0,4)
+          .map(function(e){return "DMC "+e[0]+": "+e[1];})
+          .join(" \xB7 ") +
+          (Object.keys(ctx.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(ctx.cleanupDiff.byColour).length - 4) + " more" : "")
+      )
     ),
     (function() {
       var warning = getCleanupWarning(ctx.sW, ctx.sH, ctx.orphans, ctx.previewStats);

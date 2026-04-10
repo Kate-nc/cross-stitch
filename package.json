@@ -8,7 +8,14 @@
   },
   "scripts": {
     "start": "node serve.js",
-    "test": "jest"
+    "test": "jest",
+    "test:e2e": "playwright test"
+  },
+  "jest": {
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/e2e/"
+    ]
   },
   "repository": {
     "type": "git",
@@ -27,6 +34,7 @@
     "@babel/core": "^7.29.0",
     "@babel/preset-react": "^7.28.5",
     "@babel/standalone": "^7.29.2",
+    "@playwright/test": "^1.59.1",
     "jest": "^30.3.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"

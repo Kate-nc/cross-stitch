@@ -5,3 +5,6 @@ debug_*.js
 dump_*.js
 run_*.js
 inspect_*.js
+playwright-report/
+test-results/
+tests/.tmp/

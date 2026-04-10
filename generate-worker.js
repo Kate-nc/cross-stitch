@@ -88,12 +88,14 @@ self.onmessage = function(e) {
     var preLabels   = labelConnectedComponents(mapped, width, height);
     var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
     var confettiClean = null;
+    var preCleanupIds = null;
 
     if (stitchCleanup && stitchCleanup.enabled) {
       var strengthKey = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
         ? stitchCleanup.strength : 'balanced';
       var sp = STRENGTH_MAP[strengthKey];
       var edgeMap = stitchCleanup.protectDetails ? generateEdgeMap(raw, width, height) : null;
+      preCleanupIds = mapped.map(function(m) { return m.id; });
       mapped = removeOrphanStitches(
         mapped, width, height, sp.maxOrphanSize,
         edgeMap, saliencyMap,
@@ -184,6 +186,7 @@ self.onmessage = function(e) {
       pal: palResult.pal,
       cmap: palResult.cmap,
       confettiData: { raw: confettiRaw, clean: confettiClean || confettiRaw },
+      preCleanupIds: preCleanupIds,
     });
 
   } catch (err) {
