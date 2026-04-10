@@ -12,6 +12,99 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var dragPatRef           = React.useRef(null);
   var dragHalfStitchesRef  = React.useRef(null);
   var dragBsLinesRef       = React.useRef(null);
+  var activePointersRef    = React.useRef(new Map());
+  var pinchStateRef        = React.useRef(null);
+  var panStateRef          = React.useRef(null);
+  var pendingTapRef        = React.useRef(null);
+  var longPressTimerRef    = React.useRef(null);
+  var longPressTriggeredRef = React.useRef(false);
+
+  var TOUCH_TAP_SLOP = 10;
+  var LONG_PRESS_MS = 500;
+
+  function isPrimaryButton(e) {
+    return (e.button == null ? 0 : e.button) === 0;
+  }
+
+  function isTouchPointer(e) {
+    return e.pointerType === "touch";
+  }
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function clearPendingTap() {
+    pendingTapRef.current = null;
+    longPressTriggeredRef.current = false;
+    clearLongPressTimer();
+  }
+
+  function redrawCanvasFromState(patOverride, halfStitchesOverride, bsLinesOverride) {
+    var pcRef = state.pcRef;
+    if (!pcRef.current || !state.pat) return;
+    var ctx2 = pcRef.current.getContext("2d");
+    drawPatternOnCanvas(ctx2, 0, 0, state.sW, state.sH, state.cs, state.G, Object.assign({}, state, {
+      pat: patOverride || state.pat,
+      halfStitches: halfStitchesOverride || state.halfStitches,
+      bsLines: bsLinesOverride || state.bsLines,
+    }));
+  }
+
+  function cancelDragSession() {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    dragChangesRef.current = [];
+    dragCellsRef.current.clear();
+    dragActionRef.current = null;
+    dragPatRef.current = null;
+    dragHalfStitchesRef.current = null;
+    dragBsLinesRef.current = null;
+    redrawCanvasFromState();
+  }
+
+  function startPinchGesture() {
+    var scrollRef = state.scrollRef, pcRef = state.pcRef;
+    if (!scrollRef.current || !pcRef.current || activePointersRef.current.size !== 2) return;
+    var pts = Array.from(activePointersRef.current.values());
+    var midX = (pts[0].x + pts[1].x) / 2;
+    var midY = (pts[0].y + pts[1].y) / 2;
+    var rect = pcRef.current.getBoundingClientRect();
+    pinchStateRef.current = {
+      startDist: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y),
+      startZoom: state.zoom,
+      lastAppliedZoom: state.zoom,
+      focalX: scrollRef.current.scrollLeft + (midX - rect.left),
+      focalY: scrollRef.current.scrollTop + (midY - rect.top),
+    };
+  }
+
+  function updatePinchGesture() {
+    var pinch = pinchStateRef.current;
+    var scrollRef = state.scrollRef, pcRef = state.pcRef;
+    if (!pinch || !scrollRef.current || !pcRef.current || activePointersRef.current.size !== 2) return;
+    var pts = Array.from(activePointersRef.current.values());
+    var midX = (pts[0].x + pts[1].x) / 2;
+    var midY = (pts[0].y + pts[1].y) / 2;
+    var dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+    if (!dist || !pinch.startDist) return;
+    var nextZoom = Math.max(0.05, Math.min(3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
+    if (nextZoom === pinch.lastAppliedZoom) return;
+    pinch.lastAppliedZoom = nextZoom;
+    state.setZoom(nextZoom);
+    requestAnimationFrame(function() {
+      if (!scrollRef.current || !pcRef.current) return;
+      var rect = pcRef.current.getBoundingClientRect();
+      var ratio = nextZoom / pinch.startZoom;
+      var offsetX = midX - rect.left;
+      var offsetY = midY - rect.top;
+      scrollRef.current.scrollLeft = Math.max(0, pinch.focalX * ratio - offsetX);
+      scrollRef.current.scrollTop = Math.max(0, pinch.focalY * ratio - offsetY);
+    });
+  }
 
   // ─── applyBrush ─────────────────────────────────────────────────────────────
   function applyBrush(gx, gy, action) {
@@ -269,11 +362,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   // ─── Mouse event handlers ────────────────────────────────────────────────────
   function handlePatMouseDown(e) {
-    if (e.button !== 0) return;
+    if (!isPrimaryButton(e)) return;
     var pat = state.pat, pcRef = state.pcRef, cs = state.cs, G = state.G;
     var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
     var selectedColorId = state.selectedColorId, cmap = state.cmap;
     if (!pcRef.current || !pat) return;
+    if (!activeTool && !halfStitchTool) return;
     var gc = gridCoord(pcRef, e, cs, G, activeTool === "backstitch");
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
@@ -363,9 +457,179 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
     dragPatRef.current = null;
     dragHalfStitchesRef.current = null;
+    dragBsLinesRef.current = null;
+    dragActionRef.current = null;
+    dragCellsRef.current.clear();
   }
 
   function handlePatMouseLeave(e) {
+    state.setHoverCoords(null);
+    handlePatMouseUp(e);
+  }
+
+  // ─── Pointer event handlers ─────────────────────────────────────────────────
+  function handlePatPointerDown(e) {
+    var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
+    var scrollRef = state.scrollRef;
+    if (e.pointerType === "mouse" && !isPrimaryButton(e)) return;
+
+    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (e.target && e.target.setPointerCapture) {
+      try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+
+    if (activePointersRef.current.size === 2) {
+      if (isDraggingRef.current) cancelDragSession();
+      clearPendingTap();
+      panStateRef.current = null;
+      state.setHoverCoords(null);
+      startPinchGesture();
+      e.preventDefault();
+      return;
+    }
+    if (activePointersRef.current.size > 2) {
+      e.preventDefault();
+      return;
+    }
+
+    if (isTouchPointer(e) && !activeTool && !halfStitchTool && scrollRef.current) {
+      panStateRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        scrollLeft: scrollRef.current.scrollLeft,
+        scrollTop: scrollRef.current.scrollTop,
+      };
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
+
+    if (isTouchPointer(e) && activeTool === "backstitch") {
+      pendingTapRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: false,
+      };
+      longPressTriggeredRef.current = false;
+      clearLongPressTimer();
+      if (state.bsStart) {
+        longPressTimerRef.current = setTimeout(function() {
+          state.setBsStart(null);
+          state.setHoverCoords(null);
+          longPressTriggeredRef.current = true;
+          pendingTapRef.current = null;
+          longPressTimerRef.current = null;
+        }, LONG_PRESS_MS);
+      }
+      e.preventDefault();
+      return;
+    }
+
+    if (!activeTool && !halfStitchTool) return;
+    e.preventDefault();
+    handlePatMouseDown(e);
+  }
+
+  function handlePatPointerMove(e) {
+    if (activePointersRef.current.has(e.pointerId)) {
+      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    if (activePointersRef.current.size === 2 && pinchStateRef.current) {
+      clearPendingTap();
+      panStateRef.current = null;
+      state.setHoverCoords(null);
+      e.preventDefault();
+      updatePinchGesture();
+      return;
+    }
+
+    if (panStateRef.current && panStateRef.current.pointerId === e.pointerId && state.scrollRef.current) {
+      var dx = e.clientX - panStateRef.current.startX;
+      var dy = e.clientY - panStateRef.current.startY;
+      state.scrollRef.current.scrollLeft = panStateRef.current.scrollLeft - dx;
+      state.scrollRef.current.scrollTop = panStateRef.current.scrollTop - dy;
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
+
+    if (pendingTapRef.current && pendingTapRef.current.pointerId === e.pointerId) {
+      var moved = Math.hypot(e.clientX - pendingTapRef.current.startX, e.clientY - pendingTapRef.current.startY) > TOUCH_TAP_SLOP;
+      if (moved) {
+        pendingTapRef.current.moved = true;
+        clearLongPressTimer();
+      }
+      e.preventDefault();
+      handlePatMouseMove(e);
+      return;
+    }
+
+    if (activePointersRef.current.size > 1 && isTouchPointer(e)) {
+      e.preventDefault();
+      return;
+    }
+
+    if (isTouchPointer(e)) e.preventDefault();
+    handlePatMouseMove(e);
+  }
+
+  function handlePatPointerUp(e) {
+    var hadPinch = !!pinchStateRef.current;
+    var wasPendingTap = pendingTapRef.current && pendingTapRef.current.pointerId === e.pointerId ? pendingTapRef.current : null;
+    var wasPan = panStateRef.current && panStateRef.current.pointerId === e.pointerId;
+
+    activePointersRef.current.delete(e.pointerId);
+    if (e.target && e.target.releasePointerCapture) {
+      try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+
+    if (wasPan) {
+      panStateRef.current = null;
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
+
+    if (wasPendingTap) {
+      clearLongPressTimer();
+      if (!wasPendingTap.moved && !longPressTriggeredRef.current && !hadPinch) {
+        handlePatClick(e);
+      }
+      clearPendingTap();
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
+
+    if (activePointersRef.current.size < 2) pinchStateRef.current = null;
+    if (hadPinch) {
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
+
+    if (isTouchPointer(e)) e.preventDefault();
+    handlePatMouseUp(e);
+    if (activePointersRef.current.size === 0) state.setHoverCoords(null);
+  }
+
+  function handlePatPointerLeave(e) {
+    if (e.pointerType === "mouse" && !isDraggingRef.current) {
+      state.setHoverCoords(null);
+    }
+  }
+
+  function handlePatPointerCancel(e) {
+    activePointersRef.current.delete(e.pointerId);
+    if (e.target && e.target.releasePointerCapture) {
+      try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+    clearPendingTap();
+    panStateRef.current = null;
+    if (activePointersRef.current.size < 2) pinchStateRef.current = null;
     state.setHoverCoords(null);
     handlePatMouseUp(e);
   }
@@ -374,6 +638,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handleCropMouseDown(e) {
     var cropRef = state.cropRef, cropStartRef = state.cropStartRef, isCropping = state.isCropping;
     if (!isCropping || !cropRef.current) return;
+    if (!isPrimaryButton(e)) return;
     e.preventDefault();
     var r = cropRef.current.getBoundingClientRect();
     cropStartRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -394,6 +659,31 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handleCropMouseUp(e) {
     if (!state.isCropping || !state.cropStartRef.current) return;
     state.cropStartRef.current = null;
+  }
+
+  function handleCropPointerDown(e) {
+    if (e.pointerType === "mouse" && !isPrimaryButton(e)) return;
+    if (e.target && e.target.setPointerCapture) {
+      try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+    handleCropMouseDown(e);
+  }
+
+  function handleCropPointerMove(e) {
+    if (!state.isCropping || !state.cropStartRef.current) return;
+    e.preventDefault();
+    handleCropMouseMove(e);
+  }
+
+  function handleCropPointerUp(e) {
+    if (e.target && e.target.releasePointerCapture) {
+      try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+    handleCropMouseUp(e);
+  }
+
+  function handleCropPointerCancel(e) {
+    handleCropPointerUp(e);
   }
 
   function applyCrop() {
@@ -481,9 +771,18 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     handlePatMouseMove: handlePatMouseMove,
     handlePatMouseUp: handlePatMouseUp,
     handlePatMouseLeave: handlePatMouseLeave,
+    handlePatPointerDown: handlePatPointerDown,
+    handlePatPointerMove: handlePatPointerMove,
+    handlePatPointerUp: handlePatPointerUp,
+    handlePatPointerLeave: handlePatPointerLeave,
+    handlePatPointerCancel: handlePatPointerCancel,
     handleCropMouseDown: handleCropMouseDown,
     handleCropMouseMove: handleCropMouseMove,
     handleCropMouseUp: handleCropMouseUp,
+    handleCropPointerDown: handleCropPointerDown,
+    handleCropPointerMove: handleCropPointerMove,
+    handleCropPointerUp: handleCropPointerUp,
+    handleCropPointerCancel: handleCropPointerCancel,
     applyCrop: applyCrop,
     srcClick: srcClick,
     autoCrop: autoCrop,

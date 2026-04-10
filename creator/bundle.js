@@ -62,18 +62,20 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var preLabels = labelConnectedComponents(mapped, width, height);
   var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;
+  var preCleanupIds = null;
 
   if (stitchCleanup && stitchCleanup.enabled) {
     var cleanupStrength = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
       ? stitchCleanup.strength : "balanced";
     var sp = STRENGTH_MAP[cleanupStrength];
     var edgeMap = stitchCleanup.protectDetails ? generateEdgeMap(raw, width, height) : null;
+    preCleanupIds = mapped.map(function(m) { return m.id; });
     mapped = removeOrphanStitches(mapped, width, height, sp.maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: sp.saliencyMultiplier }, preLabels);
     var postLabels = labelConnectedComponents(mapped, width, height);
     confettiClean = analyzeConfetti(mapped, width, height, postLabels);
   }
 
-  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap };
+  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds };
 };
 
 /**
@@ -173,6 +175,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     pal: palResult.pal,
     cmap: palResult.cmap,
     confettiData: { raw: rawConfetti, clean: cleanConfetti },
+    preCleanupIds: pipelineResult.preCleanupIds,
   };
 };
 
@@ -447,6 +450,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   var halfStitches = state.halfStitches;
   var showOverlayImg = state.showOverlay && !!img && !!img.src;
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
+  var showCleanupDiff = state.showCleanupDiff;
+  var cleanupDiff = state.cleanupDiff;
 
   ctx2d.fillStyle = "#fff";
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
@@ -530,6 +535,24 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
             if (sym) drawHalfSymbol(ctx2d, px, py, cSz, dir, sym, view === "both" ? (luminance(hs.rgb) < 128 ? "#fff" : "#000") : "#333");
           }
         });
+      }
+    }
+  }
+
+  // Cleanup diff overlay (magenta at 40%, below gridlines)
+  if (showCleanupDiff && cleanupDiff && cleanupDiff.mask) {
+    ctx2d.fillStyle = "rgba(255,0,255,0.4)";
+    for (var doy = 0; doy < dH; doy++) {
+      for (var dox = 0; dox < dW; dox++) {
+        var doi = (offY + doy) * sW + (offX + dox);
+        if (cleanupDiff.mask[doi] === 1) {
+          var doPx = gut + dox * cSz;
+          var doPy = gut + doy * cSz;
+          // If a colour is highlighted, only show diff overlay for that colour
+          var doCell = pat[doi];
+          if (hiId && doCell && doCell.id !== hiId) continue;
+          ctx2d.fillRect(doPx, doPy, cSz, cSz);
+        }
       }
     }
   }
@@ -1857,6 +1880,10 @@ window.useCreatorState = function useCreatorState() {
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
 
+  // Cleanup diff state
+  var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
+  var _showCleanupDiff  = useState(false); var showCleanupDiff  = _showCleanupDiff[0],  setShowCleanupDiff  = _showCleanupDiff[1];
+
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
@@ -2089,6 +2116,25 @@ window.useCreatorState = function useCreatorState() {
     setDone(new Uint8Array(result.mapped.length));
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
     setEditHistory([]); setRedoHistory([]);
+    // Compute cleanup diff mask from preCleanupIds
+    setShowCleanupDiff(false);
+    if (result.preCleanupIds && result.preCleanupIds.length === result.mapped.length) {
+      var mask = new Uint8Array(result.mapped.length);
+      var count = 0;
+      var byColour = {};
+      for (var di = 0; di < result.mapped.length; di++) {
+        var preId = result.preCleanupIds[di];
+        var postId = result.mapped[di].id;
+        if (preId !== postId && preId !== "__skip__") {
+          mask[di] = 1;
+          count++;
+          byColour[postId] = (byColour[postId] || 0) + 1;
+        }
+      }
+      setCleanupDiff(count > 0 ? { mask: mask, count: count, byColour: byColour } : null);
+    } else {
+      setCleanupDiff(null);
+    }
     if (!hasGenerated) {
       setDimOpen(false); setPalOpen(false); setFabOpen(false);
       setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
@@ -2163,7 +2209,7 @@ window.useCreatorState = function useCreatorState() {
               stitchCleanup: stitchCleanup, allowBlends: allowBlends,
             });
             if (!result) { setBusy(false); return; }
-            applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData });
+            applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds });
           } catch (err) { console.error(err); setBusy(false); }
         }, 50);
         return;
@@ -2292,6 +2338,7 @@ window.useCreatorState = function useCreatorState() {
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
     previewTimerRef, projectName, setProjectName,
     namePromptOpen, setNamePromptOpen,
+    cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
     pcRef, fRef, scrollRef, expRef, loadRef,
     prevSW, prevSH, projectIdRef, userActedRef, stripRef, overflowRef,
     G, EDIT_HISTORY_MAX,
@@ -2442,6 +2489,99 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var dragPatRef           = React.useRef(null);
   var dragHalfStitchesRef  = React.useRef(null);
   var dragBsLinesRef       = React.useRef(null);
+  var activePointersRef    = React.useRef(new Map());
+  var pinchStateRef        = React.useRef(null);
+  var panStateRef          = React.useRef(null);
+  var pendingTapRef        = React.useRef(null);
+  var longPressTimerRef    = React.useRef(null);
+  var longPressTriggeredRef = React.useRef(false);
+
+  var TOUCH_TAP_SLOP = 10;
+  var LONG_PRESS_MS = 500;
+
+  function isPrimaryButton(e) {
+    return (e.button == null ? 0 : e.button) === 0;
+  }
+
+  function isTouchPointer(e) {
+    return e.pointerType === "touch";
+  }
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function clearPendingTap() {
+    pendingTapRef.current = null;
+    longPressTriggeredRef.current = false;
+    clearLongPressTimer();
+  }
+
+  function redrawCanvasFromState(patOverride, halfStitchesOverride, bsLinesOverride) {
+    var pcRef = state.pcRef;
+    if (!pcRef.current || !state.pat) return;
+    var ctx2 = pcRef.current.getContext("2d");
+    drawPatternOnCanvas(ctx2, 0, 0, state.sW, state.sH, state.cs, state.G, Object.assign({}, state, {
+      pat: patOverride || state.pat,
+      halfStitches: halfStitchesOverride || state.halfStitches,
+      bsLines: bsLinesOverride || state.bsLines,
+    }));
+  }
+
+  function cancelDragSession() {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    dragChangesRef.current = [];
+    dragCellsRef.current.clear();
+    dragActionRef.current = null;
+    dragPatRef.current = null;
+    dragHalfStitchesRef.current = null;
+    dragBsLinesRef.current = null;
+    redrawCanvasFromState();
+  }
+
+  function startPinchGesture() {
+    var scrollRef = state.scrollRef, pcRef = state.pcRef;
+    if (!scrollRef.current || !pcRef.current || activePointersRef.current.size !== 2) return;
+    var pts = Array.from(activePointersRef.current.values());
+    var midX = (pts[0].x + pts[1].x) / 2;
+    var midY = (pts[0].y + pts[1].y) / 2;
+    var rect = pcRef.current.getBoundingClientRect();
+    pinchStateRef.current = {
+      startDist: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y),
+      startZoom: state.zoom,
+      lastAppliedZoom: state.zoom,
+      focalX: scrollRef.current.scrollLeft + (midX - rect.left),
+      focalY: scrollRef.current.scrollTop + (midY - rect.top),
+    };
+  }
+
+  function updatePinchGesture() {
+    var pinch = pinchStateRef.current;
+    var scrollRef = state.scrollRef, pcRef = state.pcRef;
+    if (!pinch || !scrollRef.current || !pcRef.current || activePointersRef.current.size !== 2) return;
+    var pts = Array.from(activePointersRef.current.values());
+    var midX = (pts[0].x + pts[1].x) / 2;
+    var midY = (pts[0].y + pts[1].y) / 2;
+    var dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+    if (!dist || !pinch.startDist) return;
+    var nextZoom = Math.max(0.05, Math.min(3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
+    if (nextZoom === pinch.lastAppliedZoom) return;
+    pinch.lastAppliedZoom = nextZoom;
+    state.setZoom(nextZoom);
+    requestAnimationFrame(function() {
+      if (!scrollRef.current || !pcRef.current) return;
+      var rect = pcRef.current.getBoundingClientRect();
+      var ratio = nextZoom / pinch.startZoom;
+      var offsetX = midX - rect.left;
+      var offsetY = midY - rect.top;
+      scrollRef.current.scrollLeft = Math.max(0, pinch.focalX * ratio - offsetX);
+      scrollRef.current.scrollTop = Math.max(0, pinch.focalY * ratio - offsetY);
+    });
+  }
 
   // ─── applyBrush ─────────────────────────────────────────────────────────────
   function applyBrush(gx, gy, action) {
@@ -2699,11 +2839,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   // ─── Mouse event handlers ────────────────────────────────────────────────────
   function handlePatMouseDown(e) {
-    if (e.button !== 0) return;
+    if (!isPrimaryButton(e)) return;
     var pat = state.pat, pcRef = state.pcRef, cs = state.cs, G = state.G;
     var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
     var selectedColorId = state.selectedColorId, cmap = state.cmap;
     if (!pcRef.current || !pat) return;
+    if (!activeTool && !halfStitchTool) return;
     var gc = gridCoord(pcRef, e, cs, G, activeTool === "backstitch");
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
@@ -2793,9 +2934,179 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
     dragPatRef.current = null;
     dragHalfStitchesRef.current = null;
+    dragBsLinesRef.current = null;
+    dragActionRef.current = null;
+    dragCellsRef.current.clear();
   }
 
   function handlePatMouseLeave(e) {
+    state.setHoverCoords(null);
+    handlePatMouseUp(e);
+  }
+
+  // ─── Pointer event handlers ─────────────────────────────────────────────────
+  function handlePatPointerDown(e) {
+    var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
+    var scrollRef = state.scrollRef;
+    if (e.pointerType === "mouse" && !isPrimaryButton(e)) return;
+
+    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (e.target && e.target.setPointerCapture) {
+      try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+
+    if (activePointersRef.current.size === 2) {
+      if (isDraggingRef.current) cancelDragSession();
+      clearPendingTap();
+      panStateRef.current = null;
+      state.setHoverCoords(null);
+      startPinchGesture();
+      e.preventDefault();
+      return;
+    }
+    if (activePointersRef.current.size > 2) {
+      e.preventDefault();
+      return;
+    }
+
+    if (isTouchPointer(e) && !activeTool && !halfStitchTool && scrollRef.current) {
+      panStateRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        scrollLeft: scrollRef.current.scrollLeft,
+        scrollTop: scrollRef.current.scrollTop,
+      };
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
+
+    if (isTouchPointer(e) && activeTool === "backstitch") {
+      pendingTapRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: false,
+      };
+      longPressTriggeredRef.current = false;
+      clearLongPressTimer();
+      if (state.bsStart) {
+        longPressTimerRef.current = setTimeout(function() {
+          state.setBsStart(null);
+          state.setHoverCoords(null);
+          longPressTriggeredRef.current = true;
+          pendingTapRef.current = null;
+          longPressTimerRef.current = null;
+        }, LONG_PRESS_MS);
+      }
+      e.preventDefault();
+      return;
+    }
+
+    if (!activeTool && !halfStitchTool) return;
+    e.preventDefault();
+    handlePatMouseDown(e);
+  }
+
+  function handlePatPointerMove(e) {
+    if (activePointersRef.current.has(e.pointerId)) {
+      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    if (activePointersRef.current.size === 2 && pinchStateRef.current) {
+      clearPendingTap();
+      panStateRef.current = null;
+      state.setHoverCoords(null);
+      e.preventDefault();
+      updatePinchGesture();
+      return;
+    }
+
+    if (panStateRef.current && panStateRef.current.pointerId === e.pointerId && state.scrollRef.current) {
+      var dx = e.clientX - panStateRef.current.startX;
+      var dy = e.clientY - panStateRef.current.startY;
+      state.scrollRef.current.scrollLeft = panStateRef.current.scrollLeft - dx;
+      state.scrollRef.current.scrollTop = panStateRef.current.scrollTop - dy;
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
+
+    if (pendingTapRef.current && pendingTapRef.current.pointerId === e.pointerId) {
+      var moved = Math.hypot(e.clientX - pendingTapRef.current.startX, e.clientY - pendingTapRef.current.startY) > TOUCH_TAP_SLOP;
+      if (moved) {
+        pendingTapRef.current.moved = true;
+        clearLongPressTimer();
+      }
+      e.preventDefault();
+      handlePatMouseMove(e);
+      return;
+    }
+
+    if (activePointersRef.current.size > 1 && isTouchPointer(e)) {
+      e.preventDefault();
+      return;
+    }
+
+    if (isTouchPointer(e)) e.preventDefault();
+    handlePatMouseMove(e);
+  }
+
+  function handlePatPointerUp(e) {
+    var hadPinch = !!pinchStateRef.current;
+    var wasPendingTap = pendingTapRef.current && pendingTapRef.current.pointerId === e.pointerId ? pendingTapRef.current : null;
+    var wasPan = panStateRef.current && panStateRef.current.pointerId === e.pointerId;
+
+    activePointersRef.current.delete(e.pointerId);
+    if (e.target && e.target.releasePointerCapture) {
+      try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+
+    if (wasPan) {
+      panStateRef.current = null;
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
+
+    if (wasPendingTap) {
+      clearLongPressTimer();
+      if (!wasPendingTap.moved && !longPressTriggeredRef.current && !hadPinch) {
+        handlePatClick(e);
+      }
+      clearPendingTap();
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
+
+    if (activePointersRef.current.size < 2) pinchStateRef.current = null;
+    if (hadPinch) {
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
+
+    if (isTouchPointer(e)) e.preventDefault();
+    handlePatMouseUp(e);
+    if (activePointersRef.current.size === 0) state.setHoverCoords(null);
+  }
+
+  function handlePatPointerLeave(e) {
+    if (e.pointerType === "mouse" && !isDraggingRef.current) {
+      state.setHoverCoords(null);
+    }
+  }
+
+  function handlePatPointerCancel(e) {
+    activePointersRef.current.delete(e.pointerId);
+    if (e.target && e.target.releasePointerCapture) {
+      try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+    clearPendingTap();
+    panStateRef.current = null;
+    if (activePointersRef.current.size < 2) pinchStateRef.current = null;
     state.setHoverCoords(null);
     handlePatMouseUp(e);
   }
@@ -2804,6 +3115,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handleCropMouseDown(e) {
     var cropRef = state.cropRef, cropStartRef = state.cropStartRef, isCropping = state.isCropping;
     if (!isCropping || !cropRef.current) return;
+    if (!isPrimaryButton(e)) return;
     e.preventDefault();
     var r = cropRef.current.getBoundingClientRect();
     cropStartRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -2824,6 +3136,31 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handleCropMouseUp(e) {
     if (!state.isCropping || !state.cropStartRef.current) return;
     state.cropStartRef.current = null;
+  }
+
+  function handleCropPointerDown(e) {
+    if (e.pointerType === "mouse" && !isPrimaryButton(e)) return;
+    if (e.target && e.target.setPointerCapture) {
+      try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+    handleCropMouseDown(e);
+  }
+
+  function handleCropPointerMove(e) {
+    if (!state.isCropping || !state.cropStartRef.current) return;
+    e.preventDefault();
+    handleCropMouseMove(e);
+  }
+
+  function handleCropPointerUp(e) {
+    if (e.target && e.target.releasePointerCapture) {
+      try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+    handleCropMouseUp(e);
+  }
+
+  function handleCropPointerCancel(e) {
+    handleCropPointerUp(e);
   }
 
   function applyCrop() {
@@ -2911,9 +3248,18 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     handlePatMouseMove: handlePatMouseMove,
     handlePatMouseUp: handlePatMouseUp,
     handlePatMouseLeave: handlePatMouseLeave,
+    handlePatPointerDown: handlePatPointerDown,
+    handlePatPointerMove: handlePatPointerMove,
+    handlePatPointerUp: handlePatPointerUp,
+    handlePatPointerLeave: handlePatPointerLeave,
+    handlePatPointerCancel: handlePatPointerCancel,
     handleCropMouseDown: handleCropMouseDown,
     handleCropMouseMove: handleCropMouseMove,
     handleCropMouseUp: handleCropMouseUp,
+    handleCropPointerDown: handleCropPointerDown,
+    handleCropPointerMove: handleCropPointerMove,
+    handleCropPointerUp: handleCropPointerUp,
+    handleCropPointerCancel: handleCropPointerCancel,
     applyCrop: applyCrop,
     srcClick: srcClick,
     autoCrop: autoCrop,
@@ -3482,6 +3828,8 @@ window.usePreview = function usePreview(state) {
       }
       pcx.putImageData(imgData, 0, 0); return pc.toDataURL();
     }
+  var orphans = state.orphans;
+  var showCleanupDiff = state.showCleanupDiff;
 
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
@@ -3500,6 +3848,7 @@ window.usePreview = function usePreview(state) {
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
       var confettiClean = pipelineResult.confettiClean;
+  var preCleanupIds = pipelineResult.preCleanupIds || null;
 
       var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
       for (var j = 0; j < mapped.length; j++) {
@@ -3550,6 +3899,16 @@ window.usePreview = function usePreview(state) {
         }
       }
       pcx.putImageData(imgData, 0, 0);
+      // Diff overlay on preview thumbnail
+      if (showCleanupDiff && stitchCleanup && stitchCleanup.enabled && preCleanupIds) {
+        pcx.fillStyle = "rgba(255,0,255,0.45)";
+        for (var pi = 0; pi < mapped.length; pi++) {
+          if (preCleanupIds[pi] !== mapped[pi].id && preCleanupIds[pi] !== "__skip__") {
+            var pcs2 = 1; // each preview pixel is 1px
+            pcx.fillRect(pi % pw, Math.floor(pi / pw), pcs2, pcs2);
+          }
+        }
+      }
       state.setPreviewUrl(pc.toDataURL());
       if (hasHeat) {
         var hc = document.createElement("canvas"); hc.width = pw; hc.height = ph;
@@ -3563,6 +3922,7 @@ window.usePreview = function usePreview(state) {
     state.img, state.sW, state.sH, state.maxC, state.bri, state.con, state.sat,
     state.dith, state.skipBg, state.bgCol, state.bgTh, state.smooth, state.smoothType,
     state.stitchCleanup, state.fabricCt, state.allowBlends,
+    state.orphans, state.showCleanupDiff,
   ]);
 
   React.useEffect(function() {
@@ -3628,7 +3988,7 @@ window.PatternCanvas = function PatternCanvas() {
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
     ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
     ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool,
-    ctx.selectionMask, ctx.confettiPreview
+    ctx.showCleanupDiff, ctx.cleanupDiff
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
@@ -3653,11 +4013,18 @@ window.PatternCanvas = function PatternCanvas() {
 
   return h("canvas", {
     ref: ctx.pcRef,
-    style: { display: "block" },
-    onMouseDown:  ctx.handlePatMouseDown,
-    onMouseUp:    ctx.handlePatMouseUp,
-    onMouseMove:  ctx.handlePatMouseMove,
-    onMouseLeave: ctx.handlePatMouseLeave,
+    style: {
+      display: "block",
+      touchAction: "none",
+      userSelect: "none",
+      WebkitUserSelect: "none",
+      WebkitTouchCallout: "none"
+    },
+    onPointerDown:   ctx.handlePatPointerDown,
+    onPointerUp:     ctx.handlePatPointerUp,
+    onPointerMove:   ctx.handlePatPointerMove,
+    onPointerLeave:  ctx.handlePatPointerLeave,
+    onPointerCancel: ctx.handlePatPointerCancel,
     onContextMenu: function(e) {
       if (ctx.activeTool === "backstitch" && ctx.bsStart) {
         e.preventDefault();
@@ -3700,8 +4067,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       if (ctx.overflowRef.current && !ctx.overflowRef.current.contains(e.target))
         ctx.setOverflowOpen(false);
     }
-    document.addEventListener("mousedown", close);
-    return function() { document.removeEventListener("mousedown", close); };
+    document.addEventListener("pointerdown", close);
+    return function() { document.removeEventListener("pointerdown", close); };
   }, [ctx.overflowOpen]);
 
   if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
@@ -4344,11 +4711,12 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Crop image card ──────────────────────────────────────────────────────────
   var imageCard = (ctx.pat && ctx.img && ctx.img.src) ? h("div", {className:"card"},
     h("div", {
-      style:{position:"relative"}, ref:ctx.cropRef,
-      onMouseDown:ctx.handleCropMouseDown,
-      onMouseMove:ctx.handleCropMouseMove,
-      onMouseUp:ctx.handleCropMouseUp,
-      onMouseLeave:ctx.handleCropMouseUp
+      style:{position:"relative",touchAction:"none",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none"}, ref:ctx.cropRef,
+      onPointerDown:ctx.handleCropPointerDown,
+      onPointerMove:ctx.handleCropPointerMove,
+      onPointerUp:ctx.handleCropPointerUp,
+      onPointerCancel:ctx.handleCropPointerCancel,
+      onPointerLeave:ctx.handleCropPointerUp
     },
       h("img", {
         src:ctx.img.src, alt:"",
@@ -4504,6 +4872,36 @@ window.CreatorSidebar = function CreatorSidebar() {
     ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}},
       "Preview estimate: removes ~", (ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
       " (", ((ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles) / Math.max(1, ctx.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
+    ),
+    ctx.pat && ctx.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+      h("button", {
+        onClick:function(){ctx.setShowCleanupDiff(function(d){return !d;});},
+        style:{
+          fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
+          border:ctx.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e4e4e7",
+          background:ctx.showCleanupDiff?"#f0fdfa":"#fff",
+          color:ctx.showCleanupDiff?"#0d9488":"#71717a",
+          fontWeight:ctx.showCleanupDiff?600:400,
+          display:"flex",alignItems:"center",gap:4,lineHeight:1.4
+        }
+      }, "\uD83D\uDC41\uFE0F " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
+    ),
+    ctx.showCleanupDiff && ctx.cleanupDiff && h("div", {style:{
+      fontSize:11,color:"#71717a",padding:"6px 10px",
+      background:"#fdf4ff",border:"1px solid #f0abfc",borderRadius:8,
+      marginTop:4,lineHeight:1.5
+    }},
+      h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
+      ctx.cleanupDiff.count.toLocaleString(), " stitches changed",
+      ctx.totalStitchable > 0 ? " (" + (ctx.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
+      Object.keys(ctx.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#a1a1aa"}},
+        Object.entries(ctx.cleanupDiff.byColour)
+          .sort(function(a,b){return b[1]-a[1];})
+          .slice(0,4)
+          .map(function(e){return "DMC "+e[0]+": "+e[1];})
+          .join(" \xB7 ") +
+          (Object.keys(ctx.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(ctx.cleanupDiff.byColour).length - 4) + " more" : "")
+      )
     ),
     (function() {
       var warning = getCleanupWarning(ctx.sW, ctx.sH, ctx.orphans, ctx.previewStats);
@@ -4765,6 +5163,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     var isUnused = ctx.isScratchMode && p.count === 0;
     var chip = h("div", {
       key: p.id,
+      className: "creator-palette-chip",
       role: "button",
       tabIndex: 0,
       "aria-pressed": ips || ihs,
@@ -4796,10 +5195,11 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         opacity: isUnused ? 0.6 : 1
       }
     },
-      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}),
+      h("span", {className:"creator-palette-chip-swatch",style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}),
       h("span", {style:{fontFamily:"monospace",color:"#71717a"}}, p.symbol),
       h("span", {style:{fontWeight:500}}, p.id),
       isUnused && h("span", {
+        className:"creator-palette-chip-remove",
         onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
         style:{fontSize:9,color:"#a1a1aa",cursor:"pointer",marginLeft:2,lineHeight:1}
       }, "\xD7")
@@ -4887,7 +5287,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     ),
 
     h("div", {style:{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}},
-      h("div", {style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
+      h("div", {className:"creator-pattern-chips",style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
     )
   );
 };

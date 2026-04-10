@@ -140,6 +140,10 @@ window.useCreatorState = function useCreatorState() {
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
 
+  // Cleanup diff state
+  var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
+  var _showCleanupDiff  = useState(false); var showCleanupDiff  = _showCleanupDiff[0],  setShowCleanupDiff  = _showCleanupDiff[1];
+
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
@@ -372,6 +376,25 @@ window.useCreatorState = function useCreatorState() {
     setDone(new Uint8Array(result.mapped.length));
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
     setEditHistory([]); setRedoHistory([]);
+    // Compute cleanup diff mask from preCleanupIds
+    setShowCleanupDiff(false);
+    if (result.preCleanupIds && result.preCleanupIds.length === result.mapped.length) {
+      var mask = new Uint8Array(result.mapped.length);
+      var count = 0;
+      var byColour = {};
+      for (var di = 0; di < result.mapped.length; di++) {
+        var preId = result.preCleanupIds[di];
+        var postId = result.mapped[di].id;
+        if (preId !== postId && preId !== "__skip__") {
+          mask[di] = 1;
+          count++;
+          byColour[postId] = (byColour[postId] || 0) + 1;
+        }
+      }
+      setCleanupDiff(count > 0 ? { mask: mask, count: count, byColour: byColour } : null);
+    } else {
+      setCleanupDiff(null);
+    }
     if (!hasGenerated) {
       setDimOpen(false); setPalOpen(false); setFabOpen(false);
       setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
@@ -446,7 +469,7 @@ window.useCreatorState = function useCreatorState() {
               stitchCleanup: stitchCleanup, allowBlends: allowBlends,
             });
             if (!result) { setBusy(false); return; }
-            applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData });
+            applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds });
           } catch (err) { console.error(err); setBusy(false); }
         }, 50);
         return;
@@ -575,6 +598,7 @@ window.useCreatorState = function useCreatorState() {
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
     previewTimerRef, projectName, setProjectName,
     namePromptOpen, setNamePromptOpen,
+    cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
     pcRef, fRef, scrollRef, expRef, loadRef,
     prevSW, prevSH, projectIdRef, userActedRef, stripRef, overflowRef,
     G, EDIT_HISTORY_MAX,

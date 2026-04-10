@@ -330,6 +330,17 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                 <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#71717a",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>Preview</span>
                   {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#a1a1aa"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
+                              {state.stitchCleanup&&state.stitchCleanup.enabled&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
+                                <button
+                                  onClick={()=>state.setShowCleanupDiff(d=>!d)}
+                                  style={{fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
+                                    border:state.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e4e4e7",
+                                    background:state.showCleanupDiff?"#f0fdfa":"#fff",
+                                    color:state.showCleanupDiff?"#0d9488":"#71717a",
+                                    fontWeight:state.showCleanupDiff?600:400,
+                                    display:"flex",alignItems:"center",gap:4,lineHeight:1.4}}
+                                >👁 {state.showCleanupDiff?"Hide changes":"Show changes"}</button>
+                              </div>}
                 </div>
                 <div style={{padding:"0 14px 10px"}}>
                   <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH} previewPw={state.previewDims&&state.previewDims.pw} previewPh={state.previewDims&&state.previewDims.ph}/>

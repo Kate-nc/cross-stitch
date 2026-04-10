@@ -267,6 +267,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   var halfStitches = state.halfStitches;
   var showOverlayImg = state.showOverlay && !!img && !!img.src;
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
+  var showCleanupDiff = state.showCleanupDiff;
+  var cleanupDiff = state.cleanupDiff;
 
   ctx2d.fillStyle = "#fff";
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
@@ -350,6 +352,24 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
             if (sym) drawHalfSymbol(ctx2d, px, py, cSz, dir, sym, view === "both" ? (luminance(hs.rgb) < 128 ? "#fff" : "#000") : "#333");
           }
         });
+      }
+    }
+  }
+
+  // Cleanup diff overlay (magenta at 40%, below gridlines)
+  if (showCleanupDiff && cleanupDiff && cleanupDiff.mask) {
+    ctx2d.fillStyle = "rgba(255,0,255,0.4)";
+    for (var doy = 0; doy < dH; doy++) {
+      for (var dox = 0; dox < dW; dox++) {
+        var doi = (offY + doy) * sW + (offX + dox);
+        if (cleanupDiff.mask[doi] === 1) {
+          var doPx = gut + dox * cSz;
+          var doPy = gut + doy * cSz;
+          // If a colour is highlighted, only show diff overlay for that colour
+          var doCell = pat[doi];
+          if (hiId && doCell && doCell.id !== hiId) continue;
+          ctx2d.fillRect(doPx, doPy, cSz, cSz);
+        }
       }
     }
   }
