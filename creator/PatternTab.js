@@ -183,12 +183,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ref:ctx.scrollRef,
       style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(function(){
         var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
-        var efMode = selTool ? (ctx.selectionModifier || ctx.wandOpMode) : null;
         if (ctx.activeTool === "eyedropper") return "copy";
-        if (selTool && efMode === "add") return "cell";
-        if (selTool && efMode === "subtract") return "zoom-out";
-        if (ctx.activeTool === "magicWand") return "pointer";
-        if (ctx.activeTool === "lasso") return "crosshair";
+        if (selTool) return "crosshair";
         if (ctx.activeTool === "fill") return "cell";
         if (ctx.activeTool === "eraseAll" || ctx.activeTool === "eraseBs") return "not-allowed";
         if (ctx.activeTool || ctx.halfStitchTool) return "crosshair";
