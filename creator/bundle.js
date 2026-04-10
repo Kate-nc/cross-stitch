@@ -1322,7 +1322,7 @@ window.useMagicWand = function useMagicWand(state) {
   // ─── Wand UI state (owned here, exposed via return) ──────────────────────────
   var _mask       = React.useState(null);    // Uint8Array|null, length = sW*sH
   var selectionMask = _mask[0], setSelectionMask = _mask[1];
-  var _tol        = React.useState(10);
+  var _tol        = React.useState(0);
   var wandTolerance = _tol[0], setWandTolerance = _tol[1];
   var _contiguous = React.useState(true);
   var wandContiguous = _contiguous[0], setWandContiguous = _contiguous[1];
@@ -1362,16 +1362,19 @@ window.useMagicWand = function useMagicWand(state) {
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   function labFromEntry(entry) {
-    if (entry && entry.lab) return entry.lab;
+    if (entry && entry.lab) {
+      var l = entry.lab;
+      return Array.isArray(l) ? l : [l.L || 0, l.a || 0, l.b || 0];
+    }
     if (entry && entry.rgb) {
       if (typeof rgbToLab === "function") return rgbToLab(entry.rgb[0], entry.rgb[1], entry.rgb[2]);
-      return { L: entry.rgb[0], a: entry.rgb[1], b: entry.rgb[2] };
+      return [0, 0, 0];
     }
-    return { L: 0, a: 0, b: 0 };
+    return [0, 0, 0];
   }
 
   function deltaE(la, lb) {
-    var dL = la.L - lb.L, da = la.a - lb.a, db = la.b - lb.b;
+    var dL = la[0] - lb[0], da = la[1] - lb[1], db = la[2] - lb[2];
     return Math.sqrt(dL * dL + da * da + db * db);
   }
 
@@ -1450,11 +1453,27 @@ window.useMagicWand = function useMagicWand(state) {
     var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
     if (!pat || !cmap) return;
     if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+    var idx = gy * sW + gx;
+    var cell = pat[idx];
+    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
+      if (state.addToast) state.addToast("That cell is empty \u2014 nothing to select.", {type:"warning", duration:1500});
+      return;
+    }
     var newMask = wandContiguous
       ? floodSelect(pat, cmap, sW, sH, gx, gy, wandTolerance)
       : globalSelect(pat, cmap, sW, sH, gx, gy, wandTolerance);
     var merged = mergeMasks(selectionMask, newMask, opMode, sW * sH);
     setSelectionMask(merged);
+
+    // Toast feedback
+    var newCount = 0;
+    for (var i = 0; i < merged.length; i++) if (merged[i]) newCount++;
+    var entry = cmap[cell.id];
+    var label = entry ? "DMC " + entry.id + (entry.name ? " (" + entry.name + ")" : "") : cell.id;
+    if (state.addToast) state.addToast(
+      newCount.toLocaleString() + " stitch" + (newCount !== 1 ? "es" : "") + " selected \u2014 " + label,
+      {type:"success", duration:2000}
+    );
   }
 
   function clearSelection() {
@@ -1613,7 +1632,7 @@ window.useMagicWand = function useMagicWand(state) {
     var labs = {};
     ids.forEach(function(id) {
       var e = cmap[id];
-      labs[id] = e ? labFromEntry(e) : { L: 0, a: 0, b: 0 };
+      labs[id] = e ? labFromEntry(e) : [0, 0, 0];
     });
 
     var activeIds = ids.slice();
@@ -5129,7 +5148,9 @@ window.MagicWandPanel = function MagicWandPanel() {
         onChange: function(e) { ctx.setWandTolerance(Number(e.target.value)); },
         style: { width: 80 }
       }),
-      h("span", { style: { minWidth: 24, textAlign: "right" } }, ctx.wandTolerance)
+      h("span", { style: { minWidth: 24, textAlign: "right" } }, ctx.wandTolerance),
+      h("span", { style: { fontSize: 9, color: "#94a3b8", marginLeft: 2 } },
+        ctx.wandTolerance === 0 ? "(exact)" : ctx.wandTolerance <= 5 ? "(similar)" : ctx.wandTolerance <= 15 ? "(broad)" : "(very broad)")
     ),
     h("div", { className: "tb-sdiv" }),
     // Contiguous toggle

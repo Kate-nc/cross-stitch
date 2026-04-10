@@ -47,7 +47,9 @@ window.MagicWandPanel = function MagicWandPanel() {
         onChange: function(e) { ctx.setWandTolerance(Number(e.target.value)); },
         style: { width: 80 }
       }),
-      h("span", { style: { minWidth: 24, textAlign: "right" } }, ctx.wandTolerance)
+      h("span", { style: { minWidth: 24, textAlign: "right" } }, ctx.wandTolerance),
+      h("span", { style: { fontSize: 9, color: "#94a3b8", marginLeft: 2 } },
+        ctx.wandTolerance === 0 ? "(exact)" : ctx.wandTolerance <= 5 ? "(similar)" : ctx.wandTolerance <= 15 ? "(broad)" : "(very broad)")
     ),
     h("div", { className: "tb-sdiv" }),
     // Contiguous toggle
