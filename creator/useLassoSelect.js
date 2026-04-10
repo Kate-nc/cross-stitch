@@ -121,7 +121,7 @@ window.useLassoSelect = function useLassoSelect(state) {
     var cell = pat[idx];
     if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return null;
     var entry = cmap ? cmap[cell.id] : null;
-    if (entry && entry.lab) return entry.lab;
+    if (entry && entry.lab) { var l = entry.lab; return Array.isArray(l) ? { L: l[0], a: l[1], b: l[2] } : l; }
     var rgb = (entry && entry.rgb) ? entry.rgb : (cell.rgb || null);
     if (!rgb) return null;
     if (typeof rgbToLab === "function") return rgbToLab(rgb[0], rgb[1], rgb[2]);

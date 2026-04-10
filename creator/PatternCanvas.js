@@ -19,6 +19,10 @@ window.PatternCanvas = function PatternCanvas() {
   // Marching ants animation offset
   var antsOffsetRef = React.useRef(0);
   var antsIntervalRef = React.useRef(null);
+  // Latest context snapshot ref — updated every render so the interval callback
+  // always reads current state rather than the closed-over stale value.
+  var ctxRef = React.useRef(ctx);
+  ctxRef.current = ctx;
 
   // ── Effect: Animated marching ants for selection mask
   React.useEffect(function() {
@@ -31,20 +35,19 @@ window.PatternCanvas = function PatternCanvas() {
     if (antsIntervalRef.current) return; // already running
     antsIntervalRef.current = setInterval(function() {
       antsOffsetRef.current = (antsOffsetRef.current + 1) % 20;
-      var canvas = ctx.pcRef.current;
+      var latest = ctxRef.current;
+      var canvas = latest.pcRef.current;
       if (!canvas || !baseCacheRef.current) return;
-      if (ctx.isDraggingRef && ctx.isDraggingRef.current) return;
+      if (latest.isDraggingRef && latest.isDraggingRef.current) return;
       var context = canvas.getContext("2d");
       context.putImageData(baseCacheRef.current, 0, 0);
-      var prevOffset = ctx.antsOffset;
-      ctx.antsOffset = antsOffsetRef.current;
-      drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, ctx.cs, G, ctx);
-      ctx.antsOffset = prevOffset;
+      var snap = Object.assign({}, latest, { antsOffset: antsOffsetRef.current });
+      drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, snap.G, snap);
     }, 120);
     return function() {
       if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
     };
-  }, [ctx.selectionMask, ctx.lassoPreviewMask, ctx.cs, ctx.sW, ctx.sH]);
+  }, [ctx.selectionMask, ctx.lassoPreviewMask]);
 
   // ── Effect 1: Full render (base + overlay). Fires when pattern content changes.
   // Uses RAF so rapid zoom-slider drags collapse into a single paint per frame.

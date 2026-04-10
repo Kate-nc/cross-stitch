@@ -1486,7 +1486,7 @@ window.useMagicWand = function useMagicWand(state) {
     var out = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
       var cell = pat[i];
-      if (!cell || cell.id === "__skip__") continue;
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
       out[i] = selectionMask && selectionMask[i] ? 0 : 1;
     }
     setSelectionMask(out);
@@ -1498,7 +1498,7 @@ window.useMagicWand = function useMagicWand(state) {
     var out = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
       var cell = pat[i];
-      if (!cell || cell.id === "__skip__") continue;
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
       out[i] = 1;
     }
     setSelectionMask(out);
@@ -1590,7 +1590,8 @@ window.useMagicWand = function useMagicWand(state) {
       Object.keys(freq).forEach(function(id) {
         if (freq[id] > bestCt) { bestCt = freq[id]; best = id; }
       });
-      if (best && cmap && cmap[best]) {
+      var current = pat[idx];
+      if (best && cmap && cmap[best] && (!current || current.id !== best)) {
         changes.push({ idx: idx, old: Object.assign({}, pat[idx]) });
         np[idx] = Object.assign({}, cmap[best]);
       }
@@ -1981,7 +1982,7 @@ window.useLassoSelect = function useLassoSelect(state) {
     var cell = pat[idx];
     if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return null;
     var entry = cmap ? cmap[cell.id] : null;
-    if (entry && entry.lab) return entry.lab;
+    if (entry && entry.lab) { var l = entry.lab; return Array.isArray(l) ? { L: l[0], a: l[1], b: l[2] } : l; }
     var rgb = (entry && entry.rgb) ? entry.rgb : (cell.rgb || null);
     if (!rgb) return null;
     if (typeof rgbToLab === "function") return rgbToLab(rgb[0], rgb[1], rgb[2]);
@@ -2809,6 +2810,7 @@ window.useCreatorState = function useCreatorState() {
     editHistory: editHistory, setEditHistory: setEditHistory,
     setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     setPat: setPat, setPal: setPal, setCmap: setCmap,
+    addToast: addToast,
     buildPaletteWithScratch: buildPaletteWithScratch,
   });
   // Keep wandClearRef updated each render so resetAll() can call it
@@ -4596,6 +4598,10 @@ window.PatternCanvas = function PatternCanvas() {
   // Marching ants animation offset
   var antsOffsetRef = React.useRef(0);
   var antsIntervalRef = React.useRef(null);
+  // Latest context snapshot ref — updated every render so the interval callback
+  // always reads current state rather than the closed-over stale value.
+  var ctxRef = React.useRef(ctx);
+  ctxRef.current = ctx;
 
   // ── Effect: Animated marching ants for selection mask
   React.useEffect(function() {
@@ -4608,20 +4614,19 @@ window.PatternCanvas = function PatternCanvas() {
     if (antsIntervalRef.current) return; // already running
     antsIntervalRef.current = setInterval(function() {
       antsOffsetRef.current = (antsOffsetRef.current + 1) % 20;
-      var canvas = ctx.pcRef.current;
+      var latest = ctxRef.current;
+      var canvas = latest.pcRef.current;
       if (!canvas || !baseCacheRef.current) return;
-      if (ctx.isDraggingRef && ctx.isDraggingRef.current) return;
+      if (latest.isDraggingRef && latest.isDraggingRef.current) return;
       var context = canvas.getContext("2d");
       context.putImageData(baseCacheRef.current, 0, 0);
-      var prevOffset = ctx.antsOffset;
-      ctx.antsOffset = antsOffsetRef.current;
-      drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, ctx.cs, G, ctx);
-      ctx.antsOffset = prevOffset;
+      var snap = Object.assign({}, latest, { antsOffset: antsOffsetRef.current });
+      drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, snap.G, snap);
     }, 120);
     return function() {
       if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
     };
-  }, [ctx.selectionMask, ctx.lassoPreviewMask, ctx.cs, ctx.sW, ctx.sH]);
+  }, [ctx.selectionMask, ctx.lassoPreviewMask]);
 
   // ── Effect 1: Full render (base + overlay). Fires when pattern content changes.
   // Uses RAF so rapid zoom-slider drags collapse into a single paint per frame.
@@ -5400,6 +5405,9 @@ window.MagicWandPanel = function MagicWandPanel() {
   })() : null;
 
   // ─── Stitch info panel ───────────────────────────────────────────────────────
+  var headStyle = { textAlign: "left", padding: "2px 6px", borderBottom: "1px solid #bae6fd",
+    fontWeight: 600, color: "#0369a1", fontSize: 10, whiteSpace: "nowrap" };
+  var cellStyle = { padding: "2px 6px", fontSize: 11 };
   var infoPanel = (panel === "info") ? (function() {
     var stats = ctx.selectionStats;
     if (!stats) return null;
@@ -5454,10 +5462,6 @@ window.MagicWandPanel = function MagicWandPanel() {
       )
     );
   })() : null;
-
-  var headStyle = { textAlign: "left", padding: "2px 6px", borderBottom: "1px solid #bae6fd",
-    fontWeight: 600, color: "#0369a1", fontSize: 10, whiteSpace: "nowrap" };
-  var cellStyle = { padding: "2px 6px", fontSize: 11 };
 
   // ─── Outline panel ───────────────────────────────────────────────────────────
   var outlinePanel = (panel === "outline" && hasSelection) ? h("div", {

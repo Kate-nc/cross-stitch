@@ -260,6 +260,9 @@ window.MagicWandPanel = function MagicWandPanel() {
   })() : null;
 
   // ─── Stitch info panel ───────────────────────────────────────────────────────
+  var headStyle = { textAlign: "left", padding: "2px 6px", borderBottom: "1px solid #bae6fd",
+    fontWeight: 600, color: "#0369a1", fontSize: 10, whiteSpace: "nowrap" };
+  var cellStyle = { padding: "2px 6px", fontSize: 11 };
   var infoPanel = (panel === "info") ? (function() {
     var stats = ctx.selectionStats;
     if (!stats) return null;
@@ -314,10 +317,6 @@ window.MagicWandPanel = function MagicWandPanel() {
       )
     );
   })() : null;
-
-  var headStyle = { textAlign: "left", padding: "2px 6px", borderBottom: "1px solid #bae6fd",
-    fontWeight: 600, color: "#0369a1", fontSize: 10, whiteSpace: "nowrap" };
-  var cellStyle = { padding: "2px 6px", fontSize: 11 };
 
   // ─── Outline panel ───────────────────────────────────────────────────────────
   var outlinePanel = (panel === "outline" && hasSelection) ? h("div", {

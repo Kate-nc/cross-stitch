@@ -176,7 +176,7 @@ window.useMagicWand = function useMagicWand(state) {
     var out = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
       var cell = pat[i];
-      if (!cell || cell.id === "__skip__") continue;
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
       out[i] = selectionMask && selectionMask[i] ? 0 : 1;
     }
     setSelectionMask(out);
@@ -188,7 +188,7 @@ window.useMagicWand = function useMagicWand(state) {
     var out = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
       var cell = pat[i];
-      if (!cell || cell.id === "__skip__") continue;
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
       out[i] = 1;
     }
     setSelectionMask(out);
@@ -280,7 +280,8 @@ window.useMagicWand = function useMagicWand(state) {
       Object.keys(freq).forEach(function(id) {
         if (freq[id] > bestCt) { bestCt = freq[id]; best = id; }
       });
-      if (best && cmap && cmap[best]) {
+      var current = pat[idx];
+      if (best && cmap && cmap[best] && (!current || current.id !== best)) {
         changes.push({ idx: idx, old: Object.assign({}, pat[idx]) });
         np[idx] = Object.assign({}, cmap[best]);
       }

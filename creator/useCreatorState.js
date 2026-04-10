@@ -564,6 +564,7 @@ window.useCreatorState = function useCreatorState() {
     editHistory: editHistory, setEditHistory: setEditHistory,
     setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     setPat: setPat, setPal: setPal, setCmap: setCmap,
+    addToast: addToast,
     buildPaletteWithScratch: buildPaletteWithScratch,
   });
   // Keep wandClearRef updated each render so resetAll() can call it
