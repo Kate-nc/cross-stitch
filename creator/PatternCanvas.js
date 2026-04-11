@@ -24,6 +24,33 @@ window.PatternCanvas = function PatternCanvas() {
   var ctxRef = React.useRef(ctx);
   ctxRef.current = ctx;
 
+  // ── Effect: Animated marching ants for highlight outline mode
+  var hlAntsRef = React.useRef(null);
+  React.useEffect(function() {
+    var needAnts = ctx.highlightMode === "outline" && ctx.hiId;
+    if (!needAnts) {
+      if (hlAntsRef.current) { clearInterval(hlAntsRef.current); hlAntsRef.current = null; }
+      if (ctx.antsOffset !== 0 && ctx.setAntsOffset) ctx.setAntsOffset(0);
+      return;
+    }
+    if (hlAntsRef.current) return;
+    hlAntsRef.current = setInterval(function() {
+      var latest = ctxRef.current;
+      if (!latest.setAntsOffset) return;
+      latest.setAntsOffset(function(p) { return (p + 1) % 20; });
+      // Redraw overlay from cached base to animate ants without full re-render
+      var canvas = latest.pcRef && latest.pcRef.current;
+      if (!canvas || !baseCacheRef.current) return;
+      if (latest.isDraggingRef && latest.isDraggingRef.current) return;
+      var context = canvas.getContext("2d");
+      context.putImageData(baseCacheRef.current, 0, 0);
+      drawPatternOverlayOnCanvas(context, 0, 0, latest.sW, latest.sH, latest.cs, latest.G, latest);
+    }, 100);
+    return function() {
+      if (hlAntsRef.current) { clearInterval(hlAntsRef.current); hlAntsRef.current = null; }
+    };
+  }, [ctx.highlightMode, ctx.hiId]);
+
   // ── Effect: Animated marching ants for selection mask
   React.useEffect(function() {
     var hasSelection = ctx.selectionMask || ctx.lassoPreviewMask;
@@ -75,7 +102,9 @@ window.PatternCanvas = function PatternCanvas() {
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
     ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
     ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool,
-    ctx.showCleanupDiff, ctx.cleanupDiff
+    ctx.showCleanupDiff, ctx.cleanupDiff,
+    ctx.dimFraction, ctx.dimHiId, ctx.bgDimOpacity, ctx.bgDimDesaturation,
+    ctx.highlightMode, ctx.tintColor, ctx.tintOpacity, ctx.spotDimOpacity
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).

@@ -186,6 +186,216 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
    Uses globals: drawCk, drawHalfTriangle, drawHalfLine, drawHalfSymbol, luminance
    (defined in helpers.js / colour-utils.js). */
 
+// ─── Highlight dimming helpers ────────────────────────────────────────────────
+
+/** Desaturate an [R,G,B] array by `amount` (0=no change, 1=full greyscale). */
+function _desatRgb(rgb, amount) {
+  if (amount <= 0) return rgb;
+  var grey = Math.round(luminance(rgb));
+  return [
+    Math.round(grey * amount + rgb[0] * (1 - amount)),
+    Math.round(grey * amount + rgb[1] * (1 - amount)),
+    Math.round(grey * amount + rgb[2] * (1 - amount))
+  ];
+}
+
+/** Convert a #RRGGBB hex string to an rgba(...) CSS string. */
+function _hexToRgba(hex, alpha) {
+  var r = parseInt(hex.slice(1, 3), 16);
+  var g = parseInt(hex.slice(3, 5), 16);
+  var b = parseInt(hex.slice(5, 7), 16);
+  return "rgba(" + r + "," + g + "," + b + "," + alpha.toFixed(3) + ")";
+}
+
+/** Parse #RRGGBB to [R,G,B]. */
+function _hexToRgbArr(hex) {
+  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+}
+
+/**
+ * Return the adaptive indicator colour and opacity for a selected stitch.
+ * Uses the luminance of the stitch's fill colour to pick a high-contrast border.
+ */
+function _hiIndicator(rgb) {
+  var lum = luminance(rgb);          // 0–255
+  if (lum > 230) return { color: "#1A1A2E", opacity: 1.0 };  // very light (>90%)
+  if (lum < 26)  return { color: "#FFFFFF", opacity: 1.0 };  // very dark  (<10%)
+  if (lum > 140) return { color: "#1A1A2E", opacity: 0.85 }; // light  (>55%)
+  return             { color: "#FFFFFF", opacity: 0.85 };     // dark   (≤55%)
+}
+
+/**
+ * Resolve mode-specific highlight parameters from state once per frame.
+ * Returns an object consumed by the per-cell rendering loop.
+ */
+function _resolveHighlight(state) {
+  var hiId = state.hiId;
+  var mode = state.highlightMode || "isolate";
+  var dimHiId     = state.dimHiId !== undefined ? state.dimHiId : hiId;
+  var dimFraction = state.dimFraction !== undefined ? state.dimFraction : (dimHiId ? 1 : 0);
+  var bgDimOpacity      = state.bgDimOpacity      !== undefined ? state.bgDimOpacity      : 0.20;
+  var bgDimDesaturation = state.bgDimDesaturation !== undefined ? state.bgDimDesaturation : 0.80;
+  // Spotlight overrides
+  if (mode === "spotlight") {
+    bgDimOpacity = state.spotDimOpacity !== undefined ? state.spotDimOpacity : 0.15;
+    bgDimDesaturation = Math.min(1, (1 - bgDimOpacity));
+  }
+  var useDim = (mode === "isolate" || mode === "spotlight") && !!dimHiId;
+  var tintColor   = state.tintColor || "#FFD700";
+  var tintOpacity = state.tintOpacity !== undefined ? state.tintOpacity : 0.40;
+  var tintRgb     = mode === "tint" ? _hexToRgbArr(tintColor) : null;
+  var antsOffset  = state.antsOffset || 0;
+  return {
+    mode: mode, hiId: dimHiId || hiId, dimFraction: dimFraction,
+    useDim: useDim, bgDimOpacity: bgDimOpacity, bgDimDesaturation: bgDimDesaturation,
+    tintRgb: tintRgb, tintOpacity: tintOpacity, antsOffset: antsOffset
+  };
+}
+
+/**
+ * Draw per-cell highlight indicators AFTER the cell fill & symbol are drawn.
+ * Called once per highlighted cell for all modes except "outline" boundary ants (drawn later).
+ */
+function _drawCellHighlight(ctx2d, px, py, cSz, rgb, hl) {
+  var mode = hl.mode;
+  var f = hl.dimFraction;
+  if (f < 0.02) return;
+
+  if (mode === "isolate") {
+    // 1px adaptive inset border
+    var ind = _hiIndicator(rgb);
+    var indAlpha = ind.opacity * f;
+    ctx2d.lineWidth = 1;
+    if (cSz < 4) {
+      ctx2d.fillStyle = _hexToRgba(ind.color, indAlpha);
+      ctx2d.fillRect(px + Math.floor(cSz / 2), py + Math.floor(cSz / 2), 1, 1);
+    } else {
+      ctx2d.strokeStyle = _hexToRgba(ind.color, indAlpha);
+      ctx2d.strokeRect(px + 0.5, py + 0.5, cSz - 1, cSz - 1);
+    }
+  } else if (mode === "outline") {
+    // Static 40%-opacity adaptive border on each selected cell
+    var oInd = _hiIndicator(rgb);
+    ctx2d.lineWidth = 1;
+    ctx2d.strokeStyle = _hexToRgba(oInd.color, 0.40);
+    ctx2d.strokeRect(px + 0.5, py + 0.5, cSz - 1, cSz - 1);
+  } else if (mode === "tint") {
+    // Tint overlay on selected stitches
+    var lum = luminance(rgb);
+    var tAlpha = hl.tintOpacity;
+    ctx2d.fillStyle = "rgba(" + hl.tintRgb[0] + "," + hl.tintRgb[1] + "," + hl.tintRgb[2] + "," + tAlpha + ")";
+    ctx2d.fillRect(px, py, cSz, cSz);
+  } else if (mode === "spotlight") {
+    // Adaptive border (same as isolate)
+    var sInd = _hiIndicator(rgb);
+    var sAlpha = sInd.opacity * f;
+    ctx2d.lineWidth = 1;
+    if (cSz < 4) {
+      ctx2d.fillStyle = _hexToRgba(sInd.color, sAlpha);
+      ctx2d.fillRect(px + Math.floor(cSz / 2), py + Math.floor(cSz / 2), 1, 1);
+    } else {
+      ctx2d.strokeStyle = _hexToRgba(sInd.color, sAlpha);
+      ctx2d.strokeRect(px + 0.5, py + 0.5, cSz - 1, cSz - 1);
+    }
+    // Outer glow via shadow — only draw when cells are large enough
+    if (cSz >= 6) {
+      ctx2d.save();
+      var glowColor = sInd.color === "#FFFFFF" ? "rgba(255,255,255,0.5)" : "rgba(26,26,46,0.5)";
+      ctx2d.shadowColor = glowColor;
+      ctx2d.shadowBlur = 3;
+      ctx2d.shadowOffsetX = 0;
+      ctx2d.shadowOffsetY = 0;
+      ctx2d.strokeStyle = _hexToRgba(sInd.color, sAlpha * 0.3);
+      ctx2d.lineWidth = 1;
+      ctx2d.strokeRect(px + 0.5, py + 0.5, cSz - 1, cSz - 1);
+      ctx2d.restore();
+    }
+  }
+}
+
+/**
+ * Draw marching-ants boundary for "outline" mode.
+ * Scans the visible grid for boundary edges (selected → non-selected)
+ * and draws animated dashed lines along them.
+ */
+function _drawMarchingAnts(ctx2d, offX, offY, dW, dH, cSz, gut, pat, sW, sH, hiId, antsOffset) {
+  if (!hiId) return;
+  // Collect boundary segments
+  ctx2d.save();
+  // Compute average luminance of selected stitches for ant colour
+  var lumSum = 0, lumCnt = 0;
+  for (var ay = 0; ay < dH; ay++) {
+    for (var ax = 0; ax < dW; ax++) {
+      var ai = (offY + ay) * sW + (offX + ax);
+      var am = pat[ai];
+      if (am && am.id === hiId) { lumSum += luminance(am.rgb); lumCnt++; }
+    }
+  }
+  var avgLum = lumCnt > 0 ? lumSum / lumCnt : 128;
+  var antColor = avgLum > 140 ? "#1A1A2E" : "#FFFFFF";
+  var antBg    = avgLum > 140 ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)";
+
+  ctx2d.lineWidth = 2;
+  ctx2d.setLineDash([4, 3]);
+  ctx2d.lineDashOffset = -antsOffset;
+
+  // Draw background line for contrast
+  ctx2d.strokeStyle = antBg;
+  ctx2d.beginPath();
+  for (var by = 0; by < dH; by++) {
+    for (var bx = 0; bx < dW; bx++) {
+      var bi = (offY + by) * sW + (offX + bx);
+      var bm = pat[bi];
+      if (!bm || bm.id !== hiId) continue;
+      var bpx = gut + bx * cSz, bpy = gut + by * cSz;
+      // Top edge
+      if (by === 0 || (offY + by - 1 < 0) || pat[(offY + by - 1) * sW + (offX + bx)].id !== hiId) {
+        ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx + cSz, bpy);
+      }
+      // Bottom edge
+      if (by === dH - 1 || (offY + by + 1 >= sH) || pat[(offY + by + 1) * sW + (offX + bx)].id !== hiId) {
+        ctx2d.moveTo(bpx, bpy + cSz); ctx2d.lineTo(bpx + cSz, bpy + cSz);
+      }
+      // Left edge
+      if (bx === 0 || (offX + bx - 1 < 0) || pat[(offY + by) * sW + (offX + bx - 1)].id !== hiId) {
+        ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx, bpy + cSz);
+      }
+      // Right edge
+      if (bx === dW - 1 || (offX + bx + 1 >= sW) || pat[(offY + by) * sW + (offX + bx + 1)].id !== hiId) {
+        ctx2d.moveTo(bpx + cSz, bpy); ctx2d.lineTo(bpx + cSz, bpy + cSz);
+      }
+    }
+  }
+  ctx2d.stroke();
+
+  // Foreground ant line
+  ctx2d.strokeStyle = antColor;
+  ctx2d.beginPath();
+  for (var cy = 0; cy < dH; cy++) {
+    for (var cx = 0; cx < dW; cx++) {
+      var ci = (offY + cy) * sW + (offX + cx);
+      var cm = pat[ci];
+      if (!cm || cm.id !== hiId) continue;
+      var cpx = gut + cx * cSz, cpy = gut + cy * cSz;
+      if (cy === 0 || (offY + cy - 1 < 0) || pat[(offY + cy - 1) * sW + (offX + cx)].id !== hiId) {
+        ctx2d.moveTo(cpx, cpy); ctx2d.lineTo(cpx + cSz, cpy);
+      }
+      if (cy === dH - 1 || (offY + cy + 1 >= sH) || pat[(offY + cy + 1) * sW + (offX + cx)].id !== hiId) {
+        ctx2d.moveTo(cpx, cpy + cSz); ctx2d.lineTo(cpx + cSz, cpy + cSz);
+      }
+      if (cx === 0 || (offX + cx - 1 < 0) || pat[(offY + cy) * sW + (offX + cx - 1)].id !== hiId) {
+        ctx2d.moveTo(cpx, cpy); ctx2d.lineTo(cpx, cpy + cSz);
+      }
+      if (cx === dW - 1 || (offX + cx + 1 >= sW) || pat[(offY + cy) * sW + (offX + cx + 1)].id !== hiId) {
+        ctx2d.moveTo(cpx + cSz, cpy); ctx2d.lineTo(cpx + cSz, cpy + cSz);
+      }
+    }
+  }
+  ctx2d.stroke();
+  ctx2d.setLineDash([]);
+  ctx2d.restore();
+}
+
 /**
  * Draw the cross-stitch pattern onto a 2D canvas context.
  *
@@ -218,6 +428,8 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
   var halfStitches = state.halfStitches;
   var showOverlayImg = state.showOverlay && !!img && !!img.src;
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
+  // Resolve highlight mode
+  var hl = _resolveHighlight(state);
 
   ctx2d.fillStyle = "#fff";
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
@@ -248,8 +460,11 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
       var info = m.id === "__skip__" ? null : (cmap ? cmap[m.id] : null);
       var px = gut + x2 * cSz;
       var py = gut + y2 * cSz;
-      var isHi = !hiId || m.id === hiId;
-      var dim = hiId && !isHi && m.id !== "__skip__" && m.id !== "__empty__";
+      var isHi = !hl.hiId || m.id === hl.hiId;
+      var dim = hl.useDim && hl.hiId && !isHi && m.id !== "__skip__" && m.id !== "__empty__";
+      // Animated alpha/desaturation for non-selected stitches (isolate/spotlight)
+      var dimAlpha  = dim ? (1.0 - (1.0 - hl.bgDimOpacity) * hl.dimFraction) : 1.0;
+      var dimDesat  = dim ? (hl.bgDimDesaturation * hl.dimFraction) : 0;
 
       if (m.id === "__skip__" || m.id === "__empty__") {
         if (showOverlayImg) {
@@ -260,20 +475,32 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
           drawCk(ctx2d, px, py, cSz);
         }
       } else if (view === "color" || view === "both") {
-        var alpha = 1.0;
-        if (dim) alpha = 0.15;
-        else if (showOverlayImg) alpha = view === "both" ? 0.4 : 0.5;
-        ctx2d.fillStyle = "rgba(" + m.rgb[0] + "," + m.rgb[1] + "," + m.rgb[2] + "," + alpha + ")";
+        var fillRgb = dim ? _desatRgb(m.rgb, dimDesat) : m.rgb;
+        var alpha = dimAlpha;
+        if (!dim && showOverlayImg) alpha = view === "both" ? 0.4 : 0.5;
+        ctx2d.fillStyle = "rgba(" + fillRgb[0] + "," + fillRgb[1] + "," + fillRgb[2] + "," + alpha + ")";
         ctx2d.fillRect(px, py, cSz, cSz);
       } else {
         var alpha2 = showOverlayImg ? 0.3 : 1.0;
-        ctx2d.fillStyle = dim ? ("rgba(245,245,245," + alpha2 + ")") : ("rgba(255,255,255," + alpha2 + ")");
+        ctx2d.fillStyle = "rgba(255,255,255," + alpha2 + ")";
         ctx2d.fillRect(px, py, cSz, cSz);
+        // Tint mode in symbol-only: draw small tinted square behind symbol
+        if (hl.mode === "tint" && hl.hiId && isHi && m.id !== "__skip__" && m.id !== "__empty__") {
+          ctx2d.fillStyle = "rgba(" + hl.tintRgb[0] + "," + hl.tintRgb[1] + "," + hl.tintRgb[2] + "," + hl.tintOpacity + ")";
+          ctx2d.fillRect(px + 1, py + 1, cSz - 2, cSz - 2);
+        }
       }
 
       if (m.id !== "__skip__" && (view === "symbol" || view === "both") && info && cSz >= 6) {
-        var lum = luminance(m.rgb);
-        ctx2d.fillStyle = dim ? "rgba(0,0,0,0.08)" : (view === "both" ? (lum > 128 ? "#000" : "#fff") : "#333");
+        var symAlpha = dim ? (1.0 - 0.85 * hl.dimFraction) : 1.0;
+        var symColor;
+        if (dim) {
+          symColor = view === "symbol" ? _hexToRgba("#D0D0D0", symAlpha) : ("rgba(0,0,0," + symAlpha + ")");
+        } else {
+          var lum = luminance(m.rgb);
+          symColor = view === "both" ? (lum > 128 ? "#000" : "#fff") : "#333";
+        }
+        ctx2d.fillStyle = symColor;
         ctx2d.font = "bold " + Math.max(6, cSz * 0.6) + "px monospace";
         ctx2d.textAlign = "center";
         ctx2d.textBaseline = "middle";
@@ -281,10 +508,16 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
       }
 
       if (cSz >= 4) {
-        var sAlpha = dim ? 0.03 : 0.08;
+        var sAlpha = dim ? (0.08 * (1 - hl.dimFraction) + 0.03 * hl.dimFraction) : 0.08;
         if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
         ctx2d.strokeStyle = "rgba(0,0,0," + sAlpha + ")";
+        ctx2d.lineWidth = 1;
         ctx2d.strokeRect(px, py, cSz, cSz);
+      }
+
+      // ── Highlight indicators for selected stitches (all modes) ───────────────
+      if (hl.hiId && isHi && m.id !== "__skip__" && m.id !== "__empty__") {
+        _drawCellHighlight(ctx2d, px, py, cSz, m.rgb, hl);
       }
 
       var hsEntry = halfStitches.get(idx);
@@ -292,7 +525,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
         ["fwd", "bck"].forEach(function(dir) {
           var hs = hsEntry[dir];
           if (!hs) return;
-          var alpha3 = dim ? 0.15 : 1.0;
+          var alpha3 = dimAlpha;
           drawHalfTriangle(ctx2d, px, py, cSz, dir, hs.rgb, alpha3);
           if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, dir, hs.rgb, alpha3, Math.max(1, cSz * 0.12));
           if (cSz >= 10 && (view === "symbol" || view === "both")) {
@@ -303,6 +536,11 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
         });
       }
     }
+  }
+
+  // Marching ants for outline mode
+  if (hl.mode === "outline" && hl.hiId) {
+    _drawMarchingAnts(ctx2d, offX, offY, dW, dH, cSz, gut, pat, sW, sH, hl.hiId, hl.antsOffset);
   }
 
   // Grid lines (every 10)
@@ -452,6 +690,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
   var showCleanupDiff = state.showCleanupDiff;
   var cleanupDiff = state.cleanupDiff;
+  // Resolve highlight mode + dimming params
+  var hl = _resolveHighlight(state);
 
   ctx2d.fillStyle = "#fff";
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
@@ -482,8 +722,10 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
       var info = m.id === "__skip__" ? null : (cmap ? cmap[m.id] : null);
       var px = gut + x2 * cSz;
       var py = gut + y2 * cSz;
-      var isHi = !hiId || m.id === hiId;
-      var dim = hiId && !isHi && m.id !== "__skip__" && m.id !== "__empty__";
+      var isHi = !hl.hiId || m.id === hl.hiId;
+      var dim = hl.useDim && hl.hiId && !isHi && m.id !== "__skip__" && m.id !== "__empty__";
+      var dimAlpha = dim ? (1.0 - (1.0 - hl.bgDimOpacity) * hl.dimFraction) : 1.0;
+      var dimDesat = dim ? (hl.bgDimDesaturation * hl.dimFraction) : 0;
 
       if (m.id === "__skip__" || m.id === "__empty__") {
         if (showOverlayImg) {
@@ -494,20 +736,32 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
           drawCk(ctx2d, px, py, cSz);
         }
       } else if (view === "color" || view === "both") {
-        var alpha = 1.0;
-        if (dim) alpha = 0.15;
-        else if (showOverlayImg) alpha = view === "both" ? 0.4 : 0.5;
-        ctx2d.fillStyle = "rgba(" + m.rgb[0] + "," + m.rgb[1] + "," + m.rgb[2] + "," + alpha + ")";
+        var fillRgb = dim ? _desatRgb(m.rgb, dimDesat) : m.rgb;
+        var alpha = dimAlpha;
+        if (!dim && showOverlayImg) alpha = view === "both" ? 0.4 : 0.5;
+        ctx2d.fillStyle = "rgba(" + fillRgb[0] + "," + fillRgb[1] + "," + fillRgb[2] + "," + alpha + ")";
         ctx2d.fillRect(px, py, cSz, cSz);
       } else {
         var alpha2 = showOverlayImg ? 0.3 : 1.0;
-        ctx2d.fillStyle = dim ? ("rgba(245,245,245," + alpha2 + ")") : ("rgba(255,255,255," + alpha2 + ")");
+        ctx2d.fillStyle = "rgba(255,255,255," + alpha2 + ")";
         ctx2d.fillRect(px, py, cSz, cSz);
+        // Tint mode in symbol-only: draw small tinted square behind symbol
+        if (hl.mode === "tint" && hl.hiId && isHi && m.id !== "__skip__" && m.id !== "__empty__") {
+          ctx2d.fillStyle = "rgba(" + hl.tintRgb[0] + "," + hl.tintRgb[1] + "," + hl.tintRgb[2] + "," + hl.tintOpacity + ")";
+          ctx2d.fillRect(px + 1, py + 1, cSz - 2, cSz - 2);
+        }
       }
 
       if (m.id !== "__skip__" && (view === "symbol" || view === "both") && info && cSz >= 6) {
-        var lum = luminance(m.rgb);
-        ctx2d.fillStyle = dim ? "rgba(0,0,0,0.08)" : (view === "both" ? (lum > 128 ? "#000" : "#fff") : "#333");
+        var symAlpha = dim ? (1.0 - 0.85 * hl.dimFraction) : 1.0;
+        var symColor;
+        if (dim) {
+          symColor = view === "symbol" ? _hexToRgba("#D0D0D0", symAlpha) : ("rgba(0,0,0," + symAlpha + ")");
+        } else {
+          var lum = luminance(m.rgb);
+          symColor = view === "both" ? (lum > 128 ? "#000" : "#fff") : "#333";
+        }
+        ctx2d.fillStyle = symColor;
         ctx2d.font = "bold " + Math.max(6, cSz * 0.6) + "px monospace";
         ctx2d.textAlign = "center";
         ctx2d.textBaseline = "middle";
@@ -515,10 +769,16 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
       }
 
       if (cSz >= 4) {
-        var sAlpha = dim ? 0.03 : 0.08;
+        var sAlpha = dim ? (0.08 * (1 - hl.dimFraction) + 0.03 * hl.dimFraction) : 0.08;
         if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
         ctx2d.strokeStyle = "rgba(0,0,0," + sAlpha + ")";
+        ctx2d.lineWidth = 1;
         ctx2d.strokeRect(px, py, cSz, cSz);
+      }
+
+      // ── Highlight indicators for selected stitches (all modes) ───────────────
+      if (hl.hiId && isHi && m.id !== "__skip__" && m.id !== "__empty__") {
+        _drawCellHighlight(ctx2d, px, py, cSz, m.rgb, hl);
       }
 
       var hsEntry = halfStitches.get(idx);
@@ -526,7 +786,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
         ["fwd", "bck"].forEach(function(dir) {
           var hs = hsEntry[dir];
           if (!hs) return;
-          var alpha3 = dim ? 0.15 : 1.0;
+          var alpha3 = dimAlpha;
           drawHalfTriangle(ctx2d, px, py, cSz, dir, hs.rgb, alpha3);
           if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, dir, hs.rgb, alpha3, Math.max(1, cSz * 0.12));
           if (cSz >= 10 && (view === "symbol" || view === "both")) {
@@ -621,6 +881,12 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
   var stitchType  = state.stitchType;
   var halfStitchTool = state.halfStitchTool;
   var cmap        = state.cmap;
+
+  // Marching ants for outline highlight mode (animated, drawn in overlay)
+  var hl = _resolveHighlight(state);
+  if (hl.mode === "outline" && hl.hiId && state.pat) {
+    _drawMarchingAnts(ctx2d, offX, offY, dW, dH, cSz, gut, state.pat, state.sW || dW, state.sH || dH, hl.hiId, hl.antsOffset);
+  }
 
   // Hover crosshair + brush highlight
   if (hoverCoords && hoverCoords.gx >= offX && hoverCoords.gy >= offY && hoverCoords.gx < offX + dW && hoverCoords.gy < offY + dH) {
@@ -2410,6 +2676,46 @@ window.useCreatorState = function useCreatorState() {
   // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
   var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
 
+  // ── Highlight mode system ──────────────────────────────────────────────────
+  // highlightMode: "isolate" | "outline" | "tint" | "spotlight"
+  // Per-mode settings persist independently.
+  var _hlModeSt = useState(function() { try { return localStorage.getItem("cs_hlMode") || "isolate"; } catch(_) { return "isolate"; } });
+  var highlightMode = _hlModeSt[0];
+  function setHighlightMode(m) {
+    _hlModeSt[1](m);
+    try { localStorage.setItem("cs_hlMode", m); } catch(_) {}
+  }
+
+  // Isolate mode settings (Part A from Spec 1)
+  var _bgDimOp  = useState(function() { try { var v = localStorage.getItem("cs_bgDimOp"); return v != null ? parseFloat(v) : 0.20; } catch(_) { return 0.20; } });
+  var bgDimOpacity = _bgDimOp[0];
+  function setBgDimOpacity(v) { _bgDimOp[1](v); try { localStorage.setItem("cs_bgDimOp", v); } catch(_) {} }
+  var _hiAdv    = useState(false);  var hiAdvanced        = _hiAdv[0],    setHiAdvanced        = _hiAdv[1];
+  var _bgDimDs  = useState(function() { try { var v = localStorage.getItem("cs_bgDimDs"); return v != null ? parseFloat(v) : 0.80; } catch(_) { return 0.80; } });
+  var bgDimDesaturation = _bgDimDs[0];
+  function setBgDimDesaturation(v) { _bgDimDs[1](v); try { localStorage.setItem("cs_bgDimDs", v); } catch(_) {} }
+
+  // Tint mode settings
+  var _tintColor = useState(function() { try { return localStorage.getItem("cs_tintColor") || "#FFD700"; } catch(_) { return "#FFD700"; } });
+  var tintColor = _tintColor[0];
+  function setTintColor(c) { _tintColor[1](c); try { localStorage.setItem("cs_tintColor", c); } catch(_) {} }
+  var _tintOpacity = useState(function() { try { var v = localStorage.getItem("cs_tintOp"); return v != null ? parseFloat(v) : 0.40; } catch(_) { return 0.40; } });
+  var tintOpacity = _tintOpacity[0];
+  function setTintOpacity(v) { _tintOpacity[1](v); try { localStorage.setItem("cs_tintOp", v); } catch(_) {} }
+
+  // Spotlight mode settings — default dimming is 15% (stronger than isolate)
+  var _spotDimOp = useState(function() { try { var v = localStorage.getItem("cs_spotDimOp"); return v != null ? parseFloat(v) : 0.15; } catch(_) { return 0.15; } });
+  var spotDimOpacity = _spotDimOp[0];
+  function setSpotDimOpacity(v) { _spotDimOp[1](v); try { localStorage.setItem("cs_spotDimOp", v); } catch(_) {} }
+
+  // Animation state (shared across modes that need dimming)
+  var _dimFrac  = useState(0);      var dimFraction       = _dimFrac[0],  setDimFraction       = _dimFrac[1];
+  var _dimHiId  = useState(null);   var dimHiId           = _dimHiId[0],  setDimHiId           = _dimHiId[1];
+  var dimAnimRef  = useRef(null);
+  var dimFracRef  = useRef(0);
+  // Marching ants offset (outline mode)
+  var _antsOff  = useState(0);      var antsOffset        = _antsOff[0],  setAntsOffset        = _antsOff[1];
+
   // Toast notifications
   var _toasts = useState([]);        var toasts = _toasts[0], setToasts = _toasts[1];
   var toastIdRef = useRef(0);
@@ -2613,6 +2919,43 @@ window.useCreatorState = function useCreatorState() {
     selectStitchType("cross");
     setSelectedColorId(pal[0].id);
   }, [pat, pal]);
+
+  // ── Dimming animation: 150ms fade-in/out when hiId or highlightMode changes ──
+  var usesDimming = highlightMode === "isolate" || highlightMode === "spotlight";
+  useEffect(function() {
+    if (dimAnimRef.current) cancelAnimationFrame(dimAnimRef.current);
+    var shouldDim = hiId && usesDimming;
+    if (shouldDim) {
+      setDimHiId(hiId);
+      // Already at full dim (switching between colours) — skip animation
+      if (dimFracRef.current >= 0.99) { dimFracRef.current = 1; setDimFraction(1); return; }
+      var from = dimFracRef.current;
+      var st = null;
+      function animIn(ts) {
+        if (!st) st = ts;
+        var t = Math.min((ts - st) / 150, 1);
+        var v = from + (1 - from) * t;
+        dimFracRef.current = v; setDimFraction(v);
+        if (t < 1) dimAnimRef.current = requestAnimationFrame(animIn);
+        else dimAnimRef.current = null;
+      }
+      dimAnimRef.current = requestAnimationFrame(animIn);
+    } else {
+      var from2 = dimFracRef.current;
+      if (from2 < 0.01) { dimFracRef.current = 0; setDimFraction(0); setDimHiId(hiId || null); return; }
+      var st2 = null;
+      function animOut(ts) {
+        if (!st2) st2 = ts;
+        var t2 = Math.min((ts - st2) / 150, 1);
+        var v2 = from2 * (1 - t2);
+        dimFracRef.current = v2; setDimFraction(v2);
+        if (t2 < 1) dimAnimRef.current = requestAnimationFrame(animOut);
+        else { dimAnimRef.current = null; setDimHiId(hiId || null); }
+      }
+      dimAnimRef.current = requestAnimationFrame(animOut);
+    }
+    return function() { if (dimAnimRef.current) { cancelAnimationFrame(dimAnimRef.current); dimAnimRef.current = null; } };
+  }, [hiId, usesDimming]);
 
   function initBlankGrid(w, h) {
     var blank = Array.from({ length: w * h }, function() { return { id: "__empty__", rgb: [255, 255, 255] }; });
@@ -2873,6 +3216,11 @@ window.useCreatorState = function useCreatorState() {
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
+    bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,
+    bgDimDesaturation, setBgDimDesaturation, dimFraction, dimHiId,
+    highlightMode, setHighlightMode,
+    tintColor, setTintColor, tintOpacity, setTintOpacity,
+    spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
     dimOpen, setDimOpen, palOpen, setPalOpen, fabOpen, setFabOpen,
     adjOpen, setAdjOpen, bgOpen, setBgOpen, palAdvanced, setPalAdvanced,
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
@@ -3965,10 +4313,10 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       if (e.key === "?") { state.setModal(function(m) { return m === "shortcuts" ? null : "shortcuts"; }); return; }
       if (!state.pat) return;
 
-      if (e.key === "1") { state.selectStitchType("cross"); return; }
-      if (e.key === "2") { state.selectStitchType("half-fwd"); return; }
-      if (e.key === "3") { state.selectStitchType("half-bck"); return; }
-      if (e.key === "4") { state.selectStitchType("backstitch"); return; }
+      if (e.key === "1") { if (state.hiId) { state.setHighlightMode("isolate"); return; } state.selectStitchType("cross"); return; }
+      if (e.key === "2") { if (state.hiId) { state.setHighlightMode("outline"); return; } state.selectStitchType("half-fwd"); return; }
+      if (e.key === "3") { if (state.hiId) { state.setHighlightMode("tint"); return; } state.selectStitchType("half-bck"); return; }
+      if (e.key === "4") { if (state.hiId) { state.setHighlightMode("spotlight"); return; } state.selectStitchType("backstitch"); return; }
       if (e.key === "5") { state.selectStitchType("erase"); return; }
       if (e.key === "w" || e.key === "W") {
         if (state.activeTool === "magicWand") { state.setActiveTool(null); }
@@ -4003,7 +4351,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     state.editHistory, state.redoHistory, state.pat, state.pal,
     state.namePromptOpen, state.modal, state.overflowOpen,
     state.selectedColorId, state.halfStitchTool, state.hiId,
-    state.hasSelection, state.lassoInProgress,
+    state.hasSelection, state.lassoInProgress, state.highlightMode,
     history.undoEdit, history.redoEdit, io.saveProject,
   ]);
 };
@@ -4629,6 +4977,33 @@ window.PatternCanvas = function PatternCanvas() {
   var ctxRef = React.useRef(ctx);
   ctxRef.current = ctx;
 
+  // ── Effect: Animated marching ants for highlight outline mode
+  var hlAntsRef = React.useRef(null);
+  React.useEffect(function() {
+    var needAnts = ctx.highlightMode === "outline" && ctx.hiId;
+    if (!needAnts) {
+      if (hlAntsRef.current) { clearInterval(hlAntsRef.current); hlAntsRef.current = null; }
+      if (ctx.antsOffset !== 0 && ctx.setAntsOffset) ctx.setAntsOffset(0);
+      return;
+    }
+    if (hlAntsRef.current) return;
+    hlAntsRef.current = setInterval(function() {
+      var latest = ctxRef.current;
+      if (!latest.setAntsOffset) return;
+      latest.setAntsOffset(function(p) { return (p + 1) % 20; });
+      // Redraw overlay from cached base to animate ants without full re-render
+      var canvas = latest.pcRef && latest.pcRef.current;
+      if (!canvas || !baseCacheRef.current) return;
+      if (latest.isDraggingRef && latest.isDraggingRef.current) return;
+      var context = canvas.getContext("2d");
+      context.putImageData(baseCacheRef.current, 0, 0);
+      drawPatternOverlayOnCanvas(context, 0, 0, latest.sW, latest.sH, latest.cs, latest.G, latest);
+    }, 100);
+    return function() {
+      if (hlAntsRef.current) { clearInterval(hlAntsRef.current); hlAntsRef.current = null; }
+    };
+  }, [ctx.highlightMode, ctx.hiId]);
+
   // ── Effect: Animated marching ants for selection mask
   React.useEffect(function() {
     var hasSelection = ctx.selectionMask || ctx.lassoPreviewMask;
@@ -4680,7 +5055,9 @@ window.PatternCanvas = function PatternCanvas() {
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
     ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
     ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool,
-    ctx.showCleanupDiff, ctx.cleanupDiff
+    ctx.showCleanupDiff, ctx.cleanupDiff,
+    ctx.dimFraction, ctx.dimHiId, ctx.bgDimOpacity, ctx.bgDimDesaturation,
+    ctx.highlightMode, ctx.tintColor, ctx.tintOpacity, ctx.spotDimOpacity
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
@@ -6494,6 +6871,100 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         onClick: function(){ctx.setHiId(null);},
         style:{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}
       }, "Clear \u2715")
+    ),
+
+    ctx.hiId && h("div", {style:{background:"#fff7ed",border:"0.5px solid #fed7aa",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11,color:"#92400e"}},
+      // ── Mode toggle segmented control ──
+      h("div", {style:{display:"flex",gap:0,marginBottom:6,borderRadius:6,overflow:"hidden",border:"1px solid #fdba74"}},
+        ["isolate","outline","tint","spotlight"].map(function(m) {
+          var labels = {isolate:"Isolate",outline:"Outline",tint:"Tint",spotlight:"Spotlight"};
+          var active = ctx.highlightMode === m;
+          return h("button", {
+            key: m,
+            onClick: function() { ctx.setHighlightMode(m); },
+            style:{
+              flex:1, padding:"4px 0", fontSize:10, fontWeight: active ? 700 : 500, cursor:"pointer",
+              border:"none", borderRight:"1px solid #fdba74",
+              background: active ? "#ea580c" : "#fff7ed",
+              color: active ? "#fff" : "#92400e"
+            }
+          }, labels[m]);
+        })
+      ),
+
+      // ── Isolate settings ──
+      ctx.highlightMode === "isolate" && h("div", null,
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Background dimming"),
+          h("input", {
+            type:"range", min:5, max:60, step:1,
+            value: Math.round(ctx.bgDimOpacity * 100),
+            onChange: function(e) {
+              var op = parseInt(e.target.value) / 100;
+              ctx.setBgDimOpacity(op);
+              if (!ctx.hiAdvanced) ctx.setBgDimDesaturation(Math.min(1, (100 - parseInt(e.target.value)) / 100));
+            },
+            style:{flex:1,accentColor:"#ea580c"}
+          }),
+          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.bgDimOpacity * 100) + "%")
+        ),
+        ctx.hiAdvanced && h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Desaturation"),
+          h("input", {
+            type:"range", min:0, max:100, step:1,
+            value: Math.round(ctx.bgDimDesaturation * 100),
+            onChange: function(e) { ctx.setBgDimDesaturation(parseInt(e.target.value) / 100); },
+            style:{flex:1,accentColor:"#ea580c"}
+          }),
+          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.bgDimDesaturation * 100) + "%")
+        ),
+        h("div", {style:{display:"flex",justifyContent:"flex-end"}},
+          h("label", {style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none"}},
+            h("input", {type:"checkbox", checked:ctx.hiAdvanced, onChange:function(e){ctx.setHiAdvanced(e.target.checked);}, style:{accentColor:"#ea580c"}}),
+            h("span", {style:{fontSize:10,color:"#92400e"}}, "Advanced (decouple sliders)")
+          )
+        )
+      ),
+
+      // ── Outline settings ──
+      ctx.highlightMode === "outline" && h("div", {style:{fontSize:10,color:"#78350f",fontStyle:"italic"}},
+        "Animated marching ants highlight the boundary of the selected colour."
+      ),
+
+      // ── Tint settings ──
+      ctx.highlightMode === "tint" && h("div", null,
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Tint colour"),
+          h("input", {
+            type:"color",
+            value: ctx.tintColor,
+            onChange: function(e) { ctx.setTintColor(e.target.value); },
+            style:{width:28,height:22,padding:0,border:"1px solid #fdba74",borderRadius:4,cursor:"pointer"}
+          }),
+          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f",marginLeft:8}}, "Opacity"),
+          h("input", {
+            type:"range", min:10, max:80, step:1,
+            value: Math.round(ctx.tintOpacity * 100),
+            onChange: function(e) { ctx.setTintOpacity(parseInt(e.target.value) / 100); },
+            style:{flex:1,accentColor:"#ea580c"}
+          }),
+          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.tintOpacity * 100) + "%")
+        )
+      ),
+
+      // ── Spotlight settings ──
+      ctx.highlightMode === "spotlight" && h("div", null,
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Dim strength"),
+          h("input", {
+            type:"range", min:5, max:50, step:1,
+            value: Math.round(ctx.spotDimOpacity * 100),
+            onChange: function(e) { ctx.setSpotDimOpacity(parseInt(e.target.value) / 100); },
+            style:{flex:1,accentColor:"#ea580c"}
+          }),
+          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.spotDimOpacity * 100) + "%")
+        )
+      )
     ),
 
   );
