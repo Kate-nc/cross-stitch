@@ -24,6 +24,11 @@ function _hexToRgba(hex, alpha) {
   return "rgba(" + r + "," + g + "," + b + "," + alpha.toFixed(3) + ")";
 }
 
+/** Parse #RRGGBB to [R,G,B]. */
+function _hexToRgbArr(hex) {
+  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+}
+
 /**
  * Return the adaptive indicator colour and opacity for a selected stitch.
  * Uses the luminance of the stitch's fill colour to pick a high-contrast border.
@@ -34,6 +39,178 @@ function _hiIndicator(rgb) {
   if (lum < 26)  return { color: "#FFFFFF", opacity: 1.0 };  // very dark  (<10%)
   if (lum > 140) return { color: "#1A1A2E", opacity: 0.85 }; // light  (>55%)
   return             { color: "#FFFFFF", opacity: 0.85 };     // dark   (≤55%)
+}
+
+/**
+ * Resolve mode-specific highlight parameters from state once per frame.
+ * Returns an object consumed by the per-cell rendering loop.
+ */
+function _resolveHighlight(state) {
+  var hiId = state.hiId;
+  var mode = state.highlightMode || "isolate";
+  var dimHiId     = state.dimHiId !== undefined ? state.dimHiId : hiId;
+  var dimFraction = state.dimFraction !== undefined ? state.dimFraction : (dimHiId ? 1 : 0);
+  var bgDimOpacity      = state.bgDimOpacity      !== undefined ? state.bgDimOpacity      : 0.20;
+  var bgDimDesaturation = state.bgDimDesaturation !== undefined ? state.bgDimDesaturation : 0.80;
+  // Spotlight overrides
+  if (mode === "spotlight") {
+    bgDimOpacity = state.spotDimOpacity !== undefined ? state.spotDimOpacity : 0.15;
+    bgDimDesaturation = Math.min(1, (1 - bgDimOpacity));
+  }
+  var useDim = (mode === "isolate" || mode === "spotlight") && !!dimHiId;
+  var tintColor   = state.tintColor || "#FFD700";
+  var tintOpacity = state.tintOpacity !== undefined ? state.tintOpacity : 0.40;
+  var tintRgb     = mode === "tint" ? _hexToRgbArr(tintColor) : null;
+  var antsOffset  = state.antsOffset || 0;
+  return {
+    mode: mode, hiId: dimHiId || hiId, dimFraction: dimFraction,
+    useDim: useDim, bgDimOpacity: bgDimOpacity, bgDimDesaturation: bgDimDesaturation,
+    tintRgb: tintRgb, tintOpacity: tintOpacity, antsOffset: antsOffset
+  };
+}
+
+/**
+ * Draw per-cell highlight indicators AFTER the cell fill & symbol are drawn.
+ * Called once per highlighted cell for all modes except "outline" boundary ants (drawn later).
+ */
+function _drawCellHighlight(ctx2d, px, py, cSz, rgb, hl) {
+  var mode = hl.mode;
+  var f = hl.dimFraction;
+  if (f < 0.02) return;
+
+  if (mode === "isolate") {
+    // 1px adaptive inset border
+    var ind = _hiIndicator(rgb);
+    var indAlpha = ind.opacity * f;
+    ctx2d.lineWidth = 1;
+    if (cSz < 4) {
+      ctx2d.fillStyle = _hexToRgba(ind.color, indAlpha);
+      ctx2d.fillRect(px + Math.floor(cSz / 2), py + Math.floor(cSz / 2), 1, 1);
+    } else {
+      ctx2d.strokeStyle = _hexToRgba(ind.color, indAlpha);
+      ctx2d.strokeRect(px + 0.5, py + 0.5, cSz - 1, cSz - 1);
+    }
+  } else if (mode === "outline") {
+    // Static 40%-opacity adaptive border on each selected cell
+    var oInd = _hiIndicator(rgb);
+    ctx2d.lineWidth = 1;
+    ctx2d.strokeStyle = _hexToRgba(oInd.color, 0.40);
+    ctx2d.strokeRect(px + 0.5, py + 0.5, cSz - 1, cSz - 1);
+  } else if (mode === "tint") {
+    // Tint overlay on selected stitches
+    var lum = luminance(rgb);
+    var tAlpha = hl.tintOpacity;
+    ctx2d.fillStyle = "rgba(" + hl.tintRgb[0] + "," + hl.tintRgb[1] + "," + hl.tintRgb[2] + "," + tAlpha + ")";
+    ctx2d.fillRect(px, py, cSz, cSz);
+  } else if (mode === "spotlight") {
+    // Adaptive border (same as isolate)
+    var sInd = _hiIndicator(rgb);
+    var sAlpha = sInd.opacity * f;
+    ctx2d.lineWidth = 1;
+    if (cSz < 4) {
+      ctx2d.fillStyle = _hexToRgba(sInd.color, sAlpha);
+      ctx2d.fillRect(px + Math.floor(cSz / 2), py + Math.floor(cSz / 2), 1, 1);
+    } else {
+      ctx2d.strokeStyle = _hexToRgba(sInd.color, sAlpha);
+      ctx2d.strokeRect(px + 0.5, py + 0.5, cSz - 1, cSz - 1);
+    }
+    // Outer glow via shadow — only draw when cells are large enough
+    if (cSz >= 6) {
+      ctx2d.save();
+      var glowColor = sInd.color === "#FFFFFF" ? "rgba(255,255,255,0.5)" : "rgba(26,26,46,0.5)";
+      ctx2d.shadowColor = glowColor;
+      ctx2d.shadowBlur = 3;
+      ctx2d.shadowOffsetX = 0;
+      ctx2d.shadowOffsetY = 0;
+      ctx2d.strokeStyle = _hexToRgba(sInd.color, sAlpha * 0.3);
+      ctx2d.lineWidth = 1;
+      ctx2d.strokeRect(px + 0.5, py + 0.5, cSz - 1, cSz - 1);
+      ctx2d.restore();
+    }
+  }
+}
+
+/**
+ * Draw marching-ants boundary for "outline" mode.
+ * Scans the visible grid for boundary edges (selected → non-selected)
+ * and draws animated dashed lines along them.
+ */
+function _drawMarchingAnts(ctx2d, offX, offY, dW, dH, cSz, gut, pat, sW, sH, hiId, antsOffset) {
+  if (!hiId) return;
+  // Collect boundary segments
+  ctx2d.save();
+  // Compute average luminance of selected stitches for ant colour
+  var lumSum = 0, lumCnt = 0;
+  for (var ay = 0; ay < dH; ay++) {
+    for (var ax = 0; ax < dW; ax++) {
+      var ai = (offY + ay) * sW + (offX + ax);
+      var am = pat[ai];
+      if (am && am.id === hiId) { lumSum += luminance(am.rgb); lumCnt++; }
+    }
+  }
+  var avgLum = lumCnt > 0 ? lumSum / lumCnt : 128;
+  var antColor = avgLum > 140 ? "#1A1A2E" : "#FFFFFF";
+  var antBg    = avgLum > 140 ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)";
+
+  ctx2d.lineWidth = 2;
+  ctx2d.setLineDash([4, 3]);
+  ctx2d.lineDashOffset = -antsOffset;
+
+  // Draw background line for contrast
+  ctx2d.strokeStyle = antBg;
+  ctx2d.beginPath();
+  for (var by = 0; by < dH; by++) {
+    for (var bx = 0; bx < dW; bx++) {
+      var bi = (offY + by) * sW + (offX + bx);
+      var bm = pat[bi];
+      if (!bm || bm.id !== hiId) continue;
+      var bpx = gut + bx * cSz, bpy = gut + by * cSz;
+      // Top edge
+      if (by === 0 || (offY + by - 1 < 0) || pat[(offY + by - 1) * sW + (offX + bx)].id !== hiId) {
+        ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx + cSz, bpy);
+      }
+      // Bottom edge
+      if (by === dH - 1 || (offY + by + 1 >= sH) || pat[(offY + by + 1) * sW + (offX + bx)].id !== hiId) {
+        ctx2d.moveTo(bpx, bpy + cSz); ctx2d.lineTo(bpx + cSz, bpy + cSz);
+      }
+      // Left edge
+      if (bx === 0 || (offX + bx - 1 < 0) || pat[(offY + by) * sW + (offX + bx - 1)].id !== hiId) {
+        ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx, bpy + cSz);
+      }
+      // Right edge
+      if (bx === dW - 1 || (offX + bx + 1 >= sW) || pat[(offY + by) * sW + (offX + bx + 1)].id !== hiId) {
+        ctx2d.moveTo(bpx + cSz, bpy); ctx2d.lineTo(bpx + cSz, bpy + cSz);
+      }
+    }
+  }
+  ctx2d.stroke();
+
+  // Foreground ant line
+  ctx2d.strokeStyle = antColor;
+  ctx2d.beginPath();
+  for (var cy = 0; cy < dH; cy++) {
+    for (var cx = 0; cx < dW; cx++) {
+      var ci = (offY + cy) * sW + (offX + cx);
+      var cm = pat[ci];
+      if (!cm || cm.id !== hiId) continue;
+      var cpx = gut + cx * cSz, cpy = gut + cy * cSz;
+      if (cy === 0 || (offY + cy - 1 < 0) || pat[(offY + cy - 1) * sW + (offX + cx)].id !== hiId) {
+        ctx2d.moveTo(cpx, cpy); ctx2d.lineTo(cpx + cSz, cpy);
+      }
+      if (cy === dH - 1 || (offY + cy + 1 >= sH) || pat[(offY + cy + 1) * sW + (offX + cx)].id !== hiId) {
+        ctx2d.moveTo(cpx, cpy + cSz); ctx2d.lineTo(cpx + cSz, cpy + cSz);
+      }
+      if (cx === 0 || (offX + cx - 1 < 0) || pat[(offY + cy) * sW + (offX + cx - 1)].id !== hiId) {
+        ctx2d.moveTo(cpx, cpy); ctx2d.lineTo(cpx, cpy + cSz);
+      }
+      if (cx === dW - 1 || (offX + cx + 1 >= sW) || pat[(offY + cy) * sW + (offX + cx + 1)].id !== hiId) {
+        ctx2d.moveTo(cpx + cSz, cpy); ctx2d.lineTo(cpx + cSz, cpy + cSz);
+      }
+    }
+  }
+  ctx2d.stroke();
+  ctx2d.setLineDash([]);
+  ctx2d.restore();
 }
 
 /**
@@ -68,11 +245,8 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
   var halfStitches = state.halfStitches;
   var showOverlayImg = state.showOverlay && !!img && !!img.src;
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
-  // Isolation dimming + adaptive indicator (Part A & B)
-  var dimHiId     = state.dimHiId !== undefined ? state.dimHiId : hiId;
-  var dimFraction = state.dimFraction !== undefined ? state.dimFraction : (dimHiId ? 1 : 0);
-  var bgDimOpacity      = state.bgDimOpacity      !== undefined ? state.bgDimOpacity      : 0.20;
-  var bgDimDesaturation = state.bgDimDesaturation !== undefined ? state.bgDimDesaturation : 0.80;
+  // Resolve highlight mode
+  var hl = _resolveHighlight(state);
 
   ctx2d.fillStyle = "#fff";
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
@@ -103,11 +277,11 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
       var info = m.id === "__skip__" ? null : (cmap ? cmap[m.id] : null);
       var px = gut + x2 * cSz;
       var py = gut + y2 * cSz;
-      var isHi = !dimHiId || m.id === dimHiId;
-      var dim = dimHiId && !isHi && m.id !== "__skip__" && m.id !== "__empty__";
-      // Animated alpha/desaturation for non-selected stitches
-      var dimAlpha  = dim ? (1.0 - (1.0 - bgDimOpacity) * dimFraction) : 1.0;
-      var dimDesat  = dim ? (bgDimDesaturation * dimFraction) : 0;
+      var isHi = !hl.hiId || m.id === hl.hiId;
+      var dim = hl.useDim && hl.hiId && !isHi && m.id !== "__skip__" && m.id !== "__empty__";
+      // Animated alpha/desaturation for non-selected stitches (isolate/spotlight)
+      var dimAlpha  = dim ? (1.0 - (1.0 - hl.bgDimOpacity) * hl.dimFraction) : 1.0;
+      var dimDesat  = dim ? (hl.bgDimDesaturation * hl.dimFraction) : 0;
 
       if (m.id === "__skip__" || m.id === "__empty__") {
         if (showOverlayImg) {
@@ -127,10 +301,15 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
         var alpha2 = showOverlayImg ? 0.3 : 1.0;
         ctx2d.fillStyle = "rgba(255,255,255," + alpha2 + ")";
         ctx2d.fillRect(px, py, cSz, cSz);
+        // Tint mode in symbol-only: draw small tinted square behind symbol
+        if (hl.mode === "tint" && hl.hiId && isHi && m.id !== "__skip__" && m.id !== "__empty__") {
+          ctx2d.fillStyle = "rgba(" + hl.tintRgb[0] + "," + hl.tintRgb[1] + "," + hl.tintRgb[2] + "," + hl.tintOpacity + ")";
+          ctx2d.fillRect(px + 1, py + 1, cSz - 2, cSz - 2);
+        }
       }
 
       if (m.id !== "__skip__" && (view === "symbol" || view === "both") && info && cSz >= 6) {
-        var symAlpha = dim ? (1.0 - 0.85 * dimFraction) : 1.0;
+        var symAlpha = dim ? (1.0 - 0.85 * hl.dimFraction) : 1.0;
         var symColor;
         if (dim) {
           symColor = view === "symbol" ? _hexToRgba("#D0D0D0", symAlpha) : ("rgba(0,0,0," + symAlpha + ")");
@@ -146,26 +325,16 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
       }
 
       if (cSz >= 4) {
-        var sAlpha = dim ? (0.08 * (1 - dimFraction) + 0.03 * dimFraction) : 0.08;
+        var sAlpha = dim ? (0.08 * (1 - hl.dimFraction) + 0.03 * hl.dimFraction) : 0.08;
         if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
         ctx2d.strokeStyle = "rgba(0,0,0," + sAlpha + ")";
         ctx2d.lineWidth = 1;
         ctx2d.strokeRect(px, py, cSz, cSz);
       }
 
-      // ── Part B: Adaptive indicator border for selected stitches ──────────────
-      if (dimHiId && isHi && dimFraction > 0.02 && m.id !== "__skip__" && m.id !== "__empty__") {
-        var ind = _hiIndicator(m.rgb);
-        var indAlpha = ind.opacity * dimFraction;
-        ctx2d.lineWidth = 1;
-        if (cSz < 4) {
-          // Centre dot at extreme zoom-out
-          ctx2d.fillStyle = _hexToRgba(ind.color, indAlpha);
-          ctx2d.fillRect(px + Math.floor(cSz / 2), py + Math.floor(cSz / 2), 1, 1);
-        } else {
-          ctx2d.strokeStyle = _hexToRgba(ind.color, indAlpha);
-          ctx2d.strokeRect(px + 0.5, py + 0.5, cSz - 1, cSz - 1);
-        }
+      // ── Highlight indicators for selected stitches (all modes) ───────────────
+      if (hl.hiId && isHi && m.id !== "__skip__" && m.id !== "__empty__") {
+        _drawCellHighlight(ctx2d, px, py, cSz, m.rgb, hl);
       }
 
       var hsEntry = halfStitches.get(idx);
@@ -184,6 +353,11 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
         });
       }
     }
+  }
+
+  // Marching ants for outline mode
+  if (hl.mode === "outline" && hl.hiId) {
+    _drawMarchingAnts(ctx2d, offX, offY, dW, dH, cSz, gut, pat, sW, sH, hl.hiId, hl.antsOffset);
   }
 
   // Grid lines (every 10)
@@ -333,11 +507,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
   var showCleanupDiff = state.showCleanupDiff;
   var cleanupDiff = state.cleanupDiff;
-  // Isolation dimming + adaptive indicator (Part A & B)
-  var dimHiId     = state.dimHiId !== undefined ? state.dimHiId : hiId;
-  var dimFraction = state.dimFraction !== undefined ? state.dimFraction : (dimHiId ? 1 : 0);
-  var bgDimOpacity      = state.bgDimOpacity      !== undefined ? state.bgDimOpacity      : 0.20;
-  var bgDimDesaturation = state.bgDimDesaturation !== undefined ? state.bgDimDesaturation : 0.80;
+  // Resolve highlight mode + dimming params
+  var hl = _resolveHighlight(state);
 
   ctx2d.fillStyle = "#fff";
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
@@ -368,11 +539,10 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
       var info = m.id === "__skip__" ? null : (cmap ? cmap[m.id] : null);
       var px = gut + x2 * cSz;
       var py = gut + y2 * cSz;
-      var isHi = !dimHiId || m.id === dimHiId;
-      var dim = dimHiId && !isHi && m.id !== "__skip__" && m.id !== "__empty__";
-      // Animated alpha/desaturation for non-selected stitches
-      var dimAlpha = dim ? (1.0 - (1.0 - bgDimOpacity) * dimFraction) : 1.0;
-      var dimDesat = dim ? (bgDimDesaturation * dimFraction) : 0;
+      var isHi = !hl.hiId || m.id === hl.hiId;
+      var dim = hl.useDim && hl.hiId && !isHi && m.id !== "__skip__" && m.id !== "__empty__";
+      var dimAlpha = dim ? (1.0 - (1.0 - hl.bgDimOpacity) * hl.dimFraction) : 1.0;
+      var dimDesat = dim ? (hl.bgDimDesaturation * hl.dimFraction) : 0;
 
       if (m.id === "__skip__" || m.id === "__empty__") {
         if (showOverlayImg) {
@@ -392,10 +562,15 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
         var alpha2 = showOverlayImg ? 0.3 : 1.0;
         ctx2d.fillStyle = "rgba(255,255,255," + alpha2 + ")";
         ctx2d.fillRect(px, py, cSz, cSz);
+        // Tint mode in symbol-only: draw small tinted square behind symbol
+        if (hl.mode === "tint" && hl.hiId && isHi && m.id !== "__skip__" && m.id !== "__empty__") {
+          ctx2d.fillStyle = "rgba(" + hl.tintRgb[0] + "," + hl.tintRgb[1] + "," + hl.tintRgb[2] + "," + hl.tintOpacity + ")";
+          ctx2d.fillRect(px + 1, py + 1, cSz - 2, cSz - 2);
+        }
       }
 
       if (m.id !== "__skip__" && (view === "symbol" || view === "both") && info && cSz >= 6) {
-        var symAlpha = dim ? (1.0 - 0.85 * dimFraction) : 1.0;
+        var symAlpha = dim ? (1.0 - 0.85 * hl.dimFraction) : 1.0;
         var symColor;
         if (dim) {
           symColor = view === "symbol" ? _hexToRgba("#D0D0D0", symAlpha) : ("rgba(0,0,0," + symAlpha + ")");
@@ -411,26 +586,16 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
       }
 
       if (cSz >= 4) {
-        var sAlpha = dim ? (0.08 * (1 - dimFraction) + 0.03 * dimFraction) : 0.08;
+        var sAlpha = dim ? (0.08 * (1 - hl.dimFraction) + 0.03 * hl.dimFraction) : 0.08;
         if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
         ctx2d.strokeStyle = "rgba(0,0,0," + sAlpha + ")";
         ctx2d.lineWidth = 1;
         ctx2d.strokeRect(px, py, cSz, cSz);
       }
 
-      // ── Part B: Adaptive indicator border for selected stitches ──────────────
-      if (dimHiId && isHi && dimFraction > 0.02 && m.id !== "__skip__" && m.id !== "__empty__") {
-        var ind = _hiIndicator(m.rgb);
-        var indAlpha = ind.opacity * dimFraction;
-        ctx2d.lineWidth = 1;
-        if (cSz < 4) {
-          // Centre dot at extreme zoom-out
-          ctx2d.fillStyle = _hexToRgba(ind.color, indAlpha);
-          ctx2d.fillRect(px + Math.floor(cSz / 2), py + Math.floor(cSz / 2), 1, 1);
-        } else {
-          ctx2d.strokeStyle = _hexToRgba(ind.color, indAlpha);
-          ctx2d.strokeRect(px + 0.5, py + 0.5, cSz - 1, cSz - 1);
-        }
+      // ── Highlight indicators for selected stitches (all modes) ───────────────
+      if (hl.hiId && isHi && m.id !== "__skip__" && m.id !== "__empty__") {
+        _drawCellHighlight(ctx2d, px, py, cSz, m.rgb, hl);
       }
 
       var hsEntry = halfStitches.get(idx);
@@ -533,6 +698,12 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
   var stitchType  = state.stitchType;
   var halfStitchTool = state.halfStitchTool;
   var cmap        = state.cmap;
+
+  // Marching ants for outline highlight mode (animated, drawn in overlay)
+  var hl = _resolveHighlight(state);
+  if (hl.mode === "outline" && hl.hiId && state.pat) {
+    _drawMarchingAnts(ctx2d, offX, offY, dW, dH, cSz, gut, state.pat, state.sW || dW, state.sH || dH, hl.hiId, hl.antsOffset);
+  }
 
   // Hover crosshair + brush highlight
   if (hoverCoords && hoverCoords.gx >= offX && hoverCoords.gy >= offY && hoverCoords.gx < offX + dW && hoverCoords.gy < offY + dH) {

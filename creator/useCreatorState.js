@@ -164,19 +164,45 @@ window.useCreatorState = function useCreatorState() {
   // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
   var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
 
-  // ── Highlight isolation dimming (Part A) ─────────────────────────────────────
-  // bgDimOpacity: target opacity of non-selected stitches (default 20%)
-  // bgDimDesaturation: coupled or independent desaturation (default 80%)
-  // hiAdvanced: when true, decouples the two sliders
-  // dimFraction: animation progress 0→1 (drives smooth 150ms transitions)
-  // dimHiId: the visually-active highlight ID (may differ from hiId during fade-out)
-  var _bgDimOp  = useState(0.20);   var bgDimOpacity      = _bgDimOp[0],  setBgDimOpacity      = _bgDimOp[1];
+  // ── Highlight mode system ──────────────────────────────────────────────────
+  // highlightMode: "isolate" | "outline" | "tint" | "spotlight"
+  // Per-mode settings persist independently.
+  var _hlModeSt = useState(function() { try { return localStorage.getItem("cs_hlMode") || "isolate"; } catch(_) { return "isolate"; } });
+  var highlightMode = _hlModeSt[0];
+  function setHighlightMode(m) {
+    _hlModeSt[1](m);
+    try { localStorage.setItem("cs_hlMode", m); } catch(_) {}
+  }
+
+  // Isolate mode settings (Part A from Spec 1)
+  var _bgDimOp  = useState(function() { try { var v = localStorage.getItem("cs_bgDimOp"); return v != null ? parseFloat(v) : 0.20; } catch(_) { return 0.20; } });
+  var bgDimOpacity = _bgDimOp[0];
+  function setBgDimOpacity(v) { _bgDimOp[1](v); try { localStorage.setItem("cs_bgDimOp", v); } catch(_) {} }
   var _hiAdv    = useState(false);  var hiAdvanced        = _hiAdv[0],    setHiAdvanced        = _hiAdv[1];
-  var _bgDimDs  = useState(0.80);   var bgDimDesaturation = _bgDimDs[0],  setBgDimDesaturation = _bgDimDs[1];
+  var _bgDimDs  = useState(function() { try { var v = localStorage.getItem("cs_bgDimDs"); return v != null ? parseFloat(v) : 0.80; } catch(_) { return 0.80; } });
+  var bgDimDesaturation = _bgDimDs[0];
+  function setBgDimDesaturation(v) { _bgDimDs[1](v); try { localStorage.setItem("cs_bgDimDs", v); } catch(_) {} }
+
+  // Tint mode settings
+  var _tintColor = useState(function() { try { return localStorage.getItem("cs_tintColor") || "#FFD700"; } catch(_) { return "#FFD700"; } });
+  var tintColor = _tintColor[0];
+  function setTintColor(c) { _tintColor[1](c); try { localStorage.setItem("cs_tintColor", c); } catch(_) {} }
+  var _tintOpacity = useState(function() { try { var v = localStorage.getItem("cs_tintOp"); return v != null ? parseFloat(v) : 0.40; } catch(_) { return 0.40; } });
+  var tintOpacity = _tintOpacity[0];
+  function setTintOpacity(v) { _tintOpacity[1](v); try { localStorage.setItem("cs_tintOp", v); } catch(_) {} }
+
+  // Spotlight mode settings — default dimming is 15% (stronger than isolate)
+  var _spotDimOp = useState(function() { try { var v = localStorage.getItem("cs_spotDimOp"); return v != null ? parseFloat(v) : 0.15; } catch(_) { return 0.15; } });
+  var spotDimOpacity = _spotDimOp[0];
+  function setSpotDimOpacity(v) { _spotDimOp[1](v); try { localStorage.setItem("cs_spotDimOp", v); } catch(_) {} }
+
+  // Animation state (shared across modes that need dimming)
   var _dimFrac  = useState(0);      var dimFraction       = _dimFrac[0],  setDimFraction       = _dimFrac[1];
   var _dimHiId  = useState(null);   var dimHiId           = _dimHiId[0],  setDimHiId           = _dimHiId[1];
   var dimAnimRef  = useRef(null);
   var dimFracRef  = useRef(0);
+  // Marching ants offset (outline mode)
+  var _antsOff  = useState(0);      var antsOffset        = _antsOff[0],  setAntsOffset        = _antsOff[1];
 
   // Toast notifications
   var _toasts = useState([]);        var toasts = _toasts[0], setToasts = _toasts[1];
@@ -382,10 +408,12 @@ window.useCreatorState = function useCreatorState() {
     setSelectedColorId(pal[0].id);
   }, [pat, pal]);
 
-  // ── Dimming animation: 150ms fade-in/out when hiId changes ─────────────────
+  // ── Dimming animation: 150ms fade-in/out when hiId or highlightMode changes ──
+  var usesDimming = highlightMode === "isolate" || highlightMode === "spotlight";
   useEffect(function() {
     if (dimAnimRef.current) cancelAnimationFrame(dimAnimRef.current);
-    if (hiId) {
+    var shouldDim = hiId && usesDimming;
+    if (shouldDim) {
       setDimHiId(hiId);
       // Already at full dim (switching between colours) — skip animation
       if (dimFracRef.current >= 0.99) { dimFracRef.current = 1; setDimFraction(1); return; }
@@ -402,6 +430,7 @@ window.useCreatorState = function useCreatorState() {
       dimAnimRef.current = requestAnimationFrame(animIn);
     } else {
       var from2 = dimFracRef.current;
+      if (from2 < 0.01) { dimFracRef.current = 0; setDimFraction(0); setDimHiId(hiId || null); return; }
       var st2 = null;
       function animOut(ts) {
         if (!st2) st2 = ts;
@@ -409,12 +438,12 @@ window.useCreatorState = function useCreatorState() {
         var v2 = from2 * (1 - t2);
         dimFracRef.current = v2; setDimFraction(v2);
         if (t2 < 1) dimAnimRef.current = requestAnimationFrame(animOut);
-        else { dimAnimRef.current = null; setDimHiId(null); }
+        else { dimAnimRef.current = null; setDimHiId(hiId || null); }
       }
       dimAnimRef.current = requestAnimationFrame(animOut);
     }
     return function() { if (dimAnimRef.current) { cancelAnimationFrame(dimAnimRef.current); dimAnimRef.current = null; } };
-  }, [hiId]);
+  }, [hiId, usesDimming]);
 
   function initBlankGrid(w, h) {
     var blank = Array.from({ length: w * h }, function() { return { id: "__empty__", rgb: [255, 255, 255] }; });
@@ -677,6 +706,9 @@ window.useCreatorState = function useCreatorState() {
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
     bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,
     bgDimDesaturation, setBgDimDesaturation, dimFraction, dimHiId,
+    highlightMode, setHighlightMode,
+    tintColor, setTintColor, tintOpacity, setTintOpacity,
+    spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
     dimOpen, setDimOpen, palOpen, setPalOpen, fabOpen, setFabOpen,
     adjOpen, setAdjOpen, bgOpen, setBgOpen, palAdvanced, setPalAdvanced,
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,

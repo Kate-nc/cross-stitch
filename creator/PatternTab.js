@@ -205,34 +205,95 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     ),
 
     ctx.hiId && h("div", {style:{background:"#fff7ed",border:"0.5px solid #fed7aa",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11,color:"#92400e"}},
-      h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
-        h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Background dimming"),
-        h("input", {
-          type:"range", min:5, max:60, step:1,
-          value: Math.round(ctx.bgDimOpacity * 100),
-          onChange: function(e) {
-            var op = parseInt(e.target.value) / 100;
-            ctx.setBgDimOpacity(op);
-            if (!ctx.hiAdvanced) ctx.setBgDimDesaturation(Math.min(1, (100 - parseInt(e.target.value)) / 100));
-          },
-          style:{flex:1,accentColor:"#ea580c"}
-        }),
-        h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.bgDimOpacity * 100) + "%")
+      // ── Mode toggle segmented control ──
+      h("div", {style:{display:"flex",gap:0,marginBottom:6,borderRadius:6,overflow:"hidden",border:"1px solid #fdba74"}},
+        ["isolate","outline","tint","spotlight"].map(function(m) {
+          var labels = {isolate:"Isolate",outline:"Outline",tint:"Tint",spotlight:"Spotlight"};
+          var active = ctx.highlightMode === m;
+          return h("button", {
+            key: m,
+            onClick: function() { ctx.setHighlightMode(m); },
+            style:{
+              flex:1, padding:"4px 0", fontSize:10, fontWeight: active ? 700 : 500, cursor:"pointer",
+              border:"none", borderRight:"1px solid #fdba74",
+              background: active ? "#ea580c" : "#fff7ed",
+              color: active ? "#fff" : "#92400e"
+            }
+          }, labels[m]);
+        })
       ),
-      ctx.hiAdvanced && h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
-        h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Desaturation"),
-        h("input", {
-          type:"range", min:0, max:100, step:1,
-          value: Math.round(ctx.bgDimDesaturation * 100),
-          onChange: function(e) { ctx.setBgDimDesaturation(parseInt(e.target.value) / 100); },
-          style:{flex:1,accentColor:"#ea580c"}
-        }),
-        h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.bgDimDesaturation * 100) + "%")
+
+      // ── Isolate settings ──
+      ctx.highlightMode === "isolate" && h("div", null,
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Background dimming"),
+          h("input", {
+            type:"range", min:5, max:60, step:1,
+            value: Math.round(ctx.bgDimOpacity * 100),
+            onChange: function(e) {
+              var op = parseInt(e.target.value) / 100;
+              ctx.setBgDimOpacity(op);
+              if (!ctx.hiAdvanced) ctx.setBgDimDesaturation(Math.min(1, (100 - parseInt(e.target.value)) / 100));
+            },
+            style:{flex:1,accentColor:"#ea580c"}
+          }),
+          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.bgDimOpacity * 100) + "%")
+        ),
+        ctx.hiAdvanced && h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Desaturation"),
+          h("input", {
+            type:"range", min:0, max:100, step:1,
+            value: Math.round(ctx.bgDimDesaturation * 100),
+            onChange: function(e) { ctx.setBgDimDesaturation(parseInt(e.target.value) / 100); },
+            style:{flex:1,accentColor:"#ea580c"}
+          }),
+          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.bgDimDesaturation * 100) + "%")
+        ),
+        h("div", {style:{display:"flex",justifyContent:"flex-end"}},
+          h("label", {style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none"}},
+            h("input", {type:"checkbox", checked:ctx.hiAdvanced, onChange:function(e){ctx.setHiAdvanced(e.target.checked);}, style:{accentColor:"#ea580c"}}),
+            h("span", {style:{fontSize:10,color:"#92400e"}}, "Advanced (decouple sliders)")
+          )
+        )
       ),
-      h("div", {style:{display:"flex",justifyContent:"flex-end"}},
-        h("label", {style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none"}},
-          h("input", {type:"checkbox", checked:ctx.hiAdvanced, onChange:function(e){ctx.setHiAdvanced(e.target.checked);}, style:{accentColor:"#ea580c"}}),
-          h("span", {style:{fontSize:10,color:"#92400e"}}, "Advanced (decouple sliders)")
+
+      // ── Outline settings ──
+      ctx.highlightMode === "outline" && h("div", {style:{fontSize:10,color:"#78350f",fontStyle:"italic"}},
+        "Animated marching ants highlight the boundary of the selected colour."
+      ),
+
+      // ── Tint settings ──
+      ctx.highlightMode === "tint" && h("div", null,
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Tint colour"),
+          h("input", {
+            type:"color",
+            value: ctx.tintColor,
+            onChange: function(e) { ctx.setTintColor(e.target.value); },
+            style:{width:28,height:22,padding:0,border:"1px solid #fdba74",borderRadius:4,cursor:"pointer"}
+          }),
+          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f",marginLeft:8}}, "Opacity"),
+          h("input", {
+            type:"range", min:10, max:80, step:1,
+            value: Math.round(ctx.tintOpacity * 100),
+            onChange: function(e) { ctx.setTintOpacity(parseInt(e.target.value) / 100); },
+            style:{flex:1,accentColor:"#ea580c"}
+          }),
+          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.tintOpacity * 100) + "%")
+        )
+      ),
+
+      // ── Spotlight settings ──
+      ctx.highlightMode === "spotlight" && h("div", null,
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Dim strength"),
+          h("input", {
+            type:"range", min:5, max:50, step:1,
+            value: Math.round(ctx.spotDimOpacity * 100),
+            onChange: function(e) { ctx.setSpotDimOpacity(parseInt(e.target.value) / 100); },
+            style:{flex:1,accentColor:"#ea580c"}
+          }),
+          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.spotDimOpacity * 100) + "%")
         )
       )
     ),

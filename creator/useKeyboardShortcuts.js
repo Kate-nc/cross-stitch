@@ -37,10 +37,10 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       if (e.key === "?") { state.setModal(function(m) { return m === "shortcuts" ? null : "shortcuts"; }); return; }
       if (!state.pat) return;
 
-      if (e.key === "1") { state.selectStitchType("cross"); return; }
-      if (e.key === "2") { state.selectStitchType("half-fwd"); return; }
-      if (e.key === "3") { state.selectStitchType("half-bck"); return; }
-      if (e.key === "4") { state.selectStitchType("backstitch"); return; }
+      if (e.key === "1") { if (state.hiId) { state.setHighlightMode("isolate"); return; } state.selectStitchType("cross"); return; }
+      if (e.key === "2") { if (state.hiId) { state.setHighlightMode("outline"); return; } state.selectStitchType("half-fwd"); return; }
+      if (e.key === "3") { if (state.hiId) { state.setHighlightMode("tint"); return; } state.selectStitchType("half-bck"); return; }
+      if (e.key === "4") { if (state.hiId) { state.setHighlightMode("spotlight"); return; } state.selectStitchType("backstitch"); return; }
       if (e.key === "5") { state.selectStitchType("erase"); return; }
       if (e.key === "w" || e.key === "W") {
         if (state.activeTool === "magicWand") { state.setActiveTool(null); }
@@ -75,7 +75,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     state.editHistory, state.redoHistory, state.pat, state.pal,
     state.namePromptOpen, state.modal, state.overflowOpen,
     state.selectedColorId, state.halfStitchTool, state.hiId,
-    state.hasSelection, state.lassoInProgress,
+    state.hasSelection, state.lassoInProgress, state.highlightMode,
     history.undoEdit, history.redoEdit, io.saveProject,
   ]);
 };
