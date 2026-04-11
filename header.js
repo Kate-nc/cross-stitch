@@ -99,16 +99,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     return () => document.removeEventListener('mousedown', close);
   }, [fileMenuOpen]);
 
-  const [dataMenuOpen, setDataMenuOpen] = React.useState(false);
-  const dataMenuRef = React.useRef(null);
-  React.useEffect(() => {
-    if (!dataMenuOpen) return;
-    function close(e) { if (dataMenuRef.current && !dataMenuRef.current.contains(e.target)) setDataMenuOpen(false); }
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [dataMenuOpen]);
-
-  // Inline backup/restore used by the File dropdown on non-manager pages
+  // Inline backup/restore used by the File dropdown on pages without custom restore handlers
   function handleInlineRestore(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -243,87 +234,71 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('shortcuts'), 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, '⌨'),
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('help') }, 'Help'),
 
-        // Data dropdown (manager page only)
-        (onBackupDownload || onRestoreFile) &&
-          React.createElement('div', { ref: dataMenuRef, style: { position: 'relative', flexShrink: 0 } },
-            React.createElement('button', { className: 'tb-page-btn', onClick: () => setDataMenuOpen(o => !o) },
-              'Data',
-              React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 3 } }, '▾')
-            ),
-            dataMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 210 } },
-              storageUsage && React.createElement('div', { style: { padding: '8px 14px 6px', fontSize: 11, color: '#475569', borderBottom: '1px solid #f1f5f9' } },
-                storageUsage.persistent ? React.createElement(React.Fragment, null, Icons.lock(), ' Protected') : React.createElement(React.Fragment, null, Icons.hourglass(), ' Temporary'),
-                ' · ',
-                (storageUsage.used / 1024 / 1024).toFixed(1) + ' MB'
-                + (storageUsage.quota ? ' / ~' + (storageUsage.quota / 1024 / 1024).toFixed(0) + ' MB' : '')
-              ),
-              onBackupDownload && React.createElement('button', {
-                className: 'tb-page-dropdown-item',
-                onClick: () => { onBackupDownload(); setDataMenuOpen(false); }
-              }, Icons.save(), ' Export Full Backup'),
-              onRestoreFile && React.createElement('label', {
-                className: 'tb-page-dropdown-item',
-                style: { display: 'block', cursor: 'pointer' }
-              },
-                Icons.folder(), ' Restore from Backup…',
-                React.createElement('input', {
-                  type: 'file',
-                  accept: '.json',
-                  style: { display: 'none' },
-                  onChange: (e) => { onRestoreFile(e); setDataMenuOpen(false); }
-                })
-              )
-            )
+        // File menu dropdown — shown on all pages
+        React.createElement('div', { ref: fileMenuRef, style: { position: 'relative', flexShrink: 0 } },
+          React.createElement('button', { className: 'tb-page-btn', onClick: () => setFileMenuOpen(o => !o) },
+            'File',
+            React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 3 } }, '▾')
           ),
-
-        // File menu dropdown
-        (onOpen || onSave || onTrack || onExportPDF || onNewProject) &&
-          React.createElement('div', { ref: fileMenuRef, style: { position: 'relative', flexShrink: 0 } },
-            React.createElement('button', { className: 'tb-page-btn', onClick: () => setFileMenuOpen(o => !o) },
-              'File',
-              React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 3 } }, '▾')
+          fileMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 210 } },
+            // Storage usage summary
+            storageUsage && React.createElement('div', { style: { padding: '8px 14px 6px', fontSize: 11, color: '#475569', borderBottom: '1px solid #f1f5f9' } },
+              storageUsage.persistent ? React.createElement(React.Fragment, null, Icons.lock(), ' Protected') : React.createElement(React.Fragment, null, Icons.hourglass(), ' Temporary'),
+              ' · ',
+              (storageUsage.used / 1024 / 1024).toFixed(1) + ' MB'
+              + (storageUsage.quota ? ' / ~' + (storageUsage.quota / 1024 / 1024).toFixed(0) + ' MB' : '')
             ),
-            fileMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 190 } },
-              onNewProject && React.createElement('button', {
-                className: 'tb-page-dropdown-item',
-                onClick: () => { onNewProject(); setFileMenuOpen(false); }
-              }, 'New Project'),
-              onOpen && React.createElement('button', {
-                className: 'tb-page-dropdown-item',
-                onClick: () => { onOpen(); setFileMenuOpen(false); }
-              }, 'Open…'),
-              onSave && React.createElement('button', {
-                className: 'tb-page-dropdown-item',
-                onClick: () => { onSave(); setFileMenuOpen(false); }
-              }, 'Save (.json)'),
-              page === 'creator' && onTrack && React.createElement('button', {
-                className: 'tb-page-dropdown-item',
-                onClick: () => { onTrack(); setFileMenuOpen(false); }
-              }, 'Open in Stitch Tracker'),
-              onExportPDF && React.createElement('button', {
-                className: 'tb-page-dropdown-item',
-                onClick: () => { onExportPDF(); setFileMenuOpen(false); }
-              }, 'Export PDF…'),
-              // Backup / Restore — available on all pages when backup-restore.js is loaded
-              typeof BackupRestore !== 'undefined' && React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),
-              typeof BackupRestore !== 'undefined' && React.createElement('button', {
-                className: 'tb-page-dropdown-item',
-                onClick: () => { setFileMenuOpen(false); BackupRestore.downloadBackup().catch(function(e) { alert('Backup failed: ' + e.message); }); }
-              }, '\ud83d\udcbe Export Backup'),
-              typeof BackupRestore !== 'undefined' && React.createElement('label', {
-                className: 'tb-page-dropdown-item',
-                style: { display: 'block', cursor: 'pointer' }
-              },
-                '\ud83d\udcc2 Restore from Backup…',
-                React.createElement('input', {
-                  type: 'file',
-                  accept: '.json',
-                  style: { display: 'none' },
-                  onChange: function(e) { setFileMenuOpen(false); handleInlineRestore(e); }
-                })
-              )
+            // Project operations
+            onNewProject && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => { onNewProject(); setFileMenuOpen(false); }
+            }, 'New Project'),
+            onOpen && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => { onOpen(); setFileMenuOpen(false); }
+            }, 'Open…'),
+            onSave && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => { onSave(); setFileMenuOpen(false); }
+            }, 'Save (.json)'),
+            page === 'creator' && onTrack && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => { onTrack(); setFileMenuOpen(false); }
+            }, 'Open in Stitch Tracker'),
+            onExportPDF && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => { onExportPDF(); setFileMenuOpen(false); }
+            }, 'Export PDF…'),
+            // Separator before backup/restore
+            !!(onNewProject || onOpen || onSave || onTrack || onExportPDF) &&
+              React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),
+            // Backup — use prop handler if provided (e.g. manager shows status feedback), else inline
+            React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => {
+                setFileMenuOpen(false);
+                if (onBackupDownload) { onBackupDownload(); }
+                else { BackupRestore.downloadBackup().catch(function(e) { alert('Backup failed: ' + e.message); }); }
+              }
+            }, Icons.save(), ' Export Backup'),
+            // Restore — use prop handler if provided, else inline
+            React.createElement('label', {
+              className: 'tb-page-dropdown-item',
+              style: { display: 'block', cursor: 'pointer' }
+            },
+              Icons.folder(), ' Restore from Backup…',
+              React.createElement('input', {
+                type: 'file',
+                accept: '.json',
+                style: { display: 'none' },
+                onChange: function(e) {
+                  setFileMenuOpen(false);
+                  if (onRestoreFile) { onRestoreFile(e); } else { handleInlineRestore(e); }
+                }
+              })
             )
           )
+        )
       )
     )
   );
