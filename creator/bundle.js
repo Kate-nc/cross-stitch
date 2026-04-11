@@ -2605,6 +2605,17 @@ window.useCreatorState = function useCreatorState() {
     if (lassoCancelRef.current) lassoCancelRef.current();
   }
 
+  // Initialize paint tool when pattern is loaded
+  useEffect(function() {
+    if (!pal || pal.length === 0) return;
+    // Activate paint mode with the most frequent color
+    setBrushAndActivate("paint");
+    selectStitchType("cross");
+    if (pal.length > 0) {
+      setSelectedColorId(pal[0].id);
+    }
+  }, [pal]);
+
   function initBlankGrid(w, h) {
     var blank = Array.from({ length: w * h }, function() { return { id: "__empty__", rgb: [255, 255, 255] }; });
     var result = buildPalette(blank);
