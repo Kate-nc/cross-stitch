@@ -5,3 +5,5 @@ const DEFAULT_SKEIN_PRICE=0.95;
 
 const A4W=50,A4H=75;
 const CK=4;
+const QUADRANTS=["TL","TR","BL","BR"];
+const PARTIAL_STITCH_TYPES=["quarter","half","three-quarter"];

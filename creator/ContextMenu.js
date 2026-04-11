@@ -85,7 +85,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     // Select similar
     item([Icons.wand(), " Select similar (wand)"], function() {
       ctx.setActiveTool("magicWand");
-      ctx.setHalfStitchTool(null);
+      ctx.setPartialStitchTool(null);
       ctx.setBsStart(null);
       ctx.applyWandSelect(menu.gx, menu.gy, ctx.wandOpMode);
     }, {disabled: !hasCellColour, k: 'wand'}),
@@ -106,7 +106,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     hasCellColour && item([Icons.info(), " Stitch info"], function() {
       if (cellInfo) {
         ctx.setActiveTool("magicWand");
-        ctx.setHalfStitchTool(null);
+        ctx.setPartialStitchTool(null);
         ctx.applyWandSelect(menu.gx, menu.gy, "replace");
         ctx.setWandPanel("info");
       }

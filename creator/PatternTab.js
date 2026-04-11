@@ -129,7 +129,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         if (selTool) return "crosshair";
         if (ctx.activeTool === "fill") return "cell";
         if (ctx.activeTool === "eraseBs") return "not-allowed";
-        if (ctx.activeTool || ctx.halfStitchTool) return "crosshair";
+        if (ctx.activeTool || ctx.partialStitchTool) return "crosshair";
         return "default";
       })()},
       onContextMenu: function(e) {
@@ -143,7 +143,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         var idx = gc.gy * ctx.sW + gc.gx;
         var cell = ctx.pat[idx];
         // In paint/fill mode, right-click directly picks the colour (eyedropper gesture)
-        var rcIsHsTool = ctx.halfStitchTool && ctx.halfStitchTool !== "erase";
+        var rcIsHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
         if ((ctx.activeTool === "paint" || ctx.activeTool === "fill" || rcIsHsTool) &&
             cell && cell.id !== "__skip__" && cell.id !== "__empty__" &&
             ctx.cmap && ctx.cmap[cell.id]) {

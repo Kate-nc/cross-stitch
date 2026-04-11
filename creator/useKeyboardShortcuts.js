@@ -26,8 +26,8 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.lassoInProgress) { state.cancelLasso(); return; }
         if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
-        if (state.activeTool || state.halfStitchTool) {
-          state.setActiveTool(null); state.setHalfStitchTool(null); state.setBsStart(null); return;
+        if (state.activeTool || state.partialStitchTool) {
+          state.setActiveTool(null); state.setPartialStitchTool(null); state.setBsStart(null); return;
         }
         if (state.hiId) { state.setHiId(null); return; }
         if (state.selectedColorId) { state.setSelectedColorId(null); return; }
@@ -44,19 +44,19 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       if (e.key === "5") { state.selectStitchType("erase"); return; }
       if (e.key === "w" || e.key === "W") {
         if (state.activeTool === "magicWand") { state.setActiveTool(null); }
-        else { state.setActiveTool("magicWand"); state.setHalfStitchTool(null); state.setBsStart(null); }
+        else { state.setActiveTool("magicWand"); state.setPartialStitchTool(null); state.setBsStart(null); }
         return;
       }
       if (e.key === "p" || e.key === "P") {
-        if (!state.halfStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("paint");
+        if (!state.partialStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("paint");
         return;
       }
       if (e.key === "f" || e.key === "F") {
-        if (!state.halfStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("fill");
+        if (!state.partialStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("fill");
         return;
       }
       if (e.key === "i" || e.key === "I") {
-        state.setActiveTool("eyedropper"); state.setBsStart(null); state.setHalfStitchTool(null);
+        state.setActiveTool("eyedropper"); state.setBsStart(null); state.setPartialStitchTool(null);
         return;
       }
       if (e.key === "v" || e.key === "V") {
@@ -74,7 +74,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     state.activeTool, state.bsStart, state.isActive,
     state.editHistory, state.redoHistory, state.pat, state.pal,
     state.namePromptOpen, state.modal, state.overflowOpen,
-    state.selectedColorId, state.halfStitchTool, state.hiId,
+    state.selectedColorId, state.partialStitchTool, state.hiId,
     state.hasSelection, state.lassoInProgress, state.highlightMode,
     history.undoEdit, history.redoEdit, io.saveProject,
   ]);

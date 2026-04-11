@@ -119,85 +119,110 @@ async function clearProjectFromDB() {
   }
 }
 
-// ═══ Half-stitch drawing helpers ═══
+// ═══ Quadrant partial-stitch drawing helpers ═══
+// These replace the old half-stitch helpers (drawHalfTriangle, drawHalfLine, etc.)
 
-// Draw a triangular fill for one half of a cell.
-// dir: "fwd" (/ bottom-left to top-right) or "bck" (\ top-left to bottom-right)
-// rgb: [r,g,b], alpha: 0-1
-function drawHalfTriangle(ctx, px, py, cSz, dir, rgb, alpha) {
+// Draw a filled triangle for one quadrant of a cell.
+// quadrant: "TL" | "TR" | "BL" | "BR"
+// The cell is divided by its two diagonals into four triangles:
+//   TL = top triangle (apex=top-left corner, base towards centre)
+//   TR = right triangle
+//   BL = left triangle
+//   BR = bottom triangle
+function drawQuadrantFill(ctx, px, py, cSz, quadrant, rgb, alpha) {
   if (alpha <= 0) return;
-  ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+  ctx.fillStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + alpha + ")";
+  var mx = px + cSz / 2, my = py + cSz / 2;
   ctx.beginPath();
-  if (dir === "fwd") {
-    // / direction — triangle covers bottom-left half
-    ctx.moveTo(px, py);
-    ctx.lineTo(px, py + cSz);
-    ctx.lineTo(px + cSz, py + cSz);
-  } else {
-    // \ direction (bck) — triangle covers top-left half
-    ctx.moveTo(px, py);
-    ctx.lineTo(px + cSz, py);
-    ctx.lineTo(px, py + cSz);
+  switch (quadrant) {
+    case "TL":
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + cSz, py);
+      ctx.lineTo(mx, my);
+      ctx.lineTo(px, py + cSz);
+      break;
+    case "TR":
+      ctx.moveTo(px + cSz, py);
+      ctx.lineTo(px + cSz, py + cSz);
+      ctx.lineTo(mx, my);
+      ctx.lineTo(px, py);
+      break;
+    case "BL":
+      ctx.moveTo(px, py + cSz);
+      ctx.lineTo(px, py);
+      ctx.lineTo(mx, my);
+      ctx.lineTo(px + cSz, py + cSz);
+      break;
+    case "BR":
+      ctx.moveTo(px + cSz, py + cSz);
+      ctx.lineTo(px, py + cSz);
+      ctx.lineTo(mx, my);
+      ctx.lineTo(px + cSz, py);
+      break;
   }
   ctx.closePath();
   ctx.fill();
 }
 
-// Draw the complementary (opposite) triangle for a half stitch.
-function drawHalfTriangleComplement(ctx, px, py, cSz, dir, rgb, alpha) {
+// Draw the stitch thread line for a quadrant (corner to centre).
+function drawQuadrantStitchLine(ctx, px, py, cSz, quadrant, rgb, alpha) {
   if (alpha <= 0) return;
-  ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
-  ctx.beginPath();
-  if (dir === "fwd") {
-    // Complement of / = top-right triangle
-    ctx.moveTo(px, py);
-    ctx.lineTo(px + cSz, py);
-    ctx.lineTo(px + cSz, py + cSz);
-  } else {
-    // Complement of \ = bottom-right triangle
-    ctx.moveTo(px + cSz, py);
-    ctx.lineTo(px + cSz, py + cSz);
-    ctx.lineTo(px, py + cSz);
-  }
-  ctx.closePath();
-  ctx.fill();
-}
-
-// Draw a diagonal line for a half stitch.
-// dir: "fwd" (/) or "bck" (\)
-function drawHalfLine(ctx, px, py, cSz, dir, rgb, alpha, lineWidth) {
-  if (alpha <= 0) return;
-  ctx.strokeStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
-  ctx.lineWidth = lineWidth;
+  var mx = px + cSz / 2, my = py + cSz / 2;
+  ctx.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + alpha + ")";
+  ctx.lineWidth = Math.max(1, cSz * 0.1);
   ctx.lineCap = "round";
   ctx.beginPath();
-  if (dir === "fwd") {
-    // / from bottom-left to top-right
-    ctx.moveTo(px + 1, py + cSz - 1);
-    ctx.lineTo(px + cSz - 1, py + 1);
-  } else {
-    // \ from top-left to bottom-right
-    ctx.moveTo(px + 1, py + 1);
-    ctx.lineTo(px + cSz - 1, py + cSz - 1);
+  switch (quadrant) {
+    case "TL": ctx.moveTo(px + 1, py + 1);           ctx.lineTo(mx, my); break;
+    case "TR": ctx.moveTo(px + cSz - 1, py + 1);     ctx.lineTo(mx, my); break;
+    case "BL": ctx.moveTo(px + 1, py + cSz - 1);     ctx.lineTo(mx, my); break;
+    case "BR": ctx.moveTo(px + cSz - 1, py + cSz - 1); ctx.lineTo(mx, my); break;
   }
   ctx.stroke();
 }
 
-// Draw a half-stitch symbol centered on the triangle centroid.
-function drawHalfSymbol(ctx, px, py, cSz, dir, symbol, color, fontSize, fontWeight) {
+// Draw a symbol at the centroid of a quadrant.
+function drawQuadrantSymbol(ctx, px, py, cSz, quadrant, symbol, color) {
   ctx.fillStyle = color;
-  ctx.font = (fontWeight ? fontWeight + " " : "") + fontSize + "px monospace";
+  ctx.font = "bold " + Math.max(5, cSz * 0.35) + "px monospace";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  let sx, sy;
-  if (dir === "fwd") {
-    sx = px + cSz * 0.33;
-    sy = py + cSz * 0.67;
-  } else {
-    sx = px + cSz * 0.33;
-    sy = py + cSz * 0.33;
+  var sx, sy;
+  switch (quadrant) {
+    case "TL": sx = px + cSz * 0.25; sy = py + cSz * 0.25; break;
+    case "TR": sx = px + cSz * 0.75; sy = py + cSz * 0.25; break;
+    case "BL": sx = px + cSz * 0.25; sy = py + cSz * 0.75; break;
+    case "BR": sx = px + cSz * 0.75; sy = py + cSz * 0.75; break;
   }
   ctx.fillText(symbol, sx, sy);
+}
+
+// Determine which quadrant of a cell a click falls in based on local coords.
+function hitTestQuadrant(localX, localY, cSz) {
+  var mx = cSz / 2, my = cSz / 2;
+  // Use both diagonals to determine quadrant:
+  // TL diagonal: from (0,0) to (cSz,cSz) — points above/left are "top"
+  // TR diagonal: from (cSz,0) to (0,cSz) — split left/right
+  var onTLDiag = localY < localX;          // above \ diagonal = TR or TL side
+  var onTRDiag = localY < (cSz - localX);  // above / diagonal = TL or TR side
+  if (onTLDiag && onTRDiag) return "TL";
+  if (!onTLDiag && onTRDiag) return "BL";
+  if (onTLDiag && !onTRDiag) return "TR";
+  return "BR";
+}
+
+// Migrate a legacy halfStitch entry {fwd?, bck?} to the new quadrant format.
+function migrateHalfStitch(entry) {
+  var result = {};
+  if (entry.fwd) {
+    result.BL = { id: entry.fwd.id, rgb: entry.fwd.rgb };
+    result.TR = { id: entry.fwd.id, rgb: entry.fwd.rgb };
+  }
+  if (entry.bck) {
+    result.TL = { id: entry.bck.id, rgb: entry.bck.rgb };
+    result.BR = { id: entry.bck.id, rgb: entry.bck.rgb };
+  }
+  return result;
 }
 
 // ═══ Stats helpers ═══
@@ -605,20 +630,7 @@ function getColourTimeline(sessions) {
   return timeline;
 }
 
-// Determine which half of a cell a click falls in.
-// Returns "fwd", "bck", or "ambiguous".
-function hitTestHalfStitch(localX, localY, cSz, ambiguousRadius) {
-  ambiguousRadius = ambiguousRadius || 8;
-  var cx = cSz / 2, cy = cSz / 2;
-  if (Math.abs(localX - cx) < ambiguousRadius && Math.abs(localY - cy) < ambiguousRadius) {
-    return "ambiguous";
-  }
-  // Classify relative to the / diagonal (bottom-left to top-right).
-  // localX + localY == cSz lies on the diagonal.
-  // Below the / diagonal = fwd triangle, above = bck.
-  var diag = localX + localY;
-  return diag > cSz ? "fwd" : "bck";
-}
+// hitTestHalfStitch is replaced by hitTestQuadrant above.
 
 /**
  * Draws geometric shapes for the standard pattern symbols directly onto a jsPDF instance.

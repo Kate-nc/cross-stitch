@@ -32,7 +32,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     drawPatternOnCanvas(ctx.expRef.current.getContext("2d"), oX2, oY2, dW2, dH2, expCs, G, exportState);
   }, [
     ctx.tab, ctx.pat, ctx.cmap, ctx.sW, ctx.sH, ctx.pageMode, ctx.exportPage, ctx.pxX,
-    ctx.view, ctx.hiId, ctx.showCtr, ctx.bsLines, ctx.halfStitches
+    ctx.view, ctx.hiId, ctx.showCtr, ctx.bsLines, ctx.partialStitches
   ]);
 
   React.useEffect(function() { renderExport(); }, [renderExport]);

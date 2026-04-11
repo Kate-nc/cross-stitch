@@ -48,6 +48,11 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("line", {x1:"1",y1:"11",x2:"11",y2:"1",stroke:"currentColor",strokeWidth:"1.8"}));
   var svgBck = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
     h("line", {x1:"1",y1:"1",x2:"11",y2:"11",stroke:"currentColor",strokeWidth:"1.8"}));
+  var svgQtr = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
+    h("polygon", {points:"1,11 11,1 1,1",fill:"currentColor",fillOpacity:"0.75",stroke:"none"}));
+  var svgThreeQtr = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
+    h("line", {x1:"1",y1:"11",x2:"11",y2:"1",stroke:"currentColor",strokeWidth:"1.8"}),
+    h("line", {x1:"1",y1:"1",x2:"6",y2:"6",stroke:"currentColor",strokeWidth:"1.8"}));
   var svgErase = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
     h("line", {x1:"2",y1:"2",x2:"10",y2:"10",stroke:"currentColor",strokeWidth:"1.5"}),
     h("line", {x1:"10",y1:"2",x2:"2",y2:"10",stroke:"currentColor",strokeWidth:"1.5"}));
@@ -106,7 +111,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       }, svgErase, "Erase"),
       h("button", {
         className:"tb-btn"+(ctx.activeTool==="eyedropper"?" tb-btn--on":""),
-        onClick:function(){ctx.setActiveTool("eyedropper"); ctx.setBsStart(null); ctx.setHalfStitchTool(null);},
+        onClick:function(){ctx.setActiveTool("eyedropper"); ctx.setBsStart(null); ctx.setPartialStitchTool(null);},
         title:"Eyedropper (I)"
       }, "Pick")
     )
@@ -115,10 +120,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Stitch type dropdown — shown only when paint or fill is the active brush mode
   var showStitchGrp = (ctx.brushMode==="paint" || ctx.brushMode==="fill") && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase";
   var stitchMeta = {
-    "cross":      {icon:svgX,    label:"Cross",    cls:"tb-btn--green"},
-    "half-fwd":   {icon:svgFwd,  label:"Half /",   cls:"tb-btn--blue"},
-    "half-bck":   {icon:svgBck,  label:"Half \\",  cls:"tb-btn--blue"},
-    "backstitch": {icon:null,    label:"Bs",       cls:"tb-btn--on"}
+    "cross":         {icon:svgX,         label:"Cross",       cls:"tb-btn--green"},
+    "quarter":       {icon:svgQtr,       label:"\u00BC Stitch",  cls:"tb-btn--blue"},
+    "half-fwd":      {icon:svgFwd,       label:"Half /",       cls:"tb-btn--blue"},
+    "half-bck":      {icon:svgBck,       label:"Half \\",      cls:"tb-btn--blue"},
+    "three-quarter": {icon:svgThreeQtr,  label:"\u00BE Stitch",  cls:"tb-btn--blue"},
+    "backstitch":    {icon:null,         label:"Bs",           cls:"tb-btn--on"}
   };
   var activeSM = stitchMeta[ctx.stitchType] || stitchMeta["cross"];
   var stitchDrop = showStitchGrp ? [
@@ -186,8 +193,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Brush size group
   var showBrushSize = (
     ((ctx.stitchType === "cross" || ctx.stitchType === "half-fwd" || ctx.stitchType === "half-bck") && ctx.brushMode === "paint") ||
-    ctx.stitchType === "erase" ||
-    (ctx.halfStitchTool && ctx.halfStitchTool !== "erase")
+    ctx.stitchType === "erase"
   ) && ctx.activeTool !== "eyedropper";
   var sizeGrp = showBrushSize ? [
     h("div", {key:"sdiv-sz", className:"tb-sdiv"}),
@@ -244,7 +250,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           className:"tb-drop-item"+(ctx.activeTool==="magicWand"?" tb-drop-item--on":""),
           onClick:function(){
             if (ctx.activeTool==="magicWand") ctx.setActiveTool(null);
-            else { ctx.setActiveTool("magicWand"); ctx.setHalfStitchTool(null); ctx.setBsStart(null); if (ctx.cancelLasso) ctx.cancelLasso(); }
+            else { ctx.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); ctx.setBsStart(null); if (ctx.cancelLasso) ctx.cancelLasso(); }
           }
         }, svgWand, "Magic Wand"),
         h("button", {
@@ -252,7 +258,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){
             var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="freehand";
             if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
-            else{ctx.setActiveTool("lasso");ctx.setLassoMode("freehand");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
+            else{ctx.setActiveTool("lasso");ctx.setLassoMode("freehand");ctx.setPartialStitchTool(null);ctx.setBsStart(null);}
           }
         }, svgFreehand, "Freehand"),
         h("button", {
@@ -260,7 +266,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){
             var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="polygon";
             if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
-            else{ctx.setActiveTool("lasso");ctx.setLassoMode("polygon");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
+            else{ctx.setActiveTool("lasso");ctx.setLassoMode("polygon");ctx.setPartialStitchTool(null);ctx.setBsStart(null);}
           }
         }, svgPolygon, "Polygon"),
         h("button", {
@@ -268,7 +274,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){
             var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="magnetic";
             if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
-            else{ctx.setActiveTool("lasso");ctx.setLassoMode("magnetic");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
+            else{ctx.setActiveTool("lasso");ctx.setLassoMode("magnetic");ctx.setPartialStitchTool(null);ctx.setBsStart(null);}
           }
         }, svgMagnetic, "Magnetic"),
         (ctx.hasSelection || ctx.lassoInProgress) && h("div", {style:{borderTop:"1px solid var(--border)",marginTop:3,paddingTop:3}},

@@ -240,9 +240,9 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
   var selectedColorId = state.selectedColorId;
   var brushSize   = state.brushSize;
   var stitchType  = state.stitchType;
-  var halfStitchTool = state.halfStitchTool;
+  // partialStitchTool used via state.partialStitchTool (see _psTool below)
   var img         = state.img;
-  var halfStitches = state.halfStitches;
+  var partialStitches = state.partialStitches || new Map();
   var showOverlayImg = state.showOverlay && !!img && !!img.src;
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
   // Resolve highlight mode
@@ -337,18 +337,21 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
         _drawCellHighlight(ctx2d, px, py, cSz, m.rgb, hl);
       }
 
-      var hsEntry = halfStitches.get(idx);
-      if (hsEntry) {
-        ["fwd", "bck"].forEach(function(dir) {
-          var hs = hsEntry[dir];
-          if (!hs) return;
+      var psEntry = partialStitches.get(idx);
+      if (psEntry) {
+        var _qs = ["TL","TR","BL","BR"];
+        _qs.forEach(function(q) {
+          var qs = psEntry[q];
+          if (!qs) return;
           var alpha3 = dimAlpha;
-          drawHalfTriangle(ctx2d, px, py, cSz, dir, hs.rgb, alpha3);
-          if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, dir, hs.rgb, alpha3, Math.max(1, cSz * 0.12));
+          drawQuadrantFill(ctx2d, px, py, cSz, q, qs.rgb, alpha3);
+          if (cSz >= 5) drawQuadrantStitchLine(ctx2d, px, py, cSz, q, qs.rgb, alpha3);
           if (cSz >= 10 && (view === "symbol" || view === "both")) {
-            var hsInfo = cmap ? cmap[hs.id] : null;
-            var sym = hsInfo ? hsInfo.symbol : null;
-            if (sym) drawHalfSymbol(ctx2d, px, py, cSz, dir, sym, view === "both" ? (luminance(hs.rgb) < 128 ? "#fff" : "#000") : "#333");
+            var qInfo = cmap ? cmap[qs.id] : null;
+            if (qInfo && qInfo.symbol) {
+              var qSymColor = view === "both" ? (luminance(qs.rgb) < 128 ? "#fff" : "#000") : "#333";
+              drawQuadrantSymbol(ctx2d, px, py, cSz, q, qInfo.symbol, qSymColor);
+            }
           }
         });
       }
@@ -392,7 +395,8 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
   if (hoverCoords && hoverCoords.gx >= offX && hoverCoords.gy >= offY && hoverCoords.gx < offX + dW && hoverCoords.gy < offY + dH) {
     var hx = hoverCoords.gx - offX;
     var hy = hoverCoords.gy - offY;
-    var isDrawingTool = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (halfStitchTool && halfStitchTool !== "erase");
+    var _psTool = state.partialStitchTool;
+    var isDrawingTool = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (_psTool && _psTool !== "erase");
     var actualBrushSize = isDrawingTool ? Math.min(brushSize, Math.min(dW - hx, dH - hy)) : 1;
     if (actualBrushSize < 1) actualBrushSize = 1;
     ctx2d.fillStyle = "rgba(0,0,0,0.03)";
@@ -444,7 +448,8 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
 
   // Hover paint/erase preview outline
   if (hoverCoords) {
-    var isDrawingTool2 = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (halfStitchTool && halfStitchTool !== "erase");
+    var _psTool2 = state.partialStitchTool;
+    var isDrawingTool2 = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (_psTool2 && _psTool2 !== "erase");
     var isValidDraw = (activeTool === "paint" || activeTool === "fill") && selectedColorId && cmap;
     if (isDrawingTool2) {
       var hx2 = hoverCoords.gx - offX, hy2 = hoverCoords.gy - offY;
@@ -466,7 +471,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
           ctx2d.fillStyle = "rgba(239,68,68,0.2)";
           ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
           ctx2d.lineWidth = 1;
-        } else if (halfStitchTool && halfStitchTool !== "erase" && selectedColorId && cmap) {
+        } else if (_psTool2 && _psTool2 !== "erase" && selectedColorId && cmap) {
           var rgb2 = cmap[selectedColorId].rgb;
           ctx2d.strokeStyle = "rgba(" + rgb2[0] + "," + rgb2[1] + "," + rgb2[2] + ",0.8)";
           ctx2d.lineWidth = Math.max(2, cSz * 0.15);
@@ -502,7 +507,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   var showCtr     = state.showCtr;
   var bsLines     = state.bsLines;
   var img         = state.img;
-  var halfStitches = state.halfStitches;
+  var partialStitches = state.partialStitches || new Map();
   var showOverlayImg = state.showOverlay && !!img && !!img.src;
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
   var showCleanupDiff = state.showCleanupDiff;
@@ -598,18 +603,21 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
         _drawCellHighlight(ctx2d, px, py, cSz, m.rgb, hl);
       }
 
-      var hsEntry = halfStitches.get(idx);
-      if (hsEntry) {
-        ["fwd", "bck"].forEach(function(dir) {
-          var hs = hsEntry[dir];
-          if (!hs) return;
+      var psEntry = partialStitches.get(idx);
+      if (psEntry) {
+        var _qs = ["TL","TR","BL","BR"];
+        _qs.forEach(function(q) {
+          var qs = psEntry[q];
+          if (!qs) return;
           var alpha3 = dimAlpha;
-          drawHalfTriangle(ctx2d, px, py, cSz, dir, hs.rgb, alpha3);
-          if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, dir, hs.rgb, alpha3, Math.max(1, cSz * 0.12));
+          drawQuadrantFill(ctx2d, px, py, cSz, q, qs.rgb, alpha3);
+          if (cSz >= 5) drawQuadrantStitchLine(ctx2d, px, py, cSz, q, qs.rgb, alpha3);
           if (cSz >= 10 && (view === "symbol" || view === "both")) {
-            var hsInfo = cmap ? cmap[hs.id] : null;
-            var sym = hsInfo ? hsInfo.symbol : null;
-            if (sym) drawHalfSymbol(ctx2d, px, py, cSz, dir, sym, view === "both" ? (luminance(hs.rgb) < 128 ? "#fff" : "#000") : "#333");
+            var qInfo = cmap ? cmap[qs.id] : null;
+            if (qInfo && qInfo.symbol) {
+              var qSymColor = view === "both" ? (luminance(qs.rgb) < 128 ? "#fff" : "#000") : "#333";
+              drawQuadrantSymbol(ctx2d, px, py, cSz, q, qInfo.symbol, qSymColor);
+            }
           }
         });
       }
@@ -696,7 +704,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
   var selectedColorId = state.selectedColorId;
   var brushSize   = state.brushSize;
   var stitchType  = state.stitchType;
-  var halfStitchTool = state.halfStitchTool;
+  var partialStitchTool = state.partialStitchTool;
   var cmap        = state.cmap;
 
   // Marching ants for outline highlight mode (animated, drawn in overlay)
@@ -709,7 +717,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
   if (hoverCoords && hoverCoords.gx >= offX && hoverCoords.gy >= offY && hoverCoords.gx < offX + dW && hoverCoords.gy < offY + dH) {
     var hx = hoverCoords.gx - offX;
     var hy = hoverCoords.gy - offY;
-    var isDrawingTool = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (halfStitchTool && halfStitchTool !== "erase");
+    var isDrawingTool = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (partialStitchTool && partialStitchTool !== "erase");
     var actualBrushSize = isDrawingTool ? Math.min(brushSize, Math.min(dW - hx, dH - hy)) : 1;
     if (actualBrushSize < 1) actualBrushSize = 1;
     ctx2d.fillStyle = "rgba(0,0,0,0.03)";
@@ -758,7 +766,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
 
   // Hover paint/erase preview outline
   if (hoverCoords) {
-    var isDrawingTool2 = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (halfStitchTool && halfStitchTool !== "erase");
+    var isDrawingTool2 = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (partialStitchTool && partialStitchTool !== "erase");
     var isValidDraw = (activeTool === "paint" || activeTool === "fill") && selectedColorId && cmap;
     if (isDrawingTool2) {
       var hx2 = hoverCoords.gx - offX, hy2 = hoverCoords.gy - offY;
@@ -780,7 +788,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
           ctx2d.fillStyle = "rgba(239,68,68,0.2)";
           ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
           ctx2d.lineWidth = 1;
-        } else if (halfStitchTool && halfStitchTool !== "erase" && selectedColorId && cmap) {
+        } else if (partialStitchTool && partialStitchTool !== "erase" && selectedColorId && cmap) {
           var rgb2 = cmap[selectedColorId].rgb;
           ctx2d.strokeStyle = "rgba(" + rgb2[0] + "," + rgb2[1] + "," + rgb2[2] + ",0.8)";
           ctx2d.lineWidth = Math.max(2, cSz * 0.15);
