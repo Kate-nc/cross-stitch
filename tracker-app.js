@@ -63,6 +63,8 @@ const[showExitEditModal,setShowExitEditModal]=useState(false);
 const[drawer,setDrawer]=useState(false),[focusColour,setFocusColour]=useState(null);
 const[showNavHelp,setShowNavHelp]=useState(false);
 const[highlightSkipDone,setHighlightSkipDone]=useState(true);
+const[onlyStarted,setOnlyStarted]=useState(false);
+const[trackerDimLevel,setTrackerDimLevel]=useState(()=>{try{return parseFloat(localStorage.getItem("cs_trDimLv")||"0.1");}catch(_){return 0.1;}});
 const[highlightMode,setHighlightMode]=useState(()=>{try{return localStorage.getItem("cs_hlMode")||"isolate";}catch(_){return "isolate";}});
 const[tintColor,setTintColor]=useState(()=>{try{return localStorage.getItem("cs_tintColor")||"#FFD700";}catch(_){return "#FFD700";}});
 const[tintOpacity,setTintOpacity]=useState(()=>{try{return parseFloat(localStorage.getItem("cs_tintOp")||"0.4");}catch(_){return 0.4;}});
@@ -183,10 +185,12 @@ const colourDoneCounts=useMemo(()=>{
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
-  if(!highlightSkipDone)return pal;
-  const incomplete=pal.filter(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;});
-  return incomplete.length>0?incomplete:pal;
-},[pal,colourDoneCounts,highlightSkipDone]);
+  let list=pal;
+  if(onlyStarted){const started=pal.filter(p=>{const dc=colourDoneCounts[p.id];return dc&&dc.done>0;});if(started.length>0)list=started;}
+  if(!highlightSkipDone)return list;
+  const incomplete=list.filter(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;});
+  return incomplete.length>0?incomplete:list;
+},[pal,colourDoneCounts,highlightSkipDone,onlyStarted]);
 
 const prevFocusIdRef=useRef(null);
 const prevFocusDoneRef=useRef(null);
@@ -1681,6 +1685,9 @@ function drawStitch(ctx,cSz,viewportRect){
       let isDn=done&&done[idx];
       let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__"&&m.id!=="__empty__";
       const effectiveDimmed=dimmed&&highlightMode!=="outline"&&highlightMode!=="tint";
+      // Dim level: 0=white, 1=full colour; used by isolate/spotlight backgrounds
+      const dimR=Math.round(255-(255-m.rgb[0])*trackerDimLevel),dimG=Math.round(255-(255-m.rgb[1])*trackerDimLevel),dimB=Math.round(255-(255-m.rgb[2])*trackerDimLevel);
+      const dimFill=effectiveDimmed?`rgb(${dimR},${dimG},${dimB})`:'#f1f5f9';
       if(m.id==="__skip__"||m.id==="__empty__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}
         // Half stitches on skip/empty cells
         let hs=halfStitches.get(idx);
@@ -1704,8 +1711,8 @@ function drawStitch(ctx,cSz,viewportRect){
         if(dimmed){ctx.fillStyle="#e8ecf0";ctx.fillRect(px,py,cSz,cSz);}
         else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
       }else{
-        if(isDn){ctx.fillStyle=dimmed?"#f1f5f9":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-        else if(dimmed){ctx.fillStyle="#f1f5f9";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+        if(isDn){ctx.fillStyle=effectiveDimmed?dimFill:`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+        else if(dimmed){ctx.fillStyle=dimFill;ctx.fillRect(px,py,cSz,cSz);if(trackerDimLevel<0.25&&info&&cSz>=8){ctx.fillStyle=`rgba(0,0,0,${Math.max(0.04,0.12-trackerDimLevel*0.4)})`;ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}else if(trackerDimLevel>=0.25&&info&&cSz>=8){ctx.fillStyle=luminance(m.rgb)>140?'rgba(0,0,0,0.5)':'rgba(255,255,255,0.6)';ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
         else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#1e293b";ctx.font=fHlFocus;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
       }
       // Render half stitches on top of full-stitch cells
@@ -1783,7 +1790,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel]);
 useEffect(()=>renderStitch(),[renderStitch]);
 
 // Marching ants animation interval for "outline" highlight mode
@@ -2771,7 +2778,7 @@ return(
             <button key={k} className={stitchView===k?"on":""} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>
           )}
         </div>
-        {stitchView==="highlight"&&<div style={{fontSize:11,color:"#475569"}}>Focus one colour at a time. Use ◀ ▶ to cycle.</div>}
+        {stitchView==="highlight"&&<div style={{fontSize:11,color:"#475569"}}>Focus one colour at a time. ◀ ▶ or <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #cbd5e1",borderRadius:3,background:"#f1f5f9"}}>[ ]</kbd> to cycle.</div>}
         {stitchView==="highlight"&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:6}}>
           <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#f8f9fa",cursor:"pointer",lineHeight:1}}>◀</button>
           {focusColour&&cmap&&cmap[focusColour]&&(()=>{const p=cmap[focusColour];return(
@@ -2783,6 +2790,9 @@ return(
           <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#475569",cursor:"pointer",whiteSpace:"nowrap",userSelect:"none",marginLeft:4}}>
             <input type="checkbox" checked={highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{cursor:"pointer"}}/>Skip done
           </label>
+          <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#475569",cursor:"pointer",whiteSpace:"nowrap",userSelect:"none",marginLeft:4}}>
+            <input type="checkbox" checked={onlyStarted} onChange={e=>setOnlyStarted(e.target.checked)} style={{cursor:"pointer"}}/>Started
+          </label>
         </div>}
         {stitchView==="highlight"&&focusColour&&<div style={{marginTop:6}}>
           <div style={{display:"flex",gap:0,borderRadius:6,overflow:"hidden",border:"1px solid #e2e8f0",marginBottom:4}}>
@@ -2790,6 +2800,11 @@ return(
               <button key={m} onClick={()=>setHighlightMode(m)} style={{flex:1,padding:"3px 0",fontSize:10,fontWeight:highlightMode===m?700:500,border:"none",borderRight:"1px solid #e2e8f0",background:highlightMode===m?"#0d9488":"#f8fafc",color:highlightMode===m?"#fff":"#475569",cursor:"pointer"}}>{l}</button>
             ))}
           </div>
+          {highlightMode==="isolate"&&<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,marginBottom:2}}>
+            <span style={{color:"#475569",flexShrink:0}}>Visibility</span>
+            <input type="range" min={0} max={60} value={Math.round(trackerDimLevel*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTrackerDimLevel(v);try{localStorage.setItem("cs_trDimLv",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
+            <span style={{width:22,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(trackerDimLevel*100)}%</span>
+          </div>}
           {highlightMode==="tint"&&<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10}}>
             <input type="color" value={tintColor} onChange={e=>{setTintColor(e.target.value);try{localStorage.setItem("cs_tintColor",e.target.value);}catch(_){}}} style={{width:22,height:18,padding:0,border:"1px solid #e2e8f0",borderRadius:3,cursor:"pointer"}}/>
             <input type="range" min={10} max={80} value={Math.round(tintOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTintOpacity(v);try{localStorage.setItem("cs_tintOp",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
