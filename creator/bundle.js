@@ -6398,7 +6398,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         if (ctx.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
         if (ctx.activeTool === "fill") return "cell";
-        if (ctx.activeTool === "eraseAll" || ctx.activeTool === "eraseBs") return "not-allowed";
+        if (ctx.activeTool === "eraseBs") return "not-allowed";
         if (ctx.activeTool || ctx.halfStitchTool) return "crosshair";
         return "default";
       })()},
