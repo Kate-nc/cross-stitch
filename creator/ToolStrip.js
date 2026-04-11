@@ -158,6 +158,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         key: p.id,
         onClick: function() { ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id); },
         title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
+        "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
+        "aria-pressed": isSel,
         style:{
           width:20, height:20, flexShrink:0,
           borderRadius:4, cursor:"pointer", padding:0,

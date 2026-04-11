@@ -359,16 +359,14 @@ window.useCreatorState = function useCreatorState() {
     if (lassoCancelRef.current) lassoCancelRef.current();
   }
 
-  // Initialize paint tool when pattern is loaded
+  // Initialize paint tool/colour only on first pattern load (when no colour is selected yet)
   useEffect(function() {
-    if (!pal || pal.length === 0) return;
-    // Activate paint mode with the most frequent color
+    if (!pat || !pal || pal.length === 0) return;
+    if (selectedColorId != null) return;
     setBrushAndActivate("paint");
     selectStitchType("cross");
-    if (pal.length > 0) {
-      setSelectedColorId(pal[0].id);
-    }
-  }, [pal]);
+    setSelectedColorId(pal[0].id);
+  }, [pat, pal]);
 
   function initBlankGrid(w, h) {
     var blank = Array.from({ length: w * h }, function() { return { id: "__empty__", rgb: [255, 255, 255] }; });

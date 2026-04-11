@@ -2605,16 +2605,14 @@ window.useCreatorState = function useCreatorState() {
     if (lassoCancelRef.current) lassoCancelRef.current();
   }
 
-  // Initialize paint tool when pattern is loaded
+  // Initialize paint tool/colour only on first pattern load (when no colour is selected yet)
   useEffect(function() {
-    if (!pal || pal.length === 0) return;
-    // Activate paint mode with the most frequent color
+    if (!pat || !pal || pal.length === 0) return;
+    if (selectedColorId != null) return;
     setBrushAndActivate("paint");
     selectStitchType("cross");
-    if (pal.length > 0) {
-      setSelectedColorId(pal[0].id);
-    }
-  }, [pal]);
+    setSelectedColorId(pal[0].id);
+  }, [pat, pal]);
 
   function initBlankGrid(w, h) {
     var blank = Array.from({ length: w * h }, function() { return { id: "__empty__", rgb: [255, 255, 255] }; });
@@ -3091,6 +3089,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var TOUCH_TAP_SLOP = 10;
   var LONG_PRESS_MS = 500;
 
+  function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
+  function getHalfStitchTool() { return state.halfStitchToolRef ? state.halfStitchToolRef.current : state.halfStitchTool; }
+
   function isPrimaryButton(e) {
     return (e.button == null ? 0 : e.button) === 0;
   }
@@ -3314,8 +3315,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatClick(e) {
     var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
     var cs = state.cs, G = state.G, pcRef = state.pcRef;
-    var activeTool = state.activeToolRef ? state.activeToolRef.current : state.activeTool;
-    var halfStitchTool = state.halfStitchToolRef ? state.halfStitchToolRef.current : state.halfStitchTool;
+    var activeTool = getActiveTool();
+    var halfStitchTool = getHalfStitchTool();
     var selectedColorId = state.selectedColorId, bsLines = state.bsLines;
     var bsStart = state.bsStart, bsContinuous = state.bsContinuous;
     var halfStitches = state.halfStitches, brushMode = state.brushMode;
@@ -3458,8 +3459,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatMouseDown(e) {
     if (!isPrimaryButton(e)) return;
     var pat = state.pat, pcRef = state.pcRef, cs = state.cs, G = state.G;
-    var activeTool = state.activeToolRef ? state.activeToolRef.current : state.activeTool;
-    var halfStitchTool = state.halfStitchToolRef ? state.halfStitchToolRef.current : state.halfStitchTool;
+    var activeTool = getActiveTool();
+    var halfStitchTool = getHalfStitchTool();
     var selectedColorId = state.selectedColorId, cmap = state.cmap;
     if (!pcRef.current || !pat) return;
 
@@ -3515,7 +3516,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handlePatMouseMove(e) {
     var pat = state.pat, pcRef = state.pcRef, cs = state.cs, G = state.G;
-    var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
+    var activeTool = getActiveTool();
+    var halfStitchTool = getHalfStitchTool();
     if (!pcRef.current || !pat || (!activeTool && !halfStitchTool)) return;
     var gc = gridCoord(pcRef, e, cs, G, activeTool === "backstitch" || activeTool === "eraseBs");
     if (!gc) return;
@@ -3532,7 +3534,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   function handlePatMouseUp(e) {
-    if (state.activeTool === "lasso") {
+    if (getActiveTool() === "lasso") {
       if (state.lassoMode === "freehand" && state.lassoActive) state.finalizeLasso();
       return;
     }
@@ -3592,7 +3594,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handlePatMouseLeave(e) {
     state.setHoverCoords(null);
-    if (state.activeTool === "lasso" && state.lassoMode === "freehand" && state.lassoActive) {
+    if (getActiveTool() === "lasso" && state.lassoMode === "freehand" && state.lassoActive) {
       state.finalizeLasso();
       return;
     }
@@ -4888,6 +4890,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         key: p.id,
         onClick: function() { ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id); },
         title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
+        "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
+        "aria-pressed": isSel,
         style:{
           width:20, height:20, flexShrink:0,
           borderRadius:4, cursor:"pointer", padding:0,
@@ -5181,9 +5185,6 @@ window.MagicWandPanel = function MagicWandPanel() {
   var isSelTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
   var hasSelection = ctx.hasSelection;
   var panel = ctx.wandPanel;
-
-  // The "effective" op mode: modifier key pressed right now beats the persistent setting
-  var effectiveMode = ctx.selectionModifier || ctx.wandOpMode;
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   function btn(label, onClick, opts) {

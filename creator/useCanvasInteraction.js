@@ -22,6 +22,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var TOUCH_TAP_SLOP = 10;
   var LONG_PRESS_MS = 500;
 
+  function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
+  function getHalfStitchTool() { return state.halfStitchToolRef ? state.halfStitchToolRef.current : state.halfStitchTool; }
+
   function isPrimaryButton(e) {
     return (e.button == null ? 0 : e.button) === 0;
   }
@@ -245,8 +248,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatClick(e) {
     var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
     var cs = state.cs, G = state.G, pcRef = state.pcRef;
-    var activeTool = state.activeToolRef ? state.activeToolRef.current : state.activeTool;
-    var halfStitchTool = state.halfStitchToolRef ? state.halfStitchToolRef.current : state.halfStitchTool;
+    var activeTool = getActiveTool();
+    var halfStitchTool = getHalfStitchTool();
     var selectedColorId = state.selectedColorId, bsLines = state.bsLines;
     var bsStart = state.bsStart, bsContinuous = state.bsContinuous;
     var halfStitches = state.halfStitches, brushMode = state.brushMode;
@@ -389,8 +392,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatMouseDown(e) {
     if (!isPrimaryButton(e)) return;
     var pat = state.pat, pcRef = state.pcRef, cs = state.cs, G = state.G;
-    var activeTool = state.activeToolRef ? state.activeToolRef.current : state.activeTool;
-    var halfStitchTool = state.halfStitchToolRef ? state.halfStitchToolRef.current : state.halfStitchTool;
+    var activeTool = getActiveTool();
+    var halfStitchTool = getHalfStitchTool();
     var selectedColorId = state.selectedColorId, cmap = state.cmap;
     if (!pcRef.current || !pat) return;
 
@@ -446,7 +449,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handlePatMouseMove(e) {
     var pat = state.pat, pcRef = state.pcRef, cs = state.cs, G = state.G;
-    var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
+    var activeTool = getActiveTool();
+    var halfStitchTool = getHalfStitchTool();
     if (!pcRef.current || !pat || (!activeTool && !halfStitchTool)) return;
     var gc = gridCoord(pcRef, e, cs, G, activeTool === "backstitch" || activeTool === "eraseBs");
     if (!gc) return;
@@ -463,7 +467,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   function handlePatMouseUp(e) {
-    if (state.activeTool === "lasso") {
+    if (getActiveTool() === "lasso") {
       if (state.lassoMode === "freehand" && state.lassoActive) state.finalizeLasso();
       return;
     }
@@ -523,7 +527,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handlePatMouseLeave(e) {
     state.setHoverCoords(null);
-    if (state.activeTool === "lasso" && state.lassoMode === "freehand" && state.lassoActive) {
+    if (getActiveTool() === "lasso" && state.lassoMode === "freehand" && state.lassoActive) {
       state.finalizeLasso();
       return;
     }

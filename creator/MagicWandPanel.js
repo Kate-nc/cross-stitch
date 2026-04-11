@@ -13,9 +13,6 @@ window.MagicWandPanel = function MagicWandPanel() {
   var hasSelection = ctx.hasSelection;
   var panel = ctx.wandPanel;
 
-  // The "effective" op mode: modifier key pressed right now beats the persistent setting
-  var effectiveMode = ctx.selectionModifier || ctx.wandOpMode;
-
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   function btn(label, onClick, opts) {
     opts = opts || {};
