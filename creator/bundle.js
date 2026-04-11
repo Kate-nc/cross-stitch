@@ -5677,7 +5677,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               }, "\xD7")
             )
           : h(React.Fragment, null,
-              h("span", {style:{fontSize:12}}, "\uD83D\uDC46"),
+              h("span", {style:{fontSize:12}}, Icons.pointing()),
               h("span", {style:{color:"#92400e"}}, "Select a colour to paint \u2014 or right-click the canvas")
             )
       ),
@@ -5864,7 +5864,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           fontWeight:ctx.showCleanupDiff?600:400,
           display:"flex",alignItems:"center",gap:4,lineHeight:1.4
         }
-      }, "\uD83D\uDC41\uFE0F " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
+      }, Icons.eye(), " " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
     ),
     ctx.showCleanupDiff && ctx.cleanupDiff && h("div", {style:{
       fontSize:11,color:"#475569",padding:"6px 10px",
@@ -5894,7 +5894,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         color:isDanger?"#991b1b":"#92400e",
         display:"flex",alignItems:"flex-start",gap:6
       }},
-        h("span", {style:{fontSize:14,lineHeight:1,flexShrink:0}}, isDanger?"\u26A0\uFE0F":"\uD83D\uDCA1"),
+        h("span", {style:{fontSize:14,lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
         h("span", null, warning.message)
       );
     })(),
@@ -6199,8 +6199,9 @@ window.CreatorContextMenu = function CreatorContextMenu() {
 
   function item(label, onClick, opts) {
     opts = opts || {};
+    var key = opts.k || (typeof label === 'string' ? label : undefined);
     return h("button", {
-      key: label,
+      key: key,
       onPointerDown: function(e) { e.stopPropagation(); },
       onClick: function(e) { e.stopPropagation(); onClick(); ctx.setContextMenu(null); },
       disabled: opts.disabled,
@@ -6242,47 +6243,47 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
 
     // Pick this colour
-    item("\uD83D\uDCA7 Pick this colour", function() {
+    item([Icons.eyedropper(), " Pick this colour"], function() {
       if (cellInfo) ctx.setSelectedColorId(cellInfo.id);
-    }, {disabled: !hasCellColour}),
+    }, {disabled: !hasCellColour, k: 'pick'}),
 
     // Fill from here — switch to fill tool so user can click the area
-    item("\uD83E\uDEA3 Switch to fill tool", function() {
+    item([Icons.bucket(), " Switch to fill tool"], function() {
       ctx.selectStitchType("cross");
       ctx.setBrushAndActivate("fill");
-    }, {disabled: !ctx.selectedColorId}),
+    }, {disabled: !ctx.selectedColorId, k: 'fill'}),
 
     sep(),
 
     // Select similar
-    item("\u2728 Select similar (wand)", function() {
+    item([Icons.wand(), " Select similar (wand)"], function() {
       ctx.setActiveTool("magicWand");
       ctx.setHalfStitchTool(null);
       ctx.setBsStart(null);
       ctx.applyWandSelect(menu.gx, menu.gy, ctx.wandOpMode);
-    }, {disabled: !hasCellColour}),
+    }, {disabled: !hasCellColour, k: 'wand'}),
 
     // Select all of this colour
-    item("\uD83C\uDFA8 Select all of this colour", function() {
+    item([Icons.palette(), " Select all of this colour"], function() {
       if (cellInfo) ctx.selectAllOfColorId(cellInfo.id);
-    }, {disabled: !hasCellColour}),
+    }, {disabled: !hasCellColour, k: 'selectall'}),
 
     sep(),
 
     // Highlight this colour
-    item(ctx.hiId === (cellInfo ? cellInfo.id : null) ? "\uD83D\uDD0D Remove highlight" : "\uD83D\uDD0E Highlight this colour", function() {
+    item(ctx.hiId === (cellInfo ? cellInfo.id : null) ? [Icons.magnifyMinus(), " Remove highlight"] : [Icons.magnify(), " Highlight this colour"], function() {
       if (cellInfo) ctx.setHiId(ctx.hiId === cellInfo.id ? null : cellInfo.id);
-    }, {disabled: !hasCellColour}),
+    }, {disabled: !hasCellColour, k: 'highlight'}),
 
     // Stitch info
-    hasCellColour && item("\u2139\uFE0F Stitch info", function() {
+    hasCellColour && item([Icons.info(), " Stitch info"], function() {
       if (cellInfo) {
         ctx.setActiveTool("magicWand");
         ctx.setHalfStitchTool(null);
         ctx.applyWandSelect(menu.gx, menu.gy, "replace");
         ctx.setWandPanel("info");
       }
-    })
+    }, {k: 'info'})
   );
 };
 
@@ -6381,7 +6382,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     !ctx.shortcutsHintDismissed && h("div", {
       style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
     },
-      h("span", null, "\uD83D\uDCA1 Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
+      h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
         onClick: function() {
           localStorage.setItem("shortcuts_hint_dismissed", "1");
@@ -6401,7 +6402,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       return h("div", {
         style:{padding:"8px 12px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,fontSize:12,color:"#991b1b",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}
       },
-        h("span", null, "\u26A0\uFE0F Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
+        h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
         h("button", {
           onClick:function(){setConfettiBannerDismissed(true);},
           style:{background:"none",border:"none",color:"#991b1b",cursor:"pointer",fontSize:14,flexShrink:0,marginLeft:8}
@@ -6995,7 +6996,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     h("button", {
       onClick: ctx.handleOpenInTracker,
       style:{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:8}
-    }, "\uD83E\uDDF5 Open in Stitch Tracker \u2192"),
+    }, Icons.thread(), " Open in Stitch Tracker \u2192"),
 
     h(Section, {title:"PDF Export"},
       h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},

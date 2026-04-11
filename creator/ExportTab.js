@@ -43,7 +43,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     h("button", {
       onClick: ctx.handleOpenInTracker,
       style:{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:8}
-    }, "\uD83E\uDDF5 Open in Stitch Tracker \u2192"),
+    }, Icons.thread(), " Open in Stitch Tracker \u2192"),
 
     h(Section, {title:"PDF Export"},
       h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},

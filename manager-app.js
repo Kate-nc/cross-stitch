@@ -388,10 +388,10 @@ function ManagerApp() {
       {/* Sub-tab bar */}
       <div className="mgr-tab-bar">
         <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); }}>
-          <span className="icon">🧵</span> Thread Inventory <span className="cnt">{totalOwnedCount}</span>
+          <span className="icon">{Icons.thread()}</span> Thread Inventory <span className="cnt">{totalOwnedCount}</span>
         </button>
         <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); }}>
-          <span className="icon">📋</span> Pattern Library <span className="cnt">{patterns.length}</span>
+          <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
         </button>
       </div>
 
@@ -420,9 +420,9 @@ function ManagerApp() {
       {/* Stats strip — threads */}
       {tab === "inventory" && (
         <div className="mgr-stats-strip">
-          <div className="stat">✅ <span className="val">{totalOwnedCount}</span> skeins owned</div>
-          <div className="stat">🛒 <span className="val">{toBuyCount}</span> to buy</div>
-          {lowStockAlerts && lowStockAlerts.length > 0 && <div className="stat">⚠️ <span className="val">{lowStockAlerts.length}</span> low stock</div>}
+          <div className="stat">{Icons.check()} <span className="val">{totalOwnedCount}</span> skeins owned</div>
+          <div className="stat">{Icons.cart()} <span className="val">{toBuyCount}</span> to buy</div>
+          {lowStockAlerts && lowStockAlerts.length > 0 && <div className="stat">{Icons.warning()} <span className="val">{lowStockAlerts.length}</span> low stock</div>}
         </div>
       )}
 
@@ -432,7 +432,7 @@ function ManagerApp() {
             {/* Smart Hub: Conflicts */}
             {conflicts && conflicts.length > 0 && (
               <div className="alert-card danger">
-                <div className="at">⚠ Thread Conflicts ({conflicts.length})</div>
+                <div className="at">{Icons.warning()} Thread Conflicts ({conflicts.length})</div>
                 <div style={{ fontSize: 12, color: "#475569", marginBottom: 10 }}>These threads are needed by multiple patterns but you don't have enough.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflow: "auto" }}>
                   {conflicts.map(c => (
@@ -451,7 +451,7 @@ function ManagerApp() {
             {/* Smart Hub: Low-Stock Alerts */}
             {lowStockAlerts && lowStockAlerts.length > 0 && (
               <div className="alert-card warn" style={{ marginBottom: 16 }}>
-                <div className="at">📦 Low Stock ({lowStockAlerts.length})</div>
+                <div className="at">{Icons.box()} Low Stock ({lowStockAlerts.length})</div>
                 <div style={{ fontSize: 12, color: "#475569", marginBottom: 10 }}>Threads below your minimum stock level.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockAlerts.map(a => (
@@ -560,7 +560,7 @@ function ManagerApp() {
                   <div className="used-in">
                     {patternsUsingThread(d.id).length > 0
                       ? patternsUsingThread(d.id).map(p => (
-                        <div key={p.id || p.title} className="ui-row">📋 {p.title} <span className="need">{p.threads.find(t => t.id === d.id) ? `need ${p.threads.find(t => t.id === d.id).qty} sk` : ""}</span></div>
+                        <div key={p.id || p.title} className="ui-row">{Icons.clipboard()} {p.title} <span className="need">{p.threads.find(t => t.id === d.id) ? `need ${p.threads.find(t => t.id === d.id).qty} sk` : ""}</span></div>
                       ))
                       : <div style={{ fontSize: 11, color: "#94a3b8", padding: "4px 6px" }}>Not used in any patterns</div>
                     }
@@ -570,10 +570,10 @@ function ManagerApp() {
                   <div className="rp-h">Actions</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => updateThread(d.id, "tobuy", !state.tobuy)}>
-                      {state.tobuy ? "✅ On shopping list" : "🛒 Add to shopping list"}
+                      {state.tobuy ? <>{Icons.check()} On shopping list</> : <>{Icons.cart()} Add to shopping list</>}
                     </button>
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { if(confirm(`Remove DMC ${d.id} from inventory?`)) { updateThread(d.id, "owned", 0); updateThread(d.id, "partialStatus", null); updateThread(d.id, "tobuy", false); } }}>
-                      🗑 Remove from inventory
+                      {Icons.trash()} Remove from inventory
                     </button>
                   </div>
                 </div>
@@ -617,13 +617,13 @@ function ManagerApp() {
             </select>
           </div>
           <div className="mgr-stats-strip">
-            <div className="stat">📋 <span className="val">{patterns.length}</span> patterns</div>
-            <div className="stat">✅ <span className="val">{readyToStart ? readyToStart.filter(r => r.pct === 100).length : 0}</span> fully kitted</div>
+            <div className="stat">{Icons.clipboard()} <span className="val">{patterns.length}</span> patterns</div>
+            <div className="stat">{Icons.check()} <span className="val">{readyToStart ? readyToStart.filter(r => r.pct === 100).length : 0}</span> fully kitted</div>
           </div>
           <div className="mgr-main"><div className="mgr-content">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <button onClick={() => setProfileModalOpen(true)} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", color: "#3f3f46", fontFamily: "inherit" }}>
-                ⚙️ Thread Settings
+                {Icons.gear()} Thread Settings
               </button>
               <button
                 onClick={() => setEditingPattern({ id: Date.now().toString(), title: "", designer: "", status: "wishlist", tags: [], threads: [] })}
@@ -634,7 +634,7 @@ function ManagerApp() {
             </div>
             {activeProject && (
               <div className="alert-card success" style={{ marginBottom: 12 }}>
-                <div className="at">🟢 Currently Tracking</div>
+                <div className="at">{Icons.dot()} Currently Tracking</div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span>{activeProject.pattern && activeProject.pattern.length > 0 ? "Active Project" : "Unnamed Project"}</span>
                   <a href="stitch.html" style={{ color: "#065f46", fontWeight: 600, fontSize: 11 }}>Go to Tracker →</a>
@@ -811,9 +811,9 @@ function ManagerApp() {
                 <div className="rp-s">
                   <div className="rp-h">Actions</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setEditingPattern(p); }}>✏️ Edit Pattern</button>
-                    <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setSelectedPatternsForList(new Set([p.id])); setShoppingListModalOpen(true); }}>🛒 Shopping List</button>
-                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { deletePattern(p.id); setViewingPattern(null); }}>🗑 Delete</button>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setEditingPattern(p); }}>{Icons.pencil()} Edit Pattern</button>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setSelectedPatternsForList(new Set([p.id])); setShoppingListModalOpen(true); }}>{Icons.cart()} Shopping List</button>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { deletePattern(p.id); setViewingPattern(null); }}>{Icons.trash()} Delete</button>
                   </div>
                 </div>
               </>;
@@ -1520,7 +1520,7 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
 
           {missingThreads.length === 0 ? (
             <div style={{ padding: 30, textAlign: "center", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, color: "#16a34a", fontWeight: 600 }}>
-              You have all the required threads! 🎉
+              You have all the required threads!
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

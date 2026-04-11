@@ -70,7 +70,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
       ),
       React.createElement('div', { className: 'tb-context-actions' },
         page === 'tracker' && onEdit &&
-          React.createElement('button', { className: 'tb-context-btn', onClick: onEdit }, '✏ Edit Pattern'),
+          React.createElement('button', { className: 'tb-context-btn', onClick: onEdit }, Icons.pencil(), ' Edit Pattern'),
         page === 'creator' && onTrack &&
           React.createElement('button', { className: 'tb-context-btn tb-context-btn--primary', onClick: onTrack }, 'Track ›'),
         onSave &&
@@ -252,7 +252,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             ),
             dataMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 210 } },
               storageUsage && React.createElement('div', { style: { padding: '8px 14px 6px', fontSize: 11, color: '#475569', borderBottom: '1px solid #f1f5f9' } },
-                storageUsage.persistent ? '🔒 Protected' : '⏳ Temporary',
+                storageUsage.persistent ? React.createElement(React.Fragment, null, Icons.lock(), ' Protected') : React.createElement(React.Fragment, null, Icons.hourglass(), ' Temporary'),
                 ' · ',
                 (storageUsage.used / 1024 / 1024).toFixed(1) + ' MB'
                 + (storageUsage.quota ? ' / ~' + (storageUsage.quota / 1024 / 1024).toFixed(0) + ' MB' : '')
@@ -260,12 +260,12 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               onBackupDownload && React.createElement('button', {
                 className: 'tb-page-dropdown-item',
                 onClick: () => { onBackupDownload(); setDataMenuOpen(false); }
-              }, '💾 Export Full Backup'),
+              }, Icons.save(), ' Export Full Backup'),
               onRestoreFile && React.createElement('label', {
                 className: 'tb-page-dropdown-item',
                 style: { display: 'block', cursor: 'pointer' }
               },
-                '📂 Restore from Backup…',
+                Icons.folder(), ' Restore from Backup…',
                 React.createElement('input', {
                   type: 'file',
                   accept: '.json',

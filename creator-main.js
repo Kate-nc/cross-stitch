@@ -206,7 +206,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
       <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6,flexWrap:"wrap"}}>
         <button type="button" onClick={function(){setSweeping(function(s){if(!s){sweepDirRef.current=1;splitPosRef.current=splitPos;}return !s;});}}
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:sweeping?"#0d9488":"#f8f9fa",color:sweeping?"#fff":"#475569",fontWeight:500}}>
-          {sweeping?"⏸ Pause":"▶ Auto-sweep"}
+          {sweeping?<>{Icons.pause()} Pause</>:<>{Icons.play()} Auto-sweep</>}
         </button>
         {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#ea580c":"#e2e8f0"),borderRadius:6,background:showDiff?"#fff7ed":"#f8f9fa",color:showDiff?"#ea580c":"#475569",fontWeight:500}}>
@@ -214,7 +214,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
         </button>}
         {heatmapSrc&&<button type="button" onClick={function(){setShowHeatmap(function(h){return !h;});}}
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#dc2626":"#e2e8f0"),borderRadius:6,background:showHeatmap?"#fef2f2":"#f8f9fa",color:showHeatmap?"#dc2626":"#475569",fontWeight:500}}>
-          {showHeatmap?"Hide heatmap":"🔥 Confetti heatmap"}
+          {showHeatmap?"Hide heatmap":<>{Icons.fire()} Heatmap</>}
         </button>}
         <span style={{fontSize:10,color:"#94a3b8"}}>Hold Alt to zoom</span>
       </div>
@@ -325,7 +325,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                                     color:state.showCleanupDiff?"#0d9488":"#475569",
                                     fontWeight:state.showCleanupDiff?600:400,
                                     display:"flex",alignItems:"center",gap:4,lineHeight:1.4}}
-                                >👁 {state.showCleanupDiff?"Hide changes":"Show changes"}</button>
+                                >{Icons.eye()} {state.showCleanupDiff?"Hide changes":"Show changes"}</button>
                               </div>}
                 </div>
                 <div style={{padding:"0 14px 10px"}}>

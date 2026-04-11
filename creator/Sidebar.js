@@ -147,7 +147,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               }, "\xD7")
             )
           : h(React.Fragment, null,
-              h("span", {style:{fontSize:12}}, "\uD83D\uDC46"),
+              h("span", {style:{fontSize:12}}, Icons.pointing()),
               h("span", {style:{color:"#92400e"}}, "Select a colour to paint \u2014 or right-click the canvas")
             )
       ),
@@ -334,7 +334,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           fontWeight:ctx.showCleanupDiff?600:400,
           display:"flex",alignItems:"center",gap:4,lineHeight:1.4
         }
-      }, "\uD83D\uDC41\uFE0F " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
+      }, Icons.eye(), " " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
     ),
     ctx.showCleanupDiff && ctx.cleanupDiff && h("div", {style:{
       fontSize:11,color:"#475569",padding:"6px 10px",
@@ -364,7 +364,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         color:isDanger?"#991b1b":"#92400e",
         display:"flex",alignItems:"flex-start",gap:6
       }},
-        h("span", {style:{fontSize:14,lineHeight:1,flexShrink:0}}, isDanger?"\u26A0\uFE0F":"\uD83D\uDCA1"),
+        h("span", {style:{fontSize:14,lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
         h("span", null, warning.message)
       );
     })(),

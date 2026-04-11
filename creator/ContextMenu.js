@@ -26,8 +26,9 @@ window.CreatorContextMenu = function CreatorContextMenu() {
 
   function item(label, onClick, opts) {
     opts = opts || {};
+    var key = opts.k || (typeof label === 'string' ? label : undefined);
     return h("button", {
-      key: label,
+      key: key,
       onPointerDown: function(e) { e.stopPropagation(); },
       onClick: function(e) { e.stopPropagation(); onClick(); ctx.setContextMenu(null); },
       disabled: opts.disabled,
@@ -69,46 +70,46 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
 
     // Pick this colour
-    item("\uD83D\uDCA7 Pick this colour", function() {
+    item([Icons.eyedropper(), " Pick this colour"], function() {
       if (cellInfo) ctx.setSelectedColorId(cellInfo.id);
-    }, {disabled: !hasCellColour}),
+    }, {disabled: !hasCellColour, k: 'pick'}),
 
     // Fill from here — switch to fill tool so user can click the area
-    item("\uD83E\uDEA3 Switch to fill tool", function() {
+    item([Icons.bucket(), " Switch to fill tool"], function() {
       ctx.selectStitchType("cross");
       ctx.setBrushAndActivate("fill");
-    }, {disabled: !ctx.selectedColorId}),
+    }, {disabled: !ctx.selectedColorId, k: 'fill'}),
 
     sep(),
 
     // Select similar
-    item("\u2728 Select similar (wand)", function() {
+    item([Icons.wand(), " Select similar (wand)"], function() {
       ctx.setActiveTool("magicWand");
       ctx.setHalfStitchTool(null);
       ctx.setBsStart(null);
       ctx.applyWandSelect(menu.gx, menu.gy, ctx.wandOpMode);
-    }, {disabled: !hasCellColour}),
+    }, {disabled: !hasCellColour, k: 'wand'}),
 
     // Select all of this colour
-    item("\uD83C\uDFA8 Select all of this colour", function() {
+    item([Icons.palette(), " Select all of this colour"], function() {
       if (cellInfo) ctx.selectAllOfColorId(cellInfo.id);
-    }, {disabled: !hasCellColour}),
+    }, {disabled: !hasCellColour, k: 'selectall'}),
 
     sep(),
 
     // Highlight this colour
-    item(ctx.hiId === (cellInfo ? cellInfo.id : null) ? "\uD83D\uDD0D Remove highlight" : "\uD83D\uDD0E Highlight this colour", function() {
+    item(ctx.hiId === (cellInfo ? cellInfo.id : null) ? [Icons.magnifyMinus(), " Remove highlight"] : [Icons.magnify(), " Highlight this colour"], function() {
       if (cellInfo) ctx.setHiId(ctx.hiId === cellInfo.id ? null : cellInfo.id);
-    }, {disabled: !hasCellColour}),
+    }, {disabled: !hasCellColour, k: 'highlight'}),
 
     // Stitch info
-    hasCellColour && item("\u2139\uFE0F Stitch info", function() {
+    hasCellColour && item([Icons.info(), " Stitch info"], function() {
       if (cellInfo) {
         ctx.setActiveTool("magicWand");
         ctx.setHalfStitchTool(null);
         ctx.applyWandSelect(menu.gx, menu.gy, "replace");
         ctx.setWandPanel("info");
       }
-    })
+    }, {k: 'info'})
   );
 };
