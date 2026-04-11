@@ -2329,7 +2329,9 @@ window.useCreatorState = function useCreatorState() {
   var cropRef      = useRef(null);
 
   // Tools / editing
-  var _actTool  = useState(null);    var activeTool     = _actTool[0],  setActiveTool     = _actTool[1];
+  var _actTool  = useState(null);    var activeTool     = _actTool[0];
+  var activeToolRef = useRef(null);
+  function setActiveTool(v) { activeToolRef.current = v; _actTool[1](v); }
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
@@ -2366,7 +2368,9 @@ window.useCreatorState = function useCreatorState() {
   var _sessions = useState([]);      var sessions = _sessions[0], setSessions = _sessions[1];
   var _hs       = useState(function() { return new Map(); });
   var halfStitches = _hs[0], setHalfStitches = _hs[1];
-  var _hsTool   = useState(null);    var halfStitchTool = _hsTool[0], setHalfStitchTool = _hsTool[1];
+  var _hsTool   = useState(null);    var halfStitchTool = _hsTool[0];
+  var halfStitchToolRef = useRef(null);
+  function setHalfStitchTool(v) { halfStitchToolRef.current = v; _hsTool[1](v); }
 
   // Thread organiser
   var _thOwned  = useState({});      var threadOwned = _thOwned[0], setThreadOwned = _thOwned[1];
@@ -2863,7 +2867,8 @@ window.useCreatorState = function useCreatorState() {
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef,
-    activeTool, setActiveTool, bsLines, setBsLines, bsStart, setBsStart,
+    activeTool, setActiveTool, activeToolRef,
+    bsLines, setBsLines, bsStart, setBsStart,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,
@@ -2878,7 +2883,7 @@ window.useCreatorState = function useCreatorState() {
     colPickerOpen, setColPickerOpen, parkMarkers, setParkMarkers,
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
     sessions, setSessions, halfStitches, setHalfStitches,
-    halfStitchTool, setHalfStitchTool, threadOwned, setThreadOwned,
+    halfStitchTool, setHalfStitchTool, halfStitchToolRef, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen, previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
@@ -3296,7 +3301,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatClick(e) {
     var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
     var cs = state.cs, G = state.G, pcRef = state.pcRef;
-    var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
+    var activeTool = state.activeToolRef ? state.activeToolRef.current : state.activeTool;
+    var halfStitchTool = state.halfStitchToolRef ? state.halfStitchToolRef.current : state.halfStitchTool;
     var selectedColorId = state.selectedColorId, bsLines = state.bsLines;
     var bsStart = state.bsStart, bsContinuous = state.bsContinuous;
     var halfStitches = state.halfStitches, brushMode = state.brushMode;
@@ -3439,7 +3445,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatMouseDown(e) {
     if (!isPrimaryButton(e)) return;
     var pat = state.pat, pcRef = state.pcRef, cs = state.cs, G = state.G;
-    var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
+    var activeTool = state.activeToolRef ? state.activeToolRef.current : state.activeTool;
+    var halfStitchTool = state.halfStitchToolRef ? state.halfStitchToolRef.current : state.halfStitchTool;
     var selectedColorId = state.selectedColorId, cmap = state.cmap;
     if (!pcRef.current || !pat) return;
 

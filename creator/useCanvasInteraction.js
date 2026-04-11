@@ -245,7 +245,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatClick(e) {
     var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
     var cs = state.cs, G = state.G, pcRef = state.pcRef;
-    var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
+    var activeTool = state.activeToolRef ? state.activeToolRef.current : state.activeTool;
+    var halfStitchTool = state.halfStitchToolRef ? state.halfStitchToolRef.current : state.halfStitchTool;
     var selectedColorId = state.selectedColorId, bsLines = state.bsLines;
     var bsStart = state.bsStart, bsContinuous = state.bsContinuous;
     var halfStitches = state.halfStitches, brushMode = state.brushMode;
@@ -388,7 +389,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatMouseDown(e) {
     if (!isPrimaryButton(e)) return;
     var pat = state.pat, pcRef = state.pcRef, cs = state.cs, G = state.G;
-    var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
+    var activeTool = state.activeToolRef ? state.activeToolRef.current : state.activeTool;
+    var halfStitchTool = state.halfStitchToolRef ? state.halfStitchToolRef.current : state.halfStitchTool;
     var selectedColorId = state.selectedColorId, cmap = state.cmap;
     if (!pcRef.current || !pat) return;
 
