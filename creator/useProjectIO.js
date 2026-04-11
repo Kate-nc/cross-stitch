@@ -5,6 +5,7 @@
 
 window.useProjectIO = function useProjectIO(state, history, options) {
   var onSwitchToTrack = options && options.onSwitchToTrack;
+  var creatorSnapshotRef = React.useRef(null);
 
   // ─── doSaveProject ───────────────────────────────────────────────────────────
   function doSaveProject(finalName) {
@@ -24,6 +25,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var zoom = state.zoom, scrollRef = state.scrollRef;
 
     if (!pat || !pal) return;
+    if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
+    if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
     var hsArr = [];
     halfStitches.forEach(function(v, k) {
       hsArr.push([k, {
@@ -32,7 +35,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       }]);
     });
     var project = {
-      version: 9, page: "creator", name: finalName,
+      version: 9, id: state.projectIdRef.current, page: "creator", name: finalName,
+      createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
@@ -176,6 +180,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setHalfStitchTool(null);
     state.setProjectName(project.name || "");
     state.projectIdRef.current = project.id || null;
+    state.createdAtRef.current = project.createdAt || null;
 
     var scrollRef = state.scrollRef;
     if (project.savedZoom != null) {
@@ -357,8 +362,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         }]);
       });
       if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
+      if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
       var project5 = {
         version: 9, id: state.projectIdRef.current, page: "creator", name: state.projectName,
+        createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
         settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
         pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
         bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
@@ -369,6 +376,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         savedScroll: state.scrollRef.current ? { left: state.scrollRef.current.scrollLeft, top: state.scrollRef.current.scrollTop } : null,
       };
       saveProjectToDB(project5).catch(function(err) { console.error("Auto-save failed:", err); });
+      creatorSnapshotRef.current = project5;
       ProjectStorage.save(project5)
         .then(function(id) { ProjectStorage.setActiveProject(id); })
         .catch(function(err) { console.error("ProjectStorage auto-save failed:", err); });
@@ -390,6 +398,20 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.halfStitches, state.projectName, state.allowBlends,
   ]);
+
+  // Expose flush for BackupRestore to call before reading IndexedDB
+  React.useEffect(function() {
+    window.__flushProjectToIDB = function() {
+      var p = creatorSnapshotRef.current;
+      if (p) {
+        return ProjectStorage.save(p).then(function() {
+          return saveProjectToDB(p);
+        }).catch(function() {});
+      }
+      return Promise.resolve();
+    };
+    return function() { delete window.__flushProjectToIDB; };
+  }, []);
 
   // Paste image handler
   React.useEffect(function() {

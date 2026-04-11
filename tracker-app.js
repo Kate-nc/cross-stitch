@@ -140,6 +140,7 @@ const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
 const projectIdRef=useRef(null);    // current project's storage ID
 const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunload
 const[projectName,setProjectName]=useState("");
+const[createdAt,setCreatedAt]=useState(null);
 const[namePromptOpen,setNamePromptOpen]=useState(false);
 const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
@@ -658,6 +659,8 @@ function doSaveProject(finalName){
     id:projectIdRef.current||undefined,
     page:"tracker",
     name:finalName,
+    createdAt:createdAt||new Date().toISOString(),
+    updatedAt:new Date().toISOString(),
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
     pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),
     bsLines,
@@ -1323,6 +1326,7 @@ function processLoadedProject(project){
   if(project.hlCol>=0)setHlCol(project.hlCol);
   setProjectName(project.name||"");
   projectIdRef.current = project.id || null;
+  setCreatedAt(project.createdAt || null);
 
   if(project.savedZoom!=null){
     setTimeout(()=>{
@@ -1517,6 +1521,7 @@ useEffect(() => {
   const hdArr = [...halfDone.entries()];
   const project = {
     version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
+    createdAt: createdAt || new Date().toISOString(), updatedAt: new Date().toISOString(),
     settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
     pattern: pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb }),
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
@@ -1542,12 +1547,47 @@ useEffect(() => {
   }, 5000);
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
-    halfStitches, halfDone, singleStitchEdits, liveAutoElapsed,
+    halfStitches, halfDone, singleStitchEdits, liveAutoElapsed, createdAt,
     sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 useEffect(() => {
   const handleBeforeUnload = () => {
+    // If a drag is in progress, commit the in-place mutations to a new reference
+    if (dragStateRef.current.isDragging && dragChangesRef.current.length > 0) {
+      pushTrackHistory([...dragChangesRef.current]);
+      dragChangesRef.current = [];
+      dragStateRef.current.isDragging = false;
+    }
+    // Build a fresh snapshot with current done state (may have in-place mutations)
+    if (pat && pal && done) {
+      const nd = new Uint8Array(done);
+      const sseArr = [...singleStitchEdits.entries()];
+      const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
+        fwd: hs.fwd ? { id: hs.fwd.id, rgb: hs.fwd.rgb } : undefined,
+        bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb } : undefined
+      }]);
+      const hdArr = [...halfDone.entries()];
+      const freshProject = {
+        version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
+        createdAt: createdAt || new Date().toISOString(), updatedAt: new Date().toISOString(),
+        settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
+        pattern: pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb }),
+        bsLines, done: Array.from(nd), parkMarkers,
+        totalTime: totalTime + liveAutoElapsed,
+        sessions, hlRow, hlCol, threadOwned, originalPaletteState,
+        singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
+        statsSessions, statsSettings,
+        savedZoom: stitchZoom,
+        savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
+      };
+      ProjectStorage.save(freshProject)
+        .then(id => ProjectStorage.setActiveProject(id))
+        .catch(err => console.error("Tracker unload auto-save failed:", err));
+      saveProjectToDB(freshProject)
+        .catch(err => console.error("Tracker DB unload auto-save failed:", err));
+      return;
+    }
     const project = lastSnapshotRef.current;
     if (!project) return;
     ProjectStorage.save(project)
@@ -1559,6 +1599,18 @@ useEffect(() => {
   window.addEventListener("beforeunload", handleBeforeUnload);
   return () => window.removeEventListener("beforeunload", handleBeforeUnload);
 }, []); // intentionally empty: handler always reads from the ref, never stale
+
+// Expose flush for BackupRestore to call before reading IndexedDB
+useEffect(() => {
+  window.__flushProjectToIDB = async function() {
+    const project = lastSnapshotRef.current;
+    if (project) {
+      await ProjectStorage.save(project);
+      await saveProjectToDB(project).catch(() => {});
+    }
+  };
+  return () => { delete window.__flushProjectToIDB; };
+}, []);
 
 // ═══ Half-stitch cell rendering ═══
 // Renders half-stitch triangle fills, diagonal lines, and symbols for one cell.
@@ -2077,6 +2129,7 @@ function handleStitchMouseDown(e){
   dragChangesRef.current=[{idx,oldVal:done[idx]}];
   done[idx] = nv; // Optimistic update
   drawCellDirectly(idx, nv);
+  window.addEventListener("pointerup", handleMouseUp, { once: true });
   e.preventDefault();
 }
 function handleStitchMouseMove(e){

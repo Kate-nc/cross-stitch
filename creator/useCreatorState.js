@@ -230,6 +230,7 @@ window.useCreatorState = function useCreatorState() {
   var prevSW     = useRef(sW);
   var prevSH     = useRef(sH);
   var projectIdRef = useRef(null);
+  var createdAtRef = useRef(null);
   var userActedRef = useRef(false);
   var stripRef   = useRef(null);
   var overflowRef= useRef(null);
@@ -741,7 +742,7 @@ window.useCreatorState = function useCreatorState() {
     namePromptOpen, setNamePromptOpen,
     cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
     pcRef, fRef, scrollRef, expRef, loadRef,
-    prevSW, prevSH, projectIdRef, userActedRef, stripRef, overflowRef,
+    prevSW, prevSH, projectIdRef, createdAtRef, userActedRef, stripRef, overflowRef,
     G, EDIT_HISTORY_MAX,
     // Derived
     totalStitchable, cs, fitZ, pxX, pxY, totPg,

@@ -48,6 +48,10 @@ const BackupRestore = (() => {
   return {
     // Creates a full backup JSON object
     async createBackup() {
+      // Flush any in-flight React state to IndexedDB before reading
+      if (window.__flushProjectToIDB) {
+        try { await window.__flushProjectToIDB(); } catch (e) { console.warn("Backup: pre-flush failed:", e); }
+      }
       const backup = {
         _format: "cross-stitch-backup",
         _version: 1,
