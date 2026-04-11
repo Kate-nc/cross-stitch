@@ -3199,6 +3199,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
           }
         } else if (action === "eraseAll" && np) {
           if (np[idx].id === "__skip__") continue;
+          var selMaskE = state.selectionMask;
+          if (selMaskE && !selMaskE[idx]) continue;
           var changed = false;
           if (np[idx].id !== "__empty__") {
             dragChangesRef.current.push({ idx: idx, old: Object.assign({}, np[idx]) });
@@ -3247,6 +3249,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
           }
         } else if (action && action.startsWith("half-") && np) {
           if (np[idx].id === "__skip__") continue;
+          var selMaskH = state.selectionMask;
+          if (selMaskH && !selMaskH[idx]) continue;
           var dir = action.replace("half-", "");
           var ce = colorEntry;
           if (!ce) {
