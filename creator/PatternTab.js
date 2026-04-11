@@ -204,5 +204,38 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }, "Clear \u2715")
     ),
 
+    ctx.hiId && h("div", {style:{background:"#fff7ed",border:"0.5px solid #fed7aa",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11,color:"#92400e"}},
+      h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+        h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Background dimming"),
+        h("input", {
+          type:"range", min:5, max:60, step:1,
+          value: Math.round(ctx.bgDimOpacity * 100),
+          onChange: function(e) {
+            var op = parseInt(e.target.value) / 100;
+            ctx.setBgDimOpacity(op);
+            if (!ctx.hiAdvanced) ctx.setBgDimDesaturation(Math.min(1, (100 - parseInt(e.target.value)) / 100));
+          },
+          style:{flex:1,accentColor:"#ea580c"}
+        }),
+        h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.bgDimOpacity * 100) + "%")
+      ),
+      ctx.hiAdvanced && h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+        h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Desaturation"),
+        h("input", {
+          type:"range", min:0, max:100, step:1,
+          value: Math.round(ctx.bgDimDesaturation * 100),
+          onChange: function(e) { ctx.setBgDimDesaturation(parseInt(e.target.value) / 100); },
+          style:{flex:1,accentColor:"#ea580c"}
+        }),
+        h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.bgDimDesaturation * 100) + "%")
+      ),
+      h("div", {style:{display:"flex",justifyContent:"flex-end"}},
+        h("label", {style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none"}},
+          h("input", {type:"checkbox", checked:ctx.hiAdvanced, onChange:function(e){ctx.setHiAdvanced(e.target.checked);}, style:{accentColor:"#ea580c"}}),
+          h("span", {style:{fontSize:10,color:"#92400e"}}, "Advanced (decouple sliders)")
+        )
+      )
+    ),
+
   );
 };

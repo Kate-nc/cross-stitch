@@ -164,6 +164,20 @@ window.useCreatorState = function useCreatorState() {
   // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
   var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
 
+  // ── Highlight isolation dimming (Part A) ─────────────────────────────────────
+  // bgDimOpacity: target opacity of non-selected stitches (default 20%)
+  // bgDimDesaturation: coupled or independent desaturation (default 80%)
+  // hiAdvanced: when true, decouples the two sliders
+  // dimFraction: animation progress 0→1 (drives smooth 150ms transitions)
+  // dimHiId: the visually-active highlight ID (may differ from hiId during fade-out)
+  var _bgDimOp  = useState(0.20);   var bgDimOpacity      = _bgDimOp[0],  setBgDimOpacity      = _bgDimOp[1];
+  var _hiAdv    = useState(false);  var hiAdvanced        = _hiAdv[0],    setHiAdvanced        = _hiAdv[1];
+  var _bgDimDs  = useState(0.80);   var bgDimDesaturation = _bgDimDs[0],  setBgDimDesaturation = _bgDimDs[1];
+  var _dimFrac  = useState(0);      var dimFraction       = _dimFrac[0],  setDimFraction       = _dimFrac[1];
+  var _dimHiId  = useState(null);   var dimHiId           = _dimHiId[0],  setDimHiId           = _dimHiId[1];
+  var dimAnimRef  = useRef(null);
+  var dimFracRef  = useRef(0);
+
   // Toast notifications
   var _toasts = useState([]);        var toasts = _toasts[0], setToasts = _toasts[1];
   var toastIdRef = useRef(0);
@@ -367,6 +381,40 @@ window.useCreatorState = function useCreatorState() {
     selectStitchType("cross");
     setSelectedColorId(pal[0].id);
   }, [pat, pal]);
+
+  // ── Dimming animation: 150ms fade-in/out when hiId changes ─────────────────
+  useEffect(function() {
+    if (dimAnimRef.current) cancelAnimationFrame(dimAnimRef.current);
+    if (hiId) {
+      setDimHiId(hiId);
+      // Already at full dim (switching between colours) — skip animation
+      if (dimFracRef.current >= 0.99) { dimFracRef.current = 1; setDimFraction(1); return; }
+      var from = dimFracRef.current;
+      var st = null;
+      function animIn(ts) {
+        if (!st) st = ts;
+        var t = Math.min((ts - st) / 150, 1);
+        var v = from + (1 - from) * t;
+        dimFracRef.current = v; setDimFraction(v);
+        if (t < 1) dimAnimRef.current = requestAnimationFrame(animIn);
+        else dimAnimRef.current = null;
+      }
+      dimAnimRef.current = requestAnimationFrame(animIn);
+    } else {
+      var from2 = dimFracRef.current;
+      var st2 = null;
+      function animOut(ts) {
+        if (!st2) st2 = ts;
+        var t2 = Math.min((ts - st2) / 150, 1);
+        var v2 = from2 * (1 - t2);
+        dimFracRef.current = v2; setDimFraction(v2);
+        if (t2 < 1) dimAnimRef.current = requestAnimationFrame(animOut);
+        else { dimAnimRef.current = null; setDimHiId(null); }
+      }
+      dimAnimRef.current = requestAnimationFrame(animOut);
+    }
+    return function() { if (dimAnimRef.current) { cancelAnimationFrame(dimAnimRef.current); dimAnimRef.current = null; } };
+  }, [hiId]);
 
   function initBlankGrid(w, h) {
     var blank = Array.from({ length: w * h }, function() { return { id: "__empty__", rgb: [255, 255, 255] }; });
@@ -627,6 +675,8 @@ window.useCreatorState = function useCreatorState() {
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
+    bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,
+    bgDimDesaturation, setBgDimDesaturation, dimFraction, dimHiId,
     dimOpen, setDimOpen, palOpen, setPalOpen, fabOpen, setFabOpen,
     adjOpen, setAdjOpen, bgOpen, setBgOpen, palAdvanced, setPalAdvanced,
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
