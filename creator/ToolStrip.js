@@ -88,7 +88,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         className:"tb-btn"+(ctx.brushMode==="paint" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
         onClick:function(){
           if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
-          ctx.setBrushAndActivate("paint"); ctx.selectStitchType("cross");
+          ctx.setBrushAndActivate("paint");
         },
         title:"Paint (P)"
       }, "Paint"),
@@ -96,7 +96,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         className:"tb-btn"+(ctx.brushMode==="fill" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
         onClick:function(){
           if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
-          ctx.setBrushAndActivate("fill"); ctx.selectStitchType("cross");
+          ctx.setBrushAndActivate("fill");
         },
         title:"Fill (F)"
       }, "Fill"),

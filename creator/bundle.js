@@ -2342,7 +2342,9 @@ window.useCreatorState = function useCreatorState() {
   var EDIT_HISTORY_MAX = 50;
   var _scHint   = useState(function() { try { return !!localStorage.getItem("shortcuts_hint_dismissed"); } catch(_) { return false; } });
   var shortcutsHintDismissed = _scHint[0], setShortcutsHintDismissed = _scHint[1];
-  var _brushM   = useState("paint"); var brushMode = _brushM[0], setBrushMode = _brushM[1];
+  var _brushM   = useState("paint"); var brushMode = _brushM[0];
+  var brushModeRef = useRef("paint");
+  function setBrushMode(v) { brushModeRef.current = v; _brushM[1](v); }
   var _brushSz  = useState(1);       var brushSize = _brushSz[0], setBrushSize = _brushSz[1];
   var _ovfOpen  = useState(false);   var overflowOpen = _ovfOpen[0], setOverflowOpen = _ovfOpen[1];
   var _stripCol = useState({view:false,brush:false,bs:false});
@@ -2558,7 +2560,7 @@ window.useCreatorState = function useCreatorState() {
   function slRsz(v) { chgW(v); }
 
   function selectStitchType(t) {
-    if (t === "cross")     { setActiveTool(brushMode); setHalfStitchTool(null); setBsStart(null); }
+    if (t === "cross")     { setActiveTool(brushModeRef.current); setHalfStitchTool(null); setBsStart(null); }
     else if (t === "half-fwd") { setHalfStitchTool("fwd"); setActiveTool(null); setBsStart(null); }
     else if (t === "half-bck") { setHalfStitchTool("bck"); setActiveTool(null); setBsStart(null); }
     else if (t === "backstitch") { setActiveTool("backstitch"); setHalfStitchTool(null); }
@@ -2572,11 +2574,11 @@ window.useCreatorState = function useCreatorState() {
     setBsStart(null);
   }
   function setTool(tool) {
-    if (activeTool === tool) { setActiveTool(null); setBsStart(null); return; }
+    if (activeToolRef.current === tool) { setActiveTool(null); setBsStart(null); return; }
     setActiveTool(tool); setBsStart(null); setHalfStitchTool(null);
   }
   function setHsTool(t) {
-    if (halfStitchTool === t) { setHalfStitchTool(null); return; }
+    if (halfStitchToolRef.current === t) { setHalfStitchTool(null); return; }
     setHalfStitchTool(t); setActiveTool(null); setBsStart(null);
   }
 
@@ -2873,7 +2875,7 @@ window.useCreatorState = function useCreatorState() {
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,
     shortcutsHintDismissed, setShortcutsHintDismissed,
-    brushMode, setBrushMode, brushSize, setBrushSize,
+    brushMode, setBrushMode, brushModeRef, brushSize, setBrushSize,
     overflowOpen, setOverflowOpen, stripCollapsed, setStripCollapsed,
     exportPage, setExportPage, pageMode, setPageMode,
     pdfDisplayMode, setPdfDisplayMode, pdfCellSize, setPdfCellSize,
@@ -4805,7 +4807,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         className:"tb-btn"+(ctx.brushMode==="paint" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
         onClick:function(){
           if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
-          ctx.setBrushAndActivate("paint"); ctx.selectStitchType("cross");
+          ctx.setBrushAndActivate("paint");
         },
         title:"Paint (P)"
       }, "Paint"),
@@ -4813,7 +4815,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         className:"tb-btn"+(ctx.brushMode==="fill" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
         onClick:function(){
           if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
-          ctx.setBrushAndActivate("fill"); ctx.selectStitchType("cross");
+          ctx.setBrushAndActivate("fill");
         },
         title:"Fill (F)"
       }, "Fill"),
