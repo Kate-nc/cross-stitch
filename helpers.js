@@ -121,78 +121,127 @@ async function clearProjectFromDB() {
 
 // ═══ Quadrant partial-stitch drawing helpers ═══
 // These replace the old half-stitch helpers (drawHalfTriangle, drawHalfLine, etc.)
+//
+// Industry-standard cross-stitch chart representation:
+//   Quarter stitch  (e.g. TL): short diagonal from corner → ~60% towards centre
+//   Half stitch     (BL+TR or TL+BR): full corner-to-corner diagonal
+//   Three-quarter   (e.g. TL+TR+BL): full diagonal + short quarter from remaining corner
+//
+// Rendering strategy:
+//   1. Subtle triangular tint (low alpha) to show colour at a glance when small
+//   2. Thread line(s) representing the actual needle path — the primary visual
+//   3. Symbol at corner area in symbol/both views
+//
+// Corner coordinates for each quadrant:
+//   TL=(px,   py),      TR=(px+cSz,py)
+//   BL=(px,   py+cSz),  BR=(px+cSz,py+cSz)
+// Centre = (px+cSz/2, py+cSz/2)
 
-// Draw a filled triangle for one quadrant of a cell.
-// quadrant: "TL" | "TR" | "BL" | "BR"
-// The cell is divided by its two diagonals into four triangles:
-//   TL = top triangle (apex=top-left corner, base towards centre)
-//   TR = right triangle
-//   BL = left triangle
-//   BR = bottom triangle
+// Draw a subtle triangular tint for one quadrant (background colour hint).
+// Uses a much lower alpha than the old fill — this is purely a colour cue.
 function drawQuadrantFill(ctx, px, py, cSz, quadrant, rgb, alpha) {
   if (alpha <= 0) return;
-  ctx.fillStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + alpha + ")";
+  // Tint is more transparent than the thread line — just a colour zone hint
+  var tintAlpha = alpha * 0.28;
+  ctx.fillStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + tintAlpha + ")";
   var mx = px + cSz / 2, my = py + cSz / 2;
   ctx.beginPath();
+  // Each quadrant uses the corner + two adjacent edge midpoints to form a triangle
+  // pointing toward the cell centre, matching standard chart depictions
   switch (quadrant) {
     case "TL":
-      ctx.moveTo(px, py);
-      ctx.lineTo(px + cSz, py);
-      ctx.lineTo(mx, my);
-      ctx.lineTo(px, py + cSz);
+      ctx.moveTo(px,        py);
+      ctx.lineTo(px + cSz / 2, py);
+      ctx.lineTo(mx,        my);
+      ctx.lineTo(px,        py + cSz / 2);
       break;
     case "TR":
       ctx.moveTo(px + cSz, py);
-      ctx.lineTo(px + cSz, py + cSz);
-      ctx.lineTo(mx, my);
-      ctx.lineTo(px, py);
+      ctx.lineTo(px + cSz, py + cSz / 2);
+      ctx.lineTo(mx,        my);
+      ctx.lineTo(px + cSz / 2, py);
       break;
     case "BL":
-      ctx.moveTo(px, py + cSz);
-      ctx.lineTo(px, py);
-      ctx.lineTo(mx, my);
-      ctx.lineTo(px + cSz, py + cSz);
+      ctx.moveTo(px,        py + cSz);
+      ctx.lineTo(px + cSz / 2, py + cSz);
+      ctx.lineTo(mx,        my);
+      ctx.lineTo(px,        py + cSz / 2);
       break;
     case "BR":
       ctx.moveTo(px + cSz, py + cSz);
-      ctx.lineTo(px, py + cSz);
-      ctx.lineTo(mx, my);
-      ctx.lineTo(px + cSz, py);
+      ctx.lineTo(px + cSz / 2, py + cSz);
+      ctx.lineTo(mx,        my);
+      ctx.lineTo(px + cSz, py + cSz / 2);
       break;
   }
   ctx.closePath();
   ctx.fill();
 }
 
-// Draw the stitch thread line for a quadrant (corner to centre).
+// Draw the thread line for a quadrant.
+// A quarter stitch runs from the corner to ~60% towards the centre.
+// The renderer decides whether to draw a full half (corner-to-corner via centre)
+// or a short quarter — see drawPartialStitchCell() in canvasRenderer.js.
 function drawQuadrantStitchLine(ctx, px, py, cSz, quadrant, rgb, alpha) {
   if (alpha <= 0) return;
   var mx = px + cSz / 2, my = py + cSz / 2;
+  var lw = Math.max(1, cSz * 0.13);
   ctx.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + alpha + ")";
-  ctx.lineWidth = Math.max(1, cSz * 0.1);
+  ctx.lineWidth = lw;
+  ctx.lineCap = "round";
+  // Quarter stitch line: corner → 60% point towards centre
+  var pad = Math.max(1, cSz * 0.07); // slight inset from corner
+  var tx, ty, ex, ey;
+  switch (quadrant) {
+    case "TL": tx = px + pad;        ty = py + pad;        break;
+    case "TR": tx = px + cSz - pad;  ty = py + pad;        break;
+    case "BL": tx = px + pad;        ty = py + cSz - pad;  break;
+    case "BR": tx = px + cSz - pad;  ty = py + cSz - pad;  break;
+  }
+  // End point: 60% of the way from corner to centre
+  ex = tx + (mx - tx) * 0.6;
+  ey = ty + (my - ty) * 0.6;
+  ctx.beginPath();
+  ctx.moveTo(tx, ty);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+}
+
+// Draw a full half-stitch line corner-to-corner (used for half and three-quarter).
+// direction: "fwd" (BL→TR, the / diagonal) or "bck" (TL→BR, the \ diagonal)
+function drawHalfStitchLine(ctx, px, py, cSz, direction, rgb, alpha) {
+  if (alpha <= 0) return;
+  var pad = Math.max(1, cSz * 0.07);
+  var lw = Math.max(1, cSz * 0.13);
+  ctx.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + alpha + ")";
+  ctx.lineWidth = lw;
   ctx.lineCap = "round";
   ctx.beginPath();
-  switch (quadrant) {
-    case "TL": ctx.moveTo(px + 1, py + 1);           ctx.lineTo(mx, my); break;
-    case "TR": ctx.moveTo(px + cSz - 1, py + 1);     ctx.lineTo(mx, my); break;
-    case "BL": ctx.moveTo(px + 1, py + cSz - 1);     ctx.lineTo(mx, my); break;
-    case "BR": ctx.moveTo(px + cSz - 1, py + cSz - 1); ctx.lineTo(mx, my); break;
+  if (direction === "fwd") {
+    // / diagonal: BL to TR
+    ctx.moveTo(px + pad,        py + cSz - pad);
+    ctx.lineTo(px + cSz - pad,  py + pad);
+  } else {
+    // \ diagonal: TL to BR
+    ctx.moveTo(px + pad,        py + pad);
+    ctx.lineTo(px + cSz - pad,  py + cSz - pad);
   }
   ctx.stroke();
 }
 
-// Draw a symbol at the centroid of a quadrant.
+// Draw a symbol at the corner area of a quadrant (for symbol/both view modes).
 function drawQuadrantSymbol(ctx, px, py, cSz, quadrant, symbol, color) {
   ctx.fillStyle = color;
-  ctx.font = "bold " + Math.max(5, cSz * 0.35) + "px monospace";
+  ctx.font = "bold " + Math.max(4, cSz * 0.28) + "px monospace";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   var sx, sy;
+  // Position symbol near the corner, not the centroid, to avoid overlapping lines
   switch (quadrant) {
-    case "TL": sx = px + cSz * 0.25; sy = py + cSz * 0.25; break;
-    case "TR": sx = px + cSz * 0.75; sy = py + cSz * 0.25; break;
-    case "BL": sx = px + cSz * 0.25; sy = py + cSz * 0.75; break;
-    case "BR": sx = px + cSz * 0.75; sy = py + cSz * 0.75; break;
+    case "TL": sx = px + cSz * 0.22; sy = py + cSz * 0.22; break;
+    case "TR": sx = px + cSz * 0.78; sy = py + cSz * 0.22; break;
+    case "BL": sx = px + cSz * 0.22; sy = py + cSz * 0.78; break;
+    case "BR": sx = px + cSz * 0.78; sy = py + cSz * 0.78; break;
   }
   ctx.fillText(symbol, sx, sy);
 }
