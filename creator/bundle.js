@@ -4711,33 +4711,36 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-save (debounced 1 s)
+  // The snapshot is built synchronously so creatorSnapshotRef is always up-to-date
+  // for the flush path, even if the debounced DB write hasn't fired yet.
   React.useEffect(function() {
     var pat = state.pat, pal = state.pal;
     if (!pat || !pal) return;
+    var hsArr = [];
+    state.halfStitches.forEach(function(v, k) {
+      hsArr.push([k, {
+        fwd: v.fwd ? { id: v.fwd.id, rgb: v.fwd.rgb } : undefined,
+        bck: v.bck ? { id: v.bck.id, rgb: v.bck.rgb } : undefined,
+      }]);
+    });
+    if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
+    if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
+    var project5 = {
+      version: 9, id: state.projectIdRef.current, page: "creator", name: state.projectName,
+      createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
+      settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
+      pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
+      parkMarkers: state.parkMarkers, totalTime: state.totalTime, sessions: state.sessions,
+      hlRow: state.hlRow, hlCol: state.hlCol, threadOwned: state.threadOwned,
+      imgData: state.img ? state.img.src : null, halfStitches: hsArr,
+      savedZoom: state.zoom,
+      savedScroll: state.scrollRef.current ? { left: state.scrollRef.current.scrollLeft, top: state.scrollRef.current.scrollTop } : null,
+    };
+    // Update the snapshot ref synchronously — flush will always have the latest state
+    creatorSnapshotRef.current = project5;
     var saveTimer = setTimeout(function() {
-      var hsArr = [];
-      state.halfStitches.forEach(function(v, k) {
-        hsArr.push([k, {
-          fwd: v.fwd ? { id: v.fwd.id, rgb: v.fwd.rgb } : undefined,
-          bck: v.bck ? { id: v.bck.id, rgb: v.bck.rgb } : undefined,
-        }]);
-      });
-      if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
-      if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
-      var project5 = {
-        version: 9, id: state.projectIdRef.current, page: "creator", name: state.projectName,
-        createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-        settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
-        pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
-        bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
-        parkMarkers: state.parkMarkers, totalTime: state.totalTime, sessions: state.sessions,
-        hlRow: state.hlRow, hlCol: state.hlCol, threadOwned: state.threadOwned,
-        imgData: state.img ? state.img.src : null, halfStitches: hsArr,
-        savedZoom: state.zoom,
-        savedScroll: state.scrollRef.current ? { left: state.scrollRef.current.scrollLeft, top: state.scrollRef.current.scrollTop } : null,
-      };
       saveProjectToDB(project5).catch(function(err) { console.error("Auto-save failed:", err); });
-      creatorSnapshotRef.current = project5;
       ProjectStorage.save(project5)
         .then(function(id) { ProjectStorage.setActiveProject(id); })
         .catch(function(err) { console.error("ProjectStorage auto-save failed:", err); });
@@ -4760,7 +4763,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.threadOwned, state.img, state.halfStitches, state.projectName, state.allowBlends,
   ]);
 
-  // Expose flush for BackupRestore to call before reading IndexedDB
+  // Expose flush for BackupRestore to call before reading IndexedDB.
+  // creatorSnapshotRef is updated synchronously on every state change (above), so
+  // this flush always persists the latest snapshot even if the debounce hasn't fired.
   React.useEffect(function() {
     window.__flushProjectToIDB = function() {
       var p = creatorSnapshotRef.current;
