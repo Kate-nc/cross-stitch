@@ -2363,8 +2363,9 @@ return(
   onCancel={()=>setNamePromptOpen(false)}
 />}
 {pat&&pal&&<>
-{/* ═══ TRACKER TOOL STRIP ═══ */}
-<div className="tb-strip"><div ref={tStripRef} className="tb-strip-inner">
+{/* ═══ TRACKER PILL TOOLBAR ═══ */}
+<div className="toolbar-row"><div className="pill-row" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
+  <div ref={tStripRef} className="pill">
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
     <button className={"tb-btn"+(stitchMode==="track"&&!halfStitchTool?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);}} title="Cross stitch (T)">
       <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Cross
@@ -2396,18 +2397,8 @@ return(
     {[['symbol','Sym'],['colour','Col+Sym'],['highlight','HL']].map(([k,l])=><button key={k} className={"tb-btn"+(stitchView===k?" tb-btn--on":"")} title="Cycle view (V)" onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>)}
   </div>
   {stitchView==="highlight"&&<>
-    <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#f8f9fa",cursor:"pointer",lineHeight:1}} title="Previous colour">◀</button>
-    {focusColour&&cmap&&cmap[focusColour]&&(()=>{const p=cmap[focusColour];const dc=colourDoneCounts[focusColour]||{done:0,total:0};return(
-      <span style={{fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:6,background:"#f0fdfa",border:"1px solid #99f6e4",cursor:"pointer",flexShrink:0}} onClick={()=>setFocusColour(null)} title="Click to clear highlight">
-        <span style={{width:10,height:10,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}/>
-        <span style={{fontFamily:"monospace",fontWeight:700,fontSize:11}}>{focusColour}</span>
-        <span style={{fontSize:11,color:"#0d9488",fontWeight:600}}>{dc.done}/{dc.total}</span>
-      </span>
-    );})()}
-    <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#f8f9fa",cursor:"pointer",lineHeight:1}} title="Next colour">▶</button>
-    <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#475569",cursor:"pointer",whiteSpace:"nowrap",userSelect:"none"}}>
-      <input type="checkbox" checked={highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{cursor:"pointer"}}/>Skip done
-    </label>
+    <button className="tb-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} title="Previous colour (])">◀</button>
+    <button className="tb-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} title="Next colour ([)">▶</button>
   </>}
   <div className="tb-flex"/>
   <div className="tb-zoom-grp">
@@ -2425,7 +2416,7 @@ return(
     </div>
   )}
   <div className="tb-sdiv"/>
-  <button className={"tb-btn"+(statsView?" tb-btn--on":"")} onClick={()=>{finaliseAutoSession();setStatsView(v=>!v);}} title="Stats dashboard" style={{flexShrink:0}}>📊 Stats</button>
+  <button className={"tb-btn"+(statsView?" tb-btn--on":"")} onClick={()=>{finaliseAutoSession();setStatsView(v=>!v);}} title="Stats dashboard" style={{flexShrink:0}}>📊</button>
   {stitchMode==="track"&&!isEditMode&&(trackHistory.length>0||redoStack.length>0)&&<>
     <div className="tb-sdiv"/>
     <button className="tb-btn" onClick={undoTrack} disabled={!trackHistory.length} title="Undo (Ctrl+Z)" style={{opacity:trackHistory.length?1:0.3}}>↩</button>
@@ -2482,6 +2473,13 @@ return(
       </>}
     </div>}
   </div>
+</div>
+  {liveAutoStitches > 0 && (
+    <div className={"session-chip" + (liveAutoIsPaused ? " session-chip--paused" : "")} title="Session is automatically tracked">
+      <span className="dot"/>
+      {liveAutoIsPaused ? 'Paused' : `${fmtTime(liveAutoElapsed)} · ${liveAutoStitches} stitches`}
+    </div>
+  )}
 </div></div>
 {!isEditMode&&<div className="tb-progress"><div className="tb-progress-inner">
   <span className="tb-progress-txt">{doneCount.toLocaleString()} / {totalStitchable.toLocaleString()}{halfStitchCounts.total>0?` + ${halfStitchCounts.done}/${halfStitchCounts.total}△`:""} ({progressPct.toFixed(1)}%){progressPct>=100?" 🎉":""}</span>
@@ -2549,7 +2547,8 @@ return(
     </div>
   </div>}
 
-  {!statsView&&pat&&pal&&<div>
+  {!statsView&&pat&&pal&&<><div className="cs-main">
+    <div className="canvas-area" style={{padding:"12px 16px"}}>
     {showNavHelp&&!isEditMode&&(()=>{const isTouch=hasTouchRef.current;return(
     <div style={{marginBottom:8,padding:"14px 16px",background:"#fff",border:"1px solid #a5b4fc",borderRadius:10,fontSize:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -2687,47 +2686,86 @@ return(
       )}
     </div>
 
-
     {doneCount===0&&totalStitchable>0&&stitchMode==="track"&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:6,padding:"6px 10px",marginBottom:8,textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
-    <button onClick={()=>setDrawer(!drawer)} style={{width:"100%",padding:"8px",borderRadius:"0 0 8px 8px",border:"0.5px solid #e2e8f0",borderTop:"none",background:drawer?"#f8f9fa":"#fff",cursor:"pointer",fontSize:12,fontWeight:600,color:"#0d9488",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:12}}><span style={{transform:drawer?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s",display:"inline-block"}}>▲</span>Colours ({pal.length}) — {Object.values(colourDoneCounts).filter(c=>c.done>=c.total).length} complete</button>
+    </div>{/* end canvas-area */}
 
-    {drawer&&<div style={{border:"0.5px solid #e2e8f0",borderRadius:"10px",background:"#fff",maxHeight:"min(280px, 40vh)",overflow:"auto",padding:8,marginBottom:12}}>
-      {stitchView==="highlight"&&!focusColour&&<div style={{fontSize:11,color:"#475569",background:"#f0fdfa",border:"1px solid #ccfbf1",borderRadius:6,padding:"6px 10px",marginBottom:6,textAlign:"center"}}>Tap a colour to highlight its stitches on the grid</div>}
-      <div style={{display:"flex",flexDirection:"column",gap:2}}>{pal.map(p=>{let dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
-        let totalWithHalf=dc.total+dc.halfTotal*0.5;
-        let doneWithHalf=dc.done+dc.halfDone*0.5;
-        let pct=totalWithHalf>0?Math.round(doneWithHalf/totalWithHalf*100):0;
-        let complete=doneWithHalf>=totalWithHalf&&totalWithHalf>0;
-        let isFocused=focusColour===p.id;
-        let sk=skeinEst(p.count,fabricCt);
-        return<div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:6,background:isFocused?"#f0fdfa":complete?"#f0fdf4":"#fff",border:isFocused?"2px solid #0d9488":isEditMode?"1px solid #fde68a":"1px solid transparent",cursor:"pointer",opacity:complete&&!isFocused?0.6:1}} onClick={()=>{
-          if (isEditMode) {
-            setEditModalColor(p);
-          } else {
-            if(halfStitchTool&&halfStitchTool!=="erase"){setSelectedColorId(selectedColorId===p.id?null:p.id);}
-            else if(stitchView==="highlight"){setFocusColour(focusColour===p.id?null:p.id);}
-            else{setStitchView("highlight");setFocusColour(p.id);}
-          }
-        }}>
-          <span style={{width:18,height:18,borderRadius:4,background:`rgb(${p.rgb})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
-          <span style={{fontFamily:"monospace",fontSize:13,color:"#1e293b",width:16,textAlign:"center",fontWeight:700}}>{p.symbol}</span>
-          <span style={{fontWeight:600,fontSize:12,minWidth:40,color:isFocused?"#0d9488":complete?"#16a34a":"#1e293b"}}>{isFocused&&stitchView==="highlight"?"▶ ":""}{p.id}</span>
-          <span style={{fontSize:11,color:"#94a3b8",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
-          {!isEditMode && <>
-          <span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}>{sk}sk</span>
-          <div style={{width:60,height:5,background:"#e2e8f0",borderRadius:3,overflow:"hidden",flexShrink:0}}><div style={{height:"100%",width:pct+"%",background:complete?"#16a34a":"#0d9488",borderRadius:3}}/></div>
-          <span style={{fontSize:11,color:complete?"#16a34a":"#475569",fontWeight:complete?600:400,minWidth:50,textAlign:"right"}}>
-            {dc.done}/{dc.total}{dc.halfTotal>0?<span style={{color:"#0284c7"}}> +{dc.halfDone}△/{dc.halfTotal}△</span>:""}
-          </span>
-          <button onClick={e2=>{e2.stopPropagation();if(!complete){let unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:10,padding:"2px 8px",borderRadius:5,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{complete?"Undo":"All ✓"}</button>
-          </>}
-          {isEditMode && <>
-            <span style={{fontSize:11,color:"#94a3b8",flexShrink:0}}>{p.count} st{dc.halfTotal>0?` + ${dc.halfTotal}△`:""}</span>
-            <span style={{fontSize:11,color:"#d97706",fontWeight:600}}>✎ Edit</span>
-          </>}
-        </div>;})}</div>
-    </div>}
+    {/* ═══ RIGHT PANEL ═══ */}
+    <div className="rpanel">
+      {/* Session Stats */}
+      <div className="rp-section">
+        <div className="rp-heading">Session {liveAutoStitches>0&&<span className="badge">Live</span>}</div>
+        <div className="sess-card">
+          <div className="row"><span className="lbl">Time</span><span className="val">{fmtTime(liveAutoElapsed)}</span></div>
+          <div className="row"><span className="lbl">Stitches</span><span className="val">{liveAutoStitches}</span></div>
+          {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
+          <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
+        </div>
+      </div>
 
+      {/* View Mode */}
+      <div className="rp-section">
+        <div className="rp-heading">View</div>
+        <div className="rp-pill-toggle" style={{marginBottom:8}}>
+          {[['symbol','Symbol'],['colour','Colour'],['highlight','Highlight']].map(([k,l])=>
+            <button key={k} className={stitchView===k?"on":""} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>
+          )}
+        </div>
+        {stitchView==="highlight"&&<div style={{fontSize:11,color:"#475569"}}>Focus one colour at a time. Use ◀ ▶ to cycle.</div>}
+        {stitchView==="highlight"&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:6}}>
+          <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#f8f9fa",cursor:"pointer",lineHeight:1}}>◀</button>
+          {focusColour&&cmap&&cmap[focusColour]&&(()=>{const p=cmap[focusColour];return(
+            <span style={{fontSize:11,display:"flex",alignItems:"center",gap:3,flex:1}} onClick={()=>setFocusColour(null)} title="Click to clear">
+              <span style={{width:10,height:10,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
+              <span style={{fontWeight:700}}>{focusColour}</span>
+            </span>);})()}
+          <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#f8f9fa",cursor:"pointer",lineHeight:1}}>▶</button>
+          <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#475569",cursor:"pointer",whiteSpace:"nowrap",userSelect:"none",marginLeft:4}}>
+            <input type="checkbox" checked={highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{cursor:"pointer"}}/>Skip done
+          </label>
+        </div>}
+      </div>
+
+      {/* Colours List */}
+      <div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+        <div className="rp-heading">Colours <span className="badge">{pal.length}</span></div>
+        <div className="col-list">
+          {pal.map(p=>{let dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
+            let totalWithHalf=dc.total+dc.halfTotal*0.5;
+            let doneWithHalf=dc.done+dc.halfDone*0.5;
+            let pct=totalWithHalf>0?Math.round(doneWithHalf/totalWithHalf*100):0;
+            let complete=doneWithHalf>=totalWithHalf&&totalWithHalf>0;
+            let isFocused=focusColour===p.id;
+            return <div key={p.id} className={"col-row"+(isFocused?" focus":"")} style={{opacity:complete&&!isFocused?0.5:1}} onClick={()=>{
+              if(isEditMode){setEditModalColor(p);}
+              else if(halfStitchTool&&halfStitchTool!=="erase"){setSelectedColorId(selectedColorId===p.id?null:p.id);}
+              else if(stitchView==="highlight"){setFocusColour(focusColour===p.id?null:p.id);}
+              else{setStitchView("highlight");setFocusColour(p.id);}
+            }}>
+              <div className="sw" style={{background:`rgb(${p.rgb})`}}/>
+              <span className="sym">{p.symbol}</span>
+              <span className="cid" style={{color:isFocused?"#0d9488":complete?"#16a34a":"inherit"}}>{p.id}</span>
+              <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
+              {!isEditMode&&<><div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
+              <span className="ct">{dc.done}/{dc.total}</span>
+              <button onClick={e2=>{e2.stopPropagation();if(!complete){let unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{complete?"Undo":"✓"}</button></>}
+              {isEditMode&&<span style={{fontSize:10,color:"#d97706",fontWeight:600}}>✎</span>}
+            </div>;
+          })}
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="rp-section">
+        <div className="rp-heading">Actions</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+          <button className="g-btn" style={{flex:1,justifyContent:"center",fontSize:10,padding:"5px 8px",display:"inline-flex",alignItems:"center",gap:5,border:"1px solid #e2e8f0",background:"#fff",borderRadius:8,cursor:"pointer",color:"#475569",fontWeight:600,fontFamily:"inherit"}} onClick={()=>{copyProgressSummary();}}>📋 Summary</button>
+          <button className="g-btn" style={{flex:1,justifyContent:"center",fontSize:10,padding:"5px 8px",display:"inline-flex",alignItems:"center",gap:5,border:"1px solid #e2e8f0",background:"#fff",borderRadius:8,cursor:"pointer",color:"#475569",fontWeight:600,fontFamily:"inherit"}} onClick={handleEditInCreator}>✏️ Edit</button>
+        </div>
+      </div>
+    </div>{/* end rpanel */}
+  </div>{/* end cs-main */}
+
+  <div style={{maxWidth:1100, margin:"0 auto", padding:"12px 16px"}}>
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <Section title="Thread Organiser">
         <div style={{marginTop:8,display:"flex",gap:12,marginBottom:10}}>
@@ -2814,7 +2852,8 @@ return(
       <button onClick={saveProject} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save Project (.json)</button>
       <button onClick={()=>loadRef.current.click()} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}}>Load Different Project</button>
     </div>
-  </div>}
+  </div>
+  </>}
 
   {importDialog==="image"&&importImage&&<div className="modal-overlay" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
     <div className="modal-content" style={{maxWidth:600}} onClick={e=>e.stopPropagation()}>

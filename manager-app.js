@@ -47,6 +47,7 @@ function ManagerApp() {
   const [selectedPatternsForList, setSelectedPatternsForList] = useState(new Set());
   const [shoppingListModalOpen, setShoppingListModalOpen] = useState(false);
   const [expandedThread, setExpandedThread] = useState(null);
+  const [selectedThread, setSelectedThread] = useState(null);
   const [conflicts, setConflicts] = useState(null);
   const [readyToStart, setReadyToStart] = useState(null);
   const [lowStockAlerts, setLowStockAlerts] = useState(null);
@@ -366,7 +367,7 @@ function ManagerApp() {
     <>
       <Header page="manager" setModal={setModal} onBackupDownload={handleBackupDownload} onRestoreFile={handleRestoreFile} storageUsage={storageUsage} />
       {backupStatus && (
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "8px 16px 0" }}>
+        <div style={{ padding: "8px 20px 0" }}>
           <div style={{ padding: "10px 14px", borderRadius: 8, fontSize: 12, background: backupStatus.type === "error" ? "#fef2f2" : backupStatus.type === "confirm" ? "#fffbeb" : "#f0fdf4", border: `1px solid ${backupStatus.type === "error" ? "#fecaca" : backupStatus.type === "confirm" ? "#fde68a" : "#bbf7d0"}`, color: backupStatus.type === "error" ? "#dc2626" : backupStatus.type === "confirm" ? "#92400e" : "#15803d" }}>
             <div>{backupStatus.message}</div>
             {backupStatus.summary && (
@@ -383,62 +384,55 @@ function ManagerApp() {
           </div>
         </div>
       )}
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 16px" }}>
 
-        <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: "2px solid #f1f5f9" }}>
-          {[["inventory", "Thread Inventory"], ["patterns", "Pattern Library"]].map(it => (
-            <button key={it[0]} onClick={() => { setTab(it[0]); setSearchQuery(""); }} style={tabSt(tab === it[0])}>{it[1]}</button>
+      {/* Sub-tab bar */}
+      <div className="mgr-tab-bar">
+        <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); }}>
+          <span className="icon">🧵</span> Thread Inventory <span className="cnt">{totalOwnedCount}</span>
+        </button>
+        <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); }}>
+          <span className="icon">📋</span> Pattern Library <span className="cnt">{patterns.length}</span>
+        </button>
+      </div>
+
+      {/* Filter bar — threads */}
+      {tab === "inventory" && (
+        <div className="mgr-filter-bar">
+          <input
+            type="text"
+            placeholder="Search DMC number or name..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          {[
+            {id: "all", label: "All"},
+            {id: "tobuy", label: "To Buy"},
+            {id: "owned", label: "Owned"},
+            {id: "lowstock", label: "Low Stock"},
+            {id: "remnants", label: "Remnants"},
+            {id: "usedup", label: "Used Up"}
+          ].map(f => (
+            <button key={f.id} className={"mgr-chip" + (threadFilter === f.id ? " on" : "")} onClick={() => setThreadFilter(f.id)}>{f.label}</button>
           ))}
         </div>
+      )}
 
-        {tab === "inventory" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <input
-                type="text"
-                placeholder="Search DMC number or name..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e2e8f0", flex: "1 1 200px", fontSize: 13 }}
-              />
-              <div style={{ display: "flex", gap: 2, background: "#f1f5f9", borderRadius: 8, padding: 2 }}>
-                {[
-                  {id: "all", label: "All"},
-                  {id: "tobuy", label: "To Buy"},
-                  {id: "owned", label: "Owned"},
-                  {id: "lowstock", label: "Low Stock"},
-                  {id: "remnants", label: "Remnants"},
-                  {id: "usedup", label: "Used Up"}
-                ].map(f => (
-                  <button
-                    key={f.id}
-                    onClick={() => setThreadFilter(f.id)}
-                    style={{
-                      padding: "6px 12px", fontSize: 12, fontWeight: threadFilter === f.id ? 600 : 400,
-                      background: threadFilter === f.id ? "#fff" : "transparent", borderRadius: 6,
-                      color: threadFilter === f.id ? "#1e293b" : "#475569", border: "none", cursor: "pointer",
-                      boxShadow: threadFilter === f.id ? "0 1px 2px rgba(0,0,0,0.04)" : "none"
-                    }}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+      {/* Stats strip — threads */}
+      {tab === "inventory" && (
+        <div className="mgr-stats-strip">
+          <div className="stat">✅ <span className="val">{totalOwnedCount}</span> skeins owned</div>
+          <div className="stat">🛒 <span className="val">{toBuyCount}</span> to buy</div>
+          {lowStockAlerts && lowStockAlerts.length > 0 && <div className="stat">⚠️ <span className="val">{lowStockAlerts.length}</span> low stock</div>}
+        </div>
+      )}
 
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ padding: "6px 14px", background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", fontSize: 12 }}>
-                <span style={{ fontWeight: 700, color: "#16a34a" }}>{totalOwnedCount}</span> <span style={{ color: "#475569" }}>skeins owned</span>
-              </div>
-              <div style={{ padding: "6px 14px", background: "#fff7ed", borderRadius: 8, border: "1px solid #fed7aa", fontSize: 12 }}>
-                <span style={{ fontWeight: 700, color: "#ea580c" }}>{toBuyCount}</span> <span style={{ color: "#475569" }}>to buy</span>
-              </div>
-            </div>
+      {tab === "inventory" && (
+        <div className="mgr-main"><div className="mgr-content">
 
             {/* Smart Hub: Conflicts */}
             {conflicts && conflicts.length > 0 && (
-              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px 16px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#dc2626", marginBottom: 8 }}>⚠ Thread Conflicts ({conflicts.length})</div>
+              <div className="alert-card danger">
+                <div className="at">⚠ Thread Conflicts ({conflicts.length})</div>
                 <div style={{ fontSize: 12, color: "#475569", marginBottom: 10 }}>These threads are needed by multiple patterns but you don't have enough.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflow: "auto" }}>
                   {conflicts.map(c => (
@@ -456,9 +450,9 @@ function ManagerApp() {
 
             {/* Smart Hub: Low-Stock Alerts */}
             {lowStockAlerts && lowStockAlerts.length > 0 && (
-              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "14px 16px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#b45309", marginBottom: 8 }}>📦 Low Stock ({lowStockAlerts.length})</div>
-                <div style={{ fontSize: 12, color: "#475569", marginBottom: 10 }}>Threads below your minimum stock level. Set min stock on any thread's expanded panel.</div>
+              <div className="alert-card warn" style={{ marginBottom: 16 }}>
+                <div className="at">📦 Low Stock ({lowStockAlerts.length})</div>
+                <div style={{ fontSize: 12, color: "#475569", marginBottom: 10 }}>Threads below your minimum stock level.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockAlerts.map(a => (
                     <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fde68a" }}>
@@ -473,178 +467,28 @@ function ManagerApp() {
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 10 }}>
+            <div className="thread-grid">
               {filteredThreads.map(d => {
                 const state = threads[d.id] || { owned: 0, tobuy: false, partialStatus: null };
-                const isExpanded = expandedThread === d.id;
+                const isSelected = selectedThread === d.id;
                 const isLowStock = state.owned > 0 && state.owned <= lowStockThreshold;
 
-                const dotColors = {
-                  "null": "#e2e8f0",
-                  "mostly-full": "#378ADD",
-                  "about-half": "#378ADD",
-                  "remnant": "#EF9F27",
-                  "used-up": "#888780"
-                };
+                const gaugeLevel = !state.partialStatus ? 0 : state.partialStatus === "mostly-full" ? 3 : state.partialStatus === "about-half" ? 2 : state.partialStatus === "remnant" ? 1 : state.partialStatus === "used-up" ? 4 : 0;
 
                 return (
-                  <div key={d.id} style={{
-                    display: "flex", flexDirection: "column",
-                    borderRadius: 8, border: isExpanded ? "1px solid #cbd5e1" : "1px solid #e2e8f0",
-                    background: state.owned > 0 || state.partialStatus ? "#f8f9fa" : "#fff",
-                    boxShadow: isExpanded ? "0 2px 4px rgba(0,0,0,0.05)" : "none",
-                    overflow: "hidden"
-                  }}>
-                    {/* Compact Row */}
-                    <div
-                      onClick={() => setExpandedThread(isExpanded ? null : d.id)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 12, padding: "10px 12px",
-                        cursor: "pointer", userSelect: "none"
-                      }}
-                    >
-                      <div style={{ width: 28, height: 28, borderRadius: 14, background: `rgb(${d.rgb})`, border: "1px solid #cbd5e1", flexShrink: 0 }} />
-
-                      <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, justifyContent: "center" }}>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 6, whiteSpace: "nowrap", overflow: "hidden" }}>
-                          <span style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>DMC {d.id}</span>
-                          <span style={{ fontSize: 12, color: "#475569", textOverflow: "ellipsis", overflow: "hidden" }}>{d.name}</span>
-                        </div>
-                      </div>
-
-                      {isLowStock && <div style={{ fontSize: 10, color: "#ea580c", background: "#fff7ed", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>Low</div>}
-
-                      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-                        <div style={{
-                          padding: "2px 8px", background: "#e2e8f0", borderRadius: 12,
-                          fontSize: 12, fontWeight: 600, color: "#3f3f46", minWidth: 28, textAlign: "center"
-                        }}>
-                          {state.owned}
-                        </div>
-
-                        <div className="partial-gauge-container">
-                          <PartialGauge status={state.partialStatus} />
-                        </div>
-
-                        <button
-                          onClick={(e) => { e.stopPropagation(); updateThread(d.id, "tobuy", !state.tobuy); }}
-                          style={{
-                            padding: "6px", borderRadius: 6, border: state.tobuy ? "1px solid #fed7aa" : "1px solid #e2e8f0",
-                            background: state.tobuy ? "#fff7ed" : "#fff", color: state.tobuy ? "#ea580c" : "#94a3b8", cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center"
-                          }}
-                          title={state.tobuy ? "Remove from to-buy list" : "Add to to-buy list"}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                             <circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-                          </svg>
-                        </button>
-
-                        <div style={{ color: "#94a3b8", display: "flex", alignItems: "center", transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                          </svg>
-                        </div>
-                      </div>
+                  <div key={d.id} className={"tcard" + (isSelected ? " on" : "")} onClick={() => setSelectedThread(isSelected ? null : d.id)}>
+                    <div className="sw" style={{ background: `rgb(${d.rgb})` }} />
+                    <div className="info">
+                      <div className="tid">{d.id}</div>
+                      <div className="tnm">{d.name}</div>
                     </div>
-
-                    {/* Edit Panel */}
-                    {isExpanded && (
-                      <div style={{ display: "flex", borderTop: "1px solid #f1f5f9", padding: "16px 12px", background: "#fff", gap: 16 }}>
-
-                        {/* Full Skeins Col */}
-                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.5 }}>FULL SKEINS</div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); updateThread(d.id, "owned", Math.max(0, state.owned - 1)); }}
-                              style={{ width: 32, height: 32, borderRadius: 16, background: "#f1f5f9", border: "1px solid #e2e8f0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#3f3f46", fontSize: 16 }}
-                            >−</button>
-                            <div style={{ fontSize: 18, fontWeight: 600, color: "#1e293b", minWidth: 24, textAlign: "center" }}>{state.owned}</div>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); updateThread(d.id, "owned", state.owned + 1); }}
-                              style={{ width: 32, height: 32, borderRadius: 16, background: "#f1f5f9", border: "1px solid #e2e8f0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#3f3f46", fontSize: 16 }}
-                            >+</button>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const btn = e.currentTarget;
-                              btn.disabled = true;
-                              btn.textContent = "…";
-                              (typeof StashBridge !== "undefined"
-                                ? StashBridge.getProjectsUsingThread(d.id)
-                                : Promise.resolve(patternsUsingThread(d.id).map(p => ({ source: "library", name: p.title, type: "manual" })))
-                              ).then(usedIn => {
-                                if (usedIn.length > 0) {
-                                  alert(`Thread DMC ${d.id} is used in:\n\n${usedIn.map(p => `- ${p.name} (${p.type})`).join('\n')}`);
-                                } else {
-                                  alert(`Thread DMC ${d.id} is not currently used in any of your patterns or projects.`);
-                                }
-                              }).catch(() => {
-                                const usedIn = patternsUsingThread(d.id);
-                                if (usedIn.length > 0) {
-                                  alert(`Thread DMC ${d.id} is used in:\n\n${usedIn.map(p => `- ${p.title} (needs ${p.threads.find(t=>t.id===d.id).qty})`).join('\n')}`);
-                                } else {
-                                  alert(`Thread DMC ${d.id} is not currently used in any of your patterns.`);
-                                }
-                              }).finally(() => {
-                                btn.disabled = false;
-                                btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> Usage';
-                              });
-                            }}
-                            style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", background: "#f1f5f9", color: "#475569", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 11, width: "fit-content", marginTop: "auto" }}
-                            title="What uses this thread?"
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                            </svg>
-                            Usage
-                          </button>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-                            <label style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap" }}>Min stock:</label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={state.min_stock || 0}
-                              onClick={e => e.stopPropagation()}
-                              onChange={e => { e.stopPropagation(); updateThread(d.id, "min_stock", Math.max(0, parseInt(e.target.value) || 0)); }}
-                              style={{ width: 48, padding: "3px 6px", borderRadius: 4, border: "1px solid #e2e8f0", fontSize: 12, textAlign: "center" }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Opened Skein Col */}
-                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.5, marginBottom: 4 }}>OPENED SKEIN</div>
-                          {[
-                            { val: null, label: "None" },
-                            { val: "mostly-full", label: "Mostly full" },
-                            { val: "about-half", label: "About half" },
-                            { val: "remnant", label: "Remnant" },
-                            { val: "used-up", label: "Used up" }
-                          ].map(opt => {
-                            const isActive = (state.partialStatus === opt.val) || (opt.val === null && !state.partialStatus);
-                            return (
-                              <div
-                                key={opt.val || 'none'}
-                                onClick={(e) => { e.stopPropagation(); updateThread(d.id, "partialStatus", opt.val); }}
-                                style={{
-                                  display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
-                                  borderRadius: 6, cursor: "pointer",
-                                  background: isActive ? "#f1f5f9" : "transparent",
-                                  border: isActive ? "1px solid #e2e8f0" : "1px solid transparent"
-                                }}
-                              >
-                                <div style={{ width: 10, height: 10, borderRadius: 5, background: dotColors[opt.val || "null"] }} />
-                                <div style={{ fontSize: 13, color: "#3f3f46", fontWeight: isActive ? 500 : 400 }}>{opt.label}</div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                      </div>
-                    )}
+                    {isLowStock && <span className="badge-low">Low</span>}
+                    <div className="owned">{state.owned}</div>
+                    <div className="gauge">
+                      {[0,1,2,3].map(s => (
+                        <div key={s} className={"seg" + (s < gaugeLevel && gaugeLevel < 4 ? " full" : "") + (gaugeLevel === 1 && s === 0 ? " warn" : "") + (gaugeLevel === 4 ? " full" : "")} />
+                      ))}
+                    </div>
                   </div>
                 );
               })}
@@ -657,23 +501,145 @@ function ManagerApp() {
               )}
             </div>
           </div>
+
+          {/* Right Panel — Thread Detail */}
+          <div className="mgr-rpanel">
+            {selectedThread ? (() => {
+              const d = DMC.find(x => x.id === selectedThread);
+              if (!d) return <div className="rp-s" style={{ color: "#94a3b8", textAlign: "center", padding: 20 }}>Thread not found</div>;
+              const state = threads[d.id] || { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
+              return <>
+                <div className="rp-s" style={{ textAlign: "center" }}>
+                  <div className="td-swatch" style={{ background: `rgb(${d.rgb})` }} />
+                  <div className="td-title">
+                    <div className="dmc">DMC {d.id}</div>
+                    <div className="tnm">{d.name}</div>
+                  </div>
+                </div>
+                <div className="rp-s">
+                  <div className="rp-h">Inventory</div>
+                  <div className="td-row">
+                    <span className="lbl">Full skeins</span>
+                    <div className="qty-ctrl">
+                      <button onClick={() => updateThread(d.id, "owned", Math.max(0, state.owned - 1))}>−</button>
+                      <span className="num">{state.owned}</span>
+                      <button onClick={() => updateThread(d.id, "owned", state.owned + 1)}>+</button>
+                    </div>
+                  </div>
+                  <div className="td-row">
+                    <span className="lbl">Min stock</span>
+                    <div className="qty-ctrl">
+                      <button onClick={() => updateThread(d.id, "min_stock", Math.max(0, (state.min_stock || 0) - 1))}>−</button>
+                      <span className="num">{state.min_stock || 0}</span>
+                      <button onClick={() => updateThread(d.id, "min_stock", (state.min_stock || 0) + 1)}>+</button>
+                    </div>
+                  </div>
+                  <div className="td-row">
+                    <span className="lbl">Opened skein</span>
+                    <span className="val" style={{ fontSize: 11 }}>
+                      {!state.partialStatus ? "None" : state.partialStatus === "mostly-full" ? "Mostly full" : state.partialStatus === "about-half" ? "About half" : state.partialStatus === "remnant" ? "Remnant" : "Used up"}
+                    </span>
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4, textAlign: "center" }}>Opened skein level</div>
+                    <div className="gauge-lg">
+                      {[
+                        { val: null, label: "—" },
+                        { val: "mostly-full", label: "¾" },
+                        { val: "about-half", label: "½" },
+                        { val: "remnant", label: "¼" }
+                      ].map(opt => {
+                        const isActive = state.partialStatus === opt.val || (opt.val === null && !state.partialStatus);
+                        return <div key={opt.val || "none"} className={"seg" + (isActive ? " full" : "")} title={opt.val || "None"} onClick={() => updateThread(d.id, "partialStatus", opt.val)}>{opt.label}</div>;
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <div className="rp-s">
+                  <div className="rp-h">Used In</div>
+                  <div className="used-in">
+                    {patternsUsingThread(d.id).length > 0
+                      ? patternsUsingThread(d.id).map(p => (
+                        <div key={p.id || p.title} className="ui-row">📋 {p.title} <span className="need">{p.threads.find(t => t.id === d.id) ? `need ${p.threads.find(t => t.id === d.id).qty} sk` : ""}</span></div>
+                      ))
+                      : <div style={{ fontSize: 11, color: "#94a3b8", padding: "4px 6px" }}>Not used in any patterns</div>
+                    }
+                  </div>
+                </div>
+                <div className="rp-s">
+                  <div className="rp-h">Actions</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => updateThread(d.id, "tobuy", !state.tobuy)}>
+                      {state.tobuy ? "✅ On shopping list" : "🛒 Add to shopping list"}
+                    </button>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { if(confirm(`Remove DMC ${d.id} from inventory?`)) { updateThread(d.id, "owned", 0); updateThread(d.id, "partialStatus", null); updateThread(d.id, "tobuy", false); } }}>
+                      🗑 Remove from inventory
+                    </button>
+                  </div>
+                </div>
+              </>;
+            })() : (
+              <div className="rp-s" style={{ color: "#94a3b8", textAlign: "center", padding: "40px 16px", fontSize: 13 }}>
+                Click a thread to view details
+              </div>
+            )}
+          </div>
+        </div>
         )}
 
         {tab === "patterns" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -8 }}>
-               <button onClick={() => setProfileModalOpen(true)} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", color: "#3f3f46" }}>
-                 ⚙️ Thread Settings
-               </button>
+          <><div className="mgr-filter-bar">
+            <input
+              type="text"
+              placeholder="Search title, designer, or tags..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+            {[
+              {id: "all", label: "All"},
+              {id: "wishlist", label: "Wishlist"},
+              {id: "owned", label: "Owned"},
+              {id: "inprogress", label: "In Progress"},
+              {id: "completed", label: "Completed"}
+            ].map(f => (
+              <button key={f.id} className={"mgr-chip" + (patternFilter === f.id ? " on" : "")} onClick={() => setPatternFilter(f.id)}>{f.label}</button>
+            ))}
+            <select
+              value={patternSort}
+              onChange={e => setPatternSort(e.target.value)}
+              style={{ padding: "5px 10px", fontSize: 11, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", color: "#475569", marginLeft: "auto", fontFamily: "inherit" }}
+            >
+              <option value="date_desc">Sort: Recent</option>
+              <option value="date_asc">Sort: Oldest</option>
+              <option value="title_asc">Sort: Name</option>
+              <option value="designer_asc">Sort: Designer</option>
+              <option value="status">Sort: Status</option>
+            </select>
+          </div>
+          <div className="mgr-stats-strip">
+            <div className="stat">📋 <span className="val">{patterns.length}</span> patterns</div>
+            <div className="stat">✅ <span className="val">{readyToStart ? readyToStart.filter(r => r.pct === 100).length : 0}</span> fully kitted</div>
+          </div>
+          <div className="mgr-main"><div className="mgr-content">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <button onClick={() => setProfileModalOpen(true)} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", color: "#3f3f46", fontFamily: "inherit" }}>
+                ⚙️ Thread Settings
+              </button>
+              <button
+                onClick={() => setEditingPattern({ id: Date.now().toString(), title: "", designer: "", status: "wishlist", tags: [], threads: [] })}
+                style={{ padding: "8px 16px", fontSize: 13, fontWeight: 600, background: "#0d9488", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                + Add Pattern
+              </button>
             </div>
             {activeProject && (
-                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", textTransform: "uppercase", marginBottom: 4 }}>Currently tracking</div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>{activeProject.pattern && activeProject.pattern.length > 0 ? "Active Project" : "Unnamed Project"}</div>
-                    </div>
-                    <button onClick={() => window.open('stitch.html', '_blank')} style={{ padding: "6px 12px", fontSize: 13, fontWeight: 600, background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>Go to Tracker</button>
+              <div className="alert-card success" style={{ marginBottom: 12 }}>
+                <div className="at">🟢 Currently Tracking</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>{activeProject.pattern && activeProject.pattern.length > 0 ? "Active Project" : "Unnamed Project"}</span>
+                  <a href="stitch.html" style={{ color: "#065f46", fontWeight: 600, fontSize: 11 }}>Go to Tracker →</a>
                 </div>
+              </div>
             )}
             {/* Smart Hub: Ready to Start */}
             {readyToStart && readyToStart.length > 0 && (
@@ -698,7 +664,7 @@ function ManagerApp() {
               </div>
             )}
             {storedProjects.length > 0 && (
-              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "14px 16px", marginBottom: 12 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>Saved Cross-Stitch Projects ({storedProjects.length})</div>
                 </div>
@@ -711,7 +677,7 @@ function ManagerApp() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
                           <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>
-                            {p.dimensions.width}×{p.dimensions.height} &middot; {pct}% done &middot; {p.source === "tracker" ? "Tracked" : "Created"} &middot; {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : ""}
+                            {p.dimensions.width}×{p.dimensions.height} · {pct}% done · {p.source === "tracker" ? "Tracked" : "Created"} · {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : ""}
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
@@ -740,58 +706,8 @@ function ManagerApp() {
                 </div>
               </div>
             )}
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", flex: 1 }}>
-                <input
-                  type="text"
-                  placeholder="Search title, designer, or tags..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e2e8f0", flex: "1 1 150px", fontSize: 13 }}
-                />
-                <div style={{ display: "flex", gap: 2, background: "#f1f5f9", borderRadius: 8, padding: 2 }}>
-                  {[
-                    {id: "all", label: "All"},
-                    {id: "wishlist", label: "Wishlist"},
-                    {id: "owned", label: "Owned"},
-                    {id: "inprogress", label: "In Progress"},
-                    {id: "completed", label: "Completed"}
-                  ].map(f => (
-                    <button
-                      key={f.id}
-                      onClick={() => setPatternFilter(f.id)}
-                      style={{
-                        padding: "6px 12px", fontSize: 12, fontWeight: patternFilter === f.id ? 600 : 400,
-                        background: patternFilter === f.id ? "#fff" : "transparent", borderRadius: 6,
-                        color: patternFilter === f.id ? "#1e293b" : "#475569", border: "none", cursor: "pointer",
-                        boxShadow: patternFilter === f.id ? "0 1px 2px rgba(0,0,0,0.04)" : "none"
-                      }}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-                <select
-                  value={patternSort}
-                  onChange={e => setPatternSort(e.target.value)}
-                  style={{ padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e2e8f0", fontSize: 13, background: "#fff", cursor: "pointer" }}
-                >
-                  <option value="date_desc">Newest First</option>
-                  <option value="date_asc">Oldest First</option>
-                  <option value="title_asc">Title (A-Z)</option>
-                  <option value="designer_asc">Designer (A-Z)</option>
-                  <option value="status">Status</option>
-                </select>
-              </div>
-              <button
-                onClick={() => setEditingPattern({ id: Date.now().toString(), title: "", designer: "", status: "wishlist", tags: [], threads: [] })}
-                style={{ padding: "8px 16px", fontSize: 13, fontWeight: 600, background: "#0d9488", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}
-              >
-                + Add Pattern
-              </button>
-            </div>
 
-            <div style={{ padding: "12px 16px", background: selectedPatternsForList.size > 0 ? "#f0fdf4" : "#f8f9fa", borderRadius: 8, border: selectedPatternsForList.size > 0 ? "1px solid #bbf7d0" : "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ padding: "12px 16px", background: selectedPatternsForList.size > 0 ? "#f0fdf4" : "#f8f9fa", borderRadius: 8, border: selectedPatternsForList.size > 0 ? "1px solid #bbf7d0" : "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               {selectedPatternsForList.size > 0 ? (
                 <div style={{ fontSize: 13, color: "#16a34a", fontWeight: 600 }}>{selectedPatternsForList.size} pattern(s) selected</div>
               ) : (
@@ -803,72 +719,112 @@ function ManagerApp() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+            <div className="pat-grid">
               {filteredPatterns.map(p => {
                 const isSelected = selectedPatternsForList.has(p.id);
                 return (
-                  <div key={p.id} style={{ display: "flex", flexDirection: "column", padding: "16px", borderRadius: 12, border: isSelected ? "2px solid #0d9488" : "1px solid #e2e8f0", background: "#fff", cursor: "pointer", transition: "box-shadow 0.2s" }} onClick={() => setViewingPattern(p)}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) => { e.stopPropagation(); togglePatternSelection(p.id); }}
-                          onClick={e => e.stopPropagation()}
-                          style={{ cursor: "pointer" }}
-                        />
-                        <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.title || "Untitled"}</div>
-                      </div>
-                      <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 10, fontWeight: 600, background: statusColors[p.status].bg, color: statusColors[p.status].text, flexShrink: 0 }}>
-                        {statusColors[p.status].label}
+                  <div key={p.id} className={"pcard" + (viewingPattern && viewingPattern.id === p.id ? " on" : "")} onClick={() => setViewingPattern(viewingPattern && viewingPattern.id === p.id ? null : p)}>
+                    <div className="ptitle">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => { e.stopPropagation(); togglePatternSelection(p.id); }}
+                        onClick={e => e.stopPropagation()}
+                        style={{ cursor: "pointer" }}
+                      />
+                      {p.title || "Untitled"}
+                      <span className={"status " + (p.status || "wishlist")} style={{ marginLeft: "auto" }}>
+                        {statusColors[p.status] ? statusColors[p.status].label : p.status}
                       </span>
                     </div>
-                    {p.designer && <div style={{ fontSize: 13, color: "#475569", marginBottom: 8 }}>by {p.designer}</div>}
-
+                    {p.designer && <div className="pdesigner">by {p.designer}</div>}
                     {p.tags && p.tags.length > 0 && (
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
+                      <div className="ptags">
                         {p.tags.filter(tag => tag !== "auto-synced").map(tag => (
-                          <span key={tag} style={{ padding: "2px 6px", background: "#f1f5f9", color: "#475569", borderRadius: 4, fontSize: 11 }}>{tag}</span>
+                          <span key={tag} className="tag">{tag}</span>
                         ))}
-                        {p.tags.includes("auto-synced") && (
-                          <span style={{ padding: "2px 6px", background: "#f0fdfa", color: "#0d9488", borderRadius: 4, fontSize: 10, fontWeight: 600 }}>Auto-synced</span>
+                        {(p.tags.includes("auto-synced") || p.linkedProjectId) && (
+                          <span className="tag" style={{ background: "#f0fdfa", color: "#0d9488", fontWeight: 600 }}>Auto-synced</span>
                         )}
                       </div>
                     )}
-                    {p.linkedProjectId && (!p.tags || !p.tags.includes("auto-synced")) && (
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
-                        <span style={{ padding: "2px 6px", background: "#f0fdfa", color: "#0d9488", borderRadius: 4, fontSize: 10, fontWeight: 600 }}>Auto-synced</span>
-                      </div>
-                    )}
-
-                    <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #f1f5f9", paddingTop: 12 }}>
-                      <div style={{ fontSize: 12, color: "#94a3b8" }}>{p.threads ? p.threads.length : 0} threads required</div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button onClick={(e) => { e.stopPropagation(); setEditingPattern(p); }} style={{ background: "none", border: "none", color: "#0d9488", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                        <button onClick={(e) => { e.stopPropagation(); deletePattern(p.id); }} style={{ background: "none", border: "none", color: "#ef4444", fontSize: 12, cursor: "pointer" }}>Delete</button>
-                      </div>
+                    <div className="pmeta">
+                      <span>{p.threads ? p.threads.length : 0} threads required</span>
                     </div>
                   </div>
                 );
               })}
               {filteredPatterns.length === 0 && (
                 <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "60px 20px", color: "#475569", fontSize: 14 }}>
-                  No patterns found. Click "Add Pattern" to start your library.
+                  No patterns found. Click "+ Add Pattern" to start your library.
                 </div>
               )}
             </div>
           </div>
-        )}
 
-      </div>
-      {viewingPattern && (
-        <PatternDetailsModal
-          pattern={viewingPattern}
-          onClose={() => setViewingPattern(null)}
-          onEdit={() => { setEditingPattern(viewingPattern); setViewingPattern(null); }}
-          inventoryThreads={threads}
-        />
-      )}
+          {/* Right Panel — Pattern Detail */}
+          <div className="mgr-rpanel">
+            {viewingPattern ? (() => {
+              const p = viewingPattern;
+              const coverage = p.threads && p.threads.length > 0
+                ? Math.round(p.threads.filter(t => (threads[t.id] || {}).owned > 0).length / p.threads.length * 100)
+                : 0;
+              const missingThreads = p.threads ? p.threads.filter(t => !(threads[t.id] || {}).owned) : [];
+              return <>
+                <div className="rp-s">
+                  <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 2 }}>{p.title || "Untitled"}</div>
+                  {p.designer && <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8 }}>by {p.designer}</div>}
+                  {p.tags && p.tags.length > 0 && (
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
+                      {p.tags.map(tag => (
+                        <span key={tag} style={{ fontSize: 10, padding: "2px 8px", background: "#f1f5f9", borderRadius: 10, color: "#475569" }}>{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                  <span className={"status " + (p.status || "wishlist")} style={{ display: "inline-block" }}>
+                    {statusColors[p.status] ? statusColors[p.status].label : p.status}
+                  </span>
+                </div>
+                <div className="rp-s">
+                  <div className="rp-h">Thread Coverage <span className="badge">{coverage}%</span></div>
+                  <div style={{ height: 6, background: "#f1f5f9", borderRadius: 3, overflow: "hidden", border: "1px solid #e2e8f0", marginBottom: 8 }}>
+                    <div style={{ height: "100%", width: coverage + "%", background: "#0d9488", borderRadius: 3 }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.threads ? p.threads.filter(t => (threads[t.id] || {}).owned > 0).length : 0} of {p.threads ? p.threads.length : 0} threads in your stash. {missingThreads.length} missing.</div>
+                </div>
+                {missingThreads.length > 0 && (
+                  <div className="rp-s">
+                    <div className="rp-h">Missing Threads</div>
+                    <div className="used-in">
+                      {missingThreads.map(t => {
+                        const dmc = DMC.find(x => x.id === t.id);
+                        return (
+                          <div key={t.id} className="ui-row">
+                            <div style={{ width: 12, height: 12, borderRadius: 3, background: dmc ? `rgb(${dmc.rgb})` : "#ccc", border: "1px solid #e2e8f0" }} />
+                            {t.id} {dmc ? dmc.name : ""} <span className="need">{t.qty ? t.qty + " sk" : ""}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <div className="rp-s">
+                  <div className="rp-h">Actions</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setEditingPattern(p); }}>✏️ Edit Pattern</button>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setSelectedPatternsForList(new Set([p.id])); setShoppingListModalOpen(true); }}>🛒 Shopping List</button>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { deletePattern(p.id); setViewingPattern(null); }}>🗑 Delete</button>
+                  </div>
+                </div>
+              </>;
+            })() : (
+              <div className="rp-s" style={{ color: "#94a3b8", textAlign: "center", padding: "40px 16px", fontSize: 13 }}>
+                Click a pattern to view details
+              </div>
+            )}
+          </div>
+        </div></>
+        )}
       {editingPattern && (
         <PatternModal
           pattern={editingPattern}
