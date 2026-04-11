@@ -19,6 +19,28 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   if (!(ctx.pat && ctx.pal)) return null;
   if (ctx.tab !== "pattern") return null;
 
+  // Track Shift/Alt modifier keys when a selection tool is active.
+  // Updates ctx.selectionModifier so MagicWandPanel can show the effective mode.
+  React.useEffect(function() {
+    if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso") {
+      ctx.setSelectionModifier(null);
+      return;
+    }
+    function update(e) {
+      if (e.shiftKey && e.altKey)  ctx.setSelectionModifier("intersect");
+      else if (e.shiftKey)         ctx.setSelectionModifier("add");
+      else if (e.altKey)           ctx.setSelectionModifier("subtract");
+      else                         ctx.setSelectionModifier(null);
+    }
+    window.addEventListener("keydown", update);
+    window.addEventListener("keyup",   update);
+    return function() {
+      window.removeEventListener("keydown", update);
+      window.removeEventListener("keyup",   update);
+      ctx.setSelectionModifier(null);
+    };
+  }, [ctx.activeTool]);
+
   // PaletteSwap confirm view takes over when active
   if (ctx.paletteSwap && ctx.paletteSwap.showConfirm) {
     return ctx.paletteSwap.confirmView || null;
@@ -26,8 +48,25 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   // Build status text
   var statusText;
-  if (ctx.stitchType === "cross") {
-    statusText = "Cross stitch \u2014 " + (ctx.brushMode === "fill" ? "fill" : "paint") + " mode. Select a colour chip below.";
+  if (ctx.eyedropperEmpty) {
+    statusText = "\u26A0 That cell is empty \u2014 no colour to sample.";
+  } else if (ctx.activeTool === "eyedropper") {
+    statusText = "Eyedropper \u2014 click a cell to sample its colour.";
+  } else if (ctx.activeTool === "magicWand") {
+    var wModLabel = ctx.selectionModifier === "add" ? "[+] Add" : ctx.selectionModifier === "subtract" ? "[\u2212] Subtract" : ctx.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
+    statusText = "Magic Wand \u2014 click to select by colour" + (wModLabel ? " \u2022 " + wModLabel : ". Shift=add, Alt=subtract.");
+  } else if (ctx.activeTool === "lasso") {
+    var lModLabel = ctx.selectionModifier === "add" ? "[+] Add" : ctx.selectionModifier === "subtract" ? "[\u2212] Subtract" : ctx.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
+    statusText = "Lasso (" + (ctx.lassoMode || "freehand") + ")" + (lModLabel ? " \u2022 " + lModLabel : "") + " \u2014 " +
+      (ctx.lassoMode === "freehand" ? "drag to paint selection." :
+       ctx.lassoMode === "polygon" ? "click to place anchor points. Click near start to close." :
+       "click to place anchors; snaps to colour edges.");
+  } else if (ctx.stitchType === "cross") {
+    if (!ctx.selectedColorId) {
+      statusText = "Cross stitch \u2014 select a colour in the panel, or right-click the canvas to pick one.";
+    } else {
+      statusText = "Cross stitch \u2014 " + (ctx.brushMode === "fill" ? "fill" : "paint") + " mode. Right-click any cell to change colour.";
+    }
   } else if (ctx.stitchType === "half-fwd") {
     statusText = "Half stitch / \u2014 click cells to place.";
   } else if (ctx.stitchType === "half-bck") {
@@ -35,82 +74,24 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   } else if (ctx.stitchType === "backstitch") {
     statusText = "Backstitch \u2014 click grid intersections. Right-click to cancel.";
   } else if (ctx.stitchType === "erase") {
-    statusText = "Erase \u2014 click to remove stitches and backstitch lines.";
+    statusText = "Erase \u2014 click to remove stitches. Use backstitch erase (Bs tool) for backstitch lines.";
   } else {
-    statusText = "Select a colour chip below, then choose a stitch type above.";
+    statusText = "Select a colour in the panel on the right, then choose a stitch type above.";
   }
-
-  // Palette chips
-  var chips = (ctx.displayPal || ctx.pal || []).map(function(p) {
-    var isHsTool = ctx.halfStitchTool && ctx.halfStitchTool !== "erase";
-    var ips = (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) && ctx.selectedColorId === p.id;
-    var ihs = ctx.hiId === p.id;
-    var isUnused = ctx.isScratchMode && p.count === 0;
-    var chip = h("div", {
-      key: p.id,
-      className: "creator-palette-chip",
-      role: "button",
-      tabIndex: 0,
-      "aria-pressed": ips || ihs,
-      onClick: function() {
-        if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {
-          ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
-        } else {
-          ctx.setHiId(ctx.hiId === p.id ? null : p.id);
-        }
-      },
-      onKeyDown: function(e) {
-        if (e.repeat) return;
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {
-            ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
-          } else {
-            ctx.setHiId(ctx.hiId === p.id ? null : p.id);
-          }
-        }
-      },
-      style: {
-        display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
-        cursor:"pointer",fontSize:11,
-        border: ips ? (isHsTool ? "2px solid #0284c7" : "2px solid #0d9488")
-               : ihs ? "2px solid #ea580c" : "0.5px solid #e4e4e7",
-        background: ips ? (isHsTool ? "#e0f2fe" : "#f0fdfa")
-                   : ihs ? "#fff7ed" : "#fff",
-        opacity: isUnused ? 0.6 : 1
-      }
-    },
-      h("span", {className:"creator-palette-chip-swatch",style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}),
-      h("span", {style:{fontFamily:"monospace",color:"#71717a"}}, p.symbol),
-      h("span", {style:{fontWeight:500}}, p.id),
-      isUnused && h("span", {
-        className:"creator-palette-chip-remove",
-        onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
-        style:{fontSize:9,color:"#a1a1aa",cursor:"pointer",marginLeft:2,lineHeight:1}
-      }, "\xD7")
-    );
-    if (ctx.isScratchMode) {
-      var tipText = ips ? "Currently selected \u2014 click canvas to paint"
-                   : isUnused ? "Click to select \u00B7 no stitches yet"
-                   : "Click to select this colour for painting";
-      return h(Tooltip, {key:p.id, text:tipText, width:180}, chip);
-    }
-    return chip;
-  });
 
   return h("div", null,
     ctx.cs < 6 && (ctx.view === "symbol" || ctx.view === "both") && h("div", {
-      style:{fontSize:12,color:"#71717a",marginBottom:6,background:"#f4f4f5",padding:"6px 10px",borderRadius:8}
+      style:{fontSize:12,color:"#475569",marginBottom:6,background:"#f1f5f9",padding:"6px 10px",borderRadius:8}
     }, "To see symbols, you may need to zoom in."),
 
     ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
-      style:{fontSize:12,color:"#a1a1aa",padding:"8px 12px",background:"#f4f4f5",borderRadius:8,marginBottom:8,textAlign:"center"}
-    }, "Add colours using the Colours panel on the left, then select Paint or Fill to begin."),
+      style:{fontSize:12,color:"#94a3b8",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
+    }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
     !ctx.shortcutsHintDismissed && h("div", {
-      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
+      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
     },
-      h("span", null, "\uD83D\uDCA1 Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
+      h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
         onClick: function() {
           localStorage.setItem("shortcuts_hint_dismissed", "1");
@@ -130,7 +111,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       return h("div", {
         style:{padding:"8px 12px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,fontSize:12,color:"#991b1b",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}
       },
-        h("span", null, "\u26A0\uFE0F Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
+        h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
         h("button", {
           onClick:function(){setConfettiBannerDismissed(true);},
           style:{background:"none",border:"none",color:"#991b1b",cursor:"pointer",fontSize:14,flexShrink:0,marginLeft:8}
@@ -138,14 +119,75 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       );
     })(),
 
+    h(window.MagicWandPanel, null),
+
     h("div", {
       ref:ctx.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(ctx.activeTool||ctx.halfStitchTool)?"crosshair":"default"}
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#f1f5f9",cursor:(function(){
+        var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
+        if (ctx.activeTool === "eyedropper") return "copy";
+        if (selTool) return "crosshair";
+        if (ctx.activeTool === "fill") return "cell";
+        if (ctx.activeTool === "eraseBs") return "not-allowed";
+        if (ctx.activeTool || ctx.halfStitchTool) return "crosshair";
+        return "default";
+      })()},
+      onContextMenu: function(e) {
+        // Right-click context menu (except when backstitch has a special right-click action)
+        if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
+        e.preventDefault();
+        var pcRef = ctx.pcRef;
+        if (!pcRef.current || !ctx.pat) return;
+        var gc = gridCoord(pcRef, e, ctx.cs, ctx.G, false);
+        if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
+        var idx = gc.gy * ctx.sW + gc.gx;
+        var cell = ctx.pat[idx];
+        // In paint/fill mode, right-click directly picks the colour (eyedropper gesture)
+        var rcIsHsTool = ctx.halfStitchTool && ctx.halfStitchTool !== "erase";
+        if ((ctx.activeTool === "paint" || ctx.activeTool === "fill" || rcIsHsTool) &&
+            cell && cell.id !== "__skip__" && cell.id !== "__empty__" &&
+            ctx.cmap && ctx.cmap[cell.id]) {
+          ctx.setSelectedColorId(cell.id);
+          return;
+        }
+        ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
+      }
     },
       h(window.PatternCanvas, null)
     ),
 
-    h("div", {className:"tb-status"}, statusText),
+    // Context menu overlay
+    ctx.contextMenu && h(window.CreatorContextMenu, null),
+
+    // Enhanced status bar: tool hint + coordinates + colour-under-cursor
+    (function() {
+      var parts = [statusText];
+      if (ctx.hoverCoords && ctx.hoverCoords.gx >= 0 && ctx.hoverCoords.gx < ctx.sW && ctx.hoverCoords.gy >= 0 && ctx.hoverCoords.gy < ctx.sH) {
+        parts.push("X: " + (ctx.hoverCoords.gx + 1) + ", Y: " + (ctx.hoverCoords.gy + 1));
+        var hIdx = ctx.hoverCoords.gy * ctx.sW + ctx.hoverCoords.gx;
+        var hCell = ctx.pat[hIdx];
+        if (hCell && hCell.id !== "__skip__" && hCell.id !== "__empty__" && ctx.cmap && ctx.cmap[hCell.id]) {
+          var info = ctx.cmap[hCell.id];
+          parts.push("DMC " + info.id + (info.name ? " " + info.name : "") + " (" + (info.count || 0) + " st)");
+        }
+      }
+      return h("div", {className:"tb-status", style:{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
+        h("span", null, parts[0]),
+        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#94a3b8",flexShrink:0}}, parts[1]),
+        parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
+          ctx.cmap && ctx.pat && ctx.hoverCoords && (function() {
+            var hIdx2 = ctx.hoverCoords.gy * ctx.sW + ctx.hoverCoords.gx;
+            var hCell2 = ctx.pat[hIdx2];
+            if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
+              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
+                background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
+            }
+            return null;
+          })(),
+          h("span", {style:{fontSize:10,color:"#475569"}}, parts[2])
+        )
+      );
+    })(),
 
     h("div", {style:{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}},
       ctx.editHistory.length > 0 && h("button", {
@@ -162,15 +204,5 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }, "Clear \u2715")
     ),
 
-    ctx.isScratchMode && (ctx.activeTool === "paint" || ctx.activeTool === "fill") && !ctx.selectedColorId && ctx.displayPal && ctx.displayPal.length > 0 && h("div", {
-      style:{marginBottom:6,padding:"5px 10px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:8,fontSize:11,color:"#92400e",display:"flex",alignItems:"center",gap:6}
-    },
-      h("span", {style:{fontSize:13}}, "\uD83D\uDC47"),
-      " Click a colour chip below to select it, then paint on the canvas"
-    ),
-
-    h("div", {style:{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}},
-      h("div", {className:"creator-pattern-chips",style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
-    )
   );
 };

@@ -83,7 +83,9 @@ window.useCreatorState = function useCreatorState() {
   var cropRef      = useRef(null);
 
   // Tools / editing
-  var _actTool  = useState(null);    var activeTool     = _actTool[0],  setActiveTool     = _actTool[1];
+  var _actTool  = useState(null);    var activeTool     = _actTool[0];
+  var activeToolRef = useRef(null);
+  function setActiveTool(v) { activeToolRef.current = v; _actTool[1](v); }
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
@@ -94,7 +96,9 @@ window.useCreatorState = function useCreatorState() {
   var EDIT_HISTORY_MAX = 50;
   var _scHint   = useState(function() { try { return !!localStorage.getItem("shortcuts_hint_dismissed"); } catch(_) { return false; } });
   var shortcutsHintDismissed = _scHint[0], setShortcutsHintDismissed = _scHint[1];
-  var _brushM   = useState("paint"); var brushMode = _brushM[0], setBrushMode = _brushM[1];
+  var _brushM   = useState("paint"); var brushMode = _brushM[0];
+  var brushModeRef = useRef("paint");
+  function setBrushMode(v) { brushModeRef.current = v; _brushM[1](v); }
   var _brushSz  = useState(1);       var brushSize = _brushSz[0], setBrushSize = _brushSz[1];
   var _ovfOpen  = useState(false);   var overflowOpen = _ovfOpen[0], setOverflowOpen = _ovfOpen[1];
   var _stripCol = useState({view:false,brush:false,bs:false});
@@ -120,7 +124,9 @@ window.useCreatorState = function useCreatorState() {
   var _sessions = useState([]);      var sessions = _sessions[0], setSessions = _sessions[1];
   var _hs       = useState(function() { return new Map(); });
   var halfStitches = _hs[0], setHalfStitches = _hs[1];
-  var _hsTool   = useState(null);    var halfStitchTool = _hsTool[0], setHalfStitchTool = _hsTool[1];
+  var _hsTool   = useState(null);    var halfStitchTool = _hsTool[0];
+  var halfStitchToolRef = useRef(null);
+  function setHalfStitchTool(v) { halfStitchToolRef.current = v; _hsTool[1](v); }
 
   // Thread organiser
   var _thOwned  = useState({});      var threadOwned = _thOwned[0], setThreadOwned = _thOwned[1];
@@ -138,6 +144,8 @@ window.useCreatorState = function useCreatorState() {
   var _prevDims   = useState(null);  var previewDims   = _prevDims[0],   setPreviewDims   = _prevDims[1];
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var previewTimerRef = useRef(null);
+  var wandClearRef   = useRef(null);   // set after wand hook is called
+  var lassoCancelRef = useRef(null);   // set after lasso hook is called
 
   // Cleanup diff state
   var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
@@ -146,6 +154,32 @@ window.useCreatorState = function useCreatorState() {
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
+
+  // Eyedropper feedback
+  var _edEmpty = useState(false);    var eyedropperEmpty = _edEmpty[0], setEyedropperEmpty = _edEmpty[1];
+
+  // Context menu
+  var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
+
+  // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
+  var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
+
+  // Toast notifications
+  var _toasts = useState([]);        var toasts = _toasts[0], setToasts = _toasts[1];
+  var toastIdRef = useRef(0);
+  var addToast = useCallback(function(message, opts) {
+    opts = opts || {};
+    var id = ++toastIdRef.current;
+    var toast = { id: id, message: message, type: opts.type || "info", duration: opts.duration || 2500 };
+    setToasts(function(prev) { return prev.concat([toast]); });
+    setTimeout(function() {
+      setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
+    }, toast.duration);
+    return id;
+  }, []);
+  var dismissToast = useCallback(function(id) {
+    setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
+  }, []);
 
   // Refs
   var pcRef      = useRef(null);
@@ -280,7 +314,7 @@ window.useCreatorState = function useCreatorState() {
   function slRsz(v) { chgW(v); }
 
   function selectStitchType(t) {
-    if (t === "cross")     { setActiveTool(brushMode); setHalfStitchTool(null); setBsStart(null); }
+    if (t === "cross")     { setActiveTool(brushModeRef.current); setHalfStitchTool(null); setBsStart(null); }
     else if (t === "half-fwd") { setHalfStitchTool("fwd"); setActiveTool(null); setBsStart(null); }
     else if (t === "half-bck") { setHalfStitchTool("bck"); setActiveTool(null); setBsStart(null); }
     else if (t === "backstitch") { setActiveTool("backstitch"); setHalfStitchTool(null); }
@@ -289,14 +323,16 @@ window.useCreatorState = function useCreatorState() {
   }
   function setBrushAndActivate(mode) {
     setBrushMode(mode);
-    if (activeTool === "paint" || activeTool === "fill") setActiveTool(mode);
+    setActiveTool(mode);
+    setHalfStitchTool(null);
+    setBsStart(null);
   }
   function setTool(tool) {
-    if (activeTool === tool) { setActiveTool(null); setBsStart(null); return; }
+    if (activeToolRef.current === tool) { setActiveTool(null); setBsStart(null); return; }
     setActiveTool(tool); setBsStart(null); setHalfStitchTool(null);
   }
   function setHsTool(t) {
-    if (halfStitchTool === t) { setHalfStitchTool(null); return; }
+    if (halfStitchToolRef.current === t) { setHalfStitchTool(null); return; }
     setHalfStitchTool(t); setActiveTool(null); setBsStart(null);
   }
 
@@ -319,7 +355,18 @@ window.useCreatorState = function useCreatorState() {
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
+    if (wandClearRef.current) wandClearRef.current();
+    if (lassoCancelRef.current) lassoCancelRef.current();
   }
+
+  // Initialize paint tool/colour only on first pattern load (when no colour is selected yet)
+  useEffect(function() {
+    if (!pat || !pal || pal.length === 0) return;
+    if (selectedColorId != null) return;
+    setBrushAndActivate("paint");
+    selectStitchType("cross");
+    setSelectedColorId(pal[0].id);
+  }, [pat, pal]);
 
   function initBlankGrid(w, h) {
     var blank = Array.from({ length: w * h }, function() { return { id: "__empty__", rgb: [255, 255, 255] }; });
@@ -525,6 +572,31 @@ window.useCreatorState = function useCreatorState() {
     buildPaletteWithScratch: buildPaletteWithScratch,
   });
 
+  // ─── Magic Wand integration ──────────────────────────────────────────────────
+  var wand = useMagicWand({
+    pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt,
+    bsLines: bsLines, setBsLines: setBsLines,
+    editHistory: editHistory, setEditHistory: setEditHistory,
+    setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
+    setPat: setPat, setPal: setPal, setCmap: setCmap,
+    addToast: addToast,
+    buildPaletteWithScratch: buildPaletteWithScratch,
+  });
+  // Keep wandClearRef updated each render so resetAll() can call it
+  wandClearRef.current = wand.clearSelection;
+
+  var lasso = useLassoSelect({
+    pat: pat, cmap: cmap, sW: sW, sH: sH,
+    selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
+  });
+  lassoCancelRef.current = lasso.cancelLasso;
+
+  // Syncs op mode across both selection tools
+  function setSelectionOpMode(mode) {
+    wand.setWandOpMode(mode);
+    lasso.setLassoOpMode(mode);
+  }
+
   // ─── Scratch resize effect ───────────────────────────────────────────────────
   useEffect(function() {
     if (!isScratchMode || !pat) return;
@@ -560,12 +632,13 @@ window.useCreatorState = function useCreatorState() {
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef,
-    activeTool, setActiveTool, bsLines, setBsLines, bsStart, setBsStart,
+    activeTool, setActiveTool, activeToolRef,
+    bsLines, setBsLines, bsStart, setBsStart,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,
     shortcutsHintDismissed, setShortcutsHintDismissed,
-    brushMode, setBrushMode, brushSize, setBrushSize,
+    brushMode, setBrushMode, brushModeRef, brushSize, setBrushSize,
     overflowOpen, setOverflowOpen, stripCollapsed, setStripCollapsed,
     exportPage, setExportPage, pageMode, setPageMode,
     pdfDisplayMode, setPdfDisplayMode, pdfCellSize, setPdfCellSize,
@@ -575,7 +648,7 @@ window.useCreatorState = function useCreatorState() {
     colPickerOpen, setColPickerOpen, parkMarkers, setParkMarkers,
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
     sessions, setSessions, halfStitches, setHalfStitches,
-    halfStitchTool, setHalfStitchTool, threadOwned, setThreadOwned,
+    halfStitchTool, setHalfStitchTool, halfStitchToolRef, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen, previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
@@ -598,7 +671,57 @@ window.useCreatorState = function useCreatorState() {
     setBrushAndActivate, setTool, setHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
     toggleOwned, generate,
+    // Eyedropper feedback
+    eyedropperEmpty, setEyedropperEmpty,
+    // Context menu
+    contextMenu, setContextMenu,
+    // Toast notifications
+    toasts, addToast, dismissToast,
+    // Selection modifier key state (null | "add" | "subtract" | "intersect")
+    selectionModifier, setSelectionModifier,
     // PaletteSwap
     paletteSwap,
+    // Magic Wand
+    selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
+    wandTolerance: wand.wandTolerance, setWandTolerance: wand.setWandTolerance,
+    wandContiguous: wand.wandContiguous, setWandContiguous: wand.setWandContiguous,
+    wandOpMode: wand.wandOpMode, setWandOpMode: wand.setWandOpMode,
+    setSelectionOpMode: setSelectionOpMode,
+    wandPanel: wand.wandPanel, setWandPanel: wand.setWandPanel,
+    confettiThreshold: wand.confettiThreshold, setConfettiThreshold: wand.setConfettiThreshold,
+    confettiPreview: wand.confettiPreview, setConfettiPreview: wand.setConfettiPreview,
+    reduceTarget: wand.reduceTarget, setReduceTarget: wand.setReduceTarget,
+    reducePreview: wand.reducePreview, setReducePreview: wand.setReducePreview,
+    replaceSource: wand.replaceSource, setReplaceSource: wand.setReplaceSource,
+    replaceDest: wand.replaceDest, setReplaceDest: wand.setReplaceDest,
+    replaceFuzzy: wand.replaceFuzzy, setReplaceFuzzy: wand.setReplaceFuzzy,
+    replaceFuzzyTol: wand.replaceFuzzyTol, setReplaceFuzzyTol: wand.setReplaceFuzzyTol,
+    outlineColor: wand.outlineColor, setOutlineColor: wand.setOutlineColor,
+    applyWandSelect: wand.applyWandSelect, clearSelection: wand.clearSelection,
+    invertSelection: wand.invertSelection, selectAll: wand.selectAll,
+    selectAllOfColorId: wand.selectAllOfColorId,
+    previewConfettiCleanup: wand.previewConfettiCleanup,
+    applyConfettiCleanup: wand.applyConfettiCleanup,
+    previewColorReduction: wand.previewColorReduction,
+    applyColorReduction: wand.applyColorReduction,
+    selectionReplaceColorCount: wand.selectionReplaceColorCount,
+    applyColorReplacement: wand.applyColorReplacement,
+    selectionStats: wand.selectionStats,
+    applyOutlineGeneration: wand.applyOutlineGeneration,
+    selectionCount: wand.selectionCount, hasSelection: wand.hasSelection,
+    // Lasso Select
+    lassoMode: lasso.lassoMode, setLassoMode: lasso.setLassoMode,
+    lassoPoints: lasso.lassoPoints, setLassoPoints: lasso.setLassoPoints,
+    lassoActive: lasso.lassoActive, setLassoActive: lasso.setLassoActive,
+    lassoCursor: lasso.lassoCursor, setLassoCursor: lasso.setLassoCursor,
+    lassoPreviewMask: lasso.lassoPreviewMask, setLassoPreviewMask: lasso.setLassoPreviewMask,
+    lassoOpMode: lasso.lassoOpMode, setLassoOpMode: lasso.setLassoOpMode,
+    lassoPointCount: lasso.lassoPointCount, lassoInProgress: lasso.lassoInProgress,
+    startLasso: lasso.startLasso, extendLasso: lasso.extendLasso,
+    finalizeLasso: lasso.finalizeLasso, cancelLasso: lasso.cancelLasso,
+    isNearStart: lasso.isNearStart,
+    lassoLinePath: lasso.bresenham,
+    lassoMagneticPath: lasso.magneticPath,
+    lassoBoundaryPath: lasso.buildBoundaryPath,
   };
 };

@@ -15,12 +15,16 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       if (mod && !e.shiftKey && e.key === "z") { e.preventDefault(); history.undoEdit(); return; }
       if ((mod && e.key === "y") || (mod && e.shiftKey && e.key === "z")) { e.preventDefault(); history.redoEdit(); return; }
       if (mod && e.key === "s") { e.preventDefault(); if (state.pat && state.pal) io.saveProject(); return; }
+      if (mod && !e.shiftKey && e.key === "a") { e.preventDefault(); if (state.pat) { state.selectAll(); } return; }
+      if (mod && e.shiftKey && (e.key === "i" || e.key === "I")) { e.preventDefault(); if (state.pat) { state.invertSelection(); } return; }
       if (mod) return;
 
       if (e.key === "Escape") {
         if (state.namePromptOpen) { state.setNamePromptOpen(false); return; }
         if (state.modal) { state.setModal(null); return; }
         if (state.overflowOpen) { state.setOverflowOpen(false); return; }
+        if (state.lassoInProgress) { state.cancelLasso(); return; }
+        if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
         if (state.activeTool || state.halfStitchTool) {
           state.setActiveTool(null); state.setHalfStitchTool(null); state.setBsStart(null); return;
@@ -38,6 +42,11 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       if (e.key === "3") { state.selectStitchType("half-bck"); return; }
       if (e.key === "4") { state.selectStitchType("backstitch"); return; }
       if (e.key === "5") { state.selectStitchType("erase"); return; }
+      if (e.key === "w" || e.key === "W") {
+        if (state.activeTool === "magicWand") { state.setActiveTool(null); }
+        else { state.setActiveTool("magicWand"); state.setHalfStitchTool(null); state.setBsStart(null); }
+        return;
+      }
       if (e.key === "p" || e.key === "P") {
         if (!state.halfStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("paint");
         return;
@@ -66,6 +75,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     state.editHistory, state.redoHistory, state.pat, state.pal,
     state.namePromptOpen, state.modal, state.overflowOpen,
     state.selectedColorId, state.halfStitchTool, state.hiId,
+    state.hasSelection, state.lassoInProgress,
     history.undoEdit, history.redoEdit, io.saveProject,
   ]);
 };

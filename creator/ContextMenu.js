@@ -1,0 +1,115 @@
+/* creator/ContextMenu.js — Right-click context menu for the pattern canvas.
+   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
+   Depends on: CreatorContext (context.js) */
+
+window.CreatorContextMenu = function CreatorContextMenu() {
+  var ctx = React.useContext(window.CreatorContext);
+  var h = React.createElement;
+  var menu = ctx.contextMenu;
+  if (!menu) return null;
+
+  var cell = menu.cell;
+  var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
+  var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
+
+  // Close menu on outside click or Escape
+  React.useEffect(function() {
+    function close() { ctx.setContextMenu(null); }
+    function onKey(e) { if (e.key === "Escape") close(); }
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", onKey);
+    return function() {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  function item(label, onClick, opts) {
+    opts = opts || {};
+    var key = opts.k || (typeof label === 'string' ? label : undefined);
+    return h("button", {
+      key: key,
+      onPointerDown: function(e) { e.stopPropagation(); },
+      onClick: function(e) { e.stopPropagation(); onClick(); ctx.setContextMenu(null); },
+      disabled: opts.disabled,
+      style: {
+        display:"block", width:"100%", textAlign:"left",
+        padding:"5px 12px", fontSize:12, fontFamily:"inherit",
+        border:"none", background:opts.disabled ? "transparent" : "transparent",
+        color:opts.disabled ? "#94a3b8" : "#1e293b",
+        cursor:opts.disabled ? "default" : "pointer",
+        borderRadius:4
+      },
+      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "#f1f5f9"; },
+      onMouseLeave: function(e) { e.target.style.background = "transparent"; }
+    }, label);
+  }
+
+  function sep() {
+    return h("div", {style:{height:1,background:"#e2e8f0",margin:"3px 0"}});
+  }
+
+  return h("div", {
+    style:{
+      position:"fixed", left:menu.x, top:menu.y, zIndex:9999,
+      background:"#fff", border:"1px solid #cbd5e1", borderRadius:8,
+      boxShadow:"0 4px 16px rgba(0,0,0,0.12)", padding:"4px 0",
+      minWidth:180, maxWidth:240
+    }
+  },
+    // Header: cell info
+    hasCellColour && h("div", {
+      style:{padding:"5px 12px 4px",fontSize:11,color:"#475569",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #f1f5f9",marginBottom:2}
+    },
+      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
+        background:"rgb("+cellInfo.rgb+")"}}),
+      "DMC " + cellInfo.id + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
+    ),
+    !hasCellColour && h("div", {
+      style:{padding:"5px 12px 4px",fontSize:11,color:"#94a3b8",borderBottom:"1px solid #f1f5f9",marginBottom:2}
+    }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
+
+    // Pick this colour
+    item([Icons.eyedropper(), " Pick this colour"], function() {
+      if (cellInfo) ctx.setSelectedColorId(cellInfo.id);
+    }, {disabled: !hasCellColour, k: 'pick'}),
+
+    // Fill from here — switch to fill tool so user can click the area
+    item([Icons.bucket(), " Switch to fill tool"], function() {
+      ctx.selectStitchType("cross");
+      ctx.setBrushAndActivate("fill");
+    }, {disabled: !ctx.selectedColorId, k: 'fill'}),
+
+    sep(),
+
+    // Select similar
+    item([Icons.wand(), " Select similar (wand)"], function() {
+      ctx.setActiveTool("magicWand");
+      ctx.setHalfStitchTool(null);
+      ctx.setBsStart(null);
+      ctx.applyWandSelect(menu.gx, menu.gy, ctx.wandOpMode);
+    }, {disabled: !hasCellColour, k: 'wand'}),
+
+    // Select all of this colour
+    item([Icons.palette(), " Select all of this colour"], function() {
+      if (cellInfo) ctx.selectAllOfColorId(cellInfo.id);
+    }, {disabled: !hasCellColour, k: 'selectall'}),
+
+    sep(),
+
+    // Highlight this colour
+    item(ctx.hiId === (cellInfo ? cellInfo.id : null) ? [Icons.magnifyMinus(), " Remove highlight"] : [Icons.magnify(), " Highlight this colour"], function() {
+      if (cellInfo) ctx.setHiId(ctx.hiId === cellInfo.id ? null : cellInfo.id);
+    }, {disabled: !hasCellColour, k: 'highlight'}),
+
+    // Stitch info
+    hasCellColour && item([Icons.info(), " Stitch info"], function() {
+      if (cellInfo) {
+        ctx.setActiveTool("magicWand");
+        ctx.setHalfStitchTool(null);
+        ctx.applyWandSelect(menu.gx, menu.gy, "replace");
+        ctx.setWandPanel("info");
+      }
+    }, {k: 'info'})
+  );
+};

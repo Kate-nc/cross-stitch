@@ -49,6 +49,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var safeName = (finalName || "cross-stitch-project").replace(/[^a-zA-Z0-9_\- ]/g, "").trim() || "cross-stitch-project";
     a.download = safeName + ".json";
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    if (state.addToast) state.addToast("Project saved as \"" + safeName + ".json\"", {type:"success", duration:2500});
   }
 
   // ─── saveProject ─────────────────────────────────────────────────────────────

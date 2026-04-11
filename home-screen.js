@@ -191,7 +191,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     // Greeting
     h('h1', { className: 'home-greeting' },
       getGreeting() + ', stitcher ',
-      h('span', { 'aria-hidden': 'true' }, '✨')
+      h('span', { 'aria-hidden': 'true' }, Icons.star())
     ),
 
     // Stats row (hidden if empty state)

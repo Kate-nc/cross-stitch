@@ -228,7 +228,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     ctx2d.globalAlpha = 1.0;
   }
 
-  ctx2d.fillStyle = "#a1a1aa";
+  ctx2d.fillStyle = "#94a3b8";
   ctx2d.font = Math.max(7, Math.min(11, cSz * 0.5)) + "px system-ui";
   ctx2d.textAlign = "center";
   ctx2d.textBaseline = "middle";
@@ -462,7 +462,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     ctx2d.globalAlpha = 1.0;
   }
 
-  ctx2d.fillStyle = "#a1a1aa";
+  ctx2d.fillStyle = "#94a3b8";
   ctx2d.font = Math.max(7, Math.min(11, cSz * 0.5)) + "px system-ui";
   ctx2d.textAlign = "center";
   ctx2d.textBaseline = "middle";
@@ -650,7 +650,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       else if (param > 1) { xx = lx2; yy = ly2; }
       else { xx = lx1 + param * C; yy = ly1 + param * D; }
       var dx = hxb - xx, dy = hyb - yy;
-      if (Math.sqrt(dx * dx + dy * dy) <= 0.4) {
+      if (Math.sqrt(dx * dx + dy * dy) <= 0.7) {
         ctx2d.strokeStyle = "#ef4444";
         ctx2d.lineWidth = Math.max(2, cSz * 0.25);
         ctx2d.beginPath(); ctx2d.moveTo(gut + lx1 * cSz, gut + ly1 * cSz); ctx2d.lineTo(gut + lx2 * cSz, gut + ly2 * cSz); ctx2d.stroke();
@@ -708,6 +708,166 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
         }
       }
     }
+  }
+
+  // ─── Selection mask overlay ─────────────────────────────────────────────────
+  var selectionMask = state.selectionMask;
+  var confettiPreview = state.confettiPreview;
+  var sW = state.sW;
+  if (selectionMask) {
+    ctx2d.save();
+    // Semi-transparent blue tint over selected cells
+    ctx2d.fillStyle = "rgba(59,130,246,0.25)";
+    for (var sy = 0; sy < dH; sy++) {
+      for (var sx2 = 0; sx2 < dW; sx2++) {
+        var si = (offY + sy) * sW + (offX + sx2);
+        if (selectionMask[si]) {
+          ctx2d.fillRect(gut + sx2 * cSz, gut + sy * cSz, cSz, cSz);
+        }
+      }
+    }
+    // Dashed "marching ants" border around selection boundary
+    ctx2d.strokeStyle = "rgba(37,99,235,0.9)";
+    ctx2d.lineWidth = Math.max(1, cSz * 0.1);
+    var antsDash = Math.max(2, cSz * 0.3), antsGap = Math.max(2, cSz * 0.2);
+    ctx2d.setLineDash([antsDash, antsGap]);
+    ctx2d.lineDashOffset = -(state.antsOffset || 0);
+    for (var by = 0; by < dH; by++) {
+      for (var bx = 0; bx < dW; bx++) {
+        var bidx = (offY + by) * sW + (offX + bx);
+        if (!selectionMask[bidx]) continue;
+        var bpx = gut + bx * cSz, bpy = gut + by * cSz;
+        if (by === 0 || !selectionMask[bidx - sW]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx + cSz, bpy); ctx2d.stroke();
+        }
+        if (by === dH - 1 || !selectionMask[bidx + sW]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy + cSz); ctx2d.lineTo(bpx + cSz, bpy + cSz); ctx2d.stroke();
+        }
+        if (bx === 0 || !selectionMask[bidx - 1]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx, bpy + cSz); ctx2d.stroke();
+        }
+        if (bx === dW - 1 || !selectionMask[bidx + 1]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx + cSz, bpy); ctx2d.lineTo(bpx + cSz, bpy + cSz); ctx2d.stroke();
+        }
+      }
+    }
+    ctx2d.setLineDash([]);
+    ctx2d.restore();
+  }
+
+  // Confetti preview: highlight stitches flagged for removal
+  if (confettiPreview && confettiPreview.size > 0) {
+    ctx2d.save();
+    ctx2d.fillStyle = "rgba(239,68,68,0.45)";
+    confettiPreview.forEach(function(ci) {
+      var cx2 = (ci % sW) - offX, cy2 = (Math.floor(ci / sW)) - offY;
+      if (cx2 >= 0 && cx2 < dW && cy2 >= 0 && cy2 < dH) {
+        ctx2d.fillRect(gut + cx2 * cSz, gut + cy2 * cSz, cSz, cSz);
+      }
+    });
+    ctx2d.restore();
+  }
+
+  // ─── Lasso in-progress overlay ───────────────────────────────────────────────
+  var lassoMode   = state.lassoMode;
+  var lassoPoints = state.lassoPoints;
+  var lassoCursor = state.lassoCursor;
+  var lassoPreviewMask = state.lassoPreviewMask;
+  var lassoInProgress  = state.lassoInProgress;
+
+  if (lassoMode && (lassoInProgress || (lassoPoints && lassoPoints.length > 0))) {
+    ctx2d.save();
+
+    if (lassoMode === "freehand" && lassoPreviewMask) {
+      // Tint cells painted by freehand drag
+      ctx2d.fillStyle = "rgba(16,185,129,0.35)";
+      for (var fi = 0; fi < lassoPreviewMask.length; fi++) {
+        if (!lassoPreviewMask[fi]) continue;
+        var lfx = (fi % state.sW) - offX;
+        var lfy = Math.floor(fi / state.sW) - offY;
+        if (lfx < 0 || lfx >= dW || lfy < 0 || lfy >= dH) continue;
+        ctx2d.fillRect(gut + lfx * cSz, gut + lfy * cSz, cSz, cSz);
+      }
+    }
+
+    if ((lassoMode === "polygon" || lassoMode === "magnetic") && lassoPoints && lassoPoints.length > 0) {
+      var pts = lassoPoints;
+      var drawPath = function(pathPts, dashed, strokeStyle) {
+        if (!pathPts || !pathPts.length) return;
+        ctx2d.strokeStyle = strokeStyle;
+        ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+        ctx2d.setLineDash(dashed ? [Math.max(3, cSz * 0.3), Math.max(3, cSz * 0.3)] : []);
+        ctx2d.beginPath();
+        ctx2d.moveTo(gut + (pathPts[0].x - offX) * cSz + cSz / 2, gut + (pathPts[0].y - offY) * cSz + cSz / 2);
+        for (var pp = 1; pp < pathPts.length; pp++) {
+          ctx2d.lineTo(gut + (pathPts[pp].x - offX) * cSz + cSz / 2, gut + (pathPts[pp].y - offY) * cSz + cSz / 2);
+        }
+        ctx2d.stroke();
+        ctx2d.setLineDash([]);
+      };
+      var makeSeg = function(a, b) {
+        if (!a || !b) return [];
+        if (lassoMode === "magnetic" && state.lassoMagneticPath && state.pat && state.cmap) {
+          return state.lassoMagneticPath(state.pat, state.cmap, state.sW, state.sH, a.x, a.y, b.x, b.y);
+        }
+        if (state.lassoLinePath) return state.lassoLinePath(a.x, a.y, b.x, b.y);
+        return [a, b];
+      };
+
+      if (pts.length > 1) {
+        var committedPath = [];
+        for (var pi = 1; pi < pts.length; pi++) {
+          var segPath = makeSeg(pts[pi - 1], pts[pi]);
+          for (var sp = 0; sp < segPath.length; sp++) {
+            if (committedPath.length && sp === 0) continue;
+            committedPath.push(segPath[sp]);
+          }
+        }
+        drawPath(committedPath, false, lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)");
+      }
+
+      // Dashed line from last anchor to cursor
+      if (lassoCursor) {
+        var nearStart = false;
+        if (pts.length >= 3) {
+          var csdx = lassoCursor.x - pts[0].x, csdy = lassoCursor.y - pts[0].y;
+          nearStart = Math.sqrt(csdx * csdx + csdy * csdy) <= 1.5;
+        }
+        var cursorColor = nearStart
+          ? (lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)")
+          : "rgba(100,100,100,0.5)";
+        var lastPt = pts[pts.length - 1];
+        var previewTarget = nearStart ? pts[0] : lassoCursor;
+        drawPath(makeSeg(lastPt, previewTarget), true, cursorColor);
+
+        // Snap-to-close circle around start when near
+        if (nearStart) {
+          ctx2d.strokeStyle = lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)";
+          ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+          ctx2d.beginPath();
+          ctx2d.arc(
+            gut + (pts[0].x - offX) * cSz + cSz / 2,
+            gut + (pts[0].y - offY) * cSz + cSz / 2,
+            Math.max(5, cSz * 0.4), 0, Math.PI * 2
+          );
+          ctx2d.stroke();
+        }
+      }
+
+      // Anchor dots
+      var dotColor = lassoMode === "magnetic" ? "rgba(245,158,11,1)" : "rgba(99,102,241,1)";
+      for (var ai = 0; ai < pts.length; ai++) {
+        var ax = gut + (pts[ai].x - offX) * cSz + cSz / 2;
+        var ay = gut + (pts[ai].y - offY) * cSz + cSz / 2;
+        var r = ai === 0 ? Math.max(4, cSz * 0.3) : Math.max(2.5, cSz * 0.18);
+        ctx2d.fillStyle = "white";
+        ctx2d.beginPath(); ctx2d.arc(ax, ay, r + 1, 0, Math.PI * 2); ctx2d.fill();
+        ctx2d.fillStyle = dotColor;
+        ctx2d.beginPath(); ctx2d.arc(ax, ay, r, 0, Math.PI * 2); ctx2d.fill();
+      }
+    }
+
+    ctx2d.restore();
   }
 };
 
@@ -1147,6 +1307,942 @@ window.exportCoverSheet = async function exportCoverSheet(data) {
 };
 
 
+/* ─── useMagicWand.js ─── */
+/* creator/useMagicWand.js — Magic Wand selection engine.
+   Provides flood-fill + global colour selection, modifier key modes,
+   and all Phase-2/3 selection-based operations.
+   Depends on globals: React, skeinEst (helpers.js), rgbToLab (colour-utils.js), DMC */
+
+window.useMagicWand = function useMagicWand(state) {
+  var useMemo = React.useMemo;
+
+  // ─── Wand UI state (owned here, exposed via return) ──────────────────────────
+  var _mask       = React.useState(null);    // Uint8Array|null, length = sW*sH
+  var selectionMask = _mask[0], setSelectionMask = _mask[1];
+  var _tol        = React.useState(0);
+  var wandTolerance = _tol[0], setWandTolerance = _tol[1];
+  var _contiguous = React.useState(true);
+  var wandContiguous = _contiguous[0], setWandContiguous = _contiguous[1];
+  var _opMode     = React.useState("replace"); // "replace"|"add"|"subtract"|"intersect"
+  var wandOpMode  = _opMode[0], setWandOpMode = _opMode[1];
+
+  // Panel for Phase-2/3 operations
+  var _panel      = React.useState(null);    // null|"confetti"|"reduce"|"replace"|"info"|"outline"
+  var wandPanel   = _panel[0], setWandPanel = _panel[1];
+
+  // sub-state for confetti-in-selection
+  var _cfThresh   = React.useState(2);
+  var confettiThreshold = _cfThresh[0], setConfettiThreshold = _cfThresh[1];
+  var _cfPreview  = React.useState(null);    // Set of indices flagged for replacement
+  var confettiPreview = _cfPreview[0], setConfettiPreview = _cfPreview[1];
+
+  // sub-state for colour reduction
+  var _redTarget  = React.useState(3);
+  var reduceTarget = _redTarget[0], setReduceTarget = _redTarget[1];
+  var _redPreview = React.useState(null);    // [{from, to, count}]
+  var reducePreview = _redPreview[0], setReducePreview = _redPreview[1];
+
+  // sub-state for colour replacement
+  var _repSrc     = React.useState(null);    // color id
+  var replaceSource = _repSrc[0], setReplaceSource = _repSrc[1];
+  var _repDst     = React.useState(null);    // color id
+  var replaceDest = _repDst[0], setReplaceDest = _repDst[1];
+  var _repFuzz    = React.useState(false);
+  var replaceFuzzy = _repFuzz[0], setReplaceFuzzy = _repFuzz[1];
+  var _repFuzzTol = React.useState(5);
+  var replaceFuzzyTol = _repFuzzTol[0], setReplaceFuzzyTol = _repFuzzTol[1];
+
+  // sub-state for outline generation
+  var _outlineColor = React.useState("310");
+  var outlineColor  = _outlineColor[0], setOutlineColor = _outlineColor[1];
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+  function labFromEntry(entry) {
+    if (entry && entry.lab) {
+      var l = entry.lab;
+      return Array.isArray(l) ? l : [l.L || 0, l.a || 0, l.b || 0];
+    }
+    if (entry && entry.rgb) {
+      if (typeof rgbToLab === "function") return rgbToLab(entry.rgb[0], entry.rgb[1], entry.rgb[2]);
+      return [0, 0, 0];
+    }
+    return [0, 0, 0];
+  }
+
+  function deltaE(la, lb) {
+    var dL = la[0] - lb[0], da = la[1] - lb[1], db = la[2] - lb[2];
+    return Math.sqrt(dL * dL + da * da + db * db);
+  }
+
+  function getCellLab(idx, pat, cmap) {
+    var cell = pat[idx];
+    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return null;
+    var entry = cmap ? cmap[cell.id] : null;
+    return labFromEntry(entry || cell);
+  }
+
+  // ─── Core selection operations ───────────────────────────────────────────────
+
+  // Flood-fill BFS from (startX,startY), selects all 4-connected cells within tolerance
+  function floodSelect(pat, cmap, sW, sH, startX, startY, tolerance) {
+    var mask = new Uint8Array(sW * sH);
+    var startIdx = startY * sW + startX;
+    var startCell = pat[startIdx];
+    if (!startCell || startCell.id === "__skip__" || startCell.id === "__empty__") return mask;
+    var startLab = getCellLab(startIdx, pat, cmap);
+    if (!startLab) return mask;
+
+    var visited = new Uint8Array(sW * sH);
+    var queue = [startIdx];
+    visited[startIdx] = 1;
+
+    while (queue.length) {
+      var idx = queue.pop();
+      var lab = getCellLab(idx, pat, cmap);
+      if (!lab) continue;
+      if (deltaE(startLab, lab) > tolerance) continue;
+      mask[idx] = 1;
+      var x = idx % sW, y = (idx - x) / sW;
+      if (x > 0)      { var ni = idx - 1;  if (!visited[ni]) { visited[ni] = 1; queue.push(ni); } }
+      if (x < sW - 1) { var ni = idx + 1;  if (!visited[ni]) { visited[ni] = 1; queue.push(ni); } }
+      if (y > 0)      { var ni = idx - sW; if (!visited[ni]) { visited[ni] = 1; queue.push(ni); } }
+      if (y < sH - 1) { var ni = idx + sW; if (!visited[ni]) { visited[ni] = 1; queue.push(ni); } }
+    }
+    return mask;
+  }
+
+  // Global scan: selects ALL cells matching startCell within tolerance
+  function globalSelect(pat, cmap, sW, sH, startX, startY, tolerance) {
+    var mask = new Uint8Array(sW * sH);
+    var startIdx = startY * sW + startX;
+    var startCell = pat[startIdx];
+    if (!startCell || startCell.id === "__skip__" || startCell.id === "__empty__") return mask;
+    var startLab = getCellLab(startIdx, pat, cmap);
+    if (!startLab) return mask;
+    for (var i = 0; i < pat.length; i++) {
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      var lab = getCellLab(i, pat, cmap);
+      if (!lab) continue;
+      if (deltaE(startLab, lab) <= tolerance) mask[i] = 1;
+    }
+    return mask;
+  }
+
+  // Merge newMask into existing mask using the specified operation mode
+  function mergeMasks(existing, newMask, opMode, size) {
+    var out = new Uint8Array(size);
+    for (var i = 0; i < size; i++) {
+      var e = existing ? existing[i] : 0;
+      var n = newMask[i];
+      if (opMode === "add")        out[i] = (e || n) ? 1 : 0;
+      else if (opMode === "subtract")  out[i] = (e && !n) ? 1 : 0;
+      else if (opMode === "intersect") out[i] = (e && n) ? 1 : 0;
+      else                         out[i] = n; // replace
+    }
+    return out;
+  }
+
+  // ─── Actions: plain functions (no useCallback — matches codebase pattern) ────
+
+  function applyWandSelect(gx, gy, opMode) {
+    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    if (!pat || !cmap) return;
+    if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+    var idx = gy * sW + gx;
+    var cell = pat[idx];
+    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
+      if (state.addToast) state.addToast("That cell is empty \u2014 nothing to select.", {type:"warning", duration:1500});
+      return;
+    }
+    var newMask = wandContiguous
+      ? floodSelect(pat, cmap, sW, sH, gx, gy, wandTolerance)
+      : globalSelect(pat, cmap, sW, sH, gx, gy, wandTolerance);
+    var merged = mergeMasks(selectionMask, newMask, opMode, sW * sH);
+    setSelectionMask(merged);
+
+    // Toast feedback
+    var newCount = 0;
+    for (var i = 0; i < merged.length; i++) if (merged[i]) newCount++;
+    var entry = cmap[cell.id];
+    var label = entry ? "DMC " + entry.id + (entry.name ? " (" + entry.name + ")" : "") : cell.id;
+    if (state.addToast) state.addToast(
+      newCount.toLocaleString() + " stitch" + (newCount !== 1 ? "es" : "") + " selected \u2014 " + label,
+      {type:"success", duration:2000}
+    );
+  }
+
+  function clearSelection() {
+    setSelectionMask(null);
+    setConfettiPreview(null);
+    setReducePreview(null);
+    setWandPanel(null);
+  }
+
+  function invertSelection() {
+    var pat = state.pat, sW = state.sW, sH = state.sH;
+    if (!pat) return;
+    var out = new Uint8Array(sW * sH);
+    for (var i = 0; i < pat.length; i++) {
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      out[i] = selectionMask && selectionMask[i] ? 0 : 1;
+    }
+    setSelectionMask(out);
+  }
+
+  function selectAll() {
+    var pat = state.pat, sW = state.sW, sH = state.sH;
+    if (!pat) return;
+    var out = new Uint8Array(sW * sH);
+    for (var i = 0; i < pat.length; i++) {
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      out[i] = 1;
+    }
+    setSelectionMask(out);
+  }
+
+  function selectAllOfColorId(colorId, opMode) {
+    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    if (!pat || !cmap) return;
+    var entry = cmap[colorId];
+    if (!entry) return;
+    var startLab = labFromEntry(entry);
+    var newMask = new Uint8Array(sW * sH);
+    for (var i = 0; i < pat.length; i++) {
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      var lab = getCellLab(i, pat, cmap);
+      if (!lab) continue;
+      if (deltaE(startLab, lab) <= wandTolerance) newMask[i] = 1;
+    }
+    var merged = mergeMasks(selectionMask, newMask, opMode || "replace", sW * sH);
+    setSelectionMask(merged);
+  }
+
+  // ─── Derived: selection count ────────────────────────────────────────────────
+  var selectionCount = 0;
+  if (selectionMask) {
+    for (var _si = 0; _si < selectionMask.length; _si++) if (selectionMask[_si]) selectionCount++;
+  }
+  var hasSelection = selectionCount > 0;
+
+  // ─── Phase 2.1: Confetti cleanup in selection ────────────────────────────────
+
+  function buildConfettiPreview(threshold) {
+    var pat = state.pat, mask = selectionMask, sW = state.sW, sH = state.sH;
+    if (!pat || !mask) return null;
+    var flagged = new Set();
+    var visited = new Uint8Array(pat.length);
+
+    for (var start = 0; start < pat.length; start++) {
+      if (!mask[start] || visited[start]) continue;
+      var cell = pat[start];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      var tid = cell.id;
+      var cluster = [];
+      var q = [start];
+      visited[start] = 1;
+      while (q.length) {
+        var idx = q.pop();
+        cluster.push(idx);
+        var x = idx % sW, y = (idx - (idx % sW)) / sW;
+        if (x > 0)      { var ni = idx - 1;  if (!visited[ni] && mask[ni] && pat[ni] && pat[ni].id === tid) { visited[ni] = 1; q.push(ni); } }
+        if (x < sW - 1) { var ni = idx + 1;  if (!visited[ni] && mask[ni] && pat[ni] && pat[ni].id === tid) { visited[ni] = 1; q.push(ni); } }
+        if (y > 0)      { var ni = idx - sW; if (!visited[ni] && mask[ni] && pat[ni] && pat[ni].id === tid) { visited[ni] = 1; q.push(ni); } }
+        if (y < sH - 1) { var ni = idx + sW; if (!visited[ni] && mask[ni] && pat[ni] && pat[ni].id === tid) { visited[ni] = 1; q.push(ni); } }
+      }
+      if (cluster.length < threshold) cluster.forEach(function(i) { flagged.add(i); });
+    }
+    return flagged;
+  }
+
+  function previewConfettiCleanup() {
+    var flagged = buildConfettiPreview(confettiThreshold);
+    setConfettiPreview(flagged);
+  }
+
+  function applyConfettiCleanup() {
+    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    if (!pat || !selectionMask) return;
+    var flagged = buildConfettiPreview(confettiThreshold);
+    if (!flagged || flagged.size === 0) return;
+
+    var np = pat.slice();
+    var changes = [];
+    flagged.forEach(function(idx) {
+      var x = idx % sW, y = (idx - (idx % sW)) / sW;
+      var freq = {};
+      var nbrs = [];
+      if (x > 0)      nbrs.push(idx - 1);
+      if (x < sW - 1) nbrs.push(idx + 1);
+      if (y > 0)      nbrs.push(idx - sW);
+      if (y < sH - 1) nbrs.push(idx + sW);
+      nbrs.forEach(function(ni) {
+        var nc = pat[ni];
+        if (nc && nc.id !== "__skip__" && nc.id !== "__empty__") {
+          freq[nc.id] = (freq[nc.id] || 0) + 1;
+        }
+      });
+      var best = null, bestCt = -1;
+      Object.keys(freq).forEach(function(id) {
+        if (freq[id] > bestCt) { bestCt = freq[id]; best = id; }
+      });
+      var current = pat[idx];
+      if (best && cmap && cmap[best] && (!current || current.id !== best)) {
+        changes.push({ idx: idx, old: Object.assign({}, pat[idx]) });
+        np[idx] = Object.assign({}, cmap[best]);
+      }
+    });
+    if (!changes.length) return;
+
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "confettiCleanup", changes: changes }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    state.setPat(np);
+    var r = state.buildPaletteWithScratch(np);
+    state.setPal(r.pal); state.setCmap(r.cmap);
+    setConfettiPreview(null);
+  }
+
+  // ─── Phase 2.2: Colour reduction in selection ────────────────────────────────
+
+  function previewColorReduction() {
+    var pat = state.pat, cmap = state.cmap, mask = selectionMask;
+    if (!pat || !cmap || !mask) return;
+    var target = reduceTarget;
+    var counts = {};
+    for (var i = 0; i < pat.length; i++) {
+      if (!mask[i]) continue;
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      counts[cell.id] = (counts[cell.id] || 0) + 1;
+    }
+    var ids = Object.keys(counts);
+    if (ids.length <= target) { setReducePreview([]); return; }
+
+    var labs = {};
+    ids.forEach(function(id) {
+      var e = cmap[id];
+      labs[id] = e ? labFromEntry(e) : [0, 0, 0];
+    });
+
+    var activeIds = ids.slice();
+    var merges = [];
+
+    while (activeIds.length > target) {
+      var bestDE = Infinity, bestI = -1, bestJ = -1;
+      for (var a = 0; a < activeIds.length; a++) {
+        for (var b = a + 1; b < activeIds.length; b++) {
+          var de = deltaE(labs[activeIds[a]], labs[activeIds[b]]);
+          if (de < bestDE) { bestDE = de; bestI = a; bestJ = b; }
+        }
+      }
+      if (bestI < 0) break;
+      var idA = activeIds[bestI], idB = activeIds[bestJ];
+      var cntA = counts[idA] || 0, cntB = counts[idB] || 0;
+      var fromId, toId;
+      if (cntA <= cntB) { fromId = idA; toId = idB; }
+      else              { fromId = idB; toId = idA; }
+      merges.push({ from: fromId, to: toId, count: counts[fromId] || 0,
+        fromName: (cmap[fromId] ? cmap[fromId].name : fromId),
+        toName:   (cmap[toId]   ? cmap[toId].name   : toId) });
+      counts[toId] = (counts[toId] || 0) + (counts[fromId] || 0);
+      delete counts[fromId];
+      activeIds.splice(activeIds.indexOf(fromId), 1);
+    }
+    setReducePreview(merges);
+  }
+
+  function applyColorReduction() {
+    var pat = state.pat, cmap = state.cmap, mask = selectionMask;
+    var merges = reducePreview;
+    if (!pat || !cmap || !mask || !merges || !merges.length) return;
+
+    var remap = {};
+    merges.forEach(function(m) { remap[m.from] = m.to; });
+    function resolve(id) { var seen = new Set(); while (remap[id] && !seen.has(id)) { seen.add(id); id = remap[id]; } return id; }
+
+    var np = pat.slice();
+    var changes = [];
+    for (var i = 0; i < np.length; i++) {
+      if (!mask[i]) continue;
+      var cell = np[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      if (remap[cell.id]) {
+        var newId = resolve(cell.id);
+        var newEntry = cmap[newId];
+        if (newEntry) {
+          changes.push({ idx: i, old: Object.assign({}, cell) });
+          np[i] = Object.assign({}, newEntry);
+        }
+      }
+    }
+    if (!changes.length) return;
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "colorReduction", changes: changes }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    state.setPat(np);
+    var r = state.buildPaletteWithScratch(np);
+    state.setPal(r.pal); state.setCmap(r.cmap);
+    setReducePreview(null);
+  }
+
+  // ─── Phase 2.3: Colour replacement in selection ──────────────────────────────
+
+  var selectionReplaceColorCount = useMemo(function() {
+    var pat = state.pat, cmap = state.cmap;
+    if (!pat || !selectionMask || !replaceSource || !cmap) return 0;
+    var srcEntry = cmap[replaceSource];
+    if (!srcEntry) return 0;
+    var srcLab = labFromEntry(srcEntry);
+    var tol = replaceFuzzy ? replaceFuzzyTol : 0;
+    var c = 0;
+    for (var i = 0; i < pat.length; i++) {
+      if (!selectionMask[i]) continue;
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      var lab = getCellLab(i, pat, cmap);
+      if (!lab) continue;
+      if (deltaE(srcLab, lab) <= tol) c++;
+    }
+    return c;
+  }, [selectionMask, replaceSource, replaceFuzzy, replaceFuzzyTol, state.pat, state.cmap]);
+
+  function applyColorReplacement() {
+    var pat = state.pat, cmap = state.cmap;
+    if (!pat || !cmap || !selectionMask || !replaceSource || !replaceDest) return;
+    var srcEntry = cmap[replaceSource], dstEntry = cmap[replaceDest];
+    if (!srcEntry || !dstEntry) return;
+    var srcLab = labFromEntry(srcEntry);
+    var tol = replaceFuzzy ? replaceFuzzyTol : 0;
+    var np = pat.slice();
+    var changes = [];
+    for (var i = 0; i < np.length; i++) {
+      if (!selectionMask[i]) continue;
+      var cell = np[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      var lab = getCellLab(i, pat, cmap);
+      if (!lab) continue;
+      if (deltaE(srcLab, lab) <= tol) {
+        changes.push({ idx: i, old: Object.assign({}, cell) });
+        np[i] = Object.assign({}, dstEntry);
+      }
+    }
+    if (!changes.length) return;
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "colorReplace", changes: changes }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    state.setPat(np);
+    var r = state.buildPaletteWithScratch(np);
+    state.setPal(r.pal); state.setCmap(r.cmap);
+  }
+
+  // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
+
+  var selectionStats = useMemo(function() {
+    var pat = state.pat, cmap = state.cmap, fabricCt = state.fabricCt;
+    if (!pat || !cmap) return null;
+    var counts = {};
+    var total = 0;
+    for (var i = 0; i < pat.length; i++) {
+      var inSel = selectionMask ? selectionMask[i] : 1;
+      if (!inSel) continue;
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      counts[cell.id] = (counts[cell.id] || 0) + 1;
+      total++;
+    }
+    var rows = Object.entries(counts).sort(function(a, b) { return b[1] - a[1]; })
+      .map(function(e) {
+        var id = e[0], ct = e[1];
+        var entry = cmap[id] || {};
+        return { id: id, name: entry.name || id, rgb: entry.rgb || [128, 128, 128],
+          count: ct, skeins: skeinEst(ct, fabricCt || 14) };
+      });
+    var totalSkeins = rows.reduce(function(s, r) { return s + r.skeins; }, 0);
+    return { rows: rows, total: total, totalSkeins: totalSkeins, colors: rows.length };
+  }, [selectionMask, state.pat, state.cmap, state.fabricCt]);
+
+  // ─── Phase 3.2: Auto backstitch outline ─────────────────────────────────────
+
+  function applyOutlineGeneration() {
+    var pat = state.pat, mask = selectionMask;
+    var sW = state.sW, sH = state.sH, bsLines = state.bsLines;
+    var colorId = outlineColor;
+    if (!pat || !mask) return;
+
+    var newLines = [];
+    var edgeSet = new Set();
+
+    for (var idx = 0; idx < pat.length; idx++) {
+      if (!mask[idx]) continue;
+      var x = idx % sW, y = (idx - (idx % sW)) / sW;
+      var edges = [
+        { nx: x,   ny: y-1, ex: x,   ey: y,   ex2: x+1, ey2: y   },
+        { nx: x+1, ny: y,   ex: x+1, ey: y,   ex2: x+1, ey2: y+1 },
+        { nx: x,   ny: y+1, ex: x,   ey: y+1, ex2: x+1, ey2: y+1 },
+        { nx: x-1, ny: y,   ex: x,   ey: y,   ex2: x,   ey2: y+1 },
+      ];
+      for (var e = 0; e < edges.length; e++) {
+        var edge = edges[e];
+        var ni = edge.ny * sW + edge.nx;
+        var isBoundary = (edge.nx < 0 || edge.nx >= sW || edge.ny < 0 || edge.ny >= sH) || !mask[ni];
+        if (!isBoundary) continue;
+        var key = edge.ex + "," + edge.ey + "-" + edge.ex2 + "," + edge.ey2;
+        if (edgeSet.has(key)) continue;
+        edgeSet.add(key);
+        newLines.push({ x1: edge.ex, y1: edge.ey, x2: edge.ex2, y2: edge.ey2, colorId: colorId });
+      }
+    }
+    if (!newLines.length) return;
+
+    var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === colorId; }) : null;
+    var rgb = dmcEntry ? dmcEntry.rgb : [0, 0, 0];
+    var coloredLines = newLines.map(function(l) {
+      return { x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2, color: rgb };
+    });
+
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    var prevBs = bsLines;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "outlineGeneration", bsLines: prevBs }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    state.setBsLines(function(prev) { return prev.concat(coloredLines); });
+  }
+
+  // ─── Return ──────────────────────────────────────────────────────────────────
+  return {
+    selectionMask, setSelectionMask,
+    wandTolerance, setWandTolerance,
+    wandContiguous, setWandContiguous,
+    wandOpMode, setWandOpMode,
+    wandPanel, setWandPanel,
+    confettiThreshold, setConfettiThreshold,
+    confettiPreview, setConfettiPreview,
+    reduceTarget, setReduceTarget,
+    reducePreview, setReducePreview,
+    replaceSource, setReplaceSource,
+    replaceDest, setReplaceDest,
+    replaceFuzzy, setReplaceFuzzy,
+    replaceFuzzyTol, setReplaceFuzzyTol,
+    outlineColor, setOutlineColor,
+    // Actions
+    applyWandSelect, clearSelection, invertSelection, selectAll, selectAllOfColorId,
+    // Phase 2
+    previewConfettiCleanup, applyConfettiCleanup,
+    previewColorReduction, applyColorReduction,
+    selectionReplaceColorCount, applyColorReplacement,
+    // Phase 3
+    selectionStats, applyOutlineGeneration,
+    // Derived
+    selectionCount, hasSelection,
+  };
+};
+
+
+/* ─── useLassoSelect.js ─── */
+/* creator/useLassoSelect.js — Lasso / freehand / magnetic selection engine.
+   Provides three lasso sub-modes that all produce a selectionMask compatible
+   with the magic wand system (same Uint8Array format, same opMode merging).
+
+   Sub-modes:
+     "freehand"  — drag-paint: cells the cursor passes through are selected.
+     "polygon"   — click to place anchor points; auto-closes when cursor nears
+                   the starting point; finalises with a point-in-polygon test.
+     "magnetic"  — like polygon but each step snaps to the nearest colour-edge
+                   boundary as the user drags.
+
+   Exposed via window.useLassoSelect(state).
+   Depends on globals: React (CDN), rgbToLab (colour-utils.js) */
+
+window.useLassoSelect = function useLassoSelect(state) {
+  var useState = React.useState;
+  var useMemo  = React.useMemo;
+
+  // ─── Lasso state ─────────────────────────────────────────────────────────────
+  // Which lasso sub-tool is active:  null | "freehand" | "polygon" | "magnetic"
+  var _lm  = useState(null);
+  var lassoMode = _lm[0], setLassoMode = _lm[1];
+
+  // Points accumulated during the current in-progress lasso gesture.
+  // For freehand: every cell coord touched.
+  // For polygon/magnetic: the placed anchor points.
+  var _pts = useState(null);   // null | Array<{x,y}>
+  var lassoPoints = _pts[0], setLassoPoints = _pts[1];
+
+  // Whether a drag/trace gesture is currently active (mousedown held).
+  var _act = useState(false);
+  var lassoActive = _act[0], setLassoActive = _act[1];
+
+  // Cursor position (grid coords) for live preview line in polygon/magnetic mode.
+  var _cur = useState(null);   // null | {x,y}
+  var lassoCursor = _cur[0], setLassoCursor = _cur[1];
+
+  // Live preview mask shown while the gesture is in progress.
+  var _pv  = useState(null);   // Uint8Array | null
+  var lassoPreviewMask = _pv[0], setLassoPreviewMask = _pv[1];
+
+  // opMode to use when finalising (mirrors wandOpMode, defaults to "replace").
+  var _op  = useState("replace");
+  var lassoOpMode = _op[0], setLassoOpMode = _op[1];
+
+  // ─── Grid helpers ─────────────────────────────────────────────────────────────
+
+  // Bresenham line — returns all integer grid cells on the segment from (x0,y0) to (x1,y1)
+  function bresenham(x0, y0, x1, y1) {
+    var cells = [];
+    var dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    var sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    var err = dx - dy;
+    for (;;) {
+      cells.push({ x: x0, y: y0 });
+      if (x0 === x1 && y0 === y1) break;
+      var e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x0 += sx; }
+      if (e2 < dx)  { err += dx; y0 += sy; }
+    }
+    return cells;
+  }
+
+  // Point-in-polygon test for integer grid cell centres.
+  // `poly` is an Array of {x,y} in grid coords.
+  // Uses the ray-casting algorithm.
+  function cellsInPolygon(poly, sW, sH) {
+    var mask = new Uint8Array(sW * sH);
+    if (poly.length < 3) return mask;
+
+    // Axis-aligned bounding box to limit the scan
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (var k = 0; k < poly.length; k++) {
+      if (poly[k].x < minX) minX = poly[k].x;
+      if (poly[k].x > maxX) maxX = poly[k].x;
+      if (poly[k].y < minY) minY = poly[k].y;
+      if (poly[k].y > maxY) maxY = poly[k].y;
+    }
+    minX = Math.max(0, Math.floor(minX));
+    maxX = Math.min(sW - 1, Math.ceil(maxX));
+    minY = Math.max(0, Math.floor(minY));
+    maxY = Math.min(sH - 1, Math.ceil(maxY));
+
+    for (var cy = minY; cy <= maxY; cy++) {
+      for (var cx = minX; cx <= maxX; cx++) {
+        var px = cx + 0.5, py = cy + 0.5;  // cell centre
+        var inside = false;
+        var j = poly.length - 1;
+        for (var i = 0; i < poly.length; i++) {
+          var xi = poly[i].x, yi = poly[i].y;
+          var xj = poly[j].x, yj = poly[j].y;
+          if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+            inside = !inside;
+          }
+          j = i;
+        }
+        if (inside) mask[cy * sW + cx] = 1;
+      }
+    }
+    return mask;
+  }
+
+  // Merge newMask into an existing selection mask — matches useMagicWand.mergeMasks
+  function mergeMasks(existing, newMask, opMode, size) {
+    var out = new Uint8Array(size);
+    for (var i = 0; i < size; i++) {
+      var e = existing ? existing[i] : 0;
+      var n = newMask[i];
+      if (opMode === "add")        out[i] = (e || n) ? 1 : 0;
+      else if (opMode === "subtract")  out[i] = (e && !n) ? 1 : 0;
+      else if (opMode === "intersect") out[i] = (e && n)  ? 1 : 0;
+      else                         out[i] = n;  // replace
+    }
+    return out;
+  }
+
+  // ─── Magnetic-lasso helpers ───────────────────────────────────────────────────
+
+  // Returns a LAB value for a grid cell (uses cmap entry if available).
+  function cellLab(pat, cmap, idx) {
+    var cell = pat[idx];
+    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return null;
+    var entry = cmap ? cmap[cell.id] : null;
+    if (entry && entry.lab) { var l = entry.lab; return Array.isArray(l) ? { L: l[0], a: l[1], b: l[2] } : l; }
+    var rgb = (entry && entry.rgb) ? entry.rgb : (cell.rgb || null);
+    if (!rgb) return null;
+    if (typeof rgbToLab === "function") return rgbToLab(rgb[0], rgb[1], rgb[2]);
+    return { L: rgb[0], a: rgb[1], b: rgb[2] };
+  }
+
+  // Colour-edge strength at a position: maximum LAB ΔE to any 4-connected neighbour.
+  // Higher value = stronger edge (bigger colour difference).
+  function edgeStrength(pat, cmap, sW, sH, x, y) {
+    var idx  = y * sW + x;
+    var lab0 = cellLab(pat, cmap, idx);
+    if (!lab0) return 0;
+    var maxDE = 0;
+    var nbrs = [];
+    if (x > 0)      nbrs.push(y  * sW + (x - 1));
+    if (x < sW - 1) nbrs.push(y  * sW + (x + 1));
+    if (y > 0)      nbrs.push((y - 1) * sW + x);
+    if (y < sH - 1) nbrs.push((y + 1) * sW + x);
+    for (var n = 0; n < nbrs.length; n++) {
+      var lab1 = cellLab(pat, cmap, nbrs[n]);
+      if (!lab1) continue;
+      var dL = lab0.L - lab1.L, da = lab0.a - lab1.a, db = lab0.b - lab1.b;
+      var de = Math.sqrt(dL * dL + da * da + db * db);
+      if (de > maxDE) maxDE = de;
+    }
+    return maxDE;
+  }
+
+  function buildEdgeWindow(sW, sH, x0, y0, x1, y1) {
+    var dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    var pad = Math.max(8, Math.min(36, Math.ceil(Math.max(dx, dy) * 0.35)));
+    return {
+      minX: Math.max(0, Math.min(x0, x1) - pad),
+      maxX: Math.min(sW - 1, Math.max(x0, x1) + pad),
+      minY: Math.max(0, Math.min(y0, y1) - pad),
+      maxY: Math.min(sH - 1, Math.max(y0, y1) + pad)
+    };
+  }
+
+  // Intelligent scissors / magnetic lasso: finds the cost-minimal path between
+  // two grid points that prefers to follow colour boundaries.
+  // Uses A* on a bounded 8-connected window so longer segments still resolve.
+  // Returns an array of {x,y} grid points on the path.
+  function magneticPath(pat, cmap, sW, sH, x0, y0, x1, y1) {
+    if (x0 === x1 && y0 === y1) return [{ x: x0, y: y0 }];
+    var win = buildEdgeWindow(sW, sH, x0, y0, x1, y1);
+    var size = sW * sH;
+    var dist = new Float32Array(size).fill(Infinity);
+    var prev = new Int32Array(size).fill(-1);
+    var start = y0 * sW + x0;
+    var end   = y1 * sW + x1;
+    dist[start] = 0;
+
+    function heuristic(x, y) {
+      return Math.sqrt(Math.pow(x1 - x, 2) + Math.pow(y1 - y, 2)) * 0.35;
+    }
+
+    var heap = [{ idx: start, cost: heuristic(x0, y0) }];
+    var closed = new Uint8Array(size);
+
+    while (heap.length > 0) {
+      heap.sort(function(a, b) { return a.cost - b.cost; });
+      var top = heap.shift();
+      var cur = top.idx;
+      if (cur === end) break;
+      if (closed[cur]) continue;
+      closed[cur] = 1;
+
+      var cx2 = cur % sW, cy2 = Math.floor(cur / sW);
+      for (var dy = -1; dy <= 1; dy++) {
+        for (var dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          var nx = cx2 + dx, ny = cy2 + dy;
+          if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue;
+          if (nx < win.minX || nx > win.maxX || ny < win.minY || ny > win.maxY) continue;
+          var ni = ny * sW + nx;
+          if (closed[ni]) continue;
+          var es = edgeStrength(pat, cmap, sW, sH, nx, ny);
+          var move = (dx !== 0 && dy !== 0) ? 1.41421356237 : 1.0;
+          var edgeReward = Math.min(0.82, es / 36);
+          var centerBias = 0;
+          if (dx !== 0 && dy !== 0) centerBias = 0.04;
+          var nd = dist[cur] + move * (1 - edgeReward) + centerBias;
+          if (nd < dist[ni]) {
+            dist[ni] = nd;
+            prev[ni] = cur;
+            heap.push({ idx: ni, cost: nd + heuristic(nx, ny) });
+          }
+        }
+      }
+    }
+
+    if (prev[end] === -1) return bresenham(x0, y0, x1, y1);
+
+    var path = [];
+    var c = end;
+    while (c !== -1 && c !== start) {
+      path.push({ x: c % sW, y: Math.floor(c / sW) });
+      c = prev[c];
+    }
+    path.push({ x: x0, y: y0 });
+    path.reverse();
+    return path;
+  }
+
+  function buildBoundaryPath(pts, mode, pat, cmap, sW, sH, includeClose) {
+    var boundary = [];
+    if (!pts || pts.length < 1) return boundary;
+    if (mode === "freehand") return pts.slice();
+    for (var s = 0; s < pts.length - 1; s++) {
+      var seg = mode === "magnetic" && pat
+        ? magneticPath(pat, cmap, sW, sH, pts[s].x, pts[s].y, pts[s + 1].x, pts[s + 1].y)
+        : bresenham(pts[s].x, pts[s].y, pts[s + 1].x, pts[s + 1].y);
+      for (var b = 0; b < seg.length; b++) {
+        if (s > 0 && b === 0) continue;
+        boundary.push(seg[b]);
+      }
+    }
+    if (includeClose && pts.length > 1) {
+      var closeSeg = mode === "magnetic" && pat
+        ? magneticPath(pat, cmap, sW, sH, pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y)
+        : bresenham(pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y);
+      for (var c2 = 1; c2 < closeSeg.length; c2++) boundary.push(closeSeg[c2]);
+    }
+    return boundary;
+  }
+
+  // Build a mask for a polygon-lasso from the current lassoPoints + snap path.
+  // For magnetic: we expand each segment into a Bresenham/magnetic line first,
+  //               building the full boundary polygon, then fill with ray-casting.
+  function buildMaskFromPoints(pts, mode, pat, cmap, sW, sH) {
+    if (!pts || pts.length < 2) return new Uint8Array(sW * sH);
+    if (mode === "freehand") {
+      // For freehand, pts contains every cell touched — mark them all selected
+      var fm = new Uint8Array(sW * sH);
+      for (var f = 0; f < pts.length; f++) {
+        var fx = pts[f].x, fy = pts[f].y;
+        if (fx >= 0 && fx < sW && fy >= 0 && fy < sH) fm[fy * sW + fx] = 1;
+      }
+      return fm;
+    }
+    // For polygon and magnetic: expand segments into dense boundary, then fill
+    var boundary = buildBoundaryPath(pts, mode, pat, cmap, sW, sH, true);
+    return cellsInPolygon(boundary, sW, sH);
+  }
+
+  // ─── Public actions ───────────────────────────────────────────────────────────
+
+  // Called on mousedown when a lasso tool is active.
+  function startLasso(gx, gy, opMode) {
+    setLassoActive(true);
+    setLassoCursor({ x: gx, y: gy });
+    setLassoOpMode(opMode || "replace");
+    var mode = lassoMode;
+    if (mode === "freehand") {
+      setLassoPoints([{ x: gx, y: gy }]);
+      setLassoPreviewMask(null);
+    } else {
+      // polygon / magnetic: place first anchor
+      var existing = lassoPoints;
+      if (!existing || existing.length === 0) {
+        setLassoPoints([{ x: gx, y: gy }]);
+      } else {
+        // Add another anchor to existing path
+        setLassoPoints(function(prev) { return prev.concat([{ x: gx, y: gy }]); });
+      }
+      setLassoPreviewMask(null);
+    }
+  }
+
+  // Called on mousemove when lasso is active.
+  function extendLasso(gx, gy) {
+    setLassoCursor({ x: gx, y: gy });
+    var mode = lassoMode;
+    var pts  = lassoPoints;
+    if (!pts) return;
+
+    if (mode === "freehand") {
+      // Expand path with all cells on the line from last point to current
+      var last = pts[pts.length - 1];
+      if (last.x === gx && last.y === gy) return;
+      var seg = bresenham(last.x, last.y, gx, gy);
+      var newPts = pts.concat(seg.slice(1));
+      setLassoPoints(newPts);
+      // Update live preview mask
+      var sW = state.sW, sH = state.sH;
+      var pm = new Uint8Array(sW * sH);
+      for (var i = 0; i < newPts.length; i++) {
+        var nx = newPts[i].x, ny = newPts[i].y;
+        if (nx >= 0 && nx < sW && ny >= 0 && ny < sH) pm[ny * sW + nx] = 1;
+      }
+      setLassoPreviewMask(pm);
+    }
+    // polygon/magnetic: just update cursor for live preview line — no preview mask
+    // (mask is only built on finalize to keep it snappy)
+  }
+
+  // Finalise the current lasso gesture and commit to the selection mask.
+  // For freehand: commits the painted cells.
+  // For polygon/magnetic: performs point-in-polygon fill and commits.
+  function finalizeLasso(overrideOpMode) {
+    var mode = lassoMode;
+    var pts  = lassoPoints;
+    var pat  = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    var opMode = overrideOpMode || lassoOpMode || "replace";
+    if (!pts || pts.length < 2) {
+      cancelLasso();
+      return;
+    }
+    var newMask = buildMaskFromPoints(pts, mode, pat, cmap, sW, sH);
+    var merged  = mergeMasks(state.selectionMask, newMask, opMode, sW * sH);
+    state.setSelectionMask(merged);
+    setLassoPoints(null);
+    setLassoActive(false);
+    setLassoCursor(null);
+    setLassoPreviewMask(null);
+  }
+
+  // Discard the in-progress lasso gesture.
+  function cancelLasso() {
+    setLassoPoints(null);
+    setLassoActive(false);
+    setLassoCursor(null);
+    setLassoPreviewMask(null);
+  }
+
+  // Check whether the cursor is close enough to the start point to auto-close
+  // the polygon (used for click-placement polygon mode).
+  function isNearStart(gx, gy, threshold) {
+    var pts = lassoPoints;
+    if (!pts || pts.length < 3) return false;
+    var t = threshold === undefined ? 1.5 : threshold;
+    var dx = gx - pts[0].x, dy = gy - pts[0].y;
+    return Math.sqrt(dx * dx + dy * dy) <= t;
+  }
+
+  // Derived: number of points in the current lasso path
+  var lassoPointCount = useMemo(function() {
+    return lassoPoints ? lassoPoints.length : 0;
+  }, [lassoPoints]);
+
+  var lassoInProgress = lassoActive || (lassoPoints && lassoPoints.length > 0 && (lassoMode === "polygon" || lassoMode === "magnetic"));
+
+  return {
+    lassoMode, setLassoMode,
+    lassoPoints, setLassoPoints,
+    lassoActive, setLassoActive,
+    lassoCursor, setLassoCursor,
+    lassoPreviewMask, setLassoPreviewMask,
+    lassoOpMode, setLassoOpMode,
+    lassoPointCount, lassoInProgress,
+    startLasso, extendLasso, finalizeLasso, cancelLasso, isNearStart,
+    // expose helpers for overlay rendering (called from canvasRenderer)
+    bresenham: bresenham,
+    magneticPath: magneticPath,
+    buildBoundaryPath: buildBoundaryPath,
+  };
+};
+
+
 /* ─── useCreatorState.js ─── */
 /* creator/useCreatorState.js — All useState, useRef, useMemo, and derived
    helper functions for CreatorApp. Returned object becomes the base of
@@ -1233,7 +2329,9 @@ window.useCreatorState = function useCreatorState() {
   var cropRef      = useRef(null);
 
   // Tools / editing
-  var _actTool  = useState(null);    var activeTool     = _actTool[0],  setActiveTool     = _actTool[1];
+  var _actTool  = useState(null);    var activeTool     = _actTool[0];
+  var activeToolRef = useRef(null);
+  function setActiveTool(v) { activeToolRef.current = v; _actTool[1](v); }
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
@@ -1244,7 +2342,9 @@ window.useCreatorState = function useCreatorState() {
   var EDIT_HISTORY_MAX = 50;
   var _scHint   = useState(function() { try { return !!localStorage.getItem("shortcuts_hint_dismissed"); } catch(_) { return false; } });
   var shortcutsHintDismissed = _scHint[0], setShortcutsHintDismissed = _scHint[1];
-  var _brushM   = useState("paint"); var brushMode = _brushM[0], setBrushMode = _brushM[1];
+  var _brushM   = useState("paint"); var brushMode = _brushM[0];
+  var brushModeRef = useRef("paint");
+  function setBrushMode(v) { brushModeRef.current = v; _brushM[1](v); }
   var _brushSz  = useState(1);       var brushSize = _brushSz[0], setBrushSize = _brushSz[1];
   var _ovfOpen  = useState(false);   var overflowOpen = _ovfOpen[0], setOverflowOpen = _ovfOpen[1];
   var _stripCol = useState({view:false,brush:false,bs:false});
@@ -1270,7 +2370,9 @@ window.useCreatorState = function useCreatorState() {
   var _sessions = useState([]);      var sessions = _sessions[0], setSessions = _sessions[1];
   var _hs       = useState(function() { return new Map(); });
   var halfStitches = _hs[0], setHalfStitches = _hs[1];
-  var _hsTool   = useState(null);    var halfStitchTool = _hsTool[0], setHalfStitchTool = _hsTool[1];
+  var _hsTool   = useState(null);    var halfStitchTool = _hsTool[0];
+  var halfStitchToolRef = useRef(null);
+  function setHalfStitchTool(v) { halfStitchToolRef.current = v; _hsTool[1](v); }
 
   // Thread organiser
   var _thOwned  = useState({});      var threadOwned = _thOwned[0], setThreadOwned = _thOwned[1];
@@ -1288,6 +2390,8 @@ window.useCreatorState = function useCreatorState() {
   var _prevDims   = useState(null);  var previewDims   = _prevDims[0],   setPreviewDims   = _prevDims[1];
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var previewTimerRef = useRef(null);
+  var wandClearRef   = useRef(null);   // set after wand hook is called
+  var lassoCancelRef = useRef(null);   // set after lasso hook is called
 
   // Cleanup diff state
   var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
@@ -1296,6 +2400,32 @@ window.useCreatorState = function useCreatorState() {
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
+
+  // Eyedropper feedback
+  var _edEmpty = useState(false);    var eyedropperEmpty = _edEmpty[0], setEyedropperEmpty = _edEmpty[1];
+
+  // Context menu
+  var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
+
+  // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
+  var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
+
+  // Toast notifications
+  var _toasts = useState([]);        var toasts = _toasts[0], setToasts = _toasts[1];
+  var toastIdRef = useRef(0);
+  var addToast = useCallback(function(message, opts) {
+    opts = opts || {};
+    var id = ++toastIdRef.current;
+    var toast = { id: id, message: message, type: opts.type || "info", duration: opts.duration || 2500 };
+    setToasts(function(prev) { return prev.concat([toast]); });
+    setTimeout(function() {
+      setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
+    }, toast.duration);
+    return id;
+  }, []);
+  var dismissToast = useCallback(function(id) {
+    setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
+  }, []);
 
   // Refs
   var pcRef      = useRef(null);
@@ -1430,7 +2560,7 @@ window.useCreatorState = function useCreatorState() {
   function slRsz(v) { chgW(v); }
 
   function selectStitchType(t) {
-    if (t === "cross")     { setActiveTool(brushMode); setHalfStitchTool(null); setBsStart(null); }
+    if (t === "cross")     { setActiveTool(brushModeRef.current); setHalfStitchTool(null); setBsStart(null); }
     else if (t === "half-fwd") { setHalfStitchTool("fwd"); setActiveTool(null); setBsStart(null); }
     else if (t === "half-bck") { setHalfStitchTool("bck"); setActiveTool(null); setBsStart(null); }
     else if (t === "backstitch") { setActiveTool("backstitch"); setHalfStitchTool(null); }
@@ -1439,14 +2569,16 @@ window.useCreatorState = function useCreatorState() {
   }
   function setBrushAndActivate(mode) {
     setBrushMode(mode);
-    if (activeTool === "paint" || activeTool === "fill") setActiveTool(mode);
+    setActiveTool(mode);
+    setHalfStitchTool(null);
+    setBsStart(null);
   }
   function setTool(tool) {
-    if (activeTool === tool) { setActiveTool(null); setBsStart(null); return; }
+    if (activeToolRef.current === tool) { setActiveTool(null); setBsStart(null); return; }
     setActiveTool(tool); setBsStart(null); setHalfStitchTool(null);
   }
   function setHsTool(t) {
-    if (halfStitchTool === t) { setHalfStitchTool(null); return; }
+    if (halfStitchToolRef.current === t) { setHalfStitchTool(null); return; }
     setHalfStitchTool(t); setActiveTool(null); setBsStart(null);
   }
 
@@ -1469,7 +2601,18 @@ window.useCreatorState = function useCreatorState() {
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
+    if (wandClearRef.current) wandClearRef.current();
+    if (lassoCancelRef.current) lassoCancelRef.current();
   }
+
+  // Initialize paint tool/colour only on first pattern load (when no colour is selected yet)
+  useEffect(function() {
+    if (!pat || !pal || pal.length === 0) return;
+    if (selectedColorId != null) return;
+    setBrushAndActivate("paint");
+    selectStitchType("cross");
+    setSelectedColorId(pal[0].id);
+  }, [pat, pal]);
 
   function initBlankGrid(w, h) {
     var blank = Array.from({ length: w * h }, function() { return { id: "__empty__", rgb: [255, 255, 255] }; });
@@ -1675,6 +2818,31 @@ window.useCreatorState = function useCreatorState() {
     buildPaletteWithScratch: buildPaletteWithScratch,
   });
 
+  // ─── Magic Wand integration ──────────────────────────────────────────────────
+  var wand = useMagicWand({
+    pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt,
+    bsLines: bsLines, setBsLines: setBsLines,
+    editHistory: editHistory, setEditHistory: setEditHistory,
+    setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
+    setPat: setPat, setPal: setPal, setCmap: setCmap,
+    addToast: addToast,
+    buildPaletteWithScratch: buildPaletteWithScratch,
+  });
+  // Keep wandClearRef updated each render so resetAll() can call it
+  wandClearRef.current = wand.clearSelection;
+
+  var lasso = useLassoSelect({
+    pat: pat, cmap: cmap, sW: sW, sH: sH,
+    selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
+  });
+  lassoCancelRef.current = lasso.cancelLasso;
+
+  // Syncs op mode across both selection tools
+  function setSelectionOpMode(mode) {
+    wand.setWandOpMode(mode);
+    lasso.setLassoOpMode(mode);
+  }
+
   // ─── Scratch resize effect ───────────────────────────────────────────────────
   useEffect(function() {
     if (!isScratchMode || !pat) return;
@@ -1710,12 +2878,13 @@ window.useCreatorState = function useCreatorState() {
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef,
-    activeTool, setActiveTool, bsLines, setBsLines, bsStart, setBsStart,
+    activeTool, setActiveTool, activeToolRef,
+    bsLines, setBsLines, bsStart, setBsStart,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,
     shortcutsHintDismissed, setShortcutsHintDismissed,
-    brushMode, setBrushMode, brushSize, setBrushSize,
+    brushMode, setBrushMode, brushModeRef, brushSize, setBrushSize,
     overflowOpen, setOverflowOpen, stripCollapsed, setStripCollapsed,
     exportPage, setExportPage, pageMode, setPageMode,
     pdfDisplayMode, setPdfDisplayMode, pdfCellSize, setPdfCellSize,
@@ -1725,7 +2894,7 @@ window.useCreatorState = function useCreatorState() {
     colPickerOpen, setColPickerOpen, parkMarkers, setParkMarkers,
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
     sessions, setSessions, halfStitches, setHalfStitches,
-    halfStitchTool, setHalfStitchTool, threadOwned, setThreadOwned,
+    halfStitchTool, setHalfStitchTool, halfStitchToolRef, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen, previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
@@ -1748,8 +2917,58 @@ window.useCreatorState = function useCreatorState() {
     setBrushAndActivate, setTool, setHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
     toggleOwned, generate,
+    // Eyedropper feedback
+    eyedropperEmpty, setEyedropperEmpty,
+    // Context menu
+    contextMenu, setContextMenu,
+    // Toast notifications
+    toasts, addToast, dismissToast,
+    // Selection modifier key state (null | "add" | "subtract" | "intersect")
+    selectionModifier, setSelectionModifier,
     // PaletteSwap
     paletteSwap,
+    // Magic Wand
+    selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
+    wandTolerance: wand.wandTolerance, setWandTolerance: wand.setWandTolerance,
+    wandContiguous: wand.wandContiguous, setWandContiguous: wand.setWandContiguous,
+    wandOpMode: wand.wandOpMode, setWandOpMode: wand.setWandOpMode,
+    setSelectionOpMode: setSelectionOpMode,
+    wandPanel: wand.wandPanel, setWandPanel: wand.setWandPanel,
+    confettiThreshold: wand.confettiThreshold, setConfettiThreshold: wand.setConfettiThreshold,
+    confettiPreview: wand.confettiPreview, setConfettiPreview: wand.setConfettiPreview,
+    reduceTarget: wand.reduceTarget, setReduceTarget: wand.setReduceTarget,
+    reducePreview: wand.reducePreview, setReducePreview: wand.setReducePreview,
+    replaceSource: wand.replaceSource, setReplaceSource: wand.setReplaceSource,
+    replaceDest: wand.replaceDest, setReplaceDest: wand.setReplaceDest,
+    replaceFuzzy: wand.replaceFuzzy, setReplaceFuzzy: wand.setReplaceFuzzy,
+    replaceFuzzyTol: wand.replaceFuzzyTol, setReplaceFuzzyTol: wand.setReplaceFuzzyTol,
+    outlineColor: wand.outlineColor, setOutlineColor: wand.setOutlineColor,
+    applyWandSelect: wand.applyWandSelect, clearSelection: wand.clearSelection,
+    invertSelection: wand.invertSelection, selectAll: wand.selectAll,
+    selectAllOfColorId: wand.selectAllOfColorId,
+    previewConfettiCleanup: wand.previewConfettiCleanup,
+    applyConfettiCleanup: wand.applyConfettiCleanup,
+    previewColorReduction: wand.previewColorReduction,
+    applyColorReduction: wand.applyColorReduction,
+    selectionReplaceColorCount: wand.selectionReplaceColorCount,
+    applyColorReplacement: wand.applyColorReplacement,
+    selectionStats: wand.selectionStats,
+    applyOutlineGeneration: wand.applyOutlineGeneration,
+    selectionCount: wand.selectionCount, hasSelection: wand.hasSelection,
+    // Lasso Select
+    lassoMode: lasso.lassoMode, setLassoMode: lasso.setLassoMode,
+    lassoPoints: lasso.lassoPoints, setLassoPoints: lasso.setLassoPoints,
+    lassoActive: lasso.lassoActive, setLassoActive: lasso.setLassoActive,
+    lassoCursor: lasso.lassoCursor, setLassoCursor: lasso.setLassoCursor,
+    lassoPreviewMask: lasso.lassoPreviewMask, setLassoPreviewMask: lasso.setLassoPreviewMask,
+    lassoOpMode: lasso.lassoOpMode, setLassoOpMode: lasso.setLassoOpMode,
+    lassoPointCount: lasso.lassoPointCount, lassoInProgress: lasso.lassoInProgress,
+    startLasso: lasso.startLasso, extendLasso: lasso.extendLasso,
+    finalizeLasso: lasso.finalizeLasso, cancelLasso: lasso.cancelLasso,
+    isNearStart: lasso.isNearStart,
+    lassoLinePath: lasso.bresenham,
+    lassoMagneticPath: lasso.magneticPath,
+    lassoBoundaryPath: lasso.buildBoundaryPath,
   };
 };
 
@@ -1798,6 +3017,7 @@ window.useEditHistory = function useEditHistory(state) {
     });
     var result = buildPaletteWithScratch(np);
     state.setPal(result.pal); state.setCmap(result.cmap);
+    if (state.addToast) state.addToast("Undo: reverted " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
   }
 
   function redoEdit() {
@@ -1837,6 +3057,7 @@ window.useEditHistory = function useEditHistory(state) {
     });
     var result = buildPaletteWithScratch(np);
     state.setPal(result.pal); state.setCmap(result.cmap);
+    if (state.addToast) state.addToast("Redo: restored " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
   }
 
   return { undoEdit: undoEdit, redoEdit: redoEdit };
@@ -1867,6 +3088,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   var TOUCH_TAP_SLOP = 10;
   var LONG_PRESS_MS = 500;
+
+  function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
+  function getHalfStitchTool() { return state.halfStitchToolRef ? state.halfStitchToolRef.current : state.halfStitchTool; }
 
   function isPrimaryButton(e) {
     return (e.button == null ? 0 : e.button) === 0;
@@ -1978,6 +3202,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         if (action === "paint" && np) {
           if (np[idx].id === "__skip__") continue;
           if (!colorEntry) continue;
+          var selMask = state.selectionMask;
+          if (selMask && !selMask[idx]) continue;
           if (np[idx].id !== colorEntry.id) {
             dragChangesRef.current.push({ idx: idx, old: Object.assign({}, np[idx]) });
             np[idx] = Object.assign({}, colorEntry);
@@ -1992,6 +3218,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
           }
         } else if (action === "eraseAll" && np) {
           if (np[idx].id === "__skip__") continue;
+          var selMaskE = state.selectionMask;
+          if (selMaskE && !selMaskE[idx]) continue;
           var changed = false;
           if (np[idx].id !== "__empty__") {
             dragChangesRef.current.push({ idx: idx, old: Object.assign({}, np[idx]) });
@@ -2040,6 +3268,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
           }
         } else if (action && action.startsWith("half-") && np) {
           if (np[idx].id === "__skip__") continue;
+          var selMaskH = state.selectionMask;
+          if (selMaskH && !selMaskH[idx]) continue;
           var dir = action.replace("half-", "");
           var ce = colorEntry;
           if (!ce) {
@@ -2063,10 +3293,30 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   // ─── handlePatClick ──────────────────────────────────────────────────────────
+  function doEyedropSample(pat, cmap, sW, sH, halfStitches, gx, gy) {
+    if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+    var idx = gy * sW + gx;
+    var cell = pat[idx];
+    if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
+      state.setSelectedColorId(cell.id);
+    } else {
+      var hs = halfStitches.get(idx);
+      if (hs) {
+        if (hs.fwd && cmap[hs.fwd.id]) { state.setSelectedColorId(hs.fwd.id); }
+        else if (hs.bck && cmap[hs.bck.id]) { state.setSelectedColorId(hs.bck.id); }
+      } else {
+        state.setEyedropperEmpty(true);
+        if (state.addToast) state.addToast("That cell is empty \u2014 no colour to sample.", {type:"warning", duration:1500});
+        setTimeout(function() { state.setEyedropperEmpty(false); }, 1200);
+      }
+    }
+  }
+
   function handlePatClick(e) {
     var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
     var cs = state.cs, G = state.G, pcRef = state.pcRef;
-    var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
+    var activeTool = getActiveTool();
+    var halfStitchTool = getHalfStitchTool();
     var selectedColorId = state.selectedColorId, bsLines = state.bsLines;
     var bsStart = state.bsStart, bsContinuous = state.bsContinuous;
     var halfStitches = state.halfStitches, brushMode = state.brushMode;
@@ -2078,20 +3328,42 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
 
-    if (activeTool === "eyedropper") {
+    // Temporary eyedropper: Alt+click samples colour without switching tool
+    if (e.altKey && activeTool !== "magicWand" && activeTool !== "lasso") {
+      doEyedropSample(pat, cmap, sW, sH, halfStitches, gx, gy);
+      return;
+    }
+
+    if (activeTool === "lasso") {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
-      var idx0 = gy * sW + gx;
-      var cell = pat[idx0];
-      if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
-        state.setSelectedColorId(cell.id);
-        state.setBrushAndActivate("paint");
-      } else {
-        var hs0 = halfStitches.get(idx0);
-        if (hs0) {
-          if (hs0.fwd && cmap[hs0.fwd.id]) { state.setSelectedColorId(hs0.fwd.id); state.setBrushAndActivate("paint"); }
-          else if (hs0.bck && cmap[hs0.bck.id]) { state.setSelectedColorId(hs0.bck.id); state.setBrushAndActivate("paint"); }
+      var opModeL = (e.shiftKey && e.altKey) ? "intersect"
+        : e.shiftKey ? "add"
+        : e.altKey ? "subtract"
+        : (state.lassoOpMode || state.wandOpMode || "replace");
+
+      if (state.lassoMode === "polygon" || state.lassoMode === "magnetic") {
+        // Close/finalise if user clicks near the start anchor after at least 3 points
+        if (state.isNearStart && state.isNearStart(gx, gy) && state.lassoPoints && state.lassoPoints.length >= 3) {
+          state.finalizeLasso(opModeL);
+        } else {
+          state.startLasso(gx, gy, opModeL);
         }
       }
+      return;
+    }
+
+    if (activeTool === "magicWand") {
+      if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+      var opMode = (e.shiftKey && e.altKey) ? "intersect"
+        : e.shiftKey ? "add"
+        : e.altKey ? "subtract"
+        : state.wandOpMode;
+      state.applyWandSelect(gx, gy, opMode);
+      return;
+    }
+
+    if (activeTool === "eyedropper") {
+      doEyedropSample(pat, cmap, sW, sH, halfStitches, gx, gy);
       return;
     }
 
@@ -2100,21 +3372,6 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var idx1 = gy * sW + gx;
       if (halfStitchTool === "erase") {
         var nm0 = new Map(halfStitches); nm0.delete(idx1); state.setHalfStitches(nm0);
-        if (bsLines.length > 0) {
-          var ci = -1, md = Infinity;
-          bsLines.forEach(function(ln, i) {
-            var A = gx - ln.x1, B = gy - ln.y1, C = ln.x2 - ln.x1, D = ln.y2 - ln.y1;
-            var dot = A * C + B * D, lenSq = C * C + D * D, param = -1;
-            if (lenSq !== 0) param = dot / lenSq;
-            var xx, yy;
-            if (param < 0) { xx = ln.x1; yy = ln.y1; }
-            else if (param > 1) { xx = ln.x2; yy = ln.y2; }
-            else { xx = ln.x1 + param * C; yy = ln.y1 + param * D; }
-            var d = Math.sqrt(Math.pow(gx - xx, 2) + Math.pow(gy - yy, 2));
-            if (d < md) { md = d; ci = i; }
-          });
-          if (md <= 0.6 && ci >= 0) { var nb = bsLines.slice(); nb.splice(ci, 1); state.setBsLines(nb); }
-        }
         return;
       }
       var dir1 = halfStitchTool;
@@ -2141,9 +3398,11 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (activeTool === "fill") {
         var ch = [], vis = new Set(), q = [idx2], tid = pat[idx2].id;
         if (tid === pe.id) return;
+        var selMask2 = state.selectionMask;
         while (q.length) {
           var id2 = q.pop();
           if (vis.has(id2)) continue; vis.add(id2);
+          if (selMask2 && !selMask2[id2]) continue;
           if (pat[id2].id !== tid) continue;
           ch.push({ idx: id2, old: Object.assign({}, pat[id2]) });
           var x2 = id2 % sW, y2 = Math.floor(id2 / sW);
@@ -2192,7 +3451,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         var dx = gx - xx, dy = gy - yy, d = Math.sqrt(dx * dx + dy * dy);
         if (d < mmd) { mmd = d; mci = i; }
       });
-      if (mmd <= 0.4 && mci >= 0) { var nBs2 = bsLines.slice(); nBs2.splice(mci, 1); state.setBsLines(nBs2); }
+      if (mmd <= 0.7 && mci >= 0) { var nBs2 = bsLines.slice(); nBs2.splice(mci, 1); state.setBsLines(nBs2); }
     }
   }
 
@@ -2200,15 +3459,38 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatMouseDown(e) {
     if (!isPrimaryButton(e)) return;
     var pat = state.pat, pcRef = state.pcRef, cs = state.cs, G = state.G;
-    var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
+    var activeTool = getActiveTool();
+    var halfStitchTool = getHalfStitchTool();
     var selectedColorId = state.selectedColorId, cmap = state.cmap;
     if (!pcRef.current || !pat) return;
+
+    // Temporary eyedropper: Alt+click samples colour without switching tool
+    if (e.altKey && activeTool !== "magicWand" && activeTool !== "lasso") {
+      var gc0 = gridCoord(pcRef, e, cs, G, false);
+      if (gc0) doEyedropSample(pat, cmap, state.sW, state.sH, state.halfStitches, gc0.gx, gc0.gy);
+      return;
+    }
+
     if (!activeTool && !halfStitchTool) return;
     var gc = gridCoord(pcRef, e, cs, G, activeTool === "backstitch");
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
 
-    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs") {
+    if (activeTool === "lasso") {
+      if (gx < 0 || gx >= state.sW || gy < 0 || gy >= state.sH) return;
+      var opModeL = (e.shiftKey && e.altKey) ? "intersect"
+        : e.shiftKey ? "add"
+        : e.altKey ? "subtract"
+        : (state.lassoOpMode || state.wandOpMode || "replace");
+      if (state.lassoMode === "freehand") {
+        state.startLasso(gx, gy, opModeL);
+      } else {
+        handlePatClick(e);
+      }
+      return;
+    }
+
+    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand") {
       handlePatClick(e);
       return;
     }
@@ -2234,16 +3516,28 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handlePatMouseMove(e) {
     var pat = state.pat, pcRef = state.pcRef, cs = state.cs, G = state.G;
-    var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
+    var activeTool = getActiveTool();
+    var halfStitchTool = getHalfStitchTool();
     if (!pcRef.current || !pat || (!activeTool && !halfStitchTool)) return;
     var gc = gridCoord(pcRef, e, cs, G, activeTool === "backstitch" || activeTool === "eraseBs");
     if (!gc) return;
     var hc = state.hoverCoords;
     if (!hc || hc.gx !== gc.gx || hc.gy !== gc.gy) state.setHoverCoords(gc);
+    if (activeTool === "lasso") {
+      if (gc.gx >= 0 && gc.gx < state.sW && gc.gy >= 0 && gc.gy < state.sH) {
+        state.setLassoCursor({ x: gc.gx, y: gc.gy });
+        if (state.lassoMode === "freehand" && state.lassoActive) state.extendLasso(gc.gx, gc.gy);
+      }
+      return;
+    }
     if (isDraggingRef.current) applyBrush(gc.gx, gc.gy, dragActionRef.current);
   }
 
   function handlePatMouseUp(e) {
+    if (getActiveTool() === "lasso") {
+      if (state.lassoMode === "freehand" && state.lassoActive) state.finalizeLasso();
+      return;
+    }
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
 
@@ -2300,6 +3594,10 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handlePatMouseLeave(e) {
     state.setHoverCoords(null);
+    if (getActiveTool() === "lasso" && state.lassoMode === "freehand" && state.lassoActive) {
+      state.finalizeLasso();
+      return;
+    }
     handlePatMouseUp(e);
   }
 
@@ -2645,12 +3943,16 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       if (mod && !e.shiftKey && e.key === "z") { e.preventDefault(); history.undoEdit(); return; }
       if ((mod && e.key === "y") || (mod && e.shiftKey && e.key === "z")) { e.preventDefault(); history.redoEdit(); return; }
       if (mod && e.key === "s") { e.preventDefault(); if (state.pat && state.pal) io.saveProject(); return; }
+      if (mod && !e.shiftKey && e.key === "a") { e.preventDefault(); if (state.pat) { state.selectAll(); } return; }
+      if (mod && e.shiftKey && (e.key === "i" || e.key === "I")) { e.preventDefault(); if (state.pat) { state.invertSelection(); } return; }
       if (mod) return;
 
       if (e.key === "Escape") {
         if (state.namePromptOpen) { state.setNamePromptOpen(false); return; }
         if (state.modal) { state.setModal(null); return; }
         if (state.overflowOpen) { state.setOverflowOpen(false); return; }
+        if (state.lassoInProgress) { state.cancelLasso(); return; }
+        if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
         if (state.activeTool || state.halfStitchTool) {
           state.setActiveTool(null); state.setHalfStitchTool(null); state.setBsStart(null); return;
@@ -2668,6 +3970,11 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       if (e.key === "3") { state.selectStitchType("half-bck"); return; }
       if (e.key === "4") { state.selectStitchType("backstitch"); return; }
       if (e.key === "5") { state.selectStitchType("erase"); return; }
+      if (e.key === "w" || e.key === "W") {
+        if (state.activeTool === "magicWand") { state.setActiveTool(null); }
+        else { state.setActiveTool("magicWand"); state.setHalfStitchTool(null); state.setBsStart(null); }
+        return;
+      }
       if (e.key === "p" || e.key === "P") {
         if (!state.halfStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("paint");
         return;
@@ -2696,6 +4003,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     state.editHistory, state.redoHistory, state.pat, state.pal,
     state.namePromptOpen, state.modal, state.overflowOpen,
     state.selectedColorId, state.halfStitchTool, state.hiId,
+    state.hasSelection, state.lassoInProgress,
     history.undoEdit, history.redoEdit, io.saveProject,
   ]);
 };
@@ -2753,6 +4061,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var safeName = (finalName || "cross-stitch-project").replace(/[^a-zA-Z0-9_\- ]/g, "").trim() || "cross-stitch-project";
     a.download = safeName + ".json";
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    if (state.addToast) state.addToast("Project saved as \"" + safeName + ".json\"", {type:"success", duration:2500});
   }
 
   // ─── saveProject ─────────────────────────────────────────────────────────────
@@ -3312,6 +4621,39 @@ window.PatternCanvas = function PatternCanvas() {
   // at most one full render fires per frame.
   var rafRef = React.useRef(null);
 
+  // Marching ants animation offset
+  var antsOffsetRef = React.useRef(0);
+  var antsIntervalRef = React.useRef(null);
+  // Latest context snapshot ref — updated every render so the interval callback
+  // always reads current state rather than the closed-over stale value.
+  var ctxRef = React.useRef(ctx);
+  ctxRef.current = ctx;
+
+  // ── Effect: Animated marching ants for selection mask
+  React.useEffect(function() {
+    var hasSelection = ctx.selectionMask || ctx.lassoPreviewMask;
+    if (!hasSelection) {
+      if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
+      antsOffsetRef.current = 0;
+      return;
+    }
+    if (antsIntervalRef.current) return; // already running
+    antsIntervalRef.current = setInterval(function() {
+      antsOffsetRef.current = (antsOffsetRef.current + 1) % 20;
+      var latest = ctxRef.current;
+      var canvas = latest.pcRef.current;
+      if (!canvas || !baseCacheRef.current) return;
+      if (latest.isDraggingRef && latest.isDraggingRef.current) return;
+      var context = canvas.getContext("2d");
+      context.putImageData(baseCacheRef.current, 0, 0);
+      var snap = Object.assign({}, latest, { antsOffset: antsOffsetRef.current });
+      drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, snap.G, snap);
+    }, 120);
+    return function() {
+      if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
+    };
+  }, [ctx.selectionMask, ctx.lassoPreviewMask]);
+
   // ── Effect 1: Full render (base + overlay). Fires when pattern content changes.
   // Uses RAF so rapid zoom-slider drags collapse into a single paint per frame.
   React.useEffect(function() {
@@ -3358,7 +4700,9 @@ window.PatternCanvas = function PatternCanvas() {
     ctx.hoverCoords, ctx.selectedColorId, ctx.bsStart,
     // structural deps — needed so the overlay is redrawn correctly when these change
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.tab,
-    ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.halfStitchTool, ctx.bsLines
+    ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.halfStitchTool, ctx.bsLines,
+    ctx.lassoMode, ctx.lassoPoints, ctx.lassoPreviewMask, ctx.lassoCursor, ctx.lassoInProgress,
+    ctx.selectionMask, ctx.confettiPreview
   ]);
 
   return h("canvas", {
@@ -3394,6 +4738,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
 
+  // Local state
+  var _swe = React.useState(false); var swatchExpanded = _swe[0], setSwatchExpanded = _swe[1];
+
   // ResizeObserver: progressively collapse strip groups when narrow
   React.useEffect(function() {
     var el = ctx.stripRef.current;
@@ -3403,7 +4750,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       if (frame) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(function() {
         var w = el.clientWidth;
-        ctx.setStripCollapsed({ view: w < 860, brush: w < 680, bs: w < 550 });
+        ctx.setStripCollapsed({ brush: w < 680, bs: w < 550 });
       });
     });
     obs.observe(el);
@@ -3414,8 +4761,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   React.useEffect(function() {
     if (!ctx.overflowOpen) return;
     function close(e) {
-      if (ctx.overflowRef.current && !ctx.overflowRef.current.contains(e.target))
-        ctx.setOverflowOpen(false);
+      if (ctx.overflowRef.current && !ctx.overflowRef.current.contains(e.target)) ctx.setOverflowOpen(false);
     }
     document.addEventListener("pointerdown", close);
     return function() { document.removeEventListener("pointerdown", close); };
@@ -3424,6 +4770,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
 
   var sc = ctx.stripCollapsed || {};
+
+  // Palette data sorted by usage — needed early for auto-select
+  var palData = (ctx.displayPal || ctx.pal || []).slice().sort(function(a,b){return (b.count||0)-(a.count||0);});
   var svgX = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
     h("line", {x1:"1",y1:"11",x2:"11",y2:"1",stroke:"currentColor",strokeWidth:"1.8"}),
     h("line", {x1:"1",y1:"1",x2:"11",y2:"11",stroke:"currentColor",strokeWidth:"1.8"}));
@@ -3434,58 +4783,141 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var svgErase = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
     h("line", {x1:"2",y1:"2",x2:"10",y2:"10",stroke:"currentColor",strokeWidth:"1.5"}),
     h("line", {x1:"10",y1:"2",x2:"2",y2:"10",stroke:"currentColor",strokeWidth:"1.5"}));
-
-  // Stitch type group
-  var stitchGrp = h("div", {className:"tb-grp"},
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="cross"?" tb-btn--green":""),
-      onClick:function(){ctx.selectStitchType("cross");}, title:"Cross stitch (1)"
-    }, svgX, "Cross"),
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="half-fwd"?" tb-btn--blue":""),
-      onClick:function(){ctx.selectStitchType("half-fwd");}, title:"Half stitch / (2)"
-    }, svgFwd, "Half /"),
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="half-bck"?" tb-btn--blue":""),
-      onClick:function(){ctx.selectStitchType("half-bck");}, title:"Half stitch \\ (3)"
-    }, svgBck, "Half \\"),
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="backstitch"?" tb-btn--on":""),
-      onClick:function(){ctx.selectStitchType("backstitch");}, title:"Backstitch (4)"
-    }, "Bs"),
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="erase"?" tb-btn--red":""),
-      onClick:function(){ctx.selectStitchType("erase");}, title:"Erase (5)"
-    }, svgErase, "Erase")
+  var svgWand = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("line", {x1:"2.2",y1:"9.8",x2:"8.7",y2:"3.3",stroke:"currentColor",strokeWidth:"1.6",strokeLinecap:"round"}),
+    h("line", {x1:"8.8",y1:"1.1",x2:"8.8",y2:"3.1",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"}),
+    h("line", {x1:"7.8",y1:"2.1",x2:"9.8",y2:"2.1",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"}),
+    h("line", {x1:"7.4",y1:"0.9",x2:"10.2",y2:"3.7",stroke:"currentColor",strokeWidth:"0.9",strokeLinecap:"round"}),
+    h("line", {x1:"10.2",y1:"0.9",x2:"7.4",y2:"3.7",stroke:"currentColor",strokeWidth:"0.9",strokeLinecap:"round"})
+  );
+  var svgFreehand = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("path", {d:"M2 8.3C2 5.6 4.1 3.5 6.2 3.5C8.2 3.5 9.5 4.7 9.5 6.1C9.5 7.6 8.4 8.8 6.9 8.8C5.9 8.8 5.3 8.2 5.3 7.5C5.3 6.8 5.9 6.2 6.7 6.2",stroke:"currentColor",strokeWidth:"1.3",strokeLinecap:"round",strokeLinejoin:"round"}),
+    h("circle", {cx:"6.7",cy:"6.2",r:"0.9",fill:"currentColor"})
+  );
+  var svgPolygon = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("path", {d:"M2 8.5L3.5 2.5H8.6L10 7.7L5.4 10.1Z",stroke:"currentColor",strokeWidth:"1.2",strokeLinejoin:"round"}),
+    h("circle", {cx:"3.5",cy:"2.5",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"8.6",cy:"2.5",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"10",cy:"7.7",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"5.4",cy:"10.1",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"2",cy:"8.5",r:"0.8",fill:"currentColor"})
+  );
+  var svgMagnetic = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("path", {d:"M3 2.2V6.1C3 7.9 4.4 9.4 6 9.4C7.6 9.4 9 7.9 9 6.1V2.2",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round"}),
+    h("line", {x1:"3",y1:"2.2",x2:"3",y2:"4.1",stroke:"currentColor",strokeWidth:"2.1",strokeLinecap:"round"}),
+    h("line", {x1:"9",y1:"2.2",x2:"9",y2:"4.1",stroke:"currentColor",strokeWidth:"2.1",strokeLinecap:"round"}),
+    h("line", {x1:"2.3",y1:"1.5",x2:"3.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"}),
+    h("line", {x1:"8.3",y1:"1.5",x2:"9.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"})
   );
 
-  // Brush group — shown when cross stitch
-  var brushGrp = (ctx.stitchType === "cross") ? [
-    h("div", {key:"sdiv-brush", className:"tb-sdiv"}),
+  // Brush group — always shown (first choice)
+  var brushGrp = [
     h("div", {
       key:"brush-grp",
-      className:"tb-grp"+(sc.brush?" tb-hidden":""),
-      style:{opacity: ctx.selectedColorId ? 1 : 0.6}
+      className:"tb-grp"+(sc.brush?" tb-hidden":"")
     },
       h("button", {
-        className:"tb-btn"+(ctx.brushMode==="paint"?" tb-btn--on":""),
-        onClick:function(){ctx.setBrushAndActivate("paint");}, title:"Paint (P)"
+        className:"tb-btn"+(ctx.brushMode==="paint" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
+        onClick:function(){
+          if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
+          ctx.setBrushAndActivate("paint");
+        },
+        title:"Paint (P)"
       }, "Paint"),
       h("button", {
-        className:"tb-btn"+(ctx.brushMode==="fill"?" tb-btn--on":""),
-        onClick:function(){ctx.setBrushAndActivate("fill");}, title:"Fill (F)"
+        className:"tb-btn"+(ctx.brushMode==="fill" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
+        onClick:function(){
+          if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
+          ctx.setBrushAndActivate("fill");
+        },
+        title:"Fill (F)"
       }, "Fill"),
+      h("button", {
+        className:"tb-btn"+(ctx.stitchType==="erase"?" tb-btn--red":""),
+        onClick:function(){ctx.selectStitchType("erase");}, title:"Erase (5)"
+      }, svgErase, "Erase"),
       h("button", {
         className:"tb-btn"+(ctx.activeTool==="eyedropper"?" tb-btn--on":""),
         onClick:function(){ctx.setActiveTool("eyedropper"); ctx.setBsStart(null); ctx.setHalfStitchTool(null);},
         title:"Eyedropper (I)"
-      }, "Pick Color")
+      }, "Pick")
+    )
+  ];
+
+  // Stitch type dropdown — shown only when paint or fill is the active brush mode
+  var showStitchGrp = (ctx.brushMode==="paint" || ctx.brushMode==="fill") && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase";
+  var stitchMeta = {
+    "cross":      {icon:svgX,    label:"Cross",    cls:"tb-btn--green"},
+    "half-fwd":   {icon:svgFwd,  label:"Half /",   cls:"tb-btn--blue"},
+    "half-bck":   {icon:svgBck,  label:"Half \\",  cls:"tb-btn--blue"},
+    "backstitch": {icon:null,    label:"Bs",       cls:"tb-btn--on"}
+  };
+  var activeSM = stitchMeta[ctx.stitchType] || stitchMeta["cross"];
+  var stitchDrop = showStitchGrp ? [
+    h("div", {key:"sdiv-stitch", className:"tb-sdiv"}),
+    h("div", {key:"stitch-drop", className:"tb-drop-wrap"},
+      h("button", {
+        className:"tb-btn tb-drop-btn " + activeSM.cls,
+        title:"Stitch type"
+      }, activeSM.icon, activeSM.label, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
+      h("div", {className:"tb-dropdown"},
+        Object.keys(stitchMeta).map(function(k) {
+          var m = stitchMeta[k];
+          return h("button", {
+            key:k,
+            className:"tb-drop-item" + (ctx.stitchType===k?" tb-drop-item--on":""),
+            onClick:function(){ctx.selectStitchType(k);}
+          }, m.icon, m.label);
+        })
+      )
     )
   ] : null;
 
+  // Colour swatch strip — second toolbar row, sorted by usage, with expand
+  var SWATCH_INIT = 20;
+  var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
+  var swatchRow = showStitchGrp && palData.length > 0 ? h("div", {className:"swatch-strip-row"},
+    h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
+    ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId] ? h("span", {
+      style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0}
+    },
+      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[ctx.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block"}}),
+      h("span", {style:{fontWeight:600,color:"#0d9488"}}, ctx.selectedColorId)
+    ) : h("span", {style:{fontSize:10,color:"#94a3b8",marginRight:6,flexShrink:0}}, "none selected"),
+    swatchesShown.map(function(p) {
+      var isSel = ctx.selectedColorId === p.id;
+      return h("button", {
+        key: p.id,
+        onClick: function() { ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id); },
+        title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
+        "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
+        "aria-pressed": isSel,
+        style:{
+          width:20, height:20, flexShrink:0,
+          borderRadius:4, cursor:"pointer", padding:0,
+          background:"rgb("+p.rgb+")",
+          border: isSel ? "2px solid #0d9488" : "1.5px solid rgba(0,0,0,0.15)",
+          boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
+          outline:"none"
+        }
+      });
+    }),
+    palData.length > SWATCH_INIT && h("button", {
+      key:"swatch-expand",
+      onClick:function(){setSwatchExpanded(function(e){return !e;});},
+      title:swatchExpanded?"Collapse":"Show all "+palData.length+" colours",
+      style:{
+        flexShrink:0, marginLeft:4, fontSize:11, padding:"0 8px",
+        height:20, borderRadius:10, border:"1px solid var(--border)",
+        background:"var(--surface)", cursor:"pointer",
+        color:"var(--text-secondary)", fontWeight:500, lineHeight:1, fontFamily:"inherit"
+      }
+    }, swatchExpanded ? "\u25B4" : "+"+( palData.length - SWATCH_INIT)+  " \u25BE")
+  ) : null;
+
   // Brush size group
   var showBrushSize = (
-    (ctx.stitchType === "cross" && ctx.brushMode === "paint") ||
+    ((ctx.stitchType === "cross" || ctx.stitchType === "half-fwd" || ctx.stitchType === "half-bck") && ctx.brushMode === "paint") ||
     ctx.stitchType === "erase" ||
     (ctx.halfStitchTool && ctx.halfStitchTool !== "erase")
   ) && ctx.activeTool !== "eyedropper";
@@ -3496,7 +4928,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       className:"tb-grp",
       style:{display:"flex",alignItems:"center",gap:4,opacity:(ctx.selectedColorId||ctx.stitchType==="erase")?1:0.6}
     },
-      h("span", {style:{fontSize:10,color:"#71717a",textTransform:"uppercase",fontWeight:600}}, "Size"),
+      h("span", {style:{fontSize:10,color:"#475569",textTransform:"uppercase",fontWeight:600}}, "Size"),
       [1,2,3].map(function(sz) {
         return h("button", {
           key:sz,
@@ -3513,7 +4945,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("div", {key:"sdiv-bs", className:"tb-sdiv"}),
     h("label", {
       key:"bs-cont",
-      style:{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#71717a",flexShrink:0}
+      style:{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#475569",flexShrink:0}
     },
       h("input", {
         type:"checkbox", checked:ctx.bsContinuous,
@@ -3523,19 +4955,69 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ] : null;
 
-  // View group
-  var viewGrp = [
-    h("div", {key:"sdiv-view", className:"tb-sdiv"}),
-    h("div", {key:"view-grp", className:"tb-grp"+(sc.view?" tb-hidden":"")},
-      [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
-        return h("button", {
-          key:kl[0],
-          className:"tb-btn"+(ctx.view===kl[0]?" tb-btn--on":""),
-          title:"Cycle view (V)",
-          onClick:function(){ctx.setView(kl[0]);}
-        }, kl[1]);
-      })
-    )
+  // Selection tools dropdown
+  var isSelectActive = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
+  var selIcon = ctx.activeTool === "magicWand" ? svgWand :
+                ctx.activeTool === "lasso" && ctx.lassoMode === "polygon" ? svgPolygon :
+                ctx.activeTool === "lasso" && ctx.lassoMode === "magnetic" ? svgMagnetic :
+                ctx.activeTool === "lasso" ? svgFreehand : svgWand;
+  var selLabel = ctx.activeTool === "magicWand" ? "Wand" :
+                 ctx.activeTool === "lasso" ? (ctx.lassoMode === "polygon" ? "Poly" : ctx.lassoMode === "magnetic" ? "Mag" : "Lasso") :
+                 "Select";
+  var selectDrop = [
+    h("div", {key:"sdiv-select", className:"tb-sdiv"}),
+    h("div", {key:"select-drop", className:"tb-drop-wrap"},
+      h("button", {
+        className:"tb-btn tb-drop-btn" + (isSelectActive ? " tb-btn--on" : ""),
+        title:"Selection tools"
+      }, selIcon, selLabel, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
+      h("div", {className:"tb-dropdown"},
+        h("button", {
+          className:"tb-drop-item"+(ctx.activeTool==="magicWand"?" tb-drop-item--on":""),
+          onClick:function(){
+            if (ctx.activeTool==="magicWand") ctx.setActiveTool(null);
+            else { ctx.setActiveTool("magicWand"); ctx.setHalfStitchTool(null); ctx.setBsStart(null); if (ctx.cancelLasso) ctx.cancelLasso(); }
+          }
+        }, svgWand, "Magic Wand"),
+        h("button", {
+          className:"tb-drop-item"+(ctx.activeTool==="lasso"&&ctx.lassoMode==="freehand"?" tb-drop-item--on":""),
+          onClick:function(){
+            var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="freehand";
+            if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
+            else{ctx.setActiveTool("lasso");ctx.setLassoMode("freehand");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
+          }
+        }, svgFreehand, "Freehand"),
+        h("button", {
+          className:"tb-drop-item"+(ctx.activeTool==="lasso"&&ctx.lassoMode==="polygon"?" tb-drop-item--on":""),
+          onClick:function(){
+            var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="polygon";
+            if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
+            else{ctx.setActiveTool("lasso");ctx.setLassoMode("polygon");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
+          }
+        }, svgPolygon, "Polygon"),
+        h("button", {
+          className:"tb-drop-item"+(ctx.activeTool==="lasso"&&ctx.lassoMode==="magnetic"?" tb-drop-item--on":""),
+          onClick:function(){
+            var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="magnetic";
+            if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
+            else{ctx.setActiveTool("lasso");ctx.setLassoMode("magnetic");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
+          }
+        }, svgMagnetic, "Magnetic"),
+        (ctx.hasSelection || ctx.lassoInProgress) && h("div", {style:{borderTop:"1px solid var(--border)",marginTop:3,paddingTop:3}},
+          h("button", {
+            className:"tb-drop-item",
+            onClick:function(){if(ctx.cancelLasso)ctx.cancelLasso();if(ctx.clearSelection)ctx.clearSelection();}
+          }, "\u2715 Clear (", (ctx.selectionCount||0).toLocaleString(), ")")
+        )
+      )
+    ),
+    (ctx.hasSelection || ctx.lassoInProgress) && h("button", {
+      key:"select-clear",
+      className:"tb-btn",
+      onClick:function(){if(ctx.cancelLasso)ctx.cancelLasso();if(ctx.clearSelection)ctx.clearSelection();},
+      title:"Clear selection (Esc)",
+      style:{fontSize:9,padding:"2px 5px",color:"#475569"}
+    }, (ctx.selectionCount||0).toLocaleString()+" sel")
   ];
 
   // Colour chip
@@ -3543,16 +5025,51 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId]) ?
     h("span", {
       style:{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,
-        background:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"#e0f2fe":"#f4f4f5",
+        background:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"#e0f2fe":"#f1f5f9",
         flexShrink:0,
         border:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"1px solid #7dd3fc":"none"
       }
     },
       h("span", {style:{width:10,height:10,borderRadius:2,
         background:"rgb("+ctx.cmap[ctx.selectedColorId].rgb+")",
-        border:"1px solid #d4d4d8",display:"inline-block"}}),
+        border:"1px solid #cbd5e1",display:"inline-block"}}),
       ctx.selectedColorId
     ) : null;
+
+  // Active tool indicator badge
+  var badgeLabel, badgeBg, badgeColor, badgeDot;
+  if (ctx.activeTool === "eyedropper") {
+    badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#eab308";
+  } else if (ctx.activeTool === "magicWand") {
+    badgeLabel = "Magic Wand"; badgeBg = "#f3e8ff"; badgeColor = "#6b21a8"; badgeDot = "#a855f7";
+  } else if (ctx.activeTool === "lasso") {
+    var lm = ctx.lassoMode === "polygon" ? "Polygon" : ctx.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
+    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#fff7ed"; badgeColor = "#9a3412"; badgeDot = "#f97316";
+  } else if (ctx.stitchType === "erase" || ctx.activeTool === "eraseAll" || ctx.activeTool === "eraseBs") {
+    badgeLabel = "Erase"; badgeBg = "#fef2f2"; badgeColor = "#991b1b"; badgeDot = "#ef4444";
+  } else if (ctx.stitchType === "backstitch") {
+    badgeLabel = "Backstitch"; badgeBg = "#f5f5f5"; badgeColor = "#404040"; badgeDot = "#737373";
+  } else if (ctx.stitchType === "half-fwd") {
+    badgeLabel = "Half /"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
+  } else if (ctx.stitchType === "half-bck") {
+    badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
+  } else if (ctx.brushMode === "fill") {
+    badgeLabel = "Fill"; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+  } else if (ctx.brushMode === "paint") {
+    var szTxt = ctx.brushSize > 1 ? " " + ctx.brushSize + "\xD7" + ctx.brushSize : "";
+    badgeLabel = "Paint" + szTxt; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+  } else {
+    badgeLabel = null;
+  }
+  var toolBadge = badgeLabel ? h("span", {
+    style:{fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,
+      padding:"2px 8px 2px 6px",borderRadius:10,background:badgeBg,color:badgeColor,
+      flexShrink:0,letterSpacing:0.2,lineHeight:1.4,border:"1px solid " + badgeDot + "33"}
+  },
+    h("span", {style:{width:6,height:6,borderRadius:"50%",background:badgeDot,display:"inline-block",
+      boxShadow:"0 0 4px " + badgeDot + "66"}}),
+    badgeLabel
+  ) : null;
 
   // Zoom group
   var zoomGrp = h("div", {className:"tb-zoom-grp"},
@@ -3591,7 +5108,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:function(){ctx.setShowOverlay(function(v){return !v;});}
     },
       h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-        border:"2px solid "+(ctx.showOverlay?"#1D9E75":"#d4d4d8")}}),
+        border:"2px solid "+(ctx.showOverlay?"#0d9488":"#cbd5e1")}}),
       " Overlay"+(ctx.showOverlay?" \u2713":"")
     ),
     ctx.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
@@ -3603,19 +5120,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ] : null;
 
-  var viewItems = sc.view ? [
-    h("div", {key:"ovf-sep-view", className:"tb-ovf-sep"}),
-    h("span", {key:"ovf-lbl-view", className:"tb-ovf-lbl"}, "View"),
-    [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
-      return h("button", {
-        key:kl[0],
-        className:"tb-ovf-item"+(ctx.view===kl[0]?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setView(kl[0]); ctx.setOverflowOpen(false);}
-      }, kl[1]+(ctx.view===kl[0]?" \u2713":""));
-    })
-  ] : null;
-
-  var brushItems = (sc.brush && ctx.stitchType === "cross") ? [
+  var brushItems = sc.brush ? [
     h("div", {key:"ovf-sep-brush", className:"tb-ovf-sep"}),
     h("span", {key:"ovf-lbl-brush", className:"tb-ovf-lbl"}, "Brush"),
     [["paint","Paint"],["fill","Fill"]].map(function(kl) {
@@ -3630,7 +5135,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var overflowMenu = ctx.overflowOpen ? h("div", {className:"tb-overflow-menu"},
     h("span", {className:"tb-ovf-lbl"}, "Display"),
     overlayItems,
-    viewItems,
     brushItems
   ) : null;
 
@@ -3643,20 +5147,383 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     overflowMenu
   );
 
-  return h("div", {className:"tb-strip"},
-    h("div", {ref:ctx.stripRef, className:"tb-strip-inner"},
-      stitchGrp,
-      brushGrp,
-      sizeGrp,
-      bsCont,
-      viewGrp,
-      colChip,
-      h("div", {className:"tb-flex"}),
-      zoomGrp,
-      undoRedo,
-      h("div", {className:"tb-sdiv"}),
-      overflowWrap
+  return h(React.Fragment, null,
+    h("div", {className:"toolbar-row"},
+      h("div", {className:"pill-row"},
+        h("div", {ref:ctx.stripRef, className:"pill"},
+          brushGrp,
+          stitchDrop,
+          sizeGrp,
+          bsCont,
+          selectDrop,
+          colChip,
+          toolBadge,
+          zoomGrp,
+          undoRedo,
+          h("div", {className:"tb-sdiv"}),
+          overflowWrap
+        )
+      ),
+      swatchRow
     )
+  );
+};
+
+
+/* ─── MagicWandPanel.js ─── */
+/* creator/MagicWandPanel.js — Floating panel for Magic Wand selection operations.
+   Renders when the magic wand tool is active and/or a selection exists.
+   Reads from CreatorContext. */
+
+window.MagicWandPanel = function MagicWandPanel() {
+  var ctx = React.useContext(window.CreatorContext);
+  var h = React.createElement;
+
+  if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
+  if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso" && !ctx.hasSelection) return null;
+
+  var isSelTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
+  var hasSelection = ctx.hasSelection;
+  var panel = ctx.wandPanel;
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
+  function btn(label, onClick, opts) {
+    opts = opts || {};
+    return h("button", {
+      className: "tb-btn" + (opts.active ? " tb-btn--on" : "") + (opts.danger ? " tb-btn--red" : "") + (opts.green ? " tb-btn--green" : ""),
+      onClick: onClick,
+      disabled: opts.disabled,
+      title: opts.title || "",
+      style: Object.assign({ fontSize: 11, padding: "3px 8px" }, opts.style || {})
+    }, label);
+  }
+
+  function swatch(rgb) {
+    return h("span", {
+      style: { display: "inline-block", width: 12, height: 12, borderRadius: 2,
+        background: "rgb(" + (rgb || [128,128,128]) + ")", border: "1px solid #cbd5e1",
+        verticalAlign: "middle", marginRight: 3 }
+    });
+  }
+
+  // ─── Op mode SVG icons (match ToolStrip icon style) ─────────────────────────
+  // Each icon: dashed rect = selection box; second shape = mode indicator
+  var svgSelReplace = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("rect", {x:"1.5",y:"2",width:"9",height:"8",rx:"0.5",stroke:"currentColor",strokeWidth:"1.2",strokeDasharray:"2.5 1.5"})
+  );
+  var svgSelAdd = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("rect", {x:"1",y:"1.5",width:"6",height:"6",rx:"0.5",stroke:"currentColor",strokeWidth:"1.1",strokeDasharray:"2 1.5"}),
+    h("rect", {x:"5",y:"5",width:"6",height:"6",rx:"0.5",stroke:"currentColor",strokeWidth:"1.1"}),
+    h("line", {x1:"6.8",y1:"8",x2:"9.2",y2:"8",stroke:"currentColor",strokeWidth:"1.2",strokeLinecap:"round"}),
+    h("line", {x1:"8",y1:"6.8",x2:"8",y2:"9.2",stroke:"currentColor",strokeWidth:"1.2",strokeLinecap:"round"})
+  );
+  var svgSelSubtract = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("rect", {x:"1",y:"1.5",width:"6",height:"6",rx:"0.5",stroke:"currentColor",strokeWidth:"1.1",strokeDasharray:"2 1.5"}),
+    h("rect", {x:"5",y:"5",width:"6",height:"6",rx:"0.5",stroke:"currentColor",strokeWidth:"1.1"}),
+    h("line", {x1:"6.8",y1:"8",x2:"9.2",y2:"8",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round"})
+  );
+  var svgSelIntersect = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("rect", {x:"1",y:"1.5",width:"6.5",height:"6.5",rx:"0.5",stroke:"currentColor",strokeWidth:"1.1",strokeDasharray:"2 1.5"}),
+    h("rect", {x:"4.5",y:"4",width:"6.5",height:"6.5",rx:"0.5",stroke:"currentColor",strokeWidth:"1.1",strokeDasharray:"2 1.5"}),
+    h("rect", {x:"4.5",y:"4",width:"3",height:"4",rx:"0.3",fill:"currentColor",opacity:"0.35"})
+  );
+
+  // ─── Op mode buttons (shared across wand + lasso) ───────────────────────────
+  function opBtn(icon, label, mode, title) {
+    var isPersistent = ctx.wandOpMode === mode;
+    var isModifier   = ctx.selectionModifier === mode;
+    var className = "tb-btn" +
+      (isPersistent ? " tb-btn--on" : "") +
+      (isModifier   ? " tb-btn--mod-active" : "");
+    return h("button", {
+      className: className,
+      onClick: function() { ctx.setSelectionOpMode(mode); },
+      title: title,
+      style: { position: "relative" }
+    }, icon, label,
+      isModifier && h("span", {
+        style: { position: "absolute", top: -4, right: -4, background: "#f59e0b",
+          color: "#fff", borderRadius: 99, fontSize: 8, width: 12, height: 12,
+          display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
+          boxShadow: "0 0 0 1px #fff", pointerEvents: "none" }
+      }, "\u2022")
+    );
+  }
+
+  // ─── First toolbar row: tool options ─────────────────────────────────────────
+  var toolLabel = ctx.activeTool === "lasso" ? "Lasso" : "Wand";
+  var optionsRow = isSelTool ? h("div", { className: "tb-strip--sel" },
+    h("div", { className: "tb-strip-inner" },
+      h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } }, toolLabel),
+      h("div", { className: "tb-sdiv" }),
+      // Tolerance slider (wand only)
+      ctx.activeTool === "magicWand" && h("label", { style: { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } },
+        "Tolerance",
+        h("input", {
+          type: "range", min: 0, max: 100, step: 1, value: ctx.wandTolerance,
+          onChange: function(e) { ctx.setWandTolerance(Number(e.target.value)); },
+          style: { width: 80 }
+        }),
+        h("span", { style: { minWidth: 22, textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 11 } }, ctx.wandTolerance),
+        h("span", { style: { fontSize: 9, color: "var(--text-tertiary)", marginLeft: 1 } },
+          ctx.wandTolerance === 0 ? "(exact)" : ctx.wandTolerance <= 5 ? "(similar)" : ctx.wandTolerance <= 15 ? "(broad)" : "(very broad)")
+      ),
+      ctx.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
+      // Contiguous / Global toggle (wand only)
+      ctx.activeTool === "magicWand" && h("div", { className: "tb-grp" },
+        btn("Contiguous", function() { ctx.setWandContiguous(true); }, { active: ctx.wandContiguous, title: "Only select cells connected to the clicked cell" }),
+        btn("Global",     function() { ctx.setWandContiguous(false); }, { active: !ctx.wandContiguous, title: "Select all matching cells across the whole pattern" })
+      ),
+      h("div", { className: "tb-sdiv" }),
+      // Op mode buttons
+      h("div", { className: "tb-grp" },
+        opBtn(svgSelReplace,  "New",       "replace",   "New selection \u2014 replaces any existing"),
+        opBtn(svgSelAdd,      "Add",        "add",        "Add to selection (hold Shift)"),
+        opBtn(svgSelSubtract, "Subtract",  "subtract",   "Subtract from selection (hold Alt)"),
+        opBtn(svgSelIntersect,"Intersect", "intersect",  "Keep only the overlap (hold Shift+Alt)")
+      ),
+      h("span", { style: { fontSize: 9, color: "var(--text-tertiary)", marginLeft: 2, flexShrink: 0 } }, "Shift / Alt / Shift+Alt")
+    )
+  ) : null;
+
+  // ─── Second toolbar row: selection status + operations ───────────────────────
+  var selRow = hasSelection ? h("div", { className: "tb-strip--sel" },
+    h("div", { className: "tb-strip-inner" },
+      h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } },
+        ctx.selectionCount.toLocaleString() + "\u00a0stitch" + (ctx.selectionCount !== 1 ? "es" : "") + " selected"
+      ),
+      h("div", { className: "tb-sdiv" }),
+      h("div", { className: "tb-grp" },
+        btn("Deselect", ctx.clearSelection,   { title: "Deselect all (Esc)" }),
+        btn("Invert",   ctx.invertSelection,  { title: "Invert selection (Ctrl+\u21E7+I)" }),
+        btn("All",      ctx.selectAll,        { title: "Select all stitches (Ctrl+A)" })
+      ),
+      h("div", { className: "tb-sdiv" }),
+      h("div", { className: "tb-grp" },
+        btn("Confetti\u2026",       function() { ctx.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti" }),
+        btn("Reduce Colours\u2026", function() { ctx.setWandPanel(panel === "reduce"   ? null : "reduce");    }, { active: panel === "reduce" }),
+        btn("Replace Colour\u2026", function() { ctx.setWandPanel(panel === "replace"  ? null : "replace");   }, { active: panel === "replace" }),
+        btn("Stitch Info\u2026",    function() { ctx.setWandPanel(panel === "info"     ? null : "info");      }, { active: panel === "info" }),
+        btn("Outline\u2026",        function() { ctx.setWandPanel(panel === "outline"  ? null : "outline");   }, { active: panel === "outline" })
+      )
+    )
+  ) : null;
+
+  // ─── Confetti panel ──────────────────────────────────────────────────────────
+  var confettiPanel = (panel === "confetti" && hasSelection) ? h("div", {
+    style: { padding: "10px 14px", background: "#fff7ed", borderBottom: "1px solid #fde68a",
+      display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
+  },
+    h("strong", { style: { color: "#7c2d12" } }, "Confetti Cleanup in Selection"),
+    h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
+      "Min cluster size:",
+      h("input", {
+        type: "range", min: 1, max: 10, step: 1, value: ctx.confettiThreshold,
+        onChange: function(e) { ctx.setConfettiThreshold(Number(e.target.value)); ctx.setConfettiPreview(null); },
+        style: { width: 70 }
+      }),
+      h("span", { style: { minWidth: 14 } }, ctx.confettiThreshold)
+    ),
+    ctx.confettiPreview
+      ? h("span", { style: { color: "#b45309" } }, ctx.confettiPreview.size + " stitches flagged")
+      : null,
+    btn("Preview", ctx.previewConfettiCleanup, { style: { fontSize: 10 } }),
+    btn("Apply", ctx.applyConfettiCleanup, {
+      green: true, disabled: !ctx.confettiPreview || !ctx.confettiPreview.size,
+      style: { fontSize: 10 }
+    }),
+    btn("\u00D7", function() { ctx.setWandPanel(null); ctx.setConfettiPreview(null); }, { style: { fontSize: 10 } })
+  ) : null;
+
+  // ─── Reduce colours panel ────────────────────────────────────────────────────
+  var selColors = ctx.selectionStats ? ctx.selectionStats.colors : 0;
+  var reducePanel = (panel === "reduce" && hasSelection) ? h("div", {
+    style: { padding: "10px 14px", background: "#f0fdf4", borderBottom: "1px solid #bbf7d0",
+      fontSize: 11 }
+  },
+    h("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 } },
+      h("strong", { style: { color: "#14532d" } }, "Simplify Colours in Selection"),
+      h("span", { style: { color: "#166534" } }, selColors + " colours in selection"),
+      h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
+        "Target:",
+        h("input", {
+          type: "number", min: 1, max: selColors, value: ctx.reduceTarget,
+          onChange: function(e) { ctx.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); ctx.setReducePreview(null); },
+          style: { width: 50, padding: "1px 4px" }
+        })
+      ),
+      btn("Preview merges", ctx.previewColorReduction, { style: { fontSize: 10 } }),
+      btn("Apply", ctx.applyColorReduction, {
+        green: true, disabled: !ctx.reducePreview || !ctx.reducePreview.length,
+        style: { fontSize: 10 }
+      }),
+      btn("\u00D7", function() { ctx.setWandPanel(null); ctx.setReducePreview(null); }, { style: { fontSize: 10 } })
+    ),
+    ctx.reducePreview && ctx.reducePreview.length ? h("div", {
+      style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #bbf7d0", paddingTop: 6 }
+    },
+      ctx.reducePreview.map(function(m, i) {
+        var fromE = ctx.cmap && ctx.cmap[m.from];
+        var toE   = ctx.cmap && ctx.cmap[m.to];
+        return h("div", { key: i, style: { display: "flex", alignItems: "center", gap: 5, marginBottom: 2 } },
+          swatch(fromE ? fromE.rgb : null), h("span", null, m.from + " " + m.fromName),
+          h("span", { style: { color: "#6b7280" } }, "\u2192"),
+          swatch(toE ? toE.rgb : null), h("span", null, m.to + " " + m.toName),
+          h("span", { style: { color: "#6b7280" } }, "(" + m.count + " stitches)")
+        );
+      })
+    ) : null
+  ) : null;
+
+  // ─── Replace colour panel ────────────────────────────────────────────────────
+  var replacePanel = (panel === "replace" && hasSelection) ? (function() {
+    var srcEntry = ctx.cmap && ctx.replaceSource ? ctx.cmap[ctx.replaceSource] : null;
+    var dstEntry = ctx.cmap && ctx.replaceDest   ? ctx.cmap[ctx.replaceDest]   : null;
+    var affectedCount = ctx.selectionReplaceColorCount;
+
+    // Color picker options from current palette
+    var palOpts = ctx.pal ? ctx.pal.map(function(p) {
+      return h("option", { key: p.id, value: p.id }, p.id + " " + p.name);
+    }) : [];
+
+    return h("div", {
+      style: { padding: "10px 14px", background: "#fdf4ff", borderBottom: "1px solid #e9d5ff",
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
+    },
+      h("strong", { style: { color: "#4a044e" } }, "Replace Colour in Selection"),
+      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
+        "Source:", srcEntry ? swatch(srcEntry.rgb) : null,
+        h("select", {
+          value: ctx.replaceSource || "",
+          onChange: function(e) { ctx.setReplaceSource(e.target.value || null); },
+          style: { fontSize: 11 }
+        }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
+      ),
+      h("span", { style: { color: "#6b7280" } }, "\u2192"),
+      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
+        "Target:", dstEntry ? swatch(dstEntry.rgb) : null,
+        h("select", {
+          value: ctx.replaceDest || "",
+          onChange: function(e) { ctx.setReplaceDest(e.target.value || null); },
+          style: { fontSize: 11 }
+        }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
+      ),
+      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
+        h("input", {
+          type: "checkbox", checked: ctx.replaceFuzzy,
+          onChange: function(e) { ctx.setReplaceFuzzy(e.target.checked); }
+        }), "Fuzzy",
+        ctx.replaceFuzzy ? [
+          h("input", { key: "tol", type: "range", min: 0, max: 20, step: 1, value: ctx.replaceFuzzyTol,
+            onChange: function(e) { ctx.setReplaceFuzzyTol(Number(e.target.value)); },
+            style: { width: 50 } }),
+          h("span", { key: "v" }, "\u0394E\u2264" + ctx.replaceFuzzyTol)
+        ] : null
+      ),
+      affectedCount > 0 ? h("span", { style: { color: "#7e22ce" } }, affectedCount + " stitches affected") : null,
+      btn("Apply", ctx.applyColorReplacement, {
+        green: true, disabled: !ctx.replaceSource || !ctx.replaceDest || !affectedCount,
+        style: { fontSize: 10 }
+      }),
+      btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
+    );
+  })() : null;
+
+  // ─── Stitch info panel ───────────────────────────────────────────────────────
+  var headStyle = { textAlign: "left", padding: "2px 6px", borderBottom: "1px solid #bae6fd",
+    fontWeight: 600, color: "#0369a1", fontSize: 10, whiteSpace: "nowrap" };
+  var cellStyle = { padding: "2px 6px", fontSize: 11 };
+  var infoPanel = (panel === "info") ? (function() {
+    var stats = ctx.selectionStats;
+    if (!stats) return null;
+    var exportCSV = function() {
+      var lines = ["DMC,Name,Stitches,Skeins"];
+      stats.rows.forEach(function(r) {
+        lines.push([r.id, '"' + r.name + '"', r.count, r.skeins.toFixed(2)].join(","));
+      });
+      lines.push(["TOTAL","",stats.total, stats.totalSkeins.toFixed(2)].join(","));
+      var blob = new Blob([lines.join("\n")], { type: "text/csv" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "selection-info.csv";
+      a.click();
+    };
+    return h("div", {
+      style: { padding: "10px 14px", background: "#f0f9ff", borderBottom: "1px solid #bae6fd", fontSize: 11 }
+    },
+      h("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 } },
+        h("strong", { style: { color: "#0c4a6e" } }, hasSelection ? "Selection Info" : "Pattern Info"),
+        h("span", { style: { color: "#0369a1" } },
+          stats.total.toLocaleString() + " stitches, " + stats.colors + " colours, ~" + stats.totalSkeins.toFixed(1) + " skeins"),
+        btn("Export CSV", exportCSV, { style: { fontSize: 10 } }),
+        btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
+      ),
+      h("div", { style: { maxHeight: 140, overflowY: "auto" } },
+        h("table", { style: { borderCollapse: "collapse", width: "100%" } },
+          h("thead", null, h("tr", null,
+            h("th", { style: headStyle }, "Colour"),
+            h("th", { style: headStyle }, "DMC"),
+            h("th", { style: headStyle }, "Name"),
+            h("th", { style: { ...headStyle, textAlign: "right" } }, "Stitches"),
+            h("th", { style: { ...headStyle, textAlign: "right" } }, "Skeins")
+          )),
+          h("tbody", null,
+            stats.rows.map(function(r, i) {
+              return h("tr", { key: r.id, style: { background: i % 2 ? "#f8fafc" : "#fff" } },
+                h("td", { style: cellStyle }, swatch(r.rgb)),
+                h("td", { style: cellStyle }, r.id),
+                h("td", { style: cellStyle }, r.name),
+                h("td", { style: { ...cellStyle, textAlign: "right" } }, r.count.toLocaleString()),
+                h("td", { style: { ...cellStyle, textAlign: "right" } }, r.skeins.toFixed(2))
+              );
+            }),
+            h("tr", { style: { fontWeight: 700, borderTop: "1px solid #bae6fd" } },
+              h("td", { style: cellStyle, colSpan: 3 }, "Total"),
+              h("td", { style: { ...cellStyle, textAlign: "right" } }, stats.total.toLocaleString()),
+              h("td", { style: { ...cellStyle, textAlign: "right" } }, stats.totalSkeins.toFixed(2))
+            )
+          )
+        )
+      )
+    );
+  })() : null;
+
+  // ─── Outline panel ───────────────────────────────────────────────────────────
+  var outlinePanel = (panel === "outline" && hasSelection) ? h("div", {
+    style: { padding: "10px 14px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0",
+      display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
+  },
+    h("strong", { style: { color: "#1e293b" } }, "Generate Backstitch Outline"),
+    h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
+      "Outline thread (DMC):",
+      h("input", {
+        type: "text", value: ctx.outlineColor,
+        onChange: function(e) { ctx.setOutlineColor(e.target.value.trim()); },
+        style: { width: 60, padding: "1px 4px", fontSize: 11 }
+      })
+    ),
+    (function() {
+      var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === ctx.outlineColor; }) : null;
+      return dmcEntry ? h("span", { style: { display: "flex", alignItems: "center", gap: 3 } },
+        swatch(dmcEntry.rgb), h("span", { style: { color: "#334155" } }, dmcEntry.name)
+      ) : h("span", { style: { color: "#ef4444" } }, "Unknown DMC");
+    })(),
+    btn("Generate", ctx.applyOutlineGeneration, {
+      green: true,
+      disabled: !(typeof DMC !== "undefined" && DMC.find(function(d) { return d.id === ctx.outlineColor; })),
+      style: { fontSize: 10 }
+    }),
+    btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
+  ) : null;
+
+  return h("div", null,
+    optionsRow,
+    selRow,
+    confettiPanel,
+    reducePanel,
+    replacePanel,
+    infoPanel,
+    outlinePanel
   );
 };
 
@@ -3669,6 +5536,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 window.CreatorSidebar = function CreatorSidebar() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
+  var _pco = React.useState(false); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
 
   function getCleanupWarning(sW, sH, orphans, previewStats) {
     if (orphans === 0) return null;
@@ -3695,7 +5563,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     return null;
   }
 
-  if (!ctx.sidebarOpen) return null;
+  // Note: sidebar always renders — now shown as a right panel (rpanel)
+  // The sidebarOpen state is kept for accordion sections but the panel itself stays visible
 
   // ── Inline Toggle component (used only in Stitch Cleanup section) ──────────
   function Toggle(props) {
@@ -3715,17 +5584,110 @@ window.CreatorSidebar = function CreatorSidebar() {
     },
       h("span", {"aria-hidden":"true", style:{position:"relative",display:"inline-block",width:32,height:18,flexShrink:0}},
         h("span", {style:{display:"block",position:"absolute",inset:0,borderRadius:9,
-          background:props.checked?"#0d9488":"#d4d4d8",transition:"background 0.15s"}}),
+          background:props.checked?"#0d9488":"#cbd5e1",transition:"background 0.15s"}}),
         h("span", {style:{display:"block",position:"absolute",width:14,height:14,top:2,
           left:props.checked?16:2,borderRadius:"50%",background:"#fff",
           transition:"left 0.15s",boxShadow:"0 1px 3px rgba(0,0,0,0.18)"}})
       ),
       h("span", {style:{flex:1}},
-        h("span", {style:{fontSize:12,fontWeight:500,color:"#18181b",display:"block"}}, props.label),
-        props.help && h("span", {style:{fontSize:10,color:"#a1a1aa",display:"block",marginTop:1}}, props.help)
+        h("span", {style:{fontSize:12,fontWeight:500,color:"#1e293b",display:"block"}}, props.label),
+        props.help && h("span", {style:{fontSize:10,color:"#94a3b8",display:"block",marginTop:1}}, props.help)
       )
     );
   }
+
+  // ── Palette chips (top of right panel, when pattern loaded) ─────────────────
+  var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
+    var displayPal = ctx.displayPal || ctx.pal || [];
+    var isHsTool = ctx.halfStitchTool && ctx.halfStitchTool !== "erase";
+    var isPaintMode = ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool;
+    var selInfo = ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId];
+    var chips = displayPal.map(function(p) {
+      var ips = isPaintMode && ctx.selectedColorId === p.id;
+      var ihs = ctx.hiId === p.id;
+      var isUnused = ctx.isScratchMode && p.count === 0;
+      return h("div", {
+        key: p.id,
+        role: "button",
+        tabIndex: 0,
+        "aria-pressed": ips || ihs,
+        onClick: function() {
+          if (isPaintMode) {
+            ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
+          } else {
+            ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+          }
+        },
+        onKeyDown: function(e) {
+          if (e.repeat) return;
+          if (e.key === " " || e.key === "Enter") {
+            e.preventDefault();
+            if (isPaintMode) {
+              ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
+            } else {
+              ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+            }
+          }
+        },
+        style: {
+          display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
+          cursor:"pointer",fontSize:11,
+          border: ips ? "2px solid #0d9488" : ihs ? "2px solid #ea580c" : "0.5px solid #e2e8f0",
+          background: ips ? "#f0fdfa" : ihs ? "#fff7ed" : "#fff",
+          opacity: isUnused ? 0.6 : 1
+        }
+      },
+        h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}),
+        h("span", {style:{fontFamily:"monospace",color:"#475569",fontSize:10}}, p.symbol),
+        h("span", {style:{fontWeight:500}}, p.id),
+        isUnused && h("span", {
+          onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
+          style:{fontSize:9,color:"#94a3b8",cursor:"pointer",marginLeft:2,lineHeight:1}
+        }, "\xD7")
+      );
+    });
+    return h("div", {style:{borderBottom:"0.5px solid var(--border)"}},
+      h("div", {
+        onClick:function(){setPalChipsOpen(function(o){return !o;});},
+        style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px 8px",cursor:"pointer",userSelect:"none"}
+      },
+        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+          h("span", {style:{fontSize:9,color:"var(--text-tertiary)",display:"inline-block",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          h("span", {style:{fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
+        ),
+        h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+      ),
+      palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
+      isPaintMode && h("div", {
+        style:{
+          marginBottom:8,padding:"5px 8px",borderRadius:7,
+          background: selInfo ? "#f0fdfa" : "#fffbeb",
+          border: selInfo ? "1px solid #99f6e4" : "1px solid #fde68a",
+          display:"flex",alignItems:"center",gap:7,fontSize:11,minHeight:30
+        }
+      },
+        selInfo
+          ? h(React.Fragment, null,
+              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid #cbd5e1"}}),
+              h("span", {style:{fontWeight:600,color:"#0d9488"}}, "DMC " + selInfo.id),
+              h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
+              h("button", {
+                onClick:function(){ctx.setSelectedColorId(null);},
+                title:"Clear selection",
+                style:{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:13,lineHeight:1,padding:"0 2px",flexShrink:0}
+              }, "\xD7")
+            )
+          : h(React.Fragment, null,
+              h("span", {style:{fontSize:12}}, Icons.pointing()),
+              h("span", {style:{color:"#92400e"}}, "Select a colour to paint \u2014 or right-click the canvas")
+            )
+      ),
+      displayPal.length > 0
+        ? h("div", {className:"creator-pattern-chips", style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
+        : h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textAlign:"center",padding:"8px 0"}}, "No colours yet")
+      )
+    );
+  })() : null;
 
   // ── Crop image card ──────────────────────────────────────────────────────────
   var imageCard = (ctx.pat && ctx.img && ctx.img.src) ? h("div", {className:"card"},
@@ -3753,12 +5715,12 @@ window.CreatorSidebar = function CreatorSidebar() {
       }})
     ),
     ctx.isCropping
-      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}},
-          h("span", {style:{fontSize:11,color:"#a1a1aa"}}, "Draw a rectangle"),
+      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
+          h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Draw a rectangle"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){ctx.setIsCropping(false); ctx.setCropRect(null);},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Cancel"),
             h("button", {
               onClick:ctx.applyCrop,
@@ -3766,16 +5728,16 @@ window.CreatorSidebar = function CreatorSidebar() {
             }, "Apply")
           )
         )
-      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f4f4f5"}},
-          h("span", {style:{fontSize:11,color:"#a1a1aa"}}, ctx.origW+"×"+ctx.origH+"px"),
+      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
+          h("span", {style:{fontSize:11,color:"#94a3b8"}}, ctx.origW+"×"+ctx.origH+"px"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){ctx.setIsCropping(true); ctx.setCropRect(null);},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Crop"),
             h("button", {
               onClick:function(){ctx.fRef.current.click();},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Change")
           )
         ),
@@ -3792,21 +5754,21 @@ window.CreatorSidebar = function CreatorSidebar() {
     title:"Colours", isOpen:ctx.colPickerOpen, onToggle:ctx.setColPickerOpen, badge:coloursBadge
   },
     h("div", {style:{marginTop:8}},
-      h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#f4f4f5",borderRadius:8}},
+      h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#f1f5f9",borderRadius:8}},
         [["1","Add colour","→"],["2","Select chip","→"],["3","Paint!",""]].map(function(item,i) {
           return h(React.Fragment, {key:i},
             h("div", {style:{display:"flex",alignItems:"center",gap:4}},
               h("span", {style:{width:16,height:16,borderRadius:"50%",background:"#0d9488",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
               h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
             ),
-            item[2] && h("span", {style:{fontSize:10,color:"#a1a1aa"}}, item[2])
+            item[2] && h("span", {style:{fontSize:10,color:"#94a3b8"}}, item[2])
           );
         })
       ),
       h("input", {
         type:"text", placeholder:"Search by DMC # or name\u2026",
         value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);},
-        style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e4e4e7",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
+        style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e2e8f0",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
       }),
       h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
         ctx.dmcFiltered.slice(0,60).map(function(d) {
@@ -3819,20 +5781,20 @@ window.CreatorSidebar = function CreatorSidebar() {
                 border:inPal?"1px solid #99f6e4":"1px solid transparent",
                 opacity:inPal?0.7:1,width:"100%"}
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #d4d4d8"}}),
-              h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#18181b"}}, d.id),
-              h("span", {style:{fontSize:11,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#a1a1aa"}}, "+")
+              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1"}}),
+              h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1e293b"}}, d.id),
+              h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#94a3b8"}}, "+")
             )
           );
         }),
-        ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#a1a1aa",padding:"8px 0",textAlign:"center"}}, "No colours found")
+        ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#94a3b8",padding:"8px 0",textAlign:"center"}}, "No colours found")
       )
     )
   ) : null;
 
   // ── Dimensions section ──────────────────────────────────────────────────────
-  var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
+  var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
   var dimSection = h(Section, {title:"Dimensions", isOpen:ctx.dimOpen, onToggle:ctx.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
@@ -3842,16 +5804,16 @@ window.CreatorSidebar = function CreatorSidebar() {
     ctx.arLock
       ? h("div", null,
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
-          h("div", {style:{fontSize:10,color:"#a1a1aa",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
+          h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
         )
       : h("div", {style:{display:"flex",gap:10}},
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#a1a1aa",display:"block",marginBottom:2}}, "Width"),
-            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,fontSize:13}})
+            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Width"),
+            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
           ),
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#a1a1aa",display:"block",marginBottom:2}}, "Height"),
-            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,fontSize:13}})
+            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Height"),
+            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
           )
         )
   );
@@ -3885,10 +5847,10 @@ window.CreatorSidebar = function CreatorSidebar() {
         } else {
           desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#dc2626",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
         }
-        return h("div", {style:{fontSize:11,color:"#71717a",marginTop:4,lineHeight:1.5}}, desc);
+        return h("div", {style:{fontSize:11,color:"#475569",marginTop:4,lineHeight:1.5}}, desc);
       })()
     ),
-    ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}},
+    ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
       "Preview estimate: removes ~", (ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
       " (", ((ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles) / Math.max(1, ctx.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),
@@ -3897,23 +5859,23 @@ window.CreatorSidebar = function CreatorSidebar() {
         onClick:function(){ctx.setShowCleanupDiff(function(d){return !d;});},
         style:{
           fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-          border:ctx.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e4e4e7",
+          border:ctx.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e2e8f0",
           background:ctx.showCleanupDiff?"#f0fdfa":"#fff",
-          color:ctx.showCleanupDiff?"#0d9488":"#71717a",
+          color:ctx.showCleanupDiff?"#0d9488":"#475569",
           fontWeight:ctx.showCleanupDiff?600:400,
           display:"flex",alignItems:"center",gap:4,lineHeight:1.4
         }
-      }, "\uD83D\uDC41\uFE0F " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
+      }, Icons.eye(), " " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
     ),
     ctx.showCleanupDiff && ctx.cleanupDiff && h("div", {style:{
-      fontSize:11,color:"#71717a",padding:"6px 10px",
+      fontSize:11,color:"#475569",padding:"6px 10px",
       background:"#fdf4ff",border:"1px solid #f0abfc",borderRadius:8,
       marginTop:4,lineHeight:1.5
     }},
       h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
       ctx.cleanupDiff.count.toLocaleString(), " stitches changed",
       ctx.totalStitchable > 0 ? " (" + (ctx.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-      Object.keys(ctx.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#a1a1aa"}},
+      Object.keys(ctx.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#94a3b8"}},
         Object.entries(ctx.cleanupDiff.byColour)
           .sort(function(a,b){return b[1]-a[1];})
           .slice(0,4)
@@ -3933,13 +5895,13 @@ window.CreatorSidebar = function CreatorSidebar() {
         color:isDanger?"#991b1b":"#92400e",
         display:"flex",alignItems:"flex-start",gap:6
       }},
-        h("span", {style:{fontSize:14,lineHeight:1,flexShrink:0}}, isDanger?"\u26A0\uFE0F":"\uD83D\uDCA1"),
+        h("span", {style:{fontSize:14,lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
         h("span", null, warning.message)
       );
     })(),
     h("button", {
       onClick:function(){ctx.setPalAdvanced(function(o){return !o;});},
-      style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#71717a",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
+      style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
     },
       h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
       "Dithering",
@@ -3950,17 +5912,17 @@ window.CreatorSidebar = function CreatorSidebar() {
         "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
       ),
       h("div", {style:{display:"flex",gap:6,marginTop:6}},
-        h("div", {style:{display:"flex",gap:2,background:"#f4f4f5",borderRadius:8,padding:2,flex:1}},
+        h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Maps each pixel directly to its closest DMC colour. Fewer scattered stitches", width:200},
             h("button", {
               onClick:function(){ctx.setDith(false);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:!ctx.dith?500:400,background:!ctx.dith?"#fff":"transparent",borderRadius:6,color:!ctx.dith?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:!ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              style:{padding:"5px 12px",fontSize:12,fontWeight:!ctx.dith?500:400,background:!ctx.dith?"#fff":"transparent",borderRadius:6,color:!ctx.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:!ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Direct")
           ),
           h(Tooltip, {text:"Uses Floyd-Steinberg error diffusion for smoother colour gradients, but creates more scattered stitches", width:220},
             h("button", {
               onClick:function(){ctx.setDith(true);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.dith?500:400,background:ctx.dith?"#fff":"transparent",borderRadius:6,color:ctx.dith?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.dith?500:400,background:ctx.dith?"#fff":"transparent",borderRadius:6,color:ctx.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Dithered")
           )
         )
@@ -3973,7 +5935,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var sc2 = ctx.stitchCleanup;
     var scBadge = h("span", {style:{
       fontSize:11,fontWeight:500,padding:"1px 8px",borderRadius:10,
-      color:sc2.enabled?"#0d9488":"#a1a1aa",background:sc2.enabled?"#f0fdfa":"#f4f4f5"
+      color:sc2.enabled?"#0d9488":"#94a3b8",background:sc2.enabled?"#f0fdfa":"#f1f5f9"
     }}, sc2.enabled ? "On \u2014 "+(sc2.strength[0].toUpperCase()+sc2.strength.slice(1)) : "Off");
     var strengthKeys=["gentle","balanced","thorough"];
     var strengthLabels=["Gentle","Balanced","Thorough"];
@@ -4005,7 +5967,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               strengthLabels.map(function(l,i) {
                 return h(Tooltip, {key:l, text:strengthDescs[i], width:160},
                   h("span", {
-                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#a1a1aa",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
+                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#94a3b8",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
                     onClick:function(){ctx.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
                   }, l)
                 );
@@ -4030,20 +5992,20 @@ window.CreatorSidebar = function CreatorSidebar() {
   })() : null;
 
   // ── Fabric & Floss section ──────────────────────────────────────────────────
-  var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#71717a",background:"#f4f4f5",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
+  var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
   var fabSection = h(Section, {title:"Fabric & Floss", isOpen:ctx.fabOpen, onToggle:ctx.setFabOpen, badge:fabBadge},
     h("div", {style:{marginTop:8}},
       h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
-        h("span", {style:{fontSize:12,color:"#71717a",fontWeight:600}}, "Fabric count"),
+        h("span", {style:{fontSize:12,color:"#475569",fontWeight:600}}, "Fabric count"),
         h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
       ),
       h("select", {
         value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{width:"100%",padding:"6px 10px",borderRadius:8,border:"0.5px solid #e4e4e7",fontSize:13,background:"#fff"}
+        style:{width:"100%",padding:"6px 10px",borderRadius:8,border:"0.5px solid #e2e8f0",fontSize:13,background:"#fff"}
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
+      h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
     )
   );
 
@@ -4054,14 +6016,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(SliderRow, {label:"Smooth", value:ctx.smooth, min:0, max:4, step:0.1, onChange:ctx.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
         helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
-      ctx.smooth===0 && h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
+      ctx.smooth===0 && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
       ctx.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
-        h("div", {style:{display:"flex",gap:2,background:"#f4f4f5",borderRadius:8,padding:2,flex:1}},
+        h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
-            h("button", {onClick:function(){ctx.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="median"?500:400,background:ctx.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="median"?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
+            h("button", {onClick:function(){ctx.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="median"?500:400,background:ctx.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="median"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
           ),
           h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:180},
-            h("button", {onClick:function(){ctx.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="gaussian"?500:400,background:ctx.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="gaussian"?"#18181b":"#71717a",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
+            h("button", {onClick:function(){ctx.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="gaussian"?500:400,background:ctx.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="gaussian"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
           )
         )
       ),
@@ -4083,20 +6045,20 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
         h("div", {
           onClick:function(){ctx.setPickBg(true);},
-          style:{width:24,height:24,borderRadius:6,background:"rgb("+ctx.bgCol+")",border:"2px solid #e4e4e7",cursor:"pointer"}
+          style:{width:24,height:24,borderRadius:6,background:"rgb("+ctx.bgCol+")",border:"2px solid #e2e8f0",cursor:"pointer"}
         }),
         h("button", {
           onClick:function(){ctx.setPickBg(true);},
-          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fafafa",cursor:"pointer"}
+          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa",cursor:"pointer"}
         }, "Pick")
       ),
       h(SliderRow, {label:"Tolerance", value:ctx.bgTh, min:3, max:50, onChange:ctx.setBgTh,
         helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
-      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#f4f4f5",borderRadius:8,fontSize:11,color:"#71717a"}},
+      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#f1f5f9",borderRadius:8,fontSize:11,color:"#475569"}},
         h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
         h("button", {
           onClick:ctx.autoCrop,
-          style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #d4d4d8",borderRadius:6,cursor:"pointer",color:"#18181b"}
+          style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,cursor:"pointer",color:"#1e293b"}
         }, "Auto-Crop to Stitches")
       )
     )
@@ -4106,16 +6068,39 @@ window.CreatorSidebar = function CreatorSidebar() {
   var actionBtn = ctx.isScratchMode
     ? h("button", {
         onClick:function(){ctx.initBlankGrid(ctx.sW, ctx.sH);},
-        style:{padding:"12px 20px",fontSize:15,fontWeight:600,background:"#dc2626",color:"#fff",border:"none",borderRadius:10,cursor:"pointer"}
+        style:{padding:"8px 14px",fontSize:12,fontWeight:600,background:"#dc2626",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}
       }, "Reset Canvas")
     : h("button", {
         onClick:ctx.generate, disabled:ctx.busy,
-        style:{padding:"12px 20px",fontSize:15,fontWeight:600,
-          background:ctx.busy?"#a1a1aa":"#0d9488",color:"#fff",
-          border:"none",borderRadius:10,cursor:ctx.busy?"wait":"pointer"}
+        style:{padding:"8px 14px",fontSize:12,fontWeight:600,
+          background:ctx.busy?"#94a3b8":"#0d9488",color:"#fff",
+          border:"none",borderRadius:8,cursor:ctx.busy?"wait":"pointer"}
       }, ctx.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
   return h(React.Fragment, null,
+    palChipsSection,
+    // ── View toggle (Colour / Symbol / Both) ───────────────────────────────────
+    (ctx.pat && ctx.pal) ? h("div", {
+      style:{borderBottom:"0.5px solid var(--border)",padding:"8px 12px",display:"flex",alignItems:"center",gap:8}
+    },
+      h("span", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginRight:4}}, "View"),
+      h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:8,padding:2,flex:1}},
+        [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
+          return h("button", {
+            key:kl[0],
+            onClick:function(){ctx.setView(kl[0]);},
+            title:"Cycle view (V)",
+            style:{
+              flex:1,padding:"4px 6px",fontSize:11,fontWeight:ctx.view===kl[0]?600:400,
+              border:"none",cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+              background:ctx.view===kl[0]?"var(--surface)":"transparent",
+              color:ctx.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
+              boxShadow:ctx.view===kl[0]?"var(--shadow-sm)":"none"
+            }
+          }, kl[1]);
+        })
+      )
+    ) : null,
     imageCard,
     coloursSection,
     dimSection,
@@ -4127,6 +6112,179 @@ window.CreatorSidebar = function CreatorSidebar() {
     ctx.pat && ctx.pal && ctx.paletteSwap && ctx.paletteSwap.shiftSection,
     ctx.pat && ctx.pal && ctx.paletteSwap && ctx.paletteSwap.presetSection,
     actionBtn
+  );
+};
+
+
+/* ─── Toast.js ─── */
+/* creator/Toast.js — Toast notification overlay.
+   Reads from CreatorContext. Shows temporary messages that auto-dismiss.
+   Depends on: CreatorContext (context.js) */
+
+window.CreatorToastContainer = function CreatorToastContainer() {
+  var ctx = React.useContext(window.CreatorContext);
+  var h = React.createElement;
+  if (!ctx.toasts || ctx.toasts.length === 0) return null;
+
+  var typeStyles = {
+    info:    { bg: "#f0f9ff", border: "#bae6fd", color: "#0369a1", icon: "\u2139\uFE0F" },
+    success: { bg: "#f0fdf4", border: "#bbf7d0", color: "#166534", icon: "\u2705" },
+    warning: { bg: "#fffbeb", border: "#fde68a", color: "#92400e", icon: "\u26A0\uFE0F" },
+    error:   { bg: "#fef2f2", border: "#fecaca", color: "#991b1b", icon: "\u274C" }
+  };
+
+  return h("div", {
+    style: {
+      position: "fixed", bottom: 20, right: 20, zIndex: 10000,
+      display: "flex", flexDirection: "column-reverse", gap: 8,
+      pointerEvents: "none", maxWidth: 340
+    }
+  },
+    ctx.toasts.map(function(toast) {
+      var ts = typeStyles[toast.type] || typeStyles.info;
+      return h("div", {
+        key: toast.id,
+        style: {
+          pointerEvents: "auto",
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "8px 14px", borderRadius: 10,
+          background: ts.bg, border: "1px solid " + ts.border,
+          color: ts.color, fontSize: 12, fontWeight: 500,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+          animation: "toast-in 0.25s ease-out",
+          fontFamily: "inherit", lineHeight: 1.4, maxWidth: 340
+        }
+      },
+        h("span", { style: { fontSize: 14, flexShrink: 0 } }, ts.icon),
+        h("span", { style: { flex: 1 } }, toast.message),
+        h("button", {
+          onClick: function() { ctx.dismissToast(toast.id); },
+          style: {
+            background: "none", border: "none", cursor: "pointer",
+            color: ts.color, opacity: 0.6, fontSize: 14, padding: 0,
+            lineHeight: 1, flexShrink: 0
+          }
+        }, "\xD7")
+      );
+    })
+  );
+};
+
+
+/* ─── ContextMenu.js ─── */
+/* creator/ContextMenu.js — Right-click context menu for the pattern canvas.
+   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
+   Depends on: CreatorContext (context.js) */
+
+window.CreatorContextMenu = function CreatorContextMenu() {
+  var ctx = React.useContext(window.CreatorContext);
+  var h = React.createElement;
+  var menu = ctx.contextMenu;
+  if (!menu) return null;
+
+  var cell = menu.cell;
+  var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
+  var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
+
+  // Close menu on outside click or Escape
+  React.useEffect(function() {
+    function close() { ctx.setContextMenu(null); }
+    function onKey(e) { if (e.key === "Escape") close(); }
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", onKey);
+    return function() {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  function item(label, onClick, opts) {
+    opts = opts || {};
+    var key = opts.k || (typeof label === 'string' ? label : undefined);
+    return h("button", {
+      key: key,
+      onPointerDown: function(e) { e.stopPropagation(); },
+      onClick: function(e) { e.stopPropagation(); onClick(); ctx.setContextMenu(null); },
+      disabled: opts.disabled,
+      style: {
+        display:"block", width:"100%", textAlign:"left",
+        padding:"5px 12px", fontSize:12, fontFamily:"inherit",
+        border:"none", background:opts.disabled ? "transparent" : "transparent",
+        color:opts.disabled ? "#94a3b8" : "#1e293b",
+        cursor:opts.disabled ? "default" : "pointer",
+        borderRadius:4
+      },
+      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "#f1f5f9"; },
+      onMouseLeave: function(e) { e.target.style.background = "transparent"; }
+    }, label);
+  }
+
+  function sep() {
+    return h("div", {style:{height:1,background:"#e2e8f0",margin:"3px 0"}});
+  }
+
+  return h("div", {
+    style:{
+      position:"fixed", left:menu.x, top:menu.y, zIndex:9999,
+      background:"#fff", border:"1px solid #cbd5e1", borderRadius:8,
+      boxShadow:"0 4px 16px rgba(0,0,0,0.12)", padding:"4px 0",
+      minWidth:180, maxWidth:240
+    }
+  },
+    // Header: cell info
+    hasCellColour && h("div", {
+      style:{padding:"5px 12px 4px",fontSize:11,color:"#475569",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #f1f5f9",marginBottom:2}
+    },
+      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
+        background:"rgb("+cellInfo.rgb+")"}}),
+      "DMC " + cellInfo.id + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
+    ),
+    !hasCellColour && h("div", {
+      style:{padding:"5px 12px 4px",fontSize:11,color:"#94a3b8",borderBottom:"1px solid #f1f5f9",marginBottom:2}
+    }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
+
+    // Pick this colour
+    item([Icons.eyedropper(), " Pick this colour"], function() {
+      if (cellInfo) ctx.setSelectedColorId(cellInfo.id);
+    }, {disabled: !hasCellColour, k: 'pick'}),
+
+    // Fill from here — switch to fill tool so user can click the area
+    item([Icons.bucket(), " Switch to fill tool"], function() {
+      ctx.selectStitchType("cross");
+      ctx.setBrushAndActivate("fill");
+    }, {disabled: !ctx.selectedColorId, k: 'fill'}),
+
+    sep(),
+
+    // Select similar
+    item([Icons.wand(), " Select similar (wand)"], function() {
+      ctx.setActiveTool("magicWand");
+      ctx.setHalfStitchTool(null);
+      ctx.setBsStart(null);
+      ctx.applyWandSelect(menu.gx, menu.gy, ctx.wandOpMode);
+    }, {disabled: !hasCellColour, k: 'wand'}),
+
+    // Select all of this colour
+    item([Icons.palette(), " Select all of this colour"], function() {
+      if (cellInfo) ctx.selectAllOfColorId(cellInfo.id);
+    }, {disabled: !hasCellColour, k: 'selectall'}),
+
+    sep(),
+
+    // Highlight this colour
+    item(ctx.hiId === (cellInfo ? cellInfo.id : null) ? [Icons.magnifyMinus(), " Remove highlight"] : [Icons.magnify(), " Highlight this colour"], function() {
+      if (cellInfo) ctx.setHiId(ctx.hiId === cellInfo.id ? null : cellInfo.id);
+    }, {disabled: !hasCellColour, k: 'highlight'}),
+
+    // Stitch info
+    hasCellColour && item([Icons.info(), " Stitch info"], function() {
+      if (cellInfo) {
+        ctx.setActiveTool("magicWand");
+        ctx.setHalfStitchTool(null);
+        ctx.applyWandSelect(menu.gx, menu.gy, "replace");
+        ctx.setWandPanel("info");
+      }
+    }, {k: 'info'})
   );
 };
 
@@ -4153,6 +6311,28 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   if (!(ctx.pat && ctx.pal)) return null;
   if (ctx.tab !== "pattern") return null;
 
+  // Track Shift/Alt modifier keys when a selection tool is active.
+  // Updates ctx.selectionModifier so MagicWandPanel can show the effective mode.
+  React.useEffect(function() {
+    if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso") {
+      ctx.setSelectionModifier(null);
+      return;
+    }
+    function update(e) {
+      if (e.shiftKey && e.altKey)  ctx.setSelectionModifier("intersect");
+      else if (e.shiftKey)         ctx.setSelectionModifier("add");
+      else if (e.altKey)           ctx.setSelectionModifier("subtract");
+      else                         ctx.setSelectionModifier(null);
+    }
+    window.addEventListener("keydown", update);
+    window.addEventListener("keyup",   update);
+    return function() {
+      window.removeEventListener("keydown", update);
+      window.removeEventListener("keyup",   update);
+      ctx.setSelectionModifier(null);
+    };
+  }, [ctx.activeTool]);
+
   // PaletteSwap confirm view takes over when active
   if (ctx.paletteSwap && ctx.paletteSwap.showConfirm) {
     return ctx.paletteSwap.confirmView || null;
@@ -4160,8 +6340,25 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   // Build status text
   var statusText;
-  if (ctx.stitchType === "cross") {
-    statusText = "Cross stitch \u2014 " + (ctx.brushMode === "fill" ? "fill" : "paint") + " mode. Select a colour chip below.";
+  if (ctx.eyedropperEmpty) {
+    statusText = "\u26A0 That cell is empty \u2014 no colour to sample.";
+  } else if (ctx.activeTool === "eyedropper") {
+    statusText = "Eyedropper \u2014 click a cell to sample its colour.";
+  } else if (ctx.activeTool === "magicWand") {
+    var wModLabel = ctx.selectionModifier === "add" ? "[+] Add" : ctx.selectionModifier === "subtract" ? "[\u2212] Subtract" : ctx.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
+    statusText = "Magic Wand \u2014 click to select by colour" + (wModLabel ? " \u2022 " + wModLabel : ". Shift=add, Alt=subtract.");
+  } else if (ctx.activeTool === "lasso") {
+    var lModLabel = ctx.selectionModifier === "add" ? "[+] Add" : ctx.selectionModifier === "subtract" ? "[\u2212] Subtract" : ctx.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
+    statusText = "Lasso (" + (ctx.lassoMode || "freehand") + ")" + (lModLabel ? " \u2022 " + lModLabel : "") + " \u2014 " +
+      (ctx.lassoMode === "freehand" ? "drag to paint selection." :
+       ctx.lassoMode === "polygon" ? "click to place anchor points. Click near start to close." :
+       "click to place anchors; snaps to colour edges.");
+  } else if (ctx.stitchType === "cross") {
+    if (!ctx.selectedColorId) {
+      statusText = "Cross stitch \u2014 select a colour in the panel, or right-click the canvas to pick one.";
+    } else {
+      statusText = "Cross stitch \u2014 " + (ctx.brushMode === "fill" ? "fill" : "paint") + " mode. Right-click any cell to change colour.";
+    }
   } else if (ctx.stitchType === "half-fwd") {
     statusText = "Half stitch / \u2014 click cells to place.";
   } else if (ctx.stitchType === "half-bck") {
@@ -4169,82 +6366,24 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   } else if (ctx.stitchType === "backstitch") {
     statusText = "Backstitch \u2014 click grid intersections. Right-click to cancel.";
   } else if (ctx.stitchType === "erase") {
-    statusText = "Erase \u2014 click to remove stitches and backstitch lines.";
+    statusText = "Erase \u2014 click to remove stitches. Use backstitch erase (Bs tool) for backstitch lines.";
   } else {
-    statusText = "Select a colour chip below, then choose a stitch type above.";
+    statusText = "Select a colour in the panel on the right, then choose a stitch type above.";
   }
-
-  // Palette chips
-  var chips = (ctx.displayPal || ctx.pal || []).map(function(p) {
-    var isHsTool = ctx.halfStitchTool && ctx.halfStitchTool !== "erase";
-    var ips = (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) && ctx.selectedColorId === p.id;
-    var ihs = ctx.hiId === p.id;
-    var isUnused = ctx.isScratchMode && p.count === 0;
-    var chip = h("div", {
-      key: p.id,
-      className: "creator-palette-chip",
-      role: "button",
-      tabIndex: 0,
-      "aria-pressed": ips || ihs,
-      onClick: function() {
-        if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {
-          ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
-        } else {
-          ctx.setHiId(ctx.hiId === p.id ? null : p.id);
-        }
-      },
-      onKeyDown: function(e) {
-        if (e.repeat) return;
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          if (ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool) {
-            ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
-          } else {
-            ctx.setHiId(ctx.hiId === p.id ? null : p.id);
-          }
-        }
-      },
-      style: {
-        display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
-        cursor:"pointer",fontSize:11,
-        border: ips ? (isHsTool ? "2px solid #0284c7" : "2px solid #0d9488")
-               : ihs ? "2px solid #ea580c" : "0.5px solid #e4e4e7",
-        background: ips ? (isHsTool ? "#e0f2fe" : "#f0fdfa")
-                   : ihs ? "#fff7ed" : "#fff",
-        opacity: isUnused ? 0.6 : 1
-      }
-    },
-      h("span", {className:"creator-palette-chip-swatch",style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #d4d4d8",display:"inline-block",flexShrink:0}}),
-      h("span", {style:{fontFamily:"monospace",color:"#71717a"}}, p.symbol),
-      h("span", {style:{fontWeight:500}}, p.id),
-      isUnused && h("span", {
-        className:"creator-palette-chip-remove",
-        onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
-        style:{fontSize:9,color:"#a1a1aa",cursor:"pointer",marginLeft:2,lineHeight:1}
-      }, "\xD7")
-    );
-    if (ctx.isScratchMode) {
-      var tipText = ips ? "Currently selected \u2014 click canvas to paint"
-                   : isUnused ? "Click to select \u00B7 no stitches yet"
-                   : "Click to select this colour for painting";
-      return h(Tooltip, {key:p.id, text:tipText, width:180}, chip);
-    }
-    return chip;
-  });
 
   return h("div", null,
     ctx.cs < 6 && (ctx.view === "symbol" || ctx.view === "both") && h("div", {
-      style:{fontSize:12,color:"#71717a",marginBottom:6,background:"#f4f4f5",padding:"6px 10px",borderRadius:8}
+      style:{fontSize:12,color:"#475569",marginBottom:6,background:"#f1f5f9",padding:"6px 10px",borderRadius:8}
     }, "To see symbols, you may need to zoom in."),
 
     ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
-      style:{fontSize:12,color:"#a1a1aa",padding:"8px 12px",background:"#f4f4f5",borderRadius:8,marginBottom:8,textAlign:"center"}
-    }, "Add colours using the Colours panel on the left, then select Paint or Fill to begin."),
+      style:{fontSize:12,color:"#94a3b8",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
+    }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
     !ctx.shortcutsHintDismissed && h("div", {
-      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e4e4e7",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
+      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
     },
-      h("span", null, "\uD83D\uDCA1 Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
+      h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
         onClick: function() {
           localStorage.setItem("shortcuts_hint_dismissed", "1");
@@ -4264,7 +6403,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       return h("div", {
         style:{padding:"8px 12px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,fontSize:12,color:"#991b1b",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}
       },
-        h("span", null, "\u26A0\uFE0F Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
+        h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
         h("button", {
           onClick:function(){setConfettiBannerDismissed(true);},
           style:{background:"none",border:"none",color:"#991b1b",cursor:"pointer",fontSize:14,flexShrink:0,marginLeft:8}
@@ -4272,14 +6411,75 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       );
     })(),
 
+    h(window.MagicWandPanel, null),
+
     h("div", {
       ref:ctx.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#f4f4f5",cursor:(ctx.activeTool||ctx.halfStitchTool)?"crosshair":"default"}
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#f1f5f9",cursor:(function(){
+        var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
+        if (ctx.activeTool === "eyedropper") return "copy";
+        if (selTool) return "crosshair";
+        if (ctx.activeTool === "fill") return "cell";
+        if (ctx.activeTool === "eraseBs") return "not-allowed";
+        if (ctx.activeTool || ctx.halfStitchTool) return "crosshair";
+        return "default";
+      })()},
+      onContextMenu: function(e) {
+        // Right-click context menu (except when backstitch has a special right-click action)
+        if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
+        e.preventDefault();
+        var pcRef = ctx.pcRef;
+        if (!pcRef.current || !ctx.pat) return;
+        var gc = gridCoord(pcRef, e, ctx.cs, ctx.G, false);
+        if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
+        var idx = gc.gy * ctx.sW + gc.gx;
+        var cell = ctx.pat[idx];
+        // In paint/fill mode, right-click directly picks the colour (eyedropper gesture)
+        var rcIsHsTool = ctx.halfStitchTool && ctx.halfStitchTool !== "erase";
+        if ((ctx.activeTool === "paint" || ctx.activeTool === "fill" || rcIsHsTool) &&
+            cell && cell.id !== "__skip__" && cell.id !== "__empty__" &&
+            ctx.cmap && ctx.cmap[cell.id]) {
+          ctx.setSelectedColorId(cell.id);
+          return;
+        }
+        ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
+      }
     },
       h(window.PatternCanvas, null)
     ),
 
-    h("div", {className:"tb-status"}, statusText),
+    // Context menu overlay
+    ctx.contextMenu && h(window.CreatorContextMenu, null),
+
+    // Enhanced status bar: tool hint + coordinates + colour-under-cursor
+    (function() {
+      var parts = [statusText];
+      if (ctx.hoverCoords && ctx.hoverCoords.gx >= 0 && ctx.hoverCoords.gx < ctx.sW && ctx.hoverCoords.gy >= 0 && ctx.hoverCoords.gy < ctx.sH) {
+        parts.push("X: " + (ctx.hoverCoords.gx + 1) + ", Y: " + (ctx.hoverCoords.gy + 1));
+        var hIdx = ctx.hoverCoords.gy * ctx.sW + ctx.hoverCoords.gx;
+        var hCell = ctx.pat[hIdx];
+        if (hCell && hCell.id !== "__skip__" && hCell.id !== "__empty__" && ctx.cmap && ctx.cmap[hCell.id]) {
+          var info = ctx.cmap[hCell.id];
+          parts.push("DMC " + info.id + (info.name ? " " + info.name : "") + " (" + (info.count || 0) + " st)");
+        }
+      }
+      return h("div", {className:"tb-status", style:{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
+        h("span", null, parts[0]),
+        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#94a3b8",flexShrink:0}}, parts[1]),
+        parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
+          ctx.cmap && ctx.pat && ctx.hoverCoords && (function() {
+            var hIdx2 = ctx.hoverCoords.gy * ctx.sW + ctx.hoverCoords.gx;
+            var hCell2 = ctx.pat[hIdx2];
+            if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
+              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
+                background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
+            }
+            return null;
+          })(),
+          h("span", {style:{fontSize:10,color:"#475569"}}, parts[2])
+        )
+      );
+    })(),
 
     h("div", {style:{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}},
       ctx.editHistory.length > 0 && h("button", {
@@ -4296,16 +6496,6 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }, "Clear \u2715")
     ),
 
-    ctx.isScratchMode && (ctx.activeTool === "paint" || ctx.activeTool === "fill") && !ctx.selectedColorId && ctx.displayPal && ctx.displayPal.length > 0 && h("div", {
-      style:{marginBottom:6,padding:"5px 10px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:8,fontSize:11,color:"#92400e",display:"flex",alignItems:"center",gap:6}
-    },
-      h("span", {style:{fontSize:13}}, "\uD83D\uDC47"),
-      " Click a colour chip below to select it, then paint on the canvas"
-    ),
-
-    h("div", {style:{marginTop:8,borderRadius:8,background:"#fafafa",padding:"8px 12px",border:"0.5px solid #e4e4e7"}},
-      h("div", {className:"creator-pattern-chips",style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
-    )
   );
 };
 
@@ -4338,16 +6528,16 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     ];
 
     var difficultyBadge = ctx.difficulty && h("div", {
-      style:{marginTop:12,padding:"8px 12px",background:"#fafafa",borderRadius:8,border:"0.5px solid #e4e4e7",display:"flex",alignItems:"center",gap:10}
+      style:{marginTop:12,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0",display:"flex",alignItems:"center",gap:10}
     },
-      h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
+      h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
       h("div", {style:{display:"flex",gap:2}},
         [1,2,3,4].map(function(s) {
-          return h("span", {key:s, style:{fontSize:16,color:s<=ctx.difficulty.stars?ctx.difficulty.color:"#e4e4e7"}}, "\u2605");
+          return h("span", {key:s, style:{fontSize:16,color:s<=ctx.difficulty.stars?ctx.difficulty.color:"#e2e8f0"}}, "\u2605");
         })
       ),
       h("span", {style:{fontSize:13,fontWeight:700,color:ctx.difficulty.color}}, ctx.difficulty.label),
-      h("span", {style:{fontSize:11,color:"#a1a1aa",marginLeft:"auto"}},
+      h("span", {style:{fontSize:11,color:"#94a3b8",marginLeft:"auto"}},
         ctx.pal.length + " colours \xB7 " + (ctx.blendCount > 0 ? ctx.blendCount + " blends \xB7 " : "") + ctx.totalStitchable.toLocaleString() + " stitches"
       )
     );
@@ -4356,20 +6546,20 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       var cd = ctx.confettiData.clean;
       var t = confettiTier(cd.pct);
       var barW = Math.max(3, Math.min(100, Math.round(100 - cd.pct * 5)));
-      return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#fafafa",borderRadius:8,border:"0.5px solid #e4e4e7"}},
+      return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0"}},
         h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
-          h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
+          h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
           h("span", {style:{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18",marginLeft:"auto"}}, t.label)
         ),
         h("div", {style:{display:"flex",alignItems:"center",gap:8}},
-          h("div", {style:{flex:1,height:6,background:"#e4e4e7",borderRadius:3,overflow:"hidden"}},
+          h("div", {style:{flex:1,height:6,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}},
             h("div", {style:{height:"100%",width:barW+"%",background:t.color,borderRadius:3,transition:"width 0.4s"}})
           ),
           h("span", {style:{fontSize:12,fontWeight:600,color:t.color,flexShrink:0}},
             cd.singles.toLocaleString() + " isolated (" + cd.pct.toFixed(1) + "%)"
           )
         ),
-        ctx.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#a1a1aa",marginTop:4}},
+        ctx.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:4}},
           ctx.confettiData.raw.singles.toLocaleString() + " before orphan removal"
         )
       );
@@ -4389,8 +6579,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       },
         rows.map(function(r, i) {
           return h("div", {key:i},
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
-            h("div", {style:{fontSize:14,fontWeight:600,color:"#18181b"}}, r[1])
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
+            h("div", {style:{fontSize:14,fontWeight:600,color:"#1e293b"}}, r[1])
           );
         })
       ),
@@ -4410,20 +6600,20 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         }),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px",marginTop:10}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#18181b"}},
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
+            h("div", {style:{fontSize:16,fontWeight:700,color:"#1e293b"}},
               fmtTimeL(Math.round(ctx.totalStitchable / ctx.stitchSpeed * 3600))
             )
           ),
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
             h("div", {style:{fontSize:16,fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"#16a34a":"#0d9488"}},
               ctx.doneCount >= ctx.totalStitchable ? "Done!" : fmtTimeL(Math.round((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed * 3600))
             )
           )
         ),
         ctx.totalTime > 0 && ctx.doneCount > 0 && h("div", {
-          style:{marginTop:8,padding:"8px 12px",background:"#fafafa",borderRadius:8,border:"0.5px solid #e4e4e7",fontSize:12,color:"#71717a"}
+          style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0",fontSize:12,color:"#475569"}
         }, "Based on your actual sessions: " + Math.round(ctx.doneCount / (ctx.totalTime / 3600)) + " stitches/hr average")
       )
     );
@@ -4440,9 +6630,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       h("div", {style:{marginTop:8,overflow:"auto"}},
         h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
           h("thead", null,
-            h("tr", {style:{background:"#fafafa"}},
+            h("tr", {style:{background:"#f8f9fa"}},
               ["Fabric","Width","Height","With margin"].map(function(hd, i) {
-                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid #e4e4e7",color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}}, hd);
+                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid #e2e8f0",color:"#475569",fontWeight:600,fontSize:11,textTransform:"uppercase"}}, hd);
               })
             )
           ),
@@ -4454,12 +6644,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var isCurrent = f.ct === ctx.fabricCt;
               return h("tr", {
                 key:f.ct,
-                style:{borderBottom:"0.5px solid #f4f4f5",background:isCurrent?"#f0fdfa":"transparent"}
+                style:{borderBottom:"0.5px solid #f1f5f9",background:isCurrent?"#f0fdfa":"transparent"}
               },
                 h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}}, f.label+(isCurrent?" \u2713":"")),
                 h("td", {style:{padding:"6px 10px"}}, wIn.toFixed(1)+"\u2033 / "+wCm.toFixed(1)+" cm"),
                 h("td", {style:{padding:"6px 10px"}}, hIn.toFixed(1)+"\u2033 / "+hCm.toFixed(1)+" cm"),
-                h("td", {style:{padding:"6px 10px",fontSize:11,color:"#a1a1aa"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
+                h("td", {style:{padding:"6px 10px",fontSize:11,color:"#94a3b8"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
               );
             })
           )
@@ -4473,30 +6663,30 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     return h(Section, {title:"Cost Estimate", defaultOpen:false},
       h("div", {style:{marginTop:8}},
         h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
-          h("span", {style:{fontSize:12,color:"#71717a"}}, "Price per skein (\xA3)"),
+          h("span", {style:{fontSize:12,color:"#475569"}}, "Price per skein (\xA3)"),
           h("input", {
             type:"number", value:ctx.skeinPrice, min:0, step:0.05,
             onChange:function(e){ctx.setSkeinPrice(Math.max(0,parseFloat(e.target.value)||0));},
-            style:{width:70,padding:"5px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,fontSize:13,textAlign:"right"}
+            style:{width:70,padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13,textAlign:"right"}
           })
         ),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#18181b"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
-            h("div", {style:{fontSize:11,color:"#a1a1aa"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
+            h("div", {style:{fontSize:16,fontWeight:700,color:"#1e293b"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
+            h("div", {style:{fontSize:11,color:"#94a3b8"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
           ),
           ctx.toBuyCount < ctx.skeinData.length && h("div", null,
-            h("div", {style:{fontSize:11,color:"#a1a1aa",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
+            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
             h("div", {style:{fontSize:16,fontWeight:700,color:"#ea580c"}},
               "\xA3"+(ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)*ctx.skeinPrice).toFixed(2)
             ),
-            h("div", {style:{fontSize:11,color:"#a1a1aa"}},
+            h("div", {style:{fontSize:11,color:"#94a3b8"}},
               ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)+" skeins"
             )
           )
         ),
-        h("div", {style:{fontSize:11,color:"#a1a1aa",marginTop:8}},
+        h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
           "Doesn\u2019t include fabric, needles, hoop, or frame. DMC skeins typically \xA30.85\u2013\xA31.10 in UK shops."
         )
       )
@@ -4509,11 +6699,11 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       h("div", {style:{marginTop:8,display:"flex",gap:12,marginBottom:10}},
         h("div", {style:{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}},
           h("span", {style:{fontWeight:700,color:"#16a34a"}}, ctx.ownedCount), " ",
-          h("span", {style:{color:"#71717a"}}, "owned")
+          h("span", {style:{color:"#475569"}}, "owned")
         ),
         h("div", {style:{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}},
           h("span", {style:{fontWeight:700,color:"#ea580c"}}, ctx.toBuyList.length), " ",
-          h("span", {style:{color:"#71717a"}}, "to buy")
+          h("span", {style:{color:"#475569"}}, "to buy")
         ),
         h("div", {style:{marginLeft:"auto",display:"flex",gap:4}},
           h("button", {
@@ -4526,7 +6716,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           }, "Own all"),
           h("button", {
             onClick:function(){ctx.setThreadOwned({});},
-            style:{fontSize:11,padding:"4px 10px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",color:"#71717a",cursor:"pointer"}
+            style:{fontSize:11,padding:"4px 10px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",cursor:"pointer"}
           }, "Clear")
         )
       ),
@@ -4541,12 +6731,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             h("div", {
               style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,
                 background:isOwned?"#f0fdf4":"#fff",
-                border:"1px solid "+(isOwned?"#bbf7d0":"#f4f4f5")}
+                border:"1px solid "+(isOwned?"#bbf7d0":"#f1f5f9")}
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #d4d4d8",flexShrink:0}}),
+              h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1",flexShrink:0}}),
               h("span", {style:{fontWeight:700,fontSize:13,minWidth:44}}, "DMC "+d.id),
-              h("span", {style:{fontSize:11,color:"#71717a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              h("span", {style:{fontSize:11,color:"#a1a1aa",flexShrink:0}}, d.skeins+"sk"),
+              h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              h("span", {style:{fontSize:11,color:"#94a3b8",flexShrink:0}}, d.skeins+"sk"),
               h("button", {
                 onClick:function(){ctx.toggleOwned(d.id);},
                 style:{fontSize:11,padding:"3px 10px",borderRadius:5,cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center",
@@ -4573,18 +6763,18 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var alts = StashBridge.suggestAlternatives(d.id, 5, ctx.globalStash);
               return alts.length > 0
                 ? h("div", {style:{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}},
-                    h("span", {style:{color:"#71717a",fontWeight:600}}, "Similar in stash:"),
+                    h("span", {style:{color:"#475569",fontWeight:600}}, "Similar in stash:"),
                     alts.map(function(a) {
                       return h("span", {key:a.id, style:{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}},
-                        h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid #d4d4d8"}}),
+                        h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid #cbd5e1"}}),
                         h("span", {style:{fontWeight:600}}, "DMC "+a.id),
-                        h("span", {style:{color:"#71717a"}}, a.name),
-                        h("span", {style:{color:"#a1a1aa"}}, "\u0394E "+a.deltaE),
+                        h("span", {style:{color:"#475569"}}, a.name),
+                        h("span", {style:{color:"#94a3b8"}}, "\u0394E "+a.deltaE),
                         h("span", {style:{color:"#4338ca"}}, a.owned+"sk")
                       );
                     })
                   )
-                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:11,color:"#a1a1aa"}},
+                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:11,color:"#94a3b8"}},
                     "No similar threads found in your stash."
                   );
             })()
@@ -4608,7 +6798,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}
         }, "Kit This Project")
       ),
-      ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e4e4e7",background:"#fafafa",fontSize:12}},
+      ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8f9fa",fontSize:12}},
         h("div", {style:{fontWeight:700,marginBottom:4}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
         ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"#16a34a",fontWeight:600}}, "\u2713 You have everything!"),
         ctx.kittingResult.missing.length > 0 && h("div", null,
@@ -4625,7 +6815,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var lines = ctx.kittingResult.missing.concat(ctx.kittingResult.short);
               ctx.copyText(lines.join("\n"), "kit");
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer"}
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer"}
           }, "Copy gaps"),
           typeof StashBridge !== "undefined" && h("button", {
             onClick:function(){
@@ -4639,7 +6829,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           }, "Mark all To Buy"),
           h("button", {
             onClick:function(){ctx.setKittingResult(null);},
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",marginLeft:"auto"}
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",marginLeft:"auto"}
           }, "Dismiss")
         )
       ),
@@ -4656,7 +6846,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             var txt=ctx.skeinData.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
             ctx.copyText(txt, "full");
           },
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}
+          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Copy Full List")
       ),
       ctx.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")
@@ -4691,24 +6881,24 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   return h("div", null,
     h("div", {style:{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}},
-      h("span", {style:{fontSize:12,color:"#71717a"}}, "Fabric:"),
+      h("span", {style:{fontSize:12,color:"#475569"}}, "Fabric:"),
       h("select", {
         value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{padding:"4px 10px",borderRadius:6,border:"0.5px solid #e4e4e7",fontSize:12,background:"#fff"}
+        style:{padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",fontSize:12,background:"#fff"}
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("span", {style:{fontSize:11,color:"#a1a1aa"}}, "Total skeins: "+ctx.totalSkeins)
+      h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Total skeins: "+ctx.totalSkeins)
     ),
     h("div", {style:{overflow:"auto",maxHeight:540}},
       h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
         h("thead", null,
-          h("tr", {style:{background:"#fafafa"}},
+          h("tr", {style:{background:"#f8f9fa"}},
             headerCols.map(function(hd, i) {
               return h("th", {
                 key:i,
-                style:{padding:"8px 10px",textAlign:i>=5?"right":"left",borderBottom:"2px solid #e4e4e7",
-                  color:"#71717a",fontWeight:600,fontSize:11,textTransform:"uppercase"}
+                style:{padding:"8px 10px",textAlign:i>=5?"right":"left",borderBottom:"2px solid #e2e8f0",
+                  color:"#475569",fontWeight:600,fontSize:11,textTransform:"uppercase"}
               }, hd);
             })
           )
@@ -4720,7 +6910,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             var confettiCount = ctx.confettiData && ctx.confettiData.clean && ctx.confettiData.clean.colorConfetti
               ? ctx.confettiData.clean.colorConfetti[p.id]
               : null;
-            var nameCell = h("td", {style:{padding:"6px 10px",fontSize:11,color:"#71717a"}},
+            var nameCell = h("td", {style:{padding:"6px 10px",fontSize:11,color:"#475569"}},
               p.type === "blend"
                 ? p.threads[0].name + " + " + p.threads[1].name
                 : p.name,
@@ -4732,11 +6922,11 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             return h("tr", {
               key:i,
               onClick:function(){ctx.setHiId(ctx.hiId===p.id?null:p.id); ctx.setTab("pattern");},
-              style:{borderBottom:"0.5px solid #f4f4f5",cursor:"pointer",background:ctx.hiId===p.id?"#fff7ed":"transparent"}
+              style:{borderBottom:"0.5px solid #f1f5f9",cursor:"pointer",background:ctx.hiId===p.id?"#fff7ed":"transparent"}
             },
               h("td", {style:{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}, p.symbol),
               h("td", {style:{padding:"6px 10px"}},
-                h("div", {style:{width:24,height:24,borderRadius:5,background:"rgb("+p.rgb+")",border:"0.5px solid #e4e4e7",display:"inline-block"}})
+                h("div", {style:{width:24,height:24,borderRadius:5,background:"rgb("+p.rgb+")",border:"0.5px solid #e2e8f0",display:"inline-block"}})
               ),
               h("td", {style:{padding:"6px 10px",fontWeight:600}}, p.id),
               nameCell,
@@ -4750,7 +6940,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
               h("td", {style:{padding:"6px 10px",textAlign:"right"}}, p.count.toLocaleString()),
               h("td", {style:{padding:"6px 10px",textAlign:"right",fontWeight:600}}, sk),
               ctx.done && h("td", {style:{padding:"6px 10px",textAlign:"right"}},
-                h("span", {style:{color:dc.done>=dc.total?"#16a34a":"#71717a"}}, dc.done+"/"+dc.total)
+                h("span", {style:{color:dc.done>=dc.total?"#16a34a":"#475569"}}, dc.done+"/"+dc.total)
               )
             );
           })
@@ -4807,10 +6997,10 @@ window.CreatorExportTab = function CreatorExportTab() {
     h("button", {
       onClick: ctx.handleOpenInTracker,
       style:{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:8}
-    }, "\uD83E\uDDF5 Open in Stitch Tracker \u2192"),
+    }, Icons.thread(), " Open in Stitch Tracker \u2192"),
 
     h(Section, {title:"PDF Export"},
-      h("p", {style:{fontSize:12,color:"#71717a",margin:"8px 0 10px"}},
+      h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},
         "Multi-page PDF with legend and chart."
       ),
       h("div", {style:{display:"flex",gap:16,alignItems:"center",marginBottom:10}},
@@ -4818,7 +7008,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           "Chart Mode:",
           h("select", {
             value:ctx.pdfDisplayMode, onChange:function(e){ctx.setPdfDisplayMode(e.target.value);},
-            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #d4d4d8",fontSize:12,background:"#fff"}
+            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
           },
             h("option", {value:"color_symbol"}, "Color + Symbols"),
             h("option", {value:"symbol"}, "Symbols Only"),
@@ -4829,7 +7019,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           "Cell Size:",
           h("select", {
             value:ctx.pdfCellSize, onChange:function(e){ctx.setPdfCellSize(Number(e.target.value));},
-            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #d4d4d8",fontSize:12,background:"#fff"}
+            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
           },
             h("option", {value:2.5}, "Small (2.5mm)"),
             h("option", {value:3}, "Medium (3mm)"),
@@ -4856,7 +7046,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           style:{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}
         }, "Cover Sheet PDF")
       ),
-      h("p", {style:{fontSize:11,color:"#a1a1aa",marginTop:8}},
+      h("p", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
         "The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes \u2014 perfect for tucking into your project bag."
       )
     ),
@@ -4874,23 +7064,23 @@ window.CreatorExportTab = function CreatorExportTab() {
           h("button", {
             onClick:function(){ctx.setExportPage(function(p){return Math.max(0,p-1);});},
             disabled:ctx.exportPage===0,
-            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}
+            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
           }, "\u25C4"),
           h("span", {style:{fontSize:12}}, "Page "+(ctx.exportPage+1)+"/"+ctx.totPg),
           h("button", {
             onClick:function(){ctx.setExportPage(function(p){return Math.min(ctx.totPg-1,p+1);});},
             disabled:ctx.exportPage>=ctx.totPg-1,
-            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e4e4e7",borderRadius:6,background:"#fff",cursor:"pointer"}
+            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
           }, "\u25BA")
         )
       ),
-      h("div", {style:{overflow:"auto",maxHeight:400,border:"0.5px solid #e4e4e7",borderRadius:8,background:"#fff"}},
+      h("div", {style:{overflow:"auto",maxHeight:400,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#fff"}},
         h("canvas", {ref:ctx.expRef, style:{display:"block"}})
       )
     ),
 
     h(Section, {title:"Save / Load"},
-      h("p", {style:{fontSize:12,color:"#71717a",margin:"8px 0 10px"}},
+      h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},
         "Saves pattern for later editing or opening in Stitch Tracker."
       ),
       h("div", {style:{display:"flex",gap:8}},
@@ -4900,7 +7090,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         }, "Save (.json)"),
         h("button", {
           onClick:function(){ctx.loadRef.current.click();},
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e4e4e7",background:"#fff",cursor:"pointer",fontWeight:500}
+          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Load")
       )
     )

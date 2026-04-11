@@ -16,6 +16,39 @@ window.PatternCanvas = function PatternCanvas() {
   // at most one full render fires per frame.
   var rafRef = React.useRef(null);
 
+  // Marching ants animation offset
+  var antsOffsetRef = React.useRef(0);
+  var antsIntervalRef = React.useRef(null);
+  // Latest context snapshot ref — updated every render so the interval callback
+  // always reads current state rather than the closed-over stale value.
+  var ctxRef = React.useRef(ctx);
+  ctxRef.current = ctx;
+
+  // ── Effect: Animated marching ants for selection mask
+  React.useEffect(function() {
+    var hasSelection = ctx.selectionMask || ctx.lassoPreviewMask;
+    if (!hasSelection) {
+      if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
+      antsOffsetRef.current = 0;
+      return;
+    }
+    if (antsIntervalRef.current) return; // already running
+    antsIntervalRef.current = setInterval(function() {
+      antsOffsetRef.current = (antsOffsetRef.current + 1) % 20;
+      var latest = ctxRef.current;
+      var canvas = latest.pcRef.current;
+      if (!canvas || !baseCacheRef.current) return;
+      if (latest.isDraggingRef && latest.isDraggingRef.current) return;
+      var context = canvas.getContext("2d");
+      context.putImageData(baseCacheRef.current, 0, 0);
+      var snap = Object.assign({}, latest, { antsOffset: antsOffsetRef.current });
+      drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, snap.G, snap);
+    }, 120);
+    return function() {
+      if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
+    };
+  }, [ctx.selectionMask, ctx.lassoPreviewMask]);
+
   // ── Effect 1: Full render (base + overlay). Fires when pattern content changes.
   // Uses RAF so rapid zoom-slider drags collapse into a single paint per frame.
   React.useEffect(function() {
@@ -62,7 +95,9 @@ window.PatternCanvas = function PatternCanvas() {
     ctx.hoverCoords, ctx.selectedColorId, ctx.bsStart,
     // structural deps — needed so the overlay is redrawn correctly when these change
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.tab,
-    ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.halfStitchTool, ctx.bsLines
+    ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.halfStitchTool, ctx.bsLines,
+    ctx.lassoMode, ctx.lassoPoints, ctx.lassoPreviewMask, ctx.lassoCursor, ctx.lassoInProgress,
+    ctx.selectionMask, ctx.confettiPreview
   ]);
 
   return h("canvas", {

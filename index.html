@@ -34,6 +34,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="dmc-data.js"></script>
 <script src="colour-utils.js"></script>
 <script src="helpers.js"></script>
+<script src="icons.js"></script>
 <script src="import-formats.js"></script>
 <script src="components.js"></script>
 <script src="header.js"></script>
@@ -90,7 +91,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_v2';
+var CREATOR_CACHE_KEY = 'babel_creator_v3';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

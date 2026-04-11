@@ -45,7 +45,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     ctx2d.globalAlpha = 1.0;
   }
 
-  ctx2d.fillStyle = "#a1a1aa";
+  ctx2d.fillStyle = "#94a3b8";
   ctx2d.font = Math.max(7, Math.min(11, cSz * 0.5)) + "px system-ui";
   ctx2d.textAlign = "center";
   ctx2d.textBaseline = "middle";
@@ -279,7 +279,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     ctx2d.globalAlpha = 1.0;
   }
 
-  ctx2d.fillStyle = "#a1a1aa";
+  ctx2d.fillStyle = "#94a3b8";
   ctx2d.font = Math.max(7, Math.min(11, cSz * 0.5)) + "px system-ui";
   ctx2d.textAlign = "center";
   ctx2d.textBaseline = "middle";
@@ -467,7 +467,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       else if (param > 1) { xx = lx2; yy = ly2; }
       else { xx = lx1 + param * C; yy = ly1 + param * D; }
       var dx = hxb - xx, dy = hyb - yy;
-      if (Math.sqrt(dx * dx + dy * dy) <= 0.4) {
+      if (Math.sqrt(dx * dx + dy * dy) <= 0.7) {
         ctx2d.strokeStyle = "#ef4444";
         ctx2d.lineWidth = Math.max(2, cSz * 0.25);
         ctx2d.beginPath(); ctx2d.moveTo(gut + lx1 * cSz, gut + ly1 * cSz); ctx2d.lineTo(gut + lx2 * cSz, gut + ly2 * cSz); ctx2d.stroke();
@@ -525,5 +525,165 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
         }
       }
     }
+  }
+
+  // ─── Selection mask overlay ─────────────────────────────────────────────────
+  var selectionMask = state.selectionMask;
+  var confettiPreview = state.confettiPreview;
+  var sW = state.sW;
+  if (selectionMask) {
+    ctx2d.save();
+    // Semi-transparent blue tint over selected cells
+    ctx2d.fillStyle = "rgba(59,130,246,0.25)";
+    for (var sy = 0; sy < dH; sy++) {
+      for (var sx2 = 0; sx2 < dW; sx2++) {
+        var si = (offY + sy) * sW + (offX + sx2);
+        if (selectionMask[si]) {
+          ctx2d.fillRect(gut + sx2 * cSz, gut + sy * cSz, cSz, cSz);
+        }
+      }
+    }
+    // Dashed "marching ants" border around selection boundary
+    ctx2d.strokeStyle = "rgba(37,99,235,0.9)";
+    ctx2d.lineWidth = Math.max(1, cSz * 0.1);
+    var antsDash = Math.max(2, cSz * 0.3), antsGap = Math.max(2, cSz * 0.2);
+    ctx2d.setLineDash([antsDash, antsGap]);
+    ctx2d.lineDashOffset = -(state.antsOffset || 0);
+    for (var by = 0; by < dH; by++) {
+      for (var bx = 0; bx < dW; bx++) {
+        var bidx = (offY + by) * sW + (offX + bx);
+        if (!selectionMask[bidx]) continue;
+        var bpx = gut + bx * cSz, bpy = gut + by * cSz;
+        if (by === 0 || !selectionMask[bidx - sW]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx + cSz, bpy); ctx2d.stroke();
+        }
+        if (by === dH - 1 || !selectionMask[bidx + sW]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy + cSz); ctx2d.lineTo(bpx + cSz, bpy + cSz); ctx2d.stroke();
+        }
+        if (bx === 0 || !selectionMask[bidx - 1]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx, bpy); ctx2d.lineTo(bpx, bpy + cSz); ctx2d.stroke();
+        }
+        if (bx === dW - 1 || !selectionMask[bidx + 1]) {
+          ctx2d.beginPath(); ctx2d.moveTo(bpx + cSz, bpy); ctx2d.lineTo(bpx + cSz, bpy + cSz); ctx2d.stroke();
+        }
+      }
+    }
+    ctx2d.setLineDash([]);
+    ctx2d.restore();
+  }
+
+  // Confetti preview: highlight stitches flagged for removal
+  if (confettiPreview && confettiPreview.size > 0) {
+    ctx2d.save();
+    ctx2d.fillStyle = "rgba(239,68,68,0.45)";
+    confettiPreview.forEach(function(ci) {
+      var cx2 = (ci % sW) - offX, cy2 = (Math.floor(ci / sW)) - offY;
+      if (cx2 >= 0 && cx2 < dW && cy2 >= 0 && cy2 < dH) {
+        ctx2d.fillRect(gut + cx2 * cSz, gut + cy2 * cSz, cSz, cSz);
+      }
+    });
+    ctx2d.restore();
+  }
+
+  // ─── Lasso in-progress overlay ───────────────────────────────────────────────
+  var lassoMode   = state.lassoMode;
+  var lassoPoints = state.lassoPoints;
+  var lassoCursor = state.lassoCursor;
+  var lassoPreviewMask = state.lassoPreviewMask;
+  var lassoInProgress  = state.lassoInProgress;
+
+  if (lassoMode && (lassoInProgress || (lassoPoints && lassoPoints.length > 0))) {
+    ctx2d.save();
+
+    if (lassoMode === "freehand" && lassoPreviewMask) {
+      // Tint cells painted by freehand drag
+      ctx2d.fillStyle = "rgba(16,185,129,0.35)";
+      for (var fi = 0; fi < lassoPreviewMask.length; fi++) {
+        if (!lassoPreviewMask[fi]) continue;
+        var lfx = (fi % state.sW) - offX;
+        var lfy = Math.floor(fi / state.sW) - offY;
+        if (lfx < 0 || lfx >= dW || lfy < 0 || lfy >= dH) continue;
+        ctx2d.fillRect(gut + lfx * cSz, gut + lfy * cSz, cSz, cSz);
+      }
+    }
+
+    if ((lassoMode === "polygon" || lassoMode === "magnetic") && lassoPoints && lassoPoints.length > 0) {
+      var pts = lassoPoints;
+      var drawPath = function(pathPts, dashed, strokeStyle) {
+        if (!pathPts || !pathPts.length) return;
+        ctx2d.strokeStyle = strokeStyle;
+        ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+        ctx2d.setLineDash(dashed ? [Math.max(3, cSz * 0.3), Math.max(3, cSz * 0.3)] : []);
+        ctx2d.beginPath();
+        ctx2d.moveTo(gut + (pathPts[0].x - offX) * cSz + cSz / 2, gut + (pathPts[0].y - offY) * cSz + cSz / 2);
+        for (var pp = 1; pp < pathPts.length; pp++) {
+          ctx2d.lineTo(gut + (pathPts[pp].x - offX) * cSz + cSz / 2, gut + (pathPts[pp].y - offY) * cSz + cSz / 2);
+        }
+        ctx2d.stroke();
+        ctx2d.setLineDash([]);
+      };
+      var makeSeg = function(a, b) {
+        if (!a || !b) return [];
+        if (lassoMode === "magnetic" && state.lassoMagneticPath && state.pat && state.cmap) {
+          return state.lassoMagneticPath(state.pat, state.cmap, state.sW, state.sH, a.x, a.y, b.x, b.y);
+        }
+        if (state.lassoLinePath) return state.lassoLinePath(a.x, a.y, b.x, b.y);
+        return [a, b];
+      };
+
+      if (pts.length > 1) {
+        var committedPath = [];
+        for (var pi = 1; pi < pts.length; pi++) {
+          var segPath = makeSeg(pts[pi - 1], pts[pi]);
+          for (var sp = 0; sp < segPath.length; sp++) {
+            if (committedPath.length && sp === 0) continue;
+            committedPath.push(segPath[sp]);
+          }
+        }
+        drawPath(committedPath, false, lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)");
+      }
+
+      // Dashed line from last anchor to cursor
+      if (lassoCursor) {
+        var nearStart = false;
+        if (pts.length >= 3) {
+          var csdx = lassoCursor.x - pts[0].x, csdy = lassoCursor.y - pts[0].y;
+          nearStart = Math.sqrt(csdx * csdx + csdy * csdy) <= 1.5;
+        }
+        var cursorColor = nearStart
+          ? (lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)")
+          : "rgba(100,100,100,0.5)";
+        var lastPt = pts[pts.length - 1];
+        var previewTarget = nearStart ? pts[0] : lassoCursor;
+        drawPath(makeSeg(lastPt, previewTarget), true, cursorColor);
+
+        // Snap-to-close circle around start when near
+        if (nearStart) {
+          ctx2d.strokeStyle = lassoMode === "magnetic" ? "rgba(245,158,11,0.9)" : "rgba(99,102,241,0.9)";
+          ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+          ctx2d.beginPath();
+          ctx2d.arc(
+            gut + (pts[0].x - offX) * cSz + cSz / 2,
+            gut + (pts[0].y - offY) * cSz + cSz / 2,
+            Math.max(5, cSz * 0.4), 0, Math.PI * 2
+          );
+          ctx2d.stroke();
+        }
+      }
+
+      // Anchor dots
+      var dotColor = lassoMode === "magnetic" ? "rgba(245,158,11,1)" : "rgba(99,102,241,1)";
+      for (var ai = 0; ai < pts.length; ai++) {
+        var ax = gut + (pts[ai].x - offX) * cSz + cSz / 2;
+        var ay = gut + (pts[ai].y - offY) * cSz + cSz / 2;
+        var r = ai === 0 ? Math.max(4, cSz * 0.3) : Math.max(2.5, cSz * 0.18);
+        ctx2d.fillStyle = "white";
+        ctx2d.beginPath(); ctx2d.arc(ax, ay, r + 1, 0, Math.PI * 2); ctx2d.fill();
+        ctx2d.fillStyle = dotColor;
+        ctx2d.beginPath(); ctx2d.arc(ax, ay, r, 0, Math.PI * 2); ctx2d.fill();
+      }
+    }
+
+    ctx2d.restore();
   }
 };

@@ -18,7 +18,7 @@ function Tooltip({text,children,width=180}){
       React.createElement("div",{style:{
         position:"fixed",left:Math.max(width/2+8,Math.min(pos.x,window.innerWidth-width/2-8)),top:pos.y-10,
         transform:"translate(-50%,-100%)",
-        background:"#18181b",color:"#fff",fontSize:11,lineHeight:"1.45",
+        background:"#1e293b",color:"#fff",fontSize:11,lineHeight:"1.45",
         padding:"6px 10px",borderRadius:7,maxWidth:width,width:"max-content",
         zIndex:9999,pointerEvents:"none",
         boxShadow:"0 4px 16px rgba(0,0,0,0.22)",textAlign:"center"
@@ -28,7 +28,7 @@ function Tooltip({text,children,width=180}){
           position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",
           width:0,height:0,
           borderLeft:"5px solid transparent",borderRight:"5px solid transparent",
-          borderTop:"5px solid #18181b"
+          borderTop:"5px solid #1e293b"
         }})
       ),
       document.body
@@ -38,7 +38,7 @@ function Tooltip({text,children,width=180}){
 function InfoIcon({text,width}){
   return React.createElement("span",{style:{display:"inline-flex",alignItems:"center",flexShrink:0},onClick:function(e){e.preventDefault();e.stopPropagation();}},
     React.createElement(Tooltip,{text:text,width:width||200},
-      React.createElement("span",{style:{cursor:"help",color:"#a1a1aa",fontSize:12,lineHeight:1,display:"inline-flex",alignItems:"center"}},"\u24D8")
+      React.createElement("span",{style:{cursor:"help",color:"#94a3b8",fontSize:12,lineHeight:1,display:"inline-flex",alignItems:"center"}},"\u24D8")
     )
   );
 }
@@ -58,18 +58,18 @@ function Section({title,children,isOpen,onToggle,defaultOpen=true,badge=null}){
   };
 
   return React.createElement("div", {style:{borderRadius:12,border:"0.5px solid var(--border)",background:"#fff",overflow:"hidden"}},
-    React.createElement("button", {onClick:handleToggle, style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"none",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"#18181b",gap:8}},
+    React.createElement("button", {onClick:handleToggle, style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"none",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"#1e293b",gap:8}},
       React.createElement("span", {style:{display:"flex",alignItems:"center",gap:8}}, title, badge),
-      React.createElement("span", {style:{fontSize:10,color:"#a1a1aa",transform:currentOpen?"rotate(180deg)":"rotate(0deg)"}}, "▼")
+      React.createElement("span", {style:{fontSize:10,color:"#94a3b8",transform:currentOpen?"rotate(180deg)":"rotate(0deg)"}}, "▼")
     ),
     currentOpen&&React.createElement("div", {style:{padding:"0 16px 16px"}}, children)
   );
 }
 function SliderRow({label,value,min,max,step=1,onChange,suffix="",format=null,helpText=null}){
   return React.createElement("div", {style:{marginBottom:2}},
-    React.createElement("div", {style:{display:"flex",justifyContent:"space-between",fontSize:12,color:"#71717a",marginBottom:3}},
+    React.createElement("div", {style:{display:"flex",justifyContent:"space-between",fontSize:12,color:"#475569",marginBottom:3}},
       React.createElement("span", {style:{display:"flex",alignItems:"center",gap:3}}, label, helpText&&React.createElement(InfoIcon,{text:helpText})),
-      React.createElement("span", {style:{fontWeight:600,color:"#18181b"}}, format?format(value):value, suffix)
+      React.createElement("span", {style:{fontWeight:600,color:"#1e293b"}}, format?format(value):value, suffix)
     ),
     React.createElement("input", {type:"range", min:min, max:max, step:step, value:value, onChange:e=>onChange(Number(e.target.value)), style:{width:"100%"}})
   );
@@ -84,7 +84,7 @@ function ProgressRing({percent, size}){
   var offset = circumference * (1 - Math.min(percent || 0, 100) / 100);
   return React.createElement("div", {className:"progress-ring", style:{width:size, height:size}},
     React.createElement("svg", {viewBox:"0 0 "+size+" "+size, width:size, height:size},
-      React.createElement("circle", {cx:size/2, cy:size/2, r:r, fill:"none", stroke:"#e4e4e7", strokeWidth:"3"}),
+      React.createElement("circle", {cx:size/2, cy:size/2, r:r, fill:"none", stroke:"#e2e8f0", strokeWidth:"3"}),
       React.createElement("circle", {cx:size/2, cy:size/2, r:r, fill:"none", stroke:"#0d9488", strokeWidth:"3",
         strokeDasharray:circumference, strokeDashoffset:offset,
         transform:"rotate(-90 "+size/2+" "+size/2+")", strokeLinecap:"round"})
@@ -153,7 +153,7 @@ function NoteEditor({sessionId, currentNote, onSave}){
       onChange:function(e){ setText(e.target.value); },
       onKeyDown:function(e){ if(e.key==='Enter') handleSave(); if(e.key==='Escape'){ cancelledRef.current=true; onSave(sessionId, currentNote||''); } },
       onBlur:handleSave, placeholder:"Add a note about this session...", maxLength:200,
-      style:{width:'100%', fontSize:12, padding:'4px 8px', borderRadius:6, border:'1px solid #e4e4e7'}})
+      style:{width:'100%', fontSize:12, padding:'4px 8px', borderRadius:6, border:'1px solid #e2e8f0'}})
   );
 }
 
@@ -169,7 +169,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote}){
   var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
   var children = [];
   if (!sessions || sessions.length === 0) {
-    children.push(React.createElement("p", {key:"empty", style:{fontSize:13, color:'#a1a1aa'}}, "No sessions recorded yet. Start stitching to see your journal!"));
+    children.push(React.createElement("p", {key:"empty", style:{fontSize:13, color:'#94a3b8'}}, "No sessions recorded yet. Start stitching to see your journal!"));
   }
   var timelineEntries = [];
   for (var di = 0; di < displayDates.length; di++) {
@@ -201,12 +201,12 @@ function SessionTimeline({sessions, statsSettings, onEditNote}){
     }
   }
   return React.createElement("div", {className:"session-timeline"},
-    React.createElement("h3", {style:{fontSize:16, fontWeight:700, color:'#18181b', marginBottom:12}}, "Session journal"),
+    React.createElement("h3", {style:{fontSize:16, fontWeight:700, color:'#1e293b', marginBottom:12}}, "Session journal"),
     children,
     React.createElement("div", {className:"timeline-track"}, timelineEntries),
     !showAll && sessions && sessions.length > 10 && React.createElement("button", {className:"timeline-show-all", onClick:function(){ setShowAll(true); }}, "View all " + sessions.length + " sessions")
   );
-  } catch(e) { console.warn('Stats: SessionTimeline render error', e); return React.createElement("p", {style:{color:'#a1a1aa',fontSize:13}}, "Could not load timeline."); }
+  } catch(e) { console.warn('Stats: SessionTimeline render error', e); return React.createElement("p", {style:{color:'#94a3b8',fontSize:13}}, "Could not load timeline."); }
 }
 
 // ═══ Phase B: Charts & Milestones ═══
@@ -252,15 +252,15 @@ function CumulativeChart({sessions, totalStitches, targetDate}){
   var paceLabel = targetDate ? 'Target pace' : 'On pace';
   return React.createElement("div", {className:"chart-container"},
     React.createElement("svg", {viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
-      React.createElement("text", {x:pl - 4, y:pt + 6, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, formatCompact(totalStitches)),
-      React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, formatCompact(totalStitches / 2)),
-      React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, "0"),
-      React.createElement("line", {x1:pl, y1:pt + cH / 2, x2:width - pr, y2:pt + cH / 2, stroke:"#e4e4e7", strokeWidth:"0.5", strokeDasharray:"4 4"}),
-      React.createElement("line", {x1:xS(0), y1:yS(0), x2:paceEndX, y2:paceEndY, stroke:"#d4d4d8", strokeWidth:"1", strokeDasharray:"4 4"}),
+      React.createElement("text", {x:pl - 4, y:pt + 6, textAnchor:"end", fontSize:"9", fill:"#94a3b8"}, formatCompact(totalStitches)),
+      React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"#94a3b8"}, formatCompact(totalStitches / 2)),
+      React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"#94a3b8"}, "0"),
+      React.createElement("line", {x1:pl, y1:pt + cH / 2, x2:width - pr, y2:pt + cH / 2, stroke:"#e2e8f0", strokeWidth:"0.5", strokeDasharray:"4 4"}),
+      React.createElement("line", {x1:xS(0), y1:yS(0), x2:paceEndX, y2:paceEndY, stroke:"#cbd5e1", strokeWidth:"1", strokeDasharray:"4 4"}),
       React.createElement("polygon", {points:fillPoints, fill:"#534AB7", opacity:"0.08"}),
       React.createElement("polyline", {points:points, fill:"none", stroke:"#534AB7", strokeWidth:"2.5", strokeLinecap:"round", strokeLinejoin:"round"}),
       React.createElement("circle", {cx:xS(data.length - 1), cy:yS(last.total), r:"4", fill:"#534AB7"}),
-      React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"#e4e4e7", strokeWidth:"0.5"})
+      React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"#e2e8f0", strokeWidth:"0.5"})
     ),
     React.createElement("div", {className:"chart-x-labels"},
       React.createElement("span", null, formatShortDate(data[0].date)),
@@ -294,9 +294,9 @@ function DailyBarChart({sessions, dailyGoal, daysToShow, dayEndHour}){
     var op = d.stitches === 0 ? 0.1 : 0.4 + 0.6 * (d.stitches / maxVal);
     barElements.push(
       React.createElement("rect", {key:d.date, x:x, y:height - barH, width:barW, height:Math.max(barH, 0),
-        fill:d.isToday ? '#5DCAA5' : '#1D9E75',
+        fill:d.isToday ? '#5DCAA5' : '#0d9488',
         opacity:d.isToday ? 1 : op,
-        rx:"2", stroke:d.isToday ? '#1D9E75' : 'none', strokeWidth:d.isToday ? 1 : 0},
+        rx:"2", stroke:d.isToday ? '#0d9488' : 'none', strokeWidth:d.isToday ? 1 : 0},
         React.createElement("title", null, formatShortDate(d.date) + ': ' + d.stitches + ' stitches')
       )
     );
@@ -339,7 +339,7 @@ function SpeedTrendChart({sessions}){
   // Raw dots
   var dots = [];
   for (var j = 0; j < data.length; j++) {
-    dots.push(React.createElement("circle", {key:'d'+j, cx:xS(j), cy:yS(data[j].speed), r:"3", fill:"#1D9E75", opacity:"0.3"},
+    dots.push(React.createElement("circle", {key:'d'+j, cx:xS(j), cy:yS(data[j].speed), r:"3", fill:"#0d9488", opacity:"0.3"},
       React.createElement("title", null, formatShortDate(data[j].date) + ': ' + data[j].speed + ' st/hr')));
   }
   // Smoothed line (only if 3+ points)
@@ -351,14 +351,14 @@ function SpeedTrendChart({sessions}){
   var yMid = Math.round(maxY / 2);
   return React.createElement("div", {className:"chart-container"},
     React.createElement("svg", {viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
-      React.createElement("text", {x:pl - 4, y:pt + 6, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, maxY + '/hr'),
-      React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, yMid + '/hr'),
-      React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"#a1a1aa"}, "0"),
-      React.createElement("line", {x1:pl, y1:pt + cH / 2, x2:width - pr, y2:pt + cH / 2, stroke:"#e4e4e7", strokeWidth:"0.5", strokeDasharray:"4 4"}),
-      React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"#e4e4e7", strokeWidth:"0.5"}),
+      React.createElement("text", {x:pl - 4, y:pt + 6, textAnchor:"end", fontSize:"9", fill:"#94a3b8"}, maxY + '/hr'),
+      React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"#94a3b8"}, yMid + '/hr'),
+      React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"#94a3b8"}, "0"),
+      React.createElement("line", {x1:pl, y1:pt + cH / 2, x2:width - pr, y2:pt + cH / 2, stroke:"#e2e8f0", strokeWidth:"0.5", strokeDasharray:"4 4"}),
+      React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"#e2e8f0", strokeWidth:"0.5"}),
       dots,
-      React.createElement("polyline", {points:linePts.join(' '), fill:"none", stroke:"#1D9E75", strokeWidth:"2.5", strokeLinecap:"round", strokeLinejoin:"round"}),
-      React.createElement("circle", {cx:xS(data.length - 1), cy:yS(last.smoothedSpeed), r:"4", fill:"#1D9E75"})
+      React.createElement("polyline", {points:linePts.join(' '), fill:"none", stroke:"#0d9488", strokeWidth:"2.5", strokeLinecap:"round", strokeLinejoin:"round"}),
+      React.createElement("circle", {cx:xS(data.length - 1), cy:yS(last.smoothedSpeed), r:"4", fill:"#0d9488"})
     ),
     React.createElement("div", {className:"chart-x-labels"},
       React.createElement("span", null, formatShortDate(data[0].date)),
@@ -366,8 +366,8 @@ function SpeedTrendChart({sessions}){
       React.createElement("span", null, formatShortDate(last.date))
     ),
     React.createElement("div", {className:"chart-legend"},
-      React.createElement("span", null, React.createElement("span", {style:{display:'inline-block', width:8, height:8, borderRadius:'50%', background:'#1D9E75', opacity:0.3, verticalAlign:'middle', marginRight:4}}), "Per session"),
-      React.createElement("span", null, React.createElement("span", {className:"legend-line solid", style:{borderColor:'#1D9E75'}}), "7-session avg")
+      React.createElement("span", null, React.createElement("span", {style:{display:'inline-block', width:8, height:8, borderRadius:'50%', background:'#0d9488', opacity:0.3, verticalAlign:'middle', marginRight:4}}), "Per session"),
+      React.createElement("span", null, React.createElement("span", {className:"legend-line solid", style:{borderColor:'#0d9488'}}), "7-session avg")
     )
   );
   } catch(e) { console.warn('Stats: SpeedTrendChart render error', e); return null; }
@@ -392,7 +392,7 @@ function ColourTimeline({sessions, palette, colourDoneCounts}){
     var isComplete = totalForColour > 0 && doneForColour >= totalForColour;
     var pctDone = totalForColour > 0 ? Math.round((doneForColour / totalForColour) * 100) : 0;
     var rgb = p.rgb || [128, 128, 128];
-    var swatchStyle = {width:14, height:14, borderRadius:3, border:'1px solid #d4d4d8', flexShrink:0,
+    var swatchStyle = {width:14, height:14, borderRadius:3, border:'1px solid #cbd5e1', flexShrink:0,
       background:'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')'};
     var nameLabel = p.name || p.id;
     var dateInfo = tl
@@ -646,8 +646,8 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
 
   return React.createElement("div", {className:"stats-dashboard"},
     React.createElement("div", {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}},
-      React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'#18181b', margin:0}}, "\uD83D\uDCCA Stats"),
-      React.createElement("button", {onClick:onClose, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #e4e4e7', background:'#fafafa', cursor:'pointer', color:'#71717a'}}, "\u2190 Back to grid")
+      React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'#1e293b', margin:0}}, "\uD83D\uDCCA Stats"),
+      React.createElement("button", {onClick:onClose, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #e2e8f0', background:'#f8f9fa', cursor:'pointer', color:'#475569'}}, "\u2190 Back to grid")
     ),
     React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches}),
     React.createElement("div", {className:"stats-export-bar"},
@@ -672,11 +672,11 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote})
     ),
-    React.createElement("div", {style:{marginTop:20, padding:16, background:'#fafafa', borderRadius:10, border:'1px solid #e4e4e7'}},
-      React.createElement("h4", {style:{fontSize:14, fontWeight:600, color:'#18181b', marginTop:0, marginBottom:8}}, "Settings"),
-      React.createElement("label", {style:{display:'flex', alignItems:'center', gap:8, fontSize:13, color:'#71717a'}},
+    React.createElement("div", {style:{marginTop:20, padding:16, background:'#f8f9fa', borderRadius:10, border:'1px solid #e2e8f0'}},
+      React.createElement("h4", {style:{fontSize:14, fontWeight:600, color:'#1e293b', marginTop:0, marginBottom:8}}, "Settings"),
+      React.createElement("label", {style:{display:'flex', alignItems:'center', gap:8, fontSize:13, color:'#475569'}},
         "Day ends at:",
-        React.createElement("select", {value:dayEndHour, onChange:function(e){ onUpdateSettings(Object.assign({}, statsSettings, {dayEndHour:parseInt(e.target.value)})); }, style:{fontSize:12, padding:'4px 8px', borderRadius:6, border:'1px solid #e4e4e7'}},
+        React.createElement("select", {value:dayEndHour, onChange:function(e){ onUpdateSettings(Object.assign({}, statsSettings, {dayEndHour:parseInt(e.target.value)})); }, style:{fontSize:12, padding:'4px 8px', borderRadius:6, border:'1px solid #e2e8f0'}},
           React.createElement("option", {value:0}, "Midnight"),
           React.createElement("option", {value:1}, "1:00 AM"),
           React.createElement("option", {value:2}, "2:00 AM"),
@@ -685,12 +685,12 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
           React.createElement("option", {value:5}, "5:00 AM")
         )
       ),
-      React.createElement("p", {style:{fontSize:11, color:'#a1a1aa', margin:'4px 0 0'}}, "Stitches after this time count for the previous day")
+      React.createElement("p", {style:{fontSize:11, color:'#94a3b8', margin:'4px 0 0'}}, "Stitches after this time count for the previous day")
     )
   );
   } catch(e) { console.warn('Stats: StatsDashboard render error', e); return React.createElement("p", {style:{color:'#dc2626',fontSize:13}}, "Stats error \u2014 see console."); }
 }
 
-const pill=a=>({padding:"5px 14px",fontSize:12,borderRadius:8,cursor:"pointer",border:a?"1px solid #99f6e4":"0.5px solid #e4e4e7",background:a?"#f0fdfa":"#fff",fontWeight:a?600:400,color:a?"#0d9488":"#71717a"});
-const tBtn=(a)=>({padding:"5px 12px",fontSize:12,borderRadius:8,cursor:"pointer",border:a?"1px solid #99f6e4":"0.5px solid #e4e4e7",background:a?"#f0fdfa":"#fff",fontWeight:a?600:400,color:a?"#0d9488":"#71717a"});
-const tabSt=a=>({padding:"8px 16px",fontSize:13,fontWeight:a?600:400,background:a?"#f0fdfa":"transparent",border:"none",cursor:"pointer",borderBottom:a?"2px solid #0d9488":"2px solid transparent",color:a?"#0d9488":"#a1a1aa",marginBottom:-2, borderRadius: "6px 6px 0 0"});
+const pill=a=>({padding:"5px 14px",fontSize:12,borderRadius:8,cursor:"pointer",border:a?"1px solid #99f6e4":"0.5px solid #e2e8f0",background:a?"#f0fdfa":"#fff",fontWeight:a?600:400,color:a?"#0d9488":"#475569"});
+const tBtn=(a)=>({padding:"5px 12px",fontSize:12,borderRadius:8,cursor:"pointer",border:a?"1px solid #99f6e4":"0.5px solid #e2e8f0",background:a?"#f0fdfa":"#fff",fontWeight:a?600:400,color:a?"#0d9488":"#475569"});
+const tabSt=a=>({padding:"8px 16px",fontSize:13,fontWeight:a?600:400,background:a?"#f0fdfa":"transparent",border:"none",cursor:"pointer",borderBottom:a?"2px solid #0d9488":"2px solid transparent",color:a?"#0d9488":"#94a3b8",marginBottom:-2, borderRadius: "6px 6px 0 0"});

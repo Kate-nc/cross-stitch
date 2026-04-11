@@ -6,6 +6,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
 
+  // Local state
+  var _swe = React.useState(false); var swatchExpanded = _swe[0], setSwatchExpanded = _swe[1];
+
   // ResizeObserver: progressively collapse strip groups when narrow
   React.useEffect(function() {
     var el = ctx.stripRef.current;
@@ -15,7 +18,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       if (frame) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(function() {
         var w = el.clientWidth;
-        ctx.setStripCollapsed({ view: w < 860, brush: w < 680, bs: w < 550 });
+        ctx.setStripCollapsed({ brush: w < 680, bs: w < 550 });
       });
     });
     obs.observe(el);
@@ -26,8 +29,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   React.useEffect(function() {
     if (!ctx.overflowOpen) return;
     function close(e) {
-      if (ctx.overflowRef.current && !ctx.overflowRef.current.contains(e.target))
-        ctx.setOverflowOpen(false);
+      if (ctx.overflowRef.current && !ctx.overflowRef.current.contains(e.target)) ctx.setOverflowOpen(false);
     }
     document.addEventListener("pointerdown", close);
     return function() { document.removeEventListener("pointerdown", close); };
@@ -36,6 +38,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
 
   var sc = ctx.stripCollapsed || {};
+
+  // Palette data sorted by usage — needed early for auto-select
+  var palData = (ctx.displayPal || ctx.pal || []).slice().sort(function(a,b){return (b.count||0)-(a.count||0);});
   var svgX = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
     h("line", {x1:"1",y1:"11",x2:"11",y2:"1",stroke:"currentColor",strokeWidth:"1.8"}),
     h("line", {x1:"1",y1:"1",x2:"11",y2:"11",stroke:"currentColor",strokeWidth:"1.8"}));
@@ -46,58 +51,141 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var svgErase = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
     h("line", {x1:"2",y1:"2",x2:"10",y2:"10",stroke:"currentColor",strokeWidth:"1.5"}),
     h("line", {x1:"10",y1:"2",x2:"2",y2:"10",stroke:"currentColor",strokeWidth:"1.5"}));
-
-  // Stitch type group
-  var stitchGrp = h("div", {className:"tb-grp"},
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="cross"?" tb-btn--green":""),
-      onClick:function(){ctx.selectStitchType("cross");}, title:"Cross stitch (1)"
-    }, svgX, "Cross"),
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="half-fwd"?" tb-btn--blue":""),
-      onClick:function(){ctx.selectStitchType("half-fwd");}, title:"Half stitch / (2)"
-    }, svgFwd, "Half /"),
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="half-bck"?" tb-btn--blue":""),
-      onClick:function(){ctx.selectStitchType("half-bck");}, title:"Half stitch \\ (3)"
-    }, svgBck, "Half \\"),
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="backstitch"?" tb-btn--on":""),
-      onClick:function(){ctx.selectStitchType("backstitch");}, title:"Backstitch (4)"
-    }, "Bs"),
-    h("button", {
-      className:"tb-btn"+(ctx.stitchType==="erase"?" tb-btn--red":""),
-      onClick:function(){ctx.selectStitchType("erase");}, title:"Erase (5)"
-    }, svgErase, "Erase")
+  var svgWand = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("line", {x1:"2.2",y1:"9.8",x2:"8.7",y2:"3.3",stroke:"currentColor",strokeWidth:"1.6",strokeLinecap:"round"}),
+    h("line", {x1:"8.8",y1:"1.1",x2:"8.8",y2:"3.1",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"}),
+    h("line", {x1:"7.8",y1:"2.1",x2:"9.8",y2:"2.1",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"}),
+    h("line", {x1:"7.4",y1:"0.9",x2:"10.2",y2:"3.7",stroke:"currentColor",strokeWidth:"0.9",strokeLinecap:"round"}),
+    h("line", {x1:"10.2",y1:"0.9",x2:"7.4",y2:"3.7",stroke:"currentColor",strokeWidth:"0.9",strokeLinecap:"round"})
+  );
+  var svgFreehand = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("path", {d:"M2 8.3C2 5.6 4.1 3.5 6.2 3.5C8.2 3.5 9.5 4.7 9.5 6.1C9.5 7.6 8.4 8.8 6.9 8.8C5.9 8.8 5.3 8.2 5.3 7.5C5.3 6.8 5.9 6.2 6.7 6.2",stroke:"currentColor",strokeWidth:"1.3",strokeLinecap:"round",strokeLinejoin:"round"}),
+    h("circle", {cx:"6.7",cy:"6.2",r:"0.9",fill:"currentColor"})
+  );
+  var svgPolygon = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("path", {d:"M2 8.5L3.5 2.5H8.6L10 7.7L5.4 10.1Z",stroke:"currentColor",strokeWidth:"1.2",strokeLinejoin:"round"}),
+    h("circle", {cx:"3.5",cy:"2.5",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"8.6",cy:"2.5",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"10",cy:"7.7",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"5.4",cy:"10.1",r:"0.8",fill:"currentColor"}),
+    h("circle", {cx:"2",cy:"8.5",r:"0.8",fill:"currentColor"})
+  );
+  var svgMagnetic = h("svg", {width:12,height:12,viewBox:"0 0 12 12",fill:"none"},
+    h("path", {d:"M3 2.2V6.1C3 7.9 4.4 9.4 6 9.4C7.6 9.4 9 7.9 9 6.1V2.2",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round"}),
+    h("line", {x1:"3",y1:"2.2",x2:"3",y2:"4.1",stroke:"currentColor",strokeWidth:"2.1",strokeLinecap:"round"}),
+    h("line", {x1:"9",y1:"2.2",x2:"9",y2:"4.1",stroke:"currentColor",strokeWidth:"2.1",strokeLinecap:"round"}),
+    h("line", {x1:"2.3",y1:"1.5",x2:"3.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"}),
+    h("line", {x1:"8.3",y1:"1.5",x2:"9.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"})
   );
 
-  // Brush group — shown when cross stitch
-  var brushGrp = (ctx.stitchType === "cross") ? [
-    h("div", {key:"sdiv-brush", className:"tb-sdiv"}),
+  // Brush group — always shown (first choice)
+  var brushGrp = [
     h("div", {
       key:"brush-grp",
-      className:"tb-grp"+(sc.brush?" tb-hidden":""),
-      style:{opacity: ctx.selectedColorId ? 1 : 0.6}
+      className:"tb-grp"+(sc.brush?" tb-hidden":"")
     },
       h("button", {
-        className:"tb-btn"+(ctx.brushMode==="paint"?" tb-btn--on":""),
-        onClick:function(){ctx.setBrushAndActivate("paint");}, title:"Paint (P)"
+        className:"tb-btn"+(ctx.brushMode==="paint" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
+        onClick:function(){
+          if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
+          ctx.setBrushAndActivate("paint");
+        },
+        title:"Paint (P)"
       }, "Paint"),
       h("button", {
-        className:"tb-btn"+(ctx.brushMode==="fill"?" tb-btn--on":""),
-        onClick:function(){ctx.setBrushAndActivate("fill");}, title:"Fill (F)"
+        className:"tb-btn"+(ctx.brushMode==="fill" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
+        onClick:function(){
+          if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
+          ctx.setBrushAndActivate("fill");
+        },
+        title:"Fill (F)"
       }, "Fill"),
+      h("button", {
+        className:"tb-btn"+(ctx.stitchType==="erase"?" tb-btn--red":""),
+        onClick:function(){ctx.selectStitchType("erase");}, title:"Erase (5)"
+      }, svgErase, "Erase"),
       h("button", {
         className:"tb-btn"+(ctx.activeTool==="eyedropper"?" tb-btn--on":""),
         onClick:function(){ctx.setActiveTool("eyedropper"); ctx.setBsStart(null); ctx.setHalfStitchTool(null);},
         title:"Eyedropper (I)"
-      }, "Pick Color")
+      }, "Pick")
+    )
+  ];
+
+  // Stitch type dropdown — shown only when paint or fill is the active brush mode
+  var showStitchGrp = (ctx.brushMode==="paint" || ctx.brushMode==="fill") && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase";
+  var stitchMeta = {
+    "cross":      {icon:svgX,    label:"Cross",    cls:"tb-btn--green"},
+    "half-fwd":   {icon:svgFwd,  label:"Half /",   cls:"tb-btn--blue"},
+    "half-bck":   {icon:svgBck,  label:"Half \\",  cls:"tb-btn--blue"},
+    "backstitch": {icon:null,    label:"Bs",       cls:"tb-btn--on"}
+  };
+  var activeSM = stitchMeta[ctx.stitchType] || stitchMeta["cross"];
+  var stitchDrop = showStitchGrp ? [
+    h("div", {key:"sdiv-stitch", className:"tb-sdiv"}),
+    h("div", {key:"stitch-drop", className:"tb-drop-wrap"},
+      h("button", {
+        className:"tb-btn tb-drop-btn " + activeSM.cls,
+        title:"Stitch type"
+      }, activeSM.icon, activeSM.label, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
+      h("div", {className:"tb-dropdown"},
+        Object.keys(stitchMeta).map(function(k) {
+          var m = stitchMeta[k];
+          return h("button", {
+            key:k,
+            className:"tb-drop-item" + (ctx.stitchType===k?" tb-drop-item--on":""),
+            onClick:function(){ctx.selectStitchType(k);}
+          }, m.icon, m.label);
+        })
+      )
     )
   ] : null;
 
+  // Colour swatch strip — second toolbar row, sorted by usage, with expand
+  var SWATCH_INIT = 20;
+  var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
+  var swatchRow = showStitchGrp && palData.length > 0 ? h("div", {className:"swatch-strip-row"},
+    h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
+    ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId] ? h("span", {
+      style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0}
+    },
+      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[ctx.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block"}}),
+      h("span", {style:{fontWeight:600,color:"#0d9488"}}, ctx.selectedColorId)
+    ) : h("span", {style:{fontSize:10,color:"#94a3b8",marginRight:6,flexShrink:0}}, "none selected"),
+    swatchesShown.map(function(p) {
+      var isSel = ctx.selectedColorId === p.id;
+      return h("button", {
+        key: p.id,
+        onClick: function() { ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id); },
+        title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
+        "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
+        "aria-pressed": isSel,
+        style:{
+          width:20, height:20, flexShrink:0,
+          borderRadius:4, cursor:"pointer", padding:0,
+          background:"rgb("+p.rgb+")",
+          border: isSel ? "2px solid #0d9488" : "1.5px solid rgba(0,0,0,0.15)",
+          boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
+          outline:"none"
+        }
+      });
+    }),
+    palData.length > SWATCH_INIT && h("button", {
+      key:"swatch-expand",
+      onClick:function(){setSwatchExpanded(function(e){return !e;});},
+      title:swatchExpanded?"Collapse":"Show all "+palData.length+" colours",
+      style:{
+        flexShrink:0, marginLeft:4, fontSize:11, padding:"0 8px",
+        height:20, borderRadius:10, border:"1px solid var(--border)",
+        background:"var(--surface)", cursor:"pointer",
+        color:"var(--text-secondary)", fontWeight:500, lineHeight:1, fontFamily:"inherit"
+      }
+    }, swatchExpanded ? "\u25B4" : "+"+( palData.length - SWATCH_INIT)+  " \u25BE")
+  ) : null;
+
   // Brush size group
   var showBrushSize = (
-    (ctx.stitchType === "cross" && ctx.brushMode === "paint") ||
+    ((ctx.stitchType === "cross" || ctx.stitchType === "half-fwd" || ctx.stitchType === "half-bck") && ctx.brushMode === "paint") ||
     ctx.stitchType === "erase" ||
     (ctx.halfStitchTool && ctx.halfStitchTool !== "erase")
   ) && ctx.activeTool !== "eyedropper";
@@ -108,7 +196,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       className:"tb-grp",
       style:{display:"flex",alignItems:"center",gap:4,opacity:(ctx.selectedColorId||ctx.stitchType==="erase")?1:0.6}
     },
-      h("span", {style:{fontSize:10,color:"#71717a",textTransform:"uppercase",fontWeight:600}}, "Size"),
+      h("span", {style:{fontSize:10,color:"#475569",textTransform:"uppercase",fontWeight:600}}, "Size"),
       [1,2,3].map(function(sz) {
         return h("button", {
           key:sz,
@@ -125,7 +213,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("div", {key:"sdiv-bs", className:"tb-sdiv"}),
     h("label", {
       key:"bs-cont",
-      style:{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#71717a",flexShrink:0}
+      style:{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#475569",flexShrink:0}
     },
       h("input", {
         type:"checkbox", checked:ctx.bsContinuous,
@@ -135,19 +223,69 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ] : null;
 
-  // View group
-  var viewGrp = [
-    h("div", {key:"sdiv-view", className:"tb-sdiv"}),
-    h("div", {key:"view-grp", className:"tb-grp"+(sc.view?" tb-hidden":"")},
-      [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
-        return h("button", {
-          key:kl[0],
-          className:"tb-btn"+(ctx.view===kl[0]?" tb-btn--on":""),
-          title:"Cycle view (V)",
-          onClick:function(){ctx.setView(kl[0]);}
-        }, kl[1]);
-      })
-    )
+  // Selection tools dropdown
+  var isSelectActive = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
+  var selIcon = ctx.activeTool === "magicWand" ? svgWand :
+                ctx.activeTool === "lasso" && ctx.lassoMode === "polygon" ? svgPolygon :
+                ctx.activeTool === "lasso" && ctx.lassoMode === "magnetic" ? svgMagnetic :
+                ctx.activeTool === "lasso" ? svgFreehand : svgWand;
+  var selLabel = ctx.activeTool === "magicWand" ? "Wand" :
+                 ctx.activeTool === "lasso" ? (ctx.lassoMode === "polygon" ? "Poly" : ctx.lassoMode === "magnetic" ? "Mag" : "Lasso") :
+                 "Select";
+  var selectDrop = [
+    h("div", {key:"sdiv-select", className:"tb-sdiv"}),
+    h("div", {key:"select-drop", className:"tb-drop-wrap"},
+      h("button", {
+        className:"tb-btn tb-drop-btn" + (isSelectActive ? " tb-btn--on" : ""),
+        title:"Selection tools"
+      }, selIcon, selLabel, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
+      h("div", {className:"tb-dropdown"},
+        h("button", {
+          className:"tb-drop-item"+(ctx.activeTool==="magicWand"?" tb-drop-item--on":""),
+          onClick:function(){
+            if (ctx.activeTool==="magicWand") ctx.setActiveTool(null);
+            else { ctx.setActiveTool("magicWand"); ctx.setHalfStitchTool(null); ctx.setBsStart(null); if (ctx.cancelLasso) ctx.cancelLasso(); }
+          }
+        }, svgWand, "Magic Wand"),
+        h("button", {
+          className:"tb-drop-item"+(ctx.activeTool==="lasso"&&ctx.lassoMode==="freehand"?" tb-drop-item--on":""),
+          onClick:function(){
+            var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="freehand";
+            if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
+            else{ctx.setActiveTool("lasso");ctx.setLassoMode("freehand");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
+          }
+        }, svgFreehand, "Freehand"),
+        h("button", {
+          className:"tb-drop-item"+(ctx.activeTool==="lasso"&&ctx.lassoMode==="polygon"?" tb-drop-item--on":""),
+          onClick:function(){
+            var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="polygon";
+            if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
+            else{ctx.setActiveTool("lasso");ctx.setLassoMode("polygon");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
+          }
+        }, svgPolygon, "Polygon"),
+        h("button", {
+          className:"tb-drop-item"+(ctx.activeTool==="lasso"&&ctx.lassoMode==="magnetic"?" tb-drop-item--on":""),
+          onClick:function(){
+            var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="magnetic";
+            if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
+            else{ctx.setActiveTool("lasso");ctx.setLassoMode("magnetic");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
+          }
+        }, svgMagnetic, "Magnetic"),
+        (ctx.hasSelection || ctx.lassoInProgress) && h("div", {style:{borderTop:"1px solid var(--border)",marginTop:3,paddingTop:3}},
+          h("button", {
+            className:"tb-drop-item",
+            onClick:function(){if(ctx.cancelLasso)ctx.cancelLasso();if(ctx.clearSelection)ctx.clearSelection();}
+          }, "\u2715 Clear (", (ctx.selectionCount||0).toLocaleString(), ")")
+        )
+      )
+    ),
+    (ctx.hasSelection || ctx.lassoInProgress) && h("button", {
+      key:"select-clear",
+      className:"tb-btn",
+      onClick:function(){if(ctx.cancelLasso)ctx.cancelLasso();if(ctx.clearSelection)ctx.clearSelection();},
+      title:"Clear selection (Esc)",
+      style:{fontSize:9,padding:"2px 5px",color:"#475569"}
+    }, (ctx.selectionCount||0).toLocaleString()+" sel")
   ];
 
   // Colour chip
@@ -155,16 +293,51 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId]) ?
     h("span", {
       style:{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,
-        background:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"#e0f2fe":"#f4f4f5",
+        background:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"#e0f2fe":"#f1f5f9",
         flexShrink:0,
         border:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"1px solid #7dd3fc":"none"
       }
     },
       h("span", {style:{width:10,height:10,borderRadius:2,
         background:"rgb("+ctx.cmap[ctx.selectedColorId].rgb+")",
-        border:"1px solid #d4d4d8",display:"inline-block"}}),
+        border:"1px solid #cbd5e1",display:"inline-block"}}),
       ctx.selectedColorId
     ) : null;
+
+  // Active tool indicator badge
+  var badgeLabel, badgeBg, badgeColor, badgeDot;
+  if (ctx.activeTool === "eyedropper") {
+    badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#eab308";
+  } else if (ctx.activeTool === "magicWand") {
+    badgeLabel = "Magic Wand"; badgeBg = "#f3e8ff"; badgeColor = "#6b21a8"; badgeDot = "#a855f7";
+  } else if (ctx.activeTool === "lasso") {
+    var lm = ctx.lassoMode === "polygon" ? "Polygon" : ctx.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
+    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#fff7ed"; badgeColor = "#9a3412"; badgeDot = "#f97316";
+  } else if (ctx.stitchType === "erase" || ctx.activeTool === "eraseAll" || ctx.activeTool === "eraseBs") {
+    badgeLabel = "Erase"; badgeBg = "#fef2f2"; badgeColor = "#991b1b"; badgeDot = "#ef4444";
+  } else if (ctx.stitchType === "backstitch") {
+    badgeLabel = "Backstitch"; badgeBg = "#f5f5f5"; badgeColor = "#404040"; badgeDot = "#737373";
+  } else if (ctx.stitchType === "half-fwd") {
+    badgeLabel = "Half /"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
+  } else if (ctx.stitchType === "half-bck") {
+    badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
+  } else if (ctx.brushMode === "fill") {
+    badgeLabel = "Fill"; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+  } else if (ctx.brushMode === "paint") {
+    var szTxt = ctx.brushSize > 1 ? " " + ctx.brushSize + "\xD7" + ctx.brushSize : "";
+    badgeLabel = "Paint" + szTxt; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+  } else {
+    badgeLabel = null;
+  }
+  var toolBadge = badgeLabel ? h("span", {
+    style:{fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,
+      padding:"2px 8px 2px 6px",borderRadius:10,background:badgeBg,color:badgeColor,
+      flexShrink:0,letterSpacing:0.2,lineHeight:1.4,border:"1px solid " + badgeDot + "33"}
+  },
+    h("span", {style:{width:6,height:6,borderRadius:"50%",background:badgeDot,display:"inline-block",
+      boxShadow:"0 0 4px " + badgeDot + "66"}}),
+    badgeLabel
+  ) : null;
 
   // Zoom group
   var zoomGrp = h("div", {className:"tb-zoom-grp"},
@@ -203,7 +376,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:function(){ctx.setShowOverlay(function(v){return !v;});}
     },
       h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-        border:"2px solid "+(ctx.showOverlay?"#1D9E75":"#d4d4d8")}}),
+        border:"2px solid "+(ctx.showOverlay?"#0d9488":"#cbd5e1")}}),
       " Overlay"+(ctx.showOverlay?" \u2713":"")
     ),
     ctx.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
@@ -215,19 +388,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ] : null;
 
-  var viewItems = sc.view ? [
-    h("div", {key:"ovf-sep-view", className:"tb-ovf-sep"}),
-    h("span", {key:"ovf-lbl-view", className:"tb-ovf-lbl"}, "View"),
-    [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
-      return h("button", {
-        key:kl[0],
-        className:"tb-ovf-item"+(ctx.view===kl[0]?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setView(kl[0]); ctx.setOverflowOpen(false);}
-      }, kl[1]+(ctx.view===kl[0]?" \u2713":""));
-    })
-  ] : null;
-
-  var brushItems = (sc.brush && ctx.stitchType === "cross") ? [
+  var brushItems = sc.brush ? [
     h("div", {key:"ovf-sep-brush", className:"tb-ovf-sep"}),
     h("span", {key:"ovf-lbl-brush", className:"tb-ovf-lbl"}, "Brush"),
     [["paint","Paint"],["fill","Fill"]].map(function(kl) {
@@ -242,7 +403,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var overflowMenu = ctx.overflowOpen ? h("div", {className:"tb-overflow-menu"},
     h("span", {className:"tb-ovf-lbl"}, "Display"),
     overlayItems,
-    viewItems,
     brushItems
   ) : null;
 
@@ -255,19 +415,24 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     overflowMenu
   );
 
-  return h("div", {className:"tb-strip"},
-    h("div", {ref:ctx.stripRef, className:"tb-strip-inner"},
-      stitchGrp,
-      brushGrp,
-      sizeGrp,
-      bsCont,
-      viewGrp,
-      colChip,
-      h("div", {className:"tb-flex"}),
-      zoomGrp,
-      undoRedo,
-      h("div", {className:"tb-sdiv"}),
-      overflowWrap
+  return h(React.Fragment, null,
+    h("div", {className:"toolbar-row"},
+      h("div", {className:"pill-row"},
+        h("div", {ref:ctx.stripRef, className:"pill"},
+          brushGrp,
+          stitchDrop,
+          sizeGrp,
+          bsCont,
+          selectDrop,
+          colChip,
+          toolBadge,
+          zoomGrp,
+          undoRedo,
+          h("div", {className:"tb-sdiv"}),
+          overflowWrap
+        )
+      ),
+      swatchRow
     )
   );
 };
