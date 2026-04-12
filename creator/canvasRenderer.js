@@ -1,60 +1,8 @@
 /* creator/canvasRenderer.js — Pure drawPattern function.
    Extracted from CreatorApp so PatternCanvas and export canvas can share it.
-   Uses globals: drawCk, drawHalfStitchLine, drawQuadrantFill,
-   drawQuadrantStitchLine, drawQuadrantSymbol, luminance
+   Uses globals: drawCk, drawHalfTriangle, drawHalfLine, drawHalfSymbol,
+   drawThreeQuarterStitch, drawQuarterStitch, analysePartialStitches, luminance
    (defined in helpers.js / colour-utils.js). */
-
-// ─── Partial stitch cell renderer ─────────────────────────────────────────────
-// Draws industry-standard partial stitch representation for one cell.
-// Strategy:
-//  • BL+TR same colour → single / diagonal (half stitch or ¾ fwd)
-//  • TL+BR same colour → single \ diagonal (half stitch or ¾ bck)
-//  • Isolated quadrant → short corner→centre line (quarter stitch)
-//  • In all cases, draw a subtle tint first (colour cue at small zoom)
-//  • Three-quarter = one full diagonal + one short quarter from opposite corner
-function _drawPartialStitchCell(ctx2d, px, py, cSz, psEntry, alpha, view, cmap) {
-  if (!psEntry) return;
-  // Tint pass — render colour zones for all quadrants
-  ["TL","TR","BL","BR"].forEach(function(q) {
-    var qs = psEntry[q];
-    if (qs) drawQuadrantFill(ctx2d, px, py, cSz, q, qs.rgb, alpha);
-  });
-  if (cSz < 3) return; // too small for lines
-
-  // Line pass — group same-colour facing pairs into full diagonals
-  // Pair 1: BL+TR (the / diagonal)
-  var bl = psEntry.BL, tr = psEntry.TR;
-  var fwdPairDrawn = false;
-  if (bl && tr && bl.id === tr.id) {
-    drawHalfStitchLine(ctx2d, px, py, cSz, "fwd", bl.rgb, alpha);
-    fwdPairDrawn = true;
-  }
-  // Pair 2: TL+BR (the \ diagonal)
-  var tl = psEntry.TL, br = psEntry.BR;
-  var bckPairDrawn = false;
-  if (tl && br && tl.id === br.id) {
-    drawHalfStitchLine(ctx2d, px, py, cSz, "bck", tl.rgb, alpha);
-    bckPairDrawn = true;
-  }
-  // Quarter lines for any unpaired/unmatched quadrants
-  if (bl && !fwdPairDrawn) drawQuadrantStitchLine(ctx2d, px, py, cSz, "BL", bl.rgb, alpha);
-  if (tr && !fwdPairDrawn) drawQuadrantStitchLine(ctx2d, px, py, cSz, "TR", tr.rgb, alpha);
-  if (tl && !bckPairDrawn) drawQuadrantStitchLine(ctx2d, px, py, cSz, "TL", tl.rgb, alpha);
-  if (br && !bckPairDrawn) drawQuadrantStitchLine(ctx2d, px, py, cSz, "BR", br.rgb, alpha);
-
-  // Symbol pass
-  if (cSz >= 10 && (view === "symbol" || view === "both")) {
-    ["TL","TR","BL","BR"].forEach(function(q) {
-      var qs = psEntry[q];
-      if (!qs) return;
-      var qInfo = cmap ? cmap[qs.id] : null;
-      if (qInfo && qInfo.symbol) {
-        var qSymColor = view === "both" ? (luminance(qs.rgb) < 128 ? "#fff" : "#000") : "#333";
-        drawQuadrantSymbol(ctx2d, px, py, cSz, q, qInfo.symbol, qSymColor);
-      }
-    });
-  }
-}
 
 // ─── Highlight dimming helpers ────────────────────────────────────────────────
 
@@ -392,7 +340,27 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
 
       var psEntry = partialStitches.get(idx);
       if (psEntry) {
-        _drawPartialStitchCell(ctx2d, px, py, cSz, psEntry, dimAlpha, view, cmap);
+        var _instr = analysePartialStitches(psEntry, m);
+        _instr.forEach(function(inst) {
+          var _si = cmap ? cmap[inst.colour.id] : null;
+          var _sym = _si ? _si.symbol : null;
+          switch (inst.type) {
+            case "three-quarter":
+              drawThreeQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.emptyCorner, dimAlpha, view, _sym);
+              break;
+            case "quarter":
+              drawQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.corner, dimAlpha, view, _sym);
+              break;
+            case "half":
+              drawHalfTriangle(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha);
+              if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha, Math.max(1, cSz * 0.12));
+              if (cSz >= 10 && _sym && (view === "symbol" || view === "both")) {
+                drawHalfSymbol(ctx2d, px, py, cSz, inst.direction, _sym,
+                  view === "both" ? (luminance(inst.colour.rgb) < 128 ? "#fff" : "#000") : "#333");
+              }
+              break;
+          }
+        });
       }
     }
   }
@@ -644,7 +612,27 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
 
       var psEntry = partialStitches.get(idx);
       if (psEntry) {
-        _drawPartialStitchCell(ctx2d, px, py, cSz, psEntry, dimAlpha, view, cmap);
+        var _instr = analysePartialStitches(psEntry, m);
+        _instr.forEach(function(inst) {
+          var _si = cmap ? cmap[inst.colour.id] : null;
+          var _sym = _si ? _si.symbol : null;
+          switch (inst.type) {
+            case "three-quarter":
+              drawThreeQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.emptyCorner, dimAlpha, view, _sym);
+              break;
+            case "quarter":
+              drawQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.corner, dimAlpha, view, _sym);
+              break;
+            case "half":
+              drawHalfTriangle(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha);
+              if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha, Math.max(1, cSz * 0.12));
+              if (cSz >= 10 && _sym && (view === "symbol" || view === "both")) {
+                drawHalfSymbol(ctx2d, px, py, cSz, inst.direction, _sym,
+                  view === "both" ? (luminance(inst.colour.rgb) < 128 ? "#fff" : "#000") : "#333");
+              }
+              break;
+          }
+        });
       }
     }
   }

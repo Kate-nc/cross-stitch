@@ -183,61 +183,9 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
 /* ─── canvasRenderer.js ─── */
 /* creator/canvasRenderer.js — Pure drawPattern function.
    Extracted from CreatorApp so PatternCanvas and export canvas can share it.
-   Uses globals: drawCk, drawHalfStitchLine, drawQuadrantFill,
-   drawQuadrantStitchLine, drawQuadrantSymbol, luminance
+   Uses globals: drawCk, drawHalfTriangle, drawHalfLine, drawHalfSymbol,
+   drawThreeQuarterStitch, drawQuarterStitch, analysePartialStitches, luminance
    (defined in helpers.js / colour-utils.js). */
-
-// ─── Partial stitch cell renderer ─────────────────────────────────────────────
-// Draws industry-standard partial stitch representation for one cell.
-// Strategy:
-//  • BL+TR same colour → single / diagonal (half stitch or ¾ fwd)
-//  • TL+BR same colour → single \ diagonal (half stitch or ¾ bck)
-//  • Isolated quadrant → short corner→centre line (quarter stitch)
-//  • In all cases, draw a subtle tint first (colour cue at small zoom)
-//  • Three-quarter = one full diagonal + one short quarter from opposite corner
-function _drawPartialStitchCell(ctx2d, px, py, cSz, psEntry, alpha, view, cmap) {
-  if (!psEntry) return;
-  // Tint pass — render colour zones for all quadrants
-  ["TL","TR","BL","BR"].forEach(function(q) {
-    var qs = psEntry[q];
-    if (qs) drawQuadrantFill(ctx2d, px, py, cSz, q, qs.rgb, alpha);
-  });
-  if (cSz < 3) return; // too small for lines
-
-  // Line pass — group same-colour facing pairs into full diagonals
-  // Pair 1: BL+TR (the / diagonal)
-  var bl = psEntry.BL, tr = psEntry.TR;
-  var fwdPairDrawn = false;
-  if (bl && tr && bl.id === tr.id) {
-    drawHalfStitchLine(ctx2d, px, py, cSz, "fwd", bl.rgb, alpha);
-    fwdPairDrawn = true;
-  }
-  // Pair 2: TL+BR (the \ diagonal)
-  var tl = psEntry.TL, br = psEntry.BR;
-  var bckPairDrawn = false;
-  if (tl && br && tl.id === br.id) {
-    drawHalfStitchLine(ctx2d, px, py, cSz, "bck", tl.rgb, alpha);
-    bckPairDrawn = true;
-  }
-  // Quarter lines for any unpaired/unmatched quadrants
-  if (bl && !fwdPairDrawn) drawQuadrantStitchLine(ctx2d, px, py, cSz, "BL", bl.rgb, alpha);
-  if (tr && !fwdPairDrawn) drawQuadrantStitchLine(ctx2d, px, py, cSz, "TR", tr.rgb, alpha);
-  if (tl && !bckPairDrawn) drawQuadrantStitchLine(ctx2d, px, py, cSz, "TL", tl.rgb, alpha);
-  if (br && !bckPairDrawn) drawQuadrantStitchLine(ctx2d, px, py, cSz, "BR", br.rgb, alpha);
-
-  // Symbol pass
-  if (cSz >= 10 && (view === "symbol" || view === "both")) {
-    ["TL","TR","BL","BR"].forEach(function(q) {
-      var qs = psEntry[q];
-      if (!qs) return;
-      var qInfo = cmap ? cmap[qs.id] : null;
-      if (qInfo && qInfo.symbol) {
-        var qSymColor = view === "both" ? (luminance(qs.rgb) < 128 ? "#fff" : "#000") : "#333";
-        drawQuadrantSymbol(ctx2d, px, py, cSz, q, qInfo.symbol, qSymColor);
-      }
-    });
-  }
-}
 
 // ─── Highlight dimming helpers ────────────────────────────────────────────────
 
@@ -575,7 +523,27 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
 
       var psEntry = partialStitches.get(idx);
       if (psEntry) {
-        _drawPartialStitchCell(ctx2d, px, py, cSz, psEntry, dimAlpha, view, cmap);
+        var _instr = analysePartialStitches(psEntry, m);
+        _instr.forEach(function(inst) {
+          var _si = cmap ? cmap[inst.colour.id] : null;
+          var _sym = _si ? _si.symbol : null;
+          switch (inst.type) {
+            case "three-quarter":
+              drawThreeQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.emptyCorner, dimAlpha, view, _sym);
+              break;
+            case "quarter":
+              drawQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.corner, dimAlpha, view, _sym);
+              break;
+            case "half":
+              drawHalfTriangle(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha);
+              if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha, Math.max(1, cSz * 0.12));
+              if (cSz >= 10 && _sym && (view === "symbol" || view === "both")) {
+                drawHalfSymbol(ctx2d, px, py, cSz, inst.direction, _sym,
+                  view === "both" ? (luminance(inst.colour.rgb) < 128 ? "#fff" : "#000") : "#333");
+              }
+              break;
+          }
+        });
       }
     }
   }
@@ -827,7 +795,27 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
 
       var psEntry = partialStitches.get(idx);
       if (psEntry) {
-        _drawPartialStitchCell(ctx2d, px, py, cSz, psEntry, dimAlpha, view, cmap);
+        var _instr = analysePartialStitches(psEntry, m);
+        _instr.forEach(function(inst) {
+          var _si = cmap ? cmap[inst.colour.id] : null;
+          var _sym = _si ? _si.symbol : null;
+          switch (inst.type) {
+            case "three-quarter":
+              drawThreeQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.emptyCorner, dimAlpha, view, _sym);
+              break;
+            case "quarter":
+              drawQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.corner, dimAlpha, view, _sym);
+              break;
+            case "half":
+              drawHalfTriangle(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha);
+              if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha, Math.max(1, cSz * 0.12));
+              if (cSz >= 10 && _sym && (view === "symbol" || view === "both")) {
+                drawHalfSymbol(ctx2d, px, py, cSz, inst.direction, _sym,
+                  view === "both" ? (luminance(inst.colour.rgb) < 128 ? "#fff" : "#000") : "#333");
+              }
+              break;
+          }
+        });
       }
     }
   }
@@ -1436,38 +1424,57 @@ window.exportPDF = async function exportPDF(options, data) {
   var gridRows = isSinglePage ? sH : gridRowsA4;
   var pagesX = Math.ceil(sW / gridCols), pagesY = Math.ceil(sH / gridRows);
 
-  var _psqKeys = ["TL", "TR", "BL", "BR"];
-  function _drawPdfPartialStitchCell(px3, py3, psEntry) {
-    var half = cellMM / 2;
-    if (cellMM < 3) {
-      var r2 = 0, g2 = 0, b2 = 0, cnt2 = 0;
-      for (var qi2 = 0; qi2 < _psqKeys.length; qi2++) { var qe2 = psEntry[_psqKeys[qi2]]; if (qe2) { r2 += qe2.rgb[0]; g2 += qe2.rgb[1]; b2 += qe2.rgb[2]; cnt2++; } }
-      if (cnt2 > 0) { pdf.setFillColor(Math.round(r2 / cnt2), Math.round(g2 / cnt2), Math.round(b2 / cnt2)); pdf.rect(px3, py3, cellMM, cellMM, "F"); }
-      return;
+  // Draw a ¾ stitch triangle fill + symbol for PDF.
+  function drawPdfThreeQuarter(px3, py3, emptyCorner, rgb, symbol) {
+    var mx = px3 + cellMM / 2, my = py3 + cellMM / 2;
+    if (displayMode === "color_symbol" || displayMode === "color") {
+      pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
+      switch (emptyCorner) {
+        case "TL": pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3 + cellMM, "F"); break;
+        case "TR": pdf.triangle(px3, py3, px3, py3 + cellMM, px3 + cellMM, py3 + cellMM, "F"); break;
+        case "BL": pdf.triangle(px3, py3, px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, "F"); break;
+        case "BR": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F"); break;
+      }
     }
-    for (var qi3 = 0; qi3 < _psqKeys.length; qi3++) {
-      var q3 = _psqKeys[qi3], qe3 = psEntry[q3];
-      if (!qe3) continue;
-      var qx3 = (q3 === "TR" || q3 === "BR") ? px3 + half : px3;
-      var qy3 = (q3 === "BL" || q3 === "BR") ? py3 + half : py3;
-      pdf.setFillColor(qe3.rgb[0], qe3.rgb[1], qe3.rgb[2]); pdf.rect(qx3, qy3, half, half, "F");
+    if (symbol && (displayMode === "color_symbol" || displayMode === "symbol") && cellMM >= 3) {
+      var sx, sy;
+      switch (emptyCorner) {
+        case "TL": sx = px3 + cellMM * 0.6; sy = py3 + cellMM * 0.6; break;
+        case "TR": sx = px3 + cellMM * 0.4; sy = py3 + cellMM * 0.6; break;
+        case "BL": sx = px3 + cellMM * 0.6; sy = py3 + cellMM * 0.4; break;
+        case "BR": sx = px3 + cellMM * 0.4; sy = py3 + cellMM * 0.4; break;
+      }
+      var isLight = displayMode === "color_symbol" && luminance(rgb) <= 128;
+      pdf.setTextColor(isLight ? 255 : 0); pdf.setDrawColor(isLight ? 255 : 0); pdf.setFillColor(isLight ? 255 : 0);
+      if (typeof drawPDFSymbol === "function") drawPDFSymbol(pdf, symbol, sx, sy, cellMM * 0.7);
+      else { pdf.setFontSize(Math.max(3, cellMM * 1.2)); pdf.text(symbol, sx, sy + cellMM * 0.15, { align: "center" }); }
     }
-    pdf.setDrawColor(180); pdf.setLineWidth(0.08);
-    pdf.line(px3 + half, py3, px3 + half, py3 + cellMM);
-    pdf.line(px3, py3 + half, px3 + cellMM, py3 + half);
-    if ((displayMode === "color_symbol" || displayMode === "symbol") && cellMM >= 3) {
-      for (var qi4 = 0; qi4 < _psqKeys.length; qi4++) {
-        var q4 = _psqKeys[qi4], qe4 = psEntry[q4];
-        if (!qe4) continue;
-        var info4 = cmap[qe4.id];
-        if (!info4) continue;
-        var qx4 = (q4 === "TR" || q4 === "BR") ? px3 + half : px3;
-        var qy4 = (q4 === "BL" || q4 === "BR") ? py3 + half : py3;
-        var cx4 = qx4 + half / 2, cy4 = qy4 + half / 2;
-        var isLight4 = displayMode === "color_symbol" && luminance(qe4.rgb) <= 128;
-        pdf.setTextColor(isLight4 ? 255 : 0); pdf.setDrawColor(isLight4 ? 255 : 0); pdf.setFillColor(isLight4 ? 255 : 0);
-        if (typeof drawPDFSymbol === "function") drawPDFSymbol(pdf, info4.symbol, cx4, cy4, half);
-        else { pdf.setFontSize(3); pdf.text(info4.symbol, cx4, cy4 + half * 0.3, {align: "center"}); }
+  }
+
+  // Draw a ¼ stitch complementary triangle fill + symbol for PDF.
+  function drawPdfQuarter(px3, py3, corner, rgb, symbol) {
+    if (displayMode === "color_symbol" || displayMode === "color") {
+      pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
+      switch (corner) {
+        case "TL": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F"); break;
+        case "TR": pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3, "F"); break;
+        case "BL": pdf.triangle(px3, py3 + cellMM, px3, py3, px3 + cellMM, py3 + cellMM, "F"); break;
+        case "BR": pdf.triangle(px3 + cellMM, py3 + cellMM, px3 + cellMM, py3, px3, py3 + cellMM, "F"); break;
+      }
+    }
+    if (symbol && (displayMode === "color_symbol" || displayMode === "symbol") && cellMM >= 3) {
+      var sx, sy;
+      switch (corner) {
+        case "TL": sx = px3 + cellMM * 0.25; sy = py3 + cellMM * 0.3; break;
+        case "TR": sx = px3 + cellMM * 0.75; sy = py3 + cellMM * 0.3; break;
+        case "BL": sx = px3 + cellMM * 0.25; sy = py3 + cellMM * 0.75; break;
+        case "BR": sx = px3 + cellMM * 0.75; sy = py3 + cellMM * 0.75; break;
+      }
+      var isLight = displayMode === "color_symbol" && luminance(rgb) <= 128;
+      pdf.setTextColor(isLight ? 255 : 0); pdf.setDrawColor(isLight ? 255 : 0); pdf.setFillColor(isLight ? 255 : 0);
+      if (cellMM >= 2.5) {
+        if (typeof drawPDFSymbol === "function") drawPDFSymbol(pdf, symbol, sx, sy, cellMM * 0.5);
+        else { pdf.setFontSize(Math.max(2.5, cellMM * 0.8)); pdf.text(symbol, sx, sy + cellMM * 0.1, { align: "center" }); }
       }
     }
   }
@@ -1529,7 +1536,47 @@ window.exportPDF = async function exportPDF(options, data) {
             var psEntry = !isBackstitchOnly ? partialStitches.get((y0 + gy) * sW + (x0 + gx)) : null;
             if (psEntry) {
               pdf.setFillColor(255, 255, 255); pdf.rect(px3, py3, cellMM, cellMM, "F");
-              _drawPdfPartialStitchCell(px3, py3, psEntry);
+              if (cellMM < 2.5) {
+                // Too small for triangles — blend colours into a solid block
+                var _r = 0, _g = 0, _b = 0, _cnt = 0;
+                var _psk = ["TL","TR","BL","BR"];
+                for (var _qi = 0; _qi < _psk.length; _qi++) { var _qe = psEntry[_psk[_qi]]; if (_qe) { _r += _qe.rgb[0]; _g += _qe.rgb[1]; _b += _qe.rgb[2]; _cnt++; } }
+                if (_cnt > 0) { pdf.setFillColor(Math.round(_r/_cnt), Math.round(_g/_cnt), Math.round(_b/_cnt)); pdf.rect(px3, py3, cellMM, cellMM, "F"); }
+              } else {
+                var _psinstr = analysePartialStitches(psEntry, m);
+                _psinstr.forEach(function(inst) {
+                  var _pssi = cmap[inst.colour.id];
+                  var _pssym = _pssi ? _pssi.symbol : null;
+                  switch (inst.type) {
+                    case "three-quarter": drawPdfThreeQuarter(px3, py3, inst.emptyCorner, inst.colour.rgb, _pssym); break;
+                    case "quarter":       drawPdfQuarter(px3, py3, inst.corner, inst.colour.rgb, _pssym); break;
+                    case "half":
+                      if (displayMode === "color_symbol" || displayMode === "color") {
+                        pdf.setFillColor(inst.colour.rgb[0], inst.colour.rgb[1], inst.colour.rgb[2]);
+                        if (inst.direction === "fwd") {
+                          pdf.triangle(px3, py3 + cellMM, px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, "F");
+                          pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F");
+                        } else {
+                          pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F");
+                          pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3 + cellMM, "F");
+                        }
+                      }
+                      if (_pssym && (displayMode === "color_symbol" || displayMode === "symbol") && cellMM >= 3) {
+                        var _hsl = displayMode === "color_symbol" && luminance(inst.colour.rgb) <= 128;
+                        pdf.setTextColor(_hsl ? 255 : 0); pdf.setDrawColor(_hsl ? 255 : 0); pdf.setFillColor(_hsl ? 255 : 0);
+                        if (typeof drawPDFSymbol === "function") drawPDFSymbol(pdf, _pssym, px3 + cellMM / 2, py3 + cellMM / 2, cellMM);
+                        else { pdf.setFontSize(Math.max(3, cellMM * 1.0)); pdf.text(_pssym, px3 + cellMM / 2, py3 + cellMM * 0.6, { align: "center" }); }
+                      }
+                      break;
+                  }
+                });
+                // Thin diagonal separator line through centre
+                pdf.setDrawColor(180); pdf.setLineWidth(0.08);
+                var _hasFwd = _psinstr.some(function(i) { return (i.type === "three-quarter" && (i.emptyCorner === "TL" || i.emptyCorner === "BR")) || (i.type === "half" && i.direction === "fwd"); });
+                var _hasBck = _psinstr.some(function(i) { return (i.type === "three-quarter" && (i.emptyCorner === "TR" || i.emptyCorner === "BL")) || (i.type === "half" && i.direction === "bck"); });
+                if (_hasFwd) pdf.line(px3, py3 + cellMM, px3 + cellMM, py3);
+                if (_hasBck) pdf.line(px3, py3, px3 + cellMM, py3 + cellMM);
+              }
               pdf.setDrawColor(displayMode === "symbol" ? 150 : 200); pdf.setLineWidth(0.2); pdf.rect(px3, py3, cellMM, cellMM, "S");
               if (isOverlap) pdf.setGState(new pdf.GState({ opacity: 1.0 }));
               continue;
