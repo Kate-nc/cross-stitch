@@ -6754,14 +6754,11 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
   var menu = ctx.contextMenu;
-  if (!menu) return null;
 
-  var cell = menu.cell;
-  var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
-  var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
-
-  // Close menu on outside click or Escape
+  // Close menu on outside click or Escape.
+  // Must be declared before any early returns (Rules of Hooks).
   React.useEffect(function() {
+    if (!menu) return;
     function close() { ctx.setContextMenu(null); }
     function onKey(e) { if (e.key === "Escape") close(); }
     document.addEventListener("pointerdown", close);
@@ -6770,7 +6767,13 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       document.removeEventListener("pointerdown", close);
       document.removeEventListener("keydown", onKey);
     };
-  }, []);
+  }, [menu]);
+
+  if (!menu) return null;
+
+  var cell = menu.cell;
+  var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
+  var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
 
   function item(label, onClick, opts) {
     opts = opts || {};
@@ -6882,11 +6885,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     }
   }, [ctx.confettiData]);
 
-  if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "pattern") return null;
-
   // Track Shift/Alt modifier keys when a selection tool is active.
   // Updates ctx.selectionModifier so MagicWandPanel can show the effective mode.
+  // Must be declared before any early returns (Rules of Hooks).
   React.useEffect(function() {
     if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso") {
       ctx.setSelectionModifier(null);
@@ -6906,6 +6907,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ctx.setSelectionModifier(null);
     };
   }, [ctx.activeTool]);
+
+  if (!(ctx.pat && ctx.pal)) return null;
+  if (ctx.tab !== "pattern") return null;
 
   // PaletteSwap confirm view takes over when active
   if (ctx.paletteSwap && ctx.paletteSwap.showConfirm) {
