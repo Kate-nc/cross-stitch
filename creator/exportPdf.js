@@ -274,18 +274,38 @@ window.exportPDF = async function exportPDF(options, data) {
         case "BR": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F"); break;
       }
     }
-    if (symbol && (displayMode === "color_symbol" || displayMode === "symbol") && cellMM >= 3) {
+    if (symbol && (displayMode === "color_symbol" || displayMode === "symbol")) {
       var sx, sy;
       switch (emptyCorner) {
-        case "TL": sx = px3 + cellMM * 0.6; sy = py3 + cellMM * 0.6; break;
-        case "TR": sx = px3 + cellMM * 0.4; sy = py3 + cellMM * 0.6; break;
-        case "BL": sx = px3 + cellMM * 0.6; sy = py3 + cellMM * 0.4; break;
-        case "BR": sx = px3 + cellMM * 0.4; sy = py3 + cellMM * 0.4; break;
+        case "TL": sx = px3 + cellMM * 0.625; sy = py3 + cellMM * 0.625; break;
+        case "TR": sx = px3 + cellMM * 0.375; sy = py3 + cellMM * 0.625; break;
+        case "BL": sx = px3 + cellMM * 0.625; sy = py3 + cellMM * 0.375; break;
+        case "BR": sx = px3 + cellMM * 0.375; sy = py3 + cellMM * 0.375; break;
       }
-      var isLight = displayMode === "color_symbol" && luminance(rgb) <= 128;
-      pdf.setTextColor(isLight ? 255 : 0); pdf.setDrawColor(isLight ? 255 : 0); pdf.setFillColor(isLight ? 255 : 0);
-      if (typeof drawPDFSymbol === "function") drawPDFSymbol(pdf, symbol, sx, sy, cellMM * 0.7);
-      else { pdf.setFontSize(Math.max(3, cellMM * 1.2)); pdf.text(symbol, sx, sy + cellMM * 0.15, { align: "center" }); }
+      if (displayMode === "symbol") {
+        pdf.setDrawColor(180);
+        pdf.setLineWidth(0.08);
+        switch (emptyCorner) {
+          case "TL": pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3 + cellMM, "S"); break;
+          case "TR": pdf.triangle(px3, py3, px3, py3 + cellMM, px3 + cellMM, py3 + cellMM, "S"); break;
+          case "BL": pdf.triangle(px3, py3, px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, "S"); break;
+          case "BR": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "S"); break;
+        }
+      }
+      var symSize = cellMM >= 4.5 ? cellMM * 0.55 : cellMM * 0.45;
+      if (cellMM < 3.0) {
+        pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
+        pdf.circle(sx, sy, 0.3, "F");
+      } else {
+        var isLight = displayMode === "color_symbol" && luminance(rgb) <= 128;
+        pdf.setTextColor(isLight ? 255 : 0); pdf.setDrawColor(isLight ? 255 : 0); pdf.setFillColor(isLight ? 255 : 0);
+        if (typeof drawPDFSymbol === "function") {
+          drawPDFSymbol(pdf, symbol, sx, sy, symSize);
+        } else {
+          pdf.setFontSize(Math.max(3, symSize * 2));
+          pdf.text(symbol, sx, sy, { align: "center", baseline: "middle" });
+        }
+      }
     }
   }
 
@@ -300,19 +320,37 @@ window.exportPDF = async function exportPDF(options, data) {
         case "BR": pdf.triangle(px3 + cellMM, py3 + cellMM, px3 + cellMM, py3, px3, py3 + cellMM, "F"); break;
       }
     }
-    if (symbol && (displayMode === "color_symbol" || displayMode === "symbol") && cellMM >= 3) {
+    if (symbol && (displayMode === "color_symbol" || displayMode === "symbol")) {
       var sx, sy;
       switch (corner) {
-        case "TL": sx = px3 + cellMM * 0.25; sy = py3 + cellMM * 0.3; break;
-        case "TR": sx = px3 + cellMM * 0.75; sy = py3 + cellMM * 0.3; break;
-        case "BL": sx = px3 + cellMM * 0.25; sy = py3 + cellMM * 0.75; break;
-        case "BR": sx = px3 + cellMM * 0.75; sy = py3 + cellMM * 0.75; break;
+        case "TL": sx = px3 + cellMM * 0.29; sy = py3 + cellMM * 0.29; break;
+        case "TR": sx = px3 + cellMM * 0.71; sy = py3 + cellMM * 0.29; break;
+        case "BL": sx = px3 + cellMM * 0.29; sy = py3 + cellMM * 0.71; break;
+        case "BR": sx = px3 + cellMM * 0.71; sy = py3 + cellMM * 0.71; break;
       }
-      var isLight = displayMode === "color_symbol" && luminance(rgb) <= 128;
-      pdf.setTextColor(isLight ? 255 : 0); pdf.setDrawColor(isLight ? 255 : 0); pdf.setFillColor(isLight ? 255 : 0);
-      if (cellMM >= 2.5) {
-        if (typeof drawPDFSymbol === "function") drawPDFSymbol(pdf, symbol, sx, sy, cellMM * 0.5);
-        else { pdf.setFontSize(Math.max(2.5, cellMM * 0.8)); pdf.text(symbol, sx, sy + cellMM * 0.1, { align: "center" }); }
+      if (displayMode === "symbol") {
+        pdf.setDrawColor(180);
+        pdf.setLineWidth(0.08);
+        switch (corner) {
+          case "TL": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "S"); break;
+          case "TR": pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3, "S"); break;
+          case "BL": pdf.triangle(px3, py3 + cellMM, px3, py3, px3 + cellMM, py3 + cellMM, "S"); break;
+          case "BR": pdf.triangle(px3 + cellMM, py3 + cellMM, px3 + cellMM, py3, px3, py3 + cellMM, "S"); break;
+        }
+      }
+      var symSize = cellMM >= 4.5 ? cellMM * 0.4 : cellMM * 0.35;
+      if (cellMM < 3.0) {
+        pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
+        pdf.circle(sx, sy, 0.25, "F");
+      } else {
+        var isLight = displayMode === "color_symbol" && luminance(rgb) <= 128;
+        pdf.setTextColor(isLight ? 255 : 0); pdf.setDrawColor(isLight ? 255 : 0); pdf.setFillColor(isLight ? 255 : 0);
+        if (typeof drawPDFSymbol === "function") {
+          drawPDFSymbol(pdf, symbol, sx, sy, symSize);
+        } else {
+          pdf.setFontSize(Math.max(2.5, symSize * 2));
+          pdf.text(symbol, sx, sy, { align: "center", baseline: "middle" });
+        }
       }
     }
   }

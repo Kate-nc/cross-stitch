@@ -294,21 +294,55 @@ function drawThreeQuarterStitch(ctx, px, py, cSz, colour, emptyCorner, alpha, vi
     }
     ctx.stroke();
   }
-  // Step 3: Symbol in ¾ centroid (offset away from empty corner)
+  // Step 3: Symbol in ¾ centroid (true quadrilateral centroid)
   if (cSz >= 10 && symbol && (view === "symbol" || view === "both")) {
     var sx, sy;
     switch (emptyCorner) {
-      case "TL": sx = px + cSz * 0.6; sy = py + cSz * 0.6; break;
-      case "TR": sx = px + cSz * 0.4; sy = py + cSz * 0.6; break;
-      case "BL": sx = px + cSz * 0.6; sy = py + cSz * 0.4; break;
-      case "BR": sx = px + cSz * 0.4; sy = py + cSz * 0.4; break;
+      case "TL": sx = px + cSz * 0.625; sy = py + cSz * 0.625; break;
+      case "TR": sx = px + cSz * 0.375; sy = py + cSz * 0.625; break;
+      case "BL": sx = px + cSz * 0.625; sy = py + cSz * 0.375; break;
+      case "BR": sx = px + cSz * 0.375; sy = py + cSz * 0.375; break;
     }
     var lum = luminance(rgb);
     ctx.fillStyle = view === "both" ? (lum > 128 ? "#000" : "#fff") : "#333";
-    ctx.font = "bold " + Math.max(5, cSz * 0.4) + "px monospace";
+    var fontSize = Math.max(5, Math.round(cSz * 0.32));
+    ctx.font = "bold " + fontSize + "px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(symbol, sx, sy);
+  }
+  if (view === "symbol" && cSz >= 8) {
+    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    switch (emptyCorner) {
+      case "TL":
+        ctx.moveTo(px + cSz, py);
+        ctx.lineTo(px + cSz, py + cSz);
+        ctx.lineTo(px, py + cSz);
+        ctx.lineTo(mx, my);
+        break;
+      case "TR":
+        ctx.moveTo(px, py);
+        ctx.lineTo(mx, my);
+        ctx.lineTo(px + cSz, py + cSz);
+        ctx.lineTo(px, py + cSz);
+        break;
+      case "BL":
+        ctx.moveTo(px, py);
+        ctx.lineTo(px + cSz, py);
+        ctx.lineTo(px + cSz, py + cSz);
+        ctx.lineTo(mx, my);
+        break;
+      case "BR":
+        ctx.moveTo(px, py);
+        ctx.lineTo(px + cSz, py);
+        ctx.lineTo(mx, my);
+        ctx.lineTo(px, py + cSz);
+        break;
+    }
+    ctx.closePath();
+    ctx.stroke();
   }
 }
 
@@ -352,21 +386,35 @@ function drawQuarterStitch(ctx, px, py, cSz, colour, corner, alpha, view, symbol
     }
     ctx.stroke();
   }
-  // Step 3: Symbol in corner quadrant
-  if (cSz >= 10 && symbol && (view === "symbol" || view === "both")) {
+  // Step 3: Symbol in corner quadrant (inward-nudged centroid)
+  if (cSz >= 14 && symbol && (view === "symbol" || view === "both")) {
     var sx, sy;
     switch (corner) {
-      case "TL": sx = px + cSz * 0.25; sy = py + cSz * 0.25; break;
-      case "TR": sx = px + cSz * 0.75; sy = py + cSz * 0.25; break;
-      case "BL": sx = px + cSz * 0.25; sy = py + cSz * 0.75; break;
-      case "BR": sx = px + cSz * 0.75; sy = py + cSz * 0.75; break;
+      case "TL": sx = px + cSz * 0.29; sy = py + cSz * 0.29; break;
+      case "TR": sx = px + cSz * 0.71; sy = py + cSz * 0.29; break;
+      case "BL": sx = px + cSz * 0.29; sy = py + cSz * 0.71; break;
+      case "BR": sx = px + cSz * 0.71; sy = py + cSz * 0.71; break;
     }
     var lum = luminance(rgb);
     ctx.fillStyle = view === "both" ? (lum > 128 ? "#000" : "#fff") : "#333";
-    ctx.font = "bold " + Math.max(5, cSz * 0.35) + "px monospace";
+    var fontSize = Math.max(5, Math.round(cSz * 0.24));
+    ctx.font = "bold " + fontSize + "px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(symbol, sx, sy);
+  }
+  if (view === "symbol" && cSz >= 8) {
+    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    switch (corner) {
+      case "TL": ctx.moveTo(px, py); ctx.lineTo(mx, my); ctx.lineTo(px, my); break;
+      case "TR": ctx.moveTo(px + cSz, py); ctx.lineTo(mx, my); ctx.lineTo(px + cSz, my); break;
+      case "BL": ctx.moveTo(px, py + cSz); ctx.lineTo(mx, my); ctx.lineTo(px, my); break;
+      case "BR": ctx.moveTo(px + cSz, py + cSz); ctx.lineTo(mx, my); ctx.lineTo(px + cSz, my); break;
+    }
+    ctx.closePath();
+    ctx.stroke();
   }
 }
 
