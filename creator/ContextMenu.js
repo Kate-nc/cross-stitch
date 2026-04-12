@@ -6,14 +6,11 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
   var menu = ctx.contextMenu;
-  if (!menu) return null;
 
-  var cell = menu.cell;
-  var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
-  var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
-
-  // Close menu on outside click or Escape
+  // Close menu on outside click or Escape.
+  // Must be declared before any early returns (Rules of Hooks).
   React.useEffect(function() {
+    if (!menu) return;
     function close() { ctx.setContextMenu(null); }
     function onKey(e) { if (e.key === "Escape") close(); }
     document.addEventListener("pointerdown", close);
@@ -22,7 +19,13 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       document.removeEventListener("pointerdown", close);
       document.removeEventListener("keydown", onKey);
     };
-  }, []);
+  }, [menu]);
+
+  if (!menu) return null;
+
+  var cell = menu.cell;
+  var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
+  var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
 
   function item(label, onClick, opts) {
     opts = opts || {};
@@ -85,7 +88,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     // Select similar
     item([Icons.wand(), " Select similar (wand)"], function() {
       ctx.setActiveTool("magicWand");
-      ctx.setHalfStitchTool(null);
+      ctx.setPartialStitchTool(null);
       ctx.setBsStart(null);
       ctx.applyWandSelect(menu.gx, menu.gy, ctx.wandOpMode);
     }, {disabled: !hasCellColour, k: 'wand'}),
@@ -106,7 +109,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     hasCellColour && item([Icons.info(), " Stitch info"], function() {
       if (cellInfo) {
         ctx.setActiveTool("magicWand");
-        ctx.setHalfStitchTool(null);
+        ctx.setPartialStitchTool(null);
         ctx.applyWandSelect(menu.gx, menu.gy, "replace");
         ctx.setWandPanel("info");
       }

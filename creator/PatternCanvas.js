@@ -101,7 +101,7 @@ window.PatternCanvas = function PatternCanvas() {
   }, [
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
     ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
-    ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool,
+    ctx.img, ctx.partialStitches, ctx.stitchType, ctx.partialStitchTool,
     ctx.showCleanupDiff, ctx.cleanupDiff,
     ctx.dimFraction, ctx.dimHiId, ctx.bgDimOpacity, ctx.bgDimDesaturation,
     ctx.highlightMode, ctx.tintColor, ctx.tintOpacity, ctx.spotDimOpacity
@@ -124,7 +124,7 @@ window.PatternCanvas = function PatternCanvas() {
     ctx.hoverCoords, ctx.selectedColorId, ctx.bsStart,
     // structural deps — needed so the overlay is redrawn correctly when these change
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.tab,
-    ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.halfStitchTool, ctx.bsLines,
+    ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.partialStitchTool, ctx.bsLines,
     ctx.lassoMode, ctx.lassoPoints, ctx.lassoPreviewMask, ctx.lassoCursor, ctx.lassoInProgress,
     ctx.selectionMask, ctx.confettiPreview
   ]);

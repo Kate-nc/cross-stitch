@@ -1,4 +1,4 @@
-/* creator/useEditHistory.js — Undo/redo for pixel/half-stitch/backstitch edits.
+/* creator/useEditHistory.js — Undo/redo for pixel/partial-stitch/backstitch edits.
    Uses a delta (change-list) approach: each history entry stores the OLD values
    of changed cells so they can be restored without keeping full snapshots.
    Expects a `state` object returned from useCreatorState. */
@@ -7,7 +7,7 @@ window.useEditHistory = function useEditHistory(state) {
   function undoEdit() {
     var editHistory = state.editHistory;
     var pat = state.pat;
-    var halfStitches = state.halfStitches;
+    var partialStitches = state.partialStitches;
     var bsLines = state.bsLines;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     var buildPaletteWithScratch = state.buildPaletteWithScratch;
@@ -19,12 +19,12 @@ window.useEditHistory = function useEditHistory(state) {
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
     state.setPat(np);
 
-    var redoHsChanges = null;
-    if (last.hsChanges) {
-      var nm = new Map(halfStitches);
-      redoHsChanges = last.hsChanges.map(function(c) { return { idx: c.idx, old: nm.has(c.idx) ? Object.assign({}, nm.get(c.idx)) : null }; });
-      last.hsChanges.forEach(function(c) { if (c.old) nm.set(c.idx, c.old); else nm.delete(c.idx); });
-      state.setHalfStitches(nm);
+    var redoPsChanges = null;
+    if (last.psChanges) {
+      var nm = new Map(partialStitches);
+      redoPsChanges = last.psChanges.map(function(c) { return { idx: c.idx, old: nm.has(c.idx) ? Object.assign({}, nm.get(c.idx)) : null }; });
+      last.psChanges.forEach(function(c) { if (c.old) nm.set(c.idx, c.old); else nm.delete(c.idx); });
+      state.setPartialStitches(nm);
     }
 
     var redoBsLines = null;
@@ -35,7 +35,7 @@ window.useEditHistory = function useEditHistory(state) {
 
     state.setEditHistory(function(prev) { return prev.slice(0, -1); });
     state.setRedoHistory(function(prev) {
-      var n = prev.concat([{ type: last.type, changes: redoChanges, hsChanges: redoHsChanges, bsLines: redoBsLines }]);
+      var n = prev.concat([{ type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines }]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
@@ -47,7 +47,7 @@ window.useEditHistory = function useEditHistory(state) {
   function redoEdit() {
     var redoHistory = state.redoHistory;
     var pat = state.pat;
-    var halfStitches = state.halfStitches;
+    var partialStitches = state.partialStitches;
     var bsLines = state.bsLines;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     var buildPaletteWithScratch = state.buildPaletteWithScratch;
@@ -59,12 +59,12 @@ window.useEditHistory = function useEditHistory(state) {
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
     state.setPat(np);
 
-    var undoHsChanges = null;
-    if (last.hsChanges) {
-      var nm = new Map(halfStitches);
-      undoHsChanges = last.hsChanges.map(function(c) { return { idx: c.idx, old: nm.has(c.idx) ? Object.assign({}, nm.get(c.idx)) : null }; });
-      last.hsChanges.forEach(function(c) { if (c.old) nm.set(c.idx, c.old); else nm.delete(c.idx); });
-      state.setHalfStitches(nm);
+    var undoPsChanges = null;
+    if (last.psChanges) {
+      var nm = new Map(partialStitches);
+      undoPsChanges = last.psChanges.map(function(c) { return { idx: c.idx, old: nm.has(c.idx) ? Object.assign({}, nm.get(c.idx)) : null }; });
+      last.psChanges.forEach(function(c) { if (c.old) nm.set(c.idx, c.old); else nm.delete(c.idx); });
+      state.setPartialStitches(nm);
     }
 
     var undoBsLines = null;
@@ -75,7 +75,7 @@ window.useEditHistory = function useEditHistory(state) {
 
     state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: last.type, changes: undoChanges, hsChanges: undoHsChanges, bsLines: undoBsLines }]);
+      var n = prev.concat([{ type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines }]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });

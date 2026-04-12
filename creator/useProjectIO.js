@@ -21,28 +21,26 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var bsLines = state.bsLines, done = state.done;
     var parkMarkers = state.parkMarkers, totalTime = state.totalTime, sessions = state.sessions;
     var hlRow = state.hlRow, hlCol = state.hlCol, threadOwned = state.threadOwned;
-    var img = state.img, halfStitches = state.halfStitches;
+    var img = state.img, partialStitches = state.partialStitches;
     var zoom = state.zoom, scrollRef = state.scrollRef;
 
     if (!pat || !pal) return;
     if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
-    var hsArr = [];
-    halfStitches.forEach(function(v, k) {
-      hsArr.push([k, {
-        fwd: v.fwd ? { id: v.fwd.id, rgb: v.fwd.rgb } : undefined,
-        bck: v.bck ? { id: v.bck.id, rgb: v.bck.rgb } : undefined,
-      }]);
+    var psArr = [];
+    partialStitches.forEach(function(v, k) {
+      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+      psArr.push([k, e]);
     });
     var project = {
-      version: 9, id: state.projectIdRef.current, page: "creator", name: finalName,
+      version: 10, id: state.projectIdRef.current, page: "creator", name: finalName,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
-      imgData: img ? img.src : null, halfStitches: hsArr,
+      imgData: img ? img.src : null, partialStitches: psArr,
       savedZoom: zoom,
       savedScroll: scrollRef.current ? { left: scrollRef.current.scrollLeft, top: scrollRef.current.scrollTop } : null,
     };
@@ -76,26 +74,24 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var bsLines = state.bsLines, done = state.done;
     var parkMarkers = state.parkMarkers, totalTime = state.totalTime, sessions = state.sessions;
     var hlRow = state.hlRow, hlCol = state.hlCol, threadOwned = state.threadOwned;
-    var img = state.img, halfStitches = state.halfStitches;
+    var img = state.img, partialStitches = state.partialStitches;
     var projectIdRef = state.projectIdRef, projectName = state.projectName;
 
     if (!pat || !pal) return;
     if (!projectIdRef.current) projectIdRef.current = "proj_" + Date.now();
-    var hsArr = [];
-    halfStitches.forEach(function(v, k) {
-      hsArr.push([k, {
-        fwd: v.fwd ? { id: v.fwd.id, rgb: v.fwd.rgb } : undefined,
-        bck: v.bck ? { id: v.bck.id, rgb: v.bck.rgb } : undefined,
-      }]);
+    var psArr = [];
+    partialStitches.forEach(function(v, k) {
+      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+      psArr.push([k, e]);
     });
     var project = {
-      version: 9, id: projectIdRef.current, page: "creator", name: projectName,
+      version: 10, id: projectIdRef.current, page: "creator", name: projectName,
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
-      imgData: img ? img.src : null, halfStitches: hsArr,
+      imgData: img ? img.src : null, partialStitches: psArr,
     };
     if (onSwitchToTrack) {
       saveProjectToDB(project).catch(function() {});
@@ -164,20 +160,34 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (project.hlCol >= 0) state.setHlCol(project.hlCol);
     state.setIsScratchMode(!!s.isScratchMode);
 
-    if (project.halfStitches && Array.isArray(project.halfStitches)) {
-      var hm = new Map();
+    if (project.partialStitches && Array.isArray(project.partialStitches)) {
+      var pm = new Map();
+      project.partialStitches.forEach(function(entry) {
+        var idx = entry[0], v = entry[1];
+        var pe = {};
+        ["TL","TR","BL","BR"].forEach(function(q) {
+          if (v[q]) pe[q] = restoreStitch(Object.assign({}, v[q], { type: v[q].type || (typeof v[q].id === "string" && v[q].id.includes("+") ? "blend" : "solid") }));
+        });
+        pm.set(idx, pe);
+      });
+      state.setPartialStitches(pm);
+    } else if (project.halfStitches && Array.isArray(project.halfStitches)) {
+      // Migrate v9 half-stitch format to v10 quadrant format
+      var pm2 = new Map();
       project.halfStitches.forEach(function(entry) {
         var idx = entry[0], v = entry[1];
-        var he = {};
-        if (v.fwd) he.fwd = restoreStitch(Object.assign({}, v.fwd, { type: v.fwd.type || (typeof v.fwd.id === "string" && v.fwd.id.includes("+") ? "blend" : "solid") }));
-        if (v.bck) he.bck = restoreStitch(Object.assign({}, v.bck, { type: v.bck.type || (typeof v.bck.id === "string" && v.bck.id.includes("+") ? "blend" : "solid") }));
-        hm.set(idx, he);
+        var migrated = migrateHalfStitch(v);
+        var pe = {};
+        ["TL","TR","BL","BR"].forEach(function(q) {
+          if (migrated[q]) pe[q] = restoreStitch(Object.assign({}, migrated[q], { type: migrated[q].type || (typeof migrated[q].id === "string" && migrated[q].id.includes("+") ? "blend" : "solid") }));
+        });
+        pm2.set(idx, pe);
       });
-      state.setHalfStitches(hm);
+      state.setPartialStitches(pm2);
     } else {
-      state.setHalfStitches(new Map());
+      state.setPartialStitches(new Map());
     }
-    state.setHalfStitchTool(null);
+    state.setPartialStitchTool(null);
     state.setProjectName(project.name || "");
     state.projectIdRef.current = project.id || null;
     state.createdAtRef.current = project.createdAt || null;
@@ -355,24 +365,22 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   React.useEffect(function() {
     var pat = state.pat, pal = state.pal;
     if (!pat || !pal) return;
-    var hsArr = [];
-    state.halfStitches.forEach(function(v, k) {
-      hsArr.push([k, {
-        fwd: v.fwd ? { id: v.fwd.id, rgb: v.fwd.rgb } : undefined,
-        bck: v.bck ? { id: v.bck.id, rgb: v.bck.rgb } : undefined,
-      }]);
+    var psArr = [];
+    state.partialStitches.forEach(function(v, k) {
+      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+      psArr.push([k, e]);
     });
     if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
     var project5 = {
-      version: 9, id: state.projectIdRef.current, page: "creator", name: state.projectName,
+      version: 10, id: state.projectIdRef.current, page: "creator", name: state.projectName,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
       parkMarkers: state.parkMarkers, totalTime: state.totalTime, sessions: state.sessions,
       hlRow: state.hlRow, hlCol: state.hlCol, threadOwned: state.threadOwned,
-      imgData: state.img ? state.img.src : null, halfStitches: hsArr,
+      imgData: state.img ? state.img.src : null, partialStitches: psArr,
       savedZoom: state.zoom,
       savedScroll: state.scrollRef.current ? { left: state.scrollRef.current.scrollLeft, top: state.scrollRef.current.scrollTop } : null,
     };
@@ -399,7 +407,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.minSt, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed,
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
-    state.threadOwned, state.img, state.halfStitches, state.projectName, state.allowBlends,
+    state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
   ]);
 
   // Expose flush for BackupRestore to call before reading IndexedDB.

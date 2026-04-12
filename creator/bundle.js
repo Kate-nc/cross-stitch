@@ -183,7 +183,8 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
 /* ─── canvasRenderer.js ─── */
 /* creator/canvasRenderer.js — Pure drawPattern function.
    Extracted from CreatorApp so PatternCanvas and export canvas can share it.
-   Uses globals: drawCk, drawHalfTriangle, drawHalfLine, drawHalfSymbol, luminance
+   Uses globals: drawCk, drawHalfTriangle, drawHalfLine, drawHalfSymbol,
+   drawThreeQuarterStitch, drawQuarterStitch, analysePartialStitches, luminance
    (defined in helpers.js / colour-utils.js). */
 
 // ─── Highlight dimming helpers ────────────────────────────────────────────────
@@ -423,9 +424,9 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
   var selectedColorId = state.selectedColorId;
   var brushSize   = state.brushSize;
   var stitchType  = state.stitchType;
-  var halfStitchTool = state.halfStitchTool;
+  // partialStitchTool used via state.partialStitchTool (see _psTool below)
   var img         = state.img;
-  var halfStitches = state.halfStitches;
+  var partialStitches = state.partialStitches || new Map();
   var showOverlayImg = state.showOverlay && !!img && !!img.src;
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
   // Resolve highlight mode
@@ -520,18 +521,27 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
         _drawCellHighlight(ctx2d, px, py, cSz, m.rgb, hl);
       }
 
-      var hsEntry = halfStitches.get(idx);
-      if (hsEntry) {
-        ["fwd", "bck"].forEach(function(dir) {
-          var hs = hsEntry[dir];
-          if (!hs) return;
-          var alpha3 = dimAlpha;
-          drawHalfTriangle(ctx2d, px, py, cSz, dir, hs.rgb, alpha3);
-          if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, dir, hs.rgb, alpha3, Math.max(1, cSz * 0.12));
-          if (cSz >= 10 && (view === "symbol" || view === "both")) {
-            var hsInfo = cmap ? cmap[hs.id] : null;
-            var sym = hsInfo ? hsInfo.symbol : null;
-            if (sym) drawHalfSymbol(ctx2d, px, py, cSz, dir, sym, view === "both" ? (luminance(hs.rgb) < 128 ? "#fff" : "#000") : "#333");
+      var psEntry = partialStitches.get(idx);
+      if (psEntry) {
+        var _instr = analysePartialStitches(psEntry, m);
+        _instr.forEach(function(inst) {
+          var _si = cmap ? cmap[inst.colour.id] : null;
+          var _sym = _si ? _si.symbol : null;
+          switch (inst.type) {
+            case "three-quarter":
+              drawThreeQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.emptyCorner, dimAlpha, view, _sym);
+              break;
+            case "quarter":
+              drawQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.corner, dimAlpha, view, _sym);
+              break;
+            case "half":
+              drawHalfTriangle(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha);
+              if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha, Math.max(1, cSz * 0.12));
+              if (cSz >= 10 && _sym && (view === "symbol" || view === "both")) {
+                drawHalfSymbol(ctx2d, px, py, cSz, inst.direction, _sym,
+                  view === "both" ? (luminance(inst.colour.rgb) < 128 ? "#fff" : "#000") : "#333");
+              }
+              break;
           }
         });
       }
@@ -575,7 +585,8 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
   if (hoverCoords && hoverCoords.gx >= offX && hoverCoords.gy >= offY && hoverCoords.gx < offX + dW && hoverCoords.gy < offY + dH) {
     var hx = hoverCoords.gx - offX;
     var hy = hoverCoords.gy - offY;
-    var isDrawingTool = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (halfStitchTool && halfStitchTool !== "erase");
+    var _psTool = state.partialStitchTool;
+    var isDrawingTool = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (_psTool && _psTool !== "erase");
     var actualBrushSize = isDrawingTool ? Math.min(brushSize, Math.min(dW - hx, dH - hy)) : 1;
     if (actualBrushSize < 1) actualBrushSize = 1;
     ctx2d.fillStyle = "rgba(0,0,0,0.03)";
@@ -627,7 +638,8 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
 
   // Hover paint/erase preview outline
   if (hoverCoords) {
-    var isDrawingTool2 = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (halfStitchTool && halfStitchTool !== "erase");
+    var _psTool2 = state.partialStitchTool;
+    var isDrawingTool2 = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (_psTool2 && _psTool2 !== "erase");
     var isValidDraw = (activeTool === "paint" || activeTool === "fill") && selectedColorId && cmap;
     if (isDrawingTool2) {
       var hx2 = hoverCoords.gx - offX, hy2 = hoverCoords.gy - offY;
@@ -649,7 +661,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
           ctx2d.fillStyle = "rgba(239,68,68,0.2)";
           ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
           ctx2d.lineWidth = 1;
-        } else if (halfStitchTool && halfStitchTool !== "erase" && selectedColorId && cmap) {
+        } else if (_psTool2 && _psTool2 !== "erase" && selectedColorId && cmap) {
           var rgb2 = cmap[selectedColorId].rgb;
           ctx2d.strokeStyle = "rgba(" + rgb2[0] + "," + rgb2[1] + "," + rgb2[2] + ",0.8)";
           ctx2d.lineWidth = Math.max(2, cSz * 0.15);
@@ -685,7 +697,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   var showCtr     = state.showCtr;
   var bsLines     = state.bsLines;
   var img         = state.img;
-  var halfStitches = state.halfStitches;
+  var partialStitches = state.partialStitches || new Map();
   var showOverlayImg = state.showOverlay && !!img && !!img.src;
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
   var showCleanupDiff = state.showCleanupDiff;
@@ -781,18 +793,27 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
         _drawCellHighlight(ctx2d, px, py, cSz, m.rgb, hl);
       }
 
-      var hsEntry = halfStitches.get(idx);
-      if (hsEntry) {
-        ["fwd", "bck"].forEach(function(dir) {
-          var hs = hsEntry[dir];
-          if (!hs) return;
-          var alpha3 = dimAlpha;
-          drawHalfTriangle(ctx2d, px, py, cSz, dir, hs.rgb, alpha3);
-          if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, dir, hs.rgb, alpha3, Math.max(1, cSz * 0.12));
-          if (cSz >= 10 && (view === "symbol" || view === "both")) {
-            var hsInfo = cmap ? cmap[hs.id] : null;
-            var sym = hsInfo ? hsInfo.symbol : null;
-            if (sym) drawHalfSymbol(ctx2d, px, py, cSz, dir, sym, view === "both" ? (luminance(hs.rgb) < 128 ? "#fff" : "#000") : "#333");
+      var psEntry = partialStitches.get(idx);
+      if (psEntry) {
+        var _instr = analysePartialStitches(psEntry, m);
+        _instr.forEach(function(inst) {
+          var _si = cmap ? cmap[inst.colour.id] : null;
+          var _sym = _si ? _si.symbol : null;
+          switch (inst.type) {
+            case "three-quarter":
+              drawThreeQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.emptyCorner, dimAlpha, view, _sym);
+              break;
+            case "quarter":
+              drawQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.corner, dimAlpha, view, _sym);
+              break;
+            case "half":
+              drawHalfTriangle(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha);
+              if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha, Math.max(1, cSz * 0.12));
+              if (cSz >= 10 && _sym && (view === "symbol" || view === "both")) {
+                drawHalfSymbol(ctx2d, px, py, cSz, inst.direction, _sym,
+                  view === "both" ? (luminance(inst.colour.rgb) < 128 ? "#fff" : "#000") : "#333");
+              }
+              break;
           }
         });
       }
@@ -879,7 +900,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
   var selectedColorId = state.selectedColorId;
   var brushSize   = state.brushSize;
   var stitchType  = state.stitchType;
-  var halfStitchTool = state.halfStitchTool;
+  var partialStitchTool = state.partialStitchTool;
   var cmap        = state.cmap;
 
   // Marching ants for outline highlight mode (animated, drawn in overlay)
@@ -892,7 +913,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
   if (hoverCoords && hoverCoords.gx >= offX && hoverCoords.gy >= offY && hoverCoords.gx < offX + dW && hoverCoords.gy < offY + dH) {
     var hx = hoverCoords.gx - offX;
     var hy = hoverCoords.gy - offY;
-    var isDrawingTool = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (halfStitchTool && halfStitchTool !== "erase");
+    var isDrawingTool = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (partialStitchTool && partialStitchTool !== "erase");
     var actualBrushSize = isDrawingTool ? Math.min(brushSize, Math.min(dW - hx, dH - hy)) : 1;
     if (actualBrushSize < 1) actualBrushSize = 1;
     ctx2d.fillStyle = "rgba(0,0,0,0.03)";
@@ -941,7 +962,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
 
   // Hover paint/erase preview outline
   if (hoverCoords) {
-    var isDrawingTool2 = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (halfStitchTool && halfStitchTool !== "erase");
+    var isDrawingTool2 = activeTool === "paint" || activeTool === "fill" || stitchType === "erase" || (partialStitchTool && partialStitchTool !== "erase");
     var isValidDraw = (activeTool === "paint" || activeTool === "fill") && selectedColorId && cmap;
     if (isDrawingTool2) {
       var hx2 = hoverCoords.gx - offX, hy2 = hoverCoords.gy - offY;
@@ -963,7 +984,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
           ctx2d.fillStyle = "rgba(239,68,68,0.2)";
           ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
           ctx2d.lineWidth = 1;
-        } else if (halfStitchTool && halfStitchTool !== "erase" && selectedColorId && cmap) {
+        } else if (partialStitchTool && partialStitchTool !== "erase" && selectedColorId && cmap) {
           var rgb2 = cmap[selectedColorId].rgb;
           ctx2d.strokeStyle = "rgba(" + rgb2[0] + "," + rgb2[1] + "," + rgb2[2] + ",0.8)";
           ctx2d.lineWidth = Math.max(2, cSz * 0.15);
@@ -1148,15 +1169,22 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
  * Generate a pixel-art thumbnail of the pattern as a JPEG data URL.
  * Used by exportPDF and exportCoverSheet for cover page.
  */
-window.generatePatternThumbnail = function generatePatternThumbnail(pat, sW, sH) {
+window.generatePatternThumbnail = function generatePatternThumbnail(pat, sW, sH, partialStitches) {
   var c = document.createElement("canvas");
   c.width = sW; c.height = sH;
   var ctx = c.getContext("2d");
   var imgData = ctx.createImageData(sW, sH);
   var d = imgData.data;
+  var pqKeys = ["TL", "TR", "BL", "BR"];
   for (var i = 0; i < pat.length; i++) {
     var m = pat[i];
     var idx = i * 4;
+    var ps = partialStitches && partialStitches.get(i);
+    if (ps) {
+      var r = 0, g = 0, b = 0, cnt = 0;
+      for (var qi = 0; qi < pqKeys.length; qi++) { var qe = ps[pqKeys[qi]]; if (qe) { r += qe.rgb[0]; g += qe.rgb[1]; b += qe.rgb[2]; cnt++; } }
+      if (cnt > 0) { d[idx] = Math.round(r / cnt); d[idx + 1] = Math.round(g / cnt); d[idx + 2] = Math.round(b / cnt); d[idx + 3] = 255; continue; }
+    }
     if (!m || m.id === "__skip__" || m.id === "__empty__") {
       d[idx] = 255; d[idx + 1] = 255; d[idx + 2] = 255; d[idx + 3] = 255;
     } else {
@@ -1186,6 +1214,7 @@ window.exportPDF = async function exportPDF(options, data) {
   var skeinData = data.skeinData || [], bsLines = data.bsLines || [];
   var difficulty = data.difficulty;
   var doneCount = data.doneCount || 0;
+  var partialStitches = data.partialStitches || new Map();
 
   if (!pat || !pal || !cmap) return;
   if (!window.jspdf) await window.loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
@@ -1209,7 +1238,7 @@ window.exportPDF = async function exportPDF(options, data) {
     pdf.setFontSize(26); pdf.setTextColor(30, 30, 30); pdf.text("Cross Stitch Project", cmg, y + 10); y += 18;
     pdf.setDrawColor(91, 123, 179); pdf.setLineWidth(0.8); pdf.line(cmg, y, 195, y); y += 10;
 
-    var thumbData = generatePatternThumbnail(pat, sW, sH);
+    var thumbData = generatePatternThumbnail(pat, sW, sH, partialStitches);
     var thumbW = 60, thumbH = (sH / sW) * 60;
     if (thumbH > 80) { thumbH = 80; thumbW = (sW / sH) * 80; }
     pdf.addImage(thumbData, "JPEG", (210 - thumbW) / 2, y, thumbW, thumbH);
@@ -1219,7 +1248,7 @@ window.exportPDF = async function exportPDF(options, data) {
     pdf.setFontSize(10); pdf.setTextColor(40);
     var div2 = fabricCt === 28 ? 14 : fabricCt;
     var wIn2 = sW / div2, hIn2 = sH / div2;
-    [
+    var coverRows = [
       ["Pattern size", sW + " \xd7 " + sH + " stitches"],
       ["Stitchable stitches", totalStitchable.toLocaleString()],
       ["Colours", pal.length + " (" + blendCount + " blend" + (blendCount !== 1 ? "s" : "") + ")"],
@@ -1230,7 +1259,9 @@ window.exportPDF = async function exportPDF(options, data) {
       ["Est. time", fmtTimeL(Math.round(totalStitchable / stitchSpeed * 3600)) + " (at " + stitchSpeed + " st/hr)"],
       ["Difficulty", difficulty ? difficulty.label : "\u2014"],
       ["Est. thread cost", "\xa3" + (totalSkeins * skeinPrice).toFixed(2) + " (at \xa3" + skeinPrice.toFixed(2) + "/skein)"],
-    ].forEach(function(row) {
+    ];
+    if (partialStitches.size > 0) coverRows.push(["Partial stitches", partialStitches.size + " cells"]);
+    coverRows.forEach(function(row) {
       pdf.setTextColor(120); pdf.text(row[0] + ":", cmg, y);
       pdf.setTextColor(40); pdf.text(row[1], cmg + 50, y); y += 5.5;
     });
@@ -1349,10 +1380,142 @@ window.exportPDF = async function exportPDF(options, data) {
     });
   }
 
+  // ─── Partial Stitch Guide ──────────────────────────────────────────────────
+  if (partialStitches.size > 0) {
+    ty += 8;
+    if (ty > 240) { pdf.addPage(); ty = mg + 8; }
+    pdf.setTextColor(0); pdf.setFontSize(14); pdf.text("Partial Stitches", mg, ty); ty += 8;
+    pdf.setFontSize(8); pdf.setTextColor(80);
+    pdf.text("Partial stitches occupy one or more quadrants of a cell (TL, TR, BL, BR), shown as coloured sub-squares.", mg, ty, {maxWidth: 180}); ty += 12;
+    var exMM = 8, exGap = 30, eY = ty;
+    // Quarter stitch — TL only
+    var e1x = mg;
+    pdf.setFillColor(255, 255, 255); pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.rect(e1x, eY, exMM, exMM, "DF");
+    pdf.setFillColor(91, 123, 179); pdf.rect(e1x, eY, exMM / 2, exMM / 2, "F");
+    pdf.setDrawColor(180); pdf.setLineWidth(0.08);
+    pdf.line(e1x + exMM / 2, eY, e1x + exMM / 2, eY + exMM); pdf.line(e1x, eY + exMM / 2, e1x + exMM, eY + exMM / 2);
+    pdf.setTextColor(80); pdf.setFontSize(7); pdf.text("Quarter", e1x + exMM / 2, eY + exMM + 4, {align: "center"});
+    // Half stitch — TL + BR (diagonal pair)
+    var e2x = mg + exGap;
+    pdf.setFillColor(255, 255, 255); pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.rect(e2x, eY, exMM, exMM, "DF");
+    pdf.setFillColor(91, 123, 179); pdf.rect(e2x, eY, exMM / 2, exMM / 2, "F");
+    pdf.setFillColor(200, 80, 80); pdf.rect(e2x + exMM / 2, eY + exMM / 2, exMM / 2, exMM / 2, "F");
+    pdf.setDrawColor(180); pdf.setLineWidth(0.08);
+    pdf.line(e2x + exMM / 2, eY, e2x + exMM / 2, eY + exMM); pdf.line(e2x, eY + exMM / 2, e2x + exMM, eY + exMM / 2);
+    pdf.setTextColor(80); pdf.setFontSize(7); pdf.text("Half", e2x + exMM / 2, eY + exMM + 4, {align: "center"});
+    // Three-quarter stitch — TL + TR + BL
+    var e3x = mg + exGap * 2;
+    pdf.setFillColor(255, 255, 255); pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.rect(e3x, eY, exMM, exMM, "DF");
+    pdf.setFillColor(91, 123, 179);
+    pdf.rect(e3x, eY, exMM / 2, exMM / 2, "F");
+    pdf.rect(e3x + exMM / 2, eY, exMM / 2, exMM / 2, "F");
+    pdf.rect(e3x, eY + exMM / 2, exMM / 2, exMM / 2, "F");
+    pdf.setDrawColor(180); pdf.setLineWidth(0.08);
+    pdf.line(e3x + exMM / 2, eY, e3x + exMM / 2, eY + exMM); pdf.line(e3x, eY + exMM / 2, e3x + exMM, eY + exMM / 2);
+    pdf.setTextColor(80); pdf.setFontSize(7); pdf.text("Three-quarter", e3x + exMM / 2, eY + exMM + 4, {align: "center"});
+    ty = eY + exMM + 10;
+    pdf.setFontSize(8); pdf.setTextColor(80);
+    pdf.text("This pattern contains " + partialStitches.size + " partial stitch cell" + (partialStitches.size !== 1 ? "s" : "") + ".", mg, ty);
+    ty += 6;
+  }
+
   // ─── Chart Pages ─────────────────────────────────────────────────────────────
   var gridCols = isSinglePage ? sW : gridColsA4;
   var gridRows = isSinglePage ? sH : gridRowsA4;
   var pagesX = Math.ceil(sW / gridCols), pagesY = Math.ceil(sH / gridRows);
+
+  // Draw a ¾ stitch triangle fill + symbol for PDF.
+  function drawPdfThreeQuarter(px3, py3, emptyCorner, rgb, symbol) {
+    var mx = px3 + cellMM / 2, my = py3 + cellMM / 2;
+    if (displayMode === "color_symbol" || displayMode === "color") {
+      pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
+      switch (emptyCorner) {
+        case "TL": pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3 + cellMM, "F"); break;
+        case "TR": pdf.triangle(px3, py3, px3, py3 + cellMM, px3 + cellMM, py3 + cellMM, "F"); break;
+        case "BL": pdf.triangle(px3, py3, px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, "F"); break;
+        case "BR": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F"); break;
+      }
+    }
+    if (symbol && (displayMode === "color_symbol" || displayMode === "symbol")) {
+      var sx, sy;
+      switch (emptyCorner) {
+        case "TL": sx = px3 + cellMM * 0.625; sy = py3 + cellMM * 0.625; break;
+        case "TR": sx = px3 + cellMM * 0.375; sy = py3 + cellMM * 0.625; break;
+        case "BL": sx = px3 + cellMM * 0.625; sy = py3 + cellMM * 0.375; break;
+        case "BR": sx = px3 + cellMM * 0.375; sy = py3 + cellMM * 0.375; break;
+      }
+      if (displayMode === "symbol") {
+        pdf.setDrawColor(180);
+        pdf.setLineWidth(0.08);
+        switch (emptyCorner) {
+          case "TL": pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3 + cellMM, "S"); break;
+          case "TR": pdf.triangle(px3, py3, px3, py3 + cellMM, px3 + cellMM, py3 + cellMM, "S"); break;
+          case "BL": pdf.triangle(px3, py3, px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, "S"); break;
+          case "BR": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "S"); break;
+        }
+      }
+      var symSize = cellMM >= 4.5 ? cellMM * 0.55 : cellMM * 0.45;
+      if (cellMM < 3.0) {
+        pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
+        pdf.circle(sx, sy, 0.3, "F");
+      } else {
+        var isLight = displayMode === "color_symbol" && luminance(rgb) <= 128;
+        pdf.setTextColor(isLight ? 255 : 0); pdf.setDrawColor(isLight ? 255 : 0); pdf.setFillColor(isLight ? 255 : 0);
+        if (typeof drawPDFSymbol === "function") {
+          drawPDFSymbol(pdf, symbol, sx, sy, symSize);
+        } else {
+          pdf.setFontSize(Math.max(3, symSize * 2));
+          pdf.text(symbol, sx, sy, { align: "center", baseline: "middle" });
+        }
+      }
+    }
+  }
+
+  // Draw a ¼ stitch complementary triangle fill + symbol for PDF.
+  function drawPdfQuarter(px3, py3, corner, rgb, symbol) {
+    if (displayMode === "color_symbol" || displayMode === "color") {
+      pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
+      switch (corner) {
+        case "TL": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F"); break;
+        case "TR": pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3, "F"); break;
+        case "BL": pdf.triangle(px3, py3 + cellMM, px3, py3, px3 + cellMM, py3 + cellMM, "F"); break;
+        case "BR": pdf.triangle(px3 + cellMM, py3 + cellMM, px3 + cellMM, py3, px3, py3 + cellMM, "F"); break;
+      }
+    }
+    if (symbol && (displayMode === "color_symbol" || displayMode === "symbol")) {
+      var sx, sy;
+      switch (corner) {
+        case "TL": sx = px3 + cellMM * 0.29; sy = py3 + cellMM * 0.29; break;
+        case "TR": sx = px3 + cellMM * 0.71; sy = py3 + cellMM * 0.29; break;
+        case "BL": sx = px3 + cellMM * 0.29; sy = py3 + cellMM * 0.71; break;
+        case "BR": sx = px3 + cellMM * 0.71; sy = py3 + cellMM * 0.71; break;
+      }
+      if (displayMode === "symbol") {
+        pdf.setDrawColor(180);
+        pdf.setLineWidth(0.08);
+        switch (corner) {
+          case "TL": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "S"); break;
+          case "TR": pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3, "S"); break;
+          case "BL": pdf.triangle(px3, py3 + cellMM, px3, py3, px3 + cellMM, py3 + cellMM, "S"); break;
+          case "BR": pdf.triangle(px3 + cellMM, py3 + cellMM, px3 + cellMM, py3, px3, py3 + cellMM, "S"); break;
+        }
+      }
+      var symSize = cellMM >= 4.5 ? cellMM * 0.4 : cellMM * 0.35;
+      if (cellMM < 3.0) {
+        pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
+        pdf.circle(sx, sy, 0.25, "F");
+      } else {
+        var isLight = displayMode === "color_symbol" && luminance(rgb) <= 128;
+        pdf.setTextColor(isLight ? 255 : 0); pdf.setDrawColor(isLight ? 255 : 0); pdf.setFillColor(isLight ? 255 : 0);
+        if (typeof drawPDFSymbol === "function") {
+          drawPDFSymbol(pdf, symbol, sx, sy, symSize);
+        } else {
+          pdf.setFontSize(Math.max(2.5, symSize * 2));
+          pdf.text(symbol, sx, sy, { align: "center", baseline: "middle" });
+        }
+      }
+    }
+  }
 
   function clipLine(x1, y1, x2, y2, xmin, ymin, xmax, ymax) {
     var INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
@@ -1408,6 +1571,54 @@ window.exportPDF = async function exportPDF(options, data) {
             var px3 = mg + gx * cellMM, py3 = mg + 8 + gy * cellMM;
             var isOverlap = gx >= mainW || gy >= mainH;
             if (isOverlap) { pdf.setGState(new pdf.GState({ opacity: 0.4 })); pdf.setFillColor(200, 200, 200); pdf.rect(px3, py3, cellMM, cellMM, "F"); }
+            var psEntry = !isBackstitchOnly ? partialStitches.get((y0 + gy) * sW + (x0 + gx)) : null;
+            if (psEntry) {
+              pdf.setFillColor(255, 255, 255); pdf.rect(px3, py3, cellMM, cellMM, "F");
+              if (cellMM < 2.5) {
+                // Too small for triangles — blend colours into a solid block
+                var _r = 0, _g = 0, _b = 0, _cnt = 0;
+                var _psk = ["TL","TR","BL","BR"];
+                for (var _qi = 0; _qi < _psk.length; _qi++) { var _qe = psEntry[_psk[_qi]]; if (_qe) { _r += _qe.rgb[0]; _g += _qe.rgb[1]; _b += _qe.rgb[2]; _cnt++; } }
+                if (_cnt > 0) { pdf.setFillColor(Math.round(_r/_cnt), Math.round(_g/_cnt), Math.round(_b/_cnt)); pdf.rect(px3, py3, cellMM, cellMM, "F"); }
+              } else {
+                var _psinstr = analysePartialStitches(psEntry, m);
+                _psinstr.forEach(function(inst) {
+                  var _pssi = cmap[inst.colour.id];
+                  var _pssym = _pssi ? _pssi.symbol : null;
+                  switch (inst.type) {
+                    case "three-quarter": drawPdfThreeQuarter(px3, py3, inst.emptyCorner, inst.colour.rgb, _pssym); break;
+                    case "quarter":       drawPdfQuarter(px3, py3, inst.corner, inst.colour.rgb, _pssym); break;
+                    case "half":
+                      if (displayMode === "color_symbol" || displayMode === "color") {
+                        pdf.setFillColor(inst.colour.rgb[0], inst.colour.rgb[1], inst.colour.rgb[2]);
+                        if (inst.direction === "fwd") {
+                          pdf.triangle(px3, py3 + cellMM, px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, "F");
+                          pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F");
+                        } else {
+                          pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F");
+                          pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3 + cellMM, "F");
+                        }
+                      }
+                      if (_pssym && (displayMode === "color_symbol" || displayMode === "symbol") && cellMM >= 3) {
+                        var _hsl = displayMode === "color_symbol" && luminance(inst.colour.rgb) <= 128;
+                        pdf.setTextColor(_hsl ? 255 : 0); pdf.setDrawColor(_hsl ? 255 : 0); pdf.setFillColor(_hsl ? 255 : 0);
+                        if (typeof drawPDFSymbol === "function") drawPDFSymbol(pdf, _pssym, px3 + cellMM / 2, py3 + cellMM / 2, cellMM);
+                        else { pdf.setFontSize(Math.max(3, cellMM * 1.0)); pdf.text(_pssym, px3 + cellMM / 2, py3 + cellMM * 0.6, { align: "center" }); }
+                      }
+                      break;
+                  }
+                });
+                // Thin diagonal separator line through centre
+                pdf.setDrawColor(180); pdf.setLineWidth(0.08);
+                var _hasFwd = _psinstr.some(function(i) { return (i.type === "three-quarter" && (i.emptyCorner === "TL" || i.emptyCorner === "BR")) || (i.type === "half" && i.direction === "fwd"); });
+                var _hasBck = _psinstr.some(function(i) { return (i.type === "three-quarter" && (i.emptyCorner === "TR" || i.emptyCorner === "BL")) || (i.type === "half" && i.direction === "bck"); });
+                if (_hasFwd) pdf.line(px3, py3 + cellMM, px3 + cellMM, py3);
+                if (_hasBck) pdf.line(px3, py3, px3 + cellMM, py3 + cellMM);
+              }
+              pdf.setDrawColor(displayMode === "symbol" ? 150 : 200); pdf.setLineWidth(0.2); pdf.rect(px3, py3, cellMM, cellMM, "S");
+              if (isOverlap) pdf.setGState(new pdf.GState({ opacity: 1.0 }));
+              continue;
+            }
             if (!m || m.id === "__skip__" || m.id === "__empty__") {
               pdf.setDrawColor(220); pdf.rect(px3, py3, cellMM, cellMM, "S");
               if (isOverlap) pdf.setGState(new pdf.GState({ opacity: 1.0 }));
@@ -1499,6 +1710,7 @@ window.exportCoverSheet = async function exportCoverSheet(data) {
   var skeinData = data.skeinData || [];
   var difficulty = data.difficulty;
   var doneCount = data.doneCount || 0;
+  var partialStitches = data.partialStitches || new Map();
 
   if (!pat || !pal || !cmap) return;
   if (!window.jspdf) await window.loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
@@ -1509,7 +1721,7 @@ window.exportCoverSheet = async function exportCoverSheet(data) {
   pdf.setFontSize(26); pdf.setTextColor(30, 30, 30); pdf.text("Cross Stitch Project", mg, y + 10); y += 18;
   pdf.setDrawColor(91, 123, 179); pdf.setLineWidth(0.8); pdf.line(mg, y, 195, y); y += 10;
 
-  var thumbData = generatePatternThumbnail(pat, sW, sH);
+  var thumbData = generatePatternThumbnail(pat, sW, sH, partialStitches);
   var thumbW = 60, thumbH = (sH / sW) * 60;
   if (thumbH > 80) { thumbH = 80; thumbW = (sW / sH) * 80; }
   pdf.addImage(thumbData, "JPEG", (210 - thumbW) / 2, y, thumbW, thumbH);
@@ -1519,7 +1731,7 @@ window.exportCoverSheet = async function exportCoverSheet(data) {
   pdf.setFontSize(10); pdf.setTextColor(40);
   var div2 = fabricCt === 28 ? 14 : fabricCt;
   var wIn2 = sW / div2, hIn2 = sH / div2;
-  [
+  var csRows = [
     ["Pattern size", sW + " \xd7 " + sH + " stitches"],
     ["Stitchable stitches", totalStitchable.toLocaleString()],
     ["Colours", pal.length + " (" + blendCount + " blend" + (blendCount !== 1 ? "s" : "") + ")"],
@@ -1530,7 +1742,9 @@ window.exportCoverSheet = async function exportCoverSheet(data) {
     ["Est. time", fmtTimeL(Math.round(totalStitchable / stitchSpeed * 3600)) + " (at " + stitchSpeed + " st/hr)"],
     ["Difficulty", difficulty ? difficulty.label : "\u2014"],
     ["Est. thread cost", "\xa3" + (totalSkeins * skeinPrice).toFixed(2) + " (at \xa3" + skeinPrice.toFixed(2) + "/skein)"],
-  ].forEach(function(row) {
+  ];
+  if (partialStitches.size > 0) csRows.push(["Partial stitches", partialStitches.size + " cells"]);
+  csRows.forEach(function(row) {
     pdf.setTextColor(120); pdf.text(row[0] + ":", mg, y);
     pdf.setTextColor(40); pdf.text(row[1], mg + 50, y); y += 5.5;
   });
@@ -2634,11 +2848,11 @@ window.useCreatorState = function useCreatorState() {
   var _hlCol    = useState(-1);      var hlCol = _hlCol[0], setHlCol = _hlCol[1];
   var _totTime  = useState(0);       var totalTime = _totTime[0], setTotalTime = _totTime[1];
   var _sessions = useState([]);      var sessions = _sessions[0], setSessions = _sessions[1];
-  var _hs       = useState(function() { return new Map(); });
-  var halfStitches = _hs[0], setHalfStitches = _hs[1];
-  var _hsTool   = useState(null);    var halfStitchTool = _hsTool[0];
-  var halfStitchToolRef = useRef(null);
-  function setHalfStitchTool(v) { halfStitchToolRef.current = v; _hsTool[1](v); }
+  var _ps       = useState(function() { return new Map(); });
+  var partialStitches = _ps[0], setPartialStitches = _ps[1];
+  var _psTool   = useState(null);    var partialStitchTool = _psTool[0];
+  var partialStitchToolRef = useRef(null);
+  function setPartialStitchTool(v) { partialStitchToolRef.current = v; _psTool[1](v); }
 
   // Thread organiser
   var _thOwned  = useState({});      var threadOwned = _thOwned[0], setThreadOwned = _thOwned[1];
@@ -2823,9 +3037,7 @@ window.useCreatorState = function useCreatorState() {
     return c;
   }, [pat, done]);
 
-  var stitchType = halfStitchTool === "fwd" ? "half-fwd"
-    : halfStitchTool === "bck" ? "half-bck"
-    : halfStitchTool === "erase" ? "erase"
+  var stitchType = partialStitchTool ? partialStitchTool
     : activeTool === "backstitch" ? "backstitch"
     : (activeTool === "paint" || activeTool === "fill") ? "cross"
     : null;
@@ -2867,26 +3079,31 @@ window.useCreatorState = function useCreatorState() {
   function slRsz(v) { chgW(v); }
 
   function selectStitchType(t) {
-    if (t === "cross")     { setActiveTool(brushModeRef.current); setHalfStitchTool(null); setBsStart(null); }
-    else if (t === "half-fwd") { setHalfStitchTool("fwd"); setActiveTool(null); setBsStart(null); }
-    else if (t === "half-bck") { setHalfStitchTool("bck"); setActiveTool(null); setBsStart(null); }
-    else if (t === "backstitch") { setActiveTool("backstitch"); setHalfStitchTool(null); }
-    else if (t === "erase")  { setActiveTool("eraseAll"); setHalfStitchTool(null); setBsStart(null); }
-    else { setActiveTool(null); setHalfStitchTool(null); setBsStart(null); }
+    if (t === "cross") {
+      setActiveTool(brushModeRef.current); setPartialStitchTool(null); setBsStart(null);
+    } else if (t === "quarter" || t === "half-fwd" || t === "half-bck" || t === "three-quarter") {
+      setPartialStitchTool(t); setActiveTool(null); setBsStart(null);
+    } else if (t === "backstitch") {
+      setActiveTool("backstitch"); setPartialStitchTool(null);
+    } else if (t === "erase") {
+      setActiveTool("eraseAll"); setPartialStitchTool(null); setBsStart(null);
+    } else {
+      setActiveTool(null); setPartialStitchTool(null); setBsStart(null);
+    }
   }
   function setBrushAndActivate(mode) {
     setBrushMode(mode);
     setActiveTool(mode);
-    setHalfStitchTool(null);
+    setPartialStitchTool(null);
     setBsStart(null);
   }
   function setTool(tool) {
     if (activeToolRef.current === tool) { setActiveTool(null); setBsStart(null); return; }
-    setActiveTool(tool); setBsStart(null); setHalfStitchTool(null);
+    setActiveTool(tool); setBsStart(null); setPartialStitchTool(null);
   }
   function setHsTool(t) {
-    if (halfStitchToolRef.current === t) { setHalfStitchTool(null); return; }
-    setHalfStitchTool(t); setActiveTool(null); setBsStart(null);
+    if (partialStitchToolRef.current === t) { setPartialStitchTool(null); return; }
+    setPartialStitchTool(t); setActiveTool(null); setBsStart(null);
   }
 
   function copyText(txt, label) {
@@ -2904,7 +3121,7 @@ window.useCreatorState = function useCreatorState() {
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     setDimOpen(true); setPalOpen(true); setFabOpen(false); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
-    setHalfStitches(new Map()); setHalfStitchTool(null); setBrushMode("paint");
+    setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
@@ -2981,7 +3198,7 @@ window.useCreatorState = function useCreatorState() {
     setPal(function(prev) { return prev ? prev.concat([entry]) : [entry]; });
     setCmap(function(prev) { return prev ? Object.assign({}, prev, { [d.id]: entry }) : { [d.id]: entry }; });
     setSelectedColorId(d.id);
-    if (!activeTool && !halfStitchTool) setBrushAndActivate("paint");
+    if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
   }
 
   function removeScratchColour(id) {
@@ -3242,8 +3459,8 @@ window.useCreatorState = function useCreatorState() {
     scratchPalette, setScratchPalette, dmcSearch, setDmcSearch,
     colPickerOpen, setColPickerOpen, parkMarkers, setParkMarkers,
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
-    sessions, setSessions, halfStitches, setHalfStitches,
-    halfStitchTool, setHalfStitchTool, halfStitchToolRef, threadOwned, setThreadOwned,
+    sessions, setSessions, partialStitches, setPartialStitches,
+    partialStitchTool, setPartialStitchTool, partialStitchToolRef, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen, previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
@@ -3263,7 +3480,7 @@ window.useCreatorState = function useCreatorState() {
     ownedCount, toBuyCount, toBuyList,
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
-    setBrushAndActivate, setTool, setHsTool, fitZ, copyText,
+    setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
     toggleOwned, generate,
     // Eyedropper feedback
@@ -3323,7 +3540,7 @@ window.useCreatorState = function useCreatorState() {
 
 
 /* ─── useEditHistory.js ─── */
-/* creator/useEditHistory.js — Undo/redo for pixel/half-stitch/backstitch edits.
+/* creator/useEditHistory.js — Undo/redo for pixel/partial-stitch/backstitch edits.
    Uses a delta (change-list) approach: each history entry stores the OLD values
    of changed cells so they can be restored without keeping full snapshots.
    Expects a `state` object returned from useCreatorState. */
@@ -3332,7 +3549,7 @@ window.useEditHistory = function useEditHistory(state) {
   function undoEdit() {
     var editHistory = state.editHistory;
     var pat = state.pat;
-    var halfStitches = state.halfStitches;
+    var partialStitches = state.partialStitches;
     var bsLines = state.bsLines;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     var buildPaletteWithScratch = state.buildPaletteWithScratch;
@@ -3344,12 +3561,12 @@ window.useEditHistory = function useEditHistory(state) {
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
     state.setPat(np);
 
-    var redoHsChanges = null;
-    if (last.hsChanges) {
-      var nm = new Map(halfStitches);
-      redoHsChanges = last.hsChanges.map(function(c) { return { idx: c.idx, old: nm.has(c.idx) ? Object.assign({}, nm.get(c.idx)) : null }; });
-      last.hsChanges.forEach(function(c) { if (c.old) nm.set(c.idx, c.old); else nm.delete(c.idx); });
-      state.setHalfStitches(nm);
+    var redoPsChanges = null;
+    if (last.psChanges) {
+      var nm = new Map(partialStitches);
+      redoPsChanges = last.psChanges.map(function(c) { return { idx: c.idx, old: nm.has(c.idx) ? Object.assign({}, nm.get(c.idx)) : null }; });
+      last.psChanges.forEach(function(c) { if (c.old) nm.set(c.idx, c.old); else nm.delete(c.idx); });
+      state.setPartialStitches(nm);
     }
 
     var redoBsLines = null;
@@ -3360,7 +3577,7 @@ window.useEditHistory = function useEditHistory(state) {
 
     state.setEditHistory(function(prev) { return prev.slice(0, -1); });
     state.setRedoHistory(function(prev) {
-      var n = prev.concat([{ type: last.type, changes: redoChanges, hsChanges: redoHsChanges, bsLines: redoBsLines }]);
+      var n = prev.concat([{ type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines }]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
@@ -3372,7 +3589,7 @@ window.useEditHistory = function useEditHistory(state) {
   function redoEdit() {
     var redoHistory = state.redoHistory;
     var pat = state.pat;
-    var halfStitches = state.halfStitches;
+    var partialStitches = state.partialStitches;
     var bsLines = state.bsLines;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     var buildPaletteWithScratch = state.buildPaletteWithScratch;
@@ -3384,12 +3601,12 @@ window.useEditHistory = function useEditHistory(state) {
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
     state.setPat(np);
 
-    var undoHsChanges = null;
-    if (last.hsChanges) {
-      var nm = new Map(halfStitches);
-      undoHsChanges = last.hsChanges.map(function(c) { return { idx: c.idx, old: nm.has(c.idx) ? Object.assign({}, nm.get(c.idx)) : null }; });
-      last.hsChanges.forEach(function(c) { if (c.old) nm.set(c.idx, c.old); else nm.delete(c.idx); });
-      state.setHalfStitches(nm);
+    var undoPsChanges = null;
+    if (last.psChanges) {
+      var nm = new Map(partialStitches);
+      undoPsChanges = last.psChanges.map(function(c) { return { idx: c.idx, old: nm.has(c.idx) ? Object.assign({}, nm.get(c.idx)) : null }; });
+      last.psChanges.forEach(function(c) { if (c.old) nm.set(c.idx, c.old); else nm.delete(c.idx); });
+      state.setPartialStitches(nm);
     }
 
     var undoBsLines = null;
@@ -3400,7 +3617,7 @@ window.useEditHistory = function useEditHistory(state) {
 
     state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: last.type, changes: undoChanges, hsChanges: undoHsChanges, bsLines: undoBsLines }]);
+      var n = prev.concat([{ type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines }]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
@@ -3426,7 +3643,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var dragCellsRef         = React.useRef(new Set());
   var dragActionRef        = React.useRef(null);
   var dragPatRef           = React.useRef(null);
-  var dragHalfStitchesRef  = React.useRef(null);
+  var dragPartialStitchesRef = React.useRef(null);
   var dragBsLinesRef       = React.useRef(null);
   var activePointersRef    = React.useRef(new Map());
   var pinchStateRef        = React.useRef(null);
@@ -3439,7 +3656,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var LONG_PRESS_MS = 500;
 
   function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
-  function getHalfStitchTool() { return state.halfStitchToolRef ? state.halfStitchToolRef.current : state.halfStitchTool; }
+  function getPartialStitchTool() { return state.partialStitchToolRef ? state.partialStitchToolRef.current : state.partialStitchTool; }
 
   function isPrimaryButton(e) {
     return (e.button == null ? 0 : e.button) === 0;
@@ -3462,13 +3679,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     clearLongPressTimer();
   }
 
-  function redrawCanvasFromState(patOverride, halfStitchesOverride, bsLinesOverride) {
+  function redrawCanvasFromState(patOverride, partialStitchesOverride, bsLinesOverride) {
     var pcRef = state.pcRef;
     if (!pcRef.current || !state.pat) return;
     var ctx2 = pcRef.current.getContext("2d");
     drawPatternOnCanvas(ctx2, 0, 0, state.sW, state.sH, state.cs, state.G, Object.assign({}, state, {
       pat: patOverride || state.pat,
-      halfStitches: halfStitchesOverride || state.halfStitches,
+      partialStitches: partialStitchesOverride || state.partialStitches,
       bsLines: bsLinesOverride || state.bsLines,
     }));
   }
@@ -3480,7 +3697,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     dragCellsRef.current.clear();
     dragActionRef.current = null;
     dragPatRef.current = null;
-    dragHalfStitchesRef.current = null;
+    dragPartialStitchesRef.current = null;
     dragBsLinesRef.current = null;
     redrawCanvasFromState();
   }
@@ -3537,7 +3754,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var bsLines = state.bsLines;
 
     var np = dragPatRef.current;
-    var nm = dragHalfStitchesRef.current;
+    var nm = dragPartialStitchesRef.current;
     var colorEntry = selectedColorId && cmap ? cmap[selectedColorId] : null;
 
     for (var dy = 0; dy < brushSize; dy++) {
@@ -3609,17 +3826,17 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
                 // Full redraw for backstitch erase
                 drawPatternOnCanvas(ctx4, 0, 0, sW, sH, cs, G, Object.assign({}, state, {
                   pat: dragPatRef.current,
-                  halfStitches: dragHalfStitchesRef.current,
+                  partialStitches: dragPartialStitchesRef.current,
                   bsLines: nBs,
                 }));
               }
             }
           }
-        } else if (action && action.startsWith("half-") && np) {
+        } else if (action && (action === "half-fwd" || action === "half-bck") && np) {
           if (np[idx].id === "__skip__") continue;
           var selMaskH = state.selectionMask;
           if (selMaskH && !selMaskH[idx]) continue;
-          var dir = action.replace("half-", "");
+          var quadsH = action === "half-fwd" ? ["BL", "TR"] : ["TL", "BR"];
           var ce = colorEntry;
           if (!ce) {
             var m = np[idx];
@@ -3627,37 +3844,38 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
           }
           if (!ce) continue;
           var existing = nm.get(idx) || {};
-          if (existing[dir] && existing[dir].id === ce.id) {
-            var updated = Object.assign({}, existing);
-            delete updated[dir];
-            if (!updated.fwd && !updated.bck) nm.delete(idx); else nm.set(idx, updated);
+          var newEntry = Object.assign({}, existing);
+          var allSameH = quadsH.every(function(q) { return existing[q] && existing[q].id === ce.id; });
+          if (allSameH) {
+            quadsH.forEach(function(q) { delete newEntry[q]; });
           } else {
-            var newEntry = Object.assign({}, existing);
-            newEntry[dir] = { id: ce.id, rgb: ce.rgb };
-            nm.set(idx, newEntry);
+            quadsH.forEach(function(q) { newEntry[q] = { id: ce.id, rgb: ce.rgb }; });
           }
+          if (!newEntry.TL && !newEntry.TR && !newEntry.BL && !newEntry.BR) nm.delete(idx); else nm.set(idx, newEntry);
         }
       }
     }
   }
 
   // ─── handlePatClick ──────────────────────────────────────────────────────────
-  function doEyedropSample(pat, cmap, sW, sH, halfStitches, gx, gy) {
+  function doEyedropSample(pat, cmap, sW, sH, partialStitches, gx, gy) {
     if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
     var idx = gy * sW + gx;
     var cell = pat[idx];
     if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
       state.setSelectedColorId(cell.id);
     } else {
-      var hs = halfStitches.get(idx);
-      if (hs) {
-        if (hs.fwd && cmap[hs.fwd.id]) { state.setSelectedColorId(hs.fwd.id); }
-        else if (hs.bck && cmap[hs.bck.id]) { state.setSelectedColorId(hs.bck.id); }
-      } else {
-        state.setEyedropperEmpty(true);
-        if (state.addToast) state.addToast("That cell is empty \u2014 no colour to sample.", {type:"warning", duration:1500});
-        setTimeout(function() { state.setEyedropperEmpty(false); }, 1200);
+      var ps = partialStitches.get(idx);
+      if (ps) {
+        var qKeys = ["TL", "TR", "BL", "BR"];
+        for (var qi = 0; qi < qKeys.length; qi++) {
+          var qe = ps[qKeys[qi]];
+          if (qe && cmap[qe.id]) { state.setSelectedColorId(qe.id); return; }
+        }
       }
+      state.setEyedropperEmpty(true);
+      if (state.addToast) state.addToast("That cell is empty \u2014 no colour to sample.", {type:"warning", duration:1500});
+      setTimeout(function() { state.setEyedropperEmpty(false); }, 1200);
     }
   }
 
@@ -3665,10 +3883,10 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
     var cs = state.cs, G = state.G, pcRef = state.pcRef;
     var activeTool = getActiveTool();
-    var halfStitchTool = getHalfStitchTool();
+    var partialStitchTool = getPartialStitchTool();
     var selectedColorId = state.selectedColorId, bsLines = state.bsLines;
     var bsStart = state.bsStart, bsContinuous = state.bsContinuous;
-    var halfStitches = state.halfStitches, brushMode = state.brushMode;
+    var partialStitches = state.partialStitches, brushMode = state.brushMode;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     var buildPaletteWithScratch = state.buildPaletteWithScratch;
 
@@ -3679,7 +3897,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
     // Temporary eyedropper: Alt+click samples colour without switching tool
     if (e.altKey && activeTool !== "magicWand" && activeTool !== "lasso") {
-      doEyedropSample(pat, cmap, sW, sH, halfStitches, gx, gy);
+      doEyedropSample(pat, cmap, sW, sH, partialStitches, gx, gy);
       return;
     }
 
@@ -3712,29 +3930,45 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
 
     if (activeTool === "eyedropper") {
-      doEyedropSample(pat, cmap, sW, sH, halfStitches, gx, gy);
+      doEyedropSample(pat, cmap, sW, sH, partialStitches, gx, gy);
       return;
     }
 
-    if (halfStitchTool) {
+    if (partialStitchTool) {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
       var idx1 = gy * sW + gx;
-      if (halfStitchTool === "erase") {
-        var nm0 = new Map(halfStitches); nm0.delete(idx1); state.setHalfStitches(nm0);
-        return;
-      }
-      var dir1 = halfStitchTool;
+      var nm1 = new Map(partialStitches);
       var ce1 = selectedColorId && cmap ? cmap[selectedColorId] : null;
       if (!ce1) { var m1 = pat[idx1]; if (m1 && m1.id !== "__skip__" && m1.id !== "__empty__" && cmap) ce1 = cmap[m1.id]; }
       if (!ce1) return;
-      var nm1 = new Map(halfStitches); var ex1 = nm1.get(idx1) || {};
-      if (ex1[dir1] && ex1[dir1].id === ce1.id) {
-        var upd = Object.assign({}, ex1); delete upd[dir1];
-        if (!upd.fwd && !upd.bck) nm1.delete(idx1); else nm1.set(idx1, upd);
+      var ex1 = nm1.get(idx1) || {};
+      var upd1 = Object.assign({}, ex1);
+      if (partialStitchTool === "half-fwd" || partialStitchTool === "half-bck") {
+        var quads1 = partialStitchTool === "half-fwd" ? ["BL", "TR"] : ["TL", "BR"];
+        var allSame1 = quads1.every(function(q) { return ex1[q] && ex1[q].id === ce1.id; });
+        if (allSame1) { quads1.forEach(function(q) { delete upd1[q]; }); }
+        else { quads1.forEach(function(q) { upd1[q] = { id: ce1.id, rgb: ce1.rgb }; }); }
       } else {
-        var nhe = Object.assign({}, ex1); nhe[dir1] = { id: ce1.id, rgb: ce1.rgb }; nm1.set(idx1, nhe);
+        // quarter or three-quarter — hit-test sub-cell position
+        var rect1 = pcRef.current.getBoundingClientRect();
+        var scaleX1 = pcRef.current.width / (pcRef.current.clientWidth || 1);
+        var scaleY1 = pcRef.current.height / (pcRef.current.clientHeight || 1);
+        var localX1 = (e.clientX - rect1.left) * scaleX1 - G - gx * cs;
+        var localY1 = (e.clientY - rect1.top) * scaleY1 - G - gy * cs;
+        var hitQ = hitTestQuadrant(localX1, localY1, cs);
+        if (partialStitchTool === "quarter") {
+          if (upd1[hitQ] && upd1[hitQ].id === ce1.id) delete upd1[hitQ];
+          else upd1[hitQ] = { id: ce1.id, rgb: ce1.rgb };
+        } else { // three-quarter
+          var oppositeQ = { "TL": "BR", "TR": "BL", "BL": "TR", "BR": "TL" }[hitQ];
+          var threeQ = ["TL", "TR", "BL", "BR"].filter(function(q) { return q !== oppositeQ; });
+          var allSame3 = threeQ.every(function(q) { return ex1[q] && ex1[q].id === ce1.id; });
+          if (allSame3) { threeQ.forEach(function(q) { delete upd1[q]; }); }
+          else { threeQ.forEach(function(q) { upd1[q] = { id: ce1.id, rgb: ce1.rgb }; }); }
+        }
       }
-      state.setHalfStitches(nm1);
+      if (!upd1.TL && !upd1.TR && !upd1.BL && !upd1.BR) nm1.delete(idx1); else nm1.set(idx1, upd1);
+      state.setPartialStitches(nm1);
       return;
     }
 
@@ -3809,18 +4043,18 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!isPrimaryButton(e)) return;
     var pat = state.pat, pcRef = state.pcRef, cs = state.cs, G = state.G;
     var activeTool = getActiveTool();
-    var halfStitchTool = getHalfStitchTool();
+    var partialStitchTool = getPartialStitchTool();
     var selectedColorId = state.selectedColorId, cmap = state.cmap;
     if (!pcRef.current || !pat) return;
 
     // Temporary eyedropper: Alt+click samples colour without switching tool
     if (e.altKey && activeTool !== "magicWand" && activeTool !== "lasso") {
       var gc0 = gridCoord(pcRef, e, cs, G, false);
-      if (gc0) doEyedropSample(pat, cmap, state.sW, state.sH, state.halfStitches, gc0.gx, gc0.gy);
+      if (gc0) doEyedropSample(pat, cmap, state.sW, state.sH, state.partialStitches, gc0.gx, gc0.gy);
       return;
     }
 
-    if (!activeTool && !halfStitchTool) return;
+    if (!activeTool && !partialStitchTool) return;
     var gc = gridCoord(pcRef, e, cs, G, activeTool === "backstitch");
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
@@ -3844,11 +4078,17 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    // quarter/three-quarter tools require hit-testing — delegate to handlePatClick (no drag)
+    if (partialStitchTool === "quarter" || partialStitchTool === "three-quarter") {
+      handlePatClick(e);
+      return;
+    }
+
     isDraggingRef.current = true;
     dragChangesRef.current = [];
     dragCellsRef.current.clear();
     dragPatRef.current = pat.slice();
-    dragHalfStitchesRef.current = new Map(state.halfStitches);
+    dragPartialStitchesRef.current = new Map(state.partialStitches);
     dragBsLinesRef.current = state.bsLines;
 
     if (activeTool === "paint" && selectedColorId && cmap) {
@@ -3857,8 +4097,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     } else if (activeTool === "eraseAll") {
       dragActionRef.current = "eraseAll";
       applyBrush(gx, gy, "eraseAll");
-    } else if (halfStitchTool) {
-      dragActionRef.current = "half-" + halfStitchTool;
+    } else if (partialStitchTool) {
+      dragActionRef.current = partialStitchTool;
       applyBrush(gx, gy, dragActionRef.current);
     }
   }
@@ -3866,8 +4106,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatMouseMove(e) {
     var pat = state.pat, pcRef = state.pcRef, cs = state.cs, G = state.G;
     var activeTool = getActiveTool();
-    var halfStitchTool = getHalfStitchTool();
-    if (!pcRef.current || !pat || (!activeTool && !halfStitchTool)) return;
+    var partialStitchTool = getPartialStitchTool();
+    if (!pcRef.current || !pat || (!activeTool && !partialStitchTool)) return;
     var gc = gridCoord(pcRef, e, cs, G, activeTool === "backstitch" || activeTool === "eraseBs");
     if (!gc) return;
     var hc = state.hoverCoords;
@@ -3890,39 +4130,39 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
 
-    var pat = state.pat, halfStitches = state.halfStitches, bsLines = state.bsLines;
+    var pat = state.pat, partialStitches = state.partialStitches, bsLines = state.bsLines;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     var buildPaletteWithScratch = state.buildPaletteWithScratch;
 
     var madeChanges = dragChangesRef.current.length > 0;
-    var oldHs = halfStitches, newHs = dragHalfStitchesRef.current;
-    var hsChanged = false;
-    if (dragActionRef.current === "eraseAll" || (dragActionRef.current && dragActionRef.current.startsWith("half-"))) {
-      if (oldHs.size !== newHs.size) hsChanged = true;
+    var oldPs = partialStitches, newPs = dragPartialStitchesRef.current;
+    var psChanged = false;
+    if (dragActionRef.current === "eraseAll" || dragActionRef.current === "half-fwd" || dragActionRef.current === "half-bck") {
+      if (oldPs.size !== newPs.size) psChanged = true;
       else {
-        oldHs.forEach(function(v, k) { if (!newHs.has(k) || newHs.get(k) !== v) hsChanged = true; });
+        oldPs.forEach(function(v, k) { if (!newPs.has(k) || newPs.get(k) !== v) psChanged = true; });
       }
     }
-    var hsChanges = [];
-    if (hsChanged) {
-      var allKeys = new Set([].concat(Array.from(oldHs.keys()), Array.from(newHs.keys())));
+    var psChanges = [];
+    if (psChanged) {
+      var allKeys = new Set([].concat(Array.from(oldPs.keys()), Array.from(newPs.keys())));
       allKeys.forEach(function(k) {
-        var ov = oldHs.get(k), nv = newHs.get(k);
-        if (ov !== nv) hsChanges.push({ idx: k, old: ov ? Object.assign({}, ov) : null });
+        var ov = oldPs.get(k), nv = newPs.get(k);
+        if (ov !== nv) psChanges.push({ idx: k, old: ov ? Object.assign({}, ov) : null });
       });
     }
     var bsLinesChanged = dragBsLinesRef.current !== bsLines;
 
-    if (madeChanges || hsChanged || bsLinesChanged) {
+    if (madeChanges || psChanged || bsLinesChanged) {
       if (madeChanges) state.setPat(dragPatRef.current);
-      if (hsChanged) state.setHalfStitches(newHs);
+      if (psChanged) state.setPartialStitches(newPs);
       if (bsLinesChanged) state.setBsLines(dragBsLinesRef.current);
       var changes = dragChangesRef.current.slice();
       state.setEditHistory(function(prev) {
         var n = prev.concat([{
           type: dragActionRef.current,
           changes: changes,
-          hsChanges: hsChanges.length > 0 ? hsChanges : undefined,
+          psChanges: psChanges.length > 0 ? psChanges : undefined,
           bsLines: bsLinesChanged ? bsLines : undefined,
         }]);
         if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
@@ -3935,7 +4175,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       }
     }
     dragPatRef.current = null;
-    dragHalfStitchesRef.current = null;
+    dragPartialStitchesRef.current = null;
     dragBsLinesRef.current = null;
     dragActionRef.current = null;
     dragCellsRef.current.clear();
@@ -3952,7 +4192,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   // ─── Pointer event handlers ─────────────────────────────────────────────────
   function handlePatPointerDown(e) {
-    var activeTool = state.activeTool, halfStitchTool = state.halfStitchTool;
+    var activeTool = state.activeTool, partialStitchTool = state.partialStitchTool;
     var scrollRef = state.scrollRef;
     if (e.pointerType === "mouse" && !isPrimaryButton(e)) return;
 
@@ -3975,7 +4215,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if (isTouchPointer(e) && !activeTool && !halfStitchTool && scrollRef.current) {
+    if (isTouchPointer(e) && !activeTool && !partialStitchTool && scrollRef.current) {
       panStateRef.current = {
         pointerId: e.pointerId,
         startX: e.clientX,
@@ -4010,7 +4250,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if (!activeTool && !halfStitchTool) return;
+    if (!activeTool && !partialStitchTool) return;
     e.preventDefault();
     handlePatMouseDown(e);
   }
@@ -4303,8 +4543,8 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.lassoInProgress) { state.cancelLasso(); return; }
         if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
-        if (state.activeTool || state.halfStitchTool) {
-          state.setActiveTool(null); state.setHalfStitchTool(null); state.setBsStart(null); return;
+        if (state.activeTool || state.partialStitchTool) {
+          state.setActiveTool(null); state.setPartialStitchTool(null); state.setBsStart(null); return;
         }
         if (state.hiId) { state.setHiId(null); return; }
         if (state.selectedColorId) { state.setSelectedColorId(null); return; }
@@ -4321,19 +4561,19 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       if (e.key === "5") { state.selectStitchType("erase"); return; }
       if (e.key === "w" || e.key === "W") {
         if (state.activeTool === "magicWand") { state.setActiveTool(null); }
-        else { state.setActiveTool("magicWand"); state.setHalfStitchTool(null); state.setBsStart(null); }
+        else { state.setActiveTool("magicWand"); state.setPartialStitchTool(null); state.setBsStart(null); }
         return;
       }
       if (e.key === "p" || e.key === "P") {
-        if (!state.halfStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("paint");
+        if (!state.partialStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("paint");
         return;
       }
       if (e.key === "f" || e.key === "F") {
-        if (!state.halfStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("fill");
+        if (!state.partialStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("fill");
         return;
       }
       if (e.key === "i" || e.key === "I") {
-        state.setActiveTool("eyedropper"); state.setBsStart(null); state.setHalfStitchTool(null);
+        state.setActiveTool("eyedropper"); state.setBsStart(null); state.setPartialStitchTool(null);
         return;
       }
       if (e.key === "v" || e.key === "V") {
@@ -4351,7 +4591,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     state.activeTool, state.bsStart, state.isActive,
     state.editHistory, state.redoHistory, state.pat, state.pal,
     state.namePromptOpen, state.modal, state.overflowOpen,
-    state.selectedColorId, state.halfStitchTool, state.hiId,
+    state.selectedColorId, state.partialStitchTool, state.hiId,
     state.hasSelection, state.lassoInProgress, state.highlightMode,
     history.undoEdit, history.redoEdit, io.saveProject,
   ]);
@@ -4382,28 +4622,26 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var bsLines = state.bsLines, done = state.done;
     var parkMarkers = state.parkMarkers, totalTime = state.totalTime, sessions = state.sessions;
     var hlRow = state.hlRow, hlCol = state.hlCol, threadOwned = state.threadOwned;
-    var img = state.img, halfStitches = state.halfStitches;
+    var img = state.img, partialStitches = state.partialStitches;
     var zoom = state.zoom, scrollRef = state.scrollRef;
 
     if (!pat || !pal) return;
     if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
-    var hsArr = [];
-    halfStitches.forEach(function(v, k) {
-      hsArr.push([k, {
-        fwd: v.fwd ? { id: v.fwd.id, rgb: v.fwd.rgb } : undefined,
-        bck: v.bck ? { id: v.bck.id, rgb: v.bck.rgb } : undefined,
-      }]);
+    var psArr = [];
+    partialStitches.forEach(function(v, k) {
+      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+      psArr.push([k, e]);
     });
     var project = {
-      version: 9, id: state.projectIdRef.current, page: "creator", name: finalName,
+      version: 10, id: state.projectIdRef.current, page: "creator", name: finalName,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
-      imgData: img ? img.src : null, halfStitches: hsArr,
+      imgData: img ? img.src : null, partialStitches: psArr,
       savedZoom: zoom,
       savedScroll: scrollRef.current ? { left: scrollRef.current.scrollLeft, top: scrollRef.current.scrollTop } : null,
     };
@@ -4437,26 +4675,24 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var bsLines = state.bsLines, done = state.done;
     var parkMarkers = state.parkMarkers, totalTime = state.totalTime, sessions = state.sessions;
     var hlRow = state.hlRow, hlCol = state.hlCol, threadOwned = state.threadOwned;
-    var img = state.img, halfStitches = state.halfStitches;
+    var img = state.img, partialStitches = state.partialStitches;
     var projectIdRef = state.projectIdRef, projectName = state.projectName;
 
     if (!pat || !pal) return;
     if (!projectIdRef.current) projectIdRef.current = "proj_" + Date.now();
-    var hsArr = [];
-    halfStitches.forEach(function(v, k) {
-      hsArr.push([k, {
-        fwd: v.fwd ? { id: v.fwd.id, rgb: v.fwd.rgb } : undefined,
-        bck: v.bck ? { id: v.bck.id, rgb: v.bck.rgb } : undefined,
-      }]);
+    var psArr = [];
+    partialStitches.forEach(function(v, k) {
+      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+      psArr.push([k, e]);
     });
     var project = {
-      version: 9, id: projectIdRef.current, page: "creator", name: projectName,
+      version: 10, id: projectIdRef.current, page: "creator", name: projectName,
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
-      imgData: img ? img.src : null, halfStitches: hsArr,
+      imgData: img ? img.src : null, partialStitches: psArr,
     };
     if (onSwitchToTrack) {
       saveProjectToDB(project).catch(function() {});
@@ -4525,20 +4761,34 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (project.hlCol >= 0) state.setHlCol(project.hlCol);
     state.setIsScratchMode(!!s.isScratchMode);
 
-    if (project.halfStitches && Array.isArray(project.halfStitches)) {
-      var hm = new Map();
+    if (project.partialStitches && Array.isArray(project.partialStitches)) {
+      var pm = new Map();
+      project.partialStitches.forEach(function(entry) {
+        var idx = entry[0], v = entry[1];
+        var pe = {};
+        ["TL","TR","BL","BR"].forEach(function(q) {
+          if (v[q]) pe[q] = restoreStitch(Object.assign({}, v[q], { type: v[q].type || (typeof v[q].id === "string" && v[q].id.includes("+") ? "blend" : "solid") }));
+        });
+        pm.set(idx, pe);
+      });
+      state.setPartialStitches(pm);
+    } else if (project.halfStitches && Array.isArray(project.halfStitches)) {
+      // Migrate v9 half-stitch format to v10 quadrant format
+      var pm2 = new Map();
       project.halfStitches.forEach(function(entry) {
         var idx = entry[0], v = entry[1];
-        var he = {};
-        if (v.fwd) he.fwd = restoreStitch(Object.assign({}, v.fwd, { type: v.fwd.type || (typeof v.fwd.id === "string" && v.fwd.id.includes("+") ? "blend" : "solid") }));
-        if (v.bck) he.bck = restoreStitch(Object.assign({}, v.bck, { type: v.bck.type || (typeof v.bck.id === "string" && v.bck.id.includes("+") ? "blend" : "solid") }));
-        hm.set(idx, he);
+        var migrated = migrateHalfStitch(v);
+        var pe = {};
+        ["TL","TR","BL","BR"].forEach(function(q) {
+          if (migrated[q]) pe[q] = restoreStitch(Object.assign({}, migrated[q], { type: migrated[q].type || (typeof migrated[q].id === "string" && migrated[q].id.includes("+") ? "blend" : "solid") }));
+        });
+        pm2.set(idx, pe);
       });
-      state.setHalfStitches(hm);
+      state.setPartialStitches(pm2);
     } else {
-      state.setHalfStitches(new Map());
+      state.setPartialStitches(new Map());
     }
-    state.setHalfStitchTool(null);
+    state.setPartialStitchTool(null);
     state.setProjectName(project.name || "");
     state.projectIdRef.current = project.id || null;
     state.createdAtRef.current = project.createdAt || null;
@@ -4716,24 +4966,22 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   React.useEffect(function() {
     var pat = state.pat, pal = state.pal;
     if (!pat || !pal) return;
-    var hsArr = [];
-    state.halfStitches.forEach(function(v, k) {
-      hsArr.push([k, {
-        fwd: v.fwd ? { id: v.fwd.id, rgb: v.fwd.rgb } : undefined,
-        bck: v.bck ? { id: v.bck.id, rgb: v.bck.rgb } : undefined,
-      }]);
+    var psArr = [];
+    state.partialStitches.forEach(function(v, k) {
+      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+      psArr.push([k, e]);
     });
     if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
     var project5 = {
-      version: 9, id: state.projectIdRef.current, page: "creator", name: state.projectName,
+      version: 10, id: state.projectIdRef.current, page: "creator", name: state.projectName,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
       parkMarkers: state.parkMarkers, totalTime: state.totalTime, sessions: state.sessions,
       hlRow: state.hlRow, hlCol: state.hlCol, threadOwned: state.threadOwned,
-      imgData: state.img ? state.img.src : null, halfStitches: hsArr,
+      imgData: state.img ? state.img.src : null, partialStitches: psArr,
       savedZoom: state.zoom,
       savedScroll: state.scrollRef.current ? { left: state.scrollRef.current.scrollLeft, top: state.scrollRef.current.scrollTop } : null,
     };
@@ -4760,7 +5008,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.minSt, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed,
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
-    state.threadOwned, state.img, state.halfStitches, state.projectName, state.allowBlends,
+    state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
   ]);
 
   // Expose flush for BackupRestore to call before reading IndexedDB.
@@ -5082,7 +5330,7 @@ window.PatternCanvas = function PatternCanvas() {
   }, [
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
     ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
-    ctx.img, ctx.halfStitches, ctx.stitchType, ctx.halfStitchTool,
+    ctx.img, ctx.partialStitches, ctx.stitchType, ctx.partialStitchTool,
     ctx.showCleanupDiff, ctx.cleanupDiff,
     ctx.dimFraction, ctx.dimHiId, ctx.bgDimOpacity, ctx.bgDimDesaturation,
     ctx.highlightMode, ctx.tintColor, ctx.tintOpacity, ctx.spotDimOpacity
@@ -5105,7 +5353,7 @@ window.PatternCanvas = function PatternCanvas() {
     ctx.hoverCoords, ctx.selectedColorId, ctx.bsStart,
     // structural deps — needed so the overlay is redrawn correctly when these change
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.tab,
-    ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.halfStitchTool, ctx.bsLines,
+    ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.partialStitchTool, ctx.bsLines,
     ctx.lassoMode, ctx.lassoPoints, ctx.lassoPreviewMask, ctx.lassoCursor, ctx.lassoInProgress,
     ctx.selectionMask, ctx.confettiPreview
   ]);
@@ -5185,6 +5433,11 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("line", {x1:"1",y1:"11",x2:"11",y2:"1",stroke:"currentColor",strokeWidth:"1.8"}));
   var svgBck = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
     h("line", {x1:"1",y1:"1",x2:"11",y2:"11",stroke:"currentColor",strokeWidth:"1.8"}));
+  var svgQtr = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
+    h("polygon", {points:"1,11 11,1 1,1",fill:"currentColor",fillOpacity:"0.75",stroke:"none"}));
+  var svgThreeQtr = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
+    h("line", {x1:"1",y1:"11",x2:"11",y2:"1",stroke:"currentColor",strokeWidth:"1.8"}),
+    h("line", {x1:"1",y1:"1",x2:"6",y2:"6",stroke:"currentColor",strokeWidth:"1.8"}));
   var svgErase = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
     h("line", {x1:"2",y1:"2",x2:"10",y2:"10",stroke:"currentColor",strokeWidth:"1.5"}),
     h("line", {x1:"10",y1:"2",x2:"2",y2:"10",stroke:"currentColor",strokeWidth:"1.5"}));
@@ -5243,7 +5496,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       }, svgErase, "Erase"),
       h("button", {
         className:"tb-btn"+(ctx.activeTool==="eyedropper"?" tb-btn--on":""),
-        onClick:function(){ctx.setActiveTool("eyedropper"); ctx.setBsStart(null); ctx.setHalfStitchTool(null);},
+        onClick:function(){ctx.setActiveTool("eyedropper"); ctx.setBsStart(null); ctx.setPartialStitchTool(null);},
         title:"Eyedropper (I)"
       }, "Pick")
     )
@@ -5252,10 +5505,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Stitch type dropdown — shown only when paint or fill is the active brush mode
   var showStitchGrp = (ctx.brushMode==="paint" || ctx.brushMode==="fill") && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase";
   var stitchMeta = {
-    "cross":      {icon:svgX,    label:"Cross",    cls:"tb-btn--green"},
-    "half-fwd":   {icon:svgFwd,  label:"Half /",   cls:"tb-btn--blue"},
-    "half-bck":   {icon:svgBck,  label:"Half \\",  cls:"tb-btn--blue"},
-    "backstitch": {icon:null,    label:"Bs",       cls:"tb-btn--on"}
+    "cross":         {icon:svgX,         label:"Cross",       cls:"tb-btn--green"},
+    "quarter":       {icon:svgQtr,       label:"\u00BC Stitch",  cls:"tb-btn--blue"},
+    "half-fwd":      {icon:svgFwd,       label:"Half /",       cls:"tb-btn--blue"},
+    "half-bck":      {icon:svgBck,       label:"Half \\",      cls:"tb-btn--blue"},
+    "three-quarter": {icon:svgThreeQtr,  label:"\u00BE Stitch",  cls:"tb-btn--blue"},
+    "backstitch":    {icon:null,         label:"Bs",           cls:"tb-btn--on"}
   };
   var activeSM = stitchMeta[ctx.stitchType] || stitchMeta["cross"];
   var stitchDrop = showStitchGrp ? [
@@ -5323,8 +5578,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Brush size group
   var showBrushSize = (
     ((ctx.stitchType === "cross" || ctx.stitchType === "half-fwd" || ctx.stitchType === "half-bck") && ctx.brushMode === "paint") ||
-    ctx.stitchType === "erase" ||
-    (ctx.halfStitchTool && ctx.halfStitchTool !== "erase")
+    ctx.stitchType === "erase"
   ) && ctx.activeTool !== "eyedropper";
   var sizeGrp = showBrushSize ? [
     h("div", {key:"sdiv-sz", className:"tb-sdiv"}),
@@ -5381,7 +5635,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           className:"tb-drop-item"+(ctx.activeTool==="magicWand"?" tb-drop-item--on":""),
           onClick:function(){
             if (ctx.activeTool==="magicWand") ctx.setActiveTool(null);
-            else { ctx.setActiveTool("magicWand"); ctx.setHalfStitchTool(null); ctx.setBsStart(null); if (ctx.cancelLasso) ctx.cancelLasso(); }
+            else { ctx.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); ctx.setBsStart(null); if (ctx.cancelLasso) ctx.cancelLasso(); }
           }
         }, svgWand, "Magic Wand"),
         h("button", {
@@ -5389,7 +5643,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){
             var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="freehand";
             if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
-            else{ctx.setActiveTool("lasso");ctx.setLassoMode("freehand");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
+            else{ctx.setActiveTool("lasso");ctx.setLassoMode("freehand");ctx.setPartialStitchTool(null);ctx.setBsStart(null);}
           }
         }, svgFreehand, "Freehand"),
         h("button", {
@@ -5397,7 +5651,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){
             var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="polygon";
             if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
-            else{ctx.setActiveTool("lasso");ctx.setLassoMode("polygon");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
+            else{ctx.setActiveTool("lasso");ctx.setLassoMode("polygon");ctx.setPartialStitchTool(null);ctx.setBsStart(null);}
           }
         }, svgPolygon, "Polygon"),
         h("button", {
@@ -5405,7 +5659,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){
             var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="magnetic";
             if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
-            else{ctx.setActiveTool("lasso");ctx.setLassoMode("magnetic");ctx.setHalfStitchTool(null);ctx.setBsStart(null);}
+            else{ctx.setActiveTool("lasso");ctx.setLassoMode("magnetic");ctx.setPartialStitchTool(null);ctx.setBsStart(null);}
           }
         }, svgMagnetic, "Magnetic"),
         (ctx.hasSelection || ctx.lassoInProgress) && h("div", {style:{borderTop:"1px solid var(--border)",marginTop:3,paddingTop:3}},
@@ -6004,7 +6258,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Palette chips (top of right panel, when pattern loaded) ─────────────────
   var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
     var displayPal = ctx.displayPal || ctx.pal || [];
-    var isHsTool = ctx.halfStitchTool && ctx.halfStitchTool !== "erase";
+    var isHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
     var isPaintMode = ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool;
     var selInfo = ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId];
     var chips = displayPal.map(function(p) {
@@ -6585,14 +6839,11 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
   var menu = ctx.contextMenu;
-  if (!menu) return null;
 
-  var cell = menu.cell;
-  var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
-  var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
-
-  // Close menu on outside click or Escape
+  // Close menu on outside click or Escape.
+  // Must be declared before any early returns (Rules of Hooks).
   React.useEffect(function() {
+    if (!menu) return;
     function close() { ctx.setContextMenu(null); }
     function onKey(e) { if (e.key === "Escape") close(); }
     document.addEventListener("pointerdown", close);
@@ -6601,7 +6852,13 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       document.removeEventListener("pointerdown", close);
       document.removeEventListener("keydown", onKey);
     };
-  }, []);
+  }, [menu]);
+
+  if (!menu) return null;
+
+  var cell = menu.cell;
+  var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
+  var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
 
   function item(label, onClick, opts) {
     opts = opts || {};
@@ -6664,7 +6921,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     // Select similar
     item([Icons.wand(), " Select similar (wand)"], function() {
       ctx.setActiveTool("magicWand");
-      ctx.setHalfStitchTool(null);
+      ctx.setPartialStitchTool(null);
       ctx.setBsStart(null);
       ctx.applyWandSelect(menu.gx, menu.gy, ctx.wandOpMode);
     }, {disabled: !hasCellColour, k: 'wand'}),
@@ -6685,7 +6942,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     hasCellColour && item([Icons.info(), " Stitch info"], function() {
       if (cellInfo) {
         ctx.setActiveTool("magicWand");
-        ctx.setHalfStitchTool(null);
+        ctx.setPartialStitchTool(null);
         ctx.applyWandSelect(menu.gx, menu.gy, "replace");
         ctx.setWandPanel("info");
       }
@@ -6713,11 +6970,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     }
   }, [ctx.confettiData]);
 
-  if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "pattern") return null;
-
   // Track Shift/Alt modifier keys when a selection tool is active.
   // Updates ctx.selectionModifier so MagicWandPanel can show the effective mode.
+  // Must be declared before any early returns (Rules of Hooks).
   React.useEffect(function() {
     if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso") {
       ctx.setSelectionModifier(null);
@@ -6737,6 +6992,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ctx.setSelectionModifier(null);
     };
   }, [ctx.activeTool]);
+
+  if (!(ctx.pat && ctx.pal)) return null;
+  if (ctx.tab !== "pattern") return null;
 
   // PaletteSwap confirm view takes over when active
   if (ctx.paletteSwap && ctx.paletteSwap.showConfirm) {
@@ -6826,7 +7084,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         if (selTool) return "crosshair";
         if (ctx.activeTool === "fill") return "cell";
         if (ctx.activeTool === "eraseBs") return "not-allowed";
-        if (ctx.activeTool || ctx.halfStitchTool) return "crosshair";
+        if (ctx.activeTool || ctx.partialStitchTool) return "crosshair";
         return "default";
       })()},
       onContextMenu: function(e) {
@@ -6840,7 +7098,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         var idx = gc.gy * ctx.sW + gc.gx;
         var cell = ctx.pat[idx];
         // In paint/fill mode, right-click directly picks the colour (eyedropper gesture)
-        var rcIsHsTool = ctx.halfStitchTool && ctx.halfStitchTool !== "erase";
+        var rcIsHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
         if ((ctx.activeTool === "paint" || ctx.activeTool === "fill" || rcIsHsTool) &&
             cell && cell.id !== "__skip__" && cell.id !== "__empty__" &&
             ctx.cmap && ctx.cmap[cell.id]) {
@@ -7461,12 +7719,9 @@ window.CreatorExportTab = function CreatorExportTab() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
 
-  if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "export") return null;
-
   var G = ctx.G;
 
-  // renderExport callback
+  // renderExport callback — must be declared before any early returns (Rules of Hooks)
   var renderExport = React.useCallback(function() {
     if (ctx.tab !== "export" || !ctx.expRef.current || !ctx.pat || !ctx.cmap) return;
     var epC = ctx.exportPage % ctx.pxX;
@@ -7485,10 +7740,13 @@ window.CreatorExportTab = function CreatorExportTab() {
     drawPatternOnCanvas(ctx.expRef.current.getContext("2d"), oX2, oY2, dW2, dH2, expCs, G, exportState);
   }, [
     ctx.tab, ctx.pat, ctx.cmap, ctx.sW, ctx.sH, ctx.pageMode, ctx.exportPage, ctx.pxX,
-    ctx.view, ctx.hiId, ctx.showCtr, ctx.bsLines, ctx.halfStitches
+    ctx.view, ctx.hiId, ctx.showCtr, ctx.bsLines, ctx.partialStitches
   ]);
 
   React.useEffect(function() { renderExport(); }, [renderExport]);
+
+  if (!(ctx.pat && ctx.pal)) return null;
+  if (ctx.tab !== "export") return null;
 
   return h("div", {style:{display:"flex",flexDirection:"column",gap:12}},
     ctx.copied && h("div", {style:{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!"),

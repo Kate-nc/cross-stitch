@@ -8,12 +8,9 @@ window.CreatorExportTab = function CreatorExportTab() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
 
-  if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "export") return null;
-
   var G = ctx.G;
 
-  // renderExport callback
+  // renderExport callback — must be declared before any early returns (Rules of Hooks)
   var renderExport = React.useCallback(function() {
     if (ctx.tab !== "export" || !ctx.expRef.current || !ctx.pat || !ctx.cmap) return;
     var epC = ctx.exportPage % ctx.pxX;
@@ -32,10 +29,13 @@ window.CreatorExportTab = function CreatorExportTab() {
     drawPatternOnCanvas(ctx.expRef.current.getContext("2d"), oX2, oY2, dW2, dH2, expCs, G, exportState);
   }, [
     ctx.tab, ctx.pat, ctx.cmap, ctx.sW, ctx.sH, ctx.pageMode, ctx.exportPage, ctx.pxX,
-    ctx.view, ctx.hiId, ctx.showCtr, ctx.bsLines, ctx.halfStitches
+    ctx.view, ctx.hiId, ctx.showCtr, ctx.bsLines, ctx.partialStitches
   ]);
 
   React.useEffect(function() { renderExport(); }, [renderExport]);
+
+  if (!(ctx.pat && ctx.pal)) return null;
+  if (ctx.tab !== "export") return null;
 
   return h("div", {style:{display:"flex",flexDirection:"column",gap:12}},
     ctx.copied && h("div", {style:{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!"),

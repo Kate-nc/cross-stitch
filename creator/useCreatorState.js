@@ -122,11 +122,11 @@ window.useCreatorState = function useCreatorState() {
   var _hlCol    = useState(-1);      var hlCol = _hlCol[0], setHlCol = _hlCol[1];
   var _totTime  = useState(0);       var totalTime = _totTime[0], setTotalTime = _totTime[1];
   var _sessions = useState([]);      var sessions = _sessions[0], setSessions = _sessions[1];
-  var _hs       = useState(function() { return new Map(); });
-  var halfStitches = _hs[0], setHalfStitches = _hs[1];
-  var _hsTool   = useState(null);    var halfStitchTool = _hsTool[0];
-  var halfStitchToolRef = useRef(null);
-  function setHalfStitchTool(v) { halfStitchToolRef.current = v; _hsTool[1](v); }
+  var _ps       = useState(function() { return new Map(); });
+  var partialStitches = _ps[0], setPartialStitches = _ps[1];
+  var _psTool   = useState(null);    var partialStitchTool = _psTool[0];
+  var partialStitchToolRef = useRef(null);
+  function setPartialStitchTool(v) { partialStitchToolRef.current = v; _psTool[1](v); }
 
   // Thread organiser
   var _thOwned  = useState({});      var threadOwned = _thOwned[0], setThreadOwned = _thOwned[1];
@@ -311,9 +311,7 @@ window.useCreatorState = function useCreatorState() {
     return c;
   }, [pat, done]);
 
-  var stitchType = halfStitchTool === "fwd" ? "half-fwd"
-    : halfStitchTool === "bck" ? "half-bck"
-    : halfStitchTool === "erase" ? "erase"
+  var stitchType = partialStitchTool ? partialStitchTool
     : activeTool === "backstitch" ? "backstitch"
     : (activeTool === "paint" || activeTool === "fill") ? "cross"
     : null;
@@ -355,26 +353,31 @@ window.useCreatorState = function useCreatorState() {
   function slRsz(v) { chgW(v); }
 
   function selectStitchType(t) {
-    if (t === "cross")     { setActiveTool(brushModeRef.current); setHalfStitchTool(null); setBsStart(null); }
-    else if (t === "half-fwd") { setHalfStitchTool("fwd"); setActiveTool(null); setBsStart(null); }
-    else if (t === "half-bck") { setHalfStitchTool("bck"); setActiveTool(null); setBsStart(null); }
-    else if (t === "backstitch") { setActiveTool("backstitch"); setHalfStitchTool(null); }
-    else if (t === "erase")  { setActiveTool("eraseAll"); setHalfStitchTool(null); setBsStart(null); }
-    else { setActiveTool(null); setHalfStitchTool(null); setBsStart(null); }
+    if (t === "cross") {
+      setActiveTool(brushModeRef.current); setPartialStitchTool(null); setBsStart(null);
+    } else if (t === "quarter" || t === "half-fwd" || t === "half-bck" || t === "three-quarter") {
+      setPartialStitchTool(t); setActiveTool(null); setBsStart(null);
+    } else if (t === "backstitch") {
+      setActiveTool("backstitch"); setPartialStitchTool(null);
+    } else if (t === "erase") {
+      setActiveTool("eraseAll"); setPartialStitchTool(null); setBsStart(null);
+    } else {
+      setActiveTool(null); setPartialStitchTool(null); setBsStart(null);
+    }
   }
   function setBrushAndActivate(mode) {
     setBrushMode(mode);
     setActiveTool(mode);
-    setHalfStitchTool(null);
+    setPartialStitchTool(null);
     setBsStart(null);
   }
   function setTool(tool) {
     if (activeToolRef.current === tool) { setActiveTool(null); setBsStart(null); return; }
-    setActiveTool(tool); setBsStart(null); setHalfStitchTool(null);
+    setActiveTool(tool); setBsStart(null); setPartialStitchTool(null);
   }
   function setHsTool(t) {
-    if (halfStitchToolRef.current === t) { setHalfStitchTool(null); return; }
-    setHalfStitchTool(t); setActiveTool(null); setBsStart(null);
+    if (partialStitchToolRef.current === t) { setPartialStitchTool(null); return; }
+    setPartialStitchTool(t); setActiveTool(null); setBsStart(null);
   }
 
   function copyText(txt, label) {
@@ -392,7 +395,7 @@ window.useCreatorState = function useCreatorState() {
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     setDimOpen(true); setPalOpen(true); setFabOpen(false); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
-    setHalfStitches(new Map()); setHalfStitchTool(null); setBrushMode("paint");
+    setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
@@ -469,7 +472,7 @@ window.useCreatorState = function useCreatorState() {
     setPal(function(prev) { return prev ? prev.concat([entry]) : [entry]; });
     setCmap(function(prev) { return prev ? Object.assign({}, prev, { [d.id]: entry }) : { [d.id]: entry }; });
     setSelectedColorId(d.id);
-    if (!activeTool && !halfStitchTool) setBrushAndActivate("paint");
+    if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
   }
 
   function removeScratchColour(id) {
@@ -730,8 +733,8 @@ window.useCreatorState = function useCreatorState() {
     scratchPalette, setScratchPalette, dmcSearch, setDmcSearch,
     colPickerOpen, setColPickerOpen, parkMarkers, setParkMarkers,
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
-    sessions, setSessions, halfStitches, setHalfStitches,
-    halfStitchTool, setHalfStitchTool, halfStitchToolRef, threadOwned, setThreadOwned,
+    sessions, setSessions, partialStitches, setPartialStitches,
+    partialStitchTool, setPartialStitchTool, partialStitchToolRef, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen, previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
@@ -751,7 +754,7 @@ window.useCreatorState = function useCreatorState() {
     ownedCount, toBuyCount, toBuyList,
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
-    setBrushAndActivate, setTool, setHsTool, fitZ, copyText,
+    setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
     toggleOwned, generate,
     // Eyedropper feedback

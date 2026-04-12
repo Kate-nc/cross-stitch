@@ -68,7 +68,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Palette chips (top of right panel, when pattern loaded) ─────────────────
   var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
     var displayPal = ctx.displayPal || ctx.pal || [];
-    var isHsTool = ctx.halfStitchTool && ctx.halfStitchTool !== "erase";
+    var isHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
     var isPaintMode = ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool;
     var selInfo = ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId];
     var chips = displayPal.map(function(p) {
