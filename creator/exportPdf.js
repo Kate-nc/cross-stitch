@@ -7,15 +7,22 @@
  * Generate a pixel-art thumbnail of the pattern as a JPEG data URL.
  * Used by exportPDF and exportCoverSheet for cover page.
  */
-window.generatePatternThumbnail = function generatePatternThumbnail(pat, sW, sH) {
+window.generatePatternThumbnail = function generatePatternThumbnail(pat, sW, sH, partialStitches) {
   var c = document.createElement("canvas");
   c.width = sW; c.height = sH;
   var ctx = c.getContext("2d");
   var imgData = ctx.createImageData(sW, sH);
   var d = imgData.data;
+  var pqKeys = ["TL", "TR", "BL", "BR"];
   for (var i = 0; i < pat.length; i++) {
     var m = pat[i];
     var idx = i * 4;
+    var ps = partialStitches && partialStitches.get(i);
+    if (ps) {
+      var r = 0, g = 0, b = 0, cnt = 0;
+      for (var qi = 0; qi < pqKeys.length; qi++) { var qe = ps[pqKeys[qi]]; if (qe) { r += qe.rgb[0]; g += qe.rgb[1]; b += qe.rgb[2]; cnt++; } }
+      if (cnt > 0) { d[idx] = Math.round(r / cnt); d[idx + 1] = Math.round(g / cnt); d[idx + 2] = Math.round(b / cnt); d[idx + 3] = 255; continue; }
+    }
     if (!m || m.id === "__skip__" || m.id === "__empty__") {
       d[idx] = 255; d[idx + 1] = 255; d[idx + 2] = 255; d[idx + 3] = 255;
     } else {
@@ -45,6 +52,7 @@ window.exportPDF = async function exportPDF(options, data) {
   var skeinData = data.skeinData || [], bsLines = data.bsLines || [];
   var difficulty = data.difficulty;
   var doneCount = data.doneCount || 0;
+  var partialStitches = data.partialStitches || new Map();
 
   if (!pat || !pal || !cmap) return;
   if (!window.jspdf) await window.loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
@@ -68,7 +76,7 @@ window.exportPDF = async function exportPDF(options, data) {
     pdf.setFontSize(26); pdf.setTextColor(30, 30, 30); pdf.text("Cross Stitch Project", cmg, y + 10); y += 18;
     pdf.setDrawColor(91, 123, 179); pdf.setLineWidth(0.8); pdf.line(cmg, y, 195, y); y += 10;
 
-    var thumbData = generatePatternThumbnail(pat, sW, sH);
+    var thumbData = generatePatternThumbnail(pat, sW, sH, partialStitches);
     var thumbW = 60, thumbH = (sH / sW) * 60;
     if (thumbH > 80) { thumbH = 80; thumbW = (sW / sH) * 80; }
     pdf.addImage(thumbData, "JPEG", (210 - thumbW) / 2, y, thumbW, thumbH);
@@ -78,7 +86,7 @@ window.exportPDF = async function exportPDF(options, data) {
     pdf.setFontSize(10); pdf.setTextColor(40);
     var div2 = fabricCt === 28 ? 14 : fabricCt;
     var wIn2 = sW / div2, hIn2 = sH / div2;
-    [
+    var coverRows = [
       ["Pattern size", sW + " \xd7 " + sH + " stitches"],
       ["Stitchable stitches", totalStitchable.toLocaleString()],
       ["Colours", pal.length + " (" + blendCount + " blend" + (blendCount !== 1 ? "s" : "") + ")"],
@@ -89,7 +97,9 @@ window.exportPDF = async function exportPDF(options, data) {
       ["Est. time", fmtTimeL(Math.round(totalStitchable / stitchSpeed * 3600)) + " (at " + stitchSpeed + " st/hr)"],
       ["Difficulty", difficulty ? difficulty.label : "\u2014"],
       ["Est. thread cost", "\xa3" + (totalSkeins * skeinPrice).toFixed(2) + " (at \xa3" + skeinPrice.toFixed(2) + "/skein)"],
-    ].forEach(function(row) {
+    ];
+    if (partialStitches.size > 0) coverRows.push(["Partial stitches", partialStitches.size + " cells"]);
+    coverRows.forEach(function(row) {
       pdf.setTextColor(120); pdf.text(row[0] + ":", cmg, y);
       pdf.setTextColor(40); pdf.text(row[1], cmg + 50, y); y += 5.5;
     });
@@ -208,10 +218,85 @@ window.exportPDF = async function exportPDF(options, data) {
     });
   }
 
+  // ─── Partial Stitch Guide ──────────────────────────────────────────────────
+  if (partialStitches.size > 0) {
+    ty += 8;
+    if (ty > 240) { pdf.addPage(); ty = mg + 8; }
+    pdf.setTextColor(0); pdf.setFontSize(14); pdf.text("Partial Stitches", mg, ty); ty += 8;
+    pdf.setFontSize(8); pdf.setTextColor(80);
+    pdf.text("Partial stitches occupy one or more quadrants of a cell (TL, TR, BL, BR), shown as coloured sub-squares.", mg, ty, {maxWidth: 180}); ty += 12;
+    var exMM = 8, exGap = 30, eY = ty;
+    // Quarter stitch — TL only
+    var e1x = mg;
+    pdf.setFillColor(255, 255, 255); pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.rect(e1x, eY, exMM, exMM, "DF");
+    pdf.setFillColor(91, 123, 179); pdf.rect(e1x, eY, exMM / 2, exMM / 2, "F");
+    pdf.setDrawColor(180); pdf.setLineWidth(0.08);
+    pdf.line(e1x + exMM / 2, eY, e1x + exMM / 2, eY + exMM); pdf.line(e1x, eY + exMM / 2, e1x + exMM, eY + exMM / 2);
+    pdf.setTextColor(80); pdf.setFontSize(7); pdf.text("Quarter", e1x + exMM / 2, eY + exMM + 4, {align: "center"});
+    // Half stitch — TL + BR (diagonal pair)
+    var e2x = mg + exGap;
+    pdf.setFillColor(255, 255, 255); pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.rect(e2x, eY, exMM, exMM, "DF");
+    pdf.setFillColor(91, 123, 179); pdf.rect(e2x, eY, exMM / 2, exMM / 2, "F");
+    pdf.setFillColor(200, 80, 80); pdf.rect(e2x + exMM / 2, eY + exMM / 2, exMM / 2, exMM / 2, "F");
+    pdf.setDrawColor(180); pdf.setLineWidth(0.08);
+    pdf.line(e2x + exMM / 2, eY, e2x + exMM / 2, eY + exMM); pdf.line(e2x, eY + exMM / 2, e2x + exMM, eY + exMM / 2);
+    pdf.setTextColor(80); pdf.setFontSize(7); pdf.text("Half", e2x + exMM / 2, eY + exMM + 4, {align: "center"});
+    // Three-quarter stitch — TL + TR + BL
+    var e3x = mg + exGap * 2;
+    pdf.setFillColor(255, 255, 255); pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.rect(e3x, eY, exMM, exMM, "DF");
+    pdf.setFillColor(91, 123, 179);
+    pdf.rect(e3x, eY, exMM / 2, exMM / 2, "F");
+    pdf.rect(e3x + exMM / 2, eY, exMM / 2, exMM / 2, "F");
+    pdf.rect(e3x, eY + exMM / 2, exMM / 2, exMM / 2, "F");
+    pdf.setDrawColor(180); pdf.setLineWidth(0.08);
+    pdf.line(e3x + exMM / 2, eY, e3x + exMM / 2, eY + exMM); pdf.line(e3x, eY + exMM / 2, e3x + exMM, eY + exMM / 2);
+    pdf.setTextColor(80); pdf.setFontSize(7); pdf.text("Three-quarter", e3x + exMM / 2, eY + exMM + 4, {align: "center"});
+    ty = eY + exMM + 10;
+    pdf.setFontSize(8); pdf.setTextColor(80);
+    pdf.text("This pattern contains " + partialStitches.size + " partial stitch cell" + (partialStitches.size !== 1 ? "s" : "") + ".", mg, ty);
+    ty += 6;
+  }
+
   // ─── Chart Pages ─────────────────────────────────────────────────────────────
   var gridCols = isSinglePage ? sW : gridColsA4;
   var gridRows = isSinglePage ? sH : gridRowsA4;
   var pagesX = Math.ceil(sW / gridCols), pagesY = Math.ceil(sH / gridRows);
+
+  var _psqKeys = ["TL", "TR", "BL", "BR"];
+  function _drawPdfPartialStitchCell(px3, py3, psEntry) {
+    var half = cellMM / 2;
+    if (cellMM < 3) {
+      var r2 = 0, g2 = 0, b2 = 0, cnt2 = 0;
+      for (var qi2 = 0; qi2 < _psqKeys.length; qi2++) { var qe2 = psEntry[_psqKeys[qi2]]; if (qe2) { r2 += qe2.rgb[0]; g2 += qe2.rgb[1]; b2 += qe2.rgb[2]; cnt2++; } }
+      if (cnt2 > 0) { pdf.setFillColor(Math.round(r2 / cnt2), Math.round(g2 / cnt2), Math.round(b2 / cnt2)); pdf.rect(px3, py3, cellMM, cellMM, "F"); }
+      return;
+    }
+    for (var qi3 = 0; qi3 < _psqKeys.length; qi3++) {
+      var q3 = _psqKeys[qi3], qe3 = psEntry[q3];
+      if (!qe3) continue;
+      var qx3 = (q3 === "TR" || q3 === "BR") ? px3 + half : px3;
+      var qy3 = (q3 === "BL" || q3 === "BR") ? py3 + half : py3;
+      pdf.setFillColor(qe3.rgb[0], qe3.rgb[1], qe3.rgb[2]); pdf.rect(qx3, qy3, half, half, "F");
+    }
+    pdf.setDrawColor(180); pdf.setLineWidth(0.08);
+    pdf.line(px3 + half, py3, px3 + half, py3 + cellMM);
+    pdf.line(px3, py3 + half, px3 + cellMM, py3 + half);
+    if ((displayMode === "color_symbol" || displayMode === "symbol") && cellMM >= 3) {
+      for (var qi4 = 0; qi4 < _psqKeys.length; qi4++) {
+        var q4 = _psqKeys[qi4], qe4 = psEntry[q4];
+        if (!qe4) continue;
+        var info4 = cmap[qe4.id];
+        if (!info4) continue;
+        var qx4 = (q4 === "TR" || q4 === "BR") ? px3 + half : px3;
+        var qy4 = (q4 === "BL" || q4 === "BR") ? py3 + half : py3;
+        var cx4 = qx4 + half / 2, cy4 = qy4 + half / 2;
+        var isLight4 = displayMode === "color_symbol" && luminance(qe4.rgb) <= 128;
+        pdf.setTextColor(isLight4 ? 255 : 0); pdf.setDrawColor(isLight4 ? 255 : 0); pdf.setFillColor(isLight4 ? 255 : 0);
+        if (typeof drawPDFSymbol === "function") drawPDFSymbol(pdf, info4.symbol, cx4, cy4, half);
+        else { pdf.setFontSize(3); pdf.text(info4.symbol, cx4, cy4 + half * 0.3, {align: "center"}); }
+      }
+    }
+  }
 
   function clipLine(x1, y1, x2, y2, xmin, ymin, xmax, ymax) {
     var INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
@@ -267,6 +352,14 @@ window.exportPDF = async function exportPDF(options, data) {
             var px3 = mg + gx * cellMM, py3 = mg + 8 + gy * cellMM;
             var isOverlap = gx >= mainW || gy >= mainH;
             if (isOverlap) { pdf.setGState(new pdf.GState({ opacity: 0.4 })); pdf.setFillColor(200, 200, 200); pdf.rect(px3, py3, cellMM, cellMM, "F"); }
+            var psEntry = !isBackstitchOnly ? partialStitches.get((y0 + gy) * sW + (x0 + gx)) : null;
+            if (psEntry) {
+              pdf.setFillColor(255, 255, 255); pdf.rect(px3, py3, cellMM, cellMM, "F");
+              _drawPdfPartialStitchCell(px3, py3, psEntry);
+              pdf.setDrawColor(displayMode === "symbol" ? 150 : 200); pdf.setLineWidth(0.2); pdf.rect(px3, py3, cellMM, cellMM, "S");
+              if (isOverlap) pdf.setGState(new pdf.GState({ opacity: 1.0 }));
+              continue;
+            }
             if (!m || m.id === "__skip__" || m.id === "__empty__") {
               pdf.setDrawColor(220); pdf.rect(px3, py3, cellMM, cellMM, "S");
               if (isOverlap) pdf.setGState(new pdf.GState({ opacity: 1.0 }));
@@ -358,6 +451,7 @@ window.exportCoverSheet = async function exportCoverSheet(data) {
   var skeinData = data.skeinData || [];
   var difficulty = data.difficulty;
   var doneCount = data.doneCount || 0;
+  var partialStitches = data.partialStitches || new Map();
 
   if (!pat || !pal || !cmap) return;
   if (!window.jspdf) await window.loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
@@ -368,7 +462,7 @@ window.exportCoverSheet = async function exportCoverSheet(data) {
   pdf.setFontSize(26); pdf.setTextColor(30, 30, 30); pdf.text("Cross Stitch Project", mg, y + 10); y += 18;
   pdf.setDrawColor(91, 123, 179); pdf.setLineWidth(0.8); pdf.line(mg, y, 195, y); y += 10;
 
-  var thumbData = generatePatternThumbnail(pat, sW, sH);
+  var thumbData = generatePatternThumbnail(pat, sW, sH, partialStitches);
   var thumbW = 60, thumbH = (sH / sW) * 60;
   if (thumbH > 80) { thumbH = 80; thumbW = (sW / sH) * 80; }
   pdf.addImage(thumbData, "JPEG", (210 - thumbW) / 2, y, thumbW, thumbH);
@@ -378,7 +472,7 @@ window.exportCoverSheet = async function exportCoverSheet(data) {
   pdf.setFontSize(10); pdf.setTextColor(40);
   var div2 = fabricCt === 28 ? 14 : fabricCt;
   var wIn2 = sW / div2, hIn2 = sH / div2;
-  [
+  var csRows = [
     ["Pattern size", sW + " \xd7 " + sH + " stitches"],
     ["Stitchable stitches", totalStitchable.toLocaleString()],
     ["Colours", pal.length + " (" + blendCount + " blend" + (blendCount !== 1 ? "s" : "") + ")"],
@@ -389,7 +483,9 @@ window.exportCoverSheet = async function exportCoverSheet(data) {
     ["Est. time", fmtTimeL(Math.round(totalStitchable / stitchSpeed * 3600)) + " (at " + stitchSpeed + " st/hr)"],
     ["Difficulty", difficulty ? difficulty.label : "\u2014"],
     ["Est. thread cost", "\xa3" + (totalSkeins * skeinPrice).toFixed(2) + " (at \xa3" + skeinPrice.toFixed(2) + "/skein)"],
-  ].forEach(function(row) {
+  ];
+  if (partialStitches.size > 0) csRows.push(["Partial stitches", partialStitches.size + " cells"]);
+  csRows.forEach(function(row) {
     pdf.setTextColor(120); pdf.text(row[0] + ":", mg, y);
     pdf.setTextColor(40); pdf.text(row[1], mg + 50, y); y += 5.5;
   });
