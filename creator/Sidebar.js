@@ -298,6 +298,24 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
     ),
+    typeof StashBridge !== "undefined" && h("label", {
+      style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:4}
+    },
+      h("input", {type:"checkbox", checked:ctx.stashConstrained, onChange:function(e){ctx.setStashConstrained(e.target.checked);}}),
+      h("span", null, "Use only stash threads"),
+      h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
+    ),
+    ctx.stashConstrained && typeof StashBridge !== "undefined" && h("div", {
+      style:{fontSize:11,color:"#0d9488",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:8,padding:"6px 10px",marginBottom:8}
+    },
+      (function() {
+        var stashCount = Object.keys(ctx.globalStash || {}).filter(function(id) {
+          return (ctx.globalStash[id].owned || 0) > 0;
+        }).length;
+        return stashCount + " thread" + (stashCount !== 1 ? "s" : "") + " available in your stash" +
+          (stashCount < ctx.maxC ? " (fewer than max colours \u2014 palette will be smaller)" : "");
+      })()
+    ),
     h("div", {style:{marginTop:8}},
       h(SliderRow, {label:"Min stitches per colour", value:ctx.minSt, min:0, max:50, onChange:ctx.setMinSt,
         format:function(v){return v===0?"Off":v;},

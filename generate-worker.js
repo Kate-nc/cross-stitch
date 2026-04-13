@@ -6,7 +6,8 @@
      Main → Worker:
        { type: 'generate', reqId: number, pixels: ArrayBuffer, width: number, height: number,
          settings: { maxC, dith, allowBlends, skipBg, bgCol, bgTh, minSt,
-                     smooth, smoothType, stitchCleanup } }
+                     smooth, smoothType, stitchCleanup,
+                     allowedPalette? } }  // allowedPalette: array of DMC entries or null
 
      Worker → Main:
        { type: 'result', reqId: number, mapped, pal, cmap, confettiData }
@@ -64,7 +65,10 @@ self.onmessage = function(e) {
     var bgTh         = settings.bgTh;
     var stitchCleanup = settings.stitchCleanup;
 
-    var p = quantize(raw, width, height, maxC);
+    var allowedPalette = settings.allowedPalette || null;
+    var p = allowedPalette
+      ? quantizeConstrained(raw, width, height, maxC, allowedPalette)
+      : quantize(raw, width, height, maxC);
     if (!p.length) {
       self.postMessage({ type: 'error', message: 'Quantization produced no colours' });
       return;

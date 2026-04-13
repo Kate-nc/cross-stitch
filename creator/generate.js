@@ -29,7 +29,9 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
 
-  var p = quantize(raw, width, height, maxC);
+  var p = opts.allowedPalette
+    ? quantizeConstrained(raw, width, height, maxC, opts.allowedPalette)
+    : quantize(raw, width, height, maxC);
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
@@ -93,7 +95,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 
-  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup });
+  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: opts.allowedPalette || null });
   if (!pipelineResult) return null;
 
   var mapped = pipelineResult.mapped;

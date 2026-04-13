@@ -14,6 +14,20 @@ window.usePreview = function usePreview(state) {
     var smooth = state.smooth, smoothType = state.smoothType;
     var stitchCleanup = state.stitchCleanup, fabricCt = state.fabricCt;
     var allowBlends = state.allowBlends;
+    var stashConstrained = state.stashConstrained, globalStash = state.globalStash;
+
+    // Build constrained palette from stash if stash-only mode is on
+    var allowedPalette = null;
+    if (stashConstrained && globalStash) {
+      allowedPalette = [];
+      Object.keys(globalStash).forEach(function(id) {
+        if ((globalStash[id].owned || 0) > 0) {
+          var dmcEntry = DMC.find(function(d) { return d.id === id; });
+          if (dmcEntry) allowedPalette.push(dmcEntry);
+        }
+      });
+      if (!allowedPalette.length) allowedPalette = null;
+    }
 
     if (!img || !img.src) return;
     var MAX_PREVIEW_AREA = 40000;
@@ -57,7 +71,7 @@ window.usePreview = function usePreview(state) {
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
     if (dith) {
-      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null });
+      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null, allowedPalette: allowedPalette });
       if (fastResult) state.setPreviewUrl(renderUrl(fastResult.mapped));
       fullPassTimerRef.current = setTimeout(runFull, 0);
       return;
@@ -66,7 +80,7 @@ window.usePreview = function usePreview(state) {
 
     function runFull() {
       fullPassTimerRef.current = null;
-      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup });
+      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: allowedPalette });
       if (!pipelineResult) return;
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
@@ -146,6 +160,7 @@ window.usePreview = function usePreview(state) {
     state.dith, state.skipBg, state.bgCol, state.bgTh, state.smooth, state.smoothType,
     state.stitchCleanup, state.fabricCt, state.allowBlends,
     state.orphans, state.showCleanupDiff,
+    state.stashConstrained, state.globalStash,
   ]);
 
   React.useEffect(function() {

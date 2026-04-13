@@ -41,7 +41,9 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
 
-  var p = quantize(raw, width, height, maxC);
+  var p = opts.allowedPalette
+    ? quantizeConstrained(raw, width, height, maxC, opts.allowedPalette)
+    : quantize(raw, width, height, maxC);
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
@@ -105,7 +107,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 
-  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup });
+  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: opts.allowedPalette || null });
   if (!pipelineResult) return null;
 
   var mapped = pipelineResult.mapped;
@@ -2861,6 +2863,7 @@ window.useCreatorState = function useCreatorState() {
   var _altOpen  = useState(null);    var altOpen = _altOpen[0], setAltOpen = _altOpen[1];
 
   // Substitute from stash
+  var _stashOnly = useState(false);  var stashConstrained = _stashOnly[0], setStashConstrained = _stashOnly[1];
   var _subOpen  = useState(false);   var substituteModalOpen = _subOpen[0], setSubstituteModalOpen = _subOpen[1];
   var _subProp  = useState(null);    var substituteProposal = _subProp[0], setSubstituteProposal = _subProp[1];
   var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
@@ -3305,6 +3308,26 @@ window.useCreatorState = function useCreatorState() {
     setBusy(true); setHiId(null); setExportPage(0);
     var reqId = ++genReqIdRef.current;
 
+    // Build allowed palette from stash when stash-constrained mode is on
+    var allowedPalette = null;
+    if (stashConstrained && globalStash) {
+      allowedPalette = [];
+      Object.keys(globalStash).forEach(function(id) {
+        if ((globalStash[id].owned || 0) > 0) {
+          var dmcEntry = DMC.find(function(d) { return d.id === id; });
+          if (dmcEntry) allowedPalette.push(dmcEntry);
+        }
+      });
+      if (allowedPalette.length === 0) {
+        addToast("Your stash is empty — add threads to use stash-only mode.", {type: "warning", duration: 3000});
+        setBusy(false);
+        return;
+      }
+      if (allowedPalette.length < 3) {
+        addToast("Only " + allowedPalette.length + " thread(s) in stash — results may be limited.", {type: "warning", duration: 3000});
+      }
+    }
+
     var startGeneration = function() {
       // Extract pixel data here (requires canvas — must stay on main thread)
       var c = document.createElement("canvas");
@@ -3326,6 +3349,7 @@ window.useCreatorState = function useCreatorState() {
               dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, allowBlends: allowBlends,
+              allowedPalette: allowedPalette,
             });
             if (!result) { setBusy(false); return; }
             applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds });
@@ -3346,6 +3370,7 @@ window.useCreatorState = function useCreatorState() {
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup,
+          allowedPalette: allowedPalette,
         },
       }, [imageData.data.buffer]);
     };
@@ -3355,7 +3380,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, hasGenerated, allowBlends]);
+  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, hasGenerated, allowBlends, stashConstrained, globalStash]);
 
   // Terminate the worker when the component unmounts to prevent memory leaks
   useEffect(function() {
@@ -3473,6 +3498,7 @@ window.useCreatorState = function useCreatorState() {
     substituteModalOpen, setSubstituteModalOpen,
     substituteProposal, setSubstituteProposal,
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
+    stashConstrained, setStashConstrained,
     previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
     previewHeatmap, setPreviewHeatmap,
@@ -4630,6 +4656,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var smooth = state.smooth, smoothType = state.smoothType, orphans = state.orphans;
     var isScratchMode = state.isScratchMode, allowBlends = state.allowBlends;
     var stitchCleanup = state.stitchCleanup;
+    var stashConstrained = state.stashConstrained;
     var bsLines = state.bsLines, done = state.done;
     var parkMarkers = state.parkMarkers, totalTime = state.totalTime, sessions = state.sessions;
     var hlRow = state.hlRow, hlCol = state.hlCol, threadOwned = state.threadOwned;
@@ -4647,7 +4674,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var project = {
       version: 10, id: state.projectIdRef.current, page: "creator", name: finalName,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup },
+      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
@@ -4683,6 +4710,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var fabricCt = state.fabricCt, skeinPrice = state.skeinPrice, stitchSpeed = state.stitchSpeed;
     var smooth = state.smooth, smoothType = state.smoothType, orphans = state.orphans;
     var allowBlends = state.allowBlends, stitchCleanup = state.stitchCleanup;
+    var stashConstrained = state.stashConstrained;
     var bsLines = state.bsLines, done = state.done;
     var parkMarkers = state.parkMarkers, totalTime = state.totalTime, sessions = state.sessions;
     var hlRow = state.hlRow, hlCol = state.hlCol, threadOwned = state.threadOwned;
@@ -4698,7 +4726,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     });
     var project = {
       version: 10, id: projectIdRef.current, page: "creator", name: projectName,
-      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup },
+      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
@@ -4741,6 +4769,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setBsLines(project.bsLines || []);
     state.setSmooth(s.smooth || 0); state.setSmoothType(s.smoothType || "median");
     state.setOrphans(s.orphans || 0); state.setAllowBlends(s.allowBlends !== false);
+    state.setStashConstrained(!!s.stashConstrained);
     if (s.stitchCleanup) {
       state.setStitchCleanup({
         enabled: !!s.stitchCleanup.enabled,
@@ -5085,6 +5114,20 @@ window.usePreview = function usePreview(state) {
     var smooth = state.smooth, smoothType = state.smoothType;
     var stitchCleanup = state.stitchCleanup, fabricCt = state.fabricCt;
     var allowBlends = state.allowBlends;
+    var stashConstrained = state.stashConstrained, globalStash = state.globalStash;
+
+    // Build constrained palette from stash if stash-only mode is on
+    var allowedPalette = null;
+    if (stashConstrained && globalStash) {
+      allowedPalette = [];
+      Object.keys(globalStash).forEach(function(id) {
+        if ((globalStash[id].owned || 0) > 0) {
+          var dmcEntry = DMC.find(function(d) { return d.id === id; });
+          if (dmcEntry) allowedPalette.push(dmcEntry);
+        }
+      });
+      if (!allowedPalette.length) allowedPalette = null;
+    }
 
     if (!img || !img.src) return;
     var MAX_PREVIEW_AREA = 40000;
@@ -5128,7 +5171,7 @@ window.usePreview = function usePreview(state) {
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
     if (dith) {
-      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null });
+      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null, allowedPalette: allowedPalette });
       if (fastResult) state.setPreviewUrl(renderUrl(fastResult.mapped));
       fullPassTimerRef.current = setTimeout(runFull, 0);
       return;
@@ -5137,7 +5180,7 @@ window.usePreview = function usePreview(state) {
 
     function runFull() {
       fullPassTimerRef.current = null;
-      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup });
+      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: allowedPalette });
       if (!pipelineResult) return;
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
@@ -5217,6 +5260,7 @@ window.usePreview = function usePreview(state) {
     state.dith, state.skipBg, state.bgCol, state.bgTh, state.smooth, state.smoothType,
     state.stitchCleanup, state.fabricCt, state.allowBlends,
     state.orphans, state.showCleanupDiff,
+    state.stashConstrained, state.globalStash,
   ]);
 
   React.useEffect(function() {
@@ -7459,6 +7503,24 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("input", {type:"checkbox", checked:ctx.allowBlends, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
+    ),
+    typeof StashBridge !== "undefined" && h("label", {
+      style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:4}
+    },
+      h("input", {type:"checkbox", checked:ctx.stashConstrained, onChange:function(e){ctx.setStashConstrained(e.target.checked);}}),
+      h("span", null, "Use only stash threads"),
+      h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
+    ),
+    ctx.stashConstrained && typeof StashBridge !== "undefined" && h("div", {
+      style:{fontSize:11,color:"#0d9488",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:8,padding:"6px 10px",marginBottom:8}
+    },
+      (function() {
+        var stashCount = Object.keys(ctx.globalStash || {}).filter(function(id) {
+          return (ctx.globalStash[id].owned || 0) > 0;
+        }).length;
+        return stashCount + " thread" + (stashCount !== 1 ? "s" : "") + " available in your stash" +
+          (stashCount < ctx.maxC ? " (fewer than max colours \u2014 palette will be smaller)" : "");
+      })()
     ),
     h("div", {style:{marginTop:8}},
       h(SliderRow, {label:"Min stitches per colour", value:ctx.minSt, min:0, max:50, onChange:ctx.setMinSt,
