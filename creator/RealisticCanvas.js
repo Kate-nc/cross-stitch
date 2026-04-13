@@ -69,8 +69,8 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
     oc.fillRect(0, 0, canvasW, canvasH);
 
     // ── 3. Stitch tile cache and full pattern render ─────────────────────────
-    var padding = CELL_SIZE * 0.10;
-    var sw = CELL_SIZE * 0.22; // strand width
+    var padding = CELL_SIZE * 0.08;
+    var sw = CELL_SIZE * 0.28; // strand width
     var lvl = realisticLevel;
 
     function adjustBrightness(r, g, b, factor) {
@@ -99,35 +99,52 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
         tc.strokeStyle = "rgb(" + r2 + "," + g2 + "," + b2 + ")";
         tc.beginPath(); tc.moveTo(x0, y0); tc.lineTo(x1, y1); tc.stroke();
       } else {
-        // ── Level 2: shaded X with light simulation ──────────────────────────
-        var darkC  = adjustBrightness(r1, g1, b1, 0.78);
-        var lightC = adjustBrightness(r2, g2, b2, 1.15);
-
-        // Bottom leg (darker — sits underneath): soft edge + core strand
-        tc.lineWidth = sw * 1.3;
-        tc.strokeStyle = "rgba(" + darkC[0] + "," + darkC[1] + "," + darkC[2] + ",0.30)";
-        tc.beginPath(); tc.moveTo(x0, y1); tc.lineTo(x1, y0); tc.stroke();
-        tc.lineWidth = sw;
-        tc.strokeStyle = "rgb(" + darkC[0] + "," + darkC[1] + "," + darkC[2] + ")";
-        tc.beginPath(); tc.moveTo(x0, y1); tc.lineTo(x1, y0); tc.stroke();
-
-        // Top leg (brighter — faces the light): soft edge + core strand
-        tc.lineWidth = sw * 1.3;
-        tc.strokeStyle = "rgba(" + lightC[0] + "," + lightC[1] + "," + lightC[2] + ",0.30)";
-        tc.beginPath(); tc.moveTo(x0, y0); tc.lineTo(x1, y1); tc.stroke();
-        tc.lineWidth = sw;
-        tc.strokeStyle = "rgb(" + lightC[0] + "," + lightC[1] + "," + lightC[2] + ")";
-        tc.beginPath(); tc.moveTo(x0, y0); tc.lineTo(x1, y1); tc.stroke();
-
-        // Specular highlight line along the top leg
-        tc.lineWidth = sw * 0.30;
-        tc.strokeStyle = "rgba(255,255,255,0.15)";
-        tc.beginPath(); tc.moveTo(x0, y0); tc.lineTo(x1, y1); tc.stroke();
-
-        // Shadow at the crossing point
+        // ── Level 2: cylindrical gradient strands ────────────────────────────
+        // Each strand is rendered as a transverse gradient: dark at the edges,
+        // bright at the crest — simulating a rounded cylindrical thread.
+        // The gradient vector is perpendicular to the strand direction so it
+        // varies across the strand width (not along its length).
+        var INV_SQ2 = 0.7071; // 1/√2
+        var hs = sw / 2;      // half-strand width
         var cx = CELL_SIZE / 2, cy = CELL_SIZE / 2;
-        tc.fillStyle = "rgba(0,0,0,0.08)";
-        tc.beginPath(); tc.arc(cx, cy, sw * 0.5, 0, Math.PI * 2); tc.fill();
+
+        // Build a 5-stop cylinder gradient centred on (cx, cy).
+        // perpX/perpY: unit vector perpendicular to the strand direction.
+        // factor: global brightness multiplier (top leg slightly above 1, bottom below 1).
+        function makeGrad(perpX, perpY, r, g, b, factor) {
+          var gx0 = cx - perpX * hs, gy0 = cy - perpY * hs;
+          var gx1 = cx + perpX * hs, gy1 = cy + perpY * hs;
+          var grad = tc.createLinearGradient(gx0, gy0, gx1, gy1);
+          function stop(f) {
+            return "rgb(" +
+              Math.min(255, Math.max(0, Math.round(r * f))) + "," +
+              Math.min(255, Math.max(0, Math.round(g * f))) + "," +
+              Math.min(255, Math.max(0, Math.round(b * f))) + ")";
+          }
+          grad.addColorStop(0.00, stop(factor * 0.38)); // deep shadow at edge
+          grad.addColorStop(0.28, stop(factor * 0.90)); // flank
+          grad.addColorStop(0.50, stop(factor * 1.22)); // bright crest
+          grad.addColorStop(0.72, stop(factor * 0.90)); // flank
+          grad.addColorStop(1.00, stop(factor * 0.38)); // deep shadow at edge
+          return grad;
+        }
+
+        // Bottom leg BL→TR: direction (1,-1)/√2; perpendicular (1,1)/√2.
+        // factor 0.72 — sits underneath, faces away from the light.
+        tc.lineWidth = sw;
+        tc.strokeStyle = makeGrad(INV_SQ2, INV_SQ2, r1, g1, b1, 0.72);
+        tc.beginPath(); tc.moveTo(x0, y1); tc.lineTo(x1, y0); tc.stroke();
+
+        // Crossing shadow — cast by the top leg onto the bottom leg.
+        // Drawn after the bottom leg but before the top leg so it sits between them.
+        tc.fillStyle = "rgba(0,0,0,0.28)";
+        tc.beginPath(); tc.arc(cx, cy, sw * 0.75, 0, Math.PI * 2); tc.fill();
+
+        // Top leg TL→BR: direction (1,1)/√2; perpendicular (1,-1)/√2.
+        // factor 1.15 — faces the light source (top-left).
+        tc.lineWidth = sw;
+        tc.strokeStyle = makeGrad(INV_SQ2, -INV_SQ2, r2, g2, b2, 1.15);
+        tc.beginPath(); tc.moveTo(x0, y0); tc.lineTo(x1, y1); tc.stroke();
       }
     }
 
