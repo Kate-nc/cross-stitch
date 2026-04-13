@@ -41,7 +41,9 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
 
-  var p = quantize(raw, width, height, maxC);
+  var p = opts.allowedPalette
+    ? quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed})
+    : quantize(raw, width, height, maxC, {seed: opts.seed});
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
@@ -105,7 +107,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 
-  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup });
+  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: opts.allowedPalette || null, seed: opts.seed });
   if (!pipelineResult) return null;
 
   var mapped = pipelineResult.mapped;
@@ -647,12 +649,16 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
       var bh = Math.min(brushSize, dH - hy2);
       if (hx2 >= 0 && hx2 < dW && hy2 >= 0 && hy2 < dH && bw > 0 && bh > 0) {
         if (isValidDraw) {
-          var rgb = cmap[selectedColorId].rgb;
-          ctx2d.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.8)";
-          ctx2d.lineWidth = Math.max(2, cSz * 0.15);
-          ctx2d.strokeRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
-          ctx2d.fillStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.3)";
-          ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+          var cmapEntry = cmap[selectedColorId];
+          if (cmapEntry) {
+            var rgb = cmapEntry.rgb;
+            ctx2d.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.8)";
+            ctx2d.lineWidth = Math.max(2, cSz * 0.15);
+            ctx2d.strokeRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+            ctx2d.fillStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.3)";
+            ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+            ctx2d.lineWidth = 1;
+          }
           ctx2d.lineWidth = 1;
         } else if (stitchType === "erase") {
           ctx2d.strokeStyle = "rgba(239,68,68,0.8)";
@@ -661,7 +667,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
           ctx2d.fillStyle = "rgba(239,68,68,0.2)";
           ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
           ctx2d.lineWidth = 1;
-        } else if (_psTool2 && _psTool2 !== "erase" && selectedColorId && cmap) {
+        } else if (_psTool2 && _psTool2 !== "erase" && selectedColorId && cmap && cmap[selectedColorId]) {
           var rgb2 = cmap[selectedColorId].rgb;
           ctx2d.strokeStyle = "rgba(" + rgb2[0] + "," + rgb2[1] + "," + rgb2[2] + ",0.8)";
           ctx2d.lineWidth = Math.max(2, cSz * 0.15);
@@ -970,12 +976,16 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       var bh = Math.min(brushSize, dH - hy2);
       if (hx2 >= 0 && hx2 < dW && hy2 >= 0 && hy2 < dH && bw > 0 && bh > 0) {
         if (isValidDraw) {
-          var rgb = cmap[selectedColorId].rgb;
-          ctx2d.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.8)";
-          ctx2d.lineWidth = Math.max(2, cSz * 0.15);
-          ctx2d.strokeRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
-          ctx2d.fillStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.3)";
-          ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+          var cmapEntry2 = cmap[selectedColorId];
+          if (cmapEntry2) {
+            var rgb = cmapEntry2.rgb;
+            ctx2d.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.8)";
+            ctx2d.lineWidth = Math.max(2, cSz * 0.15);
+            ctx2d.strokeRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+            ctx2d.fillStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.3)";
+            ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+            ctx2d.lineWidth = 1;
+          }
           ctx2d.lineWidth = 1;
         } else if (stitchType === "erase") {
           ctx2d.strokeStyle = "rgba(239,68,68,0.8)";
@@ -984,7 +994,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
           ctx2d.fillStyle = "rgba(239,68,68,0.2)";
           ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
           ctx2d.lineWidth = 1;
-        } else if (partialStitchTool && partialStitchTool !== "erase" && selectedColorId && cmap) {
+        } else if (partialStitchTool && partialStitchTool !== "erase" && selectedColorId && cmap && cmap[selectedColorId]) {
           var rgb2 = cmap[selectedColorId].rgb;
           ctx2d.strokeStyle = "rgba(" + rgb2[0] + "," + rgb2[1] + "," + rgb2[2] + ",0.8)";
           ctx2d.lineWidth = Math.max(2, cSz * 0.15);
@@ -2860,6 +2870,17 @@ window.useCreatorState = function useCreatorState() {
   var _kitResult= useState(null);    var kittingResult = _kitResult[0], setKittingResult = _kitResult[1];
   var _altOpen  = useState(null);    var altOpen = _altOpen[0], setAltOpen = _altOpen[1];
 
+  // Substitute from stash
+  var _stashOnly = useState(function() { try { return localStorage.getItem("cs_stashConstrained") === "true"; } catch(_) { return false; } });
+  var stashConstrained = _stashOnly[0];
+  function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
+  var _subOpen  = useState(false);   var substituteModalOpen = _subOpen[0], setSubstituteModalOpen = _subOpen[1];
+  var _subProp  = useState(null);    var substituteProposal = _subProp[0], setSubstituteProposal = _subProp[1];
+  var _subKey   = useState(0);       var substituteModalKey = _subKey[0], setSubstituteModalKey = _subKey[1];
+  var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
+  var substituteMaxDeltaE = _subMaxDE[0];
+  function setSubstituteMaxDeltaE(v) { _subMaxDE[1](v); try { localStorage.setItem("cs_subMaxDE", v); } catch(_) {} }
+
   // Preview
   var _prevUrl  = useState(null);    var previewUrl = _prevUrl[0], setPreviewUrl = _prevUrl[1];
   var _prevStats= useState(null);    var previewStats = _prevStats[0], setPreviewStats = _prevStats[1];
@@ -2876,6 +2897,16 @@ window.useCreatorState = function useCreatorState() {
   // Cleanup diff state
   var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
   var _showCleanupDiff  = useState(false); var showCleanupDiff  = _showCleanupDiff[0],  setShowCleanupDiff  = _showCleanupDiff[1];
+
+  // Coverage gaps (QW4)
+  var _coverageGaps = useState(null); var coverageGaps = _coverageGaps[0], setCoverageGaps = _coverageGaps[1];
+
+  // Variation / randomise (stash mode)
+  var _vSeed    = useState(null);   var variationSeed    = _vSeed[0],    setVariationSeed    = _vSeed[1];
+  var _vSubset  = useState(null);   var variationSubset  = _vSubset[0],  setVariationSubset  = _vSubset[1];
+  var _vHistory = useState([]);     var variationHistory = _vHistory[0], setVariationHistory = _vHistory[1];
+  var _galSlots = useState([]);     var gallerySlots     = _galSlots[0], setGallerySlots     = _galSlots[1];
+  var _galOpen  = useState(false);  var galleryOpen      = _galOpen[0],  setGalleryOpen      = _galOpen[1];
 
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
@@ -3293,10 +3324,41 @@ window.useCreatorState = function useCreatorState() {
     return workerRef.current;
   }
 
-  var generate = useCallback(function() {
+  var generate = useCallback(function(overrides) {
     if (!img) return;
     setBusy(true); setHiId(null); setExportPage(0);
     var reqId = ++genReqIdRef.current;
+
+    var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;
+    var _subset = (overrides && overrides.subset !== undefined) ? overrides.subset : variationSubset;
+
+    // Build allowed palette from stash when stash-constrained mode is on
+    var allowedPalette = null;
+    var effMaxC = maxC;
+    var effAllowBlends = allowBlends;
+    if (stashConstrained && globalStash) {
+      if (_subset !== null) {
+        allowedPalette = _subset;
+      } else {
+        allowedPalette = [];
+        Object.keys(globalStash).forEach(function(id) {
+          if ((globalStash[id].owned || 0) > 0) {
+            var dmcEntry = DMC.find(function(d) { return d.id === id; });
+            if (dmcEntry) allowedPalette.push(dmcEntry);
+          }
+        });
+      }
+      if (!allowedPalette || allowedPalette.length === 0) {
+        addToast("Your stash is empty — add threads to use stash-only mode.", {type: "warning", duration: 3000});
+        setBusy(false);
+        return;
+      }
+      if (allowedPalette.length < 3) {
+        addToast("Only " + allowedPalette.length + " thread(s) in stash — results may be limited.", {type: "warning", duration: 3000});
+      }
+      effMaxC = Math.min(maxC, allowedPalette.length);
+      if (allowedPalette.length < 6) effAllowBlends = false;
+    }
 
     var startGeneration = function() {
       // Extract pixel data here (requires canvas — must stay on main thread)
@@ -3315,10 +3377,11 @@ window.useCreatorState = function useCreatorState() {
           if (reqId !== genReqIdRef.current) { setBusy(false); return; }
           try {
             var result = runGenerationPipeline(img, {
-              sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat,
+              sW: sW, sH: sH, maxC: effMaxC, bri: bri, con: con, sat: sat,
               dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
-              stitchCleanup: stitchCleanup, allowBlends: allowBlends,
+              stitchCleanup: stitchCleanup, allowBlends: effAllowBlends,
+              allowedPalette: allowedPalette, seed: _seed,
             });
             if (!result) { setBusy(false); return; }
             applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds });
@@ -3335,10 +3398,11 @@ window.useCreatorState = function useCreatorState() {
         width: sW,
         height: sH,
         settings: {
-          maxC: maxC, dith: dith, allowBlends: allowBlends,
+          maxC: effMaxC, dith: dith, allowBlends: effAllowBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup,
+          allowedPalette: allowedPalette, seed: _seed,
         },
       }, [imageData.data.buffer]);
     };
@@ -3348,7 +3412,117 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, hasGenerated, allowBlends]);
+  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
+
+  // ─── Variation helpers: seeded Fisher-Yates shuffle → roulette subset ───────
+  function _buildRoulette(pool, n, seed) {
+    var s = seed >>> 0;
+    function _rng() { s += 0x6D2B79F5; var t = s; t = Math.imul(t ^ t>>>15, t|1); t ^= t + Math.imul(t ^ t>>>7, t|61); return ((t ^ t>>>14) >>> 0) / 4294967296; }
+    var arr = pool.slice();
+    for (var i = arr.length - 1; i > 0; i--) { var j = Math.floor(_rng() * (i + 1)); var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp; }
+    return arr.slice(0, n);
+  }
+
+  var randomise = useCallback(function() {
+    if (!stashConstrained || !img) return;
+    var newSeed = ((Math.random() * 0xFFFFFFFE) + 1) >>> 0;
+    var pool = [];
+    Object.keys(globalStash || {}).forEach(function(id) {
+      if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
+    });
+    if (!pool.length) return;
+    var effN = Math.min(maxC, pool.length);
+    // Always sub-sample so the selected colour set changes even when stash <= maxC.
+    // Use ~75% of pool (minimum 2) so each click genuinely picks different threads.
+    var rouletteN = pool.length > effN ? effN : Math.max(2, Math.round(pool.length * 0.75));
+    var newSubset = (pool.length >= 3) ? _buildRoulette(pool, rouletteN, newSeed) : null;
+    // Save effective seed so history entries can always be restored
+    var effectivePrevSeed = variationSeed != null ? variationSeed : 1337;
+    if (previewUrl) {
+      setVariationHistory(function(h) { return [{seed: effectivePrevSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+    }
+    // Prevent the first-generate panel-collapse when Randomise is used before Generate
+    if (!hasGenerated) setHasGenerated(true);
+    setVariationSeed(newSeed);
+    setVariationSubset(newSubset);
+    generate({seed: newSeed, subset: newSubset});
+  }, [stashConstrained, img, globalStash, maxC, previewUrl, variationSeed, variationSubset, hasGenerated, generate]);
+
+  var applyVariationSeed = useCallback(function(seed, subset) {
+    var s = (seed != null ? seed : 1337) >>> 0;
+    var effectivePrevSeed = variationSeed != null ? variationSeed : 1337;
+    if (previewUrl) {
+      setVariationHistory(function(h) { return [{seed: effectivePrevSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+    }
+    setVariationSeed(s);
+    setVariationSubset(subset !== undefined ? subset : null);
+    generate({seed: s, subset: subset !== undefined ? subset : null});
+  }, [variationSeed, variationSubset, previewUrl, generate]);
+
+  var promoteVariation = useCallback(function(slot) {
+    if (previewUrl) {
+      setVariationHistory(function(h) { return [{seed: variationSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+    }
+    setVariationSeed(slot.seed);
+    setVariationSubset(slot.subset || null);
+    generate({seed: slot.seed, subset: slot.subset || null});
+  }, [variationSeed, variationSubset, previewUrl, generate]);
+
+  var generateGallery = useCallback(function() {
+    if (!img || !stashConstrained) return;
+    var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
+    var pool = [];
+    Object.keys(globalStash || {}).forEach(function(id) {
+      if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
+    });
+    if (!pool.length) return;
+    setGallerySlots(newSeeds.map(function(s) { return {seed: s, loading: true, url: null, threadCount: 0, subset: null}; }));
+    var effN = Math.min(maxC, pool.length);
+    var rouletteN = pool.length > effN ? effN : Math.max(2, Math.round(pool.length * 0.75));
+    var useRoulette = pool.length >= 3;
+    function genSlot(slotIdx) {
+      if (slotIdx >= newSeeds.length) return;
+      var slotSeed = newSeeds[slotIdx];
+      setTimeout(function() {
+        var slotSubset = useRoulette ? _buildRoulette(pool, rouletteN, slotSeed) : pool;
+        var MAX_GAL = 2500;
+        var gw = sW, gh = sH;
+        if (gw * gh > MAX_GAL) { var sc = Math.sqrt(MAX_GAL / (gw * gh)); gw = Math.max(4, Math.round(gw * sc)); gh = Math.max(4, Math.round(gh * sc)); }
+        var cv = document.createElement("canvas"); cv.width = gw; cv.height = gh;
+        var gcx = cv.getContext("2d");
+        gcx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
+        gcx.drawImage(img, 0, 0, gw, gh); gcx.filter = "none";
+        var rawPx = gcx.getImageData(0, 0, gw, gh).data;
+        if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
+        var res = runCleanupPipeline(rawPx, gw, gh, {
+          maxC: effN, dith: dith, allowBlends: allowBlends && slotSubset.length >= 6,
+          skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup,
+          allowedPalette: slotSubset, seed: slotSeed,
+        });
+        var slotUrl = null, usedCt = 0;
+        if (res) {
+          var oc = document.createElement("canvas"); oc.width = gw; oc.height = gh;
+          var ocx = oc.getContext("2d"); var od = ocx.createImageData(gw, gh); var oarr = od.data;
+          var usedSet = new Set();
+          for (var k = 0; k < res.mapped.length; k++) {
+            var mm = res.mapped[k]; var ix = k * 4;
+            if (mm.id === "__skip__") { oarr[ix]=240; oarr[ix+1]=240; oarr[ix+2]=240; oarr[ix+3]=255; }
+            else { oarr[ix]=mm.rgb[0]; oarr[ix+1]=mm.rgb[1]; oarr[ix+2]=mm.rgb[2]; oarr[ix+3]=255; usedSet.add(mm.id); }
+          }
+          ocx.putImageData(od, 0, 0);
+          slotUrl = oc.toDataURL();
+          usedCt = usedSet.size;
+        }
+        setGallerySlots(function(prev) {
+          var next = prev.slice();
+          next[slotIdx] = {seed: slotSeed, loading: false, url: slotUrl, threadCount: usedCt, subset: slotSubset};
+          return next;
+        });
+        genSlot(slotIdx + 1);
+      }, 0);
+    }
+    genSlot(0);
+  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, allowBlends, stashConstrained, globalStash]);
 
   // Terminate the worker when the component unmounts to prevent memory leaks
   useEffect(function() {
@@ -3359,6 +3533,24 @@ window.useCreatorState = function useCreatorState() {
       }
     };
   }, []);
+
+  // QW4: Colour coverage gap analysis — runs when image or stash palette changes
+  useEffect(function() {
+    if (!stashConstrained || !img || !img.src) { setCoverageGaps(null); return; }
+    var stashPal = [];
+    Object.keys(globalStash || {}).forEach(function(id) {
+      if ((globalStash[id].owned || 0) <= 0) return;
+      var d = DMC.find(function(e) { return e.id === id; });
+      if (d) stashPal.push(d);
+    });
+    if (!stashPal.length) { setCoverageGaps(null); return; }
+    var timer = setTimeout(function() {
+      if (typeof analyseColourCoverage === 'function') {
+        setCoverageGaps(analyseColourCoverage(img, stashPal));
+      }
+    }, 300);
+    return function() { clearTimeout(timer); };
+  }, [stashConstrained, img, globalStash]);
 
   // ─── Palette swap integration ────────────────────────────────────────────────
   var paletteSwap = usePaletteSwap({
@@ -3462,7 +3654,18 @@ window.useCreatorState = function useCreatorState() {
     sessions, setSessions, partialStitches, setPartialStitches,
     partialStitchTool, setPartialStitchTool, partialStitchToolRef, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
-    altOpen, setAltOpen, previewUrl, setPreviewUrl,
+    altOpen, setAltOpen,
+    substituteModalOpen, setSubstituteModalOpen,
+    substituteProposal, setSubstituteProposal,
+    substituteModalKey, setSubstituteModalKey,
+    substituteMaxDeltaE, setSubstituteMaxDeltaE,
+    stashConstrained, setStashConstrained,
+    coverageGaps, setCoverageGaps,
+    variationSeed, setVariationSeed,
+    variationSubset, setVariationSubset,
+    variationHistory, setVariationHistory,
+    gallerySlots, galleryOpen, setGalleryOpen,
+    previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
     previewHeatmap, setPreviewHeatmap,
     previewMapped, setPreviewMapped, previewColors, setPreviewColors,
@@ -3478,11 +3681,57 @@ window.useCreatorState = function useCreatorState() {
     skeinData, totalSkeins, blendCount, difficulty, doneCount, dmcFiltered,
     displayPal, progressPct, colourDoneCounts, stitchType,
     ownedCount, toBuyCount, toBuyList,
+
+    // Stash-constrained derived values (QW1, QW3, QW8)
+    stashThreadCount: useMemo(function() {
+      if (!stashConstrained || !globalStash) return null;
+      var count = 0;
+      Object.keys(globalStash).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      return count;
+    }, [stashConstrained, globalStash]),
+
+    effectiveMaxC: useMemo(function() {
+      if (!stashConstrained) return maxC;
+      var count = 0;
+      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      return count === 0 ? maxC : Math.min(maxC, count);
+    }, [stashConstrained, globalStash, maxC]),
+
+    stashPalette: useMemo(function() {
+      if (!stashConstrained || !globalStash) return null;
+      var entries = [];
+      Object.keys(globalStash).forEach(function(id) {
+        if ((globalStash[id].owned || 0) <= 0) return;
+        var dmcEntry = DMC.find(function(d) { return d.id === id; });
+        if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[id].owned });
+      });
+      entries.sort(function(a, b) {
+        var hA = (typeof hueFromRgb !== 'undefined') ? hueFromRgb(a.rgb) : 0;
+        var hB = (typeof hueFromRgb !== 'undefined') ? hueFromRgb(b.rgb) : 0;
+        return hA - hB;
+      });
+      return entries;
+    }, [stashConstrained, globalStash]),
+
+    blendsAutoDisabled: useMemo(function() {
+      if (!stashConstrained) return false;
+      var count = 0;
+      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      return count < 6;
+    }, [stashConstrained, globalStash]),
+
+    effectiveAllowBlends: useMemo(function() {
+      if (!stashConstrained) return allowBlends;
+      var count = 0;
+      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      if (count < 6) return false;
+      return allowBlends;
+    }, [stashConstrained, globalStash, allowBlends]),
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
-    toggleOwned, generate,
+    toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed,
     // Eyedropper feedback
     eyedropperEmpty, setEyedropperEmpty,
     // Context menu
@@ -4619,6 +4868,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var smooth = state.smooth, smoothType = state.smoothType, orphans = state.orphans;
     var isScratchMode = state.isScratchMode, allowBlends = state.allowBlends;
     var stitchCleanup = state.stitchCleanup;
+    var stashConstrained = state.stashConstrained;
     var bsLines = state.bsLines, done = state.done;
     var parkMarkers = state.parkMarkers, totalTime = state.totalTime, sessions = state.sessions;
     var hlRow = state.hlRow, hlCol = state.hlCol, threadOwned = state.threadOwned;
@@ -4636,7 +4886,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var project = {
       version: 10, id: state.projectIdRef.current, page: "creator", name: finalName,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup },
+      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
@@ -4672,6 +4922,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var fabricCt = state.fabricCt, skeinPrice = state.skeinPrice, stitchSpeed = state.stitchSpeed;
     var smooth = state.smooth, smoothType = state.smoothType, orphans = state.orphans;
     var allowBlends = state.allowBlends, stitchCleanup = state.stitchCleanup;
+    var stashConstrained = state.stashConstrained;
     var bsLines = state.bsLines, done = state.done;
     var parkMarkers = state.parkMarkers, totalTime = state.totalTime, sessions = state.sessions;
     var hlRow = state.hlRow, hlCol = state.hlCol, threadOwned = state.threadOwned;
@@ -4687,7 +4938,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     });
     var project = {
       version: 10, id: projectIdRef.current, page: "creator", name: projectName,
-      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup },
+      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
@@ -4730,6 +4981,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setBsLines(project.bsLines || []);
     state.setSmooth(s.smooth || 0); state.setSmoothType(s.smoothType || "median");
     state.setOrphans(s.orphans || 0); state.setAllowBlends(s.allowBlends !== false);
+    state.setStashConstrained(!!s.stashConstrained);
     if (s.stitchCleanup) {
       state.setStitchCleanup({
         enabled: !!s.stitchCleanup.enabled,
@@ -5074,6 +5326,28 @@ window.usePreview = function usePreview(state) {
     var smooth = state.smooth, smoothType = state.smoothType;
     var stitchCleanup = state.stitchCleanup, fabricCt = state.fabricCt;
     var allowBlends = state.allowBlends;
+    var stashConstrained = state.stashConstrained, globalStash = state.globalStash;
+    var varSeed = state.variationSeed;
+    // Use clamped values from derived state (QW1, QW8)
+    var effMaxC = state.effectiveMaxC != null ? state.effectiveMaxC : maxC;
+    var effAllowBlends = state.effectiveAllowBlends != null ? state.effectiveAllowBlends : allowBlends;
+
+    // Build constrained palette from stash if stash-only mode is on
+    var allowedPalette = null;
+    if (stashConstrained && globalStash) {
+      if (state.variationSubset) {
+        allowedPalette = state.variationSubset;
+      } else {
+        allowedPalette = [];
+        Object.keys(globalStash).forEach(function(id) {
+          if ((globalStash[id].owned || 0) > 0) {
+            var dmcEntry = DMC.find(function(d) { return d.id === id; });
+            if (dmcEntry) allowedPalette.push(dmcEntry);
+          }
+        });
+        if (!allowedPalette.length) allowedPalette = null;
+      }
+    }
 
     if (!img || !img.src) return;
     var MAX_PREVIEW_AREA = 40000;
@@ -5117,7 +5391,7 @@ window.usePreview = function usePreview(state) {
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
     if (dith) {
-      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null });
+      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null, allowedPalette: allowedPalette, seed: varSeed });
       if (fastResult) state.setPreviewUrl(renderUrl(fastResult.mapped));
       fullPassTimerRef.current = setTimeout(runFull, 0);
       return;
@@ -5126,7 +5400,7 @@ window.usePreview = function usePreview(state) {
 
     function runFull() {
       fullPassTimerRef.current = null;
-      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup });
+      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: dith, allowBlends: effAllowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: allowedPalette, seed: varSeed });
       if (!pipelineResult) return;
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
@@ -5144,6 +5418,14 @@ window.usePreview = function usePreview(state) {
       var estSkeins = 0;
       Object.values(colorCounts).forEach(function(ct) { estSkeins += skeinEst(Math.round(ct * scaleFactor), fabricCt); });
 
+      // QW2: Stash usage stat
+      var stashUsage = null;
+      if (stashConstrained && globalStash) {
+        var availableCount = 0;
+        Object.keys(globalStash).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) availableCount++; });
+        stashUsage = { used: uniqueColors, available: availableCount };
+      }
+
       state.setPreviewStats({
         stitchable: Math.round(stitchable * scaleFactor),
         skipped: Math.round(skipped * scaleFactor),
@@ -5152,6 +5434,7 @@ window.usePreview = function usePreview(state) {
         confettiPct: confettiRaw.pct,
         confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
         confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
+        stashUsage: stashUsage,
       });
 
       var colorList = Object.keys(colorCounts).map(function(id) {
@@ -5206,6 +5489,9 @@ window.usePreview = function usePreview(state) {
     state.dith, state.skipBg, state.bgCol, state.bgTh, state.smooth, state.smoothType,
     state.stitchCleanup, state.fabricCt, state.allowBlends,
     state.orphans, state.showCleanupDiff,
+    state.stashConstrained, state.globalStash,
+    state.effectiveMaxC, state.effectiveAllowBlends,
+    state.variationSeed, state.variationSubset,
   ]);
 
   React.useEffect(function() {
@@ -6187,6 +6473,974 @@ window.MagicWandPanel = function MagicWandPanel() {
 };
 
 
+/* ─── SubstituteFromStashModal.js ─── */
+/* creator/SubstituteFromStashModal.js — v2
+   Feature 2: Canvas substitution preview (ComparisonSlider)
+   Feature 3: Near-miss suggestions for skipped threads
+   Feature 4: Preserve contrast constraint
+   Depends on globals: React, DMC, skeinEst (helpers.js),
+   rgbToLab, dE (colour-utils.js), generatePatternThumbnail (exportPdf.js),
+   CreatorContext (context.js), StashBridge (stash-bridge.js, optional) */
+
+// ─── Module-level preference (survives modal remounts within a session) ────────
+var _preserveContrastPref = true;
+
+// ─── Shared pure helpers ──────────────────────────────────────────────────────
+
+function _statusFromTarget(t) {
+  if (!t.hasSufficient) return "insufficient";
+  if (t.deltaE < 5) return "good";
+  if (t.deltaE < 10) return "fair";
+  return "poor";
+}
+
+function _getDmcLab(dmcMap, id) {
+  var d = dmcMap[id];
+  if (!d) return null;
+  if (d.lab) {
+    var l = d.lab;
+    if (Array.isArray(l)) return l;
+    if (l && typeof l === "object") return [l.L || 0, l.a || 0, l.b || 0];
+  }
+  if (d.rgb && typeof rgbToLab === "function") return rgbToLab(d.rgb[0], d.rgb[1], d.rgb[2]);
+  return null;
+}
+
+function _calcDE(labA, labB) {
+  if (!labA || !labB) return 999;
+  if (typeof dE === "function") return dE(labA, labB);
+  var dL = labA[0] - labB[0], da = labA[1] - labB[1], db = labA[2] - labB[2];
+  return Math.sqrt(dL * dL + da * da + db * db);
+}
+
+// Resolves duplicate target IDs. Mutates substitutions in-place; returns them.
+function _resolveDuplicateTargets(substitutions) {
+  var maxIter = substitutions.length + 5;
+  var converged = false;
+  while (!converged && maxIter-- > 0) {
+    converged = true;
+    var targetCounts = {};
+    substitutions.forEach(function(sub, i) {
+      var tid = sub.selectedTarget.id;
+      if (!targetCounts[tid]) targetCounts[tid] = [];
+      targetCounts[tid].push(i);
+    });
+    Object.keys(targetCounts).forEach(function(targetId) {
+      var indices = targetCounts[targetId];
+      if (indices.length <= 1) return;
+      converged = false;
+      indices.sort(function(ai, bi) {
+        return substitutions[ai].selectedTarget.deltaE - substitutions[bi].selectedTarget.deltaE;
+      });
+      for (var k = 1; k < indices.length; k++) {
+        var sub = substitutions[indices[k]];
+        var allOtherChosen = new Set();
+        substitutions.forEach(function(s, si) {
+          if (si !== indices[k]) allOtherChosen.add(s.selectedTarget.id);
+        });
+        var bumped = false;
+        var cands = sub._cands || [sub.selectedTarget].concat(sub.alternativeTargets || []);
+        for (var c = 0; c < cands.length; c++) {
+          if (!allOtherChosen.has(cands[c].id)) {
+            sub.selectedTarget = cands[c];
+            sub.alternativeTargets = cands.filter(function(x) { return x.id !== cands[c].id; }).slice(0, 4);
+            sub.status = _statusFromTarget(cands[c]);
+            bumped = true;
+            break;
+          }
+        }
+        if (!bumped) sub.status = "conflict";
+      }
+    });
+  }
+  return substitutions;
+}
+
+// F4: Checks pairwise contrast in the "after" palette.
+// For each sub whose target is too similar to another after-colour,
+// tries alternatives. If unresolvable, sets sub.contrastWarning.
+// Mutates substitutions in-place.
+function _enforceContrastConstraints(substitutions, skeinData, minPairDeltaE, dmcMap) {
+  if (!minPairDeltaE || minPairDeltaE <= 0) return;
+
+  var subBySource = {};
+  substitutions.forEach(function(sub, i) { subBySource[sub.sourceId] = i; });
+
+  function getAfterLab(threadId) {
+    if (subBySource[threadId] !== undefined) {
+      var s = substitutions[subBySource[threadId]];
+      return _getDmcLab(dmcMap, s.selectedTarget.id);
+    }
+    return _getDmcLab(dmcMap, threadId);
+  }
+
+  var allThreadIds = skeinData.map(function(t) { return t.id; });
+
+  substitutions.forEach(function(sub, subIdx) {
+    if (sub.status === "conflict") { sub.contrastWarning = null; return; }
+    sub.contrastWarning = null;
+    var targetLab = _getDmcLab(dmcMap, sub.selectedTarget.id);
+    if (!targetLab) return;
+
+    var worstConflict = null, worstDE = Infinity;
+    allThreadIds.forEach(function(otherId) {
+      if (otherId === sub.sourceId) return;
+      var otherLab = getAfterLab(otherId);
+      if (!otherLab) return;
+      var de = _calcDE(targetLab, otherLab);
+      if (de < minPairDeltaE && de < worstDE) { worstDE = de; worstConflict = otherId; }
+    });
+    if (worstConflict === null) return;
+
+    var pool = sub._cands || [sub.selectedTarget].concat(sub.alternativeTargets || []);
+    for (var ci = 0; ci < pool.length; ci++) {
+      if (pool[ci].id === sub.selectedTarget.id) continue;
+      var altLab = _getDmcLab(dmcMap, pool[ci].id);
+      if (!altLab) continue;
+      var hasConflict = false;
+      for (var oi = 0; oi < allThreadIds.length; oi++) {
+        var oid = allThreadIds[oi];
+        if (oid === sub.sourceId) continue;
+        var olb = getAfterLab(oid);
+        if (!olb) continue;
+        if (_calcDE(altLab, olb) < minPairDeltaE) { hasConflict = true; break; }
+      }
+      if (!hasConflict) {
+        sub.selectedTarget = pool[ci];
+        sub.alternativeTargets = pool.filter(function(p) { return p.id !== pool[ci].id; }).slice(0, 4);
+        sub.status = _statusFromTarget(sub.selectedTarget);
+        subBySource[sub.sourceId] = subIdx;
+        return;
+      }
+    }
+    var conflictDmc = dmcMap[worstConflict];
+    sub.contrastWarning = {
+      conflictsWith: worstConflict,
+      conflictsWithName: conflictDmc ? conflictDmc.name : worstConflict,
+      pairDeltaE: Math.round(worstDE * 10) / 10
+    };
+  });
+}
+
+// F2: Renders a pixel-per-stitch thumbnail with remap applied. Returns PNG data URL or null.
+// remap: { [sourceId]: dmcEntry } where dmcEntry has .rgb
+function renderSubstitutionPreview(pat, sW, sH, partialStitches, remap) {
+  try {
+    var c = document.createElement("canvas");
+    c.width = sW; c.height = sH;
+    var cx = c.getContext("2d");
+    var imgData = cx.createImageData(sW, sH);
+    var d = imgData.data;
+    var qKeys = ["TL", "TR", "BL", "BR"];
+    for (var i = 0; i < pat.length; i++) {
+      var cell = pat[i];
+      var idx = i * 4;
+      var ps = partialStitches && partialStitches.get(i);
+      if (ps) {
+        var r = 0, g = 0, b = 0, cnt = 0;
+        for (var qi = 0; qi < qKeys.length; qi++) {
+          var qe = ps[qKeys[qi]];
+          if (qe) { var mr = remap[qe.id] || qe; r += mr.rgb[0]; g += mr.rgb[1]; b += mr.rgb[2]; cnt++; }
+        }
+        if (cnt > 0) { d[idx] = Math.round(r / cnt); d[idx + 1] = Math.round(g / cnt); d[idx + 2] = Math.round(b / cnt); d[idx + 3] = 255; continue; }
+      }
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
+        d[idx] = 255; d[idx + 1] = 255; d[idx + 2] = 255; d[idx + 3] = 255;
+      } else if (cell.type === "blend" && cell.threads) {
+        var t0 = remap[cell.threads[0].id] || cell.threads[0];
+        var t1 = remap[cell.threads[1].id] || cell.threads[1];
+        d[idx]     = Math.round((t0.rgb[0] + t1.rgb[0]) / 2);
+        d[idx + 1] = Math.round((t0.rgb[1] + t1.rgb[1]) / 2);
+        d[idx + 2] = Math.round((t0.rgb[2] + t1.rgb[2]) / 2);
+        d[idx + 3] = 255;
+      } else {
+        var rgb = (remap[cell.id] || cell).rgb;
+        d[idx] = rgb[0]; d[idx + 1] = rgb[1]; d[idx + 2] = rgb[2]; d[idx + 3] = 255;
+      }
+    }
+    cx.putImageData(imgData, 0, 0);
+    return c.toDataURL("image/png");
+  } catch (e) { return null; }
+}
+
+// ─── Analysis engine ──────────────────────────────────────────────────────────
+// analyseSubstitutions(skeinData, threadOwned, globalStash, fabricCt, options)
+//   → { substitutions: SubstitutionProposal[], skipped: SkippedThread[] }
+window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwned, globalStash, fabricCt, options) {
+  options = options || {};
+  var maxDeltaE = (options.maxDeltaE != null) ? options.maxDeltaE : 15;
+  var dmcData = options.dmcData || (typeof DMC !== "undefined" ? DMC : []);
+  var preserveContrast = options.preserveContrast !== false; // default true
+  var minPairwiseDeltaE = options.minPairwiseDeltaE != null ? options.minPairwiseDeltaE : 4;
+
+  var dmcMap = {};
+  dmcData.forEach(function(d) { dmcMap[d.id] = d; });
+
+  // Build list of stash candidates (threads with owned > 0)
+  var stashEntries = [];
+  Object.keys(globalStash).forEach(function(id) {
+    var entry = globalStash[id];
+    if (!entry || !(entry.owned > 0)) return;
+    var dmc = dmcMap[id];
+    if (!dmc) return;
+    stashEntries.push({ id: id, name: dmc.name, rgb: dmc.rgb, lab: _getDmcLab(dmcMap, id), ownedSkeins: entry.owned });
+  });
+
+  var substitutions = [];
+  var skipped = [];
+
+  skeinData.forEach(function(thread) {
+    if ((threadOwned[thread.id] || "") === "owned") return;
+
+    var targetLab = _getDmcLab(dmcMap, thread.id);
+    if (!targetLab) {
+      skipped.push({ sourceId: thread.id, sourceName: thread.name || thread.id, sourceRgb: thread.rgb || [128, 128, 128], sourceStitches: thread.stitches, reason: "no_stash_match", nearMisses: [], isBlendComponent: false, blendId: null });
+      return;
+    }
+
+    var neededSkeins = typeof skeinEst === "function"
+      ? skeinEst(thread.stitches, fabricCt)
+      : Math.ceil(thread.stitches / 200);
+
+    var candidates = [];
+    stashEntries.forEach(function(stash) {
+      if (stash.id === thread.id) return;
+      var de = _calcDE(targetLab, stash.lab);
+      candidates.push({ id: stash.id, name: stash.name, rgb: stash.rgb, deltaE: Math.round(de * 10) / 10, ownedSkeins: stash.ownedSkeins, neededSkeins: neededSkeins, hasSufficient: stash.ownedSkeins >= neededSkeins });
+    });
+
+    if (candidates.length === 0) {
+      skipped.push({ sourceId: thread.id, sourceName: thread.name || thread.id, sourceRgb: thread.rgb || [128, 128, 128], sourceStitches: thread.stitches, reason: "no_stash_match", nearMisses: [], isBlendComponent: false, blendId: null });
+      return;
+    }
+
+    candidates.sort(function(a, b) { return a.deltaE - b.deltaE; });
+    var validCandidates = candidates.filter(function(c) { return c.deltaE <= maxDeltaE; });
+
+    if (validCandidates.length === 0) {
+      // F3: collect near-misses between maxDeltaE and maxDeltaE×1.5, max 3
+      var nearMissMax = maxDeltaE * 1.5;
+      var nearMisses = candidates.filter(function(c) {
+        return c.deltaE > maxDeltaE && c.deltaE <= nearMissMax;
+      }).slice(0, 3);
+      skipped.push({ sourceId: thread.id, sourceName: thread.name || thread.id, sourceRgb: thread.rgb || [128, 128, 128], sourceStitches: thread.stitches, reason: "all_above_threshold", nearMisses: nearMisses, isBlendComponent: false, blendId: null });
+      return;
+    }
+
+    var top5 = validCandidates.slice(0, 5);
+
+    // Prefer a candidate with sufficient stock, else fall back to lowest deltaE
+    var best = null;
+    for (var i = 0; i < top5.length; i++) {
+      if (top5[i].hasSufficient) { best = top5[i]; break; }
+    }
+    if (!best) best = top5[0];
+
+    substitutions.push({
+      sourceId: thread.id,
+      sourceName: thread.name || thread.id,
+      sourceRgb: thread.rgb || [128, 128, 128],
+      sourceStitches: thread.stitches,
+      sourceSkeins: neededSkeins,
+      isBlendComponent: false,
+      blendId: null,
+      selectedTarget: best,
+      alternativeTargets: top5.slice(1),
+      _cands: top5,          // retained for duplicate/contrast resolution
+      status: _statusFromTarget(best),
+      userOverride: null,
+      contrastWarning: null
+    });
+  });
+
+  // Resolve duplicate targets
+  _resolveDuplicateTargets(substitutions);
+
+  // F4: Enforce pairwise contrast
+  if (preserveContrast && minPairwiseDeltaE > 0) {
+    _enforceContrastConstraints(substitutions, skeinData, minPairwiseDeltaE, dmcMap);
+  }
+
+  return { substitutions: substitutions, skipped: skipped };
+};
+
+// ─── Modal outer wrapper ──────────────────────────────────────────────────────
+window.SubstituteFromStashModal = function SubstituteFromStashModal() {
+  var ctx = React.useContext(window.CreatorContext);
+  var h = React.createElement;
+  if (!ctx.substituteModalOpen || !ctx.substituteProposal) return null;
+  return h(SubstituteFromStashModalInner, { key: ctx.substituteModalKey, ctx: ctx });
+};
+
+// ─── Inner modal ──────────────────────────────────────────────────────────────
+function SubstituteFromStashModalInner(props) {
+  var ctx = props.ctx;
+  var h = React.createElement;
+  var useState = React.useState;
+  var useEffect = React.useEffect;
+  var useRef = React.useRef;
+
+  var proposal = ctx.substituteProposal;
+
+  function makeKey(sub) { return sub.sourceId + "|" + (sub.blendId || ""); }
+  function skipKey(sk)  { return sk.sourceId  + "|" + (sk.blendId  || ""); }
+
+  var _en = useState(function() {
+    var m = {};
+    proposal.substitutions.forEach(function(s) { m[makeKey(s)] = true; });
+    return m;
+  });
+  var enabledMap = _en[0], setEnabledMap = _en[1];
+
+  var _ov = useState({});
+  var overrides = _ov[0], setOverrides = _ov[1];
+
+  var _ex = useState({});
+  var expanded = _ex[0], setExpanded = _ex[1];
+
+  // F3: near-miss expand state per skipped row
+  var _nm = useState({});
+  var nmExpanded = _nm[0], setNmExpanded = _nm[1];
+
+  var _maxDE = useState(ctx.substituteMaxDeltaE);
+  var localMaxDE = _maxDE[0], setLocalMaxDE = _maxDE[1];
+
+  // F4: preserve contrast toggle (initialised from module-level pref)
+  var _pc = useState(_preserveContrastPref);
+  var preserveContrast = _pc[0], setPreserveContrast = _pc[1];
+
+  var _analyzing = useState(false);
+  var analyzing = _analyzing[0], setAnalyzing = _analyzing[1];
+
+  var _localProposal = useState(proposal);
+  var localProposal = _localProposal[0], setLocalProposal = _localProposal[1];
+
+  var debounceRef = useRef(null);
+
+  useEffect(function() {
+    return function() {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  function reanalyse(maxDE, overridePC) {
+    if (typeof StashBridge === "undefined") return;
+    var usePC = (overridePC !== undefined) ? overridePC : preserveContrast;
+    setAnalyzing(true);
+    ctx.setSubstituteMaxDeltaE(maxDE);
+    StashBridge.getGlobalStash().then(function(stash) {
+      var result = analyseSubstitutions(
+        ctx.skeinData, ctx.threadOwned, stash, ctx.fabricCt,
+        { maxDeltaE: maxDE, dmcData: DMC, preserveContrast: usePC }
+      );
+      ctx.setSubstituteProposal(result);
+      setLocalProposal(result);
+      var newEnabled = {};
+      result.substitutions.forEach(function(s) { newEnabled[makeKey(s)] = true; });
+      setEnabledMap(newEnabled);
+      setOverrides({}); setExpanded({}); setNmExpanded({});
+      setAnalyzing(false);
+    }).catch(function() { setAnalyzing(false); });
+  }
+
+  function handleSliderChange(v) {
+    setLocalMaxDE(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(function() { reanalyse(v); }, 300);
+  }
+
+  function handlePreserveContrastChange(val) {
+    _preserveContrastPref = val;
+    setPreserveContrast(val);
+    reanalyse(localMaxDE, val);
+  }
+
+  function getEffectiveTarget(sub) {
+    var key = makeKey(sub);
+    return overrides[key] || sub.selectedTarget;
+  }
+
+  function getEffectiveStatus(sub) {
+    var key = makeKey(sub);
+    var ov = overrides[key];
+    if (!ov) return sub.status;
+    if (!ov.hasSufficient) return "insufficient";
+    if (ov.deltaE < 5) return "good";
+    if (ov.deltaE < 10) return "fair";
+    return "poor";
+  }
+
+  function toggleEnabled(sub) {
+    var key = makeKey(sub);
+    setEnabledMap(function(prev) { var n = Object.assign({}, prev); n[key] = !n[key]; return n; });
+  }
+
+  function toggleExpanded(sub) {
+    var key = makeKey(sub);
+    setExpanded(function(prev) { var n = Object.assign({}, prev); n[key] = !n[key]; return n; });
+  }
+
+  function selectOverride(sub, alt) {
+    var key = makeKey(sub);
+    setOverrides(function(prev) { var n = Object.assign({}, prev); n[key] = alt; return n; });
+    setExpanded(function(prev) { var n = Object.assign({}, prev); n[key] = false; return n; });
+  }
+
+  // F3: include a near-miss as a substitution
+  function includeNearMiss(sk, nm) {
+    var neededSkeins = typeof skeinEst === "function"
+      ? skeinEst(sk.sourceStitches, ctx.fabricCt)
+      : Math.ceil(sk.sourceStitches / 200);
+    var otherNm = (sk.nearMisses || []).filter(function(x) { return x.id !== nm.id; });
+    var newSub = {
+      sourceId: sk.sourceId, sourceName: sk.sourceName, sourceRgb: sk.sourceRgb,
+      sourceStitches: sk.sourceStitches, sourceSkeins: neededSkeins,
+      isBlendComponent: sk.isBlendComponent || false, blendId: sk.blendId || null,
+      selectedTarget: nm, alternativeTargets: otherNm, _cands: [nm].concat(otherNm),
+      status: "poor", userOverride: null, contrastWarning: null, includedFromNearMiss: true
+    };
+    setLocalProposal(function(prev) {
+      var newSkipped = prev.skipped.filter(function(s) { return s.sourceId !== sk.sourceId; });
+      var newSubs = prev.substitutions.concat([newSub]);
+      _resolveDuplicateTargets(newSubs);
+      if (preserveContrast) {
+        var dmcMap = {};
+        if (typeof DMC !== "undefined" && Array.isArray(DMC)) {
+          DMC.forEach(function(d) { dmcMap[d.id] = d; });
+        }
+        _enforceContrastConstraints(newSubs, ctx.skeinData, 4, dmcMap);
+      }
+      return { substitutions: newSubs, skipped: newSkipped };
+    });
+    setEnabledMap(function(prev) { var n = Object.assign({}, prev); n[makeKey(newSub)] = true; return n; });
+    setNmExpanded(function(prev) { var n = Object.assign({}, prev); n[skipKey(sk)] = false; return n; });
+  }
+
+  // Enabled substitutions for Apply
+  var enabledSubs = localProposal.substitutions.filter(function(s) { return enabledMap[makeKey(s)] !== false; });
+
+  var warningCount = enabledSubs.filter(function(s) { return !getEffectiveTarget(s).hasSufficient; }).length;
+  var contrastWarningCount = enabledSubs.filter(function(s) { return s.contrastWarning && !overrides[makeKey(s)]; }).length;
+
+  // F2: Canvas previews via useState+useEffect (more robust than useMemo)
+  var _ot = useState(null);
+  var originalThumb = _ot[0], setOriginalThumb = _ot[1];
+  var _st = useState(null);
+  var substitutedThumb = _st[0], setSubstitutedThumb = _st[1];
+
+  // Generate original thumbnail once on mount
+  useEffect(function() {
+    if (!ctx.pat || !ctx.sW || !ctx.sH) return;
+    try {
+      var thumb = typeof generatePatternThumbnail === "function"
+        ? generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches)
+        : renderSubstitutionPreview(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches, {});
+      setOriginalThumb(thumb);
+    } catch (e) {}
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Recompute substituted thumbnail whenever selection changes
+  useEffect(function() {
+    if (!ctx.pat || !ctx.sW || !ctx.sH) return;
+    try {
+      var remap = {};
+      localProposal.substitutions.forEach(function(sub) {
+        if (enabledMap[makeKey(sub)] === false) return;
+        var target = overrides[makeKey(sub)] || sub.selectedTarget;
+        var dmcEntry = DMC.find(function(d) { return d.id === target.id; });
+        if (dmcEntry) remap[sub.sourceId] = dmcEntry;
+      });
+      setSubstitutedThumb(renderSubstitutionPreview(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches, remap));
+    } catch (e) {}
+  }, [localProposal, enabledMap, overrides]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Apply ───────────────────────────────────────────────────────────────────
+  function applySubstitutions() {
+    var pat = ctx.pat;
+    var partialStitches = ctx.partialStitches;
+
+    // Step 1: Build remap { sourceId → new cell entry }
+    var remap = {};
+    enabledSubs.forEach(function(sub) {
+      var target = getEffectiveTarget(sub);
+      var dmcEntry = DMC.find(function(d) { return d.id === target.id; });
+      if (dmcEntry) {
+        remap[sub.sourceId] = {
+          id: dmcEntry.id,
+          type: "solid",
+          name: dmcEntry.name,
+          rgb: dmcEntry.rgb,
+          lab: dmcEntry.lab || (typeof rgbToLab === "function" ? rgbToLab(dmcEntry.rgb[0], dmcEntry.rgb[1], dmcEntry.rgb[2]) : null)
+        };
+      }
+    });
+
+    // Step 2: Apply to pattern cells
+    var np = pat.slice();
+    var changes = [];
+    for (var i = 0; i < np.length; i++) {
+      var cell = np[i];
+      if (cell.id === "__skip__" || cell.id === "__empty__") continue;
+
+      if (cell.type === "blend" && cell.threads) {
+        var needsChange = false;
+        var newThreads = cell.threads.map(function(t) {
+          if (remap[t.id]) { needsChange = true; return remap[t.id]; }
+          return t;
+        });
+        if (needsChange) {
+          changes.push({ idx: i, old: Object.assign({}, cell) });
+          var newBlendId = newThreads.map(function(t) { return t.id; }).sort().join("+");
+          np[i] = Object.assign({}, cell, {
+            id: newBlendId,
+            threads: newThreads,
+            rgb: [
+              Math.round((newThreads[0].rgb[0] + newThreads[1].rgb[0]) / 2),
+              Math.round((newThreads[0].rgb[1] + newThreads[1].rgb[1]) / 2),
+              Math.round((newThreads[0].rgb[2] + newThreads[1].rgb[2]) / 2)
+            ]
+          });
+        }
+        continue;
+      }
+
+      if (remap[cell.id]) {
+        changes.push({ idx: i, old: Object.assign({}, cell) });
+        np[i] = Object.assign({}, remap[cell.id]);
+      }
+    }
+
+    // Step 3: Apply to partial stitches
+    var psChanged = false;
+    var psChanges = [];
+    var nm = new Map(partialStitches);
+    nm.forEach(function(entry, idx) {
+      var newEntry = Object.assign({}, entry);
+      var changed = false;
+      ["TL", "TR", "BL", "BR"].forEach(function(q) {
+        if (entry[q] && remap[entry[q].id]) {
+          var t = remap[entry[q].id];
+          newEntry[q] = { id: t.id, rgb: t.rgb };
+          changed = true;
+        }
+      });
+      if (changed) {
+        psChanges.push({ idx: idx, old: Object.assign({}, entry) });
+        nm.set(idx, newEntry);
+        psChanged = true;
+      }
+    });
+
+    // Step 4: Guard — nothing changed
+    if (changes.length === 0 && !psChanged) {
+      ctx.addToast("No stitches were changed.", { type: "info", duration: 2000 });
+      return;
+    }
+
+    // Step 4: Commit undo entry
+    ctx.setEditHistory(function(prev) {
+      var entry = { type: "stashSubstitution", changes: changes, psChanges: psChanges.length > 0 ? psChanges : undefined };
+      var n = prev.concat([entry]);
+      if (n.length > ctx.EDIT_HISTORY_MAX) n = n.slice(n.length - ctx.EDIT_HISTORY_MAX);
+      return n;
+    });
+    ctx.setRedoHistory([]);
+    ctx.setPat(np);
+    if (psChanged) ctx.setPartialStitches(nm);
+
+    var result = ctx.buildPaletteWithScratch(np);
+    ctx.setPal(result.pal);
+    ctx.setCmap(result.cmap);
+
+    // Mark substituted targets as owned
+    var newOwned = Object.assign({}, ctx.threadOwned);
+    enabledSubs.forEach(function(sub) {
+      var t = getEffectiveTarget(sub);
+      newOwned[t.id] = "owned";
+    });
+    ctx.setThreadOwned(newOwned);
+
+    // Step 5: Close and toast
+    ctx.setSubstituteModalOpen(false);
+    ctx.setSubstituteProposal(null);
+    ctx.addToast(
+      changes.length + " stitches updated across " + enabledSubs.length + " colour" + (enabledSubs.length !== 1 ? "s" : "") + ". Ctrl+Z to undo.",
+      { type: "success", duration: 4000 }
+    );
+  }
+
+  function closeModal() {
+    ctx.setSubstituteModalOpen(false);
+    ctx.setSubstituteProposal(null);
+  }
+
+  // ─── Render helpers ───────────────────────────────────────────────────────────
+  function swatch(rgb, size) {
+    size = size || 14;
+    return h("span", {
+      style: {
+        display: "inline-block", width: size, height: size,
+        borderRadius: 3,
+        background: "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")",
+        border: "1px solid #cbd5e1", flexShrink: 0, verticalAlign: "middle"
+      }
+    });
+  }
+
+  function statusBadge(status) {
+    var s = { fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, flexShrink: 0 };
+    if (status === "good")         return h("span", { style: Object.assign({}, s, { background: "#d1fae5", color: "#065f46" }) }, "Good");
+    if (status === "fair")         return h("span", { style: Object.assign({}, s, { background: "#fef3c7", color: "#92400e" }) }, "Fair");
+    if (status === "poor")         return h("span", { style: Object.assign({}, s, { background: "#fee2e2", color: "#991b1b" }) }, "Poor");
+    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "#ffedd5", color: "#7c2d12" }) }, "\u26A0 Low stock");
+    if (status === "conflict")     return h("span", { style: Object.assign({}, s, { background: "#fce7f3", color: "#9d174d" }) }, "Conflict");
+    return null;
+  }
+
+  // ─── Substitution row ─────────────────────────────────────────────────────────
+  function renderSubRow(sub) {
+    var key = makeKey(sub);
+    var isEnabled = enabledMap[key] !== false;
+    var target = getEffectiveTarget(sub);
+    var isExpanded = !!expanded[key];
+    var hasAlts = sub.alternativeTargets && sub.alternativeTargets.length > 0;
+    var effStatus = getEffectiveStatus(sub);
+    var hasContrastWarning = !!(sub.contrastWarning && !overrides[key]);
+
+    return h(React.Fragment, { key: key },
+      h("div", {
+        style: {
+          borderRadius: 6, overflow: "hidden",
+          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#fed7aa" : "#e2e8f0") : "#f1f5f9"),
+          opacity: isEnabled ? 1 : 0.55
+        }
+      },
+        // Main row
+        h("div", {
+          style: {
+            display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
+            background: isEnabled ? (hasContrastWarning ? "#fffbeb" : "#fff") : "#f8f9fa"
+          }
+        },
+          h("input", {
+            type: "checkbox", checked: isEnabled, onChange: function() { toggleEnabled(sub); },
+            style: { flexShrink: 0, width: 14, height: 14, cursor: "pointer", accentColor: "#7c3aed" }
+          }),
+          swatch(sub.sourceRgb),
+          h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sub.sourceId),
+          sub.isBlendComponent
+            ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0 } }, "(blend)")
+            : null,
+          h("span", { style: { color: "#94a3b8", fontSize: 13, flexShrink: 0 } }, "\u2192"),
+          swatch(target.rgb),
+          h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + target.id),
+          h("span", { style: { fontSize: 11, color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
+          sub.includedFromNearMiss
+            ? h("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: "#fff7ed", color: "#c2410c", flexShrink: 0 } }, "manual\u00B7\u0394E\u202F" + target.deltaE)
+            : statusBadge(effStatus),
+          !sub.includedFromNearMiss
+            ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
+            : null,
+          h("span", {
+            style: { fontSize: 10, color: target.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 44, textAlign: "right" }
+          }, target.ownedSkeins + "/" + target.neededSkeins + "sk"),
+          hasAlts
+            ? h("button", {
+                onClick: function() { toggleExpanded(sub); },
+                style: {
+                  fontSize: 10, padding: "2px 7px", borderRadius: 5, cursor: "pointer",
+                  border: "1px solid #e0e7ff",
+                  background: isExpanded ? "#e0e7ff" : "#fff",
+                  color: "#4338ca", flexShrink: 0
+                },
+                title: "Show alternative substitutions"
+              }, isExpanded ? "\u25B4 Hide" : "\u25BE Alts")
+            : null
+        ),
+        // F4: Contrast warning detail row
+        hasContrastWarning && isEnabled
+          ? h("div", {
+              style: {
+                display: "flex", alignItems: "center", gap: 5,
+                padding: "4px 10px 5px 34px",
+                background: "#fef3c7", borderTop: "1px solid #fde68a",
+                fontSize: 11, color: "#92400e"
+              }
+            },
+              h("span", null, "\u26A0 Contrast: \u0394E\u202F" + sub.contrastWarning.pairDeltaE +
+                " from DMC\u202F" + sub.contrastWarning.conflictsWith + " " + sub.contrastWarning.conflictsWithName +
+                " \u2014 pattern may lose colour distinction")
+            )
+          : null
+      ),
+      isExpanded && hasAlts
+        ? h("div", { style: { padding: "4px 10px 6px 36px", display: "flex", flexDirection: "column", gap: 3 } },
+            sub.alternativeTargets.map(function(alt) {
+              var isSelected = overrides[key] && overrides[key].id === alt.id;
+              return h("div", {
+                key: alt.id,
+                onClick: function() { selectOverride(sub, alt); },
+                style: {
+                  display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", borderRadius: 5,
+                  border: "1px solid " + (isSelected ? "#a78bfa" : "#e2e8f0"),
+                  background: isSelected ? "#f5f3ff" : "#fafafa",
+                  cursor: "pointer", fontSize: 11
+                }
+              },
+                swatch(alt.rgb, 12),
+                h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + alt.id),
+                h("span", { style: { color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
+                h("span", { style: { color: "#94a3b8", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
+                h("span", { style: { color: alt.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
+                isSelected ? h("span", { style: { color: "#7c3aed", fontWeight: 700, marginLeft: 4, flexShrink: 0 } }, "\u2713") : null
+              );
+            })
+          )
+        : null
+    );
+  }
+
+  // F3: Skipped row with near-miss expansion
+  function renderSkipRow(sk) {
+    var skk = skipKey(sk);
+    var isNmOpen = !!nmExpanded[skk];
+    var hasNm = sk.nearMisses && sk.nearMisses.length > 0;
+    var reasonText = sk.reason === "no_stash_match"
+      ? "no threads in stash"
+      : sk.reason === "all_above_threshold"
+        ? "all above \u0394E\u202F" + localMaxDE
+        : "blend component";
+
+    return h(React.Fragment, { key: skk },
+      h("div", { style: { display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", fontSize: 12 } },
+        swatch(sk.sourceRgb || [128, 128, 128], 12),
+        h("span", { style: { fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sk.sourceId),
+        h("span", { style: { color: "#475569", flex: 1 } }, sk.sourceName),
+        sk.isBlendComponent
+          ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0 } }, "(blend)")
+          : null,
+        h("span", { style: { color: "#94a3b8", fontSize: 11, flexShrink: 0 } }, reasonText),
+        hasNm
+          ? h("button", {
+              onClick: function() { setNmExpanded(function(prev) { var n = Object.assign({}, prev); n[skk] = !n[skk]; return n; }); },
+              style: {
+                fontSize: 10, padding: "2px 7px", borderRadius: 5, cursor: "pointer",
+                border: "1px solid #fed7aa",
+                background: isNmOpen ? "#fed7aa" : "#fff7ed",
+                color: "#92400e", flexShrink: 0
+              }
+            }, isNmOpen ? "\u25B4 Hide" : "Near misses \u25BE")
+          : h("span", { style: { fontSize: 10, color: "#cbd5e1", flexShrink: 0 } }, "no near misses")
+      ),
+      isNmOpen && hasNm
+        ? h("div", { style: { paddingLeft: 28, paddingBottom: 6, display: "flex", flexDirection: "column", gap: 4 } },
+            sk.nearMisses.map(function(nm) {
+              return h("div", {
+                key: nm.id,
+                style: {
+                  display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 5,
+                  border: "1px solid #fed7aa", background: "#fff7ed", fontSize: 11
+                }
+              },
+                swatch(nm.rgb, 12),
+                h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + nm.id),
+                h("span", { style: { color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nm.name),
+                h("span", { style: { color: "#d97706", flexShrink: 0 } }, "\u0394E\u202F" + nm.deltaE),
+                h("span", { style: { color: nm.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, nm.ownedSkeins + "/" + nm.neededSkeins + "sk"),
+                h("button", {
+                  onClick: function() { includeNearMiss(sk, nm); },
+                  style: {
+                    fontSize: 10, padding: "3px 9px", borderRadius: 5, cursor: "pointer",
+                    border: "1px solid #a78bfa", background: "#f5f3ff", color: "#7c3aed",
+                    fontWeight: 600, flexShrink: 0
+                  }
+                }, "Include anyway \u2192")
+              );
+            })
+          )
+        : null
+    );
+  }
+
+  // F2: Canvas preview section
+  function renderPreview() {
+    if (!ctx.pat || !ctx.sW || !ctx.sH) return null;
+    var sectionHeader = h("div", { style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } }, "Pattern Preview");
+
+    // Still generating
+    if (!originalThumb) {
+      return h("div", { style: { marginBottom: 14 } },
+        sectionHeader,
+        h("div", { style: { height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9", color: "#94a3b8", fontSize: 12 } },
+          "Generating preview\u2026"
+        )
+      );
+    }
+
+    // Use ComparisonSlider if available, otherwise plain side-by-side imgs
+    var CompSlider = typeof window !== "undefined" && typeof window.ComparisonSlider === "function" ? window.ComparisonSlider : null;
+    var afterSrc = substitutedThumb || originalThumb;
+
+    return h("div", { style: { marginBottom: 14 } },
+      sectionHeader,
+      CompSlider
+        ? h(CompSlider, {
+            originalSrc: originalThumb, previewSrc: afterSrc,
+            heatmapSrc: null, highlightSrc: null,
+            width: ctx.sW, height: ctx.sH,
+            leftLabel: "Current", rightLabel: "After substitution"
+          })
+        : h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
+            h("div", { style: { textAlign: "center" } },
+              h("img", { src: originalThumb, alt: "Current pattern", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #e2e8f0" } }),
+              h("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "Current")
+            ),
+            h("div", { style: { textAlign: "center" } },
+              h("img", { src: afterSrc, alt: "After substitution", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #e2e8f0" } }),
+              h("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "After substitution")
+            )
+          )
+    );
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────────────────
+  var p = localProposal;
+  var applyLabel = "Apply " + enabledSubs.length + " Substitution" + (enabledSubs.length !== 1 ? "s" : "");
+  if (contrastWarningCount > 0) applyLabel += " (\u26A0\u202F" + contrastWarningCount + " contrast)";
+
+  return h("div", {
+    onClick: function(e) { if (e.target === e.currentTarget) closeModal(); },
+    style: {
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1200,
+      display: "flex", alignItems: "center", justifyContent: "center"
+    }
+  },
+    h("div", {
+      style: {
+        background: "#fff", borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+        width: "100%", maxWidth: 660, maxHeight: "90vh",
+        display: "flex", flexDirection: "column", overflow: "hidden",
+        margin: "0 16px"
+      }
+    },
+      // ── Header ────────────────────────────────────────────────────────────────
+      h("div", { style: { display: "flex", alignItems: "center", padding: "16px 20px 14px", borderBottom: "1px solid #f1f5f9", flexShrink: 0 } },
+        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1e293b", flex: 1 } }, "Substitute from Stash"),
+        h("button", {
+          onClick: closeModal,
+          style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8", padding: "0 4px", borderRadius: 6, lineHeight: 1 }
+        }, "\xD7")
+      ),
+
+      // ── Scrollable body ───────────────────────────────────────────────────────
+      h("div", { style: { overflow: "auto", flex: 1, padding: "16px 20px" } },
+
+        // Controls: ΔE slider + preserve contrast toggle
+        h("div", { style: { marginBottom: 16, padding: "12px 14px", background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9" } },
+          h("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 8 } },
+            h("span", { style: { fontSize: 12, color: "#475569", fontWeight: 600 } }, "Max colour distance (\u0394E):"),
+            h("span", { style: { fontSize: 15, fontWeight: 700, color: "#1e293b", minWidth: 28 } }, localMaxDE),
+            analyzing ? h("span", { style: { fontSize: 11, color: "#7c3aed" } }, "Analysing\u2026") : null
+          ),
+          h("input", {
+            type: "range", min: 1, max: 40, step: 1,
+            value: localMaxDE,
+            onChange: function(e) { handleSliderChange(parseInt(e.target.value)); },
+            style: { width: "100%", accentColor: "#7c3aed", cursor: "pointer" }
+          }),
+          h("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94a3b8", marginTop: 2 } },
+            h("span", null, "1 \u2014 exact match"),
+            h("span", null, "40 \u2014 broad")
+          ),
+          // F4: Preserve contrast toggle
+          h("label", { style: { display: "flex", alignItems: "center", gap: 6, marginTop: 10, cursor: "pointer" } },
+            h("input", {
+              type: "checkbox", checked: preserveContrast,
+              onChange: function(e) { handlePreserveContrastChange(e.target.checked); },
+              style: { width: 14, height: 14, accentColor: "#7c3aed", cursor: "pointer" }
+            }),
+            h("span", { style: { fontSize: 12, color: "#475569" } }, "Preserve colour contrast"),
+            h("span", { style: { fontSize: 10, color: "#94a3b8", marginLeft: 2 } },
+              "(avoid substitutions that make palette colours too similar)"
+            )
+          )
+        ),
+
+        // F2: Preview — placed here so it's visible without scrolling
+        renderPreview(),
+
+        // Proposed substitutions
+        p.substitutions.length > 0
+          ? h("div", { style: { marginBottom: 14 } },
+              h("div", {
+                style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" }
+              }, "Proposed Substitutions (" + p.substitutions.length + ")"),
+              h("div", { style: { display: "flex", flexDirection: "column", gap: 4 } },
+                p.substitutions.map(renderSubRow)
+              )
+            )
+          : null,
+
+        // Skipped (F3: with near-miss expansion)
+        p.skipped.length > 0
+          ? h("div", { style: { marginBottom: 14 } },
+              h("div", { style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } },
+                "Skipped \u2014 No Suitable Match (" + p.skipped.length + ")"
+              ),
+              h("div", { style: { background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9", padding: "4px 8px", display: "flex", flexDirection: "column" } },
+                p.skipped.map(renderSkipRow)
+              )
+            )
+          : null,
+
+        // No results at all
+        p.substitutions.length === 0 && p.skipped.length === 0
+          ? h("div", { style: { padding: "20px", textAlign: "center", color: "#94a3b8", fontSize: 13 } },
+              "No unowned threads found \u2014 all threads are already marked as owned."
+            )
+          : null,
+
+        // Summary
+        h("div", { style: { padding: "10px 14px", background: "#f0f9ff", borderRadius: 8, border: "1px solid #bae6fd", fontSize: 12, color: "#0c4a6e" } },
+          h("strong", null, enabledSubs.length + " substitution" + (enabledSubs.length !== 1 ? "s" : "") + " selected"),
+          h("span", null, " \xB7 " + p.skipped.length + " skipped"),
+          warningCount > 0
+            ? h("span", { style: { color: "#ea580c" } }, " \xB7 " + warningCount + " low stock")
+            : null,
+          contrastWarningCount > 0
+            ? h("span", { style: { color: "#b45309" } }, " \xB7 " + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : ""))
+            : null
+        ),
+        h("div", { style: { marginTop: 8, fontSize: 11, color: "#94a3b8" } },
+          "Tip: All changes can be undone with Ctrl+Z"
+        )
+      ),
+
+      // ── Footer ────────────────────────────────────────────────────────────────
+      h("div", {
+        style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderTop: "1px solid #f1f5f9", flexShrink: 0 }
+      },
+        h("button", {
+          onClick: closeModal,
+          style: { padding: "8px 20px", fontSize: 13, borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", cursor: "pointer", fontWeight: 500 }
+        }, "Cancel"),
+        h("button", {
+          onClick: applySubstitutions,
+          disabled: enabledSubs.length === 0,
+          style: {
+            padding: "8px 22px", fontSize: 13, borderRadius: 8, fontWeight: 700,
+            cursor: enabledSubs.length === 0 ? "not-allowed" : "pointer",
+            border: enabledSubs.length === 0 ? "1px solid #e2e8f0" : "1px solid #a78bfa",
+            background: enabledSubs.length === 0 ? "#f8f9fa" : "#7c3aed",
+            color: enabledSubs.length === 0 ? "#94a3b8" : "#fff"
+          }
+        }, applyLabel)
+      )
+    )
+  );
+}
+
+
 /* ─── Sidebar.js ─── */
 /* creator/Sidebar.js — Settings sidebar for the Creator app.
    Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
@@ -6196,6 +7450,11 @@ window.CreatorSidebar = function CreatorSidebar() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
   var _pco = React.useState(false); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
+  var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
+  var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
+  var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
+  var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
+  var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
 
   function getCleanupWarning(sW, sH, orphans, previewStats) {
     if (orphans === 0) return null;
@@ -6480,13 +7739,186 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:ctx.palOpen, onToggle:ctx.setPalOpen},
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:40, onChange:ctx.setMaxC,
-        helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"})
+      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:ctx.stashConstrained && ctx.stashThreadCount ? Math.max(10, ctx.stashThreadCount) : 40, onChange:ctx.setMaxC,
+        helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
+      ctx.stashConstrained && ctx.stashThreadCount && ctx.maxC > ctx.stashThreadCount && h("div", {style:{fontSize:10,color:"#d97706",marginTop:2}},
+        "Clamped to " + ctx.stashThreadCount + " (stash size)"
+      )
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
-      h("input", {type:"checkbox", checked:ctx.allowBlends, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:ctx.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:8,marginTop:8,opacity:ctx.blendsAutoDisabled?0.5:1}},
+      h("input", {type:"checkbox", checked:ctx.allowBlends, disabled:ctx.blendsAutoDisabled, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
+    ),
+    ctx.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:8}},
+      "Auto-disabled \u2014 fewer than 6 stash threads"
+    ),
+    typeof StashBridge !== "undefined" && h("label", {
+      style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:4}
+    },
+      h("input", {type:"checkbox", checked:ctx.stashConstrained, onChange:function(e){ctx.setStashConstrained(e.target.checked);}}),
+      h("span", null, "Use only stash threads"),
+      h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
+    ),
+    ctx.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
+      h("div", {style:{fontSize:11,color:"#0d9488",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:8,padding:"6px 10px",marginBottom:8}},
+        (ctx.stashThreadCount || 0) + " thread" + ((ctx.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
+          (ctx.effectiveMaxC && ctx.effectiveMaxC < ctx.maxC ? " \u2014 palette limited to " + ctx.effectiveMaxC + " colours" : "")
+      ),
+      ctx.stashPalette && ctx.stashPalette.length > 0 && h("div", {style:{marginBottom:8}},
+        h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
+          (stashStripExpanded ? ctx.stashPalette : ctx.stashPalette.slice(0,60)).map(function(t) {
+            return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:140},
+              h("div", {style:{width:12,height:12,borderRadius:2,background:"rgb(" + t.rgb.join(",") + ")"}})
+            );
+          })
+        ),
+        ctx.stashPalette.length > 60 && h("button", {
+          onClick:function(){setStashStripExpanded(function(o){return !o;});},
+          style:{fontSize:10,color:"#0d9488",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
+        }, stashStripExpanded ? "Show less" : "+" + (ctx.stashPalette.length - 60) + " more")
+      ),
+      ctx.coverageGaps && ctx.coverageGaps.hasGaps && h("div", {style:{
+        fontSize:11,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,
+        padding:"6px 10px",marginBottom:8,color:"#991b1b",display:"flex",alignItems:"flex-start",gap:6
+      }},
+        h("span", {style:{fontSize:13,lineHeight:1,flexShrink:0}}, Icons.warning()),
+        h("span", null, "Your stash may lack coverage in: ",
+          ctx.coverageGaps.gaps.map(function(g, i) {
+            return h("span", {key:g.hue},
+              (i > 0 ? ", " : ""),
+              h("strong", null, g.hue),
+              g.severity === "high" ? " (significant)" : ""
+            );
+          })
+        )
+      ),
+      h("div", {style:{marginBottom:8}},
+        h("div", {style:{fontSize:11,color:"#475569",marginBottom:4,fontWeight:500}}, "Quick-add thread to stash"),
+        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+          h("input", {
+            type:"text", value:qaVal,
+            placeholder:"DMC number\u2026",
+            onChange:function(e){setQaVal(e.target.value);},
+            style:{flex:1,padding:"4px 8px",fontSize:12,borderRadius:6,border:"0.5px solid #e2e8f0",fontFamily:"inherit"}
+          }),
+          (function(){
+            var dmc = typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();});
+            return dmc ? h(Tooltip, {text:"DMC " + dmc.id + " \u2014 " + dmc.name, width:160},
+              h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
+            ) : null;
+          })(),
+          h("button", {
+            disabled:qaLoading || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();})),
+            onClick:function(){
+              var trimmed = qaVal.trim();
+              if (!trimmed || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === trimmed;}))) return;
+              setQaLoading(true);
+              StashBridge.addToStash(trimmed, 1).then(function(){
+                setQaVal(""); setQaLoading(false);
+                ctx.setGlobalStash(function(s){
+                  var n = Object.assign({}, s);
+                  if (!n[trimmed]) n[trimmed] = {};
+                  n[trimmed] = Object.assign({}, n[trimmed], {owned: (n[trimmed].owned || 0) + 1});
+                  return n;
+                });
+              }).catch(function(){ setQaLoading(false); });
+            },
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #99f6e4",background:qaLoading?"#e2e8f0":"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
+          }, qaLoading ? "\u2026" : "+ Add")
+        )
+      ),
+      h("div", {style:{borderTop:"0.5px solid #e2e8f0",marginTop:8,paddingTop:10}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}},
+          h("button", {
+            onClick:function(){ ctx.randomise(); },
+            disabled:!(ctx.stashPalette && ctx.stashPalette.length > 0) || !ctx.img,
+            style:{display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:500,padding:"5px 12px",borderRadius:8,border:"0.5px solid #99f6e4",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
+          }, Icons.shuffle(), " Randomise"),
+          ctx.variationSeed ? (seedEditing ?
+            h("span", {style:{display:"flex",alignItems:"center",gap:3}},
+              h("input", {
+                type:"number", value:seedTmp, autoFocus:true,
+                onChange:function(e){setSeedTmp(e.target.value);},
+                onKeyDown:function(e){
+                  if (e.key==="Enter"){ var n=parseInt(seedTmp,10); if(!isNaN(n)&&n>0){ctx.applyVariationSeed(n>>>0);} setSeedEditing(false); }
+                  else if(e.key==="Escape"){setSeedEditing(false);}
+                },
+                onBlur:function(){setSeedEditing(false);},
+                style:{width:70,padding:"2px 4px",fontSize:10,borderRadius:4,border:"0.5px solid #99f6e4",fontFamily:"inherit"}
+              })
+            ) :
+            h("span", {
+              onClick:function(){setSeedEditing(true);setSeedTmp(String(ctx.variationSeed));},
+              title:"Click to enter a specific seed",
+              style:{fontSize:10,color:"#94a3b8",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
+            }, "#" + ctx.variationSeed)
+          ) : null
+        ),
+        ctx.stashConstrained && ctx.variationSeed && ctx.variationSubset && ctx.stashPalette && ctx.stashPalette.length >= 3 && h("div", {
+          style:{fontSize:10,color:"#0d9488",marginBottom:6,display:"flex",alignItems:"center",gap:4}
+        }, Icons.dice(), " Roulette \u2014 using " + ctx.variationSubset.length + " of " + ctx.stashPalette.length + " threads"),
+        h("button", {
+          onClick:function(){
+            ctx.setGalleryOpen(function(o){return !o;});
+            if (!ctx.galleryOpen) ctx.generateGallery();
+          },
+          style:{fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,marginBottom:4}
+        },
+          h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          "Explore variations"
+        ),
+        ctx.galleryOpen && h("div", {style:{marginTop:4}},
+          h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}},
+            ctx.gallerySlots.map(function(slot, i) {
+              return h("div", {
+                key:i,
+                onClick:function(){ if (!slot.loading && slot.url) { ctx.promoteVariation(slot); ctx.setGalleryOpen(false); } },
+                style:{
+                  borderRadius:8,overflow:"hidden",border:"0.5px solid #e2e8f0",
+                  cursor:(!slot.loading && slot.url) ? "pointer" : "default",
+                  background:"#f8fafc",transition:"border-color 0.15s"
+                }
+              },
+                slot.loading ?
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#94a3b8"}}, "\u2026") :
+                slot.url ?
+                  h("div", null,
+                    h("img", {src:slot.url, style:{width:"100%",display:"block",imageRendering:"pixelated"}}),
+                    h("div", {style:{padding:"3px 6px",fontSize:9,color:"#475569"}},
+                      "#" + slot.seed + " \u00B7 " + slot.threadCount + " threads"
+                    )
+                  ) :
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#ef4444"}}, "Error")
+              );
+            })
+          ),
+          h("div", {style:{display:"flex",justifyContent:"center"}},
+            h("button", {
+              onClick:function(){ ctx.generateGallery(); },
+              style:{fontSize:11,padding:"4px 12px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"inherit"}
+            }, "New batch")
+          )
+        ),
+        ctx.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
+          h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:4}}, "Recent variations"),
+          h("div", {style:{display:"flex",gap:4,overflowX:"auto",paddingBottom:4}},
+            ctx.variationHistory.map(function(entry, i) {
+              return h("div", {
+                key:(entry.timestamp || i) + "-" + i,
+                onClick:function(){ ctx.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); },
+                title:"Seed #" + entry.seed,
+                style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid #e2e8f0"}
+              },
+                entry.previewUrl ?
+                  h("img", {src:entry.previewUrl, style:{width:32,height:32,display:"block",imageRendering:"pixelated",objectFit:"cover"}}) :
+                  h("div", {style:{width:32,height:32,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#94a3b8"}}, "?"),
+                h("div", {style:{fontSize:7,color:"#94a3b8",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
+              );
+            })
+          )
+        )
+      )
     ),
     h("div", {style:{marginTop:8}},
       h(SliderRow, {label:"Min stitches per colour", value:ctx.minSt, min:0, max:50, onChange:ctx.setMinSt,
@@ -7543,6 +8975,45 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           onClick: function() {
             if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
             StashBridge.getGlobalStash().then(function(stash) {
+              var result = analyseSubstitutions(
+                ctx.skeinData,
+                ctx.threadOwned,
+                stash,
+                ctx.fabricCt,
+                { maxDeltaE: ctx.substituteMaxDeltaE, dmcData: DMC }
+              );
+              ctx.setSubstituteProposal(result);
+              ctx.setSubstituteModalKey(function(k) { return k + 1; });
+              ctx.setSubstituteModalOpen(true);
+            }).catch(function() {
+              ctx.addToast("Failed to load stash data.", { type: "error", duration: 3000 });
+            });
+          },
+          disabled: (function() {
+            if (typeof StashBridge === "undefined") return true;
+            if (!ctx.pat) return true;
+            if (ctx.toBuyList.length === 0) return true;
+            return !Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; });
+          })(),
+          title: (function() {
+            if (typeof StashBridge === "undefined") return "Stash bridge not available";
+            if (!ctx.pat) return "No pattern loaded";
+            if (ctx.toBuyList.length === 0) return "All threads are already marked as owned";
+            if (!Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; })) return "Add threads to your stash first";
+            return "Find stash alternatives for unowned threads";
+          })(),
+          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600,
+            opacity:(function() {
+              if (typeof StashBridge === "undefined" || !ctx.pat || ctx.toBuyList.length === 0) return 0.5;
+              if (!Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; })) return 0.5;
+              return 1;
+            })()
+          }
+        }, "Substitute from Stash"),
+        h("button", {
+          onClick: function() {
+            if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
+            StashBridge.getGlobalStash().then(function(stash) {
               var missing = [], short = [];
               ctx.skeinData.forEach(function(d) {
                 var owned2 = (stash[d.id] || {}).owned || 0;
@@ -7615,7 +9086,10 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     renderTimeEstimate(),
     renderFinishedSize(),
     renderCostEstimate(),
-    renderThreadOrganiser()
+    renderThreadOrganiser(),
+    typeof window.SubstituteFromStashModal !== "undefined"
+      ? h(window.SubstituteFromStashModal, null)
+      : null
   );
 };
 

@@ -52,8 +52,8 @@ function findBest(lab, palette, allowBlends = true) {
 }
 function luminance(rgb){return rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114;}
 
-function quantize(data,w,h,n){
-  let seed=1337;
+function quantize(data,w,h,n,options){
+  let seed=(options&&options.seed!=null)?options.seed:1337;
   function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
   let px=[], len=w*h;
   for(let i=0;i<len;i++){let j=i*4;px.push(rgbToLab(data[j],data[j+1],data[j+2]));}
@@ -96,6 +96,57 @@ function quantize(data,w,h,n){
     for(let ti=0;ti<DMC.length;ti++){
       if(used.has(DMC[ti].id))continue;
       let d2=dE2(cs[ci],DMC[ti].lab);if(d2<bd){bd=d2;b=DMC[ti];}
+    }
+    if(b){used.add(b.id);pl.push(b);}
+  }
+  return pl;
+}
+function quantizeConstrained(data,w,h,n,allowedPalette,options){
+  var pool=allowedPalette&&allowedPalette.length?allowedPalette:DMC;
+  var maxN=Math.min(n,pool.length);
+  let seed=(options&&options.seed!=null)?options.seed:1337;
+  function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
+  let px=[], len=w*h;
+  for(let i=0;i<len;i++){let j=i*4;px.push(rgbToLab(data[j],data[j+1],data[j+2]));}
+  let cs=[px[Math.floor(random()*px.length)]];
+  let ds=new Float32Array(px.length);
+  for(let i=0;i<px.length;i++){ds[i]=1e9;}
+  while(cs.length<Math.min(maxN,px.length)){
+    let lastCenter=cs[cs.length-1];
+    let sum=0;
+    for(let i=0;i<px.length;i++){
+      let distSq=dE2(px[i],lastCenter);
+      if(distSq<ds[i])ds[i]=distSq;
+      sum+=ds[i];
+    }
+    let r=random()*sum,acc=0;
+    for(let i=0;i<px.length;i++){
+      acc+=ds[i];
+      if(acc>=r){cs.push([px[i][0],px[i][1],px[i][2]]);break;}
+    }
+  }
+  for(let it=0;it<20;it++){
+    let cl=cs.map(()=>[]);
+    for(let pi=0;pi<px.length;pi++){
+      let md=1e9,mi=0;
+      for(let c=0;c<cs.length;c++){let d=dE2(px[pi],cs[c]);if(d<md){md=d;mi=c;}}
+      cl[mi].push(px[pi]);
+    }
+    let mv=false;
+    for(let c2=0;c2<cs.length;c2++){
+      if(!cl[c2].length)continue;
+      let nv=[cl[c2].reduce((s,q)=>s+q[0],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[1],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[2],0)/cl[c2].length];
+      if(dE2(nv,cs[c2])>0.25)mv=true;
+      cs[c2]=nv;
+    }
+    if(!mv)break;
+  }
+  let pl=[],used=new Set();
+  for(let ci=0;ci<cs.length;ci++){
+    let b=null,bd=1e9;
+    for(let ti=0;ti<pool.length;ti++){
+      if(used.has(pool[ti].id))continue;
+      let d2=dE2(cs[ci],pool[ti].lab);if(d2<bd){bd=d2;b=pool[ti];}
     }
     if(b){used.add(b.id);pl.push(b);}
   }
@@ -250,6 +301,33 @@ function doMap(data, w, h, pal, allowBlends = true) {
   return r;
 }
 
+function hueFromRgb(rgb){var r=rgb[0]/255,g=rgb[1]/255,b=rgb[2]/255;var max=Math.max(r,g,b),min=Math.min(r,g,b);if(max===min)return 0;var d=max-min,h;if(max===r)h=((g-b)/d+(g<b?6:0))/6;else if(max===g)h=((b-r)/d+2)/6;else h=((r-g)/d+4)/6;return h*360;}
+function analyseColourCoverage(img,palette,sampleSize){
+  sampleSize=sampleSize||5000;
+  var HUE_BUCKETS=[
+    {name:"Red",min:330,max:360,min2:0,max2:30},
+    {name:"Orange",min:30,max:60},
+    {name:"Yellow",min:60,max:90},
+    {name:"Green",min:90,max:170},
+    {name:"Cyan",min:170,max:200},
+    {name:"Blue",min:200,max:260},
+    {name:"Purple",min:260,max:330}
+  ];
+  function rgbToHsl(r,g,b){r/=255;g/=255;b/=255;var max=Math.max(r,g,b),min=Math.min(r,g,b),h,s,l=(max+min)/2;if(max===min){h=0;s=0;}else{var d=max-min;s=l>0.5?d/(2-max-min):d/(max+min);if(max===r)h=((g-b)/d+(g<b?6:0))/6;else if(max===g)h=((b-r)/d+2)/6;else h=((r-g)/d+4)/6;h*=360;}return{h:h,s:s,l:l};}
+  function inBucket(hue,bucket){if(bucket.min2!==undefined)return(hue>=bucket.min&&hue<bucket.max)||(hue>=bucket.min2&&hue<bucket.max2);return hue>=bucket.min&&hue<bucket.max;}
+  var c=document.createElement("canvas");
+  var scale=Math.sqrt(sampleSize/(img.width*img.height));if(scale>=1)scale=1;
+  c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));
+  var cx=c.getContext("2d");cx.drawImage(img,0,0,c.width,c.height);
+  var data=cx.getImageData(0,0,c.width,c.height).data;
+  var imgBuckets={};HUE_BUCKETS.forEach(function(b){imgBuckets[b.name]=0;});var totalChromatic=0;
+  for(var i=0;i<data.length;i+=4){var hsl=rgbToHsl(data[i],data[i+1],data[i+2]);if(hsl.s<0.12||hsl.l<0.08||hsl.l>0.92)continue;totalChromatic++;for(var bi=0;bi<HUE_BUCKETS.length;bi++){if(inBucket(hsl.h,HUE_BUCKETS[bi])){imgBuckets[HUE_BUCKETS[bi].name]++;break;}}}
+  var stashBuckets={};HUE_BUCKETS.forEach(function(b){stashBuckets[b.name]=0;});
+  palette.forEach(function(t){var hsl=rgbToHsl(t.rgb[0],t.rgb[1],t.rgb[2]);if(hsl.s<0.12)return;for(var bi=0;bi<HUE_BUCKETS.length;bi++){if(inBucket(hsl.h,HUE_BUCKETS[bi])){stashBuckets[HUE_BUCKETS[bi].name]++;break;}}});
+  var gaps=[];
+  if(totalChromatic>0){HUE_BUCKETS.forEach(function(b){var imgPct=imgBuckets[b.name]/totalChromatic;var stashCount=stashBuckets[b.name];if(imgPct>0.15&&stashCount===0)gaps.push({hue:b.name,severity:"high",imgPct:Math.round(imgPct*100)});else if(imgPct>0.08&&stashCount<=1)gaps.push({hue:b.name,severity:"medium",imgPct:Math.round(imgPct*100)});});}
+  return{gaps:gaps,hasGaps:gaps.length>0};
+}
 function buildPalette(patArr){
   let usage={};
   for(let i=0;i<patArr.length;i++){

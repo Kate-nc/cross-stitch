@@ -18,6 +18,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var smooth = state.smooth, smoothType = state.smoothType, orphans = state.orphans;
     var isScratchMode = state.isScratchMode, allowBlends = state.allowBlends;
     var stitchCleanup = state.stitchCleanup;
+    var stashConstrained = state.stashConstrained;
     var bsLines = state.bsLines, done = state.done;
     var parkMarkers = state.parkMarkers, totalTime = state.totalTime, sessions = state.sessions;
     var hlRow = state.hlRow, hlCol = state.hlCol, threadOwned = state.threadOwned;
@@ -35,7 +36,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var project = {
       version: 10, id: state.projectIdRef.current, page: "creator", name: finalName,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup },
+      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
@@ -71,6 +72,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var fabricCt = state.fabricCt, skeinPrice = state.skeinPrice, stitchSpeed = state.stitchSpeed;
     var smooth = state.smooth, smoothType = state.smoothType, orphans = state.orphans;
     var allowBlends = state.allowBlends, stitchCleanup = state.stitchCleanup;
+    var stashConstrained = state.stashConstrained;
     var bsLines = state.bsLines, done = state.done;
     var parkMarkers = state.parkMarkers, totalTime = state.totalTime, sessions = state.sessions;
     var hlRow = state.hlRow, hlCol = state.hlCol, threadOwned = state.threadOwned;
@@ -86,7 +88,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     });
     var project = {
       version: 10, id: projectIdRef.current, page: "creator", name: projectName,
-      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup },
+      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
@@ -129,6 +131,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setBsLines(project.bsLines || []);
     state.setSmooth(s.smooth || 0); state.setSmoothType(s.smoothType || "median");
     state.setOrphans(s.orphans || 0); state.setAllowBlends(s.allowBlends !== false);
+    state.setStashConstrained(!!s.stashConstrained);
     if (s.stitchCleanup) {
       state.setStitchCleanup({
         enabled: !!s.stitchCleanup.enabled,

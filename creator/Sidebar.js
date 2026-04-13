@@ -6,6 +6,11 @@ window.CreatorSidebar = function CreatorSidebar() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
   var _pco = React.useState(false); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
+  var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
+  var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
+  var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
+  var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
+  var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
 
   function getCleanupWarning(sW, sH, orphans, previewStats) {
     if (orphans === 0) return null;
@@ -290,13 +295,186 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:ctx.palOpen, onToggle:ctx.setPalOpen},
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:40, onChange:ctx.setMaxC,
-        helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"})
+      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:ctx.stashConstrained && ctx.stashThreadCount ? Math.max(10, ctx.stashThreadCount) : 40, onChange:ctx.setMaxC,
+        helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
+      ctx.stashConstrained && ctx.stashThreadCount && ctx.maxC > ctx.stashThreadCount && h("div", {style:{fontSize:10,color:"#d97706",marginTop:2}},
+        "Clamped to " + ctx.stashThreadCount + " (stash size)"
+      )
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
-      h("input", {type:"checkbox", checked:ctx.allowBlends, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:ctx.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:8,marginTop:8,opacity:ctx.blendsAutoDisabled?0.5:1}},
+      h("input", {type:"checkbox", checked:ctx.allowBlends, disabled:ctx.blendsAutoDisabled, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
+    ),
+    ctx.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:8}},
+      "Auto-disabled \u2014 fewer than 6 stash threads"
+    ),
+    typeof StashBridge !== "undefined" && h("label", {
+      style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:4}
+    },
+      h("input", {type:"checkbox", checked:ctx.stashConstrained, onChange:function(e){ctx.setStashConstrained(e.target.checked);}}),
+      h("span", null, "Use only stash threads"),
+      h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
+    ),
+    ctx.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
+      h("div", {style:{fontSize:11,color:"#0d9488",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:8,padding:"6px 10px",marginBottom:8}},
+        (ctx.stashThreadCount || 0) + " thread" + ((ctx.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
+          (ctx.effectiveMaxC && ctx.effectiveMaxC < ctx.maxC ? " \u2014 palette limited to " + ctx.effectiveMaxC + " colours" : "")
+      ),
+      ctx.stashPalette && ctx.stashPalette.length > 0 && h("div", {style:{marginBottom:8}},
+        h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
+          (stashStripExpanded ? ctx.stashPalette : ctx.stashPalette.slice(0,60)).map(function(t) {
+            return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:140},
+              h("div", {style:{width:12,height:12,borderRadius:2,background:"rgb(" + t.rgb.join(",") + ")"}})
+            );
+          })
+        ),
+        ctx.stashPalette.length > 60 && h("button", {
+          onClick:function(){setStashStripExpanded(function(o){return !o;});},
+          style:{fontSize:10,color:"#0d9488",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
+        }, stashStripExpanded ? "Show less" : "+" + (ctx.stashPalette.length - 60) + " more")
+      ),
+      ctx.coverageGaps && ctx.coverageGaps.hasGaps && h("div", {style:{
+        fontSize:11,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,
+        padding:"6px 10px",marginBottom:8,color:"#991b1b",display:"flex",alignItems:"flex-start",gap:6
+      }},
+        h("span", {style:{fontSize:13,lineHeight:1,flexShrink:0}}, Icons.warning()),
+        h("span", null, "Your stash may lack coverage in: ",
+          ctx.coverageGaps.gaps.map(function(g, i) {
+            return h("span", {key:g.hue},
+              (i > 0 ? ", " : ""),
+              h("strong", null, g.hue),
+              g.severity === "high" ? " (significant)" : ""
+            );
+          })
+        )
+      ),
+      h("div", {style:{marginBottom:8}},
+        h("div", {style:{fontSize:11,color:"#475569",marginBottom:4,fontWeight:500}}, "Quick-add thread to stash"),
+        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+          h("input", {
+            type:"text", value:qaVal,
+            placeholder:"DMC number\u2026",
+            onChange:function(e){setQaVal(e.target.value);},
+            style:{flex:1,padding:"4px 8px",fontSize:12,borderRadius:6,border:"0.5px solid #e2e8f0",fontFamily:"inherit"}
+          }),
+          (function(){
+            var dmc = typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();});
+            return dmc ? h(Tooltip, {text:"DMC " + dmc.id + " \u2014 " + dmc.name, width:160},
+              h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
+            ) : null;
+          })(),
+          h("button", {
+            disabled:qaLoading || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();})),
+            onClick:function(){
+              var trimmed = qaVal.trim();
+              if (!trimmed || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === trimmed;}))) return;
+              setQaLoading(true);
+              StashBridge.addToStash(trimmed, 1).then(function(){
+                setQaVal(""); setQaLoading(false);
+                ctx.setGlobalStash(function(s){
+                  var n = Object.assign({}, s);
+                  if (!n[trimmed]) n[trimmed] = {};
+                  n[trimmed] = Object.assign({}, n[trimmed], {owned: (n[trimmed].owned || 0) + 1});
+                  return n;
+                });
+              }).catch(function(){ setQaLoading(false); });
+            },
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #99f6e4",background:qaLoading?"#e2e8f0":"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
+          }, qaLoading ? "\u2026" : "+ Add")
+        )
+      ),
+      h("div", {style:{borderTop:"0.5px solid #e2e8f0",marginTop:8,paddingTop:10}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}},
+          h("button", {
+            onClick:function(){ ctx.randomise(); },
+            disabled:!(ctx.stashPalette && ctx.stashPalette.length > 0) || !ctx.img,
+            style:{display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:500,padding:"5px 12px",borderRadius:8,border:"0.5px solid #99f6e4",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
+          }, Icons.shuffle(), " Randomise"),
+          ctx.variationSeed ? (seedEditing ?
+            h("span", {style:{display:"flex",alignItems:"center",gap:3}},
+              h("input", {
+                type:"number", value:seedTmp, autoFocus:true,
+                onChange:function(e){setSeedTmp(e.target.value);},
+                onKeyDown:function(e){
+                  if (e.key==="Enter"){ var n=parseInt(seedTmp,10); if(!isNaN(n)&&n>0){ctx.applyVariationSeed(n>>>0);} setSeedEditing(false); }
+                  else if(e.key==="Escape"){setSeedEditing(false);}
+                },
+                onBlur:function(){setSeedEditing(false);},
+                style:{width:70,padding:"2px 4px",fontSize:10,borderRadius:4,border:"0.5px solid #99f6e4",fontFamily:"inherit"}
+              })
+            ) :
+            h("span", {
+              onClick:function(){setSeedEditing(true);setSeedTmp(String(ctx.variationSeed));},
+              title:"Click to enter a specific seed",
+              style:{fontSize:10,color:"#94a3b8",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
+            }, "#" + ctx.variationSeed)
+          ) : null
+        ),
+        ctx.stashConstrained && ctx.variationSeed && ctx.variationSubset && ctx.stashPalette && ctx.stashPalette.length >= 3 && h("div", {
+          style:{fontSize:10,color:"#0d9488",marginBottom:6,display:"flex",alignItems:"center",gap:4}
+        }, Icons.dice(), " Roulette \u2014 using " + ctx.variationSubset.length + " of " + ctx.stashPalette.length + " threads"),
+        h("button", {
+          onClick:function(){
+            ctx.setGalleryOpen(function(o){return !o;});
+            if (!ctx.galleryOpen) ctx.generateGallery();
+          },
+          style:{fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,marginBottom:4}
+        },
+          h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          "Explore variations"
+        ),
+        ctx.galleryOpen && h("div", {style:{marginTop:4}},
+          h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}},
+            ctx.gallerySlots.map(function(slot, i) {
+              return h("div", {
+                key:i,
+                onClick:function(){ if (!slot.loading && slot.url) { ctx.promoteVariation(slot); ctx.setGalleryOpen(false); } },
+                style:{
+                  borderRadius:8,overflow:"hidden",border:"0.5px solid #e2e8f0",
+                  cursor:(!slot.loading && slot.url) ? "pointer" : "default",
+                  background:"#f8fafc",transition:"border-color 0.15s"
+                }
+              },
+                slot.loading ?
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#94a3b8"}}, "\u2026") :
+                slot.url ?
+                  h("div", null,
+                    h("img", {src:slot.url, style:{width:"100%",display:"block",imageRendering:"pixelated"}}),
+                    h("div", {style:{padding:"3px 6px",fontSize:9,color:"#475569"}},
+                      "#" + slot.seed + " \u00B7 " + slot.threadCount + " threads"
+                    )
+                  ) :
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#ef4444"}}, "Error")
+              );
+            })
+          ),
+          h("div", {style:{display:"flex",justifyContent:"center"}},
+            h("button", {
+              onClick:function(){ ctx.generateGallery(); },
+              style:{fontSize:11,padding:"4px 12px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"inherit"}
+            }, "New batch")
+          )
+        ),
+        ctx.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
+          h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:4}}, "Recent variations"),
+          h("div", {style:{display:"flex",gap:4,overflowX:"auto",paddingBottom:4}},
+            ctx.variationHistory.map(function(entry, i) {
+              return h("div", {
+                key:(entry.timestamp || i) + "-" + i,
+                onClick:function(){ ctx.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); },
+                title:"Seed #" + entry.seed,
+                style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid #e2e8f0"}
+              },
+                entry.previewUrl ?
+                  h("img", {src:entry.previewUrl, style:{width:32,height:32,display:"block",imageRendering:"pixelated",objectFit:"cover"}}) :
+                  h("div", {style:{width:32,height:32,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#94a3b8"}}, "?"),
+                h("div", {style:{fontSize:7,color:"#94a3b8",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
+              );
+            })
+          )
+        )
+      )
     ),
     h("div", {style:{marginTop:8}},
       h(SliderRow, {label:"Min stitches per colour", value:ctx.minSt, min:0, max:50, onChange:ctx.setMinSt,
