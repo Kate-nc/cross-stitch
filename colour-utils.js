@@ -301,6 +301,33 @@ function doMap(data, w, h, pal, allowBlends = true) {
   return r;
 }
 
+function hueFromRgb(rgb){var r=rgb[0]/255,g=rgb[1]/255,b=rgb[2]/255;var max=Math.max(r,g,b),min=Math.min(r,g,b);if(max===min)return 0;var d=max-min,h;if(max===r)h=((g-b)/d+(g<b?6:0))/6;else if(max===g)h=((b-r)/d+2)/6;else h=((r-g)/d+4)/6;return h*360;}
+function analyseColourCoverage(img,palette,sampleSize){
+  sampleSize=sampleSize||5000;
+  var HUE_BUCKETS=[
+    {name:"Red",min:330,max:360,min2:0,max2:30},
+    {name:"Orange",min:30,max:60},
+    {name:"Yellow",min:60,max:90},
+    {name:"Green",min:90,max:170},
+    {name:"Cyan",min:170,max:200},
+    {name:"Blue",min:200,max:260},
+    {name:"Purple",min:260,max:330}
+  ];
+  function rgbToHsl(r,g,b){r/=255;g/=255;b/=255;var max=Math.max(r,g,b),min=Math.min(r,g,b),h,s,l=(max+min)/2;if(max===min){h=0;s=0;}else{var d=max-min;s=l>0.5?d/(2-max-min):d/(max+min);if(max===r)h=((g-b)/d+(g<b?6:0))/6;else if(max===g)h=((b-r)/d+2)/6;else h=((r-g)/d+4)/6;h*=360;}return{h:h,s:s,l:l};}
+  function inBucket(hue,bucket){if(bucket.min2!==undefined)return(hue>=bucket.min&&hue<bucket.max)||(hue>=bucket.min2&&hue<bucket.max2);return hue>=bucket.min&&hue<bucket.max;}
+  var c=document.createElement("canvas");
+  var scale=Math.sqrt(sampleSize/(img.width*img.height));if(scale>=1)scale=1;
+  c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));
+  var cx=c.getContext("2d");cx.drawImage(img,0,0,c.width,c.height);
+  var data=cx.getImageData(0,0,c.width,c.height).data;
+  var imgBuckets={};HUE_BUCKETS.forEach(function(b){imgBuckets[b.name]=0;});var totalChromatic=0;
+  for(var i=0;i<data.length;i+=4){var hsl=rgbToHsl(data[i],data[i+1],data[i+2]);if(hsl.s<0.12||hsl.l<0.08||hsl.l>0.92)continue;totalChromatic++;for(var bi=0;bi<HUE_BUCKETS.length;bi++){if(inBucket(hsl.h,HUE_BUCKETS[bi])){imgBuckets[HUE_BUCKETS[bi].name]++;break;}}}
+  var stashBuckets={};HUE_BUCKETS.forEach(function(b){stashBuckets[b.name]=0;});
+  palette.forEach(function(t){var hsl=rgbToHsl(t.rgb[0],t.rgb[1],t.rgb[2]);if(hsl.s<0.12)return;for(var bi=0;bi<HUE_BUCKETS.length;bi++){if(inBucket(hsl.h,HUE_BUCKETS[bi])){stashBuckets[HUE_BUCKETS[bi].name]++;break;}}});
+  var gaps=[];
+  if(totalChromatic>0){HUE_BUCKETS.forEach(function(b){var imgPct=imgBuckets[b.name]/totalChromatic;var stashCount=stashBuckets[b.name];if(imgPct>0.15&&stashCount===0)gaps.push({hue:b.name,severity:"high",imgPct:Math.round(imgPct*100)});else if(imgPct>0.08&&stashCount<=1)gaps.push({hue:b.name,severity:"medium",imgPct:Math.round(imgPct*100)});});}
+  return{gaps:gaps,hasGaps:gaps.length>0};
+}
 function buildPalette(patArr){
   let usage={};
   for(let i=0;i<patArr.length;i++){

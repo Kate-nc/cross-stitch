@@ -2863,7 +2863,9 @@ window.useCreatorState = function useCreatorState() {
   var _altOpen  = useState(null);    var altOpen = _altOpen[0], setAltOpen = _altOpen[1];
 
   // Substitute from stash
-  var _stashOnly = useState(false);  var stashConstrained = _stashOnly[0], setStashConstrained = _stashOnly[1];
+  var _stashOnly = useState(function() { try { return localStorage.getItem("cs_stashConstrained") === "true"; } catch(_) { return false; } });
+  var stashConstrained = _stashOnly[0];
+  function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
   var _subOpen  = useState(false);   var substituteModalOpen = _subOpen[0], setSubstituteModalOpen = _subOpen[1];
   var _subProp  = useState(null);    var substituteProposal = _subProp[0], setSubstituteProposal = _subProp[1];
   var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
@@ -2886,6 +2888,9 @@ window.useCreatorState = function useCreatorState() {
   // Cleanup diff state
   var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
   var _showCleanupDiff  = useState(false); var showCleanupDiff  = _showCleanupDiff[0],  setShowCleanupDiff  = _showCleanupDiff[1];
+
+  // Coverage gaps (QW4)
+  var _coverageGaps = useState(null); var coverageGaps = _coverageGaps[0], setCoverageGaps = _coverageGaps[1];
 
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
@@ -3310,6 +3315,8 @@ window.useCreatorState = function useCreatorState() {
 
     // Build allowed palette from stash when stash-constrained mode is on
     var allowedPalette = null;
+    var effMaxC = maxC;
+    var effAllowBlends = allowBlends;
     if (stashConstrained && globalStash) {
       allowedPalette = [];
       Object.keys(globalStash).forEach(function(id) {
@@ -3326,6 +3333,8 @@ window.useCreatorState = function useCreatorState() {
       if (allowedPalette.length < 3) {
         addToast("Only " + allowedPalette.length + " thread(s) in stash — results may be limited.", {type: "warning", duration: 3000});
       }
+      effMaxC = Math.min(maxC, allowedPalette.length);
+      if (allowedPalette.length < 6) effAllowBlends = false;
     }
 
     var startGeneration = function() {
@@ -3345,10 +3354,10 @@ window.useCreatorState = function useCreatorState() {
           if (reqId !== genReqIdRef.current) { setBusy(false); return; }
           try {
             var result = runGenerationPipeline(img, {
-              sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat,
+              sW: sW, sH: sH, maxC: effMaxC, bri: bri, con: con, sat: sat,
               dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
-              stitchCleanup: stitchCleanup, allowBlends: allowBlends,
+              stitchCleanup: stitchCleanup, allowBlends: effAllowBlends,
               allowedPalette: allowedPalette,
             });
             if (!result) { setBusy(false); return; }
@@ -3366,7 +3375,7 @@ window.useCreatorState = function useCreatorState() {
         width: sW,
         height: sH,
         settings: {
-          maxC: maxC, dith: dith, allowBlends: allowBlends,
+          maxC: effMaxC, dith: dith, allowBlends: effAllowBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup,
@@ -3391,6 +3400,24 @@ window.useCreatorState = function useCreatorState() {
       }
     };
   }, []);
+
+  // QW4: Colour coverage gap analysis — runs when image or stash palette changes
+  useEffect(function() {
+    if (!stashConstrained || !img || !img.src) { setCoverageGaps(null); return; }
+    var stashPal = [];
+    Object.keys(globalStash || {}).forEach(function(id) {
+      if ((globalStash[id].owned || 0) <= 0) return;
+      var d = DMC.find(function(e) { return e.id === id; });
+      if (d) stashPal.push(d);
+    });
+    if (!stashPal.length) { setCoverageGaps(null); return; }
+    var timer = setTimeout(function() {
+      if (typeof analyseColourCoverage === 'function') {
+        setCoverageGaps(analyseColourCoverage(img, stashPal));
+      }
+    }, 300);
+    return function() { clearTimeout(timer); };
+  }, [stashConstrained, img, globalStash]);
 
   // ─── Palette swap integration ────────────────────────────────────────────────
   var paletteSwap = usePaletteSwap({
@@ -3499,6 +3526,7 @@ window.useCreatorState = function useCreatorState() {
     substituteProposal, setSubstituteProposal,
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
     stashConstrained, setStashConstrained,
+    coverageGaps, setCoverageGaps,
     previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
     previewHeatmap, setPreviewHeatmap,
@@ -3515,6 +3543,52 @@ window.useCreatorState = function useCreatorState() {
     skeinData, totalSkeins, blendCount, difficulty, doneCount, dmcFiltered,
     displayPal, progressPct, colourDoneCounts, stitchType,
     ownedCount, toBuyCount, toBuyList,
+
+    // Stash-constrained derived values (QW1, QW3, QW8)
+    stashThreadCount: useMemo(function() {
+      if (!stashConstrained || !globalStash) return null;
+      var count = 0;
+      Object.keys(globalStash).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      return count;
+    }, [stashConstrained, globalStash]),
+
+    effectiveMaxC: useMemo(function() {
+      if (!stashConstrained) return maxC;
+      var count = 0;
+      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      return count === 0 ? maxC : Math.min(maxC, count);
+    }, [stashConstrained, globalStash, maxC]),
+
+    stashPalette: useMemo(function() {
+      if (!stashConstrained || !globalStash) return null;
+      var entries = [];
+      Object.keys(globalStash).forEach(function(id) {
+        if ((globalStash[id].owned || 0) <= 0) return;
+        var dmcEntry = DMC.find(function(d) { return d.id === id; });
+        if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[id].owned });
+      });
+      entries.sort(function(a, b) {
+        var hA = (typeof hueFromRgb !== 'undefined') ? hueFromRgb(a.rgb) : 0;
+        var hB = (typeof hueFromRgb !== 'undefined') ? hueFromRgb(b.rgb) : 0;
+        return hA - hB;
+      });
+      return entries;
+    }, [stashConstrained, globalStash]),
+
+    blendsAutoDisabled: useMemo(function() {
+      if (!stashConstrained) return false;
+      var count = 0;
+      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      return count < 6;
+    }, [stashConstrained, globalStash]),
+
+    effectiveAllowBlends: useMemo(function() {
+      if (!stashConstrained) return allowBlends;
+      var count = 0;
+      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      if (count < 6) return false;
+      return allowBlends;
+    }, [stashConstrained, globalStash, allowBlends]),
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
@@ -5115,6 +5189,9 @@ window.usePreview = function usePreview(state) {
     var stitchCleanup = state.stitchCleanup, fabricCt = state.fabricCt;
     var allowBlends = state.allowBlends;
     var stashConstrained = state.stashConstrained, globalStash = state.globalStash;
+    // Use clamped values from derived state (QW1, QW8)
+    var effMaxC = state.effectiveMaxC != null ? state.effectiveMaxC : maxC;
+    var effAllowBlends = state.effectiveAllowBlends != null ? state.effectiveAllowBlends : allowBlends;
 
     // Build constrained palette from stash if stash-only mode is on
     var allowedPalette = null;
@@ -5171,7 +5248,7 @@ window.usePreview = function usePreview(state) {
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
     if (dith) {
-      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null, allowedPalette: allowedPalette });
+      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null, allowedPalette: allowedPalette });
       if (fastResult) state.setPreviewUrl(renderUrl(fastResult.mapped));
       fullPassTimerRef.current = setTimeout(runFull, 0);
       return;
@@ -5180,7 +5257,7 @@ window.usePreview = function usePreview(state) {
 
     function runFull() {
       fullPassTimerRef.current = null;
-      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: allowedPalette });
+      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: dith, allowBlends: effAllowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: allowedPalette });
       if (!pipelineResult) return;
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
@@ -5198,6 +5275,14 @@ window.usePreview = function usePreview(state) {
       var estSkeins = 0;
       Object.values(colorCounts).forEach(function(ct) { estSkeins += skeinEst(Math.round(ct * scaleFactor), fabricCt); });
 
+      // QW2: Stash usage stat
+      var stashUsage = null;
+      if (stashConstrained && globalStash) {
+        var availableCount = 0;
+        Object.keys(globalStash).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) availableCount++; });
+        stashUsage = { used: uniqueColors, available: availableCount };
+      }
+
       state.setPreviewStats({
         stitchable: Math.round(stitchable * scaleFactor),
         skipped: Math.round(skipped * scaleFactor),
@@ -5206,6 +5291,7 @@ window.usePreview = function usePreview(state) {
         confettiPct: confettiRaw.pct,
         confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
         confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
+        stashUsage: stashUsage,
       });
 
       var colorList = Object.keys(colorCounts).map(function(id) {
@@ -5261,6 +5347,7 @@ window.usePreview = function usePreview(state) {
     state.stitchCleanup, state.fabricCt, state.allowBlends,
     state.orphans, state.showCleanupDiff,
     state.stashConstrained, state.globalStash,
+    state.effectiveMaxC, state.effectiveAllowBlends,
   ]);
 
   React.useEffect(function() {
@@ -7212,6 +7299,9 @@ window.CreatorSidebar = function CreatorSidebar() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
   var _pco = React.useState(false); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
+  var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
+  var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
+  var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
 
   function getCleanupWarning(sW, sH, orphans, previewStats) {
     if (orphans === 0) return null;
@@ -7496,13 +7586,19 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:ctx.palOpen, onToggle:ctx.setPalOpen},
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:40, onChange:ctx.setMaxC,
-        helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"})
+      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:ctx.stashConstrained && ctx.stashThreadCount ? ctx.stashThreadCount : 40, onChange:ctx.setMaxC,
+        helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
+      ctx.stashConstrained && ctx.stashThreadCount && ctx.maxC > ctx.stashThreadCount && h("div", {style:{fontSize:10,color:"#d97706",marginTop:2}},
+        "Clamped to " + ctx.stashThreadCount + " (stash size)"
+      )
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
-      h("input", {type:"checkbox", checked:ctx.allowBlends, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:ctx.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:8,marginTop:8,opacity:ctx.blendsAutoDisabled?0.5:1}},
+      h("input", {type:"checkbox", checked:ctx.allowBlends, disabled:ctx.blendsAutoDisabled, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
+    ),
+    ctx.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:8}},
+      "Auto-disabled \u2014 fewer than 6 stash threads"
     ),
     typeof StashBridge !== "undefined" && h("label", {
       style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:4}
@@ -7511,16 +7607,74 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("span", null, "Use only stash threads"),
       h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
     ),
-    ctx.stashConstrained && typeof StashBridge !== "undefined" && h("div", {
-      style:{fontSize:11,color:"#0d9488",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:8,padding:"6px 10px",marginBottom:8}
-    },
-      (function() {
-        var stashCount = Object.keys(ctx.globalStash || {}).filter(function(id) {
-          return (ctx.globalStash[id].owned || 0) > 0;
-        }).length;
-        return stashCount + " thread" + (stashCount !== 1 ? "s" : "") + " available in your stash" +
-          (stashCount < ctx.maxC ? " (fewer than max colours \u2014 palette will be smaller)" : "");
-      })()
+    ctx.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
+      h("div", {style:{fontSize:11,color:"#0d9488",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:8,padding:"6px 10px",marginBottom:8}},
+        (ctx.stashThreadCount || 0) + " thread" + ((ctx.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
+          (ctx.effectiveMaxC && ctx.effectiveMaxC < ctx.maxC ? " \u2014 palette limited to " + ctx.effectiveMaxC + " colours" : "")
+      ),
+      ctx.stashPalette && ctx.stashPalette.length > 0 && h("div", {style:{marginBottom:8}},
+        h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
+          (stashStripExpanded ? ctx.stashPalette : ctx.stashPalette.slice(0,60)).map(function(t) {
+            return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:140},
+              h("div", {style:{width:12,height:12,borderRadius:2,background:"rgb(" + t.rgb.join(",") + ")"}})
+            );
+          })
+        ),
+        ctx.stashPalette.length > 60 && h("button", {
+          onClick:function(){setStashStripExpanded(function(o){return !o;});},
+          style:{fontSize:10,color:"#0d9488",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
+        }, stashStripExpanded ? "Show less" : "+" + (ctx.stashPalette.length - 60) + " more")
+      ),
+      ctx.coverageGaps && ctx.coverageGaps.hasGaps && h("div", {style:{
+        fontSize:11,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,
+        padding:"6px 10px",marginBottom:8,color:"#991b1b",display:"flex",alignItems:"flex-start",gap:6
+      }},
+        h("span", {style:{fontSize:13,lineHeight:1,flexShrink:0}}, Icons.warning()),
+        h("span", null, "Your stash may lack coverage in: ",
+          ctx.coverageGaps.gaps.map(function(g, i) {
+            return h("span", {key:g.hue},
+              (i > 0 ? ", " : ""),
+              h("strong", null, g.hue),
+              g.severity === "high" ? " (significant)" : ""
+            );
+          })
+        )
+      ),
+      h("div", {style:{marginBottom:8}},
+        h("div", {style:{fontSize:11,color:"#475569",marginBottom:4,fontWeight:500}}, "Quick-add thread to stash"),
+        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+          h("input", {
+            type:"text", value:qaVal,
+            placeholder:"DMC number\u2026",
+            onChange:function(e){setQaVal(e.target.value);},
+            style:{flex:1,padding:"4px 8px",fontSize:12,borderRadius:6,border:"0.5px solid #e2e8f0",fontFamily:"inherit"}
+          }),
+          (function(){
+            var dmc = typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();});
+            return dmc ? h(Tooltip, {text:"DMC " + dmc.id + " \u2014 " + dmc.name, width:160},
+              h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
+            ) : null;
+          })(),
+          h("button", {
+            disabled:qaLoading || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();})),
+            onClick:function(){
+              var trimmed = qaVal.trim();
+              if (!trimmed || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === trimmed;}))) return;
+              setQaLoading(true);
+              StashBridge.addToStash(trimmed, 1).then(function(){
+                setQaVal(""); setQaLoading(false);
+                ctx.setGlobalStash(function(s){
+                  var n = Object.assign({}, s);
+                  if (!n[trimmed]) n[trimmed] = {};
+                  n[trimmed] = Object.assign({}, n[trimmed], {owned: (n[trimmed].owned || 0) + 1});
+                  return n;
+                });
+              }).catch(function(){ setQaLoading(false); });
+            },
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #99f6e4",background:qaLoading?"#e2e8f0":"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
+          }, qaLoading ? "\u2026" : "+ Add")
+        )
+      )
     ),
     h("div", {style:{marginTop:8}},
       h(SliderRow, {label:"Min stitches per colour", value:ctx.minSt, min:0, max:50, onChange:ctx.setMinSt,

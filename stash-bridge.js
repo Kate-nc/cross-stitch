@@ -212,11 +212,19 @@ const StashBridge = (() => {
       }
     },
 
+    // Add a thread to the stash (increment owned count, default +1).
+    // Returns a Promise resolving to the new owned count.
+    async addToStash(id, count) {
+      count = count || 1;
+      const stash = await StashBridge.getGlobalStash();
+      const current = (stash[id] && stash[id].owned) || 0;
+      await StashBridge.updateThreadOwned(id, current + count);
+      return current + count;
+    },
+
     // Finds similar DMC colours to a given DMC ID from your owned stash.
     // Returns top N alternatives sorted by colour distance (deltaE).
-    suggestAlternatives(dmcId, maxResults = 5, ownedThreads = {}) {
-      if (typeof DMC === "undefined" || typeof rgbToLab === "undefined" || typeof dE === "undefined") return [];
-      const target = DMC.find(d => d.id === dmcId);
+    suggestAlternatives(dmcId, maxResults = 5, ownedThreads = {}) {      const target = DMC.find(d => d.id === dmcId);
       if (!target) return [];
       const targetLab = rgbToLab(target.rgb[0], target.rgb[1], target.rgb[2]);
       const candidates = [];

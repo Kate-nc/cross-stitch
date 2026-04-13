@@ -135,7 +135,9 @@ window.useCreatorState = function useCreatorState() {
   var _altOpen  = useState(null);    var altOpen = _altOpen[0], setAltOpen = _altOpen[1];
 
   // Substitute from stash
-  var _stashOnly = useState(false);  var stashConstrained = _stashOnly[0], setStashConstrained = _stashOnly[1];
+  var _stashOnly = useState(function() { try { return localStorage.getItem("cs_stashConstrained") === "true"; } catch(_) { return false; } });
+  var stashConstrained = _stashOnly[0];
+  function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
   var _subOpen  = useState(false);   var substituteModalOpen = _subOpen[0], setSubstituteModalOpen = _subOpen[1];
   var _subProp  = useState(null);    var substituteProposal = _subProp[0], setSubstituteProposal = _subProp[1];
   var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
@@ -158,6 +160,9 @@ window.useCreatorState = function useCreatorState() {
   // Cleanup diff state
   var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
   var _showCleanupDiff  = useState(false); var showCleanupDiff  = _showCleanupDiff[0],  setShowCleanupDiff  = _showCleanupDiff[1];
+
+  // Coverage gaps (QW4)
+  var _coverageGaps = useState(null); var coverageGaps = _coverageGaps[0], setCoverageGaps = _coverageGaps[1];
 
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
@@ -582,6 +587,8 @@ window.useCreatorState = function useCreatorState() {
 
     // Build allowed palette from stash when stash-constrained mode is on
     var allowedPalette = null;
+    var effMaxC = maxC;
+    var effAllowBlends = allowBlends;
     if (stashConstrained && globalStash) {
       allowedPalette = [];
       Object.keys(globalStash).forEach(function(id) {
@@ -598,6 +605,8 @@ window.useCreatorState = function useCreatorState() {
       if (allowedPalette.length < 3) {
         addToast("Only " + allowedPalette.length + " thread(s) in stash — results may be limited.", {type: "warning", duration: 3000});
       }
+      effMaxC = Math.min(maxC, allowedPalette.length);
+      if (allowedPalette.length < 6) effAllowBlends = false;
     }
 
     var startGeneration = function() {
@@ -617,10 +626,10 @@ window.useCreatorState = function useCreatorState() {
           if (reqId !== genReqIdRef.current) { setBusy(false); return; }
           try {
             var result = runGenerationPipeline(img, {
-              sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat,
+              sW: sW, sH: sH, maxC: effMaxC, bri: bri, con: con, sat: sat,
               dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
-              stitchCleanup: stitchCleanup, allowBlends: allowBlends,
+              stitchCleanup: stitchCleanup, allowBlends: effAllowBlends,
               allowedPalette: allowedPalette,
             });
             if (!result) { setBusy(false); return; }
@@ -638,7 +647,7 @@ window.useCreatorState = function useCreatorState() {
         width: sW,
         height: sH,
         settings: {
-          maxC: maxC, dith: dith, allowBlends: allowBlends,
+          maxC: effMaxC, dith: dith, allowBlends: effAllowBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup,
@@ -663,6 +672,24 @@ window.useCreatorState = function useCreatorState() {
       }
     };
   }, []);
+
+  // QW4: Colour coverage gap analysis — runs when image or stash palette changes
+  useEffect(function() {
+    if (!stashConstrained || !img || !img.src) { setCoverageGaps(null); return; }
+    var stashPal = [];
+    Object.keys(globalStash || {}).forEach(function(id) {
+      if ((globalStash[id].owned || 0) <= 0) return;
+      var d = DMC.find(function(e) { return e.id === id; });
+      if (d) stashPal.push(d);
+    });
+    if (!stashPal.length) { setCoverageGaps(null); return; }
+    var timer = setTimeout(function() {
+      if (typeof analyseColourCoverage === 'function') {
+        setCoverageGaps(analyseColourCoverage(img, stashPal));
+      }
+    }, 300);
+    return function() { clearTimeout(timer); };
+  }, [stashConstrained, img, globalStash]);
 
   // ─── Palette swap integration ────────────────────────────────────────────────
   var paletteSwap = usePaletteSwap({
@@ -771,6 +798,7 @@ window.useCreatorState = function useCreatorState() {
     substituteProposal, setSubstituteProposal,
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
     stashConstrained, setStashConstrained,
+    coverageGaps, setCoverageGaps,
     previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
     previewHeatmap, setPreviewHeatmap,
@@ -787,6 +815,52 @@ window.useCreatorState = function useCreatorState() {
     skeinData, totalSkeins, blendCount, difficulty, doneCount, dmcFiltered,
     displayPal, progressPct, colourDoneCounts, stitchType,
     ownedCount, toBuyCount, toBuyList,
+
+    // Stash-constrained derived values (QW1, QW3, QW8)
+    stashThreadCount: useMemo(function() {
+      if (!stashConstrained || !globalStash) return null;
+      var count = 0;
+      Object.keys(globalStash).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      return count;
+    }, [stashConstrained, globalStash]),
+
+    effectiveMaxC: useMemo(function() {
+      if (!stashConstrained) return maxC;
+      var count = 0;
+      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      return count === 0 ? maxC : Math.min(maxC, count);
+    }, [stashConstrained, globalStash, maxC]),
+
+    stashPalette: useMemo(function() {
+      if (!stashConstrained || !globalStash) return null;
+      var entries = [];
+      Object.keys(globalStash).forEach(function(id) {
+        if ((globalStash[id].owned || 0) <= 0) return;
+        var dmcEntry = DMC.find(function(d) { return d.id === id; });
+        if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[id].owned });
+      });
+      entries.sort(function(a, b) {
+        var hA = (typeof hueFromRgb !== 'undefined') ? hueFromRgb(a.rgb) : 0;
+        var hB = (typeof hueFromRgb !== 'undefined') ? hueFromRgb(b.rgb) : 0;
+        return hA - hB;
+      });
+      return entries;
+    }, [stashConstrained, globalStash]),
+
+    blendsAutoDisabled: useMemo(function() {
+      if (!stashConstrained) return false;
+      var count = 0;
+      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      return count < 6;
+    }, [stashConstrained, globalStash]),
+
+    effectiveAllowBlends: useMemo(function() {
+      if (!stashConstrained) return allowBlends;
+      var count = 0;
+      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      if (count < 6) return false;
+      return allowBlends;
+    }, [stashConstrained, globalStash, allowBlends]),
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,

@@ -6,6 +6,9 @@ window.CreatorSidebar = function CreatorSidebar() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
   var _pco = React.useState(false); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
+  var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
+  var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
+  var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
 
   function getCleanupWarning(sW, sH, orphans, previewStats) {
     if (orphans === 0) return null;
@@ -290,13 +293,19 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:ctx.palOpen, onToggle:ctx.setPalOpen},
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:40, onChange:ctx.setMaxC,
-        helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"})
+      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:ctx.stashConstrained && ctx.stashThreadCount ? ctx.stashThreadCount : 40, onChange:ctx.setMaxC,
+        helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
+      ctx.stashConstrained && ctx.stashThreadCount && ctx.maxC > ctx.stashThreadCount && h("div", {style:{fontSize:10,color:"#d97706",marginTop:2}},
+        "Clamped to " + ctx.stashThreadCount + " (stash size)"
+      )
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
-      h("input", {type:"checkbox", checked:ctx.allowBlends, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:ctx.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:8,marginTop:8,opacity:ctx.blendsAutoDisabled?0.5:1}},
+      h("input", {type:"checkbox", checked:ctx.allowBlends, disabled:ctx.blendsAutoDisabled, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
+    ),
+    ctx.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:8}},
+      "Auto-disabled \u2014 fewer than 6 stash threads"
     ),
     typeof StashBridge !== "undefined" && h("label", {
       style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:4}
@@ -305,16 +314,74 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("span", null, "Use only stash threads"),
       h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
     ),
-    ctx.stashConstrained && typeof StashBridge !== "undefined" && h("div", {
-      style:{fontSize:11,color:"#0d9488",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:8,padding:"6px 10px",marginBottom:8}
-    },
-      (function() {
-        var stashCount = Object.keys(ctx.globalStash || {}).filter(function(id) {
-          return (ctx.globalStash[id].owned || 0) > 0;
-        }).length;
-        return stashCount + " thread" + (stashCount !== 1 ? "s" : "") + " available in your stash" +
-          (stashCount < ctx.maxC ? " (fewer than max colours \u2014 palette will be smaller)" : "");
-      })()
+    ctx.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
+      h("div", {style:{fontSize:11,color:"#0d9488",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:8,padding:"6px 10px",marginBottom:8}},
+        (ctx.stashThreadCount || 0) + " thread" + ((ctx.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
+          (ctx.effectiveMaxC && ctx.effectiveMaxC < ctx.maxC ? " \u2014 palette limited to " + ctx.effectiveMaxC + " colours" : "")
+      ),
+      ctx.stashPalette && ctx.stashPalette.length > 0 && h("div", {style:{marginBottom:8}},
+        h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
+          (stashStripExpanded ? ctx.stashPalette : ctx.stashPalette.slice(0,60)).map(function(t) {
+            return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:140},
+              h("div", {style:{width:12,height:12,borderRadius:2,background:"rgb(" + t.rgb.join(",") + ")"}})
+            );
+          })
+        ),
+        ctx.stashPalette.length > 60 && h("button", {
+          onClick:function(){setStashStripExpanded(function(o){return !o;});},
+          style:{fontSize:10,color:"#0d9488",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
+        }, stashStripExpanded ? "Show less" : "+" + (ctx.stashPalette.length - 60) + " more")
+      ),
+      ctx.coverageGaps && ctx.coverageGaps.hasGaps && h("div", {style:{
+        fontSize:11,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,
+        padding:"6px 10px",marginBottom:8,color:"#991b1b",display:"flex",alignItems:"flex-start",gap:6
+      }},
+        h("span", {style:{fontSize:13,lineHeight:1,flexShrink:0}}, Icons.warning()),
+        h("span", null, "Your stash may lack coverage in: ",
+          ctx.coverageGaps.gaps.map(function(g, i) {
+            return h("span", {key:g.hue},
+              (i > 0 ? ", " : ""),
+              h("strong", null, g.hue),
+              g.severity === "high" ? " (significant)" : ""
+            );
+          })
+        )
+      ),
+      h("div", {style:{marginBottom:8}},
+        h("div", {style:{fontSize:11,color:"#475569",marginBottom:4,fontWeight:500}}, "Quick-add thread to stash"),
+        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+          h("input", {
+            type:"text", value:qaVal,
+            placeholder:"DMC number\u2026",
+            onChange:function(e){setQaVal(e.target.value);},
+            style:{flex:1,padding:"4px 8px",fontSize:12,borderRadius:6,border:"0.5px solid #e2e8f0",fontFamily:"inherit"}
+          }),
+          (function(){
+            var dmc = typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();});
+            return dmc ? h(Tooltip, {text:"DMC " + dmc.id + " \u2014 " + dmc.name, width:160},
+              h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
+            ) : null;
+          })(),
+          h("button", {
+            disabled:qaLoading || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();})),
+            onClick:function(){
+              var trimmed = qaVal.trim();
+              if (!trimmed || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === trimmed;}))) return;
+              setQaLoading(true);
+              StashBridge.addToStash(trimmed, 1).then(function(){
+                setQaVal(""); setQaLoading(false);
+                ctx.setGlobalStash(function(s){
+                  var n = Object.assign({}, s);
+                  if (!n[trimmed]) n[trimmed] = {};
+                  n[trimmed] = Object.assign({}, n[trimmed], {owned: (n[trimmed].owned || 0) + 1});
+                  return n;
+                });
+              }).catch(function(){ setQaLoading(false); });
+            },
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #99f6e4",background:qaLoading?"#e2e8f0":"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
+          }, qaLoading ? "\u2026" : "+ Add")
+        )
+      )
     ),
     h("div", {style:{marginTop:8}},
       h(SliderRow, {label:"Min stitches per colour", value:ctx.minSt, min:0, max:50, onChange:ctx.setMinSt,

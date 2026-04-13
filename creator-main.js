@@ -339,6 +339,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   <div><div style={{fontSize:10,color:"#94a3b8"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.stitchable.toLocaleString()}</div></div>
                   {state.skipBg&&<div><div style={{fontSize:10,color:"#94a3b8"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.skipped.toLocaleString()}</div></div>}
                   <div><div style={{fontSize:10,color:"#94a3b8"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.uniqueColors}</div></div>
+                  {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"#94a3b8"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"#0d9488"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
                   <div><div style={{fontSize:10,color:"#94a3b8"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.estSkeins}</div></div>
                   <div><div style={{fontSize:10,color:"#94a3b8"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
                   <div><div style={{fontSize:10,color:"#94a3b8"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
