@@ -164,6 +164,13 @@ window.useCreatorState = function useCreatorState() {
   // Coverage gaps (QW4)
   var _coverageGaps = useState(null); var coverageGaps = _coverageGaps[0], setCoverageGaps = _coverageGaps[1];
 
+  // Variation / randomise (stash mode)
+  var _vSeed    = useState(null);   var variationSeed    = _vSeed[0],    setVariationSeed    = _vSeed[1];
+  var _vSubset  = useState(null);   var variationSubset  = _vSubset[0],  setVariationSubset  = _vSubset[1];
+  var _vHistory = useState([]);     var variationHistory = _vHistory[0], setVariationHistory = _vHistory[1];
+  var _galSlots = useState([]);     var gallerySlots     = _galSlots[0], setGallerySlots     = _galSlots[1];
+  var _galOpen  = useState(false);  var galleryOpen      = _galOpen[0],  setGalleryOpen      = _galOpen[1];
+
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
@@ -580,24 +587,31 @@ window.useCreatorState = function useCreatorState() {
     return workerRef.current;
   }
 
-  var generate = useCallback(function() {
+  var generate = useCallback(function(overrides) {
     if (!img) return;
     setBusy(true); setHiId(null); setExportPage(0);
     var reqId = ++genReqIdRef.current;
+
+    var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;
+    var _subset = (overrides && overrides.subset !== undefined) ? overrides.subset : variationSubset;
 
     // Build allowed palette from stash when stash-constrained mode is on
     var allowedPalette = null;
     var effMaxC = maxC;
     var effAllowBlends = allowBlends;
     if (stashConstrained && globalStash) {
-      allowedPalette = [];
-      Object.keys(globalStash).forEach(function(id) {
-        if ((globalStash[id].owned || 0) > 0) {
-          var dmcEntry = DMC.find(function(d) { return d.id === id; });
-          if (dmcEntry) allowedPalette.push(dmcEntry);
-        }
-      });
-      if (allowedPalette.length === 0) {
+      if (_subset !== null) {
+        allowedPalette = _subset;
+      } else {
+        allowedPalette = [];
+        Object.keys(globalStash).forEach(function(id) {
+          if ((globalStash[id].owned || 0) > 0) {
+            var dmcEntry = DMC.find(function(d) { return d.id === id; });
+            if (dmcEntry) allowedPalette.push(dmcEntry);
+          }
+        });
+      }
+      if (!allowedPalette || allowedPalette.length === 0) {
         addToast("Your stash is empty — add threads to use stash-only mode.", {type: "warning", duration: 3000});
         setBusy(false);
         return;
@@ -630,7 +644,7 @@ window.useCreatorState = function useCreatorState() {
               dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, allowBlends: effAllowBlends,
-              allowedPalette: allowedPalette,
+              allowedPalette: allowedPalette, seed: _seed,
             });
             if (!result) { setBusy(false); return; }
             applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds });
@@ -651,7 +665,7 @@ window.useCreatorState = function useCreatorState() {
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup,
-          allowedPalette: allowedPalette,
+          allowedPalette: allowedPalette, seed: _seed,
         },
       }, [imageData.data.buffer]);
     };
@@ -661,7 +675,107 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, hasGenerated, allowBlends, stashConstrained, globalStash]);
+  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
+
+  // ─── Variation helpers: seeded Fisher-Yates shuffle → roulette subset ───────
+  function _buildRoulette(pool, n, seed) {
+    var s = seed >>> 0;
+    function _rng() { s += 0x6D2B79F5; var t = s; t = Math.imul(t ^ t>>>15, t|1); t ^= t + Math.imul(t ^ t>>>7, t|61); return ((t ^ t>>>14) >>> 0) / 4294967296; }
+    var arr = pool.slice();
+    for (var i = arr.length - 1; i > 0; i--) { var j = Math.floor(_rng() * (i + 1)); var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp; }
+    return arr.slice(0, n);
+  }
+
+  var randomise = useCallback(function() {
+    if (!stashConstrained || !img) return;
+    var newSeed = ((Math.random() * 0xFFFFFFFE) + 1) >>> 0;
+    var pool = [];
+    Object.keys(globalStash || {}).forEach(function(id) {
+      if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
+    });
+    var effN = Math.min(maxC, pool.length);
+    var newSubset = (pool.length > effN && effN > 0) ? _buildRoulette(pool, effN, newSeed) : null;
+    if (previewUrl) {
+      setVariationHistory(function(h) { return [{seed: variationSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+    }
+    setVariationSeed(newSeed);
+    setVariationSubset(newSubset);
+    generate({seed: newSeed, subset: newSubset});
+  }, [stashConstrained, img, globalStash, maxC, previewUrl, variationSeed, variationSubset, generate]);
+
+  var applyVariationSeed = useCallback(function(seed, subset) {
+    var s = seed >>> 0;
+    if (previewUrl) {
+      setVariationHistory(function(h) { return [{seed: variationSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+    }
+    setVariationSeed(s);
+    setVariationSubset(subset || null);
+    generate({seed: s, subset: subset || null});
+  }, [variationSeed, variationSubset, previewUrl, generate]);
+
+  var promoteVariation = useCallback(function(slot) {
+    if (previewUrl) {
+      setVariationHistory(function(h) { return [{seed: variationSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+    }
+    setVariationSeed(slot.seed);
+    setVariationSubset(slot.subset || null);
+    generate({seed: slot.seed, subset: slot.subset || null});
+  }, [variationSeed, variationSubset, previewUrl, generate]);
+
+  var generateGallery = useCallback(function() {
+    if (!img || !stashConstrained) return;
+    var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
+    setGallerySlots(newSeeds.map(function(s) { return {seed: s, loading: true, url: null, threadCount: 0, subset: null}; }));
+    var pool = [];
+    Object.keys(globalStash || {}).forEach(function(id) {
+      if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
+    });
+    if (!pool.length) return;
+    var effN = Math.min(maxC, pool.length);
+    var useRoulette = pool.length > effN;
+    function genSlot(slotIdx) {
+      if (slotIdx >= newSeeds.length) return;
+      var slotSeed = newSeeds[slotIdx];
+      setTimeout(function() {
+        var slotSubset = useRoulette ? _buildRoulette(pool, effN, slotSeed) : pool;
+        var MAX_GAL = 2500;
+        var gw = sW, gh = sH;
+        if (gw * gh > MAX_GAL) { var sc = Math.sqrt(MAX_GAL / (gw * gh)); gw = Math.max(4, Math.round(gw * sc)); gh = Math.max(4, Math.round(gh * sc)); }
+        var cv = document.createElement("canvas"); cv.width = gw; cv.height = gh;
+        var gcx = cv.getContext("2d");
+        gcx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
+        gcx.drawImage(img, 0, 0, gw, gh); gcx.filter = "none";
+        var rawPx = gcx.getImageData(0, 0, gw, gh).data;
+        if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
+        var res = runCleanupPipeline(rawPx, gw, gh, {
+          maxC: effN, dith: dith, allowBlends: allowBlends && slotSubset.length >= 6,
+          skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup,
+          allowedPalette: slotSubset, seed: slotSeed,
+        });
+        var slotUrl = null, usedCt = 0;
+        if (res) {
+          var oc = document.createElement("canvas"); oc.width = gw; oc.height = gh;
+          var ocx = oc.getContext("2d"); var od = ocx.createImageData(gw, gh); var oarr = od.data;
+          var usedSet = new Set();
+          for (var k = 0; k < res.mapped.length; k++) {
+            var mm = res.mapped[k]; var ix = k * 4;
+            if (mm.id === "__skip__") { oarr[ix]=240; oarr[ix+1]=240; oarr[ix+2]=240; oarr[ix+3]=255; }
+            else { oarr[ix]=mm.rgb[0]; oarr[ix+1]=mm.rgb[1]; oarr[ix+2]=mm.rgb[2]; oarr[ix+3]=255; usedSet.add(mm.id); }
+          }
+          ocx.putImageData(od, 0, 0);
+          slotUrl = oc.toDataURL();
+          usedCt = usedSet.size;
+        }
+        setGallerySlots(function(prev) {
+          var next = prev.slice();
+          next[slotIdx] = {seed: slotSeed, loading: false, url: slotUrl, threadCount: usedCt, subset: slotSubset};
+          return next;
+        });
+        genSlot(slotIdx + 1);
+      }, 0);
+    }
+    genSlot(0);
+  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, allowBlends, stashConstrained, globalStash]);
 
   // Terminate the worker when the component unmounts to prevent memory leaks
   useEffect(function() {
@@ -799,6 +913,10 @@ window.useCreatorState = function useCreatorState() {
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
     stashConstrained, setStashConstrained,
     coverageGaps, setCoverageGaps,
+    variationSeed, setVariationSeed,
+    variationSubset, setVariationSubset,
+    variationHistory, setVariationHistory,
+    gallerySlots, galleryOpen, setGalleryOpen,
     previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
     previewHeatmap, setPreviewHeatmap,
@@ -865,7 +983,7 @@ window.useCreatorState = function useCreatorState() {
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
-    toggleOwned, generate,
+    toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed,
     // Eyedropper feedback
     eyedropperEmpty, setEyedropperEmpty,
     // Context menu

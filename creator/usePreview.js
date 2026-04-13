@@ -15,6 +15,7 @@ window.usePreview = function usePreview(state) {
     var stitchCleanup = state.stitchCleanup, fabricCt = state.fabricCt;
     var allowBlends = state.allowBlends;
     var stashConstrained = state.stashConstrained, globalStash = state.globalStash;
+    var varSeed = state.variationSeed;
     // Use clamped values from derived state (QW1, QW8)
     var effMaxC = state.effectiveMaxC != null ? state.effectiveMaxC : maxC;
     var effAllowBlends = state.effectiveAllowBlends != null ? state.effectiveAllowBlends : allowBlends;
@@ -22,14 +23,18 @@ window.usePreview = function usePreview(state) {
     // Build constrained palette from stash if stash-only mode is on
     var allowedPalette = null;
     if (stashConstrained && globalStash) {
-      allowedPalette = [];
-      Object.keys(globalStash).forEach(function(id) {
-        if ((globalStash[id].owned || 0) > 0) {
-          var dmcEntry = DMC.find(function(d) { return d.id === id; });
-          if (dmcEntry) allowedPalette.push(dmcEntry);
-        }
-      });
-      if (!allowedPalette.length) allowedPalette = null;
+      if (state.variationSubset) {
+        allowedPalette = state.variationSubset;
+      } else {
+        allowedPalette = [];
+        Object.keys(globalStash).forEach(function(id) {
+          if ((globalStash[id].owned || 0) > 0) {
+            var dmcEntry = DMC.find(function(d) { return d.id === id; });
+            if (dmcEntry) allowedPalette.push(dmcEntry);
+          }
+        });
+        if (!allowedPalette.length) allowedPalette = null;
+      }
     }
 
     if (!img || !img.src) return;
@@ -74,7 +79,7 @@ window.usePreview = function usePreview(state) {
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
     if (dith) {
-      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null, allowedPalette: allowedPalette });
+      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null, allowedPalette: allowedPalette, seed: varSeed });
       if (fastResult) state.setPreviewUrl(renderUrl(fastResult.mapped));
       fullPassTimerRef.current = setTimeout(runFull, 0);
       return;
@@ -83,7 +88,7 @@ window.usePreview = function usePreview(state) {
 
     function runFull() {
       fullPassTimerRef.current = null;
-      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: dith, allowBlends: effAllowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: allowedPalette });
+      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: dith, allowBlends: effAllowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: allowedPalette, seed: varSeed });
       if (!pipelineResult) return;
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
@@ -174,6 +179,7 @@ window.usePreview = function usePreview(state) {
     state.orphans, state.showCleanupDiff,
     state.stashConstrained, state.globalStash,
     state.effectiveMaxC, state.effectiveAllowBlends,
+    state.variationSeed, state.variationSubset,
   ]);
 
   React.useEffect(function() {

@@ -42,8 +42,8 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var stitchCleanup = opts.stitchCleanup;
 
   var p = opts.allowedPalette
-    ? quantizeConstrained(raw, width, height, maxC, opts.allowedPalette)
-    : quantize(raw, width, height, maxC);
+    ? quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed})
+    : quantize(raw, width, height, maxC, {seed: opts.seed});
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
@@ -2892,6 +2892,13 @@ window.useCreatorState = function useCreatorState() {
   // Coverage gaps (QW4)
   var _coverageGaps = useState(null); var coverageGaps = _coverageGaps[0], setCoverageGaps = _coverageGaps[1];
 
+  // Variation / randomise (stash mode)
+  var _vSeed    = useState(null);   var variationSeed    = _vSeed[0],    setVariationSeed    = _vSeed[1];
+  var _vSubset  = useState(null);   var variationSubset  = _vSubset[0],  setVariationSubset  = _vSubset[1];
+  var _vHistory = useState([]);     var variationHistory = _vHistory[0], setVariationHistory = _vHistory[1];
+  var _galSlots = useState([]);     var gallerySlots     = _galSlots[0], setGallerySlots     = _galSlots[1];
+  var _galOpen  = useState(false);  var galleryOpen      = _galOpen[0],  setGalleryOpen      = _galOpen[1];
+
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
@@ -3308,24 +3315,31 @@ window.useCreatorState = function useCreatorState() {
     return workerRef.current;
   }
 
-  var generate = useCallback(function() {
+  var generate = useCallback(function(overrides) {
     if (!img) return;
     setBusy(true); setHiId(null); setExportPage(0);
     var reqId = ++genReqIdRef.current;
+
+    var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;
+    var _subset = (overrides && overrides.subset !== undefined) ? overrides.subset : variationSubset;
 
     // Build allowed palette from stash when stash-constrained mode is on
     var allowedPalette = null;
     var effMaxC = maxC;
     var effAllowBlends = allowBlends;
     if (stashConstrained && globalStash) {
-      allowedPalette = [];
-      Object.keys(globalStash).forEach(function(id) {
-        if ((globalStash[id].owned || 0) > 0) {
-          var dmcEntry = DMC.find(function(d) { return d.id === id; });
-          if (dmcEntry) allowedPalette.push(dmcEntry);
-        }
-      });
-      if (allowedPalette.length === 0) {
+      if (_subset !== null) {
+        allowedPalette = _subset;
+      } else {
+        allowedPalette = [];
+        Object.keys(globalStash).forEach(function(id) {
+          if ((globalStash[id].owned || 0) > 0) {
+            var dmcEntry = DMC.find(function(d) { return d.id === id; });
+            if (dmcEntry) allowedPalette.push(dmcEntry);
+          }
+        });
+      }
+      if (!allowedPalette || allowedPalette.length === 0) {
         addToast("Your stash is empty — add threads to use stash-only mode.", {type: "warning", duration: 3000});
         setBusy(false);
         return;
@@ -3358,7 +3372,7 @@ window.useCreatorState = function useCreatorState() {
               dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, allowBlends: effAllowBlends,
-              allowedPalette: allowedPalette,
+              allowedPalette: allowedPalette, seed: _seed,
             });
             if (!result) { setBusy(false); return; }
             applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds });
@@ -3379,7 +3393,7 @@ window.useCreatorState = function useCreatorState() {
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup,
-          allowedPalette: allowedPalette,
+          allowedPalette: allowedPalette, seed: _seed,
         },
       }, [imageData.data.buffer]);
     };
@@ -3389,7 +3403,107 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, hasGenerated, allowBlends, stashConstrained, globalStash]);
+  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
+
+  // ─── Variation helpers: seeded Fisher-Yates shuffle → roulette subset ───────
+  function _buildRoulette(pool, n, seed) {
+    var s = seed >>> 0;
+    function _rng() { s += 0x6D2B79F5; var t = s; t = Math.imul(t ^ t>>>15, t|1); t ^= t + Math.imul(t ^ t>>>7, t|61); return ((t ^ t>>>14) >>> 0) / 4294967296; }
+    var arr = pool.slice();
+    for (var i = arr.length - 1; i > 0; i--) { var j = Math.floor(_rng() * (i + 1)); var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp; }
+    return arr.slice(0, n);
+  }
+
+  var randomise = useCallback(function() {
+    if (!stashConstrained || !img) return;
+    var newSeed = ((Math.random() * 0xFFFFFFFE) + 1) >>> 0;
+    var pool = [];
+    Object.keys(globalStash || {}).forEach(function(id) {
+      if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
+    });
+    var effN = Math.min(maxC, pool.length);
+    var newSubset = (pool.length > effN && effN > 0) ? _buildRoulette(pool, effN, newSeed) : null;
+    if (previewUrl) {
+      setVariationHistory(function(h) { return [{seed: variationSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+    }
+    setVariationSeed(newSeed);
+    setVariationSubset(newSubset);
+    generate({seed: newSeed, subset: newSubset});
+  }, [stashConstrained, img, globalStash, maxC, previewUrl, variationSeed, variationSubset, generate]);
+
+  var applyVariationSeed = useCallback(function(seed, subset) {
+    var s = seed >>> 0;
+    if (previewUrl) {
+      setVariationHistory(function(h) { return [{seed: variationSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+    }
+    setVariationSeed(s);
+    setVariationSubset(subset || null);
+    generate({seed: s, subset: subset || null});
+  }, [variationSeed, variationSubset, previewUrl, generate]);
+
+  var promoteVariation = useCallback(function(slot) {
+    if (previewUrl) {
+      setVariationHistory(function(h) { return [{seed: variationSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+    }
+    setVariationSeed(slot.seed);
+    setVariationSubset(slot.subset || null);
+    generate({seed: slot.seed, subset: slot.subset || null});
+  }, [variationSeed, variationSubset, previewUrl, generate]);
+
+  var generateGallery = useCallback(function() {
+    if (!img || !stashConstrained) return;
+    var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
+    setGallerySlots(newSeeds.map(function(s) { return {seed: s, loading: true, url: null, threadCount: 0, subset: null}; }));
+    var pool = [];
+    Object.keys(globalStash || {}).forEach(function(id) {
+      if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
+    });
+    if (!pool.length) return;
+    var effN = Math.min(maxC, pool.length);
+    var useRoulette = pool.length > effN;
+    function genSlot(slotIdx) {
+      if (slotIdx >= newSeeds.length) return;
+      var slotSeed = newSeeds[slotIdx];
+      setTimeout(function() {
+        var slotSubset = useRoulette ? _buildRoulette(pool, effN, slotSeed) : pool;
+        var MAX_GAL = 2500;
+        var gw = sW, gh = sH;
+        if (gw * gh > MAX_GAL) { var sc = Math.sqrt(MAX_GAL / (gw * gh)); gw = Math.max(4, Math.round(gw * sc)); gh = Math.max(4, Math.round(gh * sc)); }
+        var cv = document.createElement("canvas"); cv.width = gw; cv.height = gh;
+        var gcx = cv.getContext("2d");
+        gcx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
+        gcx.drawImage(img, 0, 0, gw, gh); gcx.filter = "none";
+        var rawPx = gcx.getImageData(0, 0, gw, gh).data;
+        if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
+        var res = runCleanupPipeline(rawPx, gw, gh, {
+          maxC: effN, dith: dith, allowBlends: allowBlends && slotSubset.length >= 6,
+          skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup,
+          allowedPalette: slotSubset, seed: slotSeed,
+        });
+        var slotUrl = null, usedCt = 0;
+        if (res) {
+          var oc = document.createElement("canvas"); oc.width = gw; oc.height = gh;
+          var ocx = oc.getContext("2d"); var od = ocx.createImageData(gw, gh); var oarr = od.data;
+          var usedSet = new Set();
+          for (var k = 0; k < res.mapped.length; k++) {
+            var mm = res.mapped[k]; var ix = k * 4;
+            if (mm.id === "__skip__") { oarr[ix]=240; oarr[ix+1]=240; oarr[ix+2]=240; oarr[ix+3]=255; }
+            else { oarr[ix]=mm.rgb[0]; oarr[ix+1]=mm.rgb[1]; oarr[ix+2]=mm.rgb[2]; oarr[ix+3]=255; usedSet.add(mm.id); }
+          }
+          ocx.putImageData(od, 0, 0);
+          slotUrl = oc.toDataURL();
+          usedCt = usedSet.size;
+        }
+        setGallerySlots(function(prev) {
+          var next = prev.slice();
+          next[slotIdx] = {seed: slotSeed, loading: false, url: slotUrl, threadCount: usedCt, subset: slotSubset};
+          return next;
+        });
+        genSlot(slotIdx + 1);
+      }, 0);
+    }
+    genSlot(0);
+  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, allowBlends, stashConstrained, globalStash]);
 
   // Terminate the worker when the component unmounts to prevent memory leaks
   useEffect(function() {
@@ -3527,6 +3641,10 @@ window.useCreatorState = function useCreatorState() {
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
     stashConstrained, setStashConstrained,
     coverageGaps, setCoverageGaps,
+    variationSeed, setVariationSeed,
+    variationSubset, setVariationSubset,
+    variationHistory, setVariationHistory,
+    gallerySlots, galleryOpen, setGalleryOpen,
     previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
     previewHeatmap, setPreviewHeatmap,
@@ -3593,7 +3711,7 @@ window.useCreatorState = function useCreatorState() {
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
-    toggleOwned, generate,
+    toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed,
     // Eyedropper feedback
     eyedropperEmpty, setEyedropperEmpty,
     // Context menu
@@ -5189,6 +5307,7 @@ window.usePreview = function usePreview(state) {
     var stitchCleanup = state.stitchCleanup, fabricCt = state.fabricCt;
     var allowBlends = state.allowBlends;
     var stashConstrained = state.stashConstrained, globalStash = state.globalStash;
+    var varSeed = state.variationSeed;
     // Use clamped values from derived state (QW1, QW8)
     var effMaxC = state.effectiveMaxC != null ? state.effectiveMaxC : maxC;
     var effAllowBlends = state.effectiveAllowBlends != null ? state.effectiveAllowBlends : allowBlends;
@@ -5196,14 +5315,18 @@ window.usePreview = function usePreview(state) {
     // Build constrained palette from stash if stash-only mode is on
     var allowedPalette = null;
     if (stashConstrained && globalStash) {
-      allowedPalette = [];
-      Object.keys(globalStash).forEach(function(id) {
-        if ((globalStash[id].owned || 0) > 0) {
-          var dmcEntry = DMC.find(function(d) { return d.id === id; });
-          if (dmcEntry) allowedPalette.push(dmcEntry);
-        }
-      });
-      if (!allowedPalette.length) allowedPalette = null;
+      if (state.variationSubset) {
+        allowedPalette = state.variationSubset;
+      } else {
+        allowedPalette = [];
+        Object.keys(globalStash).forEach(function(id) {
+          if ((globalStash[id].owned || 0) > 0) {
+            var dmcEntry = DMC.find(function(d) { return d.id === id; });
+            if (dmcEntry) allowedPalette.push(dmcEntry);
+          }
+        });
+        if (!allowedPalette.length) allowedPalette = null;
+      }
     }
 
     if (!img || !img.src) return;
@@ -5248,7 +5371,7 @@ window.usePreview = function usePreview(state) {
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
     if (dith) {
-      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null, allowedPalette: allowedPalette });
+      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null, allowedPalette: allowedPalette, seed: varSeed });
       if (fastResult) state.setPreviewUrl(renderUrl(fastResult.mapped));
       fullPassTimerRef.current = setTimeout(runFull, 0);
       return;
@@ -5257,7 +5380,7 @@ window.usePreview = function usePreview(state) {
 
     function runFull() {
       fullPassTimerRef.current = null;
-      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: dith, allowBlends: effAllowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: allowedPalette });
+      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: dith, allowBlends: effAllowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: allowedPalette, seed: varSeed });
       if (!pipelineResult) return;
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
@@ -5348,6 +5471,7 @@ window.usePreview = function usePreview(state) {
     state.orphans, state.showCleanupDiff,
     state.stashConstrained, state.globalStash,
     state.effectiveMaxC, state.effectiveAllowBlends,
+    state.variationSeed, state.variationSubset,
   ]);
 
   React.useEffect(function() {
@@ -7302,6 +7426,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
   var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
   var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
+  var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
+  var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
 
   function getCleanupWarning(sW, sH, orphans, previewStats) {
     if (orphans === 0) return null;
@@ -7673,6 +7799,97 @@ window.CreatorSidebar = function CreatorSidebar() {
             },
             style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #99f6e4",background:qaLoading?"#e2e8f0":"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
           }, qaLoading ? "\u2026" : "+ Add")
+        )
+      ),
+      h("div", {style:{borderTop:"0.5px solid #e2e8f0",marginTop:8,paddingTop:10}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}},
+          h("button", {
+            onClick:function(){ ctx.randomise(); },
+            disabled:!(ctx.stashPalette && ctx.stashPalette.length > 0) || !ctx.img,
+            style:{display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:500,padding:"5px 12px",borderRadius:8,border:"0.5px solid #99f6e4",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
+          }, "\uD83D\uDD00 Randomise"),
+          ctx.variationSeed ? (seedEditing ?
+            h("span", {style:{display:"flex",alignItems:"center",gap:3}},
+              h("input", {
+                type:"number", value:seedTmp, autoFocus:true,
+                onChange:function(e){setSeedTmp(e.target.value);},
+                onKeyDown:function(e){
+                  if (e.key==="Enter"){ var n=parseInt(seedTmp,10); if(!isNaN(n)&&n>0){ctx.applyVariationSeed(n>>>0);} setSeedEditing(false); }
+                  else if(e.key==="Escape"){setSeedEditing(false);}
+                },
+                onBlur:function(){setSeedEditing(false);},
+                style:{width:70,padding:"2px 4px",fontSize:10,borderRadius:4,border:"0.5px solid #99f6e4",fontFamily:"inherit"}
+              })
+            ) :
+            h("span", {
+              onClick:function(){setSeedEditing(true);setSeedTmp(String(ctx.variationSeed));},
+              title:"Click to enter a specific seed",
+              style:{fontSize:10,color:"#94a3b8",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
+            }, "#" + ctx.variationSeed)
+          ) : null
+        ),
+        ctx.stashConstrained && ctx.stashPalette && ctx.stashPalette.length > (ctx.effectiveMaxC || ctx.maxC) && h("div", {
+          style:{fontSize:10,color:"#0d9488",marginBottom:6}
+        }, "\uD83C\uDFB2 Roulette \u2014 sampling " + (ctx.effectiveMaxC || ctx.maxC) + " of " + ctx.stashPalette.length + " threads"),
+        h("button", {
+          onClick:function(){
+            ctx.setGalleryOpen(function(o){return !o;});
+            if (!ctx.galleryOpen) ctx.generateGallery();
+          },
+          style:{fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,marginBottom:4}
+        },
+          h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          "Explore variations"
+        ),
+        ctx.galleryOpen && h("div", {style:{marginTop:4}},
+          h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}},
+            ctx.gallerySlots.map(function(slot, i) {
+              return h("div", {
+                key:i,
+                onClick:function(){ if (!slot.loading && slot.url) { ctx.promoteVariation(slot); ctx.setGalleryOpen(false); } },
+                style:{
+                  borderRadius:8,overflow:"hidden",border:"0.5px solid #e2e8f0",
+                  cursor:(!slot.loading && slot.url) ? "pointer" : "default",
+                  background:"#f8fafc",transition:"border-color 0.15s"
+                }
+              },
+                slot.loading ?
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#94a3b8"}}, "\u2026") :
+                slot.url ?
+                  h("div", null,
+                    h("img", {src:slot.url, style:{width:"100%",display:"block",imageRendering:"pixelated"}}),
+                    h("div", {style:{padding:"3px 6px",fontSize:9,color:"#475569"}},
+                      "#" + slot.seed + " \u00B7 " + slot.threadCount + " threads"
+                    )
+                  ) :
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#ef4444"}}, "Error")
+              );
+            })
+          ),
+          h("div", {style:{display:"flex",justifyContent:"center"}},
+            h("button", {
+              onClick:function(){ ctx.generateGallery(); },
+              style:{fontSize:11,padding:"4px 12px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"inherit"}
+            }, "New batch")
+          )
+        ),
+        ctx.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
+          h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:4}}, "Recent variations"),
+          h("div", {style:{display:"flex",gap:4,overflowX:"auto",paddingBottom:4}},
+            ctx.variationHistory.map(function(entry, i) {
+              return h("div", {
+                key:(entry.timestamp || i) + "-" + i,
+                onClick:function(){ if (entry.seed != null) ctx.applyVariationSeed(entry.seed, entry.subset || null); },
+                title:"Seed #" + entry.seed,
+                style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid #e2e8f0"}
+              },
+                entry.previewUrl ?
+                  h("img", {src:entry.previewUrl, style:{width:32,height:32,display:"block",imageRendering:"pixelated",objectFit:"cover"}}) :
+                  h("div", {style:{width:32,height:32,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#94a3b8"}}, "?"),
+                h("div", {style:{fontSize:7,color:"#94a3b8",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
+              );
+            })
+          )
         )
       )
     ),

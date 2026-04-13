@@ -52,8 +52,8 @@ function findBest(lab, palette, allowBlends = true) {
 }
 function luminance(rgb){return rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114;}
 
-function quantize(data,w,h,n){
-  let seed=1337;
+function quantize(data,w,h,n,options){
+  let seed=(options&&options.seed!=null)?options.seed:1337;
   function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
   let px=[], len=w*h;
   for(let i=0;i<len;i++){let j=i*4;px.push(rgbToLab(data[j],data[j+1],data[j+2]));}
@@ -101,10 +101,10 @@ function quantize(data,w,h,n){
   }
   return pl;
 }
-function quantizeConstrained(data,w,h,n,allowedPalette){
+function quantizeConstrained(data,w,h,n,allowedPalette,options){
   var pool=allowedPalette&&allowedPalette.length?allowedPalette:DMC;
   var maxN=Math.min(n,pool.length);
-  let seed=1337;
+  let seed=(options&&options.seed!=null)?options.seed:1337;
   function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
   let px=[], len=w*h;
   for(let i=0;i<len;i++){let j=i*4;px.push(rgbToLab(data[j],data[j+1],data[j+2]));}

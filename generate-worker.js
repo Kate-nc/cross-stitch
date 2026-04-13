@@ -67,8 +67,8 @@ self.onmessage = function(e) {
 
     var allowedPalette = settings.allowedPalette || null;
     var p = allowedPalette
-      ? quantizeConstrained(raw, width, height, maxC, allowedPalette)
-      : quantize(raw, width, height, maxC);
+      ? quantizeConstrained(raw, width, height, maxC, allowedPalette, {seed: settings.seed})
+      : quantize(raw, width, height, maxC, {seed: settings.seed});
     if (!p.length) {
       self.postMessage({ type: 'error', message: 'Quantization produced no colours' });
       return;

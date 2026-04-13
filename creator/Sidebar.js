@@ -9,6 +9,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
   var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
   var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
+  var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
+  var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
 
   function getCleanupWarning(sW, sH, orphans, previewStats) {
     if (orphans === 0) return null;
@@ -380,6 +382,97 @@ window.CreatorSidebar = function CreatorSidebar() {
             },
             style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #99f6e4",background:qaLoading?"#e2e8f0":"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
           }, qaLoading ? "\u2026" : "+ Add")
+        )
+      ),
+      h("div", {style:{borderTop:"0.5px solid #e2e8f0",marginTop:8,paddingTop:10}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}},
+          h("button", {
+            onClick:function(){ ctx.randomise(); },
+            disabled:!(ctx.stashPalette && ctx.stashPalette.length > 0) || !ctx.img,
+            style:{display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:500,padding:"5px 12px",borderRadius:8,border:"0.5px solid #99f6e4",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
+          }, "\uD83D\uDD00 Randomise"),
+          ctx.variationSeed ? (seedEditing ?
+            h("span", {style:{display:"flex",alignItems:"center",gap:3}},
+              h("input", {
+                type:"number", value:seedTmp, autoFocus:true,
+                onChange:function(e){setSeedTmp(e.target.value);},
+                onKeyDown:function(e){
+                  if (e.key==="Enter"){ var n=parseInt(seedTmp,10); if(!isNaN(n)&&n>0){ctx.applyVariationSeed(n>>>0);} setSeedEditing(false); }
+                  else if(e.key==="Escape"){setSeedEditing(false);}
+                },
+                onBlur:function(){setSeedEditing(false);},
+                style:{width:70,padding:"2px 4px",fontSize:10,borderRadius:4,border:"0.5px solid #99f6e4",fontFamily:"inherit"}
+              })
+            ) :
+            h("span", {
+              onClick:function(){setSeedEditing(true);setSeedTmp(String(ctx.variationSeed));},
+              title:"Click to enter a specific seed",
+              style:{fontSize:10,color:"#94a3b8",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
+            }, "#" + ctx.variationSeed)
+          ) : null
+        ),
+        ctx.stashConstrained && ctx.stashPalette && ctx.stashPalette.length > (ctx.effectiveMaxC || ctx.maxC) && h("div", {
+          style:{fontSize:10,color:"#0d9488",marginBottom:6}
+        }, "\uD83C\uDFB2 Roulette \u2014 sampling " + (ctx.effectiveMaxC || ctx.maxC) + " of " + ctx.stashPalette.length + " threads"),
+        h("button", {
+          onClick:function(){
+            ctx.setGalleryOpen(function(o){return !o;});
+            if (!ctx.galleryOpen) ctx.generateGallery();
+          },
+          style:{fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,marginBottom:4}
+        },
+          h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          "Explore variations"
+        ),
+        ctx.galleryOpen && h("div", {style:{marginTop:4}},
+          h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}},
+            ctx.gallerySlots.map(function(slot, i) {
+              return h("div", {
+                key:i,
+                onClick:function(){ if (!slot.loading && slot.url) { ctx.promoteVariation(slot); ctx.setGalleryOpen(false); } },
+                style:{
+                  borderRadius:8,overflow:"hidden",border:"0.5px solid #e2e8f0",
+                  cursor:(!slot.loading && slot.url) ? "pointer" : "default",
+                  background:"#f8fafc",transition:"border-color 0.15s"
+                }
+              },
+                slot.loading ?
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#94a3b8"}}, "\u2026") :
+                slot.url ?
+                  h("div", null,
+                    h("img", {src:slot.url, style:{width:"100%",display:"block",imageRendering:"pixelated"}}),
+                    h("div", {style:{padding:"3px 6px",fontSize:9,color:"#475569"}},
+                      "#" + slot.seed + " \u00B7 " + slot.threadCount + " threads"
+                    )
+                  ) :
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#ef4444"}}, "Error")
+              );
+            })
+          ),
+          h("div", {style:{display:"flex",justifyContent:"center"}},
+            h("button", {
+              onClick:function(){ ctx.generateGallery(); },
+              style:{fontSize:11,padding:"4px 12px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"inherit"}
+            }, "New batch")
+          )
+        ),
+        ctx.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
+          h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:4}}, "Recent variations"),
+          h("div", {style:{display:"flex",gap:4,overflowX:"auto",paddingBottom:4}},
+            ctx.variationHistory.map(function(entry, i) {
+              return h("div", {
+                key:(entry.timestamp || i) + "-" + i,
+                onClick:function(){ if (entry.seed != null) ctx.applyVariationSeed(entry.seed, entry.subset || null); },
+                title:"Seed #" + entry.seed,
+                style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid #e2e8f0"}
+              },
+                entry.previewUrl ?
+                  h("img", {src:entry.previewUrl, style:{width:32,height:32,display:"block",imageRendering:"pixelated",objectFit:"cover"}}) :
+                  h("div", {style:{width:32,height:32,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#94a3b8"}}, "?"),
+                h("div", {style:{fontSize:7,color:"#94a3b8",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
+              );
+            })
+          )
         )
       )
     ),
