@@ -14,6 +14,7 @@ const ORDER = [
   'generate.js',
   'canvasRenderer.js',
   'PreviewCanvas.js',
+  'RealisticCanvas.js',
   'exportPdf.js',
   'useMagicWand.js',
   'useLassoSelect.js',

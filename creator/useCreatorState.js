@@ -66,6 +66,8 @@ window.useCreatorState = function useCreatorState() {
   var _prevActive = useState(false);     var previewActive = _prevActive[0], setPreviewActive = _prevActive[1];
   var _prevGrid   = useState(false);     var previewShowGrid = _prevGrid[0], setPreviewShowGrid = _prevGrid[1];
   var _prevFabric = useState(false);     var previewFabricBg = _prevFabric[0], setPreviewFabricBg = _prevFabric[1];
+  var _prevMode   = useState("pixel");   var previewMode = _prevMode[0], setPreviewMode = _prevMode[1];
+  var _rlvl       = useState(2);         var realisticLevel = _rlvl[0], setRealisticLevel = _rlvl[1];
 
   // Section open states
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
@@ -712,6 +714,7 @@ window.useCreatorState = function useCreatorState() {
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
     previewActive, setPreviewActive, previewShowGrid, setPreviewShowGrid, previewFabricBg, setPreviewFabricBg,
+    previewMode, setPreviewMode, realisticLevel, setRealisticLevel,
     bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,
     bgDimDesaturation, setBgDimDesaturation, dimFraction, dimHiId,
     highlightMode, setHighlightMode,

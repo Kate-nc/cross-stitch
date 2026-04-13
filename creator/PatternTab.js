@@ -155,7 +155,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
       }
     },
-      ctx.previewActive ? h(window.CreatorPreviewCanvas, null) : h(window.PatternCanvas, null)
+      ctx.previewActive
+        ? (ctx.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
+        : h(window.PatternCanvas, null)
     ),
 
     // Context menu overlay

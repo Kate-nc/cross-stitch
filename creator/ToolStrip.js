@@ -424,36 +424,64 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     brushItems
   ) : null;
 
-  // Preview dropdown — single compact control with options menu
+  // Preview dropdown — mode selector + options
   function chkBox(active) {
     return h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
       border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
       background:active?"var(--accent)":"transparent"}});
   }
+  function radioBtn(active) {
+    return h("span", {style:{width:14,height:14,borderRadius:"50%",flexShrink:0,display:"inline-block",
+      border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
+      background:active?"var(--accent)":"transparent"}});
+  }
+  var isPixel     = ctx.previewActive && ctx.previewMode === "pixel";
+  var isRealistic = ctx.previewActive && ctx.previewMode === "realistic";
+  var previewLabel = isPixel ? "Pixel \u25BE" : isRealistic ? "Realistic \u25BE" : "Preview \u25BE";
   var previewDropWrap = h("div", {className:"tb-overflow-wrap", ref:previewWrapRef},
     h("button", {
       className:"tb-btn"+(ctx.previewActive?" tb-btn--on":""),
       onClick:function(){setPreviewMenuOpen(function(o){return !o;});},
-      title:"Preview — pixel-accurate stitch preview"
-    }, "Preview \u25BE"),
-    previewMenuOpen && h("div", {className:"tb-overflow-menu", style:{minWidth:170,right:0}},
-      h("span", {className:"tb-ovf-lbl"}, "Preview"),
+      title:"Preview mode"
+    }, previewLabel),
+    previewMenuOpen && h("div", {className:"tb-overflow-menu", style:{minWidth:195,right:0}},
+      h("span", {className:"tb-ovf-lbl"}, "View"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.previewActive?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(function(v){return !v;});}
-      }, chkBox(ctx.previewActive), " Enable"+(ctx.previewActive?" \u2713":"")),
+        className:"tb-ovf-item"+(!ctx.previewActive?" tb-ovf-item--on":""),
+        onClick:function(){ctx.setPreviewActive(false);}
+      }, radioBtn(!ctx.previewActive), " Chart"),
+      h("button", {
+        className:"tb-ovf-item"+(isPixel?" tb-ovf-item--on":""),
+        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("pixel");}
+      }, radioBtn(isPixel), " Pixel preview"),
+      h("button", {
+        className:"tb-ovf-item"+(isRealistic?" tb-ovf-item--on":""),
+        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("realistic");}
+      }, radioBtn(isRealistic), " Realistic"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Options"),
       h("button", {
         className:"tb-ovf-item"+(ctx.previewShowGrid?" tb-ovf-item--on":""),
         onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;});},
-        style:{opacity:ctx.previewActive?1:0.5}
-      }, chkBox(ctx.previewShowGrid), " Grid overlay"+(ctx.previewShowGrid?" \u2713":"")),
+        style:{opacity:ctx.previewActive?1:0.4}
+      }, chkBox(ctx.previewShowGrid), " Grid overlay"),
       h("button", {
         className:"tb-ovf-item"+(ctx.previewFabricBg?" tb-ovf-item--on":""),
         onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;});},
-        style:{opacity:ctx.previewActive?1:0.5}
-      }, chkBox(ctx.previewFabricBg), " Fabric background"+(ctx.previewFabricBg?" \u2713":""))
+        style:{opacity:isPixel?1:0.4}
+      }, chkBox(ctx.previewFabricBg), " Fabric background"),
+      h("div", {className:"tb-ovf-sep"}),
+      h("span", {className:"tb-ovf-lbl"}, "Realistic level"),
+      h("button", {
+        className:"tb-ovf-item"+(ctx.realisticLevel===1?" tb-ovf-item--on":""),
+        onClick:function(){ctx.setRealisticLevel(1);},
+        style:{opacity:isRealistic?1:0.4}
+      }, radioBtn(ctx.realisticLevel===1), " Flat (Level 1)"),
+      h("button", {
+        className:"tb-ovf-item"+(ctx.realisticLevel===2?" tb-ovf-item--on":""),
+        onClick:function(){ctx.setRealisticLevel(2);},
+        style:{opacity:isRealistic?1:0.4}
+      }, radioBtn(ctx.realisticLevel===2), " Shaded (Level 2)")
     )
   );
 
