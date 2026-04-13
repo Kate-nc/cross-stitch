@@ -649,12 +649,16 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
       var bh = Math.min(brushSize, dH - hy2);
       if (hx2 >= 0 && hx2 < dW && hy2 >= 0 && hy2 < dH && bw > 0 && bh > 0) {
         if (isValidDraw) {
-          var rgb = cmap[selectedColorId].rgb;
-          ctx2d.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.8)";
-          ctx2d.lineWidth = Math.max(2, cSz * 0.15);
-          ctx2d.strokeRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
-          ctx2d.fillStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.3)";
-          ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+          var cmapEntry = cmap[selectedColorId];
+          if (cmapEntry) {
+            var rgb = cmapEntry.rgb;
+            ctx2d.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.8)";
+            ctx2d.lineWidth = Math.max(2, cSz * 0.15);
+            ctx2d.strokeRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+            ctx2d.fillStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.3)";
+            ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+            ctx2d.lineWidth = 1;
+          }
           ctx2d.lineWidth = 1;
         } else if (stitchType === "erase") {
           ctx2d.strokeStyle = "rgba(239,68,68,0.8)";
@@ -663,7 +667,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
           ctx2d.fillStyle = "rgba(239,68,68,0.2)";
           ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
           ctx2d.lineWidth = 1;
-        } else if (_psTool2 && _psTool2 !== "erase" && selectedColorId && cmap) {
+        } else if (_psTool2 && _psTool2 !== "erase" && selectedColorId && cmap && cmap[selectedColorId]) {
           var rgb2 = cmap[selectedColorId].rgb;
           ctx2d.strokeStyle = "rgba(" + rgb2[0] + "," + rgb2[1] + "," + rgb2[2] + ",0.8)";
           ctx2d.lineWidth = Math.max(2, cSz * 0.15);
@@ -972,12 +976,16 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       var bh = Math.min(brushSize, dH - hy2);
       if (hx2 >= 0 && hx2 < dW && hy2 >= 0 && hy2 < dH && bw > 0 && bh > 0) {
         if (isValidDraw) {
-          var rgb = cmap[selectedColorId].rgb;
-          ctx2d.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.8)";
-          ctx2d.lineWidth = Math.max(2, cSz * 0.15);
-          ctx2d.strokeRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
-          ctx2d.fillStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.3)";
-          ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+          var cmapEntry2 = cmap[selectedColorId];
+          if (cmapEntry2) {
+            var rgb = cmapEntry2.rgb;
+            ctx2d.strokeStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.8)";
+            ctx2d.lineWidth = Math.max(2, cSz * 0.15);
+            ctx2d.strokeRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+            ctx2d.fillStyle = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ",0.3)";
+            ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
+            ctx2d.lineWidth = 1;
+          }
           ctx2d.lineWidth = 1;
         } else if (stitchType === "erase") {
           ctx2d.strokeStyle = "rgba(239,68,68,0.8)";
@@ -986,7 +994,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
           ctx2d.fillStyle = "rgba(239,68,68,0.2)";
           ctx2d.fillRect(gut + hx2 * cSz + 1, gut + hy2 * cSz + 1, cSz * bw - 2, cSz * bh - 2);
           ctx2d.lineWidth = 1;
-        } else if (partialStitchTool && partialStitchTool !== "erase" && selectedColorId && cmap) {
+        } else if (partialStitchTool && partialStitchTool !== "erase" && selectedColorId && cmap && cmap[selectedColorId]) {
           var rgb2 = cmap[selectedColorId].rgb;
           ctx2d.strokeStyle = "rgba(" + rgb2[0] + "," + rgb2[1] + "," + rgb2[2] + ",0.8)";
           ctx2d.lineWidth = Math.max(2, cSz * 0.15);
