@@ -1,6 +1,6 @@
 /* creator/RealisticCanvas.js — Realistic cross-stitch texture preview.
    Renders each stitch as a pair of crossed diagonal strands on a woven fabric background.
-   Level 1: flat X strands. Level 2: shaded X with light simulation.
+   Level 1: flat X strands. Level 2: shaded X with light simulation. Level 3: procedural thread texture.
    Reads from CreatorContext. Loaded as part of creator/bundle.js.
    Depends on: context.js (CreatorContext) */
 
@@ -31,7 +31,9 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
 
     // Clamp CELL_SIZE so the offscreen canvas fits within browser limits (~8192px).
     var MAX_DIM = 8192;
-    var CELL_SIZE = Math.max(4, Math.min(16, Math.floor(Math.min(MAX_DIM / sW, MAX_DIM / sH))));
+    // Level 3 requires larger tiles for fibre detail; levels 1–2 cap at 16px.
+    var maxCellSz = (realisticLevel === 3) ? 32 : 16;
+    var CELL_SIZE = Math.max(4, Math.min(maxCellSz, Math.floor(Math.min(MAX_DIM / sW, MAX_DIM / sH))));
 
     var canvasW = sW * CELL_SIZE;
     var canvasH = sH * CELL_SIZE;
@@ -83,7 +85,8 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
 
     // Draw a cross stitch X into a canvas context.
     // r1/g1/b1 = bottom-leg colour, r2/g2/b2 = top-leg colour.
-    function drawCross(tc, r1, g1, b1, r2, g2, b2) {
+    // variant (0–3): Level 3 only — selects one of 4 colour-variation seeds.
+    function drawCross(tc, r1, g1, b1, r2, g2, b2, variant) {
       var x0 = padding, y0 = padding;
       var x1 = CELL_SIZE - padding, y1 = CELL_SIZE - padding;
       tc.lineCap = "round";
@@ -98,7 +101,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
         tc.lineWidth = sw;
         tc.strokeStyle = "rgb(" + r2 + "," + g2 + "," + b2 + ")";
         tc.beginPath(); tc.moveTo(x0, y0); tc.lineTo(x1, y1); tc.stroke();
-      } else {
+      } else if (lvl === 2) {
         // ── Level 2: cylindrical gradient strands ────────────────────────────
         // Each strand is rendered as a transverse gradient: dark at the edges,
         // bright at the crest — simulating a rounded cylindrical thread.
@@ -145,6 +148,99 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
         tc.lineWidth = sw;
         tc.strokeStyle = makeGrad(INV_SQ2, -INV_SQ2, r2, g2, b2, 1.15);
         tc.beginPath(); tc.moveTo(x0, y0); tc.lineTo(x1, y1); tc.stroke();
+      } else {
+        // ── Level 3: Procedural thread texture (Option A) ────────────────────
+        // Each leg is drawn as SC individual strands that twist sinusoidally
+        // around the leg centre line, producing a helical rope appearance.
+        // All DMC threads render as cotton (default) since dmc-data.js carries
+        // no material field.  Material infrastructure is present for future use.
+        var SC = 2;              // strand count (2 for 14-count Aida, default)
+        var SN = 20;             // sample points per strand path (smooth curve)
+        var TF = 2.5;            // twist frequency — full twists per leg length
+        var TA = sw * 0.3;       // twist amplitude — max perpendicular deviation
+        var ISW = sw / SC * 1.2; // individual strand width (overlap factor 1.2)
+        var IS_BLEND = !(r1 === r2 && g1 === g2 && b1 === b2);
+        var lCX = CELL_SIZE / 2, lCY = CELL_SIZE / 2;
+
+        // Deterministic per-strand colour variation, range −4 to +3.
+        // `variant` (0–3) shifts the seed so tile variants differ visually.
+        function hashVar(seed, si) {
+          var h = ((seed * 1619) ^ (si * 31337)) | 0;
+          h = (h ^ (h >>> 13)) * 1540483477 | 0;
+          h = h ^ (h >>> 15);
+          return (((h % 8) + 8) % 8) - 4;
+        }
+
+        // Build sample-point array for one strand twisted around the leg centre.
+        function mkPts(lsx, lsy, lex, ley, angle, si) {
+          var px = -Math.sin(angle), py = Math.cos(angle);
+          var phase = si * (2 * Math.PI / SC);
+          var pts = [];
+          for (var n = 0; n <= SN; n++) {
+            var t = n / SN;
+            var off = Math.sin(t * TF * 2 * Math.PI + phase) * TA;
+            pts.push(lsx + (lex - lsx) * t + px * off,
+                     lsy + (ley - lsy) * t + py * off);
+          }
+          return pts;
+        }
+
+        // Draw one strand: soft halo pass (fibre fuzz) then solid core.
+        function drawStrand3(pts, fR, fG, fBlu) {
+          tc.beginPath(); tc.moveTo(pts[0], pts[1]);
+          for (var k = 2; k < pts.length; k += 2) tc.lineTo(pts[k], pts[k + 1]);
+          tc.lineWidth = ISW * 1.4;
+          tc.strokeStyle = "rgba(" + fR + "," + fG + "," + fBlu + ",0.12)";
+          tc.stroke();
+          tc.beginPath(); tc.moveTo(pts[0], pts[1]);
+          for (var k = 2; k < pts.length; k += 2) tc.lineTo(pts[k], pts[k + 1]);
+          tc.lineWidth = ISW;
+          tc.strokeStyle = "rgb(" + fR + "," + fG + "," + fBlu + ")";
+          tc.stroke();
+        }
+
+        // Draw all strands for one leg.
+        // colA = even strands (or solid), colB = odd strands (blend only).
+        function drawLeg3(lsx, lsy, lex, ley, angle, aR, aG, aB, bR, bG, bB, bright) {
+          for (var si = 0; si < SC; si++) {
+            var sR, sG, sB;
+            if (IS_BLEND) {
+              if (si % 2 === 0) { sR = aR; sG = aG; sB = aB; }
+              else              { sR = bR; sG = bG; sB = bB; }
+            } else {
+              var vv = hashVar(variant * 17 + si, si);
+              sR = Math.min(255, Math.max(0, aR + vv));
+              sG = Math.min(255, Math.max(0, aG + vv));
+              sB = Math.min(255, Math.max(0, aB + vv));
+            }
+            var fR = Math.min(255, Math.max(0, Math.round(sR * bright)));
+            var fG = Math.min(255, Math.max(0, Math.round(sG * bright)));
+            var fBlu = Math.min(255, Math.max(0, Math.round(sB * bright)));
+            drawStrand3(mkPts(lsx, lsy, lex, ley, angle, si), fR, fG, fBlu);
+          }
+        }
+
+        tc.lineCap = "round"; tc.lineJoin = "round";
+
+        // Bottom leg: BL→TR, angle = −π/4, brightness 0.78 (faces away from light).
+        drawLeg3(x0, y1, x1, y0, -Math.PI / 4, r1, g1, b1, r2, g2, b2, 0.78);
+
+        // Crossing fade: semi-transparent fabric disc partially occludes the bottom
+        // leg at the crossing point, reinforcing top-over-bottom layering.
+        tc.fillStyle = "rgba(" + FR + "," + FG + "," + FB + ",0.15)";
+        tc.beginPath(); tc.arc(lCX, lCY, sw * 0.75, 0, Math.PI * 2); tc.fill();
+
+        // Top leg: TL→BR, angle = π/4, brightness 1.15 (faces the light source).
+        drawLeg3(x0, y0, x1, y1, Math.PI / 4, r2, g2, b2, r1, g1, b1, 1.15);
+
+        // Cotton sheen highlight — thin semi-transparent white line along the
+        // twisted path of the frontmost top-leg strand (12–15% opacity, matte).
+        var hlPts = mkPts(x0, y0, x1, y1, Math.PI / 4, 0);
+        tc.lineWidth = ISW * 0.3;
+        tc.strokeStyle = "rgba(255,255,255,0.13)";
+        tc.beginPath(); tc.moveTo(hlPts[0], hlPts[1]);
+        for (var k = 2; k < hlPts.length; k += 2) tc.lineTo(hlPts[k], hlPts[k + 1]);
+        tc.stroke();
       }
     }
 
@@ -152,20 +248,43 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
     // pre-rendered with the X geometry. Blend cells get their own key.
     var tileCache = {};
 
-    function getTile(rgb, rgb2) {
+    // Level 3: material type is part of the cache key.  All DMC threads default
+    // to cotton; variant (0–3) gives 4 colour-variation seeds for busy regions.
+    function getTile(rgb, rgb2, variant) {
       var r1 = rgb[0], g1 = rgb[1], b1 = rgb[2];
       var r2 = rgb2 ? rgb2[0] : r1;
       var g2 = rgb2 ? rgb2[1] : g1;
       var b2 = rgb2 ? rgb2[2] : b1;
       var key = r1 + "," + g1 + "," + b1 + "|" + r2 + "," + g2 + "," + b2;
+      if (lvl === 3) key += ":" + (variant | 0);
       if (tileCache[key]) return tileCache[key];
       var tileC = document.createElement("canvas");
       tileC.width = CELL_SIZE;
       tileC.height = CELL_SIZE;
       var tc = tileC.getContext("2d");
-      drawCross(tc, r1, g1, b1, r2, g2, b2);
+      drawCross(tc, r1, g1, b1, r2, g2, b2, variant | 0);
       tileCache[key] = tileC;
       return tileC;
+    }
+
+    // Level 3 tile variant strategy: colours appearing in ≥30 cells get up to
+    // 4 tile variants (different colour-variation seeds) selected by cell position,
+    // breaking up obvious repetition in large single-colour areas.
+    var colourFreq = {};
+    if (lvl === 3) {
+      for (var ci = 0; ci < pat.length; ci++) {
+        var cc = pat[ci];
+        if (!cc || cc.id === "__skip__" || cc.id === "__empty__") continue;
+        var cKey;
+        if (cc.id && cc.id.indexOf("+") !== -1) {
+          cKey = cc.id; // blend: use the combined DMC ID as key
+        } else {
+          var cRgb = cc.rgb;
+          if (!cRgb && cmap) { var cLk = cmap[cc.id]; if (cLk) cRgb = cLk.rgb; }
+          if (cRgb) cKey = cRgb[0] + "," + cRgb[1] + "," + cRgb[2];
+        }
+        if (cKey) colourFreq[cKey] = (colourFreq[cKey] || 0) + 1;
+      }
     }
 
     // Render every stitched cell using its cached tile
@@ -198,7 +317,21 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
 
       if (!rgb) continue;
 
-      oc.drawImage(getTile(rgb, rgb2), cellX, cellY);
+      // Level 3: select tile variant (0–3) for colours present in ≥30 cells.
+      var variant3 = 0;
+      if (lvl === 3) {
+        var vKey;
+        if (cell.id && cell.id.indexOf("+") !== -1) {
+          vKey = cell.id;
+        } else {
+          vKey = rgb[0] + "," + rgb[1] + "," + rgb[2];
+        }
+        if (vKey && colourFreq[vKey] >= 30) {
+          variant3 = (cellCol + cellRow * 3) % 4;
+        }
+      }
+
+      oc.drawImage(getTile(rgb, rgb2, variant3), cellX, cellY);
     }
 
     offscreenRef.current = offscreen;
@@ -257,7 +390,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
     }),
     h("div", {className: "preview-status-bar"},
       sW + " \xD7 " + sH + " stitches \xB7 " + colCount + " colour" + (colCount !== 1 ? "s" : "") +
-      " \xB7 " + (realisticLevel === 2 ? "Shaded" : "Flat")
+      " \xB7 " + (realisticLevel === 3 ? "Detailed" : realisticLevel === 2 ? "Shaded" : "Flat")
     )
   );
 };

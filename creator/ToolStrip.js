@@ -481,7 +481,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         className:"tb-ovf-item"+(ctx.realisticLevel===2?" tb-ovf-item--on":""),
         onClick:function(){ctx.setRealisticLevel(2);},
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===2), " Shaded (Level 2)")
+      }, radioBtn(ctx.realisticLevel===2), " Shaded (Level 2)"),
+      h("button", {
+        className:"tb-ovf-item"+(ctx.realisticLevel===3?" tb-ovf-item--on":""),
+        onClick:function(){ctx.setRealisticLevel(3);},
+        style:{opacity:isRealistic?1:0.4}
+      }, radioBtn(ctx.realisticLevel===3), " Detailed (Level 3)")
     )
   );
 
