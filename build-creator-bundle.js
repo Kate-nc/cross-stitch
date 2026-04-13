@@ -13,6 +13,7 @@ const ORDER = [
   'context.js',
   'generate.js',
   'canvasRenderer.js',
+  'PreviewCanvas.js',
   'exportPdf.js',
   'useMagicWand.js',
   'useLassoSelect.js',

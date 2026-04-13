@@ -412,6 +412,30 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     brushItems
   ) : null;
 
+  // Preview mode toggle + sub-mode controls
+  var previewGrp = h("div", {key:"preview-grp", className:"tb-grp"},
+    h("button", {
+      key:"preview-btn",
+      className:"tb-btn"+(ctx.previewActive?" tb-btn--on":""),
+      onClick:function(){ctx.setPreviewActive(function(v){return !v;});},
+      title:"Preview — pixel-accurate stitch preview"
+    }, "Preview")
+  );
+  var previewSubGrp = ctx.previewActive ? h("div", {key:"preview-sub-grp", className:"tb-grp"},
+    h("button", {
+      key:"preview-grid",
+      className:"tb-btn"+(ctx.previewShowGrid?" tb-btn--on":""),
+      onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;});},
+      title:"Grid overlay — show 1px grid between stitches"
+    }, "Grid"),
+    h("button", {
+      key:"preview-fabric",
+      className:"tb-btn"+(ctx.previewFabricBg?" tb-btn--on":""),
+      onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;});},
+      title:"Fabric background — show fabric colour for empty cells"
+    }, "Fabric")
+  ) : null;
+
   var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:ctx.overflowRef},
     h("button", {
       className:"tb-overflow-btn",
@@ -434,6 +458,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           toolBadge,
           zoomGrp,
           undoRedo,
+          h("div", {className:"tb-sdiv"}),
+          previewGrp,
+          previewSubGrp,
           h("div", {className:"tb-sdiv"}),
           overflowWrap
         )

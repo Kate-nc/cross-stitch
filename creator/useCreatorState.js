@@ -63,6 +63,9 @@ window.useCreatorState = function useCreatorState() {
   var _showCtr    = useState(true);      var showCtr    = _showCtr[0],    setShowCtr    = _showCtr[1];
   var _showOvl    = useState(false);     var showOverlay = _showOvl[0],   setShowOverlay = _showOvl[1];
   var _ovlOp      = useState(0.3);       var overlayOpacity = _ovlOp[0], setOverlayOpacity = _ovlOp[1];
+  var _prevActive = useState(false);     var previewActive = _prevActive[0], setPreviewActive = _prevActive[1];
+  var _prevGrid   = useState(false);     var previewShowGrid = _prevGrid[0], setPreviewShowGrid = _prevGrid[1];
+  var _prevFabric = useState(false);     var previewFabricBg = _prevFabric[0], setPreviewFabricBg = _prevFabric[1];
 
   // Section open states
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
@@ -708,6 +711,7 @@ window.useCreatorState = function useCreatorState() {
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
+    previewActive, setPreviewActive, previewShowGrid, setPreviewShowGrid, previewFabricBg, setPreviewFabricBg,
     bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,
     bgDimDesaturation, setBgDimDesaturation, dimFraction, dimHiId,
     highlightMode, setHighlightMode,
