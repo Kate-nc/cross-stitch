@@ -134,6 +134,13 @@ window.useCreatorState = function useCreatorState() {
   var _kitResult= useState(null);    var kittingResult = _kitResult[0], setKittingResult = _kitResult[1];
   var _altOpen  = useState(null);    var altOpen = _altOpen[0], setAltOpen = _altOpen[1];
 
+  // Substitute from stash
+  var _subOpen  = useState(false);   var substituteModalOpen = _subOpen[0], setSubstituteModalOpen = _subOpen[1];
+  var _subProp  = useState(null);    var substituteProposal = _subProp[0], setSubstituteProposal = _subProp[1];
+  var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
+  var substituteMaxDeltaE = _subMaxDE[0];
+  function setSubstituteMaxDeltaE(v) { _subMaxDE[1](v); try { localStorage.setItem("cs_subMaxDE", v); } catch(_) {} }
+
   // Preview
   var _prevUrl  = useState(null);    var previewUrl = _prevUrl[0], setPreviewUrl = _prevUrl[1];
   var _prevStats= useState(null);    var previewStats = _prevStats[0], setPreviewStats = _prevStats[1];
@@ -736,7 +743,11 @@ window.useCreatorState = function useCreatorState() {
     sessions, setSessions, partialStitches, setPartialStitches,
     partialStitchTool, setPartialStitchTool, partialStitchToolRef, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
-    altOpen, setAltOpen, previewUrl, setPreviewUrl,
+    altOpen, setAltOpen,
+    substituteModalOpen, setSubstituteModalOpen,
+    substituteProposal, setSubstituteProposal,
+    substituteMaxDeltaE, setSubstituteMaxDeltaE,
+    previewUrl, setPreviewUrl,
     previewStats, setPreviewStats, confettiData, setConfettiData,
     previewHeatmap, setPreviewHeatmap,
     previewMapped, setPreviewMapped, previewColors, setPreviewColors,

@@ -283,6 +283,44 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           onClick: function() {
             if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
             StashBridge.getGlobalStash().then(function(stash) {
+              var result = analyseSubstitutions(
+                ctx.skeinData,
+                ctx.threadOwned,
+                stash,
+                ctx.fabricCt,
+                { maxDeltaE: ctx.substituteMaxDeltaE, dmcData: DMC }
+              );
+              ctx.setSubstituteProposal(result);
+              ctx.setSubstituteModalOpen(true);
+            }).catch(function() {
+              ctx.addToast("Failed to load stash data.", { type: "error", duration: 3000 });
+            });
+          },
+          disabled: (function() {
+            if (typeof StashBridge === "undefined") return true;
+            if (!ctx.pat) return true;
+            if (ctx.toBuyList.length === 0) return true;
+            return !Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; });
+          })(),
+          title: (function() {
+            if (typeof StashBridge === "undefined") return "Stash bridge not available";
+            if (!ctx.pat) return "No pattern loaded";
+            if (ctx.toBuyList.length === 0) return "All threads are already marked as owned";
+            if (!Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; })) return "Add threads to your stash first";
+            return "Find stash alternatives for unowned threads";
+          })(),
+          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600,
+            opacity:(function() {
+              if (typeof StashBridge === "undefined" || !ctx.pat || ctx.toBuyList.length === 0) return 0.5;
+              if (!Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; })) return 0.5;
+              return 1;
+            })()
+          }
+        }, "Substitute from Stash"),
+        h("button", {
+          onClick: function() {
+            if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
+            StashBridge.getGlobalStash().then(function(stash) {
               var missing = [], short = [];
               ctx.skeinData.forEach(function(d) {
                 var owned2 = (stash[d.id] || {}).owned || 0;
@@ -355,6 +393,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     renderTimeEstimate(),
     renderFinishedSize(),
     renderCostEstimate(),
-    renderThreadOrganiser()
+    renderThreadOrganiser(),
+    typeof window.SubstituteFromStashModal !== "undefined"
+      ? h(window.SubstituteFromStashModal, null)
+      : null
   );
 };

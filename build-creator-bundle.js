@@ -25,6 +25,7 @@ const ORDER = [
   'PatternCanvas.js',
   'ToolStrip.js',
   'MagicWandPanel.js',
+  'SubstituteFromStashModal.js',
   'Sidebar.js',
   'Toast.js',
   'ContextMenu.js',
