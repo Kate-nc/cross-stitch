@@ -303,7 +303,6 @@ function SubstituteFromStashModalInner(props) {
   var useState = React.useState;
   var useEffect = React.useEffect;
   var useRef = React.useRef;
-  var useMemo = React.useMemo;
 
   var proposal = ctx.substituteProposal;
 
@@ -440,27 +439,36 @@ function SubstituteFromStashModalInner(props) {
   var warningCount = enabledSubs.filter(function(s) { return !getEffectiveTarget(s).hasSufficient; }).length;
   var contrastWarningCount = enabledSubs.filter(function(s) { return s.contrastWarning && !overrides[makeKey(s)]; }).length;
 
-  // F2: Canvas previews
-  var originalThumb = useMemo(function() {
-    if (!ctx.pat || !ctx.sW || !ctx.sH) return null;
+  // F2: Canvas previews via useState+useEffect (more robust than useMemo)
+  var _ot = useState(null);
+  var originalThumb = _ot[0], setOriginalThumb = _ot[1];
+  var _st = useState(null);
+  var substitutedThumb = _st[0], setSubstitutedThumb = _st[1];
+
+  // Generate original thumbnail once on mount
+  useEffect(function() {
+    if (!ctx.pat || !ctx.sW || !ctx.sH) return;
     try {
-      if (typeof generatePatternThumbnail === "function") {
-        return generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
-      }
-      return renderSubstitutionPreview(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches, {});
-    } catch (e) { return null; }
+      var thumb = typeof generatePatternThumbnail === "function"
+        ? generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches)
+        : renderSubstitutionPreview(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches, {});
+      setOriginalThumb(thumb);
+    } catch (e) {}
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  var substitutedThumb = useMemo(function() {
-    if (!ctx.pat || !ctx.sW || !ctx.sH) return null;
-    var remap = {};
-    localProposal.substitutions.forEach(function(sub) {
-      if (enabledMap[makeKey(sub)] === false) return;
-      var target = overrides[makeKey(sub)] || sub.selectedTarget;
-      var dmcEntry = DMC.find(function(d) { return d.id === target.id; });
-      if (dmcEntry) remap[sub.sourceId] = dmcEntry;
-    });
-    return renderSubstitutionPreview(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches, remap);
+  // Recompute substituted thumbnail whenever selection changes
+  useEffect(function() {
+    if (!ctx.pat || !ctx.sW || !ctx.sH) return;
+    try {
+      var remap = {};
+      localProposal.substitutions.forEach(function(sub) {
+        if (enabledMap[makeKey(sub)] === false) return;
+        var target = overrides[makeKey(sub)] || sub.selectedTarget;
+        var dmcEntry = DMC.find(function(d) { return d.id === target.id; });
+        if (dmcEntry) remap[sub.sourceId] = dmcEntry;
+      });
+      setSubstitutedThumb(renderSubstitutionPreview(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches, remap));
+    } catch (e) {}
   }, [localProposal, enabledMap, overrides]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Apply ───────────────────────────────────────────────────────────────────
@@ -773,19 +781,42 @@ function SubstituteFromStashModalInner(props) {
 
   // F2: Canvas preview section
   function renderPreview() {
-    if (!originalThumb || !substitutedThumb) return null;
-    var CompSlider = typeof window.ComparisonSlider !== "undefined" ? window.ComparisonSlider : null;
-    if (!CompSlider) return null;
+    if (!ctx.pat || !ctx.sW || !ctx.sH) return null;
+    var sectionHeader = h("div", { style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } }, "Pattern Preview");
+
+    // Still generating
+    if (!originalThumb) {
+      return h("div", { style: { marginBottom: 14 } },
+        sectionHeader,
+        h("div", { style: { height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9", color: "#94a3b8", fontSize: 12 } },
+          "Generating preview\u2026"
+        )
+      );
+    }
+
+    // Use ComparisonSlider if available, otherwise plain side-by-side imgs
+    var CompSlider = typeof window !== "undefined" && typeof window.ComparisonSlider === "function" ? window.ComparisonSlider : null;
+    var afterSrc = substitutedThumb || originalThumb;
+
     return h("div", { style: { marginBottom: 14 } },
-      h("div", { style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } }, "Pattern Preview"),
-      h("div", { style: { maxWidth: 400, borderRadius: 8, overflow: "hidden" } },
-        h(CompSlider, {
-          originalSrc: originalThumb, previewSrc: substitutedThumb,
-          heatmapSrc: null, highlightSrc: null,
-          width: ctx.sW, height: ctx.sH,
-          leftLabel: "Current", rightLabel: "After substitution"
-        })
-      )
+      sectionHeader,
+      CompSlider
+        ? h(CompSlider, {
+            originalSrc: originalThumb, previewSrc: afterSrc,
+            heatmapSrc: null, highlightSrc: null,
+            width: ctx.sW, height: ctx.sH,
+            leftLabel: "Current", rightLabel: "After substitution"
+          })
+        : h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
+            h("div", { style: { textAlign: "center" } },
+              h("img", { src: originalThumb, alt: "Current pattern", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #e2e8f0" } }),
+              h("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "Current")
+            ),
+            h("div", { style: { textAlign: "center" } },
+              h("img", { src: afterSrc, alt: "After substitution", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #e2e8f0" } }),
+              h("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "After substitution")
+            )
+          )
     );
   }
 
@@ -852,6 +883,9 @@ function SubstituteFromStashModalInner(props) {
           )
         ),
 
+        // F2: Preview — placed here so it's visible without scrolling
+        renderPreview(),
+
         // Proposed substitutions
         p.substitutions.length > 0
           ? h("div", { style: { marginBottom: 14 } },
@@ -882,9 +916,6 @@ function SubstituteFromStashModalInner(props) {
               "No unowned threads found \u2014 all threads are already marked as owned."
             )
           : null,
-
-        // F2: Canvas preview
-        renderPreview(),
 
         // Summary
         h("div", { style: { padding: "10px 14px", background: "#f0f9ff", borderRadius: 8, border: "1px solid #bae6fd", fontSize: 12, color: "#0c4a6e" } },
