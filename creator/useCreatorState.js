@@ -693,24 +693,33 @@ window.useCreatorState = function useCreatorState() {
     Object.keys(globalStash || {}).forEach(function(id) {
       if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
     });
+    if (!pool.length) return;
     var effN = Math.min(maxC, pool.length);
-    var newSubset = (pool.length > effN && effN > 0) ? _buildRoulette(pool, effN, newSeed) : null;
+    // Always sub-sample so the selected colour set changes even when stash <= maxC.
+    // Use ~75% of pool (minimum 2) so each click genuinely picks different threads.
+    var rouletteN = pool.length > effN ? effN : Math.max(2, Math.round(pool.length * 0.75));
+    var newSubset = (pool.length >= 3) ? _buildRoulette(pool, rouletteN, newSeed) : null;
+    // Save effective seed so history entries can always be restored
+    var effectivePrevSeed = variationSeed != null ? variationSeed : 1337;
     if (previewUrl) {
-      setVariationHistory(function(h) { return [{seed: variationSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+      setVariationHistory(function(h) { return [{seed: effectivePrevSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
     }
+    // Prevent the first-generate panel-collapse when Randomise is used before Generate
+    if (!hasGenerated) setHasGenerated(true);
     setVariationSeed(newSeed);
     setVariationSubset(newSubset);
     generate({seed: newSeed, subset: newSubset});
-  }, [stashConstrained, img, globalStash, maxC, previewUrl, variationSeed, variationSubset, generate]);
+  }, [stashConstrained, img, globalStash, maxC, previewUrl, variationSeed, variationSubset, hasGenerated, generate]);
 
   var applyVariationSeed = useCallback(function(seed, subset) {
-    var s = seed >>> 0;
+    var s = (seed != null ? seed : 1337) >>> 0;
+    var effectivePrevSeed = variationSeed != null ? variationSeed : 1337;
     if (previewUrl) {
-      setVariationHistory(function(h) { return [{seed: variationSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+      setVariationHistory(function(h) { return [{seed: effectivePrevSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
     }
     setVariationSeed(s);
-    setVariationSubset(subset || null);
-    generate({seed: s, subset: subset || null});
+    setVariationSubset(subset !== undefined ? subset : null);
+    generate({seed: s, subset: subset !== undefined ? subset : null});
   }, [variationSeed, variationSubset, previewUrl, generate]);
 
   var promoteVariation = useCallback(function(slot) {
@@ -732,12 +741,13 @@ window.useCreatorState = function useCreatorState() {
     });
     if (!pool.length) return;
     var effN = Math.min(maxC, pool.length);
-    var useRoulette = pool.length > effN;
+    var rouletteN = pool.length > effN ? effN : Math.max(2, Math.round(pool.length * 0.75));
+    var useRoulette = pool.length >= 3;
     function genSlot(slotIdx) {
       if (slotIdx >= newSeeds.length) return;
       var slotSeed = newSeeds[slotIdx];
       setTimeout(function() {
-        var slotSubset = useRoulette ? _buildRoulette(pool, effN, slotSeed) : pool;
+        var slotSubset = useRoulette ? _buildRoulette(pool, rouletteN, slotSeed) : pool;
         var MAX_GAL = 2500;
         var gw = sW, gh = sH;
         if (gw * gh > MAX_GAL) { var sc = Math.sqrt(MAX_GAL / (gw * gh)); gw = Math.max(4, Math.round(gw * sc)); gh = Math.max(4, Math.round(gh * sc)); }

@@ -390,7 +390,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             onClick:function(){ ctx.randomise(); },
             disabled:!(ctx.stashPalette && ctx.stashPalette.length > 0) || !ctx.img,
             style:{display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:500,padding:"5px 12px",borderRadius:8,border:"0.5px solid #99f6e4",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
-          }, "\uD83D\uDD00 Randomise"),
+          }, Icons.shuffle(), " Randomise"),
           ctx.variationSeed ? (seedEditing ?
             h("span", {style:{display:"flex",alignItems:"center",gap:3}},
               h("input", {
@@ -411,9 +411,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             }, "#" + ctx.variationSeed)
           ) : null
         ),
-        ctx.stashConstrained && ctx.stashPalette && ctx.stashPalette.length > (ctx.effectiveMaxC || ctx.maxC) && h("div", {
-          style:{fontSize:10,color:"#0d9488",marginBottom:6}
-        }, "\uD83C\uDFB2 Roulette \u2014 sampling " + (ctx.effectiveMaxC || ctx.maxC) + " of " + ctx.stashPalette.length + " threads"),
+        ctx.stashConstrained && ctx.variationSeed && ctx.variationSubset && ctx.stashPalette && ctx.stashPalette.length >= 3 && h("div", {
+          style:{fontSize:10,color:"#0d9488",marginBottom:6,display:"flex",alignItems:"center",gap:4}
+        }, Icons.dice(), " Roulette \u2014 using " + ctx.variationSubset.length + " of " + ctx.stashPalette.length + " threads"),
         h("button", {
           onClick:function(){
             ctx.setGalleryOpen(function(o){return !o;});
@@ -462,7 +462,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             ctx.variationHistory.map(function(entry, i) {
               return h("div", {
                 key:(entry.timestamp || i) + "-" + i,
-                onClick:function(){ if (entry.seed != null) ctx.applyVariationSeed(entry.seed, entry.subset || null); },
+                onClick:function(){ ctx.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); },
                 title:"Seed #" + entry.seed,
                 style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid #e2e8f0"}
               },

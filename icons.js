@@ -179,6 +179,27 @@ window.Icons = (function() {
     // Up-arrow pointer — replaces 👆
     pointing: function() {
       return svg(p('M12 18V8'), p('M8 12l4-4 4 4'));
+    },
+    // Shuffle / randomise — two crossing arrows
+    shuffle: function() {
+      return svg(
+        pl('16 3 21 3 21 8'),
+        l(4,20,21,3),
+        pl('21 16 21 21 16 21'),
+        p('M15 15l5.5 5.5'),
+        p('M4 4l5 5')
+      );
+    },
+    // Dice — replaces 🎲
+    dice: function() {
+      return svg(
+        rc(2,2,20,20,3),
+        c(8,8,1.5,{fill:'currentColor',stroke:'none'}),
+        c(16,16,1.5,{fill:'currentColor',stroke:'none'}),
+        c(8,16,1.5,{fill:'currentColor',stroke:'none'}),
+        c(16,8,1.5,{fill:'currentColor',stroke:'none'}),
+        c(12,12,1.5,{fill:'currentColor',stroke:'none'})
+      );
     }
   };
 })();

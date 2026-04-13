@@ -95,7 +95,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 
-  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: opts.allowedPalette || null });
+  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: opts.allowedPalette || null, seed: opts.seed });
   if (!pipelineResult) return null;
 
   var mapped = pipelineResult.mapped;

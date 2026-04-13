@@ -107,7 +107,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 
-  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: opts.allowedPalette || null });
+  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: opts.allowedPalette || null, seed: opts.seed });
   if (!pipelineResult) return null;
 
   var mapped = pipelineResult.mapped;
@@ -3421,24 +3421,33 @@ window.useCreatorState = function useCreatorState() {
     Object.keys(globalStash || {}).forEach(function(id) {
       if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
     });
+    if (!pool.length) return;
     var effN = Math.min(maxC, pool.length);
-    var newSubset = (pool.length > effN && effN > 0) ? _buildRoulette(pool, effN, newSeed) : null;
+    // Always sub-sample so the selected colour set changes even when stash <= maxC.
+    // Use ~75% of pool (minimum 2) so each click genuinely picks different threads.
+    var rouletteN = pool.length > effN ? effN : Math.max(2, Math.round(pool.length * 0.75));
+    var newSubset = (pool.length >= 3) ? _buildRoulette(pool, rouletteN, newSeed) : null;
+    // Save effective seed so history entries can always be restored
+    var effectivePrevSeed = variationSeed != null ? variationSeed : 1337;
     if (previewUrl) {
-      setVariationHistory(function(h) { return [{seed: variationSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+      setVariationHistory(function(h) { return [{seed: effectivePrevSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
     }
+    // Prevent the first-generate panel-collapse when Randomise is used before Generate
+    if (!hasGenerated) setHasGenerated(true);
     setVariationSeed(newSeed);
     setVariationSubset(newSubset);
     generate({seed: newSeed, subset: newSubset});
-  }, [stashConstrained, img, globalStash, maxC, previewUrl, variationSeed, variationSubset, generate]);
+  }, [stashConstrained, img, globalStash, maxC, previewUrl, variationSeed, variationSubset, hasGenerated, generate]);
 
   var applyVariationSeed = useCallback(function(seed, subset) {
-    var s = seed >>> 0;
+    var s = (seed != null ? seed : 1337) >>> 0;
+    var effectivePrevSeed = variationSeed != null ? variationSeed : 1337;
     if (previewUrl) {
-      setVariationHistory(function(h) { return [{seed: variationSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
+      setVariationHistory(function(h) { return [{seed: effectivePrevSeed, subset: variationSubset, previewUrl: previewUrl, timestamp: Date.now()}].concat(h).slice(0, 8); });
     }
     setVariationSeed(s);
-    setVariationSubset(subset || null);
-    generate({seed: s, subset: subset || null});
+    setVariationSubset(subset !== undefined ? subset : null);
+    generate({seed: s, subset: subset !== undefined ? subset : null});
   }, [variationSeed, variationSubset, previewUrl, generate]);
 
   var promoteVariation = useCallback(function(slot) {
@@ -3460,12 +3469,13 @@ window.useCreatorState = function useCreatorState() {
     });
     if (!pool.length) return;
     var effN = Math.min(maxC, pool.length);
-    var useRoulette = pool.length > effN;
+    var rouletteN = pool.length > effN ? effN : Math.max(2, Math.round(pool.length * 0.75));
+    var useRoulette = pool.length >= 3;
     function genSlot(slotIdx) {
       if (slotIdx >= newSeeds.length) return;
       var slotSeed = newSeeds[slotIdx];
       setTimeout(function() {
-        var slotSubset = useRoulette ? _buildRoulette(pool, effN, slotSeed) : pool;
+        var slotSubset = useRoulette ? _buildRoulette(pool, rouletteN, slotSeed) : pool;
         var MAX_GAL = 2500;
         var gw = sW, gh = sH;
         if (gw * gh > MAX_GAL) { var sc = Math.sqrt(MAX_GAL / (gw * gh)); gw = Math.max(4, Math.round(gw * sc)); gh = Math.max(4, Math.round(gh * sc)); }
@@ -7807,7 +7817,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             onClick:function(){ ctx.randomise(); },
             disabled:!(ctx.stashPalette && ctx.stashPalette.length > 0) || !ctx.img,
             style:{display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:500,padding:"5px 12px",borderRadius:8,border:"0.5px solid #99f6e4",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
-          }, "\uD83D\uDD00 Randomise"),
+          }, Icons.shuffle(), " Randomise"),
           ctx.variationSeed ? (seedEditing ?
             h("span", {style:{display:"flex",alignItems:"center",gap:3}},
               h("input", {
@@ -7828,9 +7838,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             }, "#" + ctx.variationSeed)
           ) : null
         ),
-        ctx.stashConstrained && ctx.stashPalette && ctx.stashPalette.length > (ctx.effectiveMaxC || ctx.maxC) && h("div", {
-          style:{fontSize:10,color:"#0d9488",marginBottom:6}
-        }, "\uD83C\uDFB2 Roulette \u2014 sampling " + (ctx.effectiveMaxC || ctx.maxC) + " of " + ctx.stashPalette.length + " threads"),
+        ctx.stashConstrained && ctx.variationSeed && ctx.variationSubset && ctx.stashPalette && ctx.stashPalette.length >= 3 && h("div", {
+          style:{fontSize:10,color:"#0d9488",marginBottom:6,display:"flex",alignItems:"center",gap:4}
+        }, Icons.dice(), " Roulette \u2014 using " + ctx.variationSubset.length + " of " + ctx.stashPalette.length + " threads"),
         h("button", {
           onClick:function(){
             ctx.setGalleryOpen(function(o){return !o;});
@@ -7879,7 +7889,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             ctx.variationHistory.map(function(entry, i) {
               return h("div", {
                 key:(entry.timestamp || i) + "-" + i,
-                onClick:function(){ if (entry.seed != null) ctx.applyVariationSeed(entry.seed, entry.subset || null); },
+                onClick:function(){ ctx.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); },
                 title:"Seed #" + entry.seed,
                 style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid #e2e8f0"}
               },
