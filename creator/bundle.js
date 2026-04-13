@@ -2876,6 +2876,7 @@ window.useCreatorState = function useCreatorState() {
   function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
   var _subOpen  = useState(false);   var substituteModalOpen = _subOpen[0], setSubstituteModalOpen = _subOpen[1];
   var _subProp  = useState(null);    var substituteProposal = _subProp[0], setSubstituteProposal = _subProp[1];
+  var _subKey   = useState(0);       var substituteModalKey = _subKey[0], setSubstituteModalKey = _subKey[1];
   var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
   var substituteMaxDeltaE = _subMaxDE[0];
   function setSubstituteMaxDeltaE(v) { _subMaxDE[1](v); try { localStorage.setItem("cs_subMaxDE", v); } catch(_) {} }
@@ -3470,12 +3471,12 @@ window.useCreatorState = function useCreatorState() {
   var generateGallery = useCallback(function() {
     if (!img || !stashConstrained) return;
     var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
-    setGallerySlots(newSeeds.map(function(s) { return {seed: s, loading: true, url: null, threadCount: 0, subset: null}; }));
     var pool = [];
     Object.keys(globalStash || {}).forEach(function(id) {
       if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
     });
     if (!pool.length) return;
+    setGallerySlots(newSeeds.map(function(s) { return {seed: s, loading: true, url: null, threadCount: 0, subset: null}; }));
     var effN = Math.min(maxC, pool.length);
     var rouletteN = pool.length > effN ? effN : Math.max(2, Math.round(pool.length * 0.75));
     var useRoulette = pool.length >= 3;
@@ -3656,6 +3657,7 @@ window.useCreatorState = function useCreatorState() {
     altOpen, setAltOpen,
     substituteModalOpen, setSubstituteModalOpen,
     substituteProposal, setSubstituteProposal,
+    substituteModalKey, setSubstituteModalKey,
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
     stashConstrained, setStashConstrained,
     coverageGaps, setCoverageGaps,
@@ -6767,7 +6769,7 @@ window.SubstituteFromStashModal = function SubstituteFromStashModal() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
   if (!ctx.substituteModalOpen || !ctx.substituteProposal) return null;
-  return h(SubstituteFromStashModalInner, { key: ctx.substituteProposal, ctx: ctx });
+  return h(SubstituteFromStashModalInner, { key: ctx.substituteModalKey, ctx: ctx });
 };
 
 // ─── Inner modal ──────────────────────────────────────────────────────────────
@@ -6901,6 +6903,13 @@ function SubstituteFromStashModalInner(props) {
       var newSkipped = prev.skipped.filter(function(s) { return s.sourceId !== sk.sourceId; });
       var newSubs = prev.substitutions.concat([newSub]);
       _resolveDuplicateTargets(newSubs);
+      if (preserveContrast) {
+        var dmcMap = {};
+        if (typeof DMC !== "undefined" && Array.isArray(DMC)) {
+          DMC.forEach(function(d) { dmcMap[d.id] = d; });
+        }
+        _enforceContrastConstraints(newSubs, ctx.skeinData, 4, dmcMap);
+      }
       return { substitutions: newSubs, skipped: newSkipped };
     });
     setEnabledMap(function(prev) { var n = Object.assign({}, prev); n[makeKey(newSub)] = true; return n; });
@@ -7730,7 +7739,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:ctx.palOpen, onToggle:ctx.setPalOpen},
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:ctx.stashConstrained && ctx.stashThreadCount ? ctx.stashThreadCount : 40, onChange:ctx.setMaxC,
+      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:ctx.stashConstrained && ctx.stashThreadCount ? Math.max(10, ctx.stashThreadCount) : 40, onChange:ctx.setMaxC,
         helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
       ctx.stashConstrained && ctx.stashThreadCount && ctx.maxC > ctx.stashThreadCount && h("div", {style:{fontSize:10,color:"#d97706",marginTop:2}},
         "Clamped to " + ctx.stashThreadCount + " (stash size)"
@@ -8974,6 +8983,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                 { maxDeltaE: ctx.substituteMaxDeltaE, dmcData: DMC }
               );
               ctx.setSubstituteProposal(result);
+              ctx.setSubstituteModalKey(function(k) { return k + 1; });
               ctx.setSubstituteModalOpen(true);
             }).catch(function() {
               ctx.addToast("Failed to load stash data.", { type: "error", duration: 3000 });

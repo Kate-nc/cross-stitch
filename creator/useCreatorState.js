@@ -140,6 +140,7 @@ window.useCreatorState = function useCreatorState() {
   function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
   var _subOpen  = useState(false);   var substituteModalOpen = _subOpen[0], setSubstituteModalOpen = _subOpen[1];
   var _subProp  = useState(null);    var substituteProposal = _subProp[0], setSubstituteProposal = _subProp[1];
+  var _subKey   = useState(0);       var substituteModalKey = _subKey[0], setSubstituteModalKey = _subKey[1];
   var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
   var substituteMaxDeltaE = _subMaxDE[0];
   function setSubstituteMaxDeltaE(v) { _subMaxDE[1](v); try { localStorage.setItem("cs_subMaxDE", v); } catch(_) {} }
@@ -734,12 +735,12 @@ window.useCreatorState = function useCreatorState() {
   var generateGallery = useCallback(function() {
     if (!img || !stashConstrained) return;
     var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
-    setGallerySlots(newSeeds.map(function(s) { return {seed: s, loading: true, url: null, threadCount: 0, subset: null}; }));
     var pool = [];
     Object.keys(globalStash || {}).forEach(function(id) {
       if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
     });
     if (!pool.length) return;
+    setGallerySlots(newSeeds.map(function(s) { return {seed: s, loading: true, url: null, threadCount: 0, subset: null}; }));
     var effN = Math.min(maxC, pool.length);
     var rouletteN = pool.length > effN ? effN : Math.max(2, Math.round(pool.length * 0.75));
     var useRoulette = pool.length >= 3;
@@ -920,6 +921,7 @@ window.useCreatorState = function useCreatorState() {
     altOpen, setAltOpen,
     substituteModalOpen, setSubstituteModalOpen,
     substituteProposal, setSubstituteProposal,
+    substituteModalKey, setSubstituteModalKey,
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
     stashConstrained, setStashConstrained,
     coverageGaps, setCoverageGaps,

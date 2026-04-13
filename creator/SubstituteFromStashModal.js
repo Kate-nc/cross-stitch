@@ -293,7 +293,7 @@ window.SubstituteFromStashModal = function SubstituteFromStashModal() {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
   if (!ctx.substituteModalOpen || !ctx.substituteProposal) return null;
-  return h(SubstituteFromStashModalInner, { key: ctx.substituteProposal, ctx: ctx });
+  return h(SubstituteFromStashModalInner, { key: ctx.substituteModalKey, ctx: ctx });
 };
 
 // ─── Inner modal ──────────────────────────────────────────────────────────────
@@ -427,6 +427,13 @@ function SubstituteFromStashModalInner(props) {
       var newSkipped = prev.skipped.filter(function(s) { return s.sourceId !== sk.sourceId; });
       var newSubs = prev.substitutions.concat([newSub]);
       _resolveDuplicateTargets(newSubs);
+      if (preserveContrast) {
+        var dmcMap = {};
+        if (typeof DMC !== "undefined" && Array.isArray(DMC)) {
+          DMC.forEach(function(d) { dmcMap[d.id] = d; });
+        }
+        _enforceContrastConstraints(newSubs, ctx.skeinData, 4, dmcMap);
+      }
       return { substitutions: newSubs, skipped: newSkipped };
     });
     setEnabledMap(function(prev) { var n = Object.assign({}, prev); n[makeKey(newSub)] = true; return n; });

@@ -291,6 +291,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                 { maxDeltaE: ctx.substituteMaxDeltaE, dmcData: DMC }
               );
               ctx.setSubstituteProposal(result);
+              ctx.setSubstituteModalKey(function(k) { return k + 1; });
               ctx.setSubstituteModalOpen(true);
             }).catch(function() {
               ctx.addToast("Failed to load stash data.", { type: "error", duration: 3000 });
