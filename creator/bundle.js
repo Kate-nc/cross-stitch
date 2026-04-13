@@ -1171,7 +1171,147 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
   var displayRef = React.useRef(null);
   var offscreenRef = React.useRef(null);
 
+  // Version counter: Effect A increments this after updating offscreenRef so Effect B re-runs.
+  var _offV = React.useState(0); var offscreenVersion = _offV[0], setOffscreenVersion = _offV[1];
+
   var pat = ctx.pat;
+  var cmap = ctx.cmap;
+  var pal = ctx.pal;
+  var sW = ctx.sW;
+  var sH = ctx.sH;
+  var cs = ctx.cs;
+  var previewShowGrid = ctx.previewShowGrid;
+  var previewFabricBg = ctx.previewFabricBg;
+
+  // Effect A — build the offscreen 1-px-per-stitch image cache.
+  // Re-runs only when pattern data or fabric-bg toggle changes.
+  React.useEffect(function() {
+    if (!pat || !sW || !sH) return;
+
+    var offscreen = document.createElement("canvas");
+    offscreen.width = sW;
+    offscreen.height = sH;
+    var octx = offscreen.getContext("2d");
+    var imgData = octx.createImageData(sW, sH);
+    var d = imgData.data;
+
+    var FABRIC_R = 245, FABRIC_G = 240, FABRIC_B = 230;
+    var WHITE_R  = 255, WHITE_G  = 255, WHITE_B  = 255;
+
+    for (var i = 0; i < pat.length; i++) {
+      var cell = pat[i];
+      var px = i * 4;
+
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
+        if (previewFabricBg) {
+          d[px]     = FABRIC_R;
+          d[px + 1] = FABRIC_G;
+          d[px + 2] = FABRIC_B;
+          d[px + 3] = 255;
+        } else {
+          d[px]     = WHITE_R;
+          d[px + 1] = WHITE_G;
+          d[px + 2] = WHITE_B;
+          d[px + 3] = 255;
+        }
+        continue;
+      }
+
+      // Each pat cell has rgb embedded directly — use it as primary source.
+      // Fall back to cmap lookup (handles edge cases where rgb may be absent).
+      var rgb = cell.rgb;
+      if (!rgb && cmap) {
+        var lookupId = cell.id;
+        if (lookupId.indexOf("+") !== -1) lookupId = lookupId.split("+")[0];
+        var entry = cmap[lookupId];
+        if (entry) rgb = entry.rgb;
+      }
+
+      if (rgb) {
+        d[px]     = rgb[0];
+        d[px + 1] = rgb[1];
+        d[px + 2] = rgb[2];
+        d[px + 3] = 255;
+      } else {
+        d[px]     = WHITE_R;
+        d[px + 1] = WHITE_G;
+        d[px + 2] = WHITE_B;
+        d[px + 3] = 255;
+      }
+    }
+
+    octx.putImageData(imgData, 0, 0);
+    offscreenRef.current = offscreen;
+    // Increment version so Effect B knows to re-draw
+    setOffscreenVersion(function(v) { return v + 1; });
+  }, [pat, cmap, sW, sH, previewFabricBg]);
+
+  // Effect B — draw the offscreen image onto the display canvas at the current zoom level,
+  // then overlay the grid if enabled.
+  // offscreenVersion is the reactive signal that Effect A has finished.
+  React.useEffect(function() {
+    if (!offscreenRef.current || !displayRef.current || !sW || !sH) return;
+
+    var canvas = displayRef.current;
+    canvas.width  = sW * cs;
+    canvas.height = sH * cs;
+
+    var ctx2d = canvas.getContext("2d");
+    ctx2d.imageSmoothingEnabled = false;
+
+    // Draw the upscaled pixel image (nearest-neighbour via pixelated CSS + disabled smoothing)
+    ctx2d.drawImage(offscreenRef.current, 0, 0, sW * cs, sH * cs);
+
+    // Grid overlay — drawn at display resolution so lines are always exactly 1px
+    if (previewShowGrid && cs >= 2) {
+      var darkMode = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      var minorColor = darkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.12)";
+      var majorColor = darkMode ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.25)";
+
+      ctx2d.lineWidth = 1;
+
+      // Vertical lines
+      for (var x = 0; x <= sW; x++) {
+        var px = Math.round(x * cs) + 0.5;
+        ctx2d.strokeStyle = (x % 10 === 0) ? majorColor : minorColor;
+        ctx2d.beginPath();
+        ctx2d.moveTo(px, 0);
+        ctx2d.lineTo(px, sH * cs);
+        ctx2d.stroke();
+      }
+
+      // Horizontal lines
+      for (var y = 0; y <= sH; y++) {
+        var py = Math.round(y * cs) + 0.5;
+        ctx2d.strokeStyle = (y % 10 === 0) ? majorColor : minorColor;
+        ctx2d.beginPath();
+        ctx2d.moveTo(0, py);
+        ctx2d.lineTo(sW * cs, py);
+        ctx2d.stroke();
+      }
+    }
+  }, [offscreenVersion, cs, sW, sH, previewShowGrid]);
+
+  // Count unique stitched colours for status bar
+  var colCount = 0;
+  if (pal) {
+    for (var pi = 0; pi < pal.length; pi++) {
+      var pe = pal[pi];
+      if (pe && pe.id && pe.id !== "__skip__" && pe.id !== "__empty__" && pe.count > 0) colCount++;
+    }
+  }
+
+  return h("div", {className: "preview-wrap"},
+    h("canvas", {
+      ref: displayRef,
+      className: "preview-canvas"
+    }),
+    h("div", {className: "preview-status-bar"},
+      sW + " \xD7 " + sH + " stitches \xB7 " + colCount + " colour" + (colCount !== 1 ? "s" : "")
+    )
+  );
+};
+
   var cmap = ctx.cmap;
   var pal = ctx.pal;
   var sW = ctx.sW;
@@ -5574,6 +5714,18 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { document.removeEventListener("pointerdown", close); };
   }, [ctx.overflowOpen]);
 
+  // Preview dropdown local state — must be declared before early return (Rules of Hooks)
+  var previewWrapRef = React.useRef(null);
+  var _pm = React.useState(false); var previewMenuOpen = _pm[0], setPreviewMenuOpen = _pm[1];
+  React.useEffect(function() {
+    if (!previewMenuOpen) return;
+    function close(e) {
+      if (previewWrapRef.current && !previewWrapRef.current.contains(e.target)) setPreviewMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", close);
+    return function() { document.removeEventListener("pointerdown", close); };
+  }, [previewMenuOpen]);
+
   if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
 
   var sc = ctx.stripCollapsed || {};
@@ -5951,29 +6103,38 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     brushItems
   ) : null;
 
-  // Preview mode toggle + sub-mode controls
-  var previewGrp = h("div", {key:"preview-grp", className:"tb-grp"},
+  // Preview dropdown — single compact control with options menu
+  function chkBox(active) {
+    return h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
+      border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
+      background:active?"var(--accent)":"transparent"}});
+  }
+  var previewDropWrap = h("div", {className:"tb-overflow-wrap", ref:previewWrapRef},
     h("button", {
-      key:"preview-btn",
       className:"tb-btn"+(ctx.previewActive?" tb-btn--on":""),
-      onClick:function(){ctx.setPreviewActive(function(v){return !v;});},
+      onClick:function(){setPreviewMenuOpen(function(o){return !o;});},
       title:"Preview — pixel-accurate stitch preview"
-    }, "Preview")
+    }, "Preview \u25BE"),
+    previewMenuOpen && h("div", {className:"tb-overflow-menu", style:{minWidth:170,right:0}},
+      h("span", {className:"tb-ovf-lbl"}, "Preview"),
+      h("button", {
+        className:"tb-ovf-item"+(ctx.previewActive?" tb-ovf-item--on":""),
+        onClick:function(){ctx.setPreviewActive(function(v){return !v;});}
+      }, chkBox(ctx.previewActive), " Enable"+(ctx.previewActive?" \u2713":"")),
+      h("div", {className:"tb-ovf-sep"}),
+      h("span", {className:"tb-ovf-lbl"}, "Options"),
+      h("button", {
+        className:"tb-ovf-item"+(ctx.previewShowGrid?" tb-ovf-item--on":""),
+        onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;});},
+        style:{opacity:ctx.previewActive?1:0.5}
+      }, chkBox(ctx.previewShowGrid), " Grid overlay"+(ctx.previewShowGrid?" \u2713":"")),
+      h("button", {
+        className:"tb-ovf-item"+(ctx.previewFabricBg?" tb-ovf-item--on":""),
+        onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;});},
+        style:{opacity:ctx.previewActive?1:0.5}
+      }, chkBox(ctx.previewFabricBg), " Fabric background"+(ctx.previewFabricBg?" \u2713":""))
+    )
   );
-  var previewSubGrp = ctx.previewActive ? h("div", {key:"preview-sub-grp", className:"tb-grp"},
-    h("button", {
-      key:"preview-grid",
-      className:"tb-btn"+(ctx.previewShowGrid?" tb-btn--on":""),
-      onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;});},
-      title:"Grid overlay — show 1px grid between stitches"
-    }, "Grid"),
-    h("button", {
-      key:"preview-fabric",
-      className:"tb-btn"+(ctx.previewFabricBg?" tb-btn--on":""),
-      onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;});},
-      title:"Fabric background — show fabric colour for empty cells"
-    }, "Fabric")
-  ) : null;
 
   var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:ctx.overflowRef},
     h("button", {
@@ -5998,8 +6159,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           zoomGrp,
           undoRedo,
           h("div", {className:"tb-sdiv"}),
-          previewGrp,
-          previewSubGrp,
+          previewDropWrap,
           h("div", {className:"tb-sdiv"}),
           overflowWrap
         )

@@ -35,6 +35,18 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { document.removeEventListener("pointerdown", close); };
   }, [ctx.overflowOpen]);
 
+  // Preview dropdown local state — must be declared before early return (Rules of Hooks)
+  var previewWrapRef = React.useRef(null);
+  var _pm = React.useState(false); var previewMenuOpen = _pm[0], setPreviewMenuOpen = _pm[1];
+  React.useEffect(function() {
+    if (!previewMenuOpen) return;
+    function close(e) {
+      if (previewWrapRef.current && !previewWrapRef.current.contains(e.target)) setPreviewMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", close);
+    return function() { document.removeEventListener("pointerdown", close); };
+  }, [previewMenuOpen]);
+
   if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
 
   var sc = ctx.stripCollapsed || {};
@@ -412,29 +424,38 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     brushItems
   ) : null;
 
-  // Preview mode toggle + sub-mode controls
-  var previewGrp = h("div", {key:"preview-grp", className:"tb-grp"},
+  // Preview dropdown — single compact control with options menu
+  function chkBox(active) {
+    return h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
+      border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
+      background:active?"var(--accent)":"transparent"}});
+  }
+  var previewDropWrap = h("div", {className:"tb-overflow-wrap", ref:previewWrapRef},
     h("button", {
-      key:"preview-btn",
       className:"tb-btn"+(ctx.previewActive?" tb-btn--on":""),
-      onClick:function(){ctx.setPreviewActive(function(v){return !v;});},
+      onClick:function(){setPreviewMenuOpen(function(o){return !o;});},
       title:"Preview — pixel-accurate stitch preview"
-    }, "Preview")
+    }, "Preview \u25BE"),
+    previewMenuOpen && h("div", {className:"tb-overflow-menu", style:{minWidth:170,right:0}},
+      h("span", {className:"tb-ovf-lbl"}, "Preview"),
+      h("button", {
+        className:"tb-ovf-item"+(ctx.previewActive?" tb-ovf-item--on":""),
+        onClick:function(){ctx.setPreviewActive(function(v){return !v;});}
+      }, chkBox(ctx.previewActive), " Enable"+(ctx.previewActive?" \u2713":"")),
+      h("div", {className:"tb-ovf-sep"}),
+      h("span", {className:"tb-ovf-lbl"}, "Options"),
+      h("button", {
+        className:"tb-ovf-item"+(ctx.previewShowGrid?" tb-ovf-item--on":""),
+        onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;});},
+        style:{opacity:ctx.previewActive?1:0.5}
+      }, chkBox(ctx.previewShowGrid), " Grid overlay"+(ctx.previewShowGrid?" \u2713":"")),
+      h("button", {
+        className:"tb-ovf-item"+(ctx.previewFabricBg?" tb-ovf-item--on":""),
+        onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;});},
+        style:{opacity:ctx.previewActive?1:0.5}
+      }, chkBox(ctx.previewFabricBg), " Fabric background"+(ctx.previewFabricBg?" \u2713":""))
+    )
   );
-  var previewSubGrp = ctx.previewActive ? h("div", {key:"preview-sub-grp", className:"tb-grp"},
-    h("button", {
-      key:"preview-grid",
-      className:"tb-btn"+(ctx.previewShowGrid?" tb-btn--on":""),
-      onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;});},
-      title:"Grid overlay — show 1px grid between stitches"
-    }, "Grid"),
-    h("button", {
-      key:"preview-fabric",
-      className:"tb-btn"+(ctx.previewFabricBg?" tb-btn--on":""),
-      onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;});},
-      title:"Fabric background — show fabric colour for empty cells"
-    }, "Fabric")
-  ) : null;
 
   var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:ctx.overflowRef},
     h("button", {
@@ -459,8 +480,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           zoomGrp,
           undoRedo,
           h("div", {className:"tb-sdiv"}),
-          previewGrp,
-          previewSubGrp,
+          previewDropWrap,
           h("div", {className:"tb-sdiv"}),
           overflowWrap
         )
