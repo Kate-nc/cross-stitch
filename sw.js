@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v3';
+var CACHE_NAME = 'cross-stitch-cache-v4';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -119,7 +119,7 @@ self.addEventListener('fetch', function (event) {
         if (cached) return cached;
         return fetch(event.request).then(function (response) {
           // Cache successful responses for future offline use
-          if (response.ok) {
+          if (response.ok && event.request.method === 'GET') {
             var clone = response.clone();
             caches.open(CACHE_NAME).then(function (cache) {
               cache.put(event.request, clone);

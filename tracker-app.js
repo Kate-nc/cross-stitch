@@ -192,6 +192,8 @@ const combinedDone=doneCount+halfStitchCounts.done*0.5;
 const progressPct=combinedTotal>0?Math.round(combinedDone/combinedTotal*1000)/10:0;
 // Today's stitches for progress bar accent segment
 const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsTodayStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
+const todayBarPct=combinedTotal>0?Math.min((todayStitchesForBar/combinedTotal)*100,Math.min(progressPct,100)):0;
+const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
 
 const colourDoneCounts=useMemo(()=>{
   if(!pat||!done)return{};
@@ -2835,7 +2837,11 @@ return(
 </div></div>
 {!isEditMode&&<div className="tb-progress"><div className="tb-progress-inner">
   <span className="tb-progress-txt">{doneCount.toLocaleString()} / {totalStitchable.toLocaleString()}{halfStitchCounts.total>0?` + ${halfStitchCounts.done}/${halfStitchCounts.total}△`:""}{todayStitchesForBar>0&&progressPct<100?` (+${todayStitchesForBar} today)`:""} ({progressPct.toFixed(1)}%){progressPct>=100?<> {Icons.star()}</>:null}</span>
-  <div className="tb-progress-bar">{(()=>{const todayBarPct=combinedTotal>0?Math.min((todayStitchesForBar/combinedTotal)*100,Math.min(progressPct,100)):0;const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);return progressPct>=100?<div className="tb-progress-fill tb-progress-fill--done" style={{width:"100%"}}/>:<>{prevBarPct>0&&<div className="tb-progress-fill" style={{width:prevBarPct+"%"}}/>}{todayBarPct>0&&<div className="tb-progress-fill tb-progress-today" style={{width:todayBarPct+"%"}}/>}</>;})()}</div>
+  <div className="tb-progress-bar">
+    {progressPct>=100&&<div className="tb-progress-fill tb-progress-fill--done" style={{width:"100%"}}/>}
+    {progressPct<100&&prevBarPct>0&&<div className="tb-progress-fill" style={{width:prevBarPct+"%"}}/>}
+    {progressPct<100&&todayBarPct>0&&<div className="tb-progress-fill tb-progress-today" style={{width:todayBarPct+"%"}}/>}
+  </div>
   <span className="tb-progress-rem">{progressPct>=100?"Complete!":Math.ceil(combinedTotal-combinedDone).toLocaleString()+" remaining"}</span>
 </div></div>}
 {!isEditMode&&<MiniStatsBar statsSessions={statsSessions} totalCompleted={doneCount} totalStitches={totalStitchable} statsSettings={statsSettings} onOpenStats={()=>{finaliseAutoSession();setStatsView(true);}} currentAutoSession={currentAutoSessionRef.current}/>}
