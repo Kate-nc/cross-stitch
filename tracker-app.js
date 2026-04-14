@@ -24,7 +24,7 @@ const[totalTime,setTotalTime]=useState(0);
 const[sessions,setSessions]=useState([]);
 
 const[statsSessions,setStatsSessions]=useState([]);
-const[statsSettings,setStatsSettings]=useState({dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null});
+const[statsSettings,setStatsSettings]=useState({dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90});
 const[statsView,setStatsView]=useState(false);
 const[celebration,setCelebration]=useState(null);
 const celebratedRef=useRef(new Set());
@@ -45,6 +45,16 @@ const [liveAutoIsPaused, setLiveAutoIsPaused] = useState(false);
 const autoSessionDisplayTimerRef = useRef(null);
 const documentHiddenRef = useRef(false);
 const lastPauseTimeRef = useRef(null);
+
+// Manual pause/resume
+const [manuallyPaused, setManuallyPaused] = useState(false);
+const manualPauseTimeRef = useRef(null);
+const manuallyPausedRef = useRef(false);
+
+// Inactivity auto-pause
+const inactivityTimerRef = useRef(null);
+const inactivityPausedRef = useRef(false);
+const inactivityPauseTimeRef = useRef(null);
 
 const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
 useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
@@ -71,6 +81,7 @@ const[tintOpacity,setTintOpacity]=useState(()=>{try{return parseFloat(localStora
 const[spotDimOpacity,setSpotDimOpacity]=useState(()=>{try{return parseFloat(localStorage.getItem("cs_spotDimOp")||"0.15");}catch(_){return 0.15;}});
 const[antsOffset,setAntsOffset]=useState(0);
 useEffect(()=>{try{localStorage.setItem("cs_hlMode",highlightMode);}catch(_){}},[highlightMode]);
+useEffect(()=>{manuallyPausedRef.current=manuallyPaused;},[manuallyPaused]);
 const[advanceToast,setAdvanceToast]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
 const[hlRow,setHlRow]=useState(-1),[hlCol,setHlCol]=useState(-1);
@@ -283,6 +294,19 @@ function recordAutoActivity(completed,undone){
       setLiveAutoElapsed(0);
       setLiveAutoIsPaused(document.hidden);
     }
+    // Auto-resume manual pause on stitch activity
+    if(manuallyPausedRef.current&&manualPauseTimeRef.current){
+      currentAutoSessionRef.current.totalPausedMs=(currentAutoSessionRef.current.totalPausedMs||0)+(Date.now()-manualPauseTimeRef.current);
+      manualPauseTimeRef.current=null;
+      setManuallyPaused(false);
+    }
+    // Auto-resume inactivity pause on stitch activity
+    if(inactivityPausedRef.current&&inactivityPauseTimeRef.current){
+      currentAutoSessionRef.current.totalPausedMs=(currentAutoSessionRef.current.totalPausedMs||0)+(Date.now()-inactivityPauseTimeRef.current);
+      inactivityPausedRef.current=false;
+      inactivityPauseTimeRef.current=null;
+      setLiveAutoIsPaused(document.hidden);
+    }
     currentAutoSessionRef.current.stitchesCompleted+=completed;
     currentAutoSessionRef.current.stitchesUndone+=undone;
     setLiveAutoStitches(currentAutoSessionRef.current.stitchesCompleted);
@@ -293,6 +317,18 @@ function recordAutoActivity(completed,undone){
     }
     clearTimeout(autoIdleTimerRef.current);
     autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){console.warn('Stats: idle finalise error',e);}},IDLE_THRESHOLD_MS);
+    // Reset inactivity pause timer (only if not manually paused)
+    clearTimeout(inactivityTimerRef.current);
+    const inactThresh=(statsSettings.inactivityPauseSec||0)*1000;
+    if(inactThresh>0&&!manuallyPausedRef.current){
+      inactivityTimerRef.current=setTimeout(()=>{
+        if(currentAutoSessionRef.current&&!manuallyPausedRef.current){
+          inactivityPausedRef.current=true;
+          inactivityPauseTimeRef.current=Date.now();
+          setLiveAutoIsPaused(true);
+        }
+      },inactThresh);
+    }
   }catch(e){console.warn('Stats: recordAutoActivity error',e);}
 }
 function finaliseAutoSession(){
@@ -301,6 +337,17 @@ function finaliseAutoSession(){
     if(!session||session.stitchesCompleted+session.stitchesUndone===0){
       currentAutoSessionRef.current=null;
       return;
+    }
+    // Close out any open pause before computing duration
+    const nowMs=Date.now();
+    if(manuallyPausedRef.current&&manualPauseTimeRef.current){
+      session.totalPausedMs=(session.totalPausedMs||0)+(nowMs-manualPauseTimeRef.current);
+      manualPauseTimeRef.current=null;
+    }
+    if(inactivityPausedRef.current&&inactivityPauseTimeRef.current){
+      session.totalPausedMs=(session.totalPausedMs||0)+(nowMs-inactivityPauseTimeRef.current);
+      inactivityPausedRef.current=false;
+      inactivityPauseTimeRef.current=null;
     }
     const endTime=lastStitchActivityRef.current||new Date();
     const startTime=new Date(session.startTime);
@@ -330,6 +377,9 @@ function finaliseAutoSession(){
     setTotalTime(prev => prev + Math.floor(activeDurationMs / 1000));
     currentAutoSessionRef.current=null;
     clearTimeout(autoIdleTimerRef.current);
+    clearTimeout(inactivityTimerRef.current);
+    setManuallyPaused(false);
+    setLiveAutoIsPaused(false);
     setLiveAutoElapsed(0);
     setLiveAutoStitches(0);
     return finalised;
@@ -341,12 +391,12 @@ useEffect(() => {
   function handleVisibilityChange() {
     const isHidden = document.hidden;
     documentHiddenRef.current = isHidden;
-    setLiveAutoIsPaused(isHidden);
+    if(!manuallyPausedRef.current&&!inactivityPausedRef.current) setLiveAutoIsPaused(isHidden);
 
     if (isHidden) {
-      lastPauseTimeRef.current = Date.now();
+      if(!manuallyPausedRef.current) lastPauseTimeRef.current = Date.now();
     } else {
-      if (lastPauseTimeRef.current && currentAutoSessionRef.current) {
+      if (lastPauseTimeRef.current && currentAutoSessionRef.current && !manuallyPausedRef.current) {
         const pausedMs = Date.now() - lastPauseTimeRef.current;
         currentAutoSessionRef.current.totalPausedMs = (currentAutoSessionRef.current.totalPausedMs || 0) + pausedMs;
       }
@@ -360,7 +410,7 @@ useEffect(() => {
 useEffect(() => {
   autoSessionDisplayTimerRef.current = setInterval(() => {
     if (!currentAutoSessionRef.current) return;
-    if (documentHiddenRef.current) return;
+    if (documentHiddenRef.current || manuallyPausedRef.current || inactivityPausedRef.current) return;
     const now = Date.now();
     const start = new Date(currentAutoSessionRef.current.startTime).getTime();
     const paused = currentAutoSessionRef.current.totalPausedMs || 0;
@@ -2469,6 +2519,21 @@ useEffect(()=>{
       }
     }
     if(e.key==="d"||e.key==="D"){setDrawer(d=>!d);return;}
+    if((e.key==="p"||e.key==="P")&&!isEditMode&&currentAutoSessionRef.current){
+      if(manuallyPausedRef.current){
+        const pausedMs=Date.now()-manualPauseTimeRef.current;
+        currentAutoSessionRef.current.totalPausedMs=(currentAutoSessionRef.current.totalPausedMs||0)+pausedMs;
+        manualPauseTimeRef.current=null;
+        setManuallyPaused(false);
+        setLiveAutoIsPaused(document.hidden||inactivityPausedRef.current);
+      }else{
+        clearTimeout(inactivityTimerRef.current);
+        manualPauseTimeRef.current=Date.now();
+        setManuallyPaused(true);
+        setLiveAutoIsPaused(true);
+      }
+      return;
+    }
     if(e.key==="="||e.key==="+"){setStitchZoom(z=>Math.min(4,+(z+0.1).toFixed(2)));return;}
     if(e.key==="-"){setStitchZoom(z=>Math.max(0.3,+(z-0.1).toFixed(2)));return;}
     if(e.key==="0"){fitSZ();return;}
@@ -2495,7 +2560,7 @@ useEffect(()=>{
   window.addEventListener("keydown",handleKeyDown);
   window.addEventListener("keyup",handleKeyUp);
   return()=>{window.removeEventListener("keydown",handleKeyDown);window.removeEventListener("keyup",handleKeyUp);};
-},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,halfMenuOpen,tOverflowOpen,drawer,halfDisambig,halfStitchTool,halfToast,focusColour,pat,pal,undoSnapshot,colourDoneCounts,trackHistory,redoStack,highlightMode]);
+},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,halfMenuOpen,tOverflowOpen,drawer,halfDisambig,halfStitchTool,halfToast,focusColour,pat,pal,undoSnapshot,colourDoneCounts,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
@@ -2688,10 +2753,26 @@ return(
   </div>
 </div>
   {liveAutoStitches > 0 && (
-    <div className={"session-chip" + (liveAutoIsPaused ? " session-chip--paused" : "")} title="Session is automatically tracked">
+    <button className={"session-chip" + (liveAutoIsPaused||manuallyPaused ? " session-chip--paused" : "") + (inactivityPausedRef.current&&!manuallyPaused ? " session-chip--idle" : "")}
+      title={manuallyPaused ? "Tap to resume tracking" : inactivityPausedRef.current ? "Auto-paused (idle) — tap to resume" : "Tap to pause tracking"}
+      onClick={() => {
+        if(!currentAutoSessionRef.current) return;
+        if(manuallyPaused){
+          const pausedMs=Date.now()-manualPauseTimeRef.current;
+          currentAutoSessionRef.current.totalPausedMs=(currentAutoSessionRef.current.totalPausedMs||0)+pausedMs;
+          manualPauseTimeRef.current=null;
+          setManuallyPaused(false);
+          setLiveAutoIsPaused(document.hidden||inactivityPausedRef.current);
+        }else{
+          clearTimeout(inactivityTimerRef.current);
+          manualPauseTimeRef.current=Date.now();
+          setManuallyPaused(true);
+          setLiveAutoIsPaused(true);
+        }
+      }}>
       <span className="dot"/>
-      {liveAutoIsPaused ? 'Paused' : `${fmtTime(liveAutoElapsed)} · ${liveAutoStitches} stitches`}
-    </div>
+      {manuallyPaused ? `⏸ Paused · ${liveAutoStitches} st` : inactivityPausedRef.current ? `⏸ Idle · ${liveAutoStitches} st` : liveAutoIsPaused ? 'Paused' : `${fmtTime(liveAutoElapsed)} · ${liveAutoStitches} st`}
+    </button>
   )}
 </div></div>
 {!isEditMode&&<div className="tb-progress"><div className="tb-progress-inner">
