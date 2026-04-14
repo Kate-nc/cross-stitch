@@ -18,6 +18,10 @@ const ProjectStorage = (() => {
     const completedSt = p.done
       ? p.done.reduce((count, val) => count + (val === 1 ? 1 : 0), 0)
       : 0;
+    const sessions = p.statsSessions || [];
+    const totalMinutes = sessions.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
+    const totalNet = sessions.reduce((sum, s) => sum + (s.netStitches || 0), 0);
+    const uniqueDays = new Set(sessions.map(s => s.date).filter(Boolean)).size;
     return {
       id: p.id,
       name: p.name || `${s.sW || "?"}×${s.sH || "?"} pattern`,
@@ -27,6 +31,10 @@ const ProjectStorage = (() => {
       totalStitches: totalSt,
       completedStitches: completedSt,
       source: p.source || p.page || "unknown",
+      sessionCount: sessions.length,
+      totalMinutes: totalMinutes,
+      uniqueActiveDays: uniqueDays,
+      stitchesPerHour: totalMinutes > 0 ? Math.round(totalNet / (totalMinutes / 60)) : 0,
     };
   }
 
