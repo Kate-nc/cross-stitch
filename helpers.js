@@ -797,23 +797,23 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
     : '0.0';
 
   var lines = [
-    '\uD83E\uDDF5 ' + (projectName || 'Cross Stitch Project') + ' \u2014 Progress Update',
+    '\uD83E\uDDF5 ' + (projectName || 'Cross Stitch Project') + ' — Progress Update',
     '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
-    '\u2705 ' + totalCompleted.toLocaleString() + ' / ' + totalStitches.toLocaleString() + ' stitches (' + percent + '%)',
-    '\u23F1\uFE0F ' + formatStatsDuration(stats.totalSeconds) + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),
-    '\uD83D\uDCC8 ' + stats.stitchesPerHour + ' stitches/hour \u00B7 ' + stats.avgPerDay + '/day average'
+    '[✓] ' + totalCompleted.toLocaleString() + ' / ' + totalStitches.toLocaleString() + ' stitches (' + percent + '%)',
+    'Time: ' + formatStatsDuration(stats.totalSeconds) + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),
+    'Speed: ' + stats.stitchesPerHour + ' stitches/hour · ' + stats.avgPerDay + '/day average'
   ];
 
   if (streaks.current > 0 || streaks.longest > 0) {
-    lines.push('\uD83D\uDD25 Current streak: ' + streaks.current + ' day' + (streaks.current !== 1 ? 's' : '') + ' (longest: ' + streaks.longest + ')');
+    lines.push('Streak: ' + streaks.current + ' day' + (streaks.current !== 1 ? 's' : '') + ' (longest: ' + streaks.longest + ')');
   }
 
   if (bestDay) {
-    lines.push('\uD83C\uDFC6 Best day: ' + bestDay.stitches + ' stitches (' + formatShortDate(bestDay.date) + ')');
+    lines.push('Best day: ' + bestDay.stitches + ' stitches (' + formatShortDate(bestDay.date) + ')');
   }
 
   if (stats.estimatedCompletion && stats.estimatedCompletion !== '\u2014') {
-    lines.push('\uD83D\uDCC5 Est. completion: ' + stats.estimatedCompletion);
+    lines.push('Est. completion: ' + stats.estimatedCompletion);
   }
 
   lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');

@@ -141,7 +141,7 @@ function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettin
         React.createElement("span", {className:"mini-stats-time"}, formatStatsDuration(liveTodaySeconds))
       ),
       streaks.current > 0 && React.createElement("span", {className:"mini-streak" + (isStreakRecord ? " mini-streak--record" : "")},
-        "\uD83D\uDD25 " + streaks.current + " day" + (streaks.current !== 1 ? "s" : "")),
+        React.createElement("span", {style:{display:"inline-flex", alignItems:"center", gap:"0.25em"}}, Icons.fire(), " " + streaks.current + " day" + (streaks.current !== 1 ? "s" : ""))),
       React.createElement("button", {className:"mini-stats-btn", onClick:onOpenStats}, "Stats")
     );
     if (!activeGoal) return statsBar;
@@ -695,7 +695,7 @@ function MilestoneCelebration({milestone, onDismiss}){
   }, []);
 
   return React.createElement("div", {className:"milestone-celebration"},
-    React.createElement("span", {className:"celebration-icon"}, "\u2728"),
+    React.createElement("span", {className:"celebration-icon"}, Icons.star()),
     React.createElement("span", {className:"celebration-text"}, milestone.label),
     milestone.pct && React.createElement("span", {className:"celebration-subtext"}, milestone.pct + '% complete')
   );
@@ -890,7 +890,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
     ),
     React.createElement("div",{style:{marginTop:12,display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}},
       React.createElement("input",{type:'text',value:labelText,onChange:function(e){setLabelText(e.target.value);},placeholder:'Snapshot label (optional)',style:{flex:1,minWidth:120,fontSize:12,padding:'4px 8px',borderRadius:6,border:'1px solid #e2e8f0'}}),
-      React.createElement("button",{onClick:saveManualSnapshot,style:{fontSize:12,padding:'4px 12px',borderRadius:6,border:'1px solid #c084fc',background:'#faf5ff',cursor:'pointer',color:'#7c3aed',fontWeight:600,flexShrink:0}},"\uD83D\uDCF7 Save snapshot")
+      React.createElement("button",{onClick:saveManualSnapshot,style:{fontSize:12,padding:'4px 12px',borderRadius:6,border:'1px solid #c084fc',background:'#faf5ff',cursor:'pointer',color:'#7c3aed',fontWeight:600,flexShrink:0,display:'flex',alignItems:'center',gap:'6px'}}, Icons.camera(), "Save snapshot")
     ),
     (doneSnapshots&&doneSnapshots.length===0)&&React.createElement("p",{style:{fontSize:12,color:'#94a3b8',margin:'8px 0 0'}},"No snapshots yet. Snapshots are saved automatically each stitching day, or tap \u201cSave snapshot\u201d to create one now.")
   );
@@ -1070,15 +1070,15 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
         React.createElement('span', null, React.createElement('strong', null, 'Fastest: '), fastest.name + ' (' + fastest.stitchesPerHour.toLocaleString() + ' st/hr)')
       ),
       largest && React.createElement('div', {className:'comparison-insight-card'},
-        React.createElement('span', {className:'comparison-insight-icon'}, '\uD83D\uDCCF'),
+        React.createElement('span', {className:'comparison-insight-icon'}, Icons.clipboard()),
         React.createElement('span', null, React.createElement('strong', null, 'Largest: '), largest.name + ' (' + (largest.totalStitches||0).toLocaleString() + ' stitches)')
       ),
       closestToDone && React.createElement('div', {className:'comparison-insight-card'},
-        React.createElement('span', {className:'comparison-insight-icon'}, '\u23F3'),
+        React.createElement('span', {className:'comparison-insight-icon'}, Icons.hourglass()),
         React.createElement('span', null, React.createElement('strong', null, 'Closest to done: '), closestToDone.name + ' (' + ((closestToDone.totalStitches||0) - (closestToDone.completedStitches||0)).toLocaleString() + ' remaining)')
       ),
       mostNeglected && React.createElement('div', {className:'comparison-insight-card'},
-        React.createElement('span', {className:'comparison-insight-icon'}, '\uD83D\uDCA4'),
+        React.createElement('span', {className:'comparison-insight-icon'}, Icons.sleep()),
         React.createElement('span', null, React.createElement('strong', null, 'Most neglected: '), mostNeglected.name + ' (last worked ' + relativeDate(mostNeglected.updatedAt).toLowerCase() + ')')
       )
     )
@@ -1144,18 +1144,18 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
 
   return React.createElement("div", {className:"stats-dashboard"},
     React.createElement("div", {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, gap:8, flexWrap:'wrap'}},
-      React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'#1e293b', margin:0}}, "\uD83D\uDCCA Stats"),
+      React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'#1e293b', margin:0, display:'flex', alignItems:'center', gap:'8px'}}, Icons.barChart(), "Stats"),
       React.createElement("div", {style:{display:'flex', gap:8, flexWrap:'wrap'}},
-        hasMultiProjects && React.createElement("button", {onClick:function(){setShowComparison(true);}, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #99f6e4', background:'#f0fdfa', cursor:'pointer', color:'#0d9488', fontWeight:600}}, "\uD83D\uDCC8 Compare projects"),
+        hasMultiProjects && React.createElement("button", {onClick:function(){setShowComparison(true);}, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #99f6e4', background:'#f0fdfa', cursor:'pointer', color:'#0d9488', fontWeight:600, display:'flex', alignItems:'center', gap:'6px'}}, Icons.barChart(), "Compare projects"),
         React.createElement("button", {onClick:onClose, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #e2e8f0', background:'#f8f9fa', cursor:'pointer', color:'#475569'}}, "\u2190 Back to grid")
       )
     ),
     React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches}),
     React.createElement("div", {className:"stats-export-bar"},
-      React.createElement("button", {className:"stats-export-btn stats-export-btn--share", onClick:handleShare},
-        copied ? '\u2705 Copied!' : '\uD83D\uDCCB Copy progress summary'),
-      React.createElement("button", {className:"stats-export-btn", onClick:handleCSV},
-        '\uD83D\uDCC4 Export sessions (CSV)')
+      React.createElement("button", {className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}},
+        copied ? [Icons.check(), ' Copied!'] : [Icons.clipboard(), ' Copy progress summary']),
+      React.createElement("button", {className:"stats-export-btn", onClick:handleCSV, style:{display:'flex', alignItems:'center', gap:'6px'}},
+        Icons.document(), ' Export sessions (CSV)')
     ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(StatsChartSection, {statsSessions:statsSessions, statsSettings:statsSettings, totalStitches:totalStitches, chartView:chartView, setChartView:setChartView})
@@ -1290,8 +1290,9 @@ function WeekMetric({label, value, delta, isDays}) {
 }
 
 function InsightIcon({type}) {
-  var map = {star: '\u2605', bolt: '\u26A1', clock: '\u23F0', calendar: '\uD83D\uDCC5'};
-  return React.createElement('span', {style: {fontSize: 16}}, map[type] || '\u2736');
+  var iconMap = {star: Icons.star, bolt: Icons.bolt, clock: Icons.clock, calendar: Icons.calendar};
+  var icon = iconMap[type] ? iconMap[type]() : Icons.star();
+  return React.createElement('span', {style: {display: 'inline-flex', alignItems: 'center', fontSize: 16}}, icon);
 }
 
 function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSettings, onUpdateSettings}) {
@@ -1515,7 +1516,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
 
   return React.createElement('div', {className: 'stats-dashboard'},
     React.createElement('div', {style: {display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8, flexWrap: 'wrap'}},
-      React.createElement('h2', {style: {fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0}}, '\uD83D\uDCCA All projects'),
+      React.createElement('h2', {style: {fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px'}}, Icons.barChart(), 'All projects'),
       React.createElement('button', {onClick: onClose, style: {fontSize: 13, padding: '4px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '\u2190 Back to grid')
     ),
 
@@ -1530,7 +1531,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
 
     // Section 2: Streak
     allSessions.length > 0 && React.createElement('div', {className: 'gsd-streak'},
-      React.createElement('div', {className: 'gsd-streak-flame'}, '\uD83D\uDD25'),
+      React.createElement('div', {className: 'gsd-streak-flame'}, Icons.fire()),
       React.createElement('div', {className: 'gsd-streak-body'},
         React.createElement('div', {className: 'gsd-streak-num'}, globalStreak.current + ' day' + (globalStreak.current !== 1 ? 's' : '')),
         React.createElement('div', {className: 'gsd-streak-label'}, globalStreak.current > 0 ? 'Keep it going \u2014 stitch today!' : 'Start a new streak!')

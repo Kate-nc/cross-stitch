@@ -57,6 +57,10 @@ window.Icons = (function() {
     lock: function() {
       return svg(rc(3,11,18,11,2), p('M7 11V7a5 5 0 0 1 10 0v4'));
     },
+    // Open padlock — replaces 🔓
+    unlock: function() {
+      return svg(rc(3,11,18,11,2), p('M7 11V7a5 5 0 0 1 9.2 1'));
+    },
     // Hourglass — replaces ⏳
     hourglass: function() {
       return svg(
@@ -200,6 +204,47 @@ window.Icons = (function() {
         c(16,8,1.5,{fill:'currentColor',stroke:'none'}),
         c(12,12,1.5,{fill:'currentColor',stroke:'none'})
       );
+    },
+    // Bolt — replaces ⚡
+    bolt: function() {
+      return svg(p('M13 2L3 14h9l-1 8 10-12h-9l1-8z'));
+    },
+    // Clock — replaces 🕐
+    clock: function() {
+      return svg(c(12,12,10), l(12,7,12,12), l(12,12,15,15));
+    },
+    // Calendar — replaces 📅
+    calendar: function() {
+      return svg(rc(3,4,18,18,2), l(3,10,21,10), l(9,2,9,6), l(15,2,15,6));
+    },
+    // Camera — replaces 📷 (save snapshot)
+    camera: function() {
+      return svg(
+        p('M14 8l1-1h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h4l1 1'),
+        c(12,13,3)
+      );
+    },
+    // Sleep/Rest — replaces 💤 (rest indicator)
+    sleep: function() {
+      return svg(
+        p('M21 12a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1z'),
+        p('M16 12a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v3z'),
+        p('M11 12a1 1 0 0 1-1 1H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3z')
+      );
+    },
+    // Document — replaces 📄 (export/file)
+    document: function() {
+      return svg(
+        p('M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'),
+        pl('14 2 14 8 20 8'),
+        l(9,13,11,13),
+        l(9,17,11,17),
+        l(9,15,10,15)
+      );
+    },
+    // X / Close — replaces ❌ (error/delete)
+    x: function() {
+      return svg(p('M18 6L6 18M6 6l12 12'));
     }
   };
 })();

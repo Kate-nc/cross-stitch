@@ -449,6 +449,7 @@ function UnifiedApp(){
   const[mode,setMode]=React.useState(()=>{
     const p=new URLSearchParams(window.location.search);
     if(p.get('mode')==='track') return 'track';
+    if(p.get('mode')==='stats') return 'stats';
     return 'home';
   });
   const[creatorResetKey,setCreatorResetKey]=React.useState(0);
@@ -462,10 +463,10 @@ function UnifiedApp(){
 
   React.useEffect(()=>{
     if(trackerReady)return;
-    if(mode==='track'&&typeof window.loadTrackerApp==='function') window.loadTrackerApp();
+    if((mode==='track'||mode==='stats')&&typeof window.loadTrackerApp==='function') window.loadTrackerApp();
     const poll=setInterval(()=>{if(typeof window.TrackerApp!=='undefined'){setTrackerReady(true);clearInterval(poll);}},50);
     return()=>clearInterval(poll);
-  },[trackerReady]);
+  },[trackerReady, mode]);
 
   const switchToTrack=React.useCallback((incomingProject)=>{
     if(incomingProject) pendingTrackerProject.current=incomingProject;
@@ -478,6 +479,12 @@ function UnifiedApp(){
     window.history.replaceState({},'',window.location.pathname);
     setMode('design');
   },[]);
+  const switchToStats=React.useCallback(()=>{
+    if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
+    setTrackerMounted(true);
+    window.history.replaceState({},'','?mode=stats');
+    setMode('stats');
+  },[]);
   const goHome=React.useCallback(()=>{
     window.history.replaceState({},'',window.location.pathname);
     setHomeKey(k=>k+1);
@@ -487,9 +494,10 @@ function UnifiedApp(){
   React.useEffect(()=>{
     window.__switchToTrack=switchToTrack;
     window.__switchToDesign=switchToDesign;
+    window.__switchToStats=switchToStats;
     window.__goHome=goHome;
-    return()=>{delete window.__switchToTrack;delete window.__switchToDesign;delete window.__goHome;};
-  },[switchToTrack,switchToDesign,goHome]);
+    return()=>{delete window.__switchToTrack;delete window.__switchToDesign;delete window.__switchToStats;delete window.__goHome;};
+  },[switchToTrack,switchToDesign,switchToStats,goHome]);
 
   const handleHomeOpenCreatorWithImage=React.useCallback((file)=>{
     window.__pendingCreatorFile=file;
@@ -596,6 +604,10 @@ function UnifiedApp(){
         incomingProject={pendingTrackerProject.current}
       />}
     </div>
+    {mode==='stats'&&<div style={{position:'fixed',inset:0,background:'var(--surface)',zIndex:100,overflowY:'auto'}}>
+      <Header page="stats" tab="" onPageChange={()=>{}} setModal={()=>{}} />
+      <GlobalStatsDashboard onClose={goHome} />
+    </div>}
   </>;
 }
 

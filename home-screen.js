@@ -28,7 +28,7 @@ function getGreeting() {
   return 'Good evening';
 }
 
-function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, onImportPattern, onOpenProject, onNavigateToStash, onOpenGlobalStats }) {
+function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, onImportPattern, onOpenProject, onNavigateToStash }) {
   var h = React.createElement;
   var useState = React.useState;
   var useEffect = React.useEffect;
@@ -192,15 +192,6 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     h('h1', { className: 'home-greeting' },
       getGreeting() + ', stitcher ',
       h('span', { 'aria-hidden': 'true' }, Icons.star())
-    ),
-
-    // Stats top-bar button
-    projectCount > 0 && h('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: 12, marginTop: -8 } },
-      h('button', {
-        className: 'home-btn home-btn--secondary',
-        style: { fontSize: 12, padding: '5px 14px' },
-        onClick: function() { if (onOpenGlobalStats) onOpenGlobalStats(); }
-      }, '📊 Stats')
     ),
 
     // Stats row (hidden if empty state)
