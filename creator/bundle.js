@@ -1339,6 +1339,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
   var cs = ctx.cs;
   var previewShowGrid = ctx.previewShowGrid;
   var realisticLevel = ctx.realisticLevel;
+  var fabricCt = ctx.fabricCt;
 
   // ── Effect A: render the full offscreen realistic canvas ───────────────────
   // Re-runs when pattern data or rendering level changes.
@@ -1388,7 +1389,18 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
 
     // ── 3. Stitch tile cache and full pattern render ─────────────────────────
     var padding = CELL_SIZE * 0.08;
-    var sw = CELL_SIZE * 0.28; // strand width
+
+    // Derive strand count (SC) and thread width from fabric count.
+    // Coarser fabric → more strands in the needle and a fatter thread relative to
+    // the cell; finer fabric → fewer strands and a thinner thread.
+    var SC, swFactor;
+    var fc = fabricCt || 14;
+    if      (fc <= 11) { SC = 3; swFactor = 0.36; }
+    else if (fc <= 15) { SC = 2; swFactor = 0.28; }
+    else if (fc <= 17) { SC = 2; swFactor = 0.24; }
+    else               { SC = 1; swFactor = 0.17; }
+    var sw = CELL_SIZE * swFactor;
+
     var lvl = realisticLevel;
 
     function adjustBrightness(r, g, b, factor) {
@@ -1470,7 +1482,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
         // around the leg centre line, producing a helical rope appearance.
         // All DMC threads render as cotton (default) since dmc-data.js carries
         // no material field.  Material infrastructure is present for future use.
-        var SC = 2;              // strand count (2 for 14-count Aida, default)
+        // SC and sw are derived from fabricCt above and captured by closure.
         var SN = 20;             // sample points per strand path (smooth curve)
         var TF = 2.5;            // twist frequency — full twists per leg length
         var TA = sw * 0.3;       // twist amplitude — max perpendicular deviation
@@ -1547,7 +1559,9 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
         tc.beginPath(); tc.arc(lCX, lCY, sw * 0.75, 0, Math.PI * 2); tc.fill();
 
         // Top leg: TL→BR, angle = π/4, brightness 1.15 (faces the light source).
-        drawLeg3(x0, y0, x1, y1, Math.PI / 4, r2, g2, b2, r1, g1, b1, 1.15);
+        // Colour order is r1/r2 on both legs — the same thread is in the needle
+        // for both legs, so A/B strand interleaving must be consistent.
+        drawLeg3(x0, y0, x1, y1, Math.PI / 4, r1, g1, b1, r2, g2, b2, 1.15);
 
         // Cotton sheen highlight — thin semi-transparent white line along the
         // twisted path of the frontmost top-leg strand (12–15% opacity, matte).
@@ -1652,7 +1666,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
 
     offscreenRef.current = offscreen;
     setOffscreenVersion(function(v) { return v + 1; });
-  }, [pat, cmap, sW, sH, realisticLevel]);
+  }, [pat, cmap, sW, sH, realisticLevel, fabricCt]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────
   // Runs whenever the offscreen is rebuilt (offscreenVersion) or zoom changes.
