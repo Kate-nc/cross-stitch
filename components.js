@@ -104,8 +104,8 @@ function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettin
     var liveTodayMinutes = todayMinutes;
     if (currentAutoSession) {
       liveTodayStitches += ((currentAutoSession.stitchesCompleted||0) - (currentAutoSession.stitchesUndone||0));
-      var elapsed = Math.round((Date.now() - new Date(currentAutoSession.startTime).getTime()) / 60000);
-      liveTodayMinutes += elapsed;
+      var elapsed = Math.round((Date.now() - new Date(currentAutoSession.startTime).getTime() - (currentAutoSession.totalPausedMs||0)) / 60000);
+      liveTodayMinutes += Math.max(0, elapsed);
     }
     var streaks = computeStreaks(statsSessions || [], dayEndHour);
     return React.createElement("div", {className:"mini-stats-bar"},

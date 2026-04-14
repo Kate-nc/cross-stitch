@@ -328,7 +328,8 @@ function finaliseAutoSession(){
     clearTimeout(autoIdleTimerRef.current);
     setLiveAutoElapsed(0);
     setLiveAutoStitches(0);
-  }catch(e){console.warn('Stats: finaliseAutoSession error',e);currentAutoSessionRef.current=null;}
+    return finalised;
+  }catch(e){console.warn('Stats: finaliseAutoSession error',e);currentAutoSessionRef.current=null;return null;}
 }
 finaliseAutoSessionRef.current=finaliseAutoSession;
 
@@ -407,26 +408,6 @@ useEffect(()=>{
     prevAutoCountRef.current={done:curDone,halfDone:curHalf};
   }catch(e){console.warn('Stats: auto-detect effect error',e);}
 },[doneCount,halfStitchCounts.done]);
-// Finalise auto-session before page unload
-useEffect(()=>{
-  const handleUnload=()=>{
-    try{
-      const finalisedSession=finaliseAutoSessionRef.current?finaliseAutoSessionRef.current():null;
-      if(finalisedSession&&lastSnapshotRef.current){
-        const snapshot=lastSnapshotRef.current||{};
-        const existingSessions=Array.isArray(snapshot.statsSessions)?snapshot.statsSessions:[];
-        const hasSession=existingSessions.some(s=>s&&finalisedSession&&s.id===finalisedSession.id);
-        const nextSnapshot=hasSession?snapshot:Object.assign({},snapshot,{statsSessions:[...existingSessions,finalisedSession]});
-        lastSnapshotRef.current=nextSnapshot;
-        try{
-          if(typeof ProjectStorage!=='undefined'&&ProjectStorage&&typeof ProjectStorage.save==='function')ProjectStorage.save(nextSnapshot).catch(function(e){console.warn('Stats: beforeunload save error',e);});
-        }catch(saveErr){console.warn('Stats: beforeunload save error',saveErr);}
-      }
-    }catch(e){console.warn('Stats: beforeunload error',e);}
-  };
-  window.addEventListener('beforeunload',handleUnload);
-  return()=>window.removeEventListener('beforeunload',handleUnload);
-},[]);
 // Edit session note
 function editSessionNote(sessionId,noteText){
   try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){console.warn('Stats: editSessionNote error',e);}
@@ -1571,6 +1552,7 @@ useEffect(() => {
 // from dragChangesRef before saving.
 useEffect(() => {
   const handleBeforeUnload = () => {
+    try {
     const project = lastSnapshotRef.current;
     if (!project) return;
     let projectToSave = project;
@@ -1582,15 +1564,29 @@ useEffect(() => {
         for (const {idx} of dragChangesRef.current) freshDone[idx] = dVal;
       }
       projectToSave = { ...project, done: freshDone, updatedAt: new Date().toISOString() };
-      lastSnapshotRef.current = projectToSave;
       dragChangesRef.current = [];
       dragStateRef.current.isDragging = false;
     }
+    // Finalise any active auto-session and merge into the snapshot
+    const finalisedSession = finaliseAutoSessionRef.current ? finaliseAutoSessionRef.current() : null;
+    if (finalisedSession) {
+      const existingSessions = Array.isArray(projectToSave.statsSessions) ? projectToSave.statsSessions : [];
+      const hasSession = existingSessions.some(s => s && s.id === finalisedSession.id);
+      if (!hasSession) {
+        projectToSave = {
+          ...projectToSave,
+          statsSessions: [...existingSessions, finalisedSession],
+          updatedAt: new Date().toISOString()
+        };
+      }
+    }
+    lastSnapshotRef.current = projectToSave;
     ProjectStorage.save(projectToSave)
       .then(id => ProjectStorage.setActiveProject(id))
       .catch(err => console.error("Tracker unload auto-save failed:", err));
     saveProjectToDB(projectToSave)
       .catch(err => console.error("Tracker DB unload auto-save failed:", err));
+    } catch(e) { console.warn('beforeunload save error', e); }
   };
   window.addEventListener("beforeunload", handleBeforeUnload);
   return () => window.removeEventListener("beforeunload", handleBeforeUnload);
