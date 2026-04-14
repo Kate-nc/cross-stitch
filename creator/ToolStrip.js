@@ -497,7 +497,61 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         onClick:function(){ctx.setRealisticLevel(4); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===4), " Detailed \u2014 Blend (3a)")
+      }, radioBtn(ctx.realisticLevel===4), " Detailed \u2014 Blend (3a)"),
+      h("div", {className:"tb-ovf-sep"}),
+      h("span", {className:"tb-ovf-lbl"}, "Thread coverage"),
+      // Coverage slider + auto/manual indicator
+      (function() {
+        var sFc = ctx.fabricCt || 14;
+        var sSC = sFc <= 11 ? 3 : sFc <= 17 ? 2 : 1;
+        var sAutoCov = Math.min(1, Math.max(0, Math.min(1, Math.max(0, (sFc - 8) / 24)) * (sSC / 2)));
+        var isManual = ctx.coverageOverride !== null && ctx.coverageOverride !== undefined;
+        var dispCov = isManual ? ctx.coverageOverride : sAutoCov;
+        var dispPct = Math.round(dispCov * 100);
+        return h("div", {style:{padding:"4px 14px 6px"}},
+          h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+            h("input", {
+              type:"range", min:0, max:100, step:1,
+              value: dispPct,
+              disabled: !isRealistic,
+              onChange: function(e) {
+                ctx.setCoverageOverride(parseInt(e.target.value) / 100);
+              },
+              style:{flex:1, accentColor:"var(--accent)", opacity:isRealistic?1:0.4}
+            }),
+            h("span", {style:{width:32,textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums",flexShrink:0}}, dispPct + "%")
+          ),
+          h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+            h("span", {style:{fontSize:10,color:isManual?"#ea580c":"var(--text-tertiary)",fontWeight:isManual?600:400}},
+              isManual ? "Manual" : "Auto (" + sFc + "-count, " + sSC + " strand" + (sSC!==1?"s":"") + ")"
+            ),
+            isManual && h("button", {
+              onClick: function(e) { e.stopPropagation(); ctx.setCoverageOverride(null); },
+              title: "Reset to auto",
+              style:{marginLeft:"auto",fontSize:10,padding:"2px 6px",border:"1px solid #fed7aa",borderRadius:4,
+                     background:"#fff7ed",color:"#c2410c",cursor:"pointer", lineHeight:1.2}
+            }, "\u21BA Auto"),
+            !isManual && h("span", {style:{marginLeft:"auto",fontSize:10,color:"#94a3b8"}},
+              Math.round(sAutoCov * 100) + "%"
+            )
+          ),
+          // Quick presets
+          h("div", {style:{display:"flex",gap:3,marginTop:5}},
+            [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
+              var active = isManual && Math.abs(ctx.coverageOverride - preset[1]) < 0.03;
+              return h("button", {
+                key: preset[0],
+                disabled: !isRealistic,
+                onClick: function(e) { e.stopPropagation(); ctx.setCoverageOverride(preset[1]); },
+                style:{flex:1,fontSize:9,padding:"3px 0",border:"1px solid "+(active?"var(--accent)":"#cbd5e1"),
+                       borderRadius:4,background:active?"var(--accent)":"transparent",
+                       color:active?"#fff":"var(--text-secondary)",cursor:isRealistic?"pointer":"default",
+                       opacity:isRealistic?1:0.4}
+              }, preset[0]);
+            })
+          )
+        );
+      })()
     )
   );
 

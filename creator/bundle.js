@@ -1358,6 +1358,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
   var previewShowGrid = ctx.previewShowGrid;
   var realisticLevel = ctx.realisticLevel;
   var fabricCt = ctx.fabricCt;
+  var coverageOverride = ctx.coverageOverride;
 
   // ── Effect A: render the full offscreen realistic canvas ───────────────────
   // Re-runs when pattern data or rendering level changes.
@@ -1410,18 +1411,32 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
     }
 
     // ── 3. Stitch tile cache and full pattern render ─────────────────────────
-    var padding = CELL_SIZE * 0.08;
 
-    // Derive strand count (SC) and thread width from fabric count.
-    // Coarser fabric → more strands in the needle and a fatter thread relative to
-    // the cell; finer fabric → fewer strands and a thinner thread.
-    var SC, swFactor;
+    // Derive strand count (SC) from fabric count.
+    // Coarser fabric → more strands in the needle.
+    var SC;
     var fc = fabricCt || 14;
-    if      (fc <= 11) { SC = 3; swFactor = 0.36; }
-    else if (fc <= 15) { SC = 2; swFactor = 0.28; }
-    else if (fc <= 17) { SC = 2; swFactor = 0.24; }
-    else               { SC = 1; swFactor = 0.17; }
-    var sw = CELL_SIZE * swFactor;
+    if      (fc <= 11) { SC = 3; }
+    else if (fc <= 17) { SC = 2; }
+    else               { SC = 1; }
+
+    // Coverage: 0.0 = thin strands (lots of fabric visible); 1.0 = thick strands (minimal fabric).
+    // Auto-calculated from fabric count and strand count; overridden by the manual slider.
+    function _lerp(a, b, t) { return a + (b - a) * t; }
+    function _clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+    var autoCoverage = _clamp01(_clamp01((fc - 8) / 24) * (SC / 2));
+    // Quantise to nearest 0.05 so the tile cache has at most 21 distinct coverage values.
+    var rawCov = (coverageOverride !== null && coverageOverride !== undefined) ? coverageOverride : autoCoverage;
+    var coverage = _clamp01(Math.round(rawCov / 0.05) * 0.05);
+
+    // Strand bundle width and cell padding derived from coverage.
+    var sw = Math.max(CELL_SIZE * 0.12, CELL_SIZE * _lerp(0.14, 0.32, coverage));
+    var padding = Math.max(1, CELL_SIZE * _lerp(0.14, 0.03, coverage));
+
+    // Level 3: halo and twist-amplitude scale with coverage.
+    var haloWidthMult = _lerp(1.1, 1.5, coverage);
+    var haloOpacity   = _lerp(0.06, 0.18, coverage);
+    var twistAmpMult  = _lerp(1.0, 0.7, coverage);
 
     var lvl = realisticLevel;
 
@@ -1502,7 +1517,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
         //           than optical blends.  Non-blend stitches are identical to Lvl 3.
         var SN = 20;             // sample points per strand path (smooth curve)
         var TF = 2.5;            // twist frequency — full twists per leg length
-        var TA = sw * 0.3;       // twist amplitude — max perpendicular deviation
+        var TA = sw * 0.3 * twistAmpMult;  // twist amplitude reduced at high coverage to prevent overlap
         var ISW = sw / SC * 1.2; // individual strand width (overlap factor 1.2)
         var IS_BLEND = !(r1 === r2 && g1 === g2 && b1 === b2);
         var lCX = CELL_SIZE / 2, lCY = CELL_SIZE / 2;
@@ -1530,11 +1545,12 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
         }
 
         // Draw one strand: soft halo pass (fibre fuzz) then solid core.
+        // Halo width and opacity scale with coverage (denser stitching = wider, more visible halo).
         function drawStrand3(pts, fR, fG, fBlu) {
           tc.beginPath(); tc.moveTo(pts[0], pts[1]);
           for (var k = 2; k < pts.length; k += 2) tc.lineTo(pts[k], pts[k + 1]);
-          tc.lineWidth = ISW * 1.4;
-          tc.strokeStyle = "rgba(" + fR + "," + fG + "," + fBlu + ",0.12)";
+          tc.lineWidth = ISW * haloWidthMult;
+          tc.strokeStyle = "rgba(" + fR + "," + fG + "," + fBlu + "," + haloOpacity + ")";
           tc.stroke();
           tc.beginPath(); tc.moveTo(pts[0], pts[1]);
           for (var k = 2; k < pts.length; k += 2) tc.lineTo(pts[k], pts[k + 1]);
@@ -1662,7 +1678,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
       var r2 = rgb2 ? rgb2[0] : r1;
       var g2 = rgb2 ? rgb2[1] : g1;
       var b2 = rgb2 ? rgb2[2] : b1;
-      var key = r1 + "," + g1 + "," + b1 + "|" + r2 + "," + g2 + "," + b2;
+      var key = r1 + "," + g1 + "," + b1 + "|" + r2 + "," + g2 + "," + b2 + "|cov:" + coverage;
       if (lvl === 3 || lvl === 4) key += ":" + (variant | 0);
       if (tileCache[key]) return tileCache[key];
       var tileC = document.createElement("canvas");
@@ -1743,7 +1759,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
 
     offscreenRef.current = offscreen;
     setOffscreenVersion(function(v) { return v + 1; });
-  }, [pat, cmap, sW, sH, realisticLevel, fabricCt]);
+  }, [pat, cmap, sW, sH, realisticLevel, fabricCt, coverageOverride]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────
   // Runs whenever the offscreen is rebuilt (offscreenVersion) or zoom changes.
@@ -1796,8 +1812,19 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
       className: "preview-canvas preview-canvas--realistic"
     }),
     h("div", {className: "preview-status-bar"},
-      sW + " \xD7 " + sH + " stitches \xB7 " + colCount + " colour" + (colCount !== 1 ? "s" : "") +
-      " \xB7 " + (realisticLevel === 4 ? "Detailed (3a)" : realisticLevel === 3 ? "Detailed" : realisticLevel === 2 ? "Shaded" : "Flat")
+      (function() {
+        var sFc = fabricCt || 14;
+        var sSC = sFc <= 11 ? 3 : sFc <= 17 ? 2 : 1;
+        var sAutoCov = Math.min(1, Math.max(0, Math.min(1, Math.max(0, (sFc - 8) / 24)) * (sSC / 2)));
+        var sCov = coverageOverride !== null && coverageOverride !== undefined ? coverageOverride : sAutoCov;
+        var sCovPct = Math.round(sCov * 100);
+        var covLabel = (coverageOverride !== null && coverageOverride !== undefined) ? "manual" : "auto";
+        var lvlLabel = realisticLevel === 4 ? "Detailed (3a)" : realisticLevel === 3 ? "Detailed" : realisticLevel === 2 ? "Shaded" : "Flat";
+        return sW + " \xD7 " + sH + " \xB7 " + colCount + " colour" + (colCount !== 1 ? "s" : "") +
+               " \xB7 " + sFc + "-count, " + sSC + " strand" + (sSC !== 1 ? "s" : "") +
+               " \xB7 Coverage " + sCovPct + "% (" + covLabel + ")" +
+               " \xB7 " + lvlLabel;
+      })()
     )
   );
 };
@@ -3438,6 +3465,8 @@ window.useCreatorState = function useCreatorState() {
   var _prevFabric = useState(false);     var previewFabricBg = _prevFabric[0], setPreviewFabricBg = _prevFabric[1];
   var _prevMode   = useState("pixel");   var previewMode = _prevMode[0], setPreviewMode = _prevMode[1];
   var _rlvl       = useState(2);         var realisticLevel = _rlvl[0], setRealisticLevel = _rlvl[1];
+  // null = auto (derived from fabricCt + strand count); float 0–1 = manual override
+  var _covOvr     = useState(null);      var coverageOverride = _covOvr[0], setCoverageOverride = _covOvr[1];
 
   // Section open states
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
@@ -4266,7 +4295,7 @@ window.useCreatorState = function useCreatorState() {
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
     previewActive, setPreviewActive, previewShowGrid, setPreviewShowGrid, previewFabricBg, setPreviewFabricBg,
-    previewMode, setPreviewMode, realisticLevel, setRealisticLevel,
+    previewMode, setPreviewMode, realisticLevel, setRealisticLevel, coverageOverride, setCoverageOverride,
     bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,
     bgDimDesaturation, setBgDimDesaturation, dimFraction, dimHiId,
     highlightMode, setHighlightMode,
@@ -6809,7 +6838,61 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         onClick:function(){ctx.setRealisticLevel(4); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===4), " Detailed \u2014 Blend (3a)")
+      }, radioBtn(ctx.realisticLevel===4), " Detailed \u2014 Blend (3a)"),
+      h("div", {className:"tb-ovf-sep"}),
+      h("span", {className:"tb-ovf-lbl"}, "Thread coverage"),
+      // Coverage slider + auto/manual indicator
+      (function() {
+        var sFc = ctx.fabricCt || 14;
+        var sSC = sFc <= 11 ? 3 : sFc <= 17 ? 2 : 1;
+        var sAutoCov = Math.min(1, Math.max(0, Math.min(1, Math.max(0, (sFc - 8) / 24)) * (sSC / 2)));
+        var isManual = ctx.coverageOverride !== null && ctx.coverageOverride !== undefined;
+        var dispCov = isManual ? ctx.coverageOverride : sAutoCov;
+        var dispPct = Math.round(dispCov * 100);
+        return h("div", {style:{padding:"4px 14px 6px"}},
+          h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+            h("input", {
+              type:"range", min:0, max:100, step:1,
+              value: dispPct,
+              disabled: !isRealistic,
+              onChange: function(e) {
+                ctx.setCoverageOverride(parseInt(e.target.value) / 100);
+              },
+              style:{flex:1, accentColor:"var(--accent)", opacity:isRealistic?1:0.4}
+            }),
+            h("span", {style:{width:32,textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums",flexShrink:0}}, dispPct + "%")
+          ),
+          h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+            h("span", {style:{fontSize:10,color:isManual?"#ea580c":"var(--text-tertiary)",fontWeight:isManual?600:400}},
+              isManual ? "Manual" : "Auto (" + sFc + "-count, " + sSC + " strand" + (sSC!==1?"s":"") + ")"
+            ),
+            isManual && h("button", {
+              onClick: function(e) { e.stopPropagation(); ctx.setCoverageOverride(null); },
+              title: "Reset to auto",
+              style:{marginLeft:"auto",fontSize:10,padding:"2px 6px",border:"1px solid #fed7aa",borderRadius:4,
+                     background:"#fff7ed",color:"#c2410c",cursor:"pointer", lineHeight:1.2}
+            }, "\u21BA Auto"),
+            !isManual && h("span", {style:{marginLeft:"auto",fontSize:10,color:"#94a3b8"}},
+              Math.round(sAutoCov * 100) + "%"
+            )
+          ),
+          // Quick presets
+          h("div", {style:{display:"flex",gap:3,marginTop:5}},
+            [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
+              var active = isManual && Math.abs(ctx.coverageOverride - preset[1]) < 0.03;
+              return h("button", {
+                key: preset[0],
+                disabled: !isRealistic,
+                onClick: function(e) { e.stopPropagation(); ctx.setCoverageOverride(preset[1]); },
+                style:{flex:1,fontSize:9,padding:"3px 0",border:"1px solid "+(active?"var(--accent)":"#cbd5e1"),
+                       borderRadius:4,background:active?"var(--accent)":"transparent",
+                       color:active?"#fff":"var(--text-secondary)",cursor:isRealistic?"pointer":"default",
+                       opacity:isRealistic?1:0.4}
+              }, preset[0]);
+            })
+          )
+        );
+      })()
     )
   );
 
