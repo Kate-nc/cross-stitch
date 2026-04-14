@@ -48,7 +48,6 @@ const lastPauseTimeRef = useRef(null);
 
 const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
 useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
-useEffect(()=>{if(stitchMode!=="track"||halfStitchTool){setRangeModeActive(false);setRangeAnchor(null);}},[stitchMode,halfStitchTool]);
 const[isEditMode,setIsEditMode]=useState(false);
 const[originalPaletteState,setOriginalPaletteState]=useState(null);
 // V2: single-level undo snapshot (replaces editHistory array)
@@ -90,6 +89,7 @@ const[halfStitches,setHalfStitches]=useState(new Map());
 // Sparse map: cellIdx → { fwd?: 0|1, bck?: 0|1 }
 const[halfDone,setHalfDone]=useState(new Map());
 const[halfStitchTool,setHalfStitchTool]=useState(null); // null, "fwd", "bck", "erase"
+useEffect(()=>{if(stitchMode!=="track"||halfStitchTool){setRangeModeActive(false);setRangeAnchor(null);}},[stitchMode,halfStitchTool]);
 const[halfStitchTooltipDismissed,setHalfStitchTooltipDismissed]=useState(false);
 const[halfOnboardingDone,setHalfOnboardingDone]=useState(false);
 const[halfOnboardingStep,setHalfOnboardingStep]=useState(0);
