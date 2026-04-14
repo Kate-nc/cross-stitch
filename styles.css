@@ -1810,6 +1810,15 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .daily-goal-fill--done{background:#16a34a;animation:goalPulse 0.6s ease-out;}
 .daily-goal-fill--behind{background:#f59e0b;}
 @keyframes goalPulse{0%{filter:brightness(1.4);}100%{filter:brightness(1);}}
+/* ═══ Mini-goal bar (unified daily/weekly/monthly) ═══ */
+.mini-goal{display:flex;align-items:center;gap:8px;padding:3px 14px 5px;cursor:pointer;background:var(--surface-secondary);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;margin-bottom:2px;}
+.mini-goal:hover{background:var(--surface-tertiary);}
+.mini-goal-label{font-size:11px;font-weight:600;color:#0d9488;white-space:nowrap;flex-shrink:0;}
+.mini-goal-count{font-size:11px;font-weight:600;color:#1e293b;font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0;}
+.mini-goal-track{flex:1;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;min-width:40px;}
+.mini-goal-fill{height:100%;background:#0d9488;border-radius:2px;transition:width 0.3s;}
+.mini-goal-fill--done{height:100%;background:#16a34a;border-radius:2px;animation:goalPulse 0.6s ease-out;}
+.goal-pace-context{font-size:11px;color:#94a3b8;margin-top:6px;font-variant-numeric:tabular-nums;}
 /* ═══ Session onboarding toast ═══ */
 .session-onboarding-toast{display:flex;align-items:center;gap:10px;padding:8px 16px;background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:12px;color:#1e40af;}
 .session-onboarding-toast button{margin-left:auto;flex-shrink:0;font-size:11px;font-weight:600;padding:3px 12px;border-radius:6px;border:1px solid #93c5fd;background:#fff;color:#1d4ed8;cursor:pointer;}

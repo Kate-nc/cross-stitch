@@ -116,6 +116,22 @@ function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettin
       return dayFraction > 0 && liveTodayStitches < Math.floor(dailyGoal * dayFraction);
     })();
     var isStreakRecord = streaks.current > 0 && streaks.current >= streaks.longest;
+    var weeklyGoal = statsSettings && statsSettings.weeklyGoal;
+    var monthlyGoal = statsSettings && statsSettings.monthlyGoal;
+    var liveExtra = currentAutoSession ? ((currentAutoSession.stitchesCompleted||0) - (currentAutoSession.stitchesUndone||0)) : 0;
+    var activeGoal = null;
+    if (dailyGoal > 0) {
+      var gPct = liveTodayStitches / dailyGoal * 100;
+      activeGoal = {label: 'Today', current: liveTodayStitches, target: dailyGoal, pct: gPct, met: liveTodayStitches >= dailyGoal};
+    } else if (weeklyGoal > 0) {
+      var weekSt = getStatsThisWeekStitches(statsSessions || [], dayEndHour) + liveExtra;
+      var gPct = weekSt / weeklyGoal * 100;
+      activeGoal = {label: 'This week', current: weekSt, target: weeklyGoal, pct: gPct, met: weekSt >= weeklyGoal};
+    } else if (monthlyGoal > 0) {
+      var monthSt = getStatsThisMonthStitches(statsSessions || [], dayEndHour) + liveExtra;
+      var gPct = monthSt / monthlyGoal * 100;
+      activeGoal = {label: 'This month', current: monthSt, target: monthlyGoal, pct: gPct, met: monthSt >= monthlyGoal};
+    }
     var statsBar = React.createElement("div", {className:"mini-stats-bar"},
       React.createElement(ProgressRing, {percent:percent, size:36}),
       React.createElement("div", {className:"mini-stats-text"},
@@ -126,19 +142,16 @@ function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettin
       ),
       streaks.current > 0 && React.createElement("span", {className:"mini-streak" + (isStreakRecord ? " mini-streak--record" : "")},
         "\uD83D\uDD25 " + streaks.current + " day" + (streaks.current !== 1 ? "s" : "")),
-      !dailyGoal && React.createElement("button", {className:"mini-stats-btn", onClick:onOpenStats}, "Stats"),
-      dailyGoal && React.createElement("button", {className:"mini-stats-btn", onClick:onOpenStats}, "Stats")
+      React.createElement("button", {className:"mini-stats-btn", onClick:onOpenStats}, "Stats")
     );
-    if (!dailyGoal) return statsBar;
+    if (!activeGoal) return statsBar;
     return React.createElement("div", {className:"mini-stats-wrapper"},
       statsBar,
-      React.createElement("div", {className:"daily-goal-bar", onClick:onOpenStats},
-        React.createElement("span", {className:"daily-goal-text"},
-          "Today: " + liveTodayStitches + " / " + dailyGoal + (goalMet ? " \u2713" : "")
-        ),
-        React.createElement("div", {className:"daily-goal-track"},
-          React.createElement("div", {className:"daily-goal-fill" + (goalMet ? " daily-goal-fill--done" : goalBehind ? " daily-goal-fill--behind" : ""),
-            style:{width:goalPct+"%"}})
+      React.createElement("div", {className:"mini-goal", onClick:onOpenStats},
+        React.createElement("span", {className:"mini-goal-label"}, activeGoal.label + ":"),
+        React.createElement("span", {className:"mini-goal-count"}, activeGoal.current.toLocaleString() + " / " + activeGoal.target.toLocaleString() + (activeGoal.met ? " \u2713" : "")),
+        React.createElement("div", {className:"mini-goal-track"},
+          React.createElement("div", {className:"mini-goal-fill" + (activeGoal.met ? " mini-goal-fill--done" : ""), style:{width:Math.min(100,activeGoal.pct)+'%'}})
         )
       )
     );
@@ -560,26 +573,68 @@ function TargetDateSetting({currentTarget, remaining, avgPerDay, onSet}){
 
 function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitches, overviewStats, onUpdateSettings}){
   var dailyGoal = statsSettings && statsSettings.dailyGoal;
+  var weeklyGoal = statsSettings && statsSettings.weeklyGoal;
+  var monthlyGoal = statsSettings && statsSettings.monthlyGoal;
   var targetDate = statsSettings && statsSettings.targetDate;
   var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
+  var useActiveDays = statsSettings && statsSettings.useActiveDays !== false;
   var todayStitches = getStatsTodayStitches(statsSessions || [], dayEndHour);
+  var weekStitches = getStatsThisWeekStitches(statsSessions || [], dayEndHour);
+  var monthStitches = getStatsThisMonthStitches(statsSessions || [], dayEndHour);
   var remaining = totalStitches - totalCompleted;
   var requiredPace = targetDate ? getRequiredPace(remaining, targetDate) : null;
   var avgPerDay = overviewStats ? overviewStats.avgPerDay : 0;
+  var activeDays = overviewStats ? overviewStats.activeDays : 0;
+  var elapsedDays = overviewStats ? overviewStats.elapsedDays : 0;
+
+  function goalRow(label, current, goal){
+    var pct = Math.min(100, goal > 0 ? (current / goal) * 100 : 0);
+    var met = current >= goal;
+    return React.createElement("div", {className:"goal-progress"},
+      React.createElement("div", {className:"goal-row"},
+        React.createElement("span", {className:"goal-row-label"}, label),
+        React.createElement("span", {className:"goal-row-value" + (met ? ' met' : ' pending')},
+          current.toLocaleString() + " / " + goal.toLocaleString() + (met ? ' \u2713' : ''))
+      ),
+      React.createElement("div", {className:"goal-bar-container"},
+        React.createElement("div", {className:"goal-bar-fill", style:{width:pct+'%'}})
+      )
+    );
+  }
 
   return React.createElement("div", {className:"goal-tracker-panel"},
     React.createElement("h3", {className:"stats-section-title"}, "Goals"),
     React.createElement(DailyGoalSetting, {currentGoal:dailyGoal, avgPerDay:avgPerDay, remaining:remaining,
       onSet:function(v){ onUpdateSettings(Object.assign({}, statsSettings, {dailyGoal:v})); }}),
-    dailyGoal && React.createElement("div", {className:"goal-progress"},
-      React.createElement("div", {className:"goal-row"},
-        React.createElement("span", {className:"goal-row-label"}, "Today so far"),
-        React.createElement("span", {className:"goal-row-value" + (todayStitches >= dailyGoal ? ' met' : ' pending')},
-          todayStitches + " / " + dailyGoal)
-      ),
-      React.createElement("div", {className:"goal-bar-container"},
-        React.createElement("div", {className:"goal-bar-fill", style:{width:Math.min(100, (todayStitches / dailyGoal) * 100) + '%'}})
-      )
+    dailyGoal && goalRow("Today so far", todayStitches, dailyGoal),
+    React.createElement("div", {style:{marginTop:12}}),
+    React.createElement("label", {className:"goal-label"}, "Weekly stitch goal"),
+    React.createElement("div", {className:"goal-input-row"},
+      React.createElement("input", {type:"number", min:"0", max:"99999", step:"100",
+        className:"goal-input", placeholder:"e.g. 500",
+        defaultValue: weeklyGoal != null ? String(weeklyGoal) : '',
+        key: String(weeklyGoal),
+        onBlur:function(e){ var v=parseInt(e.target.value); onUpdateSettings(Object.assign({},statsSettings,{weeklyGoal:v>0?v:null})); }}),
+      React.createElement("button", {className:"goal-set-btn", onClick:function(){ onUpdateSettings(Object.assign({},statsSettings,{weeklyGoal:null})); }}, "Clear")
+    ),
+    weeklyGoal && goalRow("This week so far", weekStitches, weeklyGoal),
+    React.createElement("div", {style:{marginTop:12}}),
+    React.createElement("label", {className:"goal-label"}, "Monthly stitch goal"),
+    React.createElement("div", {className:"goal-input-row"},
+      React.createElement("input", {type:"number", min:"0", max:"999999", step:"100",
+        className:"goal-input", placeholder:"e.g. 3000",
+        defaultValue: monthlyGoal != null ? String(monthlyGoal) : '',
+        key: String(monthlyGoal),
+        onBlur:function(e){ var v=parseInt(e.target.value); onUpdateSettings(Object.assign({},statsSettings,{monthlyGoal:v>0?v:null})); }}),
+      React.createElement("button", {className:"goal-set-btn", onClick:function(){ onUpdateSettings(Object.assign({},statsSettings,{monthlyGoal:null})); }}, "Clear")
+    ),
+    monthlyGoal && goalRow("This month so far", monthStitches, monthlyGoal),
+    activeDays > 0 && React.createElement("div", {className:"goal-pace-context"},
+      "Avg pace: " + avgPerDay + "/day (" +
+      (useActiveDays
+        ? activeDays + " active day" + (activeDays !== 1 ? "s" : "")
+        : "over " + elapsedDays + " day" + (elapsedDays !== 1 ? "s" : "")) +
+      (useActiveDays && elapsedDays > activeDays ? " of " + elapsedDays + " elapsed" : "") + ")"
     ),
     React.createElement("div", {style:{marginTop:16}}),
     React.createElement(TargetDateSetting, {currentTarget:targetDate, remaining:remaining, avgPerDay:avgPerDay,
@@ -699,7 +754,8 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
   var copiedSt = React.useState(false);
   var copied = copiedSt[0], setCopied = copiedSt[1];
   try {
-  var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches);
+  var useActiveDays = statsSettings && statsSettings.useActiveDays !== false;
+  var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches, useActiveDays);
   var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.avgPerDay);
   var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
 
@@ -788,7 +844,18 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
           React.createElement("option", {value:'300'}, "5 min")
         )
       ),
-      React.createElement("p", {style:{fontSize:11, color:'#94a3b8', margin:'4px 0 0'}}, "Pauses the session timer if no stitch is marked for this long")
+      React.createElement("p", {style:{fontSize:11, color:'#94a3b8', margin:'4px 0 0'}}, "Pauses the session timer if no stitch is marked for this long"),
+      React.createElement("div", {style:{height:10}}),
+      React.createElement("div", {style:{fontSize:13, color:'#475569', marginBottom:4}}, "Pace calculation:"),
+      React.createElement("label", {style:{display:'flex', alignItems:'center', gap:6, fontSize:13, color:'#475569', cursor:'pointer', marginBottom:4}},
+        React.createElement("input", {type:'radio', name:'useActiveDays', checked:useActiveDays, onChange:function(){ onUpdateSettings(Object.assign({}, statsSettings, {useActiveDays:true})); }}),
+        "Active days only (stitching days)"
+      ),
+      React.createElement("label", {style:{display:'flex', alignItems:'center', gap:6, fontSize:13, color:'#475569', cursor:'pointer'}},
+        React.createElement("input", {type:'radio', name:'useActiveDays', checked:!useActiveDays, onChange:function(){ onUpdateSettings(Object.assign({}, statsSettings, {useActiveDays:false})); }}),
+        "Calendar days (days since first stitch)"
+      ),
+      React.createElement("p", {style:{fontSize:11, color:'#94a3b8', margin:'4px 0 0'}}, "Affects average stitches/day calculation")
     )
   );
   } catch(e) { console.warn('Stats: StatsDashboard render error', e); return React.createElement("p", {style:{color:'#dc2626',fontSize:13}}, "Stats error \u2014 see console."); }

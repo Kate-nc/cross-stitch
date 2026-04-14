@@ -483,14 +483,19 @@ function computeWeightedPace(sessions, daysWindow) {
   return totalWeight > 0 ? Math.round(weightedSum / totalWeight) : null;
 }
 
-function computeOverviewStats(statsSessions, totalCompleted, totalStitches) {
+function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useActiveDays) {
   var totalSeconds = statsSessions.reduce(function(sum, s) { return sum + getSessionSeconds(s); }, 0);
   var totalHours = totalSeconds / 3600;
   var totalMinutes = Math.round(totalSeconds / 60);
   var totalNetStitches = statsSessions.reduce(function(sum, s) { return sum + s.netStitches; }, 0);
   var stitchesPerHour = totalHours > 0 ? Math.round(totalNetStitches / totalHours) : 0;
   var uniqueDays = new Set(statsSessions.map(function(s) { return s.date; })).size;
-  var avgPerDay = uniqueDays > 0 ? Math.round(totalNetStitches / uniqueDays) : 0;
+  var sortedDates = Array.from(new Set(statsSessions.map(function(s) { return s.date; }))).sort();
+  var firstDate = sortedDates.length > 0 ? new Date(sortedDates[0] + 'T12:00:00') : null;
+  var elapsedDays = firstDate ? Math.max(1, Math.ceil((Date.now() - firstDate.getTime()) / 86400000)) : uniqueDays;
+  var avgPerActiveDay = uniqueDays > 0 ? Math.round(totalNetStitches / uniqueDays) : 0;
+  var avgPerCalendarDay = elapsedDays > 0 ? Math.round(totalNetStitches / elapsedDays) : 0;
+  var avgPerDay = (useActiveDays !== false) ? avgPerActiveDay : avgPerCalendarDay;
   var remaining = totalStitches - totalCompleted;
   var recentPace = computeWeightedPace(statsSessions, 14);
   var paceForEstimate = recentPace || avgPerDay;
@@ -505,10 +510,14 @@ function computeOverviewStats(statsSessions, totalCompleted, totalStitches) {
       : '—',
     daysRemaining: daysRemaining,
     avgPerDay: avgPerDay,
+    avgPerActiveDay: avgPerActiveDay,
+    avgPerCalendarDay: avgPerCalendarDay,
     recentPace: recentPace,
     totalMinutes: totalMinutes,
     totalSeconds: totalSeconds,
-    uniqueDays: uniqueDays
+    uniqueDays: uniqueDays,
+    activeDays: uniqueDays,
+    elapsedDays: elapsedDays
   };
 }
 
@@ -520,6 +529,22 @@ function getStatsTodayStitches(sessions, dayEndHour) {
 function getStatsTodaySeconds(sessions, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
   return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + getSessionSeconds(s); }, 0);
+}
+
+function getStatsThisWeekStitches(sessions, dayEndHour) {
+  var today = new Date();
+  var dayOfWeek = today.getDay();
+  var mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  var monday = new Date(today);
+  monday.setDate(today.getDate() - mondayOffset);
+  var mondayStr = formatLocalDateYYYYMMDD(monday);
+  return (sessions || []).filter(function(s) { return s.date >= mondayStr; }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+}
+
+function getStatsThisMonthStitches(sessions, dayEndHour) {
+  var today = new Date();
+  var monthPrefix = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2);
+  return (sessions || []).filter(function(s) { return s.date && s.date.startsWith(monthPrefix); }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
 }
 
 function groupSessionsByDate(sessions) {

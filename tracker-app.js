@@ -23,10 +23,11 @@ const TRACK_HISTORY_MAX=50;
 const[sessions,setSessions]=useState([]);
 const[statsSessions,setStatsSessions]=useState([]);
 const totalTime=useMemo(()=>{if(!statsSessions||statsSessions.length===0)return 0;return statsSessions.reduce(function(sum,s){return sum+getSessionSeconds(s);},0);},[statsSessions]);
-const[statsSettings,setStatsSettings]=useState({dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90});
+const[statsSettings,setStatsSettings]=useState({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true});
 const[statsView,setStatsView]=useState(false);
 const[celebration,setCelebration]=useState(null);
 const celebratedRef=useRef(new Set());
+const goalCelebrationRef=useRef({daily:false,weekly:false,monthly:false});
 const currentAutoSessionRef=useRef(null);
 const pendingColoursRef=useRef(new Set());
 const pendingMilestonesRef=useRef([]);
@@ -496,6 +497,33 @@ useEffect(()=>{
   const timer=setTimeout(()=>setSessionSavedToast(null),10000);
   return()=>clearTimeout(timer);
 },[sessionSavedToast]);
+// Goal-completion detection — fire a celebration when any goal is first reached in this session
+useEffect(()=>{
+  try{
+    const deh=(statsSettings&&statsSettings.dayEndHour)||0;
+    const dailyGoal=statsSettings&&statsSettings.dailyGoal;
+    const weeklyGoal=statsSettings&&statsSettings.weeklyGoal;
+    const monthlyGoal=statsSettings&&statsSettings.monthlyGoal;
+    if(!dailyGoal&&!weeklyGoal&&!monthlyGoal)return;
+    const liveExtra=liveAutoStitches;
+    const prev=goalCelebrationRef.current;
+    if(dailyGoal>0){
+      const cur=todayStitchesForBar;
+      if(!prev.daily&&cur>=dailyGoal){goalCelebrationRef.current={...prev,daily:true};setCelebration({label:'Daily goal reached! '+cur.toLocaleString()+' / '+dailyGoal.toLocaleString()+' stitches',pct:null});}
+      else if(prev.daily&&cur<dailyGoal)goalCelebrationRef.current={...prev,daily:false};
+    }
+    if(weeklyGoal>0){
+      const cur=getStatsThisWeekStitches(statsSessions||[],deh)+liveExtra;
+      if(!prev.weekly&&cur>=weeklyGoal){goalCelebrationRef.current={...prev,weekly:true};setCelebration({label:'Weekly goal reached! '+cur.toLocaleString()+' / '+weeklyGoal.toLocaleString()+' stitches',pct:null});}
+      else if(prev.weekly&&cur<weeklyGoal)goalCelebrationRef.current={...prev,weekly:false};
+    }
+    if(monthlyGoal>0){
+      const cur=getStatsThisMonthStitches(statsSessions||[],deh)+liveExtra;
+      if(!prev.monthly&&cur>=monthlyGoal){goalCelebrationRef.current={...prev,monthly:true};setCelebration({label:'Monthly goal reached! '+cur.toLocaleString()+' / '+monthlyGoal.toLocaleString()+' stitches',pct:null});}
+      else if(prev.monthly&&cur<monthlyGoal)goalCelebrationRef.current={...prev,monthly:false};
+    }
+  }catch(e){console.warn('Stats: goal-completion effect error',e);}
+},[todayStitchesForBar,liveAutoStitches,statsSessions,statsSettings]);
 // Edit session note
 function editSessionNote(sessionId,noteText){
   try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){console.warn('Stats: editSessionNote error',e);}
@@ -1402,10 +1430,11 @@ function processLoadedProject(project){
   // Patch legacy sessions that only have durationMinutes
   rawStatsSessions.forEach(function(s){if(s.durationSeconds==null&&s.durationMinutes!=null){s.durationSeconds=s.durationMinutes*60;}});
   setStatsSessions(rawStatsSessions);
-  setStatsSettings(project.statsSettings||{dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null});
+  setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true},project.statsSettings||{}));
   setStatsView(false);
   setCelebration(null);
   celebratedRef.current=new Set();
+  goalCelebrationRef.current={daily:false,weekly:false,monthly:false};
   pendingMilestonesRef.current=[];
   currentAutoSessionRef.current=null;
   clearTimeout(autoIdleTimerRef.current);
