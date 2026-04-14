@@ -34,9 +34,11 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
 
     // Clamp CELL_SIZE so the offscreen canvas fits within browser limits (~8192px).
     var MAX_DIM = 8192;
-    // Level 3 requires larger tiles for fibre detail; levels 1–2 cap at 16px.
-    var maxCellSz = (realisticLevel === 3) ? 32 : 16;
-    var CELL_SIZE = Math.max(4, Math.min(maxCellSz, Math.floor(Math.min(MAX_DIM / sW, MAX_DIM / sH))));
+    // Levels 3–4 use the detailed renderer and require larger tiles for fibre detail; levels 1–2 cap at 16px.
+    var maxCellSz = (realisticLevel >= 3) ? 32 : 16;
+    var rawCellSz = Math.floor(Math.min(MAX_DIM / sW, MAX_DIM / sH));
+    if (rawCellSz < 1) return; // Pattern too large for realistic preview on this device
+    var CELL_SIZE = Math.max(4, Math.min(maxCellSz, rawCellSz));
 
     var canvasW = sW * CELL_SIZE;
     var canvasH = sH * CELL_SIZE;
@@ -59,19 +61,21 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
     fabricTile.width = CELL_SIZE;
     fabricTile.height = CELL_SIZE;
     var ftc = fabricTile.getContext("2d");
-    ftc.fillStyle = "rgb(" + FR + "," + FG + "," + FB + ")";
-    ftc.fillRect(0, 0, CELL_SIZE, CELL_SIZE);
-    ftc.strokeStyle = "rgba(" + Math.max(0, FR - 10) + "," + Math.max(0, FG - 10) + "," + Math.max(0, FB - 10) + ",0.07)";
-    ftc.lineWidth = 1;
-    for (var wxi = 0; wxi < CELL_SIZE; wxi += weaveStep) {
-      ftc.beginPath(); ftc.moveTo(wxi + 0.5, 0); ftc.lineTo(wxi + 0.5, CELL_SIZE); ftc.stroke();
+    if (ftc) {
+      ftc.fillStyle = "rgb(" + FR + "," + FG + "," + FB + ")";
+      ftc.fillRect(0, 0, CELL_SIZE, CELL_SIZE);
+      ftc.strokeStyle = "rgba(" + Math.max(0, FR - 10) + "," + Math.max(0, FG - 10) + "," + Math.max(0, FB - 10) + ",0.07)";
+      ftc.lineWidth = 1;
+      for (var wxi = 0; wxi < CELL_SIZE; wxi += weaveStep) {
+        ftc.beginPath(); ftc.moveTo(wxi + 0.5, 0); ftc.lineTo(wxi + 0.5, CELL_SIZE); ftc.stroke();
+      }
+      for (var wyi = 0; wyi < CELL_SIZE; wyi += weaveStep) {
+        ftc.beginPath(); ftc.moveTo(0, wyi + 0.5); ftc.lineTo(CELL_SIZE, wyi + 0.5); ftc.stroke();
+      }
+      var weavePattern = oc.createPattern(fabricTile, "repeat");
+      oc.fillStyle = weavePattern || ("rgb(" + FR + "," + FG + "," + FB + ")");
+      oc.fillRect(0, 0, canvasW, canvasH);
     }
-    for (var wyi = 0; wyi < CELL_SIZE; wyi += weaveStep) {
-      ftc.beginPath(); ftc.moveTo(0, wyi + 0.5); ftc.lineTo(CELL_SIZE, wyi + 0.5); ftc.stroke();
-    }
-    var weavePattern = oc.createPattern(fabricTile, "repeat");
-    oc.fillStyle = weavePattern;
-    oc.fillRect(0, 0, canvasW, canvasH);
 
     // ── 3. Stitch tile cache and full pattern render ─────────────────────────
     var padding = CELL_SIZE * 0.08;
@@ -88,14 +92,6 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
     var sw = CELL_SIZE * swFactor;
 
     var lvl = realisticLevel;
-
-    function adjustBrightness(r, g, b, factor) {
-      return [
-        Math.min(255, Math.round(r * factor)),
-        Math.min(255, Math.round(g * factor)),
-        Math.min(255, Math.round(b * factor))
-      ];
-    }
 
     // Draw a cross stitch X into a canvas context.
     // r1/g1/b1 = bottom-leg colour, r2/g2/b2 = top-leg colour.

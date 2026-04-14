@@ -1160,7 +1160,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
 
 
 /* ─── PreviewCanvas.js ─── */
-﻿/* creator/PreviewCanvas.js — WYSIWYG pixel-accurate preview mode.
+/* creator/PreviewCanvas.js — WYSIWYG pixel-accurate preview mode.
    Reads from CreatorContext. Loaded as part of creator/bundle.js.
    Depends on: context.js (CreatorContext) */
 
@@ -1192,6 +1192,11 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     offscreen.width = sW;
     offscreen.height = sH;
     var octx = offscreen.getContext("2d");
+    if (!octx) {
+      offscreenRef.current = null;
+      setOffscreenVersion(function(v) { return v + 1; });
+      return;
+    }
     var imgData = octx.createImageData(sW, sH);
     var d = imgData.data;
 
@@ -1257,6 +1262,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     canvas.height = sH * cs;
 
     var ctx2d = canvas.getContext("2d");
+    if (!ctx2d) return;
     ctx2d.imageSmoothingEnabled = false;
 
     // Draw the upscaled pixel image (nearest-neighbour via pixelated CSS + disabled smoothing)
@@ -1350,9 +1356,11 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
 
     // Clamp CELL_SIZE so the offscreen canvas fits within browser limits (~8192px).
     var MAX_DIM = 8192;
-    // Level 3 requires larger tiles for fibre detail; levels 1–2 cap at 16px.
-    var maxCellSz = (realisticLevel === 3) ? 32 : 16;
-    var CELL_SIZE = Math.max(4, Math.min(maxCellSz, Math.floor(Math.min(MAX_DIM / sW, MAX_DIM / sH))));
+    // Levels 3–4 use the detailed renderer and require larger tiles for fibre detail; levels 1–2 cap at 16px.
+    var maxCellSz = (realisticLevel >= 3) ? 32 : 16;
+    var rawCellSz = Math.floor(Math.min(MAX_DIM / sW, MAX_DIM / sH));
+    if (rawCellSz < 1) return; // Pattern too large for realistic preview on this device
+    var CELL_SIZE = Math.max(4, Math.min(maxCellSz, rawCellSz));
 
     var canvasW = sW * CELL_SIZE;
     var canvasH = sH * CELL_SIZE;
@@ -1375,19 +1383,21 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
     fabricTile.width = CELL_SIZE;
     fabricTile.height = CELL_SIZE;
     var ftc = fabricTile.getContext("2d");
-    ftc.fillStyle = "rgb(" + FR + "," + FG + "," + FB + ")";
-    ftc.fillRect(0, 0, CELL_SIZE, CELL_SIZE);
-    ftc.strokeStyle = "rgba(" + Math.max(0, FR - 10) + "," + Math.max(0, FG - 10) + "," + Math.max(0, FB - 10) + ",0.07)";
-    ftc.lineWidth = 1;
-    for (var wxi = 0; wxi < CELL_SIZE; wxi += weaveStep) {
-      ftc.beginPath(); ftc.moveTo(wxi + 0.5, 0); ftc.lineTo(wxi + 0.5, CELL_SIZE); ftc.stroke();
+    if (ftc) {
+      ftc.fillStyle = "rgb(" + FR + "," + FG + "," + FB + ")";
+      ftc.fillRect(0, 0, CELL_SIZE, CELL_SIZE);
+      ftc.strokeStyle = "rgba(" + Math.max(0, FR - 10) + "," + Math.max(0, FG - 10) + "," + Math.max(0, FB - 10) + ",0.07)";
+      ftc.lineWidth = 1;
+      for (var wxi = 0; wxi < CELL_SIZE; wxi += weaveStep) {
+        ftc.beginPath(); ftc.moveTo(wxi + 0.5, 0); ftc.lineTo(wxi + 0.5, CELL_SIZE); ftc.stroke();
+      }
+      for (var wyi = 0; wyi < CELL_SIZE; wyi += weaveStep) {
+        ftc.beginPath(); ftc.moveTo(0, wyi + 0.5); ftc.lineTo(CELL_SIZE, wyi + 0.5); ftc.stroke();
+      }
+      var weavePattern = oc.createPattern(fabricTile, "repeat");
+      oc.fillStyle = weavePattern || ("rgb(" + FR + "," + FG + "," + FB + ")");
+      oc.fillRect(0, 0, canvasW, canvasH);
     }
-    for (var wyi = 0; wyi < CELL_SIZE; wyi += weaveStep) {
-      ftc.beginPath(); ftc.moveTo(0, wyi + 0.5); ftc.lineTo(CELL_SIZE, wyi + 0.5); ftc.stroke();
-    }
-    var weavePattern = oc.createPattern(fabricTile, "repeat");
-    oc.fillStyle = weavePattern;
-    oc.fillRect(0, 0, canvasW, canvasH);
 
     // ── 3. Stitch tile cache and full pattern render ─────────────────────────
     var padding = CELL_SIZE * 0.08;
@@ -1404,14 +1414,6 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
     var sw = CELL_SIZE * swFactor;
 
     var lvl = realisticLevel;
-
-    function adjustBrightness(r, g, b, factor) {
-      return [
-        Math.min(255, Math.round(r * factor)),
-        Math.min(255, Math.round(g * factor)),
-        Math.min(255, Math.round(b * factor))
-      ];
-    }
 
     // Draw a cross stitch X into a canvas context.
     // r1/g1/b1 = bottom-leg colour, r2/g2/b2 = top-leg colour.
@@ -6472,48 +6474,54 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("span", {className:"tb-ovf-lbl"}, "View"),
       h("button", {
         className:"tb-ovf-item"+(!ctx.previewActive?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(false);}
+        onClick:function(){ctx.setPreviewActive(false); setPreviewMenuOpen(false);}
       }, radioBtn(!ctx.previewActive), " Chart"),
       h("button", {
         className:"tb-ovf-item"+(isPixel?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("pixel");}
+        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("pixel"); setPreviewMenuOpen(false);}
       }, radioBtn(isPixel), " Pixel preview"),
       h("button", {
         className:"tb-ovf-item"+(isRealistic?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("realistic");}
+        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("realistic"); setPreviewMenuOpen(false);}
       }, radioBtn(isRealistic), " Realistic"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Options"),
       h("button", {
         className:"tb-ovf-item"+(ctx.previewShowGrid?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;});},
+        onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;}); setPreviewMenuOpen(false);},
+        disabled:!ctx.previewActive,
         style:{opacity:ctx.previewActive?1:0.4}
       }, chkBox(ctx.previewShowGrid), " Grid overlay"),
       h("button", {
         className:"tb-ovf-item"+(ctx.previewFabricBg?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;});},
+        onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;}); setPreviewMenuOpen(false);},
+        disabled:!isPixel,
         style:{opacity:isPixel?1:0.4}
       }, chkBox(ctx.previewFabricBg), " Fabric background"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Realistic level"),
       h("button", {
         className:"tb-ovf-item"+(ctx.realisticLevel===1?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(1);},
+        onClick:function(){ctx.setRealisticLevel(1); setPreviewMenuOpen(false);},
+        disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
       }, radioBtn(ctx.realisticLevel===1), " Flat (Level 1)"),
       h("button", {
         className:"tb-ovf-item"+(ctx.realisticLevel===2?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(2);},
+        onClick:function(){ctx.setRealisticLevel(2); setPreviewMenuOpen(false);},
+        disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
       }, radioBtn(ctx.realisticLevel===2), " Shaded (Level 2)"),
       h("button", {
         className:"tb-ovf-item"+(ctx.realisticLevel===3?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(3);},
+        onClick:function(){ctx.setRealisticLevel(3); setPreviewMenuOpen(false);},
+        disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
       }, radioBtn(ctx.realisticLevel===3), " Detailed (Level 3)"),
       h("button", {
         className:"tb-ovf-item"+(ctx.realisticLevel===4?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(4);},
+        onClick:function(){ctx.setRealisticLevel(4); setPreviewMenuOpen(false);},
+        disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
       }, radioBtn(ctx.realisticLevel===4), " Detailed \u2014 Blend (3a)")
     )

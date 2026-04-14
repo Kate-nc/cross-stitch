@@ -448,48 +448,54 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("span", {className:"tb-ovf-lbl"}, "View"),
       h("button", {
         className:"tb-ovf-item"+(!ctx.previewActive?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(false);}
+        onClick:function(){ctx.setPreviewActive(false); setPreviewMenuOpen(false);}
       }, radioBtn(!ctx.previewActive), " Chart"),
       h("button", {
         className:"tb-ovf-item"+(isPixel?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("pixel");}
+        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("pixel"); setPreviewMenuOpen(false);}
       }, radioBtn(isPixel), " Pixel preview"),
       h("button", {
         className:"tb-ovf-item"+(isRealistic?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("realistic");}
+        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("realistic"); setPreviewMenuOpen(false);}
       }, radioBtn(isRealistic), " Realistic"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Options"),
       h("button", {
         className:"tb-ovf-item"+(ctx.previewShowGrid?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;});},
+        onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;}); setPreviewMenuOpen(false);},
+        disabled:!ctx.previewActive,
         style:{opacity:ctx.previewActive?1:0.4}
       }, chkBox(ctx.previewShowGrid), " Grid overlay"),
       h("button", {
         className:"tb-ovf-item"+(ctx.previewFabricBg?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;});},
+        onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;}); setPreviewMenuOpen(false);},
+        disabled:!isPixel,
         style:{opacity:isPixel?1:0.4}
       }, chkBox(ctx.previewFabricBg), " Fabric background"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Realistic level"),
       h("button", {
         className:"tb-ovf-item"+(ctx.realisticLevel===1?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(1);},
+        onClick:function(){ctx.setRealisticLevel(1); setPreviewMenuOpen(false);},
+        disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
       }, radioBtn(ctx.realisticLevel===1), " Flat (Level 1)"),
       h("button", {
         className:"tb-ovf-item"+(ctx.realisticLevel===2?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(2);},
+        onClick:function(){ctx.setRealisticLevel(2); setPreviewMenuOpen(false);},
+        disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
       }, radioBtn(ctx.realisticLevel===2), " Shaded (Level 2)"),
       h("button", {
         className:"tb-ovf-item"+(ctx.realisticLevel===3?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(3);},
+        onClick:function(){ctx.setRealisticLevel(3); setPreviewMenuOpen(false);},
+        disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
       }, radioBtn(ctx.realisticLevel===3), " Detailed (Level 3)"),
       h("button", {
         className:"tb-ovf-item"+(ctx.realisticLevel===4?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(4);},
+        onClick:function(){ctx.setRealisticLevel(4); setPreviewMenuOpen(false);},
+        disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
       }, radioBtn(ctx.realisticLevel===4), " Detailed \u2014 Blend (3a)")
     )

@@ -1,4 +1,4 @@
-﻿/* creator/PreviewCanvas.js — WYSIWYG pixel-accurate preview mode.
+/* creator/PreviewCanvas.js — WYSIWYG pixel-accurate preview mode.
    Reads from CreatorContext. Loaded as part of creator/bundle.js.
    Depends on: context.js (CreatorContext) */
 
@@ -30,6 +30,11 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     offscreen.width = sW;
     offscreen.height = sH;
     var octx = offscreen.getContext("2d");
+    if (!octx) {
+      offscreenRef.current = null;
+      setOffscreenVersion(function(v) { return v + 1; });
+      return;
+    }
     var imgData = octx.createImageData(sW, sH);
     var d = imgData.data;
 
@@ -95,6 +100,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     canvas.height = sH * cs;
 
     var ctx2d = canvas.getContext("2d");
+    if (!ctx2d) return;
     ctx2d.imageSmoothingEnabled = false;
 
     // Draw the upscaled pixel image (nearest-neighbour via pixelated CSS + disabled smoothing)

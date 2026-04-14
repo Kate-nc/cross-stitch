@@ -1803,7 +1803,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .pcard .pdesigner{font-size:11px;color:var(--text-tertiary);margin-bottom:6px;}
 
 /* Preview mode */
-.preview-canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block;}
+.preview-canvas{image-rendering:crisp-edges;image-rendering:pixelated;display:block;}
 .preview-canvas--realistic{image-rendering:auto;}
 .preview-wrap{position:relative;}
 .preview-status-bar{font-size:11px;color:var(--text-tertiary);padding:4px 8px;text-align:center;}
