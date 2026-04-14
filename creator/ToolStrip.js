@@ -564,6 +564,23 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     overflowMenu
   );
 
+  // Split view toggle button
+  var svgSplit = h("svg", {width:14,height:12,viewBox:"0 0 14 12",fill:"none"},
+    h("rect",{x:"0.7",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"}),
+    h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
+  );
+  var splitBtn = h("button", {
+    className: "tb-btn" + (ctx.splitPaneEnabled ? " tb-btn--on" : ""),
+    title: ctx.splitPaneEnabled ? "Exit split view (\\)" : "Split view: chart + preview (\\)",
+    disabled: !(ctx.pat && ctx.pal),
+    onClick: function() {
+      var next = !ctx.splitPaneEnabled;
+      ctx.setSplitPaneEnabled(next);
+      if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", next);
+    },
+    style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
+  }, svgSplit, !sc.bs ? " Split" : null);
+
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row"},
       h("div", {className:"pill-row"},
@@ -579,6 +596,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           undoRedo,
           h("div", {className:"tb-sdiv"}),
           previewDropWrap,
+          h("div", {className:"tb-sdiv"}),
+          splitBtn,
           h("div", {className:"tb-sdiv"}),
           overflowWrap
         )

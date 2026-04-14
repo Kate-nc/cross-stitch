@@ -150,6 +150,21 @@ const[kittingResult,setKittingResult]=useState(null);
 const[stashDeducted,setStashDeducted]=useState(false);
 const[altOpen,setAltOpen]=useState(null);
 
+// ═══ Spatial Analysis Engine ═══
+const[analysisResult,setAnalysisResult]=useState(null);
+const[analysisRunning,setAnalysisRunning]=useState(false);
+const analysisWorkerRef=useRef(null);
+const analysisRequestIdRef=useRef(0);
+const analysisThrottleRef=useRef(null);
+// Thread usage visualisation: null | "distance" | "cluster"
+const[threadUsageMode,setThreadUsageMode]=useState(null);
+const threadUsageCanvasRef=useRef(null);
+const threadUsageRafRef=useRef(null);
+// Next-stitch recommendations
+const[recDismissed,setRecDismissed]=useState(()=>new Set());
+const[recShowMore,setRecShowMore]=useState(false);
+const[recEnabled,setRecEnabled]=useState(()=>{try{return localStorage.getItem("cs_recEnabled")!=="0";}catch(_){return true;}});
+
 const [importDialog, setImportDialog] = useState(null);
 const [importImage, setImportImage] = useState(null);
 const [importSuccess, setImportSuccess] = useState(null);
@@ -576,6 +591,86 @@ useEffect(()=>{
 function editSessionNote(sessionId,noteText){
   try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){console.warn('Stats: editSessionNote error',e);}
 }
+
+// ═══ Analysis worker lifecycle ═══
+useEffect(()=>{
+  try{
+    const w=new Worker("analysis-worker.js");
+    analysisWorkerRef.current=w;
+    w.onmessage=function(e){
+      const msg=e.data;
+      if(msg.type==="result"&&msg.requestId===analysisRequestIdRef.current){
+        setAnalysisResult(msg.result);
+        setAnalysisRunning(false);
+      }
+    };
+    w.onerror=function(err){console.warn("Analysis worker error:",err);setAnalysisRunning(false);};
+  }catch(e){console.warn("Could not start analysis worker:",e);}
+  return()=>{clearTimeout(analysisThrottleRef.current);if(analysisWorkerRef.current){analysisWorkerRef.current.terminate();analysisWorkerRef.current=null;}};
+},[]);
+
+// Re-run analysis whenever pattern or progress changes (debounced 500ms)
+useEffect(()=>{
+  if(!pat||!sW||!sH||!analysisWorkerRef.current)return;
+  clearTimeout(analysisThrottleRef.current);
+  analysisThrottleRef.current=setTimeout(()=>{
+    const reqId=++analysisRequestIdRef.current;
+    setAnalysisRunning(true);
+    // Send minimal-size pat objects — only need the id field
+    const minPat=new Array(pat.length);
+    for(let i=0;i<pat.length;i++)minPat[i]={id:pat[i].id};
+    analysisWorkerRef.current.postMessage({type:"analyse",pat:minPat,done:done?Array.from(done):null,sW,sH,requestId:reqId});
+  },500);
+  return()=>clearTimeout(analysisThrottleRef.current);
+},[pat,done,sW,sH]);
+
+// Derived recommendations from analysis result
+const recommendations=useMemo(()=>{
+  if(!analysisResult||!pat)return null;
+  const pr=analysisResult.perRegion;
+  if(!pr)return null;
+  const scored=[];
+  for(let i=0;i<pr.length;i++){
+    const reg=pr[i];
+    if(!reg||reg.totalStitches===0||reg.completionPercentage>=1)continue;
+    if(!recDismissed.has(i))scored.push({idx:i,reg,score:reg.impactScore||0});
+  }
+  scored.sort((a,b)=>b.score-a.score);
+  const pc=analysisResult.perColour;
+  const quickWins=pc?Object.values(pc).filter(c=>c.totalStitches>0&&c.completedStitches<c.totalStitches).map(c=>({...c,remaining:c.totalStitches-c.completedStitches})).sort((a,b)=>a.remaining-b.remaining).slice(0,3):[];
+  return{top:scored.slice(0,3),quickWins};
+},[analysisResult,pat,recDismissed]);
+
+// Thread usage summary stats derived from analysis
+const threadUsageSummary=useMemo(()=>{
+  if(!analysisResult||!analysisResult.perStitch)return null;
+  const ps=analysisResult.perStitch;
+  let isolated=0,small=0,medium=0,large=0;
+  for(let i=0;i<ps.clusterSize.length;i++){
+    if(!pat||!pat[i])continue;
+    const id=pat[i].id;
+    if(id==="__skip__"||id==="__empty__")continue;
+    const sz=ps.clusterSize[i];
+    if(sz===1)isolated++;
+    else if(sz<=4)small++;
+    else if(sz<=19)medium++;
+    else large++;
+  }
+  const total=isolated+small+medium+large;
+  const pc=analysisResult.perColour;
+  let mostScattered=null,mostClustered=null;
+  if(pc){
+    const cols=Object.values(pc).filter(c=>c.totalStitches>0);
+    if(cols.length){
+      mostScattered=cols.reduce((best,c)=>c.confettiCount>best.confettiCount?c:best,cols[0]);
+      mostClustered=cols.reduce((best,c)=>c.largestClusterSize>best.largestClusterSize?c:best,cols[0]);
+    }
+  }
+  // Estimated thread changes ≈ isolated + small cluster count (each cluster needs thread up+rethread)
+  const estChanges=isolated+(analysisResult.perColour?Object.values(analysisResult.perColour).reduce((s,c)=>s+c.clusterCount,0):0);
+  return{isolated,small,medium,large,total,estChanges,mostScattered,mostClustered};
+},[analysisResult,pat]);
+
 function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0)pushTrackHistory(changes);setDone(nd);}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 function copyProgressSummary(){
@@ -2062,7 +2157,85 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
 },[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel]);
 useEffect(()=>renderStitch(),[renderStitch]);
 
-// Marching ants animation interval for "outline" highlight mode
+// ═══ Thread usage overlay rendering ═══
+useEffect(()=>{
+  const canvas=threadUsageCanvasRef.current;
+  if(!canvas)return;
+  if(!analysisResult||!threadUsageMode||!pat){
+    if(canvas.width>0){const ctx=canvas.getContext("2d");ctx.clearRect(0,0,canvas.width,canvas.height);}
+    return;
+  }
+  const ps=analysisResult.perStitch;
+  const W=analysisResult.sW,H=analysisResult.sH;
+  if(!ps||W!==sW||H!==sH)return;
+  const needW=W*scs+G+2,needH=H*scs+G+2;
+  if(canvas.width!==needW||canvas.height!==needH){canvas.width=needW;canvas.height=needH;}
+  cancelAnimationFrame(threadUsageRafRef.current);
+  threadUsageRafRef.current=requestAnimationFrame(()=>{
+    const ctx=canvas.getContext("2d");
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    for(let i=0;i<pat.length;i++){
+      const cell=pat[i];
+      if(!cell||cell.id==="__skip__"||cell.id==="__empty__")continue;
+      const x=i%W,y=Math.floor(i/W);
+      const px=G+x*scs,py=G+y*scs;
+      let r=0,g=0,b=0,a=0;
+      if(threadUsageMode==="distance"){
+        const dist=ps.nearestDist[i];
+        if(dist<=1.415)continue;
+        else if(dist<=5){const t=(dist-1.415)/3.585;r=255;g=200;b=0;a=t*0.3;}
+        else if(dist<=15){const t=(dist-5)/10;r=255;g=120;b=0;a=t*0.4;}
+        else{r=220;g=40;b=40;a=0.4;}
+      }else{
+        const sz=ps.clusterSize[i];
+        if(sz>=20)continue;
+        else if(sz>=5){r=100;g=150;b=255;a=0.15;}
+        else if(sz>=2){r=255;g=200;b=0;a=0.25;}
+        else{r=220;g=40;b=40;a=0.40;}
+      }
+      if(a>0){ctx.fillStyle=`rgba(${r},${g},${b},${a})`;ctx.fillRect(px,py,scs,scs);}
+    }
+  });
+},[analysisResult,threadUsageMode,scs,pat,sW,sH]);
+
+// ═══ Recommendation pulsing border animation ═══
+const recPulseRef=useRef(null);
+const recPulsePhaseRef=useRef(0);
+const recOverlayCanvasRef=useRef(null);
+useEffect(()=>{
+  const canvas=recOverlayCanvasRef.current;
+  if(!canvas)return;
+  const draw=()=>{
+    if(!recommendations||!recommendations.top||!recommendations.top.length||!recEnabled||!analysisResult){
+      const ctx=canvas.getContext("2d");
+      if(canvas.width>0)ctx.clearRect(0,0,canvas.width,canvas.height);
+      return;
+    }
+    const W=analysisResult.sW,H=analysisResult.sH;
+    const RS=analysisResult.regionSize||10;
+    const needW=W*scs+G+2,needH=H*scs+G+2;
+    if(canvas.width!==needW||canvas.height!==needH){canvas.width=needW;canvas.height=needH;}
+    const ctx=canvas.getContext("2d");
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const RC=analysisResult.regionCols||1;
+    // phase cycles 0→1→0 at 2s period
+    recPulsePhaseRef.current=(recPulsePhaseRef.current+0.016)%(Math.PI*2);
+    const pulseAlpha=0.3+0.4*((Math.sin(recPulsePhaseRef.current)+1)/2);
+    recommendations.top.forEach((rec,rank)=>{
+      const rCol=rec.idx%RC,rRow=Math.floor(rec.idx/RC);
+      const x=G+rCol*RS*scs,y=G+rRow*RS*scs;
+      const w=Math.min(RS,W-rCol*RS)*scs,h=Math.min(RS,H-rRow*RS)*scs;
+      if(rank===0){ctx.strokeStyle=`rgba(13,148,136,${pulseAlpha})`;ctx.lineWidth=3;}
+      else{ctx.strokeStyle="rgba(13,148,136,0.2)";ctx.lineWidth=2;}
+      ctx.strokeRect(x+1,y+1,w-2,h-2);
+    });
+  };
+  const loop=()=>{draw();recPulseRef.current=requestAnimationFrame(loop);};
+  loop();
+  return()=>cancelAnimationFrame(recPulseRef.current);
+},[recommendations,recEnabled,analysisResult,scs,sW,sH]);
+
+
 const hlAntsIntervalRef=useRef(null);
 useEffect(()=>{
   const needAnts=stitchView==="highlight"&&!!focusColour&&highlightMode==="outline";
@@ -2835,6 +3008,18 @@ return(
   )}
   <div className="tb-sdiv"/>
   <button className={"tb-btn"+(statsView?" tb-btn--on":"")} onClick={()=>{finaliseAutoSession();setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);}} title="Stats dashboard" style={{flexShrink:0}}>{Icons.barChart()}</button>
+  {/* Thread usage toggle */}
+  <div className="tb-sdiv"/>
+  <div style={{position:"relative",display:"inline-flex",alignItems:"center"}}>
+    <button className={"tb-btn"+(threadUsageMode?" tb-btn--on":"")} title="Thread usage visualisation" onClick={()=>setThreadUsageMode(m=>m?null:"cluster")} style={{flexShrink:0}}>
+      <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5"/><path d="M7 2 Q10 5 7 7 Q4 9 7 12" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+    </button>
+    {threadUsageMode&&<div style={{position:"absolute",top:"calc(100% + 4px)",right:0,background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 4px 12px rgba(0,0,0,0.1)",zIndex:300,minWidth:140,padding:6}}>
+      {[["cluster","Cluster size"],["distance","Isolation dist"]].map(([m,l])=>(
+        <button key={m} onClick={()=>setThreadUsageMode(m)} style={{display:"block",width:"100%",textAlign:"left",padding:"5px 10px",border:"none",borderRadius:5,background:threadUsageMode===m?"#f0fdfa":"transparent",color:threadUsageMode===m?"#0d9488":"#1e293b",fontSize:11,fontWeight:600,cursor:"pointer"}}>{l}{threadUsageMode===m?" ✓":""}</button>
+      ))}
+    </div>}
+  </div>
   {stitchMode==="track"&&!isEditMode&&(trackHistory.length>0||redoStack.length>0)&&<>
     <div className="tb-sdiv"/>
     <button className="tb-btn" onClick={undoTrack} disabled={!trackHistory.length} title="Undo (Ctrl+Z)" style={{opacity:trackHistory.length?1:0.3}}>↩</button>
@@ -3121,6 +3306,11 @@ return(
         <div style={{ position: 'relative' }}>
           <canvas ref={stitchRef} style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/>
 
+          {/* Thread usage overlay */}
+          {threadUsageMode&&<canvas ref={threadUsageCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:3,pointerEvents:"none"}}/>}
+          {/* Recommendation border overlay */}
+          {recEnabled&&<canvas ref={recOverlayCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:4,pointerEvents:"none"}}/>}
+
           {rangeModeActive&&rangeAnchor&&<div style={{
             position:'absolute',
             left:rangeAnchor.col*scs,
@@ -3166,6 +3356,90 @@ return(
 
     {/* ═══ RIGHT PANEL ═══ */}
     <div className="rpanel">
+      {/* ── Suggestions ── */}
+      {recEnabled&&recommendations&&recommendations.top.length>0&&<div className="rp-section">
+        <div className="rp-heading" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>Suggested <span className="badge">{recommendations.top.length}</span></span>
+          <button onClick={()=>{setRecEnabled(false);try{localStorage.setItem("cs_recEnabled","0");}catch(_){}}} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12,padding:0}} title="Turn off suggestions">✕</button>
+        </div>
+        {recommendations.top.slice(0,recShowMore?3:1).map((rec,rank)=>{
+          const RS=analysisResult.regionSize||10;const RC=analysisResult.regionCols||1;
+          const rCol=rec.idx%RC,rRow=Math.floor(rec.idx/RC);
+          const remSt=rec.reg.totalStitches-rec.reg.completedStitches;
+          const pctDone=Math.round(rec.reg.completionPercentage*100);
+          const label=`Row ${rRow*RS+1}–${(rRow+1)*RS}, Col ${rCol*RS+1}–${(rCol+1)*RS}`;
+          return <div key={rec.idx} style={{padding:"7px 10px",marginBottom:4,borderRadius:8,border:"1px solid "+(rank===0?"#99f6e4":"#e2e8f0"),background:rank===0?"#f0fdfa":"#fafafa",cursor:"pointer"}} onClick={()=>{
+            if(!stitchScrollRef.current)return;
+            const RS2=analysisResult.regionSize||10;const RC2=analysisResult.regionCols||1;
+            const rC2=rec.idx%RC2,rR2=Math.floor(rec.idx/RC2);
+            const cx=(rC2+0.5)*RS2*scs+G,cy=(rR2+0.5)*RS2*scs+G;
+            const el=stitchScrollRef.current;
+            el.scrollLeft=cx-el.clientWidth/2;el.scrollTop=cy-el.clientHeight/2;
+          }}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+              <span style={{fontWeight:700,fontSize:12,color:rank===0?"#0d9488":"#475569"}}>{rank===0?"⭐":rank===1?"●":"○"} {label}</span>
+              <button onClick={e=>{e.stopPropagation();setRecDismissed(prev=>{const n=new Set(prev);n.add(rec.idx);return n;});}} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:11,padding:"0 2px"}} title="Dismiss">✕</button>
+            </div>
+            <div style={{fontSize:11,color:"#475569"}}>{pctDone}% complete · {remSt} stitches left</div>
+            {rank===0&&rec.reg.dominantColour&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>Dominant: DMC {rec.reg.dominantColour}</div>}
+          </div>;
+        })}
+        {recommendations.top.length>1&&<button onClick={()=>setRecShowMore(v=>!v)} style={{fontSize:10,color:"#0d9488",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontWeight:600}}>{recShowMore?"▲ Fewer":"→ More suggestions"}</button>}
+        {recommendations.quickWins.length>0&&<div style={{marginTop:8,paddingTop:8,borderTop:"0.5px solid #e2e8f0"}}>
+          <div style={{fontWeight:600,fontSize:11,color:"#475569",marginBottom:4}}>🎨 Quick wins</div>
+          {recommendations.quickWins.map(c=>{
+            const hasStash=globalStash&&globalStash[c.id];
+            return <div key={c.id} style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,cursor:"pointer",padding:"3px 4px",borderRadius:5,background:"#fff",border:"0.5px solid #e2e8f0"}} onClick={()=>{setStitchView("highlight");setFocusColour(c.id);}}>
+              {analysisResult.perColour[c.id]&&pat&&(()=>{const rgb=pat.find(p=>p&&p.id===c.id);return rgb?<span style={{width:10,height:10,borderRadius:2,background:`rgb(${rgb.rgb[0]},${rgb.rgb[1]},${rgb.rgb[2]})`,flexShrink:0,border:"1px solid #cbd5e1"}}/>:null;})()}
+              <span style={{fontWeight:700,fontSize:11,minWidth:32}}>DMC {c.id}</span>
+              <span style={{fontSize:10,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name||""}</span>
+              <span style={{fontSize:10,color:"#16a34a",fontWeight:700}}>{c.remaining}↑</span>
+            </div>;
+          })}
+        </div>}
+      </div>}
+      {/* Restore suggestions if hidden */}
+      {!recEnabled&&<div className="rp-section">
+        <button onClick={()=>{setRecEnabled(true);try{localStorage.setItem("cs_recEnabled","1");}catch(_){}}} style={{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",color:"#94a3b8",cursor:"pointer",width:"100%"}}>Enable suggestions</button>
+      </div>}
+      {/* Thread usage section (when enabled) */}
+      {threadUsageMode&&threadUsageSummary&&<div className="rp-section">
+        <div className="rp-heading" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>Thread usage</span>
+          <div style={{display:"flex",gap:4}}>
+            {[["cluster","Cluster"],["distance","Isolation"]].map(([m,l])=>(
+              <button key={m} onClick={()=>setThreadUsageMode(m)} style={{fontSize:10,padding:"2px 7px",borderRadius:5,border:"1px solid "+(threadUsageMode===m?"#99f6e4":"#e2e8f0"),background:threadUsageMode===m?"#f0fdfa":"#fff",color:threadUsageMode===m?"#0d9488":"#64748b",cursor:"pointer",fontWeight:600}}>{l}</button>
+            ))}
+            <button onClick={()=>setThreadUsageMode(null)} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12,padding:"0 2px"}}>✕</button>
+          </div>
+        </div>
+        <div style={{fontSize:11,marginBottom:6}}>
+          {threadUsageMode==="cluster"?(
+            <div className="thread-usage-legend">
+              <div><span className="tul-swatch" style={{background:"rgba(220,40,40,0.4)"}}/><span>Single isolated (confetti)</span></div>
+              <div><span className="tul-swatch" style={{background:"rgba(255,200,0,0.35)"}}/><span>Small cluster (2–4)</span></div>
+              <div><span className="tul-swatch" style={{background:"rgba(100,150,255,0.25)"}}/><span>Medium cluster (5–19)</span></div>
+              <div><span className="tul-swatch" style={{background:"transparent",border:"1px solid #e2e8f0"}}/><span>Large cluster (20+)</span></div>
+            </div>
+          ):(
+            <div className="thread-usage-legend">
+              <div><span className="tul-swatch" style={{background:"rgba(220,40,40,0.4)"}}/><span>Highly isolated (15+ stitches away)</span></div>
+              <div><span className="tul-swatch" style={{background:"rgba(255,120,0,0.35)"}}/><span>Moderately isolated (5–15)</span></div>
+              <div><span className="tul-swatch" style={{background:"rgba(255,200,0,0.25)"}}/><span>Mildly isolated (1.4–5)</span></div>
+              <div><span className="tul-swatch" style={{background:"transparent",border:"1px solid #e2e8f0"}}/><span>Clustered (no overlay)</span></div>
+            </div>
+          )}
+        </div>
+        <div style={{padding:"8px 10px",borderRadius:8,background:"#f8fafc",border:"1px solid #e2e8f0",fontSize:11}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#475569"}}>Confetti (isolated):</span><span style={{fontWeight:700,color:"#dc2626"}}>{threadUsageSummary.isolated.toLocaleString()} ({threadUsageSummary.total>0?((threadUsageSummary.isolated/threadUsageSummary.total)*100).toFixed(1):0}%)</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#475569"}}>Small clusters (2–4):</span><span style={{fontWeight:600,color:"#b45309"}}>{threadUsageSummary.small.toLocaleString()}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#475569"}}>Medium (5–19):</span><span style={{fontWeight:600,color:"#475569"}}>{threadUsageSummary.medium.toLocaleString()}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:"#475569"}}>Large (20+):</span><span style={{fontWeight:600,color:"#16a34a"}}>{threadUsageSummary.large.toLocaleString()}</span></div>
+          {threadUsageSummary.estChanges>0&&<div style={{display:"flex",justifyContent:"space-between",paddingTop:5,borderTop:"0.5px solid #e2e8f0",marginTop:2}}><span style={{color:"#475569"}}>Est. thread changes:</span><span style={{fontWeight:700}}>~{threadUsageSummary.estChanges.toLocaleString()}</span></div>}
+          {threadUsageSummary.mostScattered&&threadUsageSummary.mostScattered.confettiCount>0&&<div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>Most scattered: DMC {threadUsageSummary.mostScattered.id} — {threadUsageSummary.mostScattered.confettiCount} isolated</div>}
+          {threadUsageSummary.mostClustered&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>Most clustered: DMC {threadUsageSummary.mostClustered.id} — cluster size {threadUsageSummary.mostClustered.largestClusterSize}</div>}
+        </div>
+      </div>}
       {/* Session Stats */}
       <div className="rp-section">
         <div className="rp-heading">Session {liveAutoStitches>0&&<span className="badge">Live</span>}</div>

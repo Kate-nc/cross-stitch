@@ -1338,7 +1338,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
    Reads from CreatorContext. Loaded as part of creator/bundle.js.
    Depends on: context.js (CreatorContext) */
 
-window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
+window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
 
@@ -1356,7 +1356,8 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
   var sH = ctx.sH;
   var cs = ctx.cs;
   var previewShowGrid = ctx.previewShowGrid;
-  var realisticLevel = ctx.realisticLevel;
+  // inputLevel prop overrides ctx.realisticLevel — used by SplitPane right pane
+  var realisticLevel = (props && props.inputLevel != null) ? props.inputLevel : ctx.realisticLevel;
   var fabricCt = ctx.fabricCt;
   var coverageOverride = ctx.coverageOverride;
 
@@ -1759,7 +1760,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
 
     offscreenRef.current = offscreen;
     setOffscreenVersion(function(v) { return v + 1; });
-  }, [pat, cmap, sW, sH, realisticLevel, fabricCt, coverageOverride]);
+  }, [pat, cmap, sW, sH, realisticLevel, ctx.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────
   // Runs whenever the offscreen is rebuilt (offscreenVersion) or zoom changes.
@@ -3468,6 +3469,16 @@ window.useCreatorState = function useCreatorState() {
   // null = auto (derived from fabricCt + strand count); float 0–1 = manual override
   var _covOvr     = useState(null);      var coverageOverride = _covOvr[0], setCoverageOverride = _covOvr[1];
 
+  // Split-pane state — loaded from UserPrefs on init
+  var _spEn = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneEnabled") : false; } catch(_) { return false; } });
+  var splitPaneEnabled = _spEn[0], setSplitPaneEnabled = _spEn[1];
+  var _spRatio = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneRatio") : 0.5; } catch(_) { return 0.5; } });
+  var splitPaneRatio = _spRatio[0], setSplitPaneRatio = _spRatio[1];
+  var _spSync = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneSyncEnabled") : true; } catch(_) { return true; } });
+  var splitPaneSyncEnabled = _spSync[0], setSplitPaneSyncEnabled = _spSync[1];
+  var _rpMode = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("rightPaneMode") : "level2"; } catch(_) { return "level2"; } });
+  var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
+
   // Section open states
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
   var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
@@ -4296,6 +4307,8 @@ window.useCreatorState = function useCreatorState() {
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
     previewActive, setPreviewActive, previewShowGrid, setPreviewShowGrid, previewFabricBg, setPreviewFabricBg,
     previewMode, setPreviewMode, realisticLevel, setRealisticLevel, coverageOverride, setCoverageOverride,
+    splitPaneEnabled, setSplitPaneEnabled, splitPaneRatio, setSplitPaneRatio,
+    splitPaneSyncEnabled, setSplitPaneSyncEnabled, rightPaneMode, setRightPaneMode,
     bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,
     bgDimDesaturation, setBgDimDesaturation, dimFraction, dimHiId,
     highlightMode, setHighlightMode,
@@ -5499,6 +5512,12 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         state.setView(function(v) { return v === "color" ? "symbol" : v === "symbol" ? "both" : "color"; });
         return;
       }
+      if (e.key === "\\") {
+        var nextSplit = !state.splitPaneEnabled;
+        state.setSplitPaneEnabled(nextSplit);
+        if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", nextSplit);
+        return;
+      }
       if (e.key === "=" || e.key === "+") { state.setZoom(function(z) { return Math.min(3, +(z + 0.1).toFixed(2)); }); return; }
       if (e.key === "-") { state.setZoom(function(z) { return Math.max(0.05, +(z - 0.1).toFixed(2)); }); return; }
       if (e.key === "0") { state.fitZ(); return; }
@@ -5512,6 +5531,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     state.namePromptOpen, state.modal, state.overflowOpen,
     state.selectedColorId, state.partialStitchTool, state.hiId,
     state.hasSelection, state.lassoInProgress, state.highlightMode,
+    state.splitPaneEnabled,
     history.undoEdit, history.redoEdit, io.saveProject,
   ]);
 };
@@ -5733,6 +5753,18 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       }, 100);
     }
 
+    // Restore per-pattern view state from UserPrefs
+    var pview = typeof UserPrefs !== "undefined" ? UserPrefs.getPatternState(project.id) : null;
+    if (pview) {
+      if (pview.activeViewMode && pview.activeViewMode !== "chart") {
+        state.setPreviewActive(true);
+        state.setPreviewMode(pview.activeViewMode);
+      }
+      if (pview.splitPaneRightMode) {
+        state.setRightPaneMode(pview.splitPaneRightMode);
+      }
+    }
+
     if (project.imgData && typeof project.imgData === "string" && project.imgData.startsWith("data:image/")) {
       var li = new Image();
       li.onload = function() {
@@ -5932,6 +5964,23 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
   ]);
+
+  // Per-pattern view state periodic save
+  React.useEffect(function() {
+    if (!state.pat || !state.projectIdRef.current) return;
+    function doSave() {
+      if (!state.projectIdRef.current || typeof UserPrefs === "undefined") return;
+      UserPrefs.savePatternState(state.projectIdRef.current, {
+        zoomLevel: state.zoom,
+        scrollLeft: state.scrollRef.current ? state.scrollRef.current.scrollLeft : 0,
+        scrollTop: state.scrollRef.current ? state.scrollRef.current.scrollTop : 0,
+        activeViewMode: state.previewActive ? state.previewMode : "chart",
+        splitPaneRightMode: state.rightPaneMode,
+      });
+    }
+    var timer = setInterval(doSave, 5000);
+    return function() { clearInterval(timer); doSave(); };
+  }, [state.pat, state.zoom, state.previewActive, state.previewMode, state.rightPaneMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Expose flush for BackupRestore to call before reading IndexedDB.
   // creatorSnapshotRef is updated synchronously on every state change (above), so
@@ -6335,6 +6384,389 @@ window.PatternCanvas = function PatternCanvas() {
       }
     }
   });
+};
+
+
+/* ─── SplitPane.js ─── */
+/* creator/SplitPane.js — Split-pane chart/preview view.
+   Renders the pattern chart on the left and a preview on the right,
+   divided by a draggable vertical divider. Syncs scroll/zoom when enabled.
+   On narrow containers (<560px) shows a stacked layout with a collapsible
+   preview panel instead.
+   Depends on: CreatorContext, PatternCanvas, PreviewCanvas, RealisticCanvas,
+               gridCoord (helpers.js global) */
+
+window.CreatorSplitPane = function CreatorSplitPane() {
+  var ctx = React.useContext(window.CreatorContext);
+  var h = React.createElement;
+
+  var containerRef   = React.useRef(null);
+  var rightScrollRef = React.useRef(null);
+  var draggingRef    = React.useRef(false);
+  var syncingRef     = React.useRef(false);
+  var rafSyncRef     = React.useRef(null);
+
+  // Local ratio shadow — updated immediately during drag for smooth visual feedback
+  var _ratio = React.useState(ctx.splitPaneRatio || 0.5);
+  var ratio = _ratio[0], setRatio = _ratio[1];
+
+  // Narrow mode: container < 560px → stacked layout
+  var _narrow = React.useState(false);
+  var narrow = _narrow[0], setNarrow = _narrow[1];
+
+  // Mobile: preview collapsed
+  var _prevOpen = React.useState(false);
+  var setPreviewOpen = _prevOpen[1];
+  var previewOpen = _prevOpen[0];
+
+  // Right pane dropdown open
+  var _rDrop = React.useState(false);
+  var rightDropOpen = _rDrop[0], setRightDropOpen = _rDrop[1];
+  var rDropRef = React.useRef(null);
+
+  // ResizeObserver: detect narrow container
+  React.useEffect(function() {
+    var el = containerRef.current;
+    if (!el) return;
+    function check(w) { setNarrow(w < 560); }
+    var obs = new ResizeObserver(function(entries) {
+      check(entries[0].contentRect.width);
+    });
+    obs.observe(el);
+    check(el.clientWidth);
+    return function() { obs.disconnect(); };
+  }, []);
+
+  // Close right-pane dropdown on outside click
+  React.useEffect(function() {
+    if (!rightDropOpen) return;
+    function close(e) {
+      if (rDropRef.current && !rDropRef.current.contains(e.target)) setRightDropOpen(false);
+    }
+    document.addEventListener("pointerdown", close);
+    return function() { document.removeEventListener("pointerdown", close); };
+  }, [rightDropOpen]);
+
+  // Divider drag — global pointermove/pointerup listeners
+  React.useEffect(function() {
+    function onMove(e) {
+      if (!draggingRef.current) return;
+      var el = containerRef.current;
+      if (!el) return;
+      var rect = el.getBoundingClientRect();
+      var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      var MIN_R = rect.width > 0 ? 280 / rect.width : 0.1;
+      // Allow dragging close to edges — exit split mode if past 10% threshold
+      var raw = (clientX - rect.left) / rect.width;
+      var r = Math.max(Math.min(MIN_R, 0.1), Math.min(Math.max(1 - MIN_R, 0.9), raw));
+      setRatio(r);
+    }
+    function onUp() {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      // If dragged past edge threshold → exit split pane
+      if (ratio < 0.1 || ratio > 0.9) {
+        ctx.setSplitPaneEnabled(false);
+        if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", false);
+        return;
+      }
+      ctx.setSplitPaneRatio(ratio);
+      if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneRatio", ratio);
+    }
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    return function() {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+    };
+  }, [ratio]);
+
+  // Scroll sync: left pane ↔ right pane (debounced to one rAF per direction)
+  React.useEffect(function() {
+    if (!ctx.splitPaneSyncEnabled) return;
+    var left  = ctx.scrollRef.current;
+    var right = rightScrollRef.current;
+    if (!left || !right) return;
+
+    function syncL2R() {
+      if (syncingRef.current) return;
+      if (rafSyncRef.current) return;
+      rafSyncRef.current = requestAnimationFrame(function() {
+        rafSyncRef.current = null;
+        if (!ctx.scrollRef.current || !rightScrollRef.current) return;
+        syncingRef.current = true;
+        rightScrollRef.current.scrollLeft = ctx.scrollRef.current.scrollLeft;
+        rightScrollRef.current.scrollTop  = ctx.scrollRef.current.scrollTop;
+        syncingRef.current = false;
+      });
+    }
+    function syncR2L() {
+      if (syncingRef.current) return;
+      if (rafSyncRef.current) return;
+      rafSyncRef.current = requestAnimationFrame(function() {
+        rafSyncRef.current = null;
+        if (!ctx.scrollRef.current || !rightScrollRef.current) return;
+        syncingRef.current = true;
+        ctx.scrollRef.current.scrollLeft = rightScrollRef.current.scrollLeft;
+        ctx.scrollRef.current.scrollTop  = rightScrollRef.current.scrollTop;
+        syncingRef.current = false;
+      });
+    }
+
+    left.addEventListener("scroll",  syncL2R, { passive: true });
+    right.addEventListener("scroll", syncR2L, { passive: true });
+    return function() {
+      left.removeEventListener("scroll",  syncL2R);
+      right.removeEventListener("scroll", syncR2L);
+      if (rafSyncRef.current) { cancelAnimationFrame(rafSyncRef.current); rafSyncRef.current = null; }
+    };
+  }, [ctx.splitPaneSyncEnabled]);
+
+  // Context-menu handler for the left pane (chart) scroll container
+  function onLeftContextMenu(e) {
+    if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
+    e.preventDefault();
+    if (!ctx.pcRef.current || !ctx.pat) return;
+    var gc = gridCoord(ctx.pcRef, e, ctx.cs, ctx.G, false);
+    if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
+    var idx = gc.gy * ctx.sW + gc.gx;
+    var cell = ctx.pat[idx];
+    var rcIsHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
+    if ((ctx.activeTool === "paint" || ctx.activeTool === "fill" || rcIsHsTool) &&
+        cell && cell.id !== "__skip__" && cell.id !== "__empty__" &&
+        ctx.cmap && ctx.cmap[cell.id]) {
+      ctx.setSelectedColorId(cell.id);
+      return;
+    }
+    ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
+  }
+
+  // Which canvas to render in the right pane
+  function rightPaneCanvas() {
+    var mode = ctx.rightPaneMode || "level2";
+    if (mode === "wysiwyg") {
+      return h(window.CreatorPreviewCanvas, null);
+    }
+    var lvl = mode === "level1" ? 1 : mode === "level3" ? 3 : 2;
+    return h(window.CreatorRealisticCanvas, { inputLevel: lvl });
+  }
+
+  var MODE_LABELS = {
+    "wysiwyg": "WYSIWYG preview",
+    "level1":  "Realistic \u2013 Flat",
+    "level2":  "Realistic \u2013 Shaded",
+    "level3":  "Realistic \u2013 Detailed",
+  };
+  var RIGHT_MODE_OPTIONS = ["wysiwyg", "level1", "level2", "level3"];
+
+  // Cursor for the chart (left) pane
+  var leftCursor = (function() {
+    if (ctx.activeTool === "eyedropper") return "copy";
+    if (ctx.activeTool === "magicWand" || ctx.activeTool === "lasso") return "crosshair";
+    if (ctx.activeTool === "fill") return "cell";
+    if (ctx.activeTool === "eraseBs") return "not-allowed";
+    if (ctx.activeTool || ctx.partialStitchTool) return "crosshair";
+    return "default";
+  })();
+
+  // Exit split pane
+  function exitSplit() {
+    ctx.setSplitPaneEnabled(false);
+    if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", false);
+  }
+
+  // Toggle sync
+  function toggleSync() {
+    var next = !ctx.splitPaneSyncEnabled;
+    ctx.setSplitPaneSyncEnabled(next);
+    if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneSyncEnabled", next);
+  }
+
+  // Sync icon SVG
+  function renderSyncIcon(locked) {
+    return h("svg", { width: 12, height: 12, viewBox: "0 0 14 14", fill: "none",
+      stroke: locked ? "#0d9488" : "#94a3b8", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" },
+      locked
+        ? [h("path",  { key: "shackle", d: "M4 6V4.5a3 3 0 016 0V6" }),
+           h("rect",  { key: "body",    x: "2.5", y: "6", width: "9", height: "6.5", rx: "1.5" })]
+        : [h("path",  { key: "shackle", d: "M4 6V4.5a3 3 0 014.5-2.7" }),
+           h("rect",  { key: "body",    x: "2.5", y: "6", width: "9", height: "6.5", rx: "1.5" })]
+    );
+  }
+
+  var hdrStyle = {
+    display: "flex", alignItems: "center", gap: 4, padding: "3px 8px",
+    background: "#f8fafc", borderBottom: "0.5px solid #e2e8f0",
+    fontSize: 11, fontWeight: 600, color: "#475569", userSelect: "none", flexShrink: 0,
+  };
+
+  // ── Mobile / narrow stacked layout ─────────────────────────────────────────
+  if (narrow) {
+    return h("div", { ref: containerRef, style: { width: "100%" } },
+      // Chart pane — full width
+      h("div", {
+        ref: ctx.scrollRef,
+        style: { overflow: "auto", maxHeight: 400, border: "0.5px solid #e2e8f0", borderRadius: "8px 8px 0 0", background: "#f1f5f9", cursor: leftCursor },
+        onContextMenu: onLeftContextMenu,
+      }, h(window.PatternCanvas, null)),
+
+      // Preview toggle handle
+      h("div", {
+        onClick: function() { setPreviewOpen(function(o) { return !o; }); },
+        style: {
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "5px 10px", background: "#f1f5f9", border: "0.5px solid #e2e8f0",
+          cursor: "pointer", fontSize: 11, color: "#475569", fontWeight: 500, userSelect: "none",
+        },
+      },
+        h("span", null, previewOpen ? "\u25B2 Hide preview" : "\u25BC Show preview"),
+        h("button", {
+          onClick: function(e) { e.stopPropagation(); exitSplit(); },
+          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          title: "Exit split view",
+        }, "\xD7")
+      ),
+
+      // Preview pane (collapsible)
+      previewOpen && h("div", {
+        ref: rightScrollRef,
+        style: { overflow: "auto", maxHeight: 220, border: "0.5px solid #e2e8f0", borderRadius: "0 0 8px 8px", background: "#f1f5f9" },
+      }, rightPaneCanvas())
+    );
+  }
+
+  // ── Desktop split layout ────────────────────────────────────────────────────
+  return h("div", {
+    ref: containerRef,
+    style: {
+      display: "flex", width: "100%", height: 550,
+      border: "0.5px solid #e2e8f0", borderRadius: 8, overflow: "hidden", position: "relative",
+    },
+  },
+
+    // ── Left pane (chart) ───────────────────────────────────────────────────
+    h("div", {
+      style: {
+        display: "flex", flexDirection: "column",
+        width: Math.round(ratio * 10000) / 100 + "%",
+        minWidth: 0, overflow: "hidden", flexShrink: 0,
+      },
+    },
+      // Pane header
+      h("div", { style: hdrStyle },
+        h("span", { style: { fontVariantCaps: "small-caps", letterSpacing: 0.3 } }, "Chart"),
+        h("span", { style: { flex: 1 } }),
+        h("button", {
+          onClick: exitSplit, title: "Exit split view",
+          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+        }, "\xD7")
+      ),
+      // Chart scroll container — this IS ctx.scrollRef
+      h("div", {
+        ref: ctx.scrollRef,
+        style: { flex: 1, overflow: "auto", background: "#f1f5f9", cursor: leftCursor },
+        onContextMenu: onLeftContextMenu,
+      }, h(window.PatternCanvas, null))
+    ),
+
+    // ── Divider ────────────────────────────────────────────────────────────
+    h("div", {
+      style: {
+        width: 6, flexShrink: 0, cursor: "col-resize",
+        background: "#e2e8f0", position: "relative",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 4,
+        zIndex: 10, userSelect: "none",
+      },
+      onPointerDown: function(e) {
+        draggingRef.current = true;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        e.preventDefault();
+      },
+    },
+      // Sync lock button
+      h("button", {
+        onClick: toggleSync,
+        title: ctx.splitPaneSyncEnabled ? "Scroll sync on \u2014 click to disable" : "Scroll sync off \u2014 click to enable",
+        style: {
+          background: ctx.splitPaneSyncEnabled ? "#e0fdf4" : "#fff",
+          border: "1px solid " + (ctx.splitPaneSyncEnabled ? "#0d9488" : "#d1d5db"),
+          borderRadius: 4, width: 20, height: 20, padding: 0, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+        },
+      }, renderSyncIcon(ctx.splitPaneSyncEnabled)),
+
+      // Drag handle dots
+      h("div", { style: { display: "flex", flexDirection: "column", gap: 2, opacity: 0.4, marginTop: 4 } },
+        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#64748b" } }),
+        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#64748b" } }),
+        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#64748b" } })
+      )
+    ),
+
+    // ── Right pane (preview) ──────────────────────────────────────────────
+    h("div", {
+      style: { display: "flex", flexDirection: "column", flex: 1, minWidth: 0, overflow: "hidden" },
+    },
+      // Pane header with mode selector
+      h("div", { style: hdrStyle },
+        h("div", { ref: rDropRef, style: { position: "relative" } },
+          h("button", {
+            onClick: function() { setRightDropOpen(function(o) { return !o; }); },
+            style: {
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: 11, fontWeight: 600, color: "#475569",
+              display: "flex", alignItems: "center", gap: 2, padding: 0,
+            },
+          },
+            MODE_LABELS[ctx.rightPaneMode || "level2"] || "Preview",
+            h("span", { style: { fontSize: 9, marginLeft: 2 } }, "\u25BE")
+          ),
+          rightDropOpen && h("div", {
+            style: {
+              position: "absolute", top: "100%", left: 0, marginTop: 2,
+              background: "#fff", border: "0.5px solid #e2e8f0",
+              borderRadius: 6, boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+              zIndex: 200, minWidth: 180, padding: "4px 0",
+            },
+          },
+            RIGHT_MODE_OPTIONS.map(function(m) {
+              return h("button", {
+                key: m,
+                onClick: function() {
+                  ctx.setRightPaneMode(m);
+                  if (typeof UserPrefs !== "undefined") UserPrefs.set("rightPaneMode", m);
+                  setRightDropOpen(false);
+                },
+                style: {
+                  display: "block", width: "100%", textAlign: "left",
+                  padding: "5px 12px", background: ctx.rightPaneMode === m ? "#f0fdfa" : "none",
+                  border: "none", cursor: "pointer", fontSize: 11,
+                  color: ctx.rightPaneMode === m ? "#0d9488" : "#475569",
+                  fontWeight: ctx.rightPaneMode === m ? 600 : 400,
+                },
+              }, MODE_LABELS[m]);
+            })
+          )
+        ),
+        h("span", { style: { flex: 1 } }),
+        h("button", {
+          onClick: exitSplit, title: "Exit split view",
+          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+        }, "\xD7")
+      ),
+
+      // Right pane scroll container
+      h("div", {
+        ref: rightScrollRef,
+        style: { flex: 1, overflow: "auto", background: "#f1f5f9" },
+      }, rightPaneCanvas())
+    )
+  );
 };
 
 
@@ -6905,6 +7337,23 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     overflowMenu
   );
 
+  // Split view toggle button
+  var svgSplit = h("svg", {width:14,height:12,viewBox:"0 0 14 12",fill:"none"},
+    h("rect",{x:"0.7",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"}),
+    h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
+  );
+  var splitBtn = h("button", {
+    className: "tb-btn" + (ctx.splitPaneEnabled ? " tb-btn--on" : ""),
+    title: ctx.splitPaneEnabled ? "Exit split view (\\)" : "Split view: chart + preview (\\)",
+    disabled: !(ctx.pat && ctx.pal),
+    onClick: function() {
+      var next = !ctx.splitPaneEnabled;
+      ctx.setSplitPaneEnabled(next);
+      if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", next);
+    },
+    style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
+  }, svgSplit, !sc.bs ? " Split" : null);
+
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row"},
       h("div", {className:"pill-row"},
@@ -6920,6 +7369,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           undoRedo,
           h("div", {className:"tb-sdiv"}),
           previewDropWrap,
+          h("div", {className:"tb-sdiv"}),
+          splitBtn,
           h("div", {className:"tb-sdiv"}),
           overflowWrap
         )
@@ -9323,7 +9774,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h(window.MagicWandPanel, null),
 
-    h("div", {
+    ctx.splitPaneEnabled
+      ? h(window.CreatorSplitPane, null)
+      : h("div", {
       ref:ctx.scrollRef,
       style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#f1f5f9",cursor:(function(){
         var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";

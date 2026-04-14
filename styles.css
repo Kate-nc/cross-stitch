@@ -2435,6 +2435,11 @@ kbd {
 }
 
 /* Insights */
+
+/* ── Thread Usage Overlay Legend ─────────────────────────────────────── */
+.thread-usage-legend{display:flex;flex-direction:column;gap:4px;font-size:10px;color:#475569;}
+.thread-usage-legend>div{display:flex;align-items:center;gap:6px;}
+.tul-swatch{display:inline-block;width:14px;height:10px;border-radius:2px;flex-shrink:0;}
 .gsd-insights {
   display: grid;
   grid-template-columns: 1fr;

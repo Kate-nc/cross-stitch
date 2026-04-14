@@ -213,6 +213,18 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       }, 100);
     }
 
+    // Restore per-pattern view state from UserPrefs
+    var pview = typeof UserPrefs !== "undefined" ? UserPrefs.getPatternState(project.id) : null;
+    if (pview) {
+      if (pview.activeViewMode && pview.activeViewMode !== "chart") {
+        state.setPreviewActive(true);
+        state.setPreviewMode(pview.activeViewMode);
+      }
+      if (pview.splitPaneRightMode) {
+        state.setRightPaneMode(pview.splitPaneRightMode);
+      }
+    }
+
     if (project.imgData && typeof project.imgData === "string" && project.imgData.startsWith("data:image/")) {
       var li = new Image();
       li.onload = function() {
@@ -412,6 +424,23 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
   ]);
+
+  // Per-pattern view state periodic save
+  React.useEffect(function() {
+    if (!state.pat || !state.projectIdRef.current) return;
+    function doSave() {
+      if (!state.projectIdRef.current || typeof UserPrefs === "undefined") return;
+      UserPrefs.savePatternState(state.projectIdRef.current, {
+        zoomLevel: state.zoom,
+        scrollLeft: state.scrollRef.current ? state.scrollRef.current.scrollLeft : 0,
+        scrollTop: state.scrollRef.current ? state.scrollRef.current.scrollTop : 0,
+        activeViewMode: state.previewActive ? state.previewMode : "chart",
+        splitPaneRightMode: state.rightPaneMode,
+      });
+    }
+    var timer = setInterval(doSave, 5000);
+    return function() { clearInterval(timer); doSave(); };
+  }, [state.pat, state.zoom, state.previewActive, state.previewMode, state.rightPaneMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Expose flush for BackupRestore to call before reading IndexedDB.
   // creatorSnapshotRef is updated synchronously on every state change (above), so
