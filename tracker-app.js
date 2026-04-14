@@ -16,6 +16,8 @@ const showCtr=true;
 const[bsLines,setBsLines]=useState([]);
 
 const[done,setDone]=useState(null);
+const[doneSnapshots,setDoneSnapshots]=useState([]);
+const lastSnapshotDateRef=useRef(null);
 const[trackHistory,setTrackHistory]=useState([]);
 const[redoStack,setRedoStack]=useState([]);
 const TRACK_HISTORY_MAX=50;
@@ -216,6 +218,22 @@ const focusableColors=useMemo(()=>{
   const incomplete=list.filter(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;});
   return incomplete.length>0?incomplete:list;
 },[pal,colourDoneCounts,highlightSkipDone,onlyStarted]);
+
+const sections=useMemo(()=>{
+  if(!pat||!done)return[];
+  const secCols=(statsSettings&&statsSettings.sectionCols)||50;
+  const secRows=(statsSettings&&statsSettings.sectionRows)||50;
+  const numX=Math.ceil(sW/secCols);const numY=Math.ceil(sH/secRows);
+  const result=[];
+  for(let sy=0;sy<numY;sy++){for(let sx=0;sx<numX;sx++){
+    const x0=sx*secCols,y0=sy*secRows;
+    const x1=Math.min(x0+secCols,sW),y1=Math.min(y0+secRows,sH);
+    let total=0,completed=0;
+    for(let y=y0;y<y1;y++){for(let x=x0;x<x1;x++){const idx=y*sW+x;const m=pat[idx];if(m&&m.id!=='__skip__'&&m.id!=='__empty__'){total++;if(done[idx])completed++;}}}
+    result.push({label:String(sy*numX+sx+1),sx,sy,x0,y0,x1,y1,total,completed,pct:total>0?Math.round(completed/total*100):100,isDone:total>0&&completed>=total});
+  }}
+  return result;
+},[pat,done,sW,sH,statsSettings.sectionCols,statsSettings.sectionRows]);
 
 const prevFocusIdRef=useRef(null);
 const prevFocusDoneRef=useRef(null);
@@ -480,6 +498,30 @@ useEffect(()=>{
           }
         }catch(me){console.warn('Stats: milestone check error',me);}
       }
+    }
+    // Auto-snapshot: on new stitching day, save a snapshot of the current done-state
+    if(done){
+      try{
+        const today=getStitchingDateLocal(new Date());
+        if(!lastSnapshotDateRef.current){
+          lastSnapshotDateRef.current=today;
+        } else if(lastSnapshotDateRef.current!==today){
+          const snapshot={
+            id:'snap_'+Date.now(),
+            date:lastSnapshotDateRef.current,
+            label:'auto',
+            doneCount:curDone,
+            data:btoa(String.fromCharCode(...pako.deflate(done)))
+          };
+          setDoneSnapshots(prev=>{
+            const updated=[...prev,snapshot];
+            const labelled=updated.filter(s=>s.label!=='auto');
+            const autos=updated.filter(s=>s.label==='auto').slice(-60);
+            return[...labelled,...autos];
+          });
+          lastSnapshotDateRef.current=today;
+        }
+      }catch(e){console.warn('Stats: auto-snapshot error',e);}
     }
     prevAutoCountRef.current={done:curDone,halfDone:curHalf};
   }catch(e){console.warn('Stats: auto-detect effect error',e);}
@@ -1430,7 +1472,7 @@ function processLoadedProject(project){
   // Patch legacy sessions that only have durationMinutes
   rawStatsSessions.forEach(function(s){if(s.durationSeconds==null&&s.durationMinutes!=null){s.durationSeconds=s.durationMinutes*60;}});
   setStatsSessions(rawStatsSessions);
-  setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true},project.statsSettings||{}));
+  setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true,sectionCols:50,sectionRows:50},project.statsSettings||{}));
   setStatsView(false);
   setCelebration(null);
   celebratedRef.current=new Set();
@@ -1442,6 +1484,9 @@ function processLoadedProject(project){
   var persistedMilestones=project.achievedMilestones||[];
   setAchievedMilestones(persistedMilestones);
   persistedMilestones.forEach(function(m){var key=m.pct!=null?('pct_'+m.pct):m.label;celebratedRef.current.add(key);});
+  // Restore done-state snapshots and reset the day-tracking ref
+  setDoneSnapshots(project.doneSnapshots||[]);
+  lastSnapshotDateRef.current=null;
   // Reset auto-session count refs so loading doesn't trigger a spurious session
   // (will be set accurately after next render via the doneCount/halfDone effects)
   prevAutoCountRef.current={done:-1,halfDone:-1};
@@ -1667,7 +1712,7 @@ useEffect(() => {
     totalTime: totalTime + liveAutoElapsed,
     sessions, hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
-    statsSessions, statsSettings, achievedMilestones,
+    statsSessions, statsSettings, achievedMilestones, doneSnapshots,
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
   };
@@ -1687,7 +1732,7 @@ useEffect(() => {
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
     halfStitches, halfDone, singleStitchEdits, liveAutoElapsed,
-    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom]);
+    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 // Uses only refs so the handler is never stale; drag in-progress mutations are applied
@@ -1765,7 +1810,7 @@ useEffect(() => {
       totalTime: totalTime + liveAutoElapsed,
       sessions, hlRow, hlCol, threadOwned, originalPaletteState,
       singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
-      statsSessions, statsSettings, achievedMilestones,
+      statsSessions, statsSettings, achievedMilestones, doneSnapshots,
       savedZoom: stitchZoom,
       savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
     };
@@ -1776,7 +1821,7 @@ useEffect(() => {
   return () => { delete window.__flushProjectToIDB; };
 }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done,
     halfStitches, halfDone, parkMarkers, totalTime, liveAutoElapsed, sessions, hlRow, hlCol,
-    threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom]);
+    threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots]);
 
 // ═══ Half-stitch cell rendering ═══
 // Renders half-stitch triangle fills, diagonal lines, and symbols for one cell.
@@ -2916,7 +2961,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsDashboard statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones}/>}
+  {statsView&&pat&&<StatsDashboard statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections}/>}
 
   {!statsView&&!pat&&<div style={{maxWidth:500, margin:"40px auto", textAlign:"center"}}>
     <div className="card" style={{padding:"30px"}}>

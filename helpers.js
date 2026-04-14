@@ -994,3 +994,44 @@ function drawPDFSymbol(pdf, symbol, cx, cy, size) {
     pdf.text(symbol, cx, cy + size * 0.4, {align:"center"});
   }
 }
+
+// ═══ Visual Progress: Section colour helper ═══
+function sectionColor(pct){
+  if(pct>=100)return'#16a34a';
+  if(pct>=75)return'#65a30d';
+  if(pct>=50)return'#d97706';
+  if(pct>=25)return'#ea580c';
+  if(pct>0)return'#f87171';
+  return'#e2e8f0';
+}
+
+// ═══ Visual Progress: Comparison canvas renderers ═══
+// Renders a mini-canvas showing the done-state of a pattern.
+// doneArray: Uint8Array (or array-like) of 0/1 values, same length as pat.
+function renderComparisonCanvas(canvas,pat,sW,sH,doneArray){
+  var cSz=Math.min(3,Math.floor(300/Math.max(sW,sH)));if(cSz<1)cSz=1;
+  canvas.width=sW*cSz;canvas.height=sH*cSz;
+  var ctx=canvas.getContext('2d');
+  for(var y=0;y<sH;y++){for(var x=0;x<sW;x++){
+    var idx=y*sW+x;var m=pat[idx];
+    if(!m||m.id==='__skip__'||m.id==='__empty__'){ctx.fillStyle='#f8f8f8';}
+    else if(doneArray&&doneArray[idx]){ctx.fillStyle='rgb('+m.rgb[0]+','+m.rgb[1]+','+m.rgb[2]+')';}
+    else{ctx.fillStyle='#e8e8e8';}
+    ctx.fillRect(x*cSz,y*cSz,cSz,cSz);
+  }}
+}
+
+// Renders a diff canvas: new stitches in full colour, already-done in grey, undone in off-white.
+function renderDiffCanvas(canvas,pat,sW,sH,oldDone,newDone){
+  var cSz=Math.min(3,Math.floor(300/Math.max(sW,sH)));if(cSz<1)cSz=1;
+  canvas.width=sW*cSz;canvas.height=sH*cSz;
+  var ctx=canvas.getContext('2d');
+  for(var idx=0;idx<pat.length;idx++){
+    var x=idx%sW,y=Math.floor(idx/sW);var m=pat[idx];
+    if(!m||m.id==='__skip__'||m.id==='__empty__'){ctx.fillStyle='#f8f8f8';}
+    else if(!oldDone[idx]&&newDone[idx]){ctx.fillStyle='rgb('+m.rgb[0]+','+m.rgb[1]+','+m.rgb[2]+')';}
+    else if(newDone[idx]){ctx.fillStyle='#e0e0e0';}
+    else{ctx.fillStyle='#f8f8f8';}
+    ctx.fillRect(x*cSz,y*cSz,cSz,cSz);
+  }
+}

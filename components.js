@@ -748,7 +748,155 @@ function ColourProgress({palette, colourDoneCounts}){
   } catch(e) { console.warn('Stats: ColourProgress render error', e); return null; }
 }
 
-function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones}){
+// ═══ Visual Progress: Section completion grid ═══
+function SectionGrid({sections, statsSettings, onUpdateSettings}){
+  var numX=0,numY=0;
+  if(sections&&sections.length>0){
+    sections.forEach(function(s){if(s.sx>=numX)numX=s.sx+1;if(s.sy>=numY)numY=s.sy+1;});
+  }
+  var complete=sections?sections.filter(function(s){return s.isDone;}).length:0;
+  var secCols=(statsSettings&&statsSettings.sectionCols)||50;
+  var secRows=(statsSettings&&statsSettings.sectionRows)||50;
+  return React.createElement("div",{style:{background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,padding:16}},
+    React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}},
+      React.createElement("h4",{style:{fontSize:14,fontWeight:600,color:'#1e293b',margin:0}},"Sections"),
+      numX>0&&React.createElement("span",{style:{fontSize:12,color:'#64748b'}},complete+" / "+(sections?sections.length:0)+" complete")
+    ),
+    sections&&sections.length>0&&React.createElement("div",{className:"section-grid",style:{display:'grid',gridTemplateColumns:'repeat('+numX+', 1fr)',gap:3,marginBottom:12}},
+      sections.map(function(sec){
+        return React.createElement("div",{
+          key:sec.label,
+          className:"section-cell",
+          style:{background:sec.isDone?'#16a34a':sectionColor(sec.pct),aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderRadius:4,fontSize:Math.max(8,Math.min(11,Math.floor(60/numX))),color:sec.pct>50?'#fff':'#1e293b',fontWeight:sec.isDone?700:400,cursor:'default',padding:1},
+          title:'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)'
+        },
+          React.createElement("span",null,sec.pct+"%"),
+          sec.isDone&&React.createElement("span",{style:{fontSize:Math.max(7,Math.min(10,Math.floor(55/numX)))}},"\u2713")
+        );
+      })
+    ),
+    sections&&sections.length===0&&React.createElement("p",{style:{fontSize:13,color:'#94a3b8',margin:0}},"No pattern loaded"),
+    React.createElement("div",{style:{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#64748b',marginTop:4}},
+      "Section size:",
+      React.createElement("input",{type:"number",min:5,max:200,value:secCols,onChange:function(e){var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionCols:v}));},style:{width:52,padding:'2px 6px',fontSize:12,border:'1px solid #e2e8f0',borderRadius:6}}),
+      "\u00d7",
+      React.createElement("input",{type:"number",min:5,max:200,value:secRows,onChange:function(e){var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionRows:v}));},style:{width:52,padding:'2px 6px',fontSize:12,border:'1px solid #e2e8f0',borderRadius:6}}),
+      "stitches",
+      React.createElement("button",{onClick:function(){onUpdateSettings(Object.assign({},statsSettings,{sectionCols:50,sectionRows:50}));},style:{fontSize:11,padding:'2px 8px',borderRadius:6,border:'1px solid #e2e8f0',background:'#f8f9fa',cursor:'pointer',color:'#64748b'}},"Reset")
+    )
+  );
+}
+
+// ═══ Visual Progress: Before/After comparison ═══
+function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
+  var selSt=React.useState(null);var selectedId=selSt[0],setSelectedId=selSt[1];
+  var diffSt=React.useState(false);var showDiff=diffSt[0],setShowDiff=diffSt[1];
+  var labelSt=React.useState('');var labelText=labelSt[0],setLabelText=labelSt[1];
+  var leftCanvasRef=React.useRef(null);
+  var rightCanvasRef=React.useRef(null);
+  var diffCanvasRef=React.useRef(null);
+
+  var snap=selectedId?(doneSnapshots||[]).find(function(s){return s.id===selectedId;}):null;
+
+  function decompressSnap(data){
+    try{
+      var binary=atob(data);var bytes=new Uint8Array(binary.length);
+      for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+      return pako.inflate(bytes);
+    }catch(e){return null;}
+  }
+
+  function snapLabel(s){
+    if(s.label!=='auto')return s.label;
+    var today=new Date().toISOString().slice(0,10);
+    var days=Math.round((new Date(today)-new Date(s.date))/86400000);
+    if(days===0)return'Today ('+s.date+')';
+    if(days===1)return'Yesterday';
+    if(days<14)return days+' days ago';
+    var weeks=Math.round(days/7);
+    if(weeks<8)return weeks+' week'+(weeks>1?'s':'')+' ago';
+    return s.date;
+  }
+
+  React.useEffect(function(){
+    if(!pat||!done||!rightCanvasRef.current)return;
+    renderComparisonCanvas(rightCanvasRef.current,pat,sW,sH,done);
+  },[done,pat,sW,sH]);
+
+  React.useEffect(function(){
+    if(!pat)return;
+    var snapDone=snap?decompressSnap(snap.data):null;
+    if(snapDone&&leftCanvasRef.current)renderComparisonCanvas(leftCanvasRef.current,pat,sW,sH,snapDone);
+    if(snapDone&&showDiff&&diffCanvasRef.current)renderDiffCanvas(diffCanvasRef.current,pat,sW,sH,snapDone,done||new Uint8Array(pat.length));
+  },[snap,done,pat,sW,sH,showDiff]);
+
+  function saveManualSnapshot(){
+    if(!done||!pat)return;
+    var l=labelText.trim()||'Snapshot';
+    try{
+      var data=btoa(String.fromCharCode.apply(null,pako.deflate(done)));
+      var today=new Date().toISOString().slice(0,10);
+      var doneCount=0;for(var i=0;i<done.length;i++)if(done[i])doneCount++;
+      var newSnap={id:'snap_'+Date.now(),date:today,label:l,doneCount:doneCount,data:data};
+      setDoneSnapshots(function(prev){
+        var updated=[...prev,newSnap];
+        var labelled=updated.filter(function(s){return s.label!=='auto';});
+        var autos=updated.filter(function(s){return s.label==='auto';}).slice(-60);
+        return[...labelled,...autos];
+      });
+      setLabelText('');
+    }catch(e){console.warn('Snapshot save error',e);}
+  }
+
+  var snapDone=snap?decompressSnap(snap.data):null;
+  var newCount=done?Array.from(done).filter(function(v){return v;}).length:0;
+  var oldCount=snapDone?Array.from(snapDone).filter(function(v){return v;}).length:0;
+  var diff=newCount-oldCount;
+
+  var canvasW=pat?Math.min(3,Math.floor(300/Math.max(sW,sH)))*sW:0;
+  var canvasH=pat?Math.min(3,Math.floor(300/Math.max(sW,sH)))*sH:0;
+
+  return React.createElement("div",{style:{background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,padding:16}},
+    React.createElement("h4",{style:{fontSize:14,fontWeight:600,color:'#1e293b',margin:'0 0 10px'}},"Before / After Comparison"),
+    React.createElement("div",{style:{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap',alignItems:'center'}},
+      React.createElement("select",{value:selectedId||'',onChange:function(e){setSelectedId(e.target.value||null);},style:{fontSize:12,padding:'4px 8px',borderRadius:6,border:'1px solid #e2e8f0',flex:'1',minWidth:0}},
+        React.createElement("option",{value:''},"Select a snapshot to compare\u2026"),
+        (doneSnapshots||[]).slice().reverse().map(function(s){
+          return React.createElement("option",{key:s.id,value:s.id},snapLabel(s)+(s.doneCount?' \u2014 '+s.doneCount+' stitches':''));
+        })
+      ),
+      React.createElement("label",{style:{display:'flex',alignItems:'center',gap:4,fontSize:12,color:'#64748b',cursor:'pointer',flexShrink:0}},
+        React.createElement("input",{type:'checkbox',checked:showDiff,onChange:function(e){setShowDiff(e.target.checked);}}),
+        "Diff view"
+      )
+    ),
+    snap&&React.createElement("div",{style:{fontSize:12,color:'#64748b',marginBottom:8}},
+      "Since "+snap.date+": ",
+      React.createElement("strong",{style:{color:diff>=0?'#16a34a':'#dc2626'}},(diff>=0?'+':'')+diff+" stitches")
+    ),
+    React.createElement("div",{style:{display:'flex',gap:12,flexWrap:'wrap',justifyContent:'center'}},
+      React.createElement("div",{style:{textAlign:'center'}},
+        React.createElement("div",{style:{fontSize:11,color:'#94a3b8',marginBottom:4}},snap?snapLabel(snap):'Select snapshot'),
+        React.createElement("canvas",{ref:leftCanvasRef,style:{border:'1px solid #e2e8f0',borderRadius:4,background:'#f8f8f8',width:canvasW,height:canvasH,display:'block'}})
+      ),
+      showDiff&&snap&&React.createElement("div",{style:{textAlign:'center'}},
+        React.createElement("div",{style:{fontSize:11,color:'#94a3b8',marginBottom:4}},"New stitches"),
+        React.createElement("canvas",{ref:diffCanvasRef,style:{border:'1px solid #e2e8f0',borderRadius:4,background:'#f8f8f8',width:canvasW,height:canvasH,display:'block'}})
+      ),
+      React.createElement("div",{style:{textAlign:'center'}},
+        React.createElement("div",{style:{fontSize:11,color:'#94a3b8',marginBottom:4}},"Now"),
+        React.createElement("canvas",{ref:rightCanvasRef,style:{border:'1px solid #e2e8f0',borderRadius:4,background:'#f8f8f8',width:canvasW,height:canvasH,display:'block'}})
+      )
+    ),
+    React.createElement("div",{style:{marginTop:12,display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}},
+      React.createElement("input",{type:'text',value:labelText,onChange:function(e){setLabelText(e.target.value);},placeholder:'Snapshot label (optional)',style:{flex:1,minWidth:120,fontSize:12,padding:'4px 8px',borderRadius:6,border:'1px solid #e2e8f0'}}),
+      React.createElement("button",{onClick:saveManualSnapshot,style:{fontSize:12,padding:'4px 12px',borderRadius:6,border:'1px solid #c084fc',background:'#faf5ff',cursor:'pointer',color:'#7c3aed',fontWeight:600,flexShrink:0}},"\uD83D\uDCF7 Save snapshot")
+    ),
+    (doneSnapshots&&doneSnapshots.length===0)&&React.createElement("p",{style:{fontSize:12,color:'#94a3b8',margin:'8px 0 0'}},"No snapshots yet. Snapshots are saved automatically each stitching day, or tap \u201cSave snapshot\u201d to create one now.")
+  );
+}
+
+function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections}){
   var chartSt = React.useState('cumulative');
   var chartView = chartSt[0], setChartView = chartSt[1];
   var copiedSt = React.useState(false);
@@ -815,6 +963,10 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts})
+    ),
+    React.createElement("div", {className:"stats-two-col", style:{marginTop:20}},
+      React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings}),
+      React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH})
     ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote})

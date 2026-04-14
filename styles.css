@@ -1216,6 +1216,19 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 
 /* ═══ Phase E: Colour Timeline ═══ */
 
+/* ═══ Visual Progress: Section Grid & Comparison ═══ */
+.section-grid {
+  width: 100%;
+}
+.section-cell {
+  min-height: 28px;
+  user-select: none;
+  transition: opacity 0.15s;
+}
+.section-cell:hover {
+  opacity: 0.85;
+}
+
 .colour-timeline {
   background: var(--surface);
   border: 1px solid var(--border);
