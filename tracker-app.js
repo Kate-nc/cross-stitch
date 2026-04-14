@@ -48,6 +48,7 @@ const lastPauseTimeRef = useRef(null);
 
 const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
 useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
+useEffect(()=>{if(stitchMode!=="track"||halfStitchTool){setRangeModeActive(false);setRangeAnchor(null);}},[stitchMode,halfStitchTool]);
 const[isEditMode,setIsEditMode]=useState(false);
 const[originalPaletteState,setOriginalPaletteState]=useState(null);
 // V2: single-level undo snapshot (replaces editHistory array)
@@ -77,6 +78,9 @@ const[hlRow,setHlRow]=useState(-1),[hlCol,setHlCol]=useState(-1);
 const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
 const scrollRafRef=useRef(null);
+const lastClickedRef=useRef(null); // { idx, row, col, val } for shift+click range
+const[rangeModeActive,setRangeModeActive]=useState(false);
+const[rangeAnchor,setRangeAnchor]=useState(null); // { idx, row, col, val } for touch range mode
 
 const[selectedColorId,setSelectedColorId]=useState(null);
 
@@ -2147,7 +2151,38 @@ function handleStitchMouseDown(e){
   }
 
   if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
+
+  // ═══ Shift+Click range fill ═══
+  if(e.shiftKey&&lastClickedRef.current&&!halfStitchTool&&stitchMode==="track"){
+    const a=lastClickedRef.current;
+    const bCol=gx,bRow=gy;
+    const minR=Math.min(a.row,bRow),maxR=Math.max(a.row,bRow);
+    const minC=Math.min(a.col,bCol),maxC=Math.max(a.col,bCol);
+    const targetVal=a.val;
+    const changes=[];
+    for(let r=minR;r<=maxR;r++){
+      for(let c=minC;c<=maxC;c++){
+        const ci=r*sW+c;
+        const cell=pat[ci];
+        if(cell.id==="__skip__"||cell.id==="__empty__")continue;
+        if(done[ci]!==targetVal){
+          changes.push({idx:ci,oldVal:done[ci]});
+          done[ci]=targetVal;
+        }
+      }
+    }
+    if(changes.length){
+      pushTrackHistory(changes);
+      setDone(new Uint8Array(done));
+      renderStitch();
+    }
+    lastClickedRef.current={idx,row:gy,col:gx,val:targetVal};
+    e.preventDefault();
+    return;
+  }
+
   let nv=done[idx]?0:1;
+  lastClickedRef.current={idx,row:gy,col:gx,val:nv};
   dragStateRef.current = { isDragging: true, dragVal: nv };
   dragChangesRef.current=[{idx,oldVal:done[idx]}];
   done[idx] = nv; // Optimistic update
@@ -2350,12 +2385,44 @@ function handleTouchEnd(e){
       const gc={gx:idx%sW,gy:Math.floor(idx/sW)};
       setCellEditPopover({idx,row:gc.gy+1,col:gc.gx+1,x:t.clientX,y:t.clientY});
     }else if(stitchMode==="track"){
-      const nv=ts.tapVal;
-      const nd=new Uint8Array(done);
-      nd[idx]=nv;
-      pushTrackHistory([{idx,oldVal:done[idx]}]);
-      setDone(nd);
-      drawCellDirectly(idx,nv);
+      if(rangeModeActive&&!halfStitchTool){
+        const gx=idx%sW,gy=Math.floor(idx/sW);
+        if(!rangeAnchor){
+          // First tap sets anchor
+          const nv=ts.tapVal;
+          setRangeAnchor({idx,row:gy,col:gx,val:nv});
+        }else{
+          // Second tap fills rectangle
+          const a=rangeAnchor;
+          const minR=Math.min(a.row,gy),maxR=Math.max(a.row,gy);
+          const minC=Math.min(a.col,gx),maxC=Math.max(a.col,gx);
+          const targetVal=a.val;
+          const changes=[];
+          for(let r=minR;r<=maxR;r++){
+            for(let c=minC;c<=maxC;c++){
+              const ci=r*sW+c;
+              const cell=pat[ci];
+              if(cell.id==="__skip__"||cell.id==="__empty__")continue;
+              if(done[ci]!==targetVal){
+                changes.push({idx:ci,oldVal:done[ci]});
+                done[ci]=targetVal;
+              }
+            }
+          }
+          if(changes.length){
+            pushTrackHistory(changes);
+            setDone(new Uint8Array(done));
+            renderStitch();
+          }
+        }
+      }else{
+        const nv=ts.tapVal;
+        const nd=new Uint8Array(done);
+        nd[idx]=nv;
+        pushTrackHistory([{idx,oldVal:done[idx]}]);
+        setDone(nd);
+        drawCellDirectly(idx,nv);
+      }
     }
   }
   ts.mode="none"; ts.tapIdx=-1; ts.pinchDist=0;
@@ -2375,6 +2442,7 @@ useEffect(()=>{
     if(mod)return;
     if(e.code==="Space"){e.preventDefault();if(!isSpaceDownRef.current){isSpaceDownRef.current=true;spaceDownTimeRef.current=Date.now();spacePannedRef.current=false;}return;}
     if(e.key==="Escape"){
+      if(rangeModeActive){setRangeModeActive(false);setRangeAnchor(null);return;}
       if(halfDisambig){setHalfDisambig(null);return;}
       if(namePromptOpen){setNamePromptOpen(false);return;}
       if(modal){setModal(null);return;}
@@ -2531,6 +2599,7 @@ return(
       </div>}
     </div>
     <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");setHalfStitchTool(null);}} title="Navigate (N)">Nav</button>
+    {stitchMode==="track"&&!halfStitchTool&&<button className={"tb-btn"+(rangeModeActive?" tb-btn--blue":"")} onClick={()=>{setRangeModeActive(r=>!r);setRangeAnchor(null);}} title="Range select mode">⊞ Range</button>}
   </div>
   {(halfStitchTool==="fwd"||halfStitchTool==="bck")&&selectedColorId&&cmap&&cmap[selectedColorId]&&
     <span style={{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,background:"#e0f2fe",flexShrink:0,border:"1px solid #7dd3fc"}}>
@@ -2802,6 +2871,19 @@ return(
         </div>
         <div style={{ position: 'relative' }}>
           <canvas ref={stitchRef} style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/>
+
+          {rangeModeActive&&rangeAnchor&&<div style={{
+            position:'absolute',
+            left:rangeAnchor.col*scs,
+            top:rangeAnchor.row*scs,
+            width:scs,height:scs,
+            border:'2px solid #3b82f6',
+            borderRadius:2,
+            pointerEvents:'none',
+            zIndex:5,
+            boxSizing:'border-box',
+            animation:'range-anchor-pulse 1s ease-in-out infinite alternate'
+          }}/>}
 
           <>
             <div ref={el => hoverRefs.current.row = el} style={{

@@ -241,6 +241,7 @@ const SharedModals = {
       : section('Stitch Tracker', [
           shRow(['T'], 'Track mode'),
           shRow(['N'], 'Navigate mode'),
+          shRow(['Shift+Click'], 'Mark range from last clicked cell'),
           shRow(['Space'], 'Start / stop timer (tap)'),
           shRow(['V'], 'Cycle view mode'),
           shRow(['[', ']'], 'Previous / next colour'),
