@@ -97,22 +97,22 @@ function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettin
   try {
     var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
     var todayStitches = getStatsTodayStitches(statsSessions || [], dayEndHour);
-    var todayMinutes = getStatsTodayMinutes(statsSessions || [], dayEndHour);
+    var todaySeconds = getStatsTodaySeconds(statsSessions || [], dayEndHour);
     var dailyGoal = statsSettings && statsSettings.dailyGoal;
     var percent = totalStitches > 0 ? Math.round((totalCompleted / totalStitches) * 1000) / 10 : 0;
     var liveTodayStitches = todayStitches;
-    var liveTodayMinutes = todayMinutes;
+    var liveTodaySeconds = todaySeconds;
     if (currentAutoSession) {
       liveTodayStitches += ((currentAutoSession.stitchesCompleted||0) - (currentAutoSession.stitchesUndone||0));
-      var elapsed = Math.round((Date.now() - new Date(currentAutoSession.startTime).getTime() - (currentAutoSession.totalPausedMs||0)) / 60000);
-      liveTodayMinutes += Math.max(0, elapsed);
+      var elapsed = Math.round((Date.now() - new Date(currentAutoSession.startTime).getTime() - (currentAutoSession.totalPausedMs||0)) / 1000);
+      liveTodaySeconds += Math.max(0, elapsed);
     }
     var streaks = computeStreaks(statsSessions || [], dayEndHour);
     return React.createElement("div", {className:"mini-stats-bar"},
       React.createElement(ProgressRing, {percent:percent, size:36}),
       React.createElement("div", {className:"mini-stats-text"},
         React.createElement("span", {className:"mini-stats-count"}, liveTodayStitches + " stitches today"),
-        React.createElement("span", {className:"mini-stats-time"}, formatStatsDuration(liveTodayMinutes))
+        React.createElement("span", {className:"mini-stats-time"}, formatStatsDuration(liveTodaySeconds))
       ),
       streaks.current > 0 && React.createElement("span", {className:"mini-stats-streak-badge"}, "\uD83D\uDD25 " + streaks.current + "d"),
       dailyGoal && liveTodayStitches < dailyGoal && React.createElement("span", {className:"mini-stats-goal-badge"}, (dailyGoal - liveTodayStitches) + " to goal"),

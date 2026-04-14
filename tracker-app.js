@@ -20,10 +20,9 @@ const[trackHistory,setTrackHistory]=useState([]);
 const[redoStack,setRedoStack]=useState([]);
 const TRACK_HISTORY_MAX=50;
 
-const[totalTime,setTotalTime]=useState(0);
 const[sessions,setSessions]=useState([]);
-
 const[statsSessions,setStatsSessions]=useState([]);
+const totalTime=useMemo(()=>{if(!statsSessions||statsSessions.length===0)return 0;return statsSessions.reduce(function(sum,s){return sum+getSessionSeconds(s);},0);},[statsSessions]);
 const[statsSettings,setStatsSettings]=useState({dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90});
 const[statsView,setStatsView]=useState(false);
 const[celebration,setCelebration]=useState(null);
@@ -360,6 +359,7 @@ function finaliseAutoSession(){
       date:session.date,
       startTime:session.startTime,
       endTime:endTime.toISOString(),
+      durationSeconds:Math.max(1,Math.round(activeDurationMs/1000)),
       durationMinutes:Math.max(1,Math.round(activeDurationMs/60000)),
       stitchesCompleted:session.stitchesCompleted,
       stitchesUndone:session.stitchesUndone,
@@ -374,7 +374,6 @@ function finaliseAutoSession(){
       pendingMilestonesRef.current=[];
     }
     setStatsSessions(prev=>[...(prev||[]),finalised]);
-    setTotalTime(prev => prev + Math.floor(activeDurationMs / 1000));
     currentAutoSessionRef.current=null;
     clearTimeout(autoIdleTimerRef.current);
     clearTimeout(inactivityTimerRef.current);
@@ -1344,9 +1343,30 @@ function processLoadedProject(project){
   else setDone(new Uint8Array(restored.length));
 
   setParkMarkers(project.parkMarkers||[]);
-  setTotalTime(project.totalTime||0);
   setSessions(project.sessions||[]);
-  setStatsSessions(project.statsSessions||[]);
+  // Legacy migration: if no sessions but totalTime exists, create a synthetic session
+  var rawStatsSessions=project.statsSessions||[];
+  if(rawStatsSessions.length===0&&project.totalTime>0){
+    var legacyDone=project.done?Array.from(project.done).filter(function(v){return v===1;}).length:0;
+    rawStatsSessions=[{
+      id:'sess_legacy',
+      date:project.updatedAt?project.updatedAt.slice(0,10):new Date().toISOString().slice(0,10),
+      startTime:project.createdAt||project.updatedAt||new Date().toISOString(),
+      endTime:project.updatedAt||new Date().toISOString(),
+      durationSeconds:project.totalTime,
+      durationMinutes:Math.round(project.totalTime/60),
+      stitchesCompleted:legacyDone,
+      stitchesUndone:0,
+      netStitches:legacyDone,
+      totalAtEnd:legacyDone,
+      percentAtEnd:0,
+      note:'Migrated from legacy total time',
+      coloursWorked:[],
+    }];
+  }
+  // Patch legacy sessions that only have durationMinutes
+  rawStatsSessions.forEach(function(s){if(s.durationSeconds==null&&s.durationMinutes!=null){s.durationSeconds=s.durationMinutes*60;}});
+  setStatsSessions(rawStatsSessions);
   setStatsSettings(project.statsSettings||{dailyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null});
   setStatsView(false);
   setCelebration(null);

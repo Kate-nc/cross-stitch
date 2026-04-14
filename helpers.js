@@ -459,26 +459,55 @@ function getStitchingDate(now, dayEndHour) {
   return y + '-' + m + '-' + day;
 }
 
+function getSessionSeconds(s) {
+  return s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60;
+}
+
+function computeWeightedPace(sessions, daysWindow) {
+  daysWindow = daysWindow || 14;
+  if (!sessions || sessions.length === 0) return null;
+  var dailyTotals = {};
+  for (var i = 0; i < sessions.length; i++) {
+    var s = sessions[i];
+    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + s.netStitches;
+  }
+  var dates = Object.keys(dailyTotals).sort().reverse().slice(0, daysWindow);
+  if (dates.length === 0) return null;
+  var weightedSum = 0;
+  var totalWeight = 0;
+  for (var j = 0; j < dates.length; j++) {
+    var weight = dates.length - j;
+    weightedSum += dailyTotals[dates[j]] * weight;
+    totalWeight += weight;
+  }
+  return totalWeight > 0 ? Math.round(weightedSum / totalWeight) : null;
+}
+
 function computeOverviewStats(statsSessions, totalCompleted, totalStitches) {
-  const totalMinutes = statsSessions.reduce(function(sum, s) { return sum + s.durationMinutes; }, 0);
-  const totalHours = totalMinutes / 60;
+  var totalSeconds = statsSessions.reduce(function(sum, s) { return sum + getSessionSeconds(s); }, 0);
+  var totalHours = totalSeconds / 3600;
+  var totalMinutes = Math.round(totalSeconds / 60);
   var totalNetStitches = statsSessions.reduce(function(sum, s) { return sum + s.netStitches; }, 0);
   var stitchesPerHour = totalHours > 0 ? Math.round(totalNetStitches / totalHours) : 0;
   var uniqueDays = new Set(statsSessions.map(function(s) { return s.date; })).size;
   var avgPerDay = uniqueDays > 0 ? Math.round(totalNetStitches / uniqueDays) : 0;
   var remaining = totalStitches - totalCompleted;
-  var daysRemaining = avgPerDay > 0 ? Math.ceil(remaining / avgPerDay) : null;
+  var recentPace = computeWeightedPace(statsSessions, 14);
+  var paceForEstimate = recentPace || avgPerDay;
+  var daysRemaining = paceForEstimate > 0 ? Math.ceil(remaining / paceForEstimate) : null;
   var estimatedDate = daysRemaining ? new Date(Date.now() + daysRemaining * 86400000) : null;
   return {
     percent: totalStitches > 0 ? Math.round((totalCompleted / totalStitches) * 1000) / 10 : 0,
     stitchesPerHour: stitchesPerHour,
-    totalTimeFormatted: formatStatsDuration(totalMinutes),
+    totalTimeFormatted: formatStatsDuration(totalSeconds),
     estimatedCompletion: estimatedDate
       ? estimatedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
       : '—',
     daysRemaining: daysRemaining,
     avgPerDay: avgPerDay,
+    recentPace: recentPace,
     totalMinutes: totalMinutes,
+    totalSeconds: totalSeconds,
     uniqueDays: uniqueDays
   };
 }
@@ -488,9 +517,9 @@ function getStatsTodayStitches(sessions, dayEndHour) {
   return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
 }
 
-function getStatsTodayMinutes(sessions, dayEndHour) {
+function getStatsTodaySeconds(sessions, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
-  return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + s.durationMinutes; }, 0);
+  return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + getSessionSeconds(s); }, 0);
 }
 
 function groupSessionsByDate(sessions) {
@@ -503,8 +532,9 @@ function groupSessionsByDate(sessions) {
   return grouped;
 }
 
-function formatStatsDuration(minutes) {
-  if (minutes < 1) return '0m';
+function formatStatsDuration(seconds) {
+  var minutes = Math.round(seconds / 60);
+  if (minutes < 1) return '<1m';
   if (minutes < 60) return minutes + 'm';
   var h = Math.floor(minutes / 60);
   var m = minutes % 60;
@@ -745,7 +775,7 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
     '\uD83E\uDDF5 ' + (projectName || 'Cross Stitch Project') + ' \u2014 Progress Update',
     '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
     '\u2705 ' + totalCompleted.toLocaleString() + ' / ' + totalStitches.toLocaleString() + ' stitches (' + percent + '%)',
-    '\u23F1\uFE0F ' + formatStatsDuration(stats.totalMinutes) + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),
+    '\u23F1\uFE0F ' + formatStatsDuration(stats.totalSeconds) + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),
     '\uD83D\uDCC8 ' + stats.stitchesPerHour + ' stitches/hour \u00B7 ' + stats.avgPerDay + '/day average'
   ];
 
@@ -813,11 +843,11 @@ function getSpeedTrendData(sessions) {
     return new Date(a.startTime) - new Date(b.startTime);
   });
   return sorted
-    .filter(function(s) { return s.durationMinutes >= 10 && s.netStitches > 0; })
+    .filter(function(s) { return getSessionSeconds(s) >= 600 && s.netStitches > 0; })
     .map(function(s) {
       return {
         date: s.date,
-        speed: Math.round(s.netStitches / (s.durationMinutes / 60))
+        speed: Math.round(s.netStitches / (getSessionSeconds(s) / 3600))
       };
     });
 }
