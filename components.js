@@ -108,13 +108,6 @@ function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettin
       liveTodaySeconds += Math.max(0, elapsed);
     }
     var streaks = computeStreaks(statsSessions || [], dayEndHour);
-    var goalPct = dailyGoal > 0 ? Math.min(100, (liveTodayStitches / dailyGoal) * 100) : 0;
-    var goalMet = dailyGoal > 0 && liveTodayStitches >= dailyGoal;
-    var goalBehind = dailyGoal > 0 && !goalMet && (function(){
-      var hourOfDay = new Date().getHours() + new Date().getMinutes()/60;
-      var dayFraction = Math.max(0, Math.min(1, (hourOfDay - dayEndHour + 24) % 24 / 24));
-      return dayFraction > 0 && liveTodayStitches < Math.floor(dailyGoal * dayFraction);
-    })();
     var isStreakRecord = streaks.current > 0 && streaks.current >= streaks.longest;
     var weeklyGoal = statsSettings && statsSettings.weeklyGoal;
     var monthlyGoal = statsSettings && statsSettings.monthlyGoal;
@@ -798,6 +791,12 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
 
   var snap=selectedId?(doneSnapshots||[]).find(function(s){return s.id===selectedId;}):null;
 
+  function uint8ToBase64(bytes){
+    var CHUNK=0x8000,out='';
+    for(var i=0;i<bytes.length;i+=CHUNK)out+=String.fromCharCode.apply(null,bytes.subarray(i,i+CHUNK));
+    return btoa(out);
+  }
+
   function decompressSnap(data){
     try{
       var binary=atob(data);var bytes=new Uint8Array(binary.length);
@@ -834,7 +833,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
     if(!done||!pat)return;
     var l=labelText.trim()||'Snapshot';
     try{
-      var data=btoa(String.fromCharCode.apply(null,pako.deflate(done)));
+      var data=uint8ToBase64(pako.deflate(done));
       var today=new Date().toISOString().slice(0,10);
       var doneCount=0;for(var i=0;i<done.length;i++)if(done[i])doneCount++;
       var newSnap={id:'snap_'+Date.now(),date:today,label:l,doneCount:doneCount,data:data};

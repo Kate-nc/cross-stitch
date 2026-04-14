@@ -134,7 +134,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     { id: 'creator', label: 'Create', href: 'index.html' },
     { id: 'tracker', label: 'Track',  href: 'stitch.html' },
     { id: 'manager', label: 'Stash',  href: 'manager.html' },
-    { id: 'stats', label: 'Stats', href: 'index.html' },
+    { id: 'stats', label: 'Stats', href: 'index.html?mode=stats' },
     { id: 'embroidery', label: 'Embroidery (BETA)', href: 'embroidery.html' },
   ];
 

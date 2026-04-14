@@ -1,5 +1,10 @@
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
 
+function uint8ToBase64(bytes){
+  var CHUNK=0x8000,out='';
+  for(var i=0;i<bytes.length;i+=CHUNK)out+=String.fromCharCode.apply(null,bytes.subarray(i,i+CHUNK));
+  return btoa(out);
+}
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80),[sH,setSH]=useState(80);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null);
@@ -221,7 +226,7 @@ const focusableColors=useMemo(()=>{
 },[pal,colourDoneCounts,highlightSkipDone,onlyStarted]);
 
 const sections=useMemo(()=>{
-  if(!pat||!done)return[];
+  if(!statsView||!pat||!done)return[];
   const secCols=(statsSettings&&statsSettings.sectionCols)||50;
   const secRows=(statsSettings&&statsSettings.sectionRows)||50;
   const numX=Math.ceil(sW/secCols);const numY=Math.ceil(sH/secRows);
@@ -234,7 +239,7 @@ const sections=useMemo(()=>{
     result.push({label:String(sy*numX+sx+1),sx,sy,x0,y0,x1,y1,total,completed,pct:total>0?Math.round(completed/total*100):100,isDone:total>0&&completed>=total});
   }}
   return result;
-},[pat,done,sW,sH,statsSettings.sectionCols,statsSettings.sectionRows]);
+},[statsView,pat,done,sW,sH,statsSettings.sectionCols,statsSettings.sectionRows]);
 
 const prevFocusIdRef=useRef(null);
 const prevFocusDoneRef=useRef(null);
@@ -512,7 +517,7 @@ useEffect(()=>{
             date:lastSnapshotDateRef.current,
             label:'auto',
             doneCount:curDone,
-            data:btoa(String.fromCharCode(...pako.deflate(done)))
+            data:uint8ToBase64(pako.deflate(done))
           };
           setDoneSnapshots(prev=>{
             const updated=[...prev,snapshot];

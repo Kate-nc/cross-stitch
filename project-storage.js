@@ -17,7 +17,7 @@ const ProjectStorage = (() => {
       : (p.totalStitches || 0);
     const done = p.done;
     const completedSt = done
-      ? (Array.isArray(done) ? done.reduce((n, v) => n + (v === 1 ? 1 : 0), 0) : 0)
+      ? (ArrayBuffer.isView(done) || Array.isArray(done) ? Array.prototype.reduce.call(done, (n, v) => n + (v === 1 ? 1 : 0), 0) : 0)
       : (p.completedStitches || 0);
     return {
       id: p.id,
@@ -172,11 +172,13 @@ const ProjectStorage = (() => {
       try {
         const db = await getDB();
         return new Promise((resolve, reject) => {
-          let tx = db.transaction([STORE_NAME, META_STORE], "readwrite");
+          let tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
           let store = tx.objectStore(STORE_NAME);
           let metaStore = tx.objectStore(META_STORE);
+          let statsStore = tx.objectStore(STATS_STORE);
           store.delete(id);
           metaStore.delete(id);
+          statsStore.delete(id);
           tx.oncomplete = () => resolve();
           tx.onerror = () => reject(tx.error);
         });
@@ -210,14 +212,26 @@ const ProjectStorage = (() => {
     async getAllStatsSummaries() {
       try {
         const db = await getDB();
-        const all = await new Promise((resolve, reject) => {
-          let tx = db.transaction(STATS_STORE, "readonly");
-          let store = tx.objectStore(STATS_STORE);
-          let request = store.getAll();
-          request.onsuccess = () => resolve(request.result || []);
-          request.onerror = () => reject(request.error);
+        const data = await new Promise((resolve, reject) => {
+          let tx = db.transaction([STATS_STORE, META_STORE], "readonly");
+          let statsStore = tx.objectStore(STATS_STORE);
+          let metaStore = tx.objectStore(META_STORE);
+          let statsReq = statsStore.getAll();
+          let metaReq = metaStore.getAll();
+          let stats = null, meta = null, done = false;
+          function finish() {
+            if (done || stats === null || meta === null) return;
+            done = true;
+            resolve({ stats, meta });
+          }
+          statsReq.onsuccess = () => { stats = statsReq.result || []; finish(); };
+          metaReq.onsuccess = () => { meta = metaReq.result || []; finish(); };
+          statsReq.onerror = () => { if (!done) { done = true; reject(statsReq.error); } };
+          metaReq.onerror = () => { if (!done) { done = true; reject(metaReq.error); } };
+          tx.onerror = () => { if (!done) { done = true; reject(tx.error); } };
         });
-        return all.filter(s => s && s.id && s.id.startsWith("proj_"));
+        const validIds = new Set((data.meta || []).map(m => m && m.id).filter(Boolean));
+        return (data.stats || []).filter(s => s && s.id && s.id.startsWith("proj_") && validIds.has(s.id));
       } catch (err) {
         console.error("ProjectStorage.getAllStatsSummaries failed:", err);
         return [];

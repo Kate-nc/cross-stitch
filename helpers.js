@@ -58,7 +58,7 @@ async function ensurePersistence() {
 function getDB() {
   return new Promise((resolve, reject) => {
     ensurePersistence().catch(() => {});
-    let request = indexedDB.open(DB_NAME, 2);
+    let request = indexedDB.open(DB_NAME, 3);
     request.onupgradeneeded = (e) => {
       let db = e.target.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -66,6 +66,9 @@ function getDB() {
       }
       if (!db.objectStoreNames.contains("project_meta")) {
         db.createObjectStore("project_meta");
+      }
+      if (!db.objectStoreNames.contains("stats_summaries")) {
+        db.createObjectStore("stats_summaries");
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -532,7 +535,8 @@ function getStatsTodaySeconds(sessions, dayEndHour) {
 }
 
 function getStatsThisWeekStitches(sessions, dayEndHour) {
-  var today = new Date();
+  var todayStr = getStitchingDate(new Date(), dayEndHour || 0);
+  var today = new Date(todayStr + 'T00:00:00');
   var dayOfWeek = today.getDay();
   var mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   var monday = new Date(today);
@@ -542,8 +546,8 @@ function getStatsThisWeekStitches(sessions, dayEndHour) {
 }
 
 function getStatsThisMonthStitches(sessions, dayEndHour) {
-  var today = new Date();
-  var monthPrefix = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2);
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  var monthPrefix = today.slice(0, 7);
   return (sessions || []).filter(function(s) { return s.date && s.date.startsWith(monthPrefix); }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
 }
 
