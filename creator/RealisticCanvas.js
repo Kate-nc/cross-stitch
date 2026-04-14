@@ -6,7 +6,7 @@
    Reads from CreatorContext. Loaded as part of creator/bundle.js.
    Depends on: context.js (CreatorContext) */
 
-window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
+window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var ctx = React.useContext(window.CreatorContext);
   var h = React.createElement;
 
@@ -24,7 +24,8 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
   var sH = ctx.sH;
   var cs = ctx.cs;
   var previewShowGrid = ctx.previewShowGrid;
-  var realisticLevel = ctx.realisticLevel;
+  // inputLevel prop overrides ctx.realisticLevel — used by SplitPane right pane
+  var realisticLevel = (props && props.inputLevel != null) ? props.inputLevel : ctx.realisticLevel;
   var fabricCt = ctx.fabricCt;
   var coverageOverride = ctx.coverageOverride;
 
@@ -427,7 +428,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
 
     offscreenRef.current = offscreen;
     setOffscreenVersion(function(v) { return v + 1; });
-  }, [pat, cmap, sW, sH, realisticLevel, fabricCt, coverageOverride]);
+  }, [pat, cmap, sW, sH, realisticLevel, ctx.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────
   // Runs whenever the offscreen is rebuilt (offscreenVersion) or zoom changes.

@@ -25,6 +25,7 @@ const ORDER = [
   'useProjectIO.js',
   'usePreview.js',
   'PatternCanvas.js',
+  'SplitPane.js',
   'ToolStrip.js',
   'MagicWandPanel.js',
   'SubstituteFromStashModal.js',

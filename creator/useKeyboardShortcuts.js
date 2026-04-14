@@ -63,6 +63,12 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         state.setView(function(v) { return v === "color" ? "symbol" : v === "symbol" ? "both" : "color"; });
         return;
       }
+      if (e.key === "\\") {
+        var nextSplit = !state.splitPaneEnabled;
+        state.setSplitPaneEnabled(nextSplit);
+        if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", nextSplit);
+        return;
+      }
       if (e.key === "=" || e.key === "+") { state.setZoom(function(z) { return Math.min(3, +(z + 0.1).toFixed(2)); }); return; }
       if (e.key === "-") { state.setZoom(function(z) { return Math.max(0.05, +(z - 0.1).toFixed(2)); }); return; }
       if (e.key === "0") { state.fitZ(); return; }
@@ -76,6 +82,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     state.namePromptOpen, state.modal, state.overflowOpen,
     state.selectedColorId, state.partialStitchTool, state.hiId,
     state.hasSelection, state.lassoInProgress, state.highlightMode,
+    state.splitPaneEnabled,
     history.undoEdit, history.redoEdit, io.saveProject,
   ]);
 };

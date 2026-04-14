@@ -122,7 +122,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h(window.MagicWandPanel, null),
 
-    h("div", {
+    ctx.splitPaneEnabled
+      ? h(window.CreatorSplitPane, null)
+      : h("div", {
       ref:ctx.scrollRef,
       style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#f1f5f9",cursor:(function(){
         var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";

@@ -261,6 +261,18 @@ const SharedModals = {
         pageSection,
         React.createElement('p', { style: { margin: '8px 0 0', fontSize: 12, color: '#94a3b8', textAlign: 'center' } },
           'Press ', React.createElement('kbd', null, '?'), ' anytime to toggle this panel'
+        ),
+        React.createElement('div', { style: { marginTop: 16, paddingTop: 12, borderTop: '1px solid #f1f5f9', textAlign: 'center' } },
+          React.createElement('button', {
+            onClick: function() {
+              if (confirm('Reset all preview preferences and per-pattern view states to defaults?\n\nThis cannot be undone.')) {
+                if (typeof UserPrefs !== 'undefined') UserPrefs.reset();
+                onClose();
+                alert('Preferences reset. Reload the page to apply defaults.');
+              }
+            },
+            style: { fontSize: 11, color: '#94a3b8', background: 'none', border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }
+          }, 'Reset preview preferences…')
         )
       )
     );
