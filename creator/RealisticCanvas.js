@@ -1,6 +1,8 @@
 /* creator/RealisticCanvas.js — Realistic cross-stitch texture preview.
    Renders each stitch as a pair of crossed diagonal strands on a woven fabric background.
    Level 1: flat X strands. Level 2: shaded X with light simulation. Level 3: procedural thread texture.
+   Level 3a (lvl=4): same as Level 3 for solid stitches, but blend stitches use per-segment Z-order
+   so each colour strand alternately passes over the other at every half-twist.
    Reads from CreatorContext. Loaded as part of creator/bundle.js.
    Depends on: context.js (CreatorContext) */
 
@@ -161,12 +163,15 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
         tc.strokeStyle = makeGrad(INV_SQ2, -INV_SQ2, r2, g2, b2, 1.15);
         tc.beginPath(); tc.moveTo(x0, y0); tc.lineTo(x1, y1); tc.stroke();
       } else {
-        // ── Level 3: Procedural thread texture (Option A) ────────────────────
-        // Each leg is drawn as SC individual strands that twist sinusoidally
-        // around the leg centre line, producing a helical rope appearance.
-        // All DMC threads render as cotton (default) since dmc-data.js carries
-        // no material field.  Material infrastructure is present for future use.
-        // SC and sw are derived from fabricCt above and captured by closure.
+        // ── Level 3 / Level 3a: Procedural thread texture ────────────────────
+        // SC and sw are derived from fabricCt (hoisted above drawCross).
+        // Level 3:  full-length halo+solid strands; blends alternate A/B colours
+        //           per strand but both paths are drawn independently, so strands
+        //           of different colours sit beside each other along the leg.
+        // Level 3a: blend stitches only — per-segment Z-order rendering so each
+        //           strand alternately passes OVER the other at every half-twist,
+        //           making both colours clearly visible as interlocked ropes rather
+        //           than optical blends.  Non-blend stitches are identical to Lvl 3.
         var SN = 20;             // sample points per strand path (smooth curve)
         var TF = 2.5;            // twist frequency — full twists per leg length
         var TA = sw * 0.3;       // twist amplitude — max perpendicular deviation
@@ -175,7 +180,6 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
         var lCX = CELL_SIZE / 2, lCY = CELL_SIZE / 2;
 
         // Deterministic per-strand colour variation, range −4 to +3.
-        // `variant` (0–3) shifts the seed so tile variants differ visually.
         function hashVar(seed, si) {
           var h = ((seed * 1619) ^ (si * 31337)) | 0;
           h = (h ^ (h >>> 13)) * 1540483477 | 0;
@@ -211,8 +215,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
           tc.stroke();
         }
 
-        // Draw all strands for one leg.
-        // colA = even strands (or solid), colB = odd strands (blend only).
+        // Level 3: draw all strands for one leg with halo+solid.
         function drawLeg3(lsx, lsy, lex, ley, angle, aR, aG, aB, bR, bG, bB, bright) {
           for (var si = 0; si < SC; si++) {
             var sR, sG, sB;
@@ -232,10 +235,72 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
           }
         }
 
+        // Level 3a: draw a blend leg with per-segment Z-order.
+        // Real blended embroidery thread has two distinct twisted fibres that
+        // physically pass over each other at every half-twist — you can see both
+        // individual colours clearly.  Simulate this by:
+        //   1. Finding the crossing points where the two strands meet (offset == 0).
+        //   2. Between each pair of crossings, drawing the rearward strand first
+        //      then the forward strand on top so it overwrites the overlap.
+        // Non-blend legs (or SC < 2) fall back to drawLeg3 unchanged.
+        function drawLeg3a(lsx, lsy, lex, ley, angle, aR, aG, aB, bR, bG, bB, bright) {
+          if (!IS_BLEND || SC < 2) {
+            drawLeg3(lsx, lsy, lex, ley, angle, aR, aG, aB, bR, bG, bB, bright);
+            return;
+          }
+          var pts0 = mkPts(lsx, lsy, lex, ley, angle, 0); // strand A
+          var pts1 = mkPts(lsx, lsy, lex, ley, angle, 1); // strand B
+
+          function applyBright(r, g, b) {
+            return "rgb(" +
+              Math.min(255, Math.max(0, Math.round(r * bright))) + "," +
+              Math.min(255, Math.max(0, Math.round(g * bright))) + "," +
+              Math.min(255, Math.max(0, Math.round(b * bright))) + ")";
+          }
+          var cssA = applyBright(aR, aG, aB);
+          var cssB = applyBright(bR, bG, bB);
+
+          // Crossing-point sample indices: t = k/(2*TF), so index ≈ round(k/(2*TF)*SN).
+          // At these t values both strands have offset 0 and are co-located.
+          var crossIdx = [0];
+          for (var ck = 1; ck <= Math.ceil(2 * TF); ck++) {
+            var ci = Math.round(ck / (2 * TF) * SN);
+            if (ci > 0 && ci < SN) crossIdx.push(ci);
+          }
+          crossIdx.push(SN);
+
+          // Draw a sub-path from sample index n0 to n1.
+          function drawSeg(pts, n0, n1, css) {
+            if (n1 <= n0) return;
+            tc.beginPath(); tc.moveTo(pts[n0 * 2], pts[n0 * 2 + 1]);
+            for (var k = n0 + 1; k <= n1; k++) tc.lineTo(pts[k * 2], pts[k * 2 + 1]);
+            tc.lineWidth = ISW;
+            tc.strokeStyle = css;
+            tc.stroke();
+          }
+
+          // For each half-twist interval, determine which strand is in front
+          // (positive perpendicular offset for strand 0 when sin(midT*TF*2π) >= 0),
+          // draw back strand first then front strand on top.
+          for (var seg = 0; seg < crossIdx.length - 1; seg++) {
+            var n0 = crossIdx[seg], n1 = crossIdx[seg + 1];
+            var midT = (n0 + n1) / 2 / SN;
+            var s0Front = Math.sin(midT * TF * 2 * Math.PI) >= 0;
+            if (s0Front) {
+              drawSeg(pts1, n0, n1, cssB); // back: B
+              drawSeg(pts0, n0, n1, cssA); // front: A
+            } else {
+              drawSeg(pts0, n0, n1, cssA); // back: A
+              drawSeg(pts1, n0, n1, cssB); // front: B
+            }
+          }
+        }
+
         tc.lineCap = "round"; tc.lineJoin = "round";
+        var drawLegFn = (lvl === 4) ? drawLeg3a : drawLeg3;
 
         // Bottom leg: BL→TR, angle = −π/4, brightness 0.78 (faces away from light).
-        drawLeg3(x0, y1, x1, y0, -Math.PI / 4, r1, g1, b1, r2, g2, b2, 0.78);
+        drawLegFn(x0, y1, x1, y0, -Math.PI / 4, r1, g1, b1, r2, g2, b2, 0.78);
 
         // Crossing fade: semi-transparent fabric disc partially occludes the bottom
         // leg at the crossing point, reinforcing top-over-bottom layering.
@@ -245,7 +310,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
         // Top leg: TL→BR, angle = π/4, brightness 1.15 (faces the light source).
         // Colour order is r1/r2 on both legs — the same thread is in the needle
         // for both legs, so A/B strand interleaving must be consistent.
-        drawLeg3(x0, y0, x1, y1, Math.PI / 4, r1, g1, b1, r2, g2, b2, 1.15);
+        drawLegFn(x0, y0, x1, y1, Math.PI / 4, r1, g1, b1, r2, g2, b2, 1.15);
 
         // Cotton sheen highlight — thin semi-transparent white line along the
         // twisted path of the frontmost top-leg strand (12–15% opacity, matte).
@@ -270,7 +335,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
       var g2 = rgb2 ? rgb2[1] : g1;
       var b2 = rgb2 ? rgb2[2] : b1;
       var key = r1 + "," + g1 + "," + b1 + "|" + r2 + "," + g2 + "," + b2;
-      if (lvl === 3) key += ":" + (variant | 0);
+      if (lvl === 3 || lvl === 4) key += ":" + (variant | 0);
       if (tileCache[key]) return tileCache[key];
       var tileC = document.createElement("canvas");
       tileC.width = CELL_SIZE;
@@ -285,7 +350,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
     // 4 tile variants (different colour-variation seeds) selected by cell position,
     // breaking up obvious repetition in large single-colour areas.
     var colourFreq = {};
-    if (lvl === 3) {
+    if (lvl === 3 || lvl === 4) {
       for (var ci = 0; ci < pat.length; ci++) {
         var cc = pat[ci];
         if (!cc || cc.id === "__skip__" || cc.id === "__empty__") continue;
@@ -404,7 +469,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas() {
     }),
     h("div", {className: "preview-status-bar"},
       sW + " \xD7 " + sH + " stitches \xB7 " + colCount + " colour" + (colCount !== 1 ? "s" : "") +
-      " \xB7 " + (realisticLevel === 3 ? "Detailed" : realisticLevel === 2 ? "Shaded" : "Flat")
+      " \xB7 " + (realisticLevel === 4 ? "Detailed (3a)" : realisticLevel === 3 ? "Detailed" : realisticLevel === 2 ? "Shaded" : "Flat")
     )
   );
 };
