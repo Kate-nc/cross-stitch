@@ -8950,10 +8950,10 @@ window.CreatorToastContainer = function CreatorToastContainer() {
   if (!ctx.toasts || ctx.toasts.length === 0) return null;
 
   var typeStyles = {
-    info:    { bg: "#f0f9ff", border: "#bae6fd", color: "#0369a1", icon: "\u2139\uFE0F" },
-    success: { bg: "#f0fdf4", border: "#bbf7d0", color: "#166534", icon: "\u2705" },
-    warning: { bg: "#fffbeb", border: "#fde68a", color: "#92400e", icon: "\u26A0\uFE0F" },
-    error:   { bg: "#fef2f2", border: "#fecaca", color: "#991b1b", icon: "\u274C" }
+    info:    { bg: "#f0f9ff", border: "#bae6fd", color: "#0369a1", icon: Icons.info },
+    success: { bg: "#f0fdf4", border: "#bbf7d0", color: "#166534", icon: Icons.check },
+    warning: { bg: "#fffbeb", border: "#fde68a", color: "#92400e", icon: Icons.warning },
+    error:   { bg: "#fef2f2", border: "#fecaca", color: "#991b1b", icon: Icons.x }
   };
 
   return h("div", {
@@ -8978,7 +8978,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
           fontFamily: "inherit", lineHeight: 1.4, maxWidth: 340
         }
       },
-        h("span", { style: { fontSize: 14, flexShrink: 0 } }, ts.icon),
+        h("span", { style: { fontSize: 14, flexShrink: 0 } }, ts.icon()),
         h("span", { style: { flex: 1 } }, toast.message),
         h("button", {
           onClick: function() { ctx.dismissToast(toast.id); },

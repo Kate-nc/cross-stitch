@@ -58,7 +58,7 @@ async function ensurePersistence() {
 function getDB() {
   return new Promise((resolve, reject) => {
     ensurePersistence().catch(() => {});
-    let request = indexedDB.open(DB_NAME, 2);
+    let request = indexedDB.open(DB_NAME, 3);
     request.onupgradeneeded = (e) => {
       let db = e.target.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -66,6 +66,9 @@ function getDB() {
       }
       if (!db.objectStoreNames.contains("project_meta")) {
         db.createObjectStore("project_meta");
+      }
+      if (!db.objectStoreNames.contains("stats_summaries")) {
+        db.createObjectStore("stats_summaries");
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -459,27 +462,65 @@ function getStitchingDate(now, dayEndHour) {
   return y + '-' + m + '-' + day;
 }
 
-function computeOverviewStats(statsSessions, totalCompleted, totalStitches) {
-  const totalMinutes = statsSessions.reduce(function(sum, s) { return sum + s.durationMinutes; }, 0);
-  const totalHours = totalMinutes / 60;
+function getSessionSeconds(s) {
+  return s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60;
+}
+
+function computeWeightedPace(sessions, daysWindow) {
+  daysWindow = daysWindow || 14;
+  if (!sessions || sessions.length === 0) return null;
+  var dailyTotals = {};
+  for (var i = 0; i < sessions.length; i++) {
+    var s = sessions[i];
+    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + s.netStitches;
+  }
+  var dates = Object.keys(dailyTotals).sort().reverse().slice(0, daysWindow);
+  if (dates.length === 0) return null;
+  var weightedSum = 0;
+  var totalWeight = 0;
+  for (var j = 0; j < dates.length; j++) {
+    var weight = dates.length - j;
+    weightedSum += dailyTotals[dates[j]] * weight;
+    totalWeight += weight;
+  }
+  return totalWeight > 0 ? Math.round(weightedSum / totalWeight) : null;
+}
+
+function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useActiveDays) {
+  var totalSeconds = statsSessions.reduce(function(sum, s) { return sum + getSessionSeconds(s); }, 0);
+  var totalHours = totalSeconds / 3600;
+  var totalMinutes = Math.round(totalSeconds / 60);
   var totalNetStitches = statsSessions.reduce(function(sum, s) { return sum + s.netStitches; }, 0);
   var stitchesPerHour = totalHours > 0 ? Math.round(totalNetStitches / totalHours) : 0;
   var uniqueDays = new Set(statsSessions.map(function(s) { return s.date; })).size;
-  var avgPerDay = uniqueDays > 0 ? Math.round(totalNetStitches / uniqueDays) : 0;
+  var sortedDates = Array.from(new Set(statsSessions.map(function(s) { return s.date; }))).sort();
+  var firstDate = sortedDates.length > 0 ? new Date(sortedDates[0] + 'T12:00:00') : null;
+  var elapsedDays = firstDate ? Math.max(1, Math.ceil((Date.now() - firstDate.getTime()) / 86400000)) : uniqueDays;
+  var avgPerActiveDay = uniqueDays > 0 ? Math.round(totalNetStitches / uniqueDays) : 0;
+  var avgPerCalendarDay = elapsedDays > 0 ? Math.round(totalNetStitches / elapsedDays) : 0;
+  var avgPerDay = (useActiveDays !== false) ? avgPerActiveDay : avgPerCalendarDay;
   var remaining = totalStitches - totalCompleted;
-  var daysRemaining = avgPerDay > 0 ? Math.ceil(remaining / avgPerDay) : null;
+  var recentPace = computeWeightedPace(statsSessions, 14);
+  var paceForEstimate = recentPace || avgPerDay;
+  var daysRemaining = paceForEstimate > 0 ? Math.ceil(remaining / paceForEstimate) : null;
   var estimatedDate = daysRemaining ? new Date(Date.now() + daysRemaining * 86400000) : null;
   return {
     percent: totalStitches > 0 ? Math.round((totalCompleted / totalStitches) * 1000) / 10 : 0,
     stitchesPerHour: stitchesPerHour,
-    totalTimeFormatted: formatStatsDuration(totalMinutes),
+    totalTimeFormatted: formatStatsDuration(totalSeconds),
     estimatedCompletion: estimatedDate
       ? estimatedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
       : '—',
     daysRemaining: daysRemaining,
     avgPerDay: avgPerDay,
+    avgPerActiveDay: avgPerActiveDay,
+    avgPerCalendarDay: avgPerCalendarDay,
+    recentPace: recentPace,
     totalMinutes: totalMinutes,
-    uniqueDays: uniqueDays
+    totalSeconds: totalSeconds,
+    uniqueDays: uniqueDays,
+    activeDays: uniqueDays,
+    elapsedDays: elapsedDays
   };
 }
 
@@ -488,9 +529,26 @@ function getStatsTodayStitches(sessions, dayEndHour) {
   return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
 }
 
-function getStatsTodayMinutes(sessions, dayEndHour) {
+function getStatsTodaySeconds(sessions, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
-  return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + s.durationMinutes; }, 0);
+  return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + getSessionSeconds(s); }, 0);
+}
+
+function getStatsThisWeekStitches(sessions, dayEndHour) {
+  var todayStr = getStitchingDate(new Date(), dayEndHour || 0);
+  var today = new Date(todayStr + 'T00:00:00');
+  var dayOfWeek = today.getDay();
+  var mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  var monday = new Date(today);
+  monday.setDate(today.getDate() - mondayOffset);
+  var mondayStr = formatLocalDateYYYYMMDD(monday);
+  return (sessions || []).filter(function(s) { return s.date >= mondayStr; }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+}
+
+function getStatsThisMonthStitches(sessions, dayEndHour) {
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  var monthPrefix = today.slice(0, 7);
+  return (sessions || []).filter(function(s) { return s.date && s.date.startsWith(monthPrefix); }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
 }
 
 function groupSessionsByDate(sessions) {
@@ -503,8 +561,9 @@ function groupSessionsByDate(sessions) {
   return grouped;
 }
 
-function formatStatsDuration(minutes) {
-  if (minutes < 1) return '0m';
+function formatStatsDuration(seconds) {
+  var minutes = Math.round(seconds / 60);
+  if (minutes < 1) return '<1m';
   if (minutes < 60) return minutes + 'm';
   var h = Math.floor(minutes / 60);
   var m = minutes % 60;
@@ -742,23 +801,23 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
     : '0.0';
 
   var lines = [
-    '\uD83E\uDDF5 ' + (projectName || 'Cross Stitch Project') + ' \u2014 Progress Update',
+    '\uD83E\uDDF5 ' + (projectName || 'Cross Stitch Project') + ' — Progress Update',
     '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
-    '\u2705 ' + totalCompleted.toLocaleString() + ' / ' + totalStitches.toLocaleString() + ' stitches (' + percent + '%)',
-    '\u23F1\uFE0F ' + formatStatsDuration(stats.totalMinutes) + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),
-    '\uD83D\uDCC8 ' + stats.stitchesPerHour + ' stitches/hour \u00B7 ' + stats.avgPerDay + '/day average'
+    '[✓] ' + totalCompleted.toLocaleString() + ' / ' + totalStitches.toLocaleString() + ' stitches (' + percent + '%)',
+    'Time: ' + formatStatsDuration(stats.totalSeconds) + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),
+    'Speed: ' + stats.stitchesPerHour + ' stitches/hour · ' + stats.avgPerDay + '/day average'
   ];
 
   if (streaks.current > 0 || streaks.longest > 0) {
-    lines.push('\uD83D\uDD25 Current streak: ' + streaks.current + ' day' + (streaks.current !== 1 ? 's' : '') + ' (longest: ' + streaks.longest + ')');
+    lines.push('Streak: ' + streaks.current + ' day' + (streaks.current !== 1 ? 's' : '') + ' (longest: ' + streaks.longest + ')');
   }
 
   if (bestDay) {
-    lines.push('\uD83C\uDFC6 Best day: ' + bestDay.stitches + ' stitches (' + formatShortDate(bestDay.date) + ')');
+    lines.push('Best day: ' + bestDay.stitches + ' stitches (' + formatShortDate(bestDay.date) + ')');
   }
 
   if (stats.estimatedCompletion && stats.estimatedCompletion !== '\u2014') {
-    lines.push('\uD83D\uDCC5 Est. completion: ' + stats.estimatedCompletion);
+    lines.push('Est. completion: ' + stats.estimatedCompletion);
   }
 
   lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
@@ -813,11 +872,11 @@ function getSpeedTrendData(sessions) {
     return new Date(a.startTime) - new Date(b.startTime);
   });
   return sorted
-    .filter(function(s) { return s.durationMinutes >= 10 && s.netStitches > 0; })
+    .filter(function(s) { return getSessionSeconds(s) >= 600 && s.netStitches > 0; })
     .map(function(s) {
       return {
         date: s.date,
-        speed: Math.round(s.netStitches / (s.durationMinutes / 60))
+        speed: Math.round(s.netStitches / (getSessionSeconds(s) / 3600))
       };
     });
 }
@@ -939,3 +998,52 @@ function drawPDFSymbol(pdf, symbol, cx, cy, size) {
     pdf.text(symbol, cx, cy + size * 0.4, {align:"center"});
   }
 }
+
+// ═══ Visual Progress: Section colour helper ═══
+function sectionColor(pct){
+  if(pct>=100)return'#16a34a';
+  if(pct>=75)return'#65a30d';
+  if(pct>=50)return'#d97706';
+  if(pct>=25)return'#ea580c';
+  if(pct>0)return'#f87171';
+  return'#e2e8f0';
+}
+
+// ═══ Visual Progress: Comparison canvas renderers ═══
+// Renders a mini-canvas showing the done-state of a pattern.
+// doneArray: Uint8Array (or array-like) of 0/1 values, same length as pat.
+function renderComparisonCanvas(canvas,pat,sW,sH,doneArray){
+  var cSz=Math.min(3,Math.floor(300/Math.max(sW,sH)));if(cSz<1)cSz=1;
+  canvas.width=sW*cSz;canvas.height=sH*cSz;
+  var ctx=canvas.getContext('2d');
+  for(var y=0;y<sH;y++){for(var x=0;x<sW;x++){
+    var idx=y*sW+x;var m=pat[idx];
+    if(!m||m.id==='__skip__'||m.id==='__empty__'){ctx.fillStyle='#f8f8f8';}
+    else if(doneArray&&doneArray[idx]){ctx.fillStyle='rgb('+m.rgb[0]+','+m.rgb[1]+','+m.rgb[2]+')';}
+    else{ctx.fillStyle='#e8e8e8';}
+    ctx.fillRect(x*cSz,y*cSz,cSz,cSz);
+  }}
+}
+
+// Renders a diff canvas: new stitches in full colour, already-done in grey, undone in off-white.
+function renderDiffCanvas(canvas,pat,sW,sH,oldDone,newDone){
+  var cSz=Math.min(3,Math.floor(300/Math.max(sW,sH)));if(cSz<1)cSz=1;
+  canvas.width=sW*cSz;canvas.height=sH*cSz;
+  var ctx=canvas.getContext('2d');
+  for(var idx=0;idx<pat.length;idx++){
+    var x=idx%sW,y=Math.floor(idx/sW);var m=pat[idx];
+    if(!m||m.id==='__skip__'||m.id==='__empty__'){ctx.fillStyle='#f8f8f8';}
+    else if(!oldDone[idx]&&newDone[idx]){ctx.fillStyle='rgb('+m.rgb[0]+','+m.rgb[1]+','+m.rgb[2]+')';}
+    else if(newDone[idx]){ctx.fillStyle='#e0e0e0';}
+    else{ctx.fillStyle='#f8f8f8';}
+    ctx.fillRect(x*cSz,y*cSz,cSz,cSz);
+  }
+}
+
+// ═══ Global Stats Dashboard helpers ═══
+function formatYMD(date){var y=date.getFullYear(),m=('0'+(date.getMonth()+1)).slice(-2),d=('0'+date.getDate()).slice(-2);return y+'-'+m+'-'+d;}
+function formatDurationCompact(seconds){return formatStatsDuration(seconds);}
+function subtractOneDay(dateStr){var d=new Date(dateStr+'T12:00:00');d.setDate(d.getDate()-1);return formatYMD(d);}
+function dayDiff(a,b){return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);}
+function formatHour(h){if(h===0)return'12am';if(h<12)return h+'am';if(h===12)return'12pm';return(h-12)+'pm';}
+function formatDateReadable(dateStr){return new Date(dateStr+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}

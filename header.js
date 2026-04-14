@@ -134,6 +134,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     { id: 'creator', label: 'Create', href: 'index.html' },
     { id: 'tracker', label: 'Track',  href: 'stitch.html' },
     { id: 'manager', label: 'Stash',  href: 'manager.html' },
+    { id: 'stats', label: 'Stats', href: 'index.html?mode=stats' },
     { id: 'embroidery', label: 'Embroidery (BETA)', href: 'embroidery.html' },
   ];
 
@@ -198,7 +199,9 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 ? (e) => { e.preventDefault(); window.__switchToTrack(); }
                 : id === 'creator' && window.__switchToDesign
                   ? (e) => { e.preventDefault(); window.__switchToDesign(); }
-                  : undefined,
+                  : id === 'stats' && window.__switchToStats
+                    ? (e) => { e.preventDefault(); window.__switchToStats(); }
+                    : undefined,
               ...(page === id ? { 'aria-current': 'page' } : {}),
             }, label)
           )

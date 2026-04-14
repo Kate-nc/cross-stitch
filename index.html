@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self'; frame-src 'self';">
 <title>Cross Stitch Pattern Generator</title>
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#0d9488">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <!-- Preconnect so CDN requests start immediately -->
@@ -15,8 +16,8 @@
 <!-- Prefetch lazy-loaded assets in the background at idle time -->
 <link rel="prefetch" href="tracker-app.js">
 <link rel="prefetch" href="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
-<!-- Preload creator-main.js so the fetch() in loadCreatorMain starts before scripts execute -->
-<link rel="preload" href="creator-main.js" as="fetch" crossorigin>
+<!-- Prefetch creator-main.js in the background so it is ready when the user switches to Creator mode -->
+<link rel="prefetch" href="creator-main.js">
 <!-- Flag set before any Babel scripts so TrackerApp's guard fires correctly -->
 <script>
 window.__UNIFIED__=true;
@@ -64,12 +65,12 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_v4';
+var TRACKER_CACHE_KEY = 'babel_tracker_v5';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
   // Clear stale cache from previous versions
-  try { localStorage.removeItem('babel_tracker_v2'); localStorage.removeItem('babel_tracker_v3'); } catch(e) {}
+  try { localStorage.removeItem('babel_tracker_v2'); localStorage.removeItem('babel_tracker_v3'); localStorage.removeItem('babel_tracker_v4'); } catch(e) {}
   var cached = null;
   try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch(e) {}
   // Wrap in IIFE so const/let declarations don't collide with the inline Babel script
@@ -82,8 +83,9 @@ window.loadTrackerApp = function() {
     var compiled = Babel.transform(src, { presets: ['react'], filename: 'tracker-app.js' }).code;
     try { localStorage.setItem(TRACKER_CACHE_KEY, compiled); } catch(e) {}
     var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
-  }).catch(function() {
-    /* file:// or network error â€” fall back to Babel MutationObserver path */
+  }).catch(function(err) {
+    /* file:// or network error — fall back to Babel MutationObserver path */
+    console.error('loadTrackerApp failed:', err);
     window.__trackerLoading = false;
     var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'tracker-app.js';
     document.head.appendChild(s);

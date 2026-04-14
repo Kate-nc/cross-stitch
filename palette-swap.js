@@ -833,7 +833,7 @@ function LockToggle(props) {
       background: locked ? "#fef3c7" : "#fff", color: locked ? "#b45309" : "#94a3b8",
       cursor: "pointer", fontSize: 11, padding: 0, lineHeight: 1
     }
-  }, locked ? "\uD83D\uDD12" : "\uD83D\uDD13");
+  }, locked ? Icons.lock() : Icons.unlock());
 }
 
 function HueSpectrumBar() {

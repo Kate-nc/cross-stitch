@@ -62,10 +62,11 @@ const BackupRestore = (() => {
 
       // 1. CrossStitchDB
       try {
-        const db = await openDB("CrossStitchDB", 2, ["projects", "project_meta"]);
+        const db = await openDB("CrossStitchDB", 3, ["projects", "project_meta", "stats_summaries"]);
         backup.databases.CrossStitchDB = {
           projects: await readStore(db, "projects"),
-          project_meta: await readStore(db, "project_meta")
+          project_meta: await readStore(db, "project_meta"),
+          stats_summaries: await readStore(db, "stats_summaries")
         };
         db.close();
       } catch (e) {
@@ -157,9 +158,9 @@ const BackupRestore = (() => {
 
       // 1. CrossStitchDB
       if (backup.databases.CrossStitchDB) {
-        const db = await openDB("CrossStitchDB", 2, ["projects", "project_meta"]);
+        const db = await openDB("CrossStitchDB", 3, ["projects", "project_meta", "stats_summaries"]);
         const data = backup.databases.CrossStitchDB;
-        for (const storeName of ["projects", "project_meta"]) {
+        for (const storeName of ["projects", "project_meta", "stats_summaries"]) {
           if (!data[storeName]) continue;
           await new Promise((resolve, reject) => {
             const tx = db.transaction(storeName, "readwrite");
