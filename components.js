@@ -115,13 +115,17 @@ function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettin
       var dayFraction = Math.max(0, Math.min(1, (hourOfDay - dayEndHour + 24) % 24 / 24));
       return dayFraction > 0 && liveTodayStitches < Math.floor(dailyGoal * dayFraction);
     })();
+    var isStreakRecord = streaks.current > 0 && streaks.current >= streaks.longest;
     var statsBar = React.createElement("div", {className:"mini-stats-bar"},
       React.createElement(ProgressRing, {percent:percent, size:36}),
       React.createElement("div", {className:"mini-stats-text"},
-        React.createElement("span", {className:"mini-stats-count"}, liveTodayStitches + " stitches today"),
+        (liveTodayStitches > 0 || dailyGoal > 0) && React.createElement("span", {className:"mini-today"},
+          "Today: " + liveTodayStitches + " stitch" + (liveTodayStitches !== 1 ? "es" : "")
+        ),
         React.createElement("span", {className:"mini-stats-time"}, formatStatsDuration(liveTodaySeconds))
       ),
-      streaks.current > 0 && React.createElement("span", {className:"mini-stats-streak-badge"}, "\uD83D\uDD25 " + streaks.current + "d"),
+      streaks.current > 0 && React.createElement("span", {className:"mini-streak" + (isStreakRecord ? " mini-streak--record" : "")},
+        "\uD83D\uDD25 " + streaks.current + " day" + (streaks.current !== 1 ? "s" : "")),
       !dailyGoal && React.createElement("button", {className:"mini-stats-btn", onClick:onOpenStats}, "Stats"),
       dailyGoal && React.createElement("button", {className:"mini-stats-btn", onClick:onOpenStats}, "Stats")
     );
@@ -642,6 +646,53 @@ function MilestoneCelebration({milestone, onDismiss}){
   );
 }
 
+function ColourProgress({palette, colourDoneCounts}){
+  try {
+    if (!palette || palette.length === 0) return null;
+    var colourStats = [];
+    var coloursComplete = 0;
+    for (var i = 0; i < palette.length; i++) {
+      var p = palette[i];
+      if (p.id === '__skip__' || p.id === '__empty__') continue;
+      var dc = (colourDoneCounts && colourDoneCounts[p.id]) || {total:0, done:0};
+      var remaining = Math.max(0, dc.total - dc.done);
+      var pct = dc.total > 0 ? Math.round(dc.done / dc.total * 100) : 0;
+      if (remaining === 0 && dc.total > 0) coloursComplete++;
+      colourStats.push({id:p.id, name:p.name, type:p.type, threads:p.threads, rgb:p.rgb, remaining:remaining, pct:pct, total:dc.total});
+    }
+    colourStats.sort(function(a,b){ return b.remaining - a.remaining; });
+    var totalColours = colourStats.length;
+    var inProgress = colourStats.filter(function(c){ return c.remaining > 0; });
+    var mostRemaining = inProgress[0];
+    var leastRemaining = inProgress[inProgress.length - 1];
+    return React.createElement("div", {className:"colour-progress"},
+      React.createElement("h3", {className:"stats-section-title"}, "Colour Progress"),
+      React.createElement("div", {className:"stats-colour-summary"},
+        React.createElement("span", null, coloursComplete + " / " + totalColours + " colour" + (totalColours !== 1 ? "s" : "") + " complete"),
+        mostRemaining && React.createElement("span", null,
+          "Most remaining: DMC " + mostRemaining.id + " (" + mostRemaining.remaining.toLocaleString() + " stitches)"),
+        leastRemaining && leastRemaining !== mostRemaining && React.createElement("span", null,
+          "Least remaining: DMC " + leastRemaining.id + " (" + leastRemaining.remaining.toLocaleString() + " left)")
+      ),
+      React.createElement("div", {className:"stats-colour-list"},
+        colourStats.map(function(c){
+          var nameStr = c.type === 'blend' && c.threads ? c.threads[0].name + '+' + c.threads[1].name : c.name;
+          var rgb = c.rgb || [128,128,128];
+          return React.createElement("div", {key:c.id, className:"stats-colour-row"},
+            React.createElement("span", {className:"colour-swatch", style:{background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')'}}),
+            React.createElement("span", {className:"colour-id"}, "DMC " + c.id),
+            React.createElement("span", {className:"colour-name"}, nameStr),
+            React.createElement("div", {className:"colour-bar"},
+              React.createElement("div", {className:"colour-bar-fill", style:{width:c.pct+'%'}})
+            ),
+            React.createElement("span", {className:"colour-remaining"}, c.remaining === 0 ? "\u2713" : c.remaining.toLocaleString() + " left")
+          );
+        })
+      )
+    );
+  } catch(e) { console.warn('Stats: ColourProgress render error', e); return null; }
+}
+
 function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones}){
   var chartSt = React.useState('cumulative');
   var chartView = chartSt[0], setChartView = chartSt[1];
@@ -705,6 +756,9 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(ColourTimeline, {sessions:statsSessions, palette:palette, colourDoneCounts:colourDoneCounts})
+    ),
+    React.createElement("div", {style:{marginTop:20}},
+      React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts})
     ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote})
