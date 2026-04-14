@@ -108,16 +108,35 @@ function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettin
       liveTodaySeconds += Math.max(0, elapsed);
     }
     var streaks = computeStreaks(statsSessions || [], dayEndHour);
-    return React.createElement("div", {className:"mini-stats-bar"},
+    var goalPct = dailyGoal > 0 ? Math.min(100, (liveTodayStitches / dailyGoal) * 100) : 0;
+    var goalMet = dailyGoal > 0 && liveTodayStitches >= dailyGoal;
+    var goalBehind = dailyGoal > 0 && !goalMet && (function(){
+      var hourOfDay = new Date().getHours() + new Date().getMinutes()/60;
+      var dayFraction = Math.max(0, Math.min(1, (hourOfDay - dayEndHour + 24) % 24 / 24));
+      return dayFraction > 0 && liveTodayStitches < Math.floor(dailyGoal * dayFraction);
+    })();
+    var statsBar = React.createElement("div", {className:"mini-stats-bar"},
       React.createElement(ProgressRing, {percent:percent, size:36}),
       React.createElement("div", {className:"mini-stats-text"},
         React.createElement("span", {className:"mini-stats-count"}, liveTodayStitches + " stitches today"),
         React.createElement("span", {className:"mini-stats-time"}, formatStatsDuration(liveTodaySeconds))
       ),
       streaks.current > 0 && React.createElement("span", {className:"mini-stats-streak-badge"}, "\uD83D\uDD25 " + streaks.current + "d"),
-      dailyGoal && liveTodayStitches < dailyGoal && React.createElement("span", {className:"mini-stats-goal-badge"}, (dailyGoal - liveTodayStitches) + " to goal"),
-      dailyGoal && liveTodayStitches >= dailyGoal && React.createElement("span", {className:"mini-stats-goal-met"}, "Goal reached!"),
-      React.createElement("button", {className:"mini-stats-btn", onClick:onOpenStats}, "Stats")
+      !dailyGoal && React.createElement("button", {className:"mini-stats-btn", onClick:onOpenStats}, "Stats"),
+      dailyGoal && React.createElement("button", {className:"mini-stats-btn", onClick:onOpenStats}, "Stats")
+    );
+    if (!dailyGoal) return statsBar;
+    return React.createElement("div", {className:"mini-stats-wrapper"},
+      statsBar,
+      React.createElement("div", {className:"daily-goal-bar", onClick:onOpenStats},
+        React.createElement("span", {className:"daily-goal-text"},
+          "Today: " + liveTodayStitches + " / " + dailyGoal + (goalMet ? " \u2713" : "")
+        ),
+        React.createElement("div", {className:"daily-goal-track"},
+          React.createElement("div", {className:"daily-goal-fill" + (goalMet ? " daily-goal-fill--done" : goalBehind ? " daily-goal-fill--behind" : ""),
+            style:{width:goalPct+"%"}})
+        )
+      )
     );
   } catch(e) { console.warn('Stats: MiniStatsBar render error', e); return null; }
 }
@@ -442,15 +461,33 @@ function StatsChartSection({statsSessions, statsSettings, totalStitches, chartVi
   );
 }
 
-function MilestoneTracker({milestones}){
+function MilestoneTracker({milestones, achievedMilestones}){
   if (!milestones || milestones.length === 0) return null;
+  // Build a lookup from pct → exact achievedAt timestamp
+  var exactDates = {};
+  if (achievedMilestones && achievedMilestones.length > 0) {
+    for (var ai = 0; ai < achievedMilestones.length; ai++) {
+      var am = achievedMilestones[ai];
+      if (am.pct != null) exactDates['pct_' + am.pct] = am.achievedAt;
+    }
+  }
   var badges = [];
   for (var i = 0; i < milestones.length; i++) {
     var m = milestones[i];
     var cls = 'milestone-badge ' + (m.achieved ? 'achieved' : m.isNext ? 'next' : 'future');
-    var dateLabel = m.achieved
-      ? (m.achievedDate ? formatShortDate(m.achievedDate) : '✓')
-      : (m.estimatedDate ? '~' + formatShortDate(m.estimatedDate) : '—');
+    var exactTs = m.achieved ? exactDates['pct_' + m.percent] : null;
+    var dateLabel;
+    if (m.achieved) {
+      if (exactTs) {
+        dateLabel = new Date(exactTs).toLocaleDateString('en-GB', {day:'numeric', month:'short'});
+      } else if (m.achievedDate) {
+        dateLabel = formatShortDate(m.achievedDate);
+      } else {
+        dateLabel = '\u2713';
+      }
+    } else {
+      dateLabel = m.estimatedDate ? '~' + formatShortDate(m.estimatedDate) : '\u2014';
+    }
     badges.push(React.createElement("div", {key:m.percent, className:cls},
       React.createElement("span", {className:"milestone-percent"}, m.percent + '%'),
       React.createElement("span", {className:"milestone-date"}, dateLabel)
@@ -605,7 +642,7 @@ function MilestoneCelebration({milestone, onDismiss}){
   );
 }
 
-function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts}){
+function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones}){
   var chartSt = React.useState('cumulative');
   var chartView = chartSt[0], setChartView = chartSt[1];
   var copiedSt = React.useState(false);
@@ -660,7 +697,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       React.createElement(StatsChartSection, {statsSessions:statsSessions, statsSettings:statsSettings, totalStitches:totalStitches, chartView:chartView, setChartView:setChartView})
     ),
     React.createElement("div", {style:{marginTop:20}},
-      React.createElement(MilestoneTracker, {milestones:milestones})
+      React.createElement(MilestoneTracker, {milestones:milestones, achievedMilestones:achievedMilestones})
     ),
     React.createElement("div", {className:"stats-two-col", style:{marginTop:20}},
       React.createElement(GoalTracker, {statsSettings:statsSettings, statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, overviewStats:overviewStats, onUpdateSettings:onUpdateSettings}),

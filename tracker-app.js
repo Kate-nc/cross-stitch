@@ -36,6 +36,11 @@ const prevAutoCountRef=useRef({done:0,halfDone:0});
 const autoStatsRef=useRef({doneCount:0,totalStitchable:0});
 const finaliseAutoSessionRef=useRef(null);
 const IDLE_THRESHOLD_MS=10*60*1000;
+// Persistent milestones, session onboarding, session note toast
+const[achievedMilestones,setAchievedMilestones]=useState([]);
+const[sessionOnboardingShown,setSessionOnboardingShown]=useState(()=>{try{return !!localStorage.getItem("cs_sessionOnboardingDone");}catch(_){return false;}});
+const[sessionSavedToast,setSessionSavedToast]=useState(null);
+const isUnloadingRef=useRef(false);
 
 // Variables for auto-session visibility auto-pause
 const [liveAutoElapsed, setLiveAutoElapsed] = useState(0);
@@ -185,6 +190,8 @@ const halfStitchCounts=useMemo(()=>{
 const combinedTotal=totalStitchable+halfStitchCounts.total*0.5;
 const combinedDone=doneCount+halfStitchCounts.done*0.5;
 const progressPct=combinedTotal>0?Math.round(combinedDone/combinedTotal*1000)/10:0;
+// Today's stitches for progress bar accent segment
+const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsTodayStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
 
 const colourDoneCounts=useMemo(()=>{
   if(!pat||!done)return{};
@@ -381,6 +388,10 @@ function finaliseAutoSession(){
     setLiveAutoIsPaused(false);
     setLiveAutoElapsed(0);
     setLiveAutoStitches(0);
+    // Show note prompt toast (not during page unload)
+    if(!isUnloadingRef.current&&finalised.netStitches>0){
+      setSessionSavedToast({sessionId:finalised.id,stitches:finalised.netStitches,durationMin:finalised.durationMinutes,showNoteInput:false,noteText:''});
+    }
     return finalised;
   }catch(e){console.warn('Stats: finaliseAutoSession error',e);currentAutoSessionRef.current=null;return null;}
 }
@@ -454,6 +465,15 @@ useEffect(()=>{
               setCelebration(best);
             }
             for(let h=0;h<hits.length;h++){pendingMilestonesRef.current.push(hits[h]);}
+            // Record persistently (deduplicated by pct/label key)
+            const now=new Date().toISOString();
+            const sessionId=currentAutoSessionRef.current?currentAutoSessionRef.current.id:null;
+            const newMs=hits.map(h=>({pct:h.pct,label:h.label,achievedAt:now,sessionId}));
+            setAchievedMilestones(prev=>{
+              const existing=new Set(prev.map(m=>m.pct!=null?('pct_'+m.pct):m.label));
+              const unique=newMs.filter(m=>{const k=m.pct!=null?('pct_'+m.pct):m.label;return !existing.has(k);});
+              return unique.length>0?[...prev,...unique]:prev;
+            });
           }
         }catch(me){console.warn('Stats: milestone check error',me);}
       }
@@ -461,6 +481,19 @@ useEffect(()=>{
     prevAutoCountRef.current={done:curDone,halfDone:curHalf};
   }catch(e){console.warn('Stats: auto-detect effect error',e);}
 },[doneCount,halfStitchCounts.done]);
+// Session onboarding toast: auto-dismiss after 8s (only for very first session ever)
+useEffect(()=>{
+  if(!sessionOnboardingShown&&liveAutoStitches>0&&statsSessions.length===0){
+    const timer=setTimeout(()=>{setSessionOnboardingShown(true);try{localStorage.setItem("cs_sessionOnboardingDone","1");}catch(_){}},8000);
+    return()=>clearTimeout(timer);
+  }
+},[sessionOnboardingShown,liveAutoStitches,statsSessions.length]);
+// Session saved toast: auto-dismiss after 10s (unless note input is open)
+useEffect(()=>{
+  if(!sessionSavedToast||sessionSavedToast.showNoteInput)return;
+  const timer=setTimeout(()=>setSessionSavedToast(null),10000);
+  return()=>clearTimeout(timer);
+},[sessionSavedToast]);
 // Edit session note
 function editSessionNote(sessionId,noteText){
   try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){console.warn('Stats: editSessionNote error',e);}
@@ -1374,6 +1407,10 @@ function processLoadedProject(project){
   pendingMilestonesRef.current=[];
   currentAutoSessionRef.current=null;
   clearTimeout(autoIdleTimerRef.current);
+  // Restore persisted milestones and seed celebratedRef so celebrations don't re-fire
+  var persistedMilestones=project.achievedMilestones||[];
+  setAchievedMilestones(persistedMilestones);
+  persistedMilestones.forEach(function(m){var key=m.pct!=null?('pct_'+m.pct):m.label;celebratedRef.current.add(key);});
   // Reset auto-session count refs so loading doesn't trigger a spurious session
   // (will be set accurately after next render via the doneCount/halfDone effects)
   prevAutoCountRef.current={done:-1,halfDone:-1};
@@ -1599,7 +1636,7 @@ useEffect(() => {
     totalTime: totalTime + liveAutoElapsed,
     sessions, hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
-    statsSessions, statsSettings,
+    statsSessions, statsSettings, achievedMilestones,
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
   };
@@ -1627,6 +1664,7 @@ useEffect(() => {
 useEffect(() => {
   const handleBeforeUnload = () => {
     try {
+    isUnloadingRef.current = true;
     const project = lastSnapshotRef.current;
     if (!project) return;
     let projectToSave = project;
@@ -1696,7 +1734,7 @@ useEffect(() => {
       totalTime: totalTime + liveAutoElapsed,
       sessions, hlRow, hlCol, threadOwned, originalPaletteState,
       singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
-      statsSessions, statsSettings,
+      statsSessions, statsSettings, achievedMilestones,
       savedZoom: stitchZoom,
       savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
     };
@@ -1707,7 +1745,7 @@ useEffect(() => {
   return () => { delete window.__flushProjectToIDB; };
 }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done,
     halfStitches, halfDone, parkMarkers, totalTime, liveAutoElapsed, sessions, hlRow, hlCol,
-    threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, stitchZoom]);
+    threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom]);
 
 // ═══ Half-stitch cell rendering ═══
 // Renders half-stitch triangle fills, diagonal lines, and symbols for one cell.
@@ -2796,12 +2834,35 @@ return(
   )}
 </div></div>
 {!isEditMode&&<div className="tb-progress"><div className="tb-progress-inner">
-  <span className="tb-progress-txt">{doneCount.toLocaleString()} / {totalStitchable.toLocaleString()}{halfStitchCounts.total>0?` + ${halfStitchCounts.done}/${halfStitchCounts.total}△`:""} ({progressPct.toFixed(1)}%){progressPct>=100?<> {Icons.star()}</>:null}</span>
-  <div className="tb-progress-bar"><div className={progressPct>=100?"tb-progress-fill tb-progress-fill--done":"tb-progress-fill"} style={{width:Math.min(progressPct,100)+"%"}}/></div>
+  <span className="tb-progress-txt">{doneCount.toLocaleString()} / {totalStitchable.toLocaleString()}{halfStitchCounts.total>0?` + ${halfStitchCounts.done}/${halfStitchCounts.total}△`:""}{todayStitchesForBar>0&&progressPct<100?` (+${todayStitchesForBar} today)`:""} ({progressPct.toFixed(1)}%){progressPct>=100?<> {Icons.star()}</>:null}</span>
+  <div className="tb-progress-bar">{(()=>{const todayBarPct=combinedTotal>0?Math.min((todayStitchesForBar/combinedTotal)*100,Math.min(progressPct,100)):0;const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);return progressPct>=100?<div className="tb-progress-fill tb-progress-fill--done" style={{width:"100%"}}/>:<>{prevBarPct>0&&<div className="tb-progress-fill" style={{width:prevBarPct+"%"}}/>}{todayBarPct>0&&<div className="tb-progress-fill tb-progress-today" style={{width:todayBarPct+"%"}}/>}</>;})()}</div>
   <span className="tb-progress-rem">{progressPct>=100?"Complete!":Math.ceil(combinedTotal-combinedDone).toLocaleString()+" remaining"}</span>
 </div></div>}
 {!isEditMode&&<MiniStatsBar statsSessions={statsSessions} totalCompleted={doneCount} totalStitches={totalStitchable} statsSettings={statsSettings} onOpenStats={()=>{finaliseAutoSession();setStatsView(true);}} currentAutoSession={currentAutoSessionRef.current}/>}
-</>}
+{!sessionOnboardingShown&&liveAutoStitches>0&&statsSessions.length===0&&(
+  <div className="session-onboarding-toast">
+    <span>ℹ Sessions are tracked automatically as you stitch. View stats with the 📊 button.</span>
+    <button onClick={()=>{setSessionOnboardingShown(true);try{localStorage.setItem("cs_sessionOnboardingDone","1");}catch(_){}}}>Got it</button>
+  </div>
+)}
+{sessionSavedToast&&(
+  <div className="session-toast">
+    {!sessionSavedToast.showNoteInput?(
+      <>
+        <span>✓ Session saved — {sessionSavedToast.stitches} {sessionSavedToast.stitches===1?"stitch":"stitches"} in {formatStatsDuration(sessionSavedToast.durationMin*60)}</span>
+        <button onClick={()=>setSessionSavedToast(prev=>({...prev,showNoteInput:true}))}>Add note</button>
+        <button onClick={()=>setSessionSavedToast(null)} aria-label="Dismiss">✕</button>
+      </>
+    ):(
+      <>
+        <input autoFocus maxLength={200} placeholder="What did you work on?" value={sessionSavedToast.noteText}
+          onChange={e=>setSessionSavedToast(prev=>({...prev,noteText:e.target.value}))}
+          onKeyDown={e=>{if(e.key==="Enter"){editSessionNote(sessionSavedToast.sessionId,sessionSavedToast.noteText);setSessionSavedToast(null);}if(e.key==="Escape")setSessionSavedToast(null);}}/>
+        <button onClick={()=>{editSessionNote(sessionSavedToast.sessionId,sessionSavedToast.noteText);setSessionSavedToast(null);}}>Save</button>
+      </>
+    )}
+  </div>
+)}
 <div className="cs-page-content" style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
   {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
   {copied==="progress"&&<div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600,marginBottom:12}}>✓ Progress summary copied to clipboard!</div>}
@@ -2819,7 +2880,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsDashboard statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts}/>}
+  {statsView&&pat&&<StatsDashboard statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones}/>}
 
   {!statsView&&!pat&&<div style={{maxWidth:500, margin:"40px auto", textAlign:"center"}}>
     <div className="card" style={{padding:"30px"}}>
