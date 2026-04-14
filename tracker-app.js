@@ -2771,7 +2771,7 @@ return(
         }
       }}>
       <span className="dot"/>
-      {manuallyPaused ? `⏸ Paused · ${liveAutoStitches} st` : inactivityPausedRef.current ? `⏸ Idle · ${liveAutoStitches} st` : liveAutoIsPaused ? 'Paused' : `${fmtTime(liveAutoElapsed)} · ${liveAutoStitches} st`}
+      {manuallyPaused ? `⏸ Paused · ${liveAutoStitches} st` : inactivityPausedRef.current ? `⏸ Idle · ${liveAutoStitches} st` : liveAutoIsPaused ? '⏸ Paused' : `▶ ${fmtTime(liveAutoElapsed)} · ${liveAutoStitches} st`}
     </button>
   )}
 </div></div>
