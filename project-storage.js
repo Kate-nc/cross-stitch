@@ -7,7 +7,32 @@ const ProjectStorage = (() => {
   const DB_NAME = "CrossStitchDB";
   const STORE_NAME = "projects";
   const META_STORE = "project_meta";
+  const STATS_STORE = "stats_summaries";
   const ACTIVE_KEY = "crossstitch_active_project";
+
+  // Build a lightweight stats summary for the global dashboard.
+  function buildStatsSummary(p) {
+    const totalSt = p.pattern
+      ? p.pattern.filter(c => c && c.id !== "__skip__" && c.id !== "__empty__").length
+      : (p.totalStitches || 0);
+    const done = p.done;
+    const completedSt = done
+      ? (Array.isArray(done) ? done.reduce((n, v) => n + (v === 1 ? 1 : 0), 0) : 0)
+      : (p.completedStitches || 0);
+    return {
+      id: p.id,
+      name: p.name || 'Untitled',
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      totalStitches: totalSt,
+      completedStitches: completedSt,
+      isComplete: totalSt > 0 && completedSt >= totalSt,
+      statsSessions: p.statsSessions || [],
+      achievedMilestones: p.achievedMilestones || [],
+      palette: (p.palette || []).map(c => ({ id: c.id, name: c.name, rgb: c.rgb })),
+      projectColor: p.projectColor || null,
+    };
+  }
 
   // Extract lightweight metadata from a full project object.
   function buildMeta(p) {
@@ -41,7 +66,7 @@ const ProjectStorage = (() => {
   function getDB() {
     return new Promise((resolve, reject) => {
       ensurePersistence();
-      let request = indexedDB.open(DB_NAME, 2);
+      let request = indexedDB.open(DB_NAME, 3);
       request.onupgradeneeded = (e) => {
         let db = e.target.result;
         let upgradeTx = e.target.transaction;
@@ -65,6 +90,9 @@ const ProjectStorage = (() => {
             };
           }
         }
+        if (!db.objectStoreNames.contains(STATS_STORE)) {
+          db.createObjectStore(STATS_STORE);
+        }
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -83,11 +111,15 @@ const ProjectStorage = (() => {
       try {
         const db = await getDB();
         return new Promise((resolve, reject) => {
-          let tx = db.transaction([STORE_NAME, META_STORE], "readwrite");
+          let tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
           let store = tx.objectStore(STORE_NAME);
           let metaStore = tx.objectStore(META_STORE);
+          let statsStore = tx.objectStore(STATS_STORE);
           store.put(project, project.id);
           metaStore.put(buildMeta(project), project.id);
+          if (project.id && project.id.startsWith("proj_")) {
+            statsStore.put(buildStatsSummary(project), project.id);
+          }
           tx.oncomplete = () => resolve(project.id);
           tx.onerror = () => reject(tx.error);
         });
@@ -172,6 +204,54 @@ const ProjectStorage = (() => {
 
     clearActiveProject() {
       try { localStorage.removeItem(ACTIVE_KEY); } catch (e) {}
+    },
+
+    // Return all stats summaries for the global dashboard.
+    async getAllStatsSummaries() {
+      try {
+        const db = await getDB();
+        const all = await new Promise((resolve, reject) => {
+          let tx = db.transaction(STATS_STORE, "readonly");
+          let store = tx.objectStore(STATS_STORE);
+          let request = store.getAll();
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => reject(request.error);
+        });
+        return all.filter(s => s && s.id && s.id.startsWith("proj_"));
+      } catch (err) {
+        console.error("ProjectStorage.getAllStatsSummaries failed:", err);
+        return [];
+      }
+    },
+
+    // Build stats summaries for all existing projects (migration / one-time build).
+    async buildAllStatsSummaries() {
+      try {
+        const db = await getDB();
+        const projects = await new Promise((resolve, reject) => {
+          let tx = db.transaction(STORE_NAME, "readonly");
+          let store = tx.objectStore(STORE_NAME);
+          let request = store.getAll();
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => reject(request.error);
+        });
+        const summaries = projects
+          .filter(p => p && p.id && p.id.startsWith("proj_"))
+          .map(buildStatsSummary);
+        if (summaries.length > 0) {
+          const writeTx = db.transaction(STATS_STORE, "readwrite");
+          const statsStore = writeTx.objectStore(STATS_STORE);
+          summaries.forEach(s => statsStore.put(s, s.id));
+          await new Promise((resolve, reject) => {
+            writeTx.oncomplete = () => resolve();
+            writeTx.onerror = () => reject(writeTx.error);
+          });
+        }
+        return summaries;
+      } catch (err) {
+        console.error("ProjectStorage.buildAllStatsSummaries failed:", err);
+        return [];
+      }
     },
 
     // Estimate storage used by IndexedDB (requires navigator.storage API).

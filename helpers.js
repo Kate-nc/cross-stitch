@@ -1035,3 +1035,11 @@ function renderDiffCanvas(canvas,pat,sW,sH,oldDone,newDone){
     ctx.fillRect(x*cSz,y*cSz,cSz,cSz);
   }
 }
+
+// ═══ Global Stats Dashboard helpers ═══
+function formatYMD(date){var y=date.getFullYear(),m=('0'+(date.getMonth()+1)).slice(-2),d=('0'+date.getDate()).slice(-2);return y+'-'+m+'-'+d;}
+function formatDurationCompact(seconds){return formatStatsDuration(seconds);}
+function subtractOneDay(dateStr){var d=new Date(dateStr+'T12:00:00');d.setDate(d.getDate()-1);return formatYMD(d);}
+function dayDiff(a,b){return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);}
+function formatHour(h){if(h===0)return'12am';if(h<12)return h+'am';if(h===12)return'12pm';return(h-12)+'pm';}
+function formatDateReadable(dateStr){return new Date(dateStr+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}

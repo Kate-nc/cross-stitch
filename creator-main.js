@@ -558,6 +558,7 @@ function UnifiedApp(){
   },[]);
 
   const[homeModal,setHomeModal]=React.useState(null);
+  const[showGlobalStats,setShowGlobalStats]=React.useState(false);
 
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
   return <>
@@ -571,7 +572,11 @@ function UnifiedApp(){
         onImportPattern={handleHomeImportPattern}
         onOpenProject={handleHomeOpenProject}
         onNavigateToStash={handleHomeNavigateToStash}
+        onOpenGlobalStats={()=>setShowGlobalStats(true)}
       />
+      {showGlobalStats&&<div style={{position:'fixed',inset:0,background:'var(--surface)',zIndex:200,overflowY:'auto'}}>
+        <GlobalStatsDashboard onClose={()=>setShowGlobalStats(false)} />
+      </div>}
       {homeModal==='help'&&<SharedModals.Help onClose={()=>setHomeModal(null)} />}
     </div>}
     <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>

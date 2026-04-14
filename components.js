@@ -1225,3 +1225,531 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
 const pill=a=>({padding:"5px 14px",fontSize:12,borderRadius:8,cursor:"pointer",border:a?"1px solid #99f6e4":"0.5px solid #e2e8f0",background:a?"#f0fdfa":"#fff",fontWeight:a?600:400,color:a?"#0d9488":"#475569"});
 const tBtn=(a)=>({padding:"5px 12px",fontSize:12,borderRadius:8,cursor:"pointer",border:a?"1px solid #99f6e4":"0.5px solid #e2e8f0",background:a?"#f0fdfa":"#fff",fontWeight:a?600:400,color:a?"#0d9488":"#475569"});
 const tabSt=a=>({padding:"8px 16px",fontSize:13,fontWeight:a?600:400,background:a?"#f0fdfa":"transparent",border:"none",cursor:"pointer",borderBottom:a?"2px solid #0d9488":"2px solid transparent",color:a?"#0d9488":"#94a3b8",marginBottom:-2, borderRadius: "6px 6px 0 0"});
+
+// ═══════════════════════════════════════════════════════════
+// GLOBAL STATS DASHBOARD
+// ═══════════════════════════════════════════════════════════
+
+var PROJECT_COLORS = ['#0F6E56','#378ADD','#639922','#D85A30','#534AB7','#D4537E','#BA7517','#E24B4A'];
+
+function assignProjectColor(projectId) {
+  if (!projectId) return PROJECT_COLORS[0];
+  var hash = 0;
+  for (var i = 0; i < projectId.length; i++) {
+    hash = ((hash << 5) - hash) + projectId.charCodeAt(i);
+    hash |= 0;
+  }
+  return PROJECT_COLORS[Math.abs(hash) % PROJECT_COLORS.length];
+}
+
+function heatmapColor(stitches, max) {
+  if (stitches === 0) return 'var(--border)';
+  var ratio = stitches / max;
+  if (ratio < 0.25) return '#9FE1CB';
+  if (ratio < 0.50) return '#5DCAA5';
+  if (ratio < 0.75) return '#1D9E75';
+  return '#0F6E56';
+}
+
+function MetricCard({label, value, sub}) {
+  return React.createElement('div', {className: 'gsd-metric'},
+    React.createElement('div', {className: 'gsd-metric-label'}, label),
+    React.createElement('div', {className: 'gsd-metric-value'}, value),
+    sub ? React.createElement('div', {className: 'gsd-metric-sub'}, sub) : null
+  );
+}
+
+function RingChart({size, pct, color}) {
+  var r = (size - 6) / 2;
+  var circ = 2 * Math.PI * r;
+  var offset = circ * (1 - Math.min(pct, 100) / 100);
+  return React.createElement('div', {style: {width: size, height: size, position: 'relative', margin: '0 auto 4px'}},
+    React.createElement('svg', {width: size, height: size, style: {transform: 'rotate(-90deg)', display: 'block'}},
+      React.createElement('circle', {cx: size/2, cy: size/2, r: r, fill: 'none', stroke: 'var(--border)', strokeWidth: 3}),
+      React.createElement('circle', {cx: size/2, cy: size/2, r: r, fill: 'none', stroke: color, strokeWidth: 3,
+        strokeDasharray: circ, strokeDashoffset: offset, strokeLinecap: 'round'})
+    ),
+    React.createElement('div', {style: {position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+      justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--text-primary)'}},
+      pct + '%'
+    )
+  );
+}
+
+function WeekMetric({label, value, delta, isDays}) {
+  var isPositive = delta > 0;
+  var isZero = delta === 0;
+  var sign = delta > 0 ? '+' : '';
+  var deltaStr = isDays ? sign + delta + ' vs last' : sign + delta + '%';
+  return React.createElement('div', {className: 'gsd-week-metric'},
+    React.createElement('div', {className: 'gsd-week-metric-label'}, label),
+    React.createElement('div', {className: 'gsd-week-metric-value'}, value),
+    !isZero ? React.createElement('div', {className: 'gsd-week-metric-delta',
+      style: {color: isPositive ? '#0F6E56' : 'var(--text-tertiary)'}}, deltaStr) : null
+  );
+}
+
+function InsightIcon({type}) {
+  var map = {star: '\u2605', bolt: '\u26A1', clock: '\u23F0', calendar: '\uD83D\uDCC5'};
+  return React.createElement('span', {style: {fontSize: 16}}, map[type] || '\u2736');
+}
+
+function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSettings, onUpdateSettings}) {
+  var _summaries = React.useState([]);
+  var projectSummaries = _summaries[0], setProjectSummaries = _summaries[1];
+  var _loading = React.useState(true);
+  var loading = _loading[0], setLoading = _loading[1];
+  var _building = React.useState(false);
+  var building = _building[0], setBuilding = _building[1];
+  var _timeRange = React.useState('14');
+  var timeRange = _timeRange[0], setTimeRange = _timeRange[1];
+  var _tlLimit = React.useState(20);
+  var tlLimit = _tlLimit[0], setTlLimit = _tlLimit[1];
+
+  React.useEffect(function() {
+    if (typeof ProjectStorage === 'undefined') { setLoading(false); return; }
+    ProjectStorage.getAllStatsSummaries().then(function(data) {
+      if (data.length === 0) {
+        setBuilding(true);
+        return ProjectStorage.buildAllStatsSummaries().then(function(built) {
+          setProjectSummaries(built);
+          setBuilding(false);
+          setLoading(false);
+        });
+      }
+      setProjectSummaries(data);
+      setLoading(false);
+    }).catch(function() { setLoading(false); });
+  }, []);
+
+  var allSessions = React.useMemo(function() {
+    var out = [];
+    projectSummaries.forEach(function(p) { (p.statsSessions || []).forEach(function(s) { out.push(s); }); });
+    return out;
+  }, [projectSummaries]);
+
+  var lifetimeTotals = React.useMemo(function() {
+    var totalStitches = allSessions.reduce(function(s, sess) { return s + (sess.netStitches || 0); }, 0);
+    var totalSeconds = allSessions.reduce(function(s, sess) { return s + getSessionSeconds(sess); }, 0);
+    var totalHours = totalSeconds / 3600;
+    var activeDays = new Set(allSessions.map(function(s) { return s.date; }).filter(Boolean)).size;
+    var speed = totalHours > 0 ? Math.round(totalStitches / totalHours) : 0;
+    var complete = projectSummaries.filter(function(p) { return p.isComplete; }).length;
+    var total = projectSummaries.length;
+    return {totalStitches: totalStitches, totalSeconds: totalSeconds, activeDays: activeDays, speed: speed, complete: complete, total: total};
+  }, [allSessions, projectSummaries]);
+
+  var globalStreak = React.useMemo(function() {
+    var allDates = new Set(allSessions.map(function(s) { return s.date; }).filter(Boolean));
+    var today = formatYMD(new Date());
+    var current = 0, checkDate = today;
+    while (allDates.has(checkDate)) { current++; checkDate = subtractOneDay(checkDate); }
+    if (current === 0) {
+      checkDate = subtractOneDay(today);
+      while (allDates.has(checkDate)) { current++; checkDate = subtractOneDay(checkDate); }
+    }
+    var longest = 0, run = 0, prevD = null;
+    Array.from(allDates).sort().forEach(function(d) {
+      if (prevD && dayDiff(prevD, d) === 1) { run++; } else { run = 1; }
+      if (run > longest) longest = run;
+      prevD = d;
+    });
+    return {current: current, longest: longest};
+  }, [allSessions]);
+
+  var weekComparison = React.useMemo(function() {
+    var today = new Date();
+    var dow = today.getDay() === 0 ? 6 : today.getDay() - 1;
+    var thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate() - dow);
+    var thisWeekStartStr = formatYMD(thisWeekStart);
+    var lastWeekStart = new Date(thisWeekStart); lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+    var lastWeekStartStr = formatYMD(lastWeekStart);
+    var lastWeekEndStr = formatYMD(new Date(thisWeekStart.getTime() - 86400000));
+    function wk(sessions) {
+      var st = sessions.reduce(function(s, x) { return s + (x.netStitches || 0); }, 0);
+      var sec = sessions.reduce(function(s, x) { return s + getSessionSeconds(x); }, 0);
+      var spd = sec > 0 ? Math.round(st / (sec / 3600)) : 0;
+      var days = new Set(sessions.map(function(x) { return x.date; })).size;
+      return {stitches: st, seconds: sec, speed: spd, activeDays: days};
+    }
+    var tw = wk(allSessions.filter(function(s) { return s.date >= thisWeekStartStr; }));
+    var lw = wk(allSessions.filter(function(s) { return s.date >= lastWeekStartStr && s.date <= lastWeekEndStr; }));
+    function pct(a, b) { if (b === 0) return a > 0 ? 100 : 0; return Math.round((a - b) / b * 100); }
+    return {thisWeek: tw, lastWeek: lw, stitchesDelta: pct(tw.stitches, lw.stitches),
+      timeDelta: pct(tw.seconds, lw.seconds), speedDelta: pct(tw.speed, lw.speed),
+      daysDelta: tw.activeDays - lw.activeDays};
+  }, [allSessions]);
+
+  var heatmapData = React.useMemo(function() {
+    var dailyTotals = {};
+    allSessions.forEach(function(s) { if (s.date) dailyTotals[s.date] = (dailyTotals[s.date] || 0) + (s.netStitches || 0); });
+    var today = new Date(), cells = [];
+    for (var i = 89; i >= 0; i--) {
+      var d = new Date(today); d.setDate(d.getDate() - i);
+      var ds = formatYMD(d);
+      cells.push({date: ds, dayOfWeek: d.getDay(), stitches: dailyTotals[ds] || 0});
+    }
+    var max = Math.max.apply(null, [1].concat(cells.map(function(c) { return c.stitches; })));
+    return {cells: cells, max: max};
+  }, [allSessions]);
+
+  var chartData = React.useMemo(function() {
+    var daysBack = timeRange === 'all' ? null : parseInt(timeRange, 10);
+    if (!daysBack) {
+      var sortedDates = Array.from(new Set(allSessions.map(function(s) { return s.date; }).filter(Boolean))).sort();
+      if (sortedDates.length === 0) return {data: [], maxDay: 1};
+      var firstDate = new Date(sortedDates[0] + 'T12:00:00');
+      var totalDays = Math.ceil((Date.now() - firstDate.getTime()) / 86400000);
+      if (totalDays > 90) {
+        var today = new Date(), weekCount = Math.ceil(totalDays / 7), weeks = [];
+        for (var wi = weekCount - 1; wi >= 0; wi--) {
+          var ws = new Date(today); ws.setDate(today.getDate() - wi * 7 - 6);
+          var we = new Date(today); we.setDate(today.getDate() - wi * 7);
+          var wsStr = formatYMD(ws), weStr = formatYMD(we);
+          var entry = {date: wsStr, total: 0, projects: {}};
+          projectSummaries.forEach(function(p) {
+            var st = (p.statsSessions || []).filter(function(s) { return s.date >= wsStr && s.date <= weStr; })
+              .reduce(function(sum, s) { return sum + (s.netStitches || 0); }, 0);
+            if (st > 0) { entry.projects[p.id] = (entry.projects[p.id] || 0) + st; entry.total += st; }
+          });
+          weeks.push(entry);
+        }
+        return {data: weeks, maxDay: Math.max.apply(null, [1].concat(weeks.map(function(w) { return w.total; })))};
+      }
+      daysBack = Math.max(totalDays, 14);
+    }
+    var days = [], today2 = new Date();
+    for (var j = daysBack - 1; j >= 0; j--) {
+      var day = new Date(today2); day.setDate(today2.getDate() - j);
+      var ds = formatYMD(day);
+      var de = {date: ds, total: 0, projects: {}};
+      projectSummaries.forEach(function(p) {
+        var st = (p.statsSessions || []).filter(function(s) { return s.date === ds; })
+          .reduce(function(sum, s) { return sum + (s.netStitches || 0); }, 0);
+        if (st > 0) { de.projects[p.id] = st; de.total += st; }
+      });
+      days.push(de);
+    }
+    return {data: days, maxDay: Math.max.apply(null, [1].concat(days.map(function(d) { return d.total; })))};
+  }, [allSessions, projectSummaries, timeRange]);
+
+  var insights = React.useMemo(function() {
+    if (allSessions.length === 0) return [];
+    var result = [];
+    var dailyTotals = {};
+    allSessions.forEach(function(s) { if (s.date) dailyTotals[s.date] = (dailyTotals[s.date] || 0) + (s.netStitches || 0); });
+    var bestDay = Object.entries(dailyTotals).sort(function(a, b) { return b[1] - a[1]; })[0];
+    if (bestDay && bestDay[1] > 0) result.push({icon: 'star', color: 'teal', text: 'Best day ever: ' + bestDay[1].toLocaleString() + ' stitches on ' + formatDateReadable(bestDay[0])});
+    var fastest = allSessions.filter(function(s) { return getSessionSeconds(s) >= 600 && (s.netStitches || 0) > 0; }).sort(function(a, b) { return (b.netStitches / getSessionSeconds(b)) - (a.netStitches / getSessionSeconds(a)); })[0];
+    if (fastest) {
+      var spd = Math.round(fastest.netStitches / (getSessionSeconds(fastest) / 3600));
+      var proj = projectSummaries.find(function(p) { return (p.statsSessions || []).some(function(s) { return s.id === fastest.id; }); });
+      result.push({icon: 'bolt', color: 'amber', text: 'Fastest session: ' + spd + ' st/hr' + (proj ? ' on ' + proj.name : '')});
+    }
+    var hourCounts = new Array(24).fill(0);
+    allSessions.forEach(function(s) { if (s.startTime) { var h = new Date(s.startTime).getHours(); hourCounts[h] += (s.netStitches || 0); } });
+    var maxH = Math.max.apply(null, hourCounts);
+    if (maxH > 0) {
+      var peak = hourCounts.indexOf(maxH);
+      result.push({icon: 'clock', color: 'purple', text: 'You stitch most between ' + formatHour(peak) + '\u2013' + formatHour((peak + 2) % 24)});
+    }
+    var inProg = projectSummaries.filter(function(p) { return !p.isComplete && p.completedStitches > 0 && p.totalStitches > 0; }).sort(function(a, b) { return (a.totalStitches - a.completedStitches) - (b.totalStitches - b.completedStitches); });
+    if (inProg.length > 0) {
+      var p = inProg[0];
+      var rem = p.totalStitches - p.completedStitches;
+      var rDates = Array.from(new Set((p.statsSessions || []).map(function(s) { return s.date; }))).sort().reverse().slice(0, 14);
+      var rSt = (p.statsSessions || []).filter(function(s) { return rDates.indexOf(s.date) >= 0; }).reduce(function(sum, s) { return sum + (s.netStitches || 0); }, 0);
+      var apd = rDates.length > 0 ? rSt / rDates.length : 0;
+      if (apd > 0) {
+        var daysLeft = Math.ceil(rem / apd);
+        var estD = new Date(); estD.setDate(estD.getDate() + daysLeft);
+        result.push({icon: 'calendar', color: 'coral', text: p.name + ' est. complete: ' + formatDateReadable(formatYMD(estD)) + ' at current pace'});
+      }
+    }
+    var firstDate = allSessions.reduce(function(min, s) { return (s.date && s.date < min) ? s.date : min; }, allSessions[0].date || '');
+    if (firstDate) {
+      var ds = Math.ceil((Date.now() - new Date(firstDate + 'T12:00:00').getTime()) / 86400000);
+      result.push({icon: 'calendar', color: 'blue', text: 'Stitching for ' + ds + ' days (since ' + formatDateReadable(firstDate) + ')'});
+    }
+    return result.slice(0, 4);
+  }, [allSessions, projectSummaries]);
+
+  var timeline = React.useMemo(function() {
+    var entries = [];
+    projectSummaries.forEach(function(p) {
+      (p.statsSessions || []).forEach(function(s) {
+        entries.push({type: 'session', date: s.date, startTime: s.startTime || (s.date + 'T00:00:00'), projectId: p.id, projectName: p.name || 'Untitled', projectColor: assignProjectColor(p.id), stitches: s.netStitches || 0, seconds: getSessionSeconds(s), speed: getSessionSeconds(s) > 0 ? Math.round((s.netStitches || 0) / (getSessionSeconds(s) / 3600)) : 0, note: s.note || null});
+      });
+      (p.achievedMilestones || []).forEach(function(m) {
+        var dt = m.achievedAt || m.date || '';
+        entries.push({type: 'milestone', date: dt.slice(0, 10), startTime: m.achievedAt || (dt + 'T00:00:00'), projectId: p.id, projectName: p.name || 'Untitled', label: m.label, pct: m.pct});
+      });
+    });
+    entries.sort(function(a, b) { return new Date(b.startTime) - new Date(a.startTime); });
+    var grouped = [], curDate = null, curGroup = null;
+    entries.slice(0, tlLimit).forEach(function(e) {
+      if (e.date !== curDate) { curGroup = {date: e.date, entries: []}; grouped.push(curGroup); curDate = e.date; }
+      curGroup.entries.push(e);
+    });
+    return {grouped: grouped, total: entries.length};
+  }, [projectSummaries, tlLimit]);
+
+  function fmtDayLabel(dateStr) {
+    if (!dateStr) return '';
+    var today = formatYMD(new Date()), yesterday = subtractOneDay(today);
+    if (dateStr === today) return 'Today';
+    if (dateStr === yesterday) return 'Yesterday';
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-GB', {weekday: 'short', day: 'numeric', month: 'short'});
+  }
+
+  if (loading) {
+    return React.createElement('div', {className: 'gsd', style: {padding: '40px', textAlign: 'center', color: 'var(--text-secondary)'}},
+      building ? 'Building your stats overview\u2026' : 'Loading\u2026');
+  }
+
+  if (projectSummaries.length === 0) {
+    return React.createElement('div', {className: 'gsd', style: {padding: '40px 16px', textAlign: 'center'}},
+      React.createElement('p', {style: {color: 'var(--text-secondary)', fontSize: 15, marginBottom: 12}}, 'No stitching data yet.'),
+      React.createElement('p', {style: {color: 'var(--text-tertiary)', fontSize: 13}}, 'Open a project and start marking stitches \u2014 your stats will appear here automatically.'));
+  }
+
+  return React.createElement('div', {className: 'stats-dashboard'},
+    React.createElement('div', {style: {display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8, flexWrap: 'wrap'}},
+      React.createElement('h2', {style: {fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0}}, '\uD83D\uDCCA All projects'),
+      React.createElement('button', {onClick: onClose, style: {fontSize: 13, padding: '4px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '\u2190 Back to grid')
+    ),
+
+    // Section 1: Lifetime totals
+    React.createElement('h3', {className: 'gsd-section-label'}, 'All time'),
+    React.createElement('div', {className: 'gsd-metrics'},
+      React.createElement(MetricCard, {label: 'Total stitches', value: lifetimeTotals.totalStitches.toLocaleString(), sub: 'across ' + lifetimeTotals.total + ' project' + (lifetimeTotals.total !== 1 ? 's' : '')}),
+      React.createElement(MetricCard, {label: 'Time stitching', value: formatDurationCompact(lifetimeTotals.totalSeconds), sub: lifetimeTotals.activeDays + ' active days'}),
+      React.createElement(MetricCard, {label: 'Average speed', value: lifetimeTotals.speed, sub: 'stitches / hour'}),
+      React.createElement(MetricCard, {label: 'Projects', value: lifetimeTotals.complete + ' / ' + lifetimeTotals.total, sub: (lifetimeTotals.total - lifetimeTotals.complete) + ' in progress'})
+    ),
+
+    // Section 2: Streak
+    allSessions.length > 0 && React.createElement('div', {className: 'gsd-streak'},
+      React.createElement('div', {className: 'gsd-streak-flame'}, '\uD83D\uDD25'),
+      React.createElement('div', {className: 'gsd-streak-body'},
+        React.createElement('div', {className: 'gsd-streak-num'}, globalStreak.current + ' day' + (globalStreak.current !== 1 ? 's' : '')),
+        React.createElement('div', {className: 'gsd-streak-label'}, globalStreak.current > 0 ? 'Keep it going \u2014 stitch today!' : 'Start a new streak!')
+      ),
+      React.createElement('div', {className: 'gsd-streak-best'}, 'Best: ' + globalStreak.longest + ' days')
+    ),
+
+    // Section 3: Project cards
+    React.createElement('h3', {className: 'gsd-section-label'}, 'Projects'),
+    React.createElement('div', {className: 'gsd-projects'},
+      projectSummaries.slice().sort(function(a, b) {
+        if (a.isComplete !== b.isComplete) return a.isComplete ? 1 : -1;
+        return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+      }).map(function(p) {
+        var pct = p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0;
+        var remaining = Math.max(0, p.totalStitches - p.completedStitches);
+        var color = p.projectColor || assignProjectColor(p.id);
+        return React.createElement('div', {key: p.id, className: 'gsd-project-card', onClick: function() { if (onViewProject) onViewProject(p.id); }},
+          React.createElement('div', {className: 'gsd-pc-name'}, p.name || 'Untitled'),
+          React.createElement(RingChart, {size: 52, pct: pct, color: color}),
+          React.createElement('div', {className: 'gsd-pc-sub'}, p.isComplete ? 'Complete!' : remaining.toLocaleString() + ' left')
+        );
+      })
+    ),
+
+    // Section 4: Week comparison
+    React.createElement('h3', {className: 'gsd-section-label'}, 'This week vs last week'),
+    React.createElement('div', {className: 'gsd-week'},
+      React.createElement('div', {className: 'gsd-week-grid'},
+        React.createElement(WeekMetric, {label: 'stitches', value: weekComparison.thisWeek.stitches.toLocaleString(), delta: weekComparison.stitchesDelta}),
+        React.createElement(WeekMetric, {label: 'time', value: formatDurationCompact(weekComparison.thisWeek.seconds), delta: weekComparison.timeDelta}),
+        React.createElement(WeekMetric, {label: 'st/hour', value: weekComparison.thisWeek.speed, delta: weekComparison.speedDelta}),
+        React.createElement(WeekMetric, {label: 'days active', value: weekComparison.thisWeek.activeDays + ' / 7', delta: weekComparison.daysDelta, isDays: true})
+      )
+    ),
+
+    // Section 5: Goals (from active project settings)
+    statsSettings && React.createElement('div', {style: {marginBottom: '1.5rem'}},
+      React.createElement('h3', {className: 'gsd-section-label'}, 'Goals'),
+      React.createElement(GoalTracker, {
+        statsSettings: statsSettings,
+        statsSessions: allSessions,
+        totalCompleted: allSessions.reduce(function(s, x) { return s + (x.netStitches || 0); }, 0),
+        totalStitches: projectSummaries.reduce(function(s, p) { return s + p.totalStitches; }, 0),
+        overviewStats: computeOverviewStats(allSessions, lifetimeTotals.totalStitches, lifetimeTotals.totalStitches, true),
+        onUpdateSettings: onUpdateSettings || function() {}
+      })
+    ),
+
+    // Section 6: Activity heatmap
+    React.createElement('h3', {className: 'gsd-section-label'}, 'Activity (last 90 days)'),
+    React.createElement('div', {className: 'gsd-heatmap'},
+      React.createElement('div', {className: 'gsd-heatmap-grid'},
+        heatmapData.cells.map(function(cell, i) {
+          return React.createElement('div', {key: i, className: 'gsd-heatmap-cell',
+            style: {background: heatmapColor(cell.stitches, heatmapData.max)},
+            title: cell.date + ': ' + cell.stitches.toLocaleString() + ' stitches'});
+        })
+      ),
+      React.createElement('div', {className: 'gsd-heatmap-legend'},
+        React.createElement('span', {style: {color: 'var(--text-tertiary)', fontSize: 11}}, 'Less'),
+        [0, 0.2, 0.5, 0.8, 1].map(function(r, i) {
+          return React.createElement('div', {key: i, style: {width: 12, height: 12, borderRadius: 2, background: heatmapColor(r === 0 ? 0 : r, 1)}});
+        }),
+        React.createElement('span', {style: {color: 'var(--text-tertiary)', fontSize: 11}}, 'More')
+      )
+    ),
+
+    // Section 7: Daily activity chart
+    React.createElement('h3', {className: 'gsd-section-label'}, 'Daily activity'),
+    React.createElement('div', {className: 'gsd-chart-controls'},
+      ['14', '30', 'all'].map(function(r) {
+        return React.createElement('button', {key: r,
+          className: 'gsd-range-btn' + (timeRange === r ? ' gsd-range-btn--on' : ''),
+          onClick: function() { setTimeRange(r); }},
+          r === '14' ? '2 weeks' : r === '30' ? 'Month' : 'All time');
+      })
+    ),
+    React.createElement('div', {className: 'gsd-bars-wrap'},
+      React.createElement('div', {className: 'gsd-bars'},
+        chartData.data.map(function(day, i) {
+          var hpct = chartData.maxDay > 0 ? day.total / chartData.maxDay * 100 : 0;
+          return React.createElement('div', {key: i, className: 'gsd-bar-col'},
+            React.createElement('div', {className: 'gsd-bar-stack-wrap'},
+              React.createElement('div', {className: 'gsd-bar-stack', style: {height: hpct + '%'}},
+                day.total > 0 && projectSummaries.map(function(p) {
+                  var st = day.projects[p.id] || 0;
+                  if (!st) return null;
+                  return React.createElement('div', {key: p.id, className: 'gsd-bar-segment',
+                    style: {height: (st / day.total * 100) + '%', background: assignProjectColor(p.id)}});
+                })
+              )
+            ),
+            React.createElement('div', {className: 'gsd-bar-label'}, day.date.slice(8))
+          );
+        })
+      ),
+      React.createElement('div', {className: 'gsd-chart-legend'},
+        projectSummaries.filter(function(p) {
+          return chartData.data.some(function(d) { return d.projects[p.id]; });
+        }).map(function(p) {
+          return React.createElement('span', {key: p.id, className: 'gsd-legend-item'},
+            React.createElement('span', {className: 'gsd-legend-dot', style: {background: assignProjectColor(p.id)}}),
+            p.name || 'Untitled');
+        })
+      )
+    ),
+
+    // Section 8: Insights
+    insights.length > 0 && React.createElement('div', null,
+      React.createElement('h3', {className: 'gsd-section-label'}, 'Insights'),
+      React.createElement('div', {className: 'gsd-insights'},
+        insights.map(function(ins, i) {
+          var parts = ins.text.indexOf(':') > -1 ? [ins.text.slice(0, ins.text.indexOf(':')), ins.text.slice(ins.text.indexOf(':') + 1)] : ['', ins.text];
+          return React.createElement('div', {key: i, className: 'gsd-insight'},
+            React.createElement('div', {className: 'gsd-insight-icon gsd-insight-icon--' + ins.color},
+              React.createElement(InsightIcon, {type: ins.icon})),
+            React.createElement('div', {className: 'gsd-insight-text'},
+              parts[0] ? React.createElement('span', null, React.createElement('strong', null, parts[0] + ':'), parts[1]) : ins.text)
+          );
+        })
+      )
+    ),
+
+    // Section 9: Session timeline
+    React.createElement('div', {className: 'gsd-timeline'},
+      React.createElement('h3', {className: 'gsd-section-label', style: {marginBottom: 10}}, 'Recent sessions'),
+      timeline.grouped.map(function(day) {
+        return React.createElement('div', {key: day.date || 'nd', className: 'gsd-tl-day'},
+          React.createElement('div', {className: 'gsd-tl-date'}, fmtDayLabel(day.date)),
+          day.entries.map(function(entry, i) {
+            if (entry.type === 'session') {
+              return React.createElement('div', {key: i, className: 'gsd-tl-entry'},
+                React.createElement('div', {className: 'gsd-tl-dot', style: {background: entry.projectColor}}),
+                React.createElement('div', {className: 'gsd-tl-body'},
+                  React.createElement('div', {className: 'gsd-tl-title'}, entry.projectName),
+                  React.createElement('div', {className: 'gsd-tl-meta'},
+                    formatDurationCompact(entry.seconds) + (entry.speed > 0 ? ' \u00B7 ' + entry.speed + ' st/hr' : '')),
+                  entry.note ? React.createElement('div', {className: 'gsd-tl-note'}, '\u201C' + entry.note + '\u201D') : null
+                ),
+                React.createElement('div', {className: 'gsd-tl-stitches'}, '+' + entry.stitches.toLocaleString())
+              );
+            }
+            return React.createElement('div', {key: i, className: 'gsd-tl-milestone'},
+              React.createElement('div', {className: 'gsd-tl-milestone-icon'}, '\u2605'),
+              React.createElement('div', {className: 'gsd-tl-body'},
+                React.createElement('div', {className: 'gsd-tl-title'}, entry.projectName + ' hit ' + entry.label + '!'),
+                React.createElement('div', {className: 'gsd-tl-meta'}, 'Milestone reached')
+              )
+            );
+          })
+        );
+      }),
+      tlLimit < timeline.total && React.createElement('button', {className: 'timeline-show-all',
+        onClick: function() { setTlLimit(function(prev) { return prev + 20; }); }}, 'Show more')
+    )
+  );
+}
+
+// StatsContainer: tab bar wrapping GlobalStatsDashboard or per-project StatsDashboard
+function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, statsSessions, statsSettings, onUpdateSettings, totalCompleted, totalStitches, onEditNote, projectName, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, onOpenProject}) {
+  var _projects = React.useState([]);
+  var projects = _projects[0], setProjects = _projects[1];
+  var _loaded = React.useState(null);
+  var loadedProject = _loaded[0], setLoadedProject = _loaded[1];
+  var _lLoading = React.useState(false);
+  var lLoading = _lLoading[0], setLLoading = _lLoading[1];
+
+  React.useEffect(function() {
+    if (typeof ProjectStorage !== 'undefined') {
+      ProjectStorage.listProjects().then(setProjects).catch(function() {});
+    }
+  }, []);
+
+  React.useEffect(function() {
+    if (!statsTab || statsTab === 'all' || statsTab === currentProjectId) { setLoadedProject(null); return; }
+    setLLoading(true);
+    if (typeof ProjectStorage !== 'undefined') {
+      ProjectStorage.get(statsTab).then(function(p) { setLoadedProject(p || null); setLLoading(false); }).catch(function() { setLLoading(false); });
+    }
+  }, [statsTab, currentProjectId]);
+
+  var tabBar = React.createElement('div', {className: 'gsd-tabs'},
+    React.createElement('div', {className: 'gsd-tabs-inner'},
+      React.createElement('button', {className: 'gsd-tab' + (statsTab === 'all' ? ' gsd-tab--on' : ''),
+        onClick: function() { setStatsTab('all'); }}, 'All projects'),
+      projects.map(function(proj) {
+        return React.createElement('button', {key: proj.id,
+          className: 'gsd-tab' + (statsTab === proj.id ? ' gsd-tab--on' : ''),
+          onClick: function() { setStatsTab(proj.id); }},
+          proj.name || 'Untitled');
+      })
+    )
+  );
+
+  var content;
+  if (statsTab === 'all') {
+    content = React.createElement(GlobalStatsDashboard, {onClose: onClose, onViewProject: function(id) { setStatsTab(id); }, currentProjectId: currentProjectId, statsSettings: statsSettings, onUpdateSettings: onUpdateSettings});
+  } else if (statsTab === currentProjectId && pat) {
+    content = React.createElement(StatsDashboard, {statsSessions: statsSessions, statsSettings: statsSettings, totalCompleted: totalCompleted, totalStitches: totalStitches, onEditNote: onEditNote, onUpdateSettings: onUpdateSettings, onClose: onClose, projectName: projectName, palette: palette, colourDoneCounts: colourDoneCounts, achievedMilestones: achievedMilestones, done: done, pat: pat, sW: sW, sH: sH, doneSnapshots: doneSnapshots, setDoneSnapshots: setDoneSnapshots, sections: sections, currentProjectId: currentProjectId, onOpenProject: onOpenProject});
+  } else if (loadedProject) {
+    var lp = loadedProject;
+    var lpS = lp.settings || {};
+    var lpSessions = lp.statsSessions || [];
+    var lpDone = lp.done || null;
+    var lpPat = lp.pattern || null;
+    var lpTotal = lpPat ? lpPat.filter(function(c) { return c && c.id !== '__skip__' && c.id !== '__empty__'; }).length : 0;
+    var lpCompleted = lpDone ? (Array.isArray(lpDone) ? lpDone.reduce(function(n, v) { return n + (v === 1 ? 1 : 0); }, 0) : 0) : 0;
+    var lpPal = lpPat ? (function() { var seen = {}, out = []; lpPat.forEach(function(c) { if (c && c.id && c.id !== '__skip__' && c.id !== '__empty__' && !c.id.includes('+') && !seen[c.id]) { seen[c.id] = true; out.push(c); } }); return out; })() : [];
+    var lpCDone = {};
+    if (lpPat && lpDone) { for (var ci = 0; ci < lpPat.length; ci++) { if (lpDone[ci] === 1 && lpPat[ci] && lpPat[ci].id) lpCDone[lpPat[ci].id] = (lpCDone[lpPat[ci].id] || 0) + 1; } }
+    content = React.createElement(StatsDashboard, {statsSessions: lpSessions, statsSettings: lp.statsSettings || {dayEndHour: 0, useActiveDays: true}, totalCompleted: lpCompleted, totalStitches: lpTotal, onEditNote: function() {}, onUpdateSettings: function() {}, onClose: onClose, projectName: lp.name || 'Untitled', palette: lpPal, colourDoneCounts: lpCDone, achievedMilestones: lp.achievedMilestones || [], done: lpDone, pat: lpPat, sW: lpS.sW || 0, sH: lpS.sH || 0, doneSnapshots: lp.doneSnapshots || [], setDoneSnapshots: function() {}, sections: lp.sections || [], currentProjectId: lp.id, onOpenProject: onOpenProject});
+  } else {
+    content = React.createElement('div', {style: {padding: '40px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14}},
+      lLoading ? 'Loading\u2026' : 'Load a project in the tracker to see its stats here.');
+  }
+
+  return React.createElement('div', {className: 'stats-container'},
+    tabBar,
+    React.createElement('div', {className: 'stats-container-body'}, content)
+  );
+}

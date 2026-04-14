@@ -27,6 +27,7 @@ const[statsSessions,setStatsSessions]=useState([]);
 const totalTime=useMemo(()=>{if(!statsSessions||statsSessions.length===0)return 0;return statsSessions.reduce(function(sum,s){return sum+getSessionSeconds(s);},0);},[statsSessions]);
 const[statsSettings,setStatsSettings]=useState({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true});
 const[statsView,setStatsView]=useState(false);
+const[statsTab,setStatsTab]=useState('all');
 const[celebration,setCelebration]=useState(null);
 const celebratedRef=useRef(new Set());
 const goalCelebrationRef=useRef({daily:false,weekly:false,monthly:false});
@@ -2828,7 +2829,7 @@ return(
     </div>
   )}
   <div className="tb-sdiv"/>
-  <button className={"tb-btn"+(statsView?" tb-btn--on":"")} onClick={()=>{finaliseAutoSession();setStatsView(v=>!v);}} title="Stats dashboard" style={{flexShrink:0}}>{Icons.barChart()}</button>
+  <button className={"tb-btn"+(statsView?" tb-btn--on":"")} onClick={()=>{finaliseAutoSession();setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);}} title="Stats dashboard" style={{flexShrink:0}}>{Icons.barChart()}</button>
   {stitchMode==="track"&&!isEditMode&&(trackHistory.length>0||redoStack.length>0)&&<>
     <div className="tb-sdiv"/>
     <button className="tb-btn" onClick={undoTrack} disabled={!trackHistory.length} title="Undo (Ctrl+Z)" style={{opacity:trackHistory.length?1:0.3}}>↩</button>
@@ -2918,7 +2919,7 @@ return(
   </div>
   <span className="tb-progress-rem">{progressPct>=100?"Complete!":Math.ceil(combinedTotal-combinedDone).toLocaleString()+" remaining"}</span>
 </div></div>}
-{!isEditMode&&<MiniStatsBar statsSessions={statsSessions} totalCompleted={doneCount} totalStitches={totalStitchable} statsSettings={statsSettings} onOpenStats={()=>{finaliseAutoSession();setStatsView(true);}} currentAutoSession={currentAutoSessionRef.current}/>}
+{!isEditMode&&<MiniStatsBar statsSessions={statsSessions} totalCompleted={doneCount} totalStitches={totalStitchable} statsSettings={statsSettings} onOpenStats={()=>{finaliseAutoSession();setStatsTab(projectIdRef.current||'all');setStatsView(true);}} currentAutoSession={currentAutoSessionRef.current}/>}
 {!sessionOnboardingShown&&liveAutoStitches>0&&statsSessions.length===0&&(
   <div className="session-onboarding-toast">
     <span>ℹ Sessions are tracked automatically as you stitch. View stats with the 📊 button.</span>
@@ -2961,7 +2962,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsDashboard statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&project.pattern&&project.settings){processLoadedProject(project);ProjectStorage.setActiveProject(project.id).catch(()=>{});setStatsView(false);}}).catch(()=>{});}}/>}
+  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&project.pattern&&project.settings){processLoadedProject(project);ProjectStorage.setActiveProject(project.id).catch(()=>{});setStatsView(false);}}).catch(()=>{});}}/>}
 
   {!statsView&&!pat&&<div style={{maxWidth:500, margin:"40px auto", textAlign:"center"}}>
     <div className="card" style={{padding:"30px"}}>
