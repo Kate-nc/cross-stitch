@@ -128,6 +128,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
         if (ctx.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
+        if (ctx.previewActive) return "default";
         if (ctx.activeTool === "fill") return "cell";
         if (ctx.activeTool === "eraseBs") return "not-allowed";
         if (ctx.activeTool || ctx.partialStitchTool) return "crosshair";
@@ -154,7 +155,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
       }
     },
-      h(window.PatternCanvas, null)
+      ctx.previewActive
+        ? (ctx.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
+        : h(window.PatternCanvas, null)
     ),
 
     // Context menu overlay
