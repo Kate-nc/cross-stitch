@@ -4,14 +4,15 @@
 
 window.CreatorContextMenu = function CreatorContextMenu() {
   var ctx = React.useContext(window.CreatorContext);
+  var cv = window.useCanvas();
   var h = React.createElement;
-  var menu = ctx.contextMenu;
+  var menu = cv.contextMenu;
 
   // Close menu on outside click or Escape.
   // Must be declared before any early returns (Rules of Hooks).
   React.useEffect(function() {
     if (!menu) return;
-    function close() { ctx.setContextMenu(null); }
+    function close() { cv.setContextMenu(null); }
     function onKey(e) { if (e.key === "Escape") close(); }
     document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", onKey);
@@ -33,7 +34,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     return h("button", {
       key: key,
       onPointerDown: function(e) { e.stopPropagation(); },
-      onClick: function(e) { e.stopPropagation(); onClick(); ctx.setContextMenu(null); },
+      onClick: function(e) { e.stopPropagation(); onClick(); cv.setContextMenu(null); },
       disabled: opts.disabled,
       style: {
         display:"block", width:"100%", textAlign:"left",
@@ -74,44 +75,44 @@ window.CreatorContextMenu = function CreatorContextMenu() {
 
     // Pick this colour
     item([Icons.eyedropper(), " Pick this colour"], function() {
-      if (cellInfo) ctx.setSelectedColorId(cellInfo.id);
+      if (cellInfo) cv.setSelectedColorId(cellInfo.id);
     }, {disabled: !hasCellColour, k: 'pick'}),
 
     // Fill from here — switch to fill tool so user can click the area
     item([Icons.bucket(), " Switch to fill tool"], function() {
-      ctx.selectStitchType("cross");
-      ctx.setBrushAndActivate("fill");
-    }, {disabled: !ctx.selectedColorId, k: 'fill'}),
+      cv.selectStitchType("cross");
+      cv.setBrushAndActivate("fill");
+    }, {disabled: !cv.selectedColorId, k: 'fill'}),
 
     sep(),
 
     // Select similar
     item([Icons.wand(), " Select similar (wand)"], function() {
-      ctx.setActiveTool("magicWand");
+      cv.setActiveTool("magicWand");
       ctx.setPartialStitchTool(null);
-      ctx.setBsStart(null);
-      ctx.applyWandSelect(menu.gx, menu.gy, ctx.wandOpMode);
+      cv.setBsStart(null);
+      cv.applyWandSelect(menu.gx, menu.gy, cv.wandOpMode);
     }, {disabled: !hasCellColour, k: 'wand'}),
 
     // Select all of this colour
     item([Icons.palette(), " Select all of this colour"], function() {
-      if (cellInfo) ctx.selectAllOfColorId(cellInfo.id);
+      if (cellInfo) cv.selectAllOfColorId(cellInfo.id);
     }, {disabled: !hasCellColour, k: 'selectall'}),
 
     sep(),
 
     // Highlight this colour
-    item(ctx.hiId === (cellInfo ? cellInfo.id : null) ? [Icons.magnifyMinus(), " Remove highlight"] : [Icons.magnify(), " Highlight this colour"], function() {
-      if (cellInfo) ctx.setHiId(ctx.hiId === cellInfo.id ? null : cellInfo.id);
+    item(cv.hiId === (cellInfo ? cellInfo.id : null) ? [Icons.magnifyMinus(), " Remove highlight"] : [Icons.magnify(), " Highlight this colour"], function() {
+      if (cellInfo) cv.setHiId(cv.hiId === cellInfo.id ? null : cellInfo.id);
     }, {disabled: !hasCellColour, k: 'highlight'}),
 
     // Stitch info
     hasCellColour && item([Icons.info(), " Stitch info"], function() {
       if (cellInfo) {
-        ctx.setActiveTool("magicWand");
+        cv.setActiveTool("magicWand");
         ctx.setPartialStitchTool(null);
-        ctx.applyWandSelect(menu.gx, menu.gy, "replace");
-        ctx.setWandPanel("info");
+        cv.applyWandSelect(menu.gx, menu.gy, "replace");
+        cv.setWandPanel("info");
       }
     }, {k: 'info'})
   );

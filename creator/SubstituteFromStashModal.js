@@ -291,6 +291,7 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
 // ─── Modal outer wrapper ──────────────────────────────────────────────────────
 window.SubstituteFromStashModal = function SubstituteFromStashModal() {
   var ctx = React.useContext(window.CreatorContext);
+  var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
   if (!ctx.substituteModalOpen || !ctx.substituteProposal) return null;
@@ -563,13 +564,13 @@ function SubstituteFromStashModalInner(props) {
     }
 
     // Step 4: Commit undo entry
-    ctx.setEditHistory(function(prev) {
+    cv.setEditHistory(function(prev) {
       var entry = { type: "stashSubstitution", changes: changes, psChanges: psChanges.length > 0 ? psChanges : undefined };
       var n = prev.concat([entry]);
-      if (n.length > ctx.EDIT_HISTORY_MAX) n = n.slice(n.length - ctx.EDIT_HISTORY_MAX);
+      if (n.length > cv.EDIT_HISTORY_MAX) n = n.slice(n.length - cv.EDIT_HISTORY_MAX);
       return n;
     });
-    ctx.setRedoHistory([]);
+    cv.setRedoHistory([]);
     ctx.setPat(np);
     if (psChanged) ctx.setPartialStitches(nm);
 

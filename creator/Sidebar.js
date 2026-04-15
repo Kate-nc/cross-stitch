@@ -5,6 +5,7 @@
 
 window.CreatorSidebar = function CreatorSidebar() {
   var ctx = React.useContext(window.CreatorContext);
+  var cv = window.useCanvas();
   var app = window.useApp();
   var gen = window.useGeneration();
   var h = React.createElement;
@@ -77,11 +78,11 @@ window.CreatorSidebar = function CreatorSidebar() {
   var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
     var displayPal = ctx.displayPal || ctx.pal || [];
     var isHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
-    var isPaintMode = ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool;
-    var selInfo = ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId];
+    var isPaintMode = cv.activeTool === "paint" || cv.activeTool === "fill" || isHsTool;
+    var selInfo = cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
     var chips = displayPal.map(function(p) {
-      var ips = isPaintMode && ctx.selectedColorId === p.id;
-      var ihs = ctx.hiId === p.id;
+      var ips = isPaintMode && cv.selectedColorId === p.id;
+      var ihs = cv.hiId === p.id;
       var isUnused = ctx.isScratchMode && p.count === 0;
       return h("div", {
         key: p.id,
@@ -90,9 +91,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         "aria-pressed": ips || ihs,
         onClick: function() {
           if (isPaintMode) {
-            ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
+            cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
           } else {
-            ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+            cv.setHiId(cv.hiId === p.id ? null : p.id);
           }
         },
         onKeyDown: function(e) {
@@ -100,9 +101,9 @@ window.CreatorSidebar = function CreatorSidebar() {
           if (e.key === " " || e.key === "Enter") {
             e.preventDefault();
             if (isPaintMode) {
-              ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
+              cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
             } else {
-              ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+              cv.setHiId(cv.hiId === p.id ? null : p.id);
             }
           }
         },
@@ -149,7 +150,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("span", {style:{fontWeight:600,color:"#0d9488"}}, "DMC " + selInfo.id),
               h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
               h("button", {
-                onClick:function(){ctx.setSelectedColorId(null);},
+                onClick:function(){cv.setSelectedColorId(null);},
                 title:"Clear selection",
                 style:{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:13,lineHeight:1,padding:"0 2px",flexShrink:0}
               }, "\xD7")
@@ -738,14 +739,14 @@ window.CreatorSidebar = function CreatorSidebar() {
         [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
           return h("button", {
             key:kl[0],
-            onClick:function(){ctx.setView(kl[0]);},
+            onClick:function(){cv.setView(kl[0]);},
             title:"Cycle view (V)",
             style:{
-              flex:1,padding:"4px 6px",fontSize:11,fontWeight:ctx.view===kl[0]?600:400,
+              flex:1,padding:"4px 6px",fontSize:11,fontWeight:cv.view===kl[0]?600:400,
               border:"none",cursor:"pointer",borderRadius:6,fontFamily:"inherit",
-              background:ctx.view===kl[0]?"var(--surface)":"transparent",
-              color:ctx.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
-              boxShadow:ctx.view===kl[0]?"var(--shadow-sm)":"none"
+              background:cv.view===kl[0]?"var(--surface)":"transparent",
+              color:cv.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
+              boxShadow:cv.view===kl[0]?"var(--shadow-sm)":"none"
             }
           }, kl[1]);
         })
@@ -759,8 +760,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     fabSection,
     adjSection,
     bgSection,
-    ctx.pat && ctx.pal && ctx.paletteSwap && ctx.paletteSwap.shiftSection,
-    ctx.pat && ctx.pal && ctx.paletteSwap && ctx.paletteSwap.presetSection,
+    ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
+    ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
     actionBtn
   );
 };

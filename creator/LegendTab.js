@@ -5,6 +5,7 @@
 
 window.CreatorLegendTab = function CreatorLegendTab() {
   var ctx = React.useContext(window.CreatorContext);
+  var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
 
@@ -56,8 +57,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             );
             return h("tr", {
               key:i,
-              onClick:function(){ctx.setHiId(ctx.hiId===p.id?null:p.id); app.setTab("pattern");},
-              style:{borderBottom:"0.5px solid #f1f5f9",cursor:"pointer",background:ctx.hiId===p.id?"#fff7ed":"transparent"}
+              onClick:function(){cv.setHiId(cv.hiId===p.id?null:p.id); app.setTab("pattern");},
+              style:{borderBottom:"0.5px solid #f1f5f9",cursor:"pointer",background:cv.hiId===p.id?"#fff7ed":"transparent"}
             },
               h("td", {style:{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}, p.symbol),
               h("td", {style:{padding:"6px 10px"}},

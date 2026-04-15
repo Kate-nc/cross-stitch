@@ -8,6 +8,7 @@
 
 window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var ctx = React.useContext(window.CreatorContext);
+  var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
 
@@ -23,7 +24,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var pal = ctx.pal;
   var sW = ctx.sW;
   var sH = ctx.sH;
-  var cs = ctx.cs;
+  var cs = cv.cs;
   var previewShowGrid = app.previewShowGrid;
   // inputLevel prop overrides app.realisticLevel — used by SplitPane right pane
   var realisticLevel = (props && props.inputLevel != null) ? props.inputLevel : app.realisticLevel;

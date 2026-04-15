@@ -4,6 +4,7 @@
 
 window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
   var ctx = React.useContext(window.CreatorContext);
+  var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
 
@@ -18,7 +19,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
   var pal = ctx.pal;
   var sW = ctx.sW;
   var sH = ctx.sH;
-  var cs = ctx.cs;
+  var cs = cv.cs;
   var previewShowGrid = app.previewShowGrid;
   var previewFabricBg = app.previewFabricBg;
 

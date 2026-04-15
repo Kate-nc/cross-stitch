@@ -8,6 +8,7 @@
 
 window.CreatorSplitPane = function CreatorSplitPane() {
   var ctx = React.useContext(window.CreatorContext);
+  var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
 
@@ -137,21 +138,21 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   // Context-menu handler for the left pane (chart) scroll container
   function onLeftContextMenu(e) {
-    if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
+    if (cv.activeTool === "backstitch" && cv.bsStart) return;
     e.preventDefault();
     if (!app.pcRef.current || !ctx.pat) return;
-    var gc = gridCoord(app.pcRef, e, ctx.cs, app.G, false);
+    var gc = gridCoord(app.pcRef, e, cv.cs, app.G, false);
     if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
     var idx = gc.gy * ctx.sW + gc.gx;
     var cell = ctx.pat[idx];
     var rcIsHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
-    if ((ctx.activeTool === "paint" || ctx.activeTool === "fill" || rcIsHsTool) &&
+    if ((cv.activeTool === "paint" || cv.activeTool === "fill" || rcIsHsTool) &&
         cell && cell.id !== "__skip__" && cell.id !== "__empty__" &&
         ctx.cmap && ctx.cmap[cell.id]) {
-      ctx.setSelectedColorId(cell.id);
+      cv.setSelectedColorId(cell.id);
       return;
     }
-    ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
+    cv.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
   }
 
   // Which canvas to render in the right pane
@@ -174,11 +175,11 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   // Cursor for the chart (left) pane
   var leftCursor = (function() {
-    if (ctx.activeTool === "eyedropper") return "copy";
-    if (ctx.activeTool === "magicWand" || ctx.activeTool === "lasso") return "crosshair";
-    if (ctx.activeTool === "fill") return "cell";
-    if (ctx.activeTool === "eraseBs") return "not-allowed";
-    if (ctx.activeTool || ctx.partialStitchTool) return "crosshair";
+    if (cv.activeTool === "eyedropper") return "copy";
+    if (cv.activeTool === "magicWand" || cv.activeTool === "lasso") return "crosshair";
+    if (cv.activeTool === "fill") return "cell";
+    if (cv.activeTool === "eraseBs") return "not-allowed";
+    if (cv.activeTool || ctx.partialStitchTool) return "crosshair";
     return "default";
   })();
 
