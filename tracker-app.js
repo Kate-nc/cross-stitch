@@ -5,6 +5,223 @@ function uint8ToBase64(bytes){
   for(var i=0;i<bytes.length;i+=CHUNK)out+=String.fromCharCode.apply(null,bytes.subarray(i,i+CHUNK));
   return btoa(out);
 }
+
+// Standalone realistic preview modal for the tracker.
+// Adapted from creator/RealisticCanvas.js — no CreatorContext required.
+function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClose}){
+  var displayRef=React.useRef(null);
+  var offscreenRef=React.useRef(null);
+  var realisticRafRef=React.useRef(null);
+  var _offV=React.useState(0);var offscreenVersion=_offV[0],setOffscreenVersion=_offV[1];
+
+  // Effect A: render the full offscreen realistic canvas (identical logic to RealisticCanvas.js)
+  React.useEffect(function(){
+    if(!pat||!sW||!sH)return;
+    if(realisticRafRef.current)cancelAnimationFrame(realisticRafRef.current);
+    realisticRafRef.current=requestAnimationFrame(function(){
+      realisticRafRef.current=null;
+      var MAX_DIM=8192;
+      var maxCellSz=(level>=3)?32:16;
+      var rawCellSz=Math.floor(Math.min(MAX_DIM/sW,MAX_DIM/sH));
+      if(rawCellSz<1)return;
+      var CELL_SIZE=Math.max(4,Math.min(maxCellSz,rawCellSz));
+      var canvasW=sW*CELL_SIZE,canvasH=sH*CELL_SIZE;
+      var offscreen=document.createElement("canvas");
+      offscreen.width=canvasW;offscreen.height=canvasH;
+      var oc=offscreen.getContext("2d");
+      if(!oc)return;
+      var FR=245,FG=240,FB=230;
+      oc.fillStyle="rgb("+FR+","+FG+","+FB+")";
+      oc.fillRect(0,0,canvasW,canvasH);
+      var weaveStep=Math.max(3,Math.round(CELL_SIZE/4));
+      var fabricTile=document.createElement("canvas");
+      fabricTile.width=CELL_SIZE;fabricTile.height=CELL_SIZE;
+      var ftc=fabricTile.getContext("2d");
+      if(ftc){
+        ftc.fillStyle="rgb("+FR+","+FG+","+FB+")";
+        ftc.fillRect(0,0,CELL_SIZE,CELL_SIZE);
+        ftc.strokeStyle="rgba("+(Math.max(0,FR-10))+","+(Math.max(0,FG-10))+","+(Math.max(0,FB-10))+",0.07)";
+        ftc.lineWidth=1;
+        for(var wxi=0;wxi<CELL_SIZE;wxi+=weaveStep){ftc.beginPath();ftc.moveTo(wxi+0.5,0);ftc.lineTo(wxi+0.5,CELL_SIZE);ftc.stroke();}
+        for(var wyi=0;wyi<CELL_SIZE;wyi+=weaveStep){ftc.beginPath();ftc.moveTo(0,wyi+0.5);ftc.lineTo(CELL_SIZE,wyi+0.5);ftc.stroke();}
+        var weavePattern=oc.createPattern(fabricTile,"repeat");
+        oc.fillStyle=weavePattern||("rgb("+FR+","+FG+","+FB+")");
+        oc.fillRect(0,0,canvasW,canvasH);
+      }
+      var SC;var fc=fabricCt||14;
+      if(fc<=11){SC=3;}else if(fc<=17){SC=2;}else{SC=1;}
+      function _lerp(a,b,t){return a+(b-a)*t;}
+      function _clamp01(v){return v<0?0:v>1?1:v;}
+      var autoCoverage=_clamp01(_clamp01((fc-8)/24)*(SC/2));
+      var coverage=_clamp01(Math.round(autoCoverage/0.05)*0.05);
+      var sw=Math.max(CELL_SIZE*0.12,CELL_SIZE*_lerp(0.14,0.32,coverage));
+      var padding=Math.max(1,CELL_SIZE*_lerp(0.14,0.03,coverage));
+      var haloWidthMult=_lerp(1.1,1.5,coverage);
+      var haloOpacity=_lerp(0.06,0.18,coverage);
+      var twistAmpMult=_lerp(1.0,0.7,coverage);
+      var lvl=level;
+      function drawCross(tc,r1,g1,b1,r2,g2,b2,variant){
+        var x0=padding,y0=padding,x1=CELL_SIZE-padding,y1=CELL_SIZE-padding;
+        tc.lineCap="round";
+        if(lvl===1){
+          tc.lineWidth=sw;tc.strokeStyle="rgb("+r1+","+g1+","+b1+")";
+          tc.beginPath();tc.moveTo(x0,y1);tc.lineTo(x1,y0);tc.stroke();
+          tc.lineWidth=sw;tc.strokeStyle="rgb("+r2+","+g2+","+b2+")";
+          tc.beginPath();tc.moveTo(x0,y0);tc.lineTo(x1,y1);tc.stroke();
+        }else if(lvl===2){
+          var INV_SQ2=0.7071;var hs=sw/2;var cx=CELL_SIZE/2,cy=CELL_SIZE/2;
+          function makeGrad(perpX,perpY,r,g,b,factor){
+            var gx0=cx-perpX*hs,gy0=cy-perpY*hs,gx1=cx+perpX*hs,gy1=cy+perpY*hs;
+            var grad=tc.createLinearGradient(gx0,gy0,gx1,gy1);
+            function stop(f){return "rgb("+Math.min(255,Math.max(0,Math.round(r*f)))+","+Math.min(255,Math.max(0,Math.round(g*f)))+","+Math.min(255,Math.max(0,Math.round(b*f)))+")"}
+            grad.addColorStop(0.00,stop(factor*0.38));grad.addColorStop(0.28,stop(factor*0.90));
+            grad.addColorStop(0.50,stop(factor*1.22));grad.addColorStop(0.72,stop(factor*0.90));
+            grad.addColorStop(1.00,stop(factor*0.38));return grad;
+          }
+          tc.lineWidth=sw;tc.strokeStyle=makeGrad(INV_SQ2,INV_SQ2,r1,g1,b1,0.72);
+          tc.beginPath();tc.moveTo(x0,y1);tc.lineTo(x1,y0);tc.stroke();
+          tc.fillStyle="rgba(0,0,0,0.28)";tc.beginPath();tc.arc(cx,cy,sw*0.75,0,Math.PI*2);tc.fill();
+          tc.lineWidth=sw;tc.strokeStyle=makeGrad(INV_SQ2,-INV_SQ2,r2,g2,b2,1.15);
+          tc.beginPath();tc.moveTo(x0,y0);tc.lineTo(x1,y1);tc.stroke();
+        }else{
+          var SN=20,TF=2.5,TA=sw*0.3*twistAmpMult,ISW=sw/SC*1.2;
+          var IS_BLEND=!(r1===r2&&g1===g2&&b1===b2);
+          var lCX=CELL_SIZE/2,lCY=CELL_SIZE/2;
+          function hashVar(seed,si){var hv=((seed*1619)^(si*31337))|0;hv=(hv^(hv>>>13))*1540483477|0;hv=hv^(hv>>>15);return(((hv%8)+8)%8)-4;}
+          function mkPts(lsx,lsy,lex,ley,angle,si){var px=-Math.sin(angle),py=Math.cos(angle);var phase=si*(2*Math.PI/SC);var pts=[];for(var n=0;n<=SN;n++){var t=n/SN;var off=Math.sin(t*TF*2*Math.PI+phase)*TA;pts.push(lsx+(lex-lsx)*t+px*off,lsy+(ley-lsy)*t+py*off);}return pts;}
+          function drawStrand3(pts,fR,fGc,fBlu){
+            tc.beginPath();tc.moveTo(pts[0],pts[1]);for(var k=2;k<pts.length;k+=2)tc.lineTo(pts[k],pts[k+1]);
+            tc.lineWidth=ISW*haloWidthMult;tc.strokeStyle="rgba("+fR+","+fGc+","+fBlu+","+haloOpacity+")";tc.stroke();
+            tc.beginPath();tc.moveTo(pts[0],pts[1]);for(var k=2;k<pts.length;k+=2)tc.lineTo(pts[k],pts[k+1]);
+            tc.lineWidth=ISW;tc.strokeStyle="rgb("+fR+","+fGc+","+fBlu+")";tc.stroke();
+          }
+          function drawLeg3(lsx,lsy,lex,ley,angle,aR,aG,aB,bR,bG,bB,bright){
+            for(var si=0;si<SC;si++){
+              var sR,sGv,sB;
+              if(IS_BLEND){if(si%2===0){sR=aR;sGv=aG;sB=aB;}else{sR=bR;sGv=bG;sB=bB;}}
+              else{var vv=hashVar(variant*17+si,si);sR=Math.min(255,Math.max(0,aR+vv));sGv=Math.min(255,Math.max(0,aG+vv));sB=Math.min(255,Math.max(0,aB+vv));}
+              var dfR=Math.min(255,Math.max(0,Math.round(sR*bright)));
+              var dfG=Math.min(255,Math.max(0,Math.round(sGv*bright)));
+              var dfBlu=Math.min(255,Math.max(0,Math.round(sB*bright)));
+              drawStrand3(mkPts(lsx,lsy,lex,ley,angle,si),dfR,dfG,dfBlu);
+            }
+          }
+          function drawLeg3a(lsx,lsy,lex,ley,angle,aR,aG,aB,bR,bG,bB,bright){
+            if(!IS_BLEND||SC<2){drawLeg3(lsx,lsy,lex,ley,angle,aR,aG,aB,bR,bG,bB,bright);return;}
+            var pts0=mkPts(lsx,lsy,lex,ley,angle,0);var pts1=mkPts(lsx,lsy,lex,ley,angle,1);
+            function applyBright(r,g,b){return "rgb("+Math.min(255,Math.max(0,Math.round(r*bright)))+","+Math.min(255,Math.max(0,Math.round(g*bright)))+","+Math.min(255,Math.max(0,Math.round(b*bright)))+")"}
+            var cssA=applyBright(aR,aG,aB),cssB=applyBright(bR,bG,bB);
+            var crossIdx=[0];
+            for(var ck=1;ck<=Math.ceil(2*TF);ck++){var ci=Math.round(ck/(2*TF)*SN);if(ci>0&&ci<SN)crossIdx.push(ci);}
+            crossIdx.push(SN);
+            function drawSeg(pts,n0,n1,css){if(n1<=n0)return;tc.beginPath();tc.moveTo(pts[n0*2],pts[n0*2+1]);for(var k=n0+1;k<=n1;k++)tc.lineTo(pts[k*2],pts[k*2+1]);tc.lineWidth=ISW;tc.strokeStyle=css;tc.stroke();}
+            for(var seg=0;seg<crossIdx.length-1;seg++){
+              var n0=crossIdx[seg],n1=crossIdx[seg+1];
+              var midT=(n0+n1)/2/SN;var s0Front=Math.sin(midT*TF*2*Math.PI)>=0;
+              if(s0Front){drawSeg(pts1,n0,n1,cssB);drawSeg(pts0,n0,n1,cssA);}
+              else{drawSeg(pts0,n0,n1,cssA);drawSeg(pts1,n0,n1,cssB);}
+            }
+          }
+          tc.lineCap="round";tc.lineJoin="round";
+          var drawLegFn=(lvl===4)?drawLeg3a:drawLeg3;
+          drawLegFn(x0,y1,x1,y0,-Math.PI/4,r1,g1,b1,r2,g2,b2,0.78);
+          tc.fillStyle="rgba("+FR+","+FG+","+FB+",0.15)";tc.beginPath();tc.arc(lCX,lCY,sw*0.75,0,Math.PI*2);tc.fill();
+          drawLegFn(x0,y0,x1,y1,Math.PI/4,r1,g1,b1,r2,g2,b2,1.15);
+          var hlPts=mkPts(x0,y0,x1,y1,Math.PI/4,0);
+          tc.lineWidth=ISW*0.3;tc.strokeStyle="rgba(255,255,255,0.13)";
+          tc.beginPath();tc.moveTo(hlPts[0],hlPts[1]);for(var k=2;k<hlPts.length;k+=2)tc.lineTo(hlPts[k],hlPts[k+1]);tc.stroke();
+        }
+      }
+      var tileCache={};
+      function getTile(rgb,rgb2,variant){
+        var r1=rgb[0],g1=rgb[1],b1=rgb[2];
+        var r2=rgb2?rgb2[0]:r1,g2=rgb2?rgb2[1]:g1,b2=rgb2?rgb2[2]:b1;
+        var key=r1+","+g1+","+b1+"|"+r2+","+g2+","+b2+"|cov:"+coverage;
+        if(lvl===3||lvl===4)key+=":"+(variant|0);
+        if(tileCache[key])return tileCache[key];
+        var tileC=document.createElement("canvas");tileC.width=CELL_SIZE;tileC.height=CELL_SIZE;
+        var tc=tileC.getContext("2d");
+        drawCross(tc,r1,g1,b1,r2,g2,b2,variant|0);
+        tileCache[key]=tileC;return tileC;
+      }
+      var colourFreq={};
+      if(lvl===3||lvl===4){
+        for(var ci=0;ci<pat.length;ci++){
+          var cc=pat[ci];
+          if(!cc||cc.id==="__skip__"||cc.id==="__empty__")continue;
+          var cKey;
+          if(cc.id&&cc.id.indexOf("+")!==-1){cKey=cc.id;}
+          else{var cRgb=cc.rgb;if(!cRgb&&cmap){var cLk=cmap[cc.id];if(cLk)cRgb=cLk.rgb;}if(cRgb)cKey=cRgb[0]+","+cRgb[1]+","+cRgb[2];}
+          if(cKey)colourFreq[cKey]=(colourFreq[cKey]||0)+1;
+        }
+      }
+      for(var i=0;i<pat.length;i++){
+        var cell=pat[i];
+        if(!cell||cell.id==="__skip__"||cell.id==="__empty__")continue;
+        var cellCol=i%sW,cellRow=Math.floor(i/sW);
+        var cellX=cellCol*CELL_SIZE,cellY=cellRow*CELL_SIZE;
+        var rgb=cell.rgb,rgb2=null;
+        if(cell.id&&cell.id.indexOf("+")!==-1){
+          var blendParts=cell.id.split("+");
+          var e1=cmap&&cmap[blendParts[0]];var e2=cmap&&cmap[blendParts[1]];
+          if(e1)rgb=e1.rgb;if(e2)rgb2=e2.rgb;
+        }
+        if(!rgb&&cmap){var lookup=cmap[cell.id];if(lookup)rgb=lookup.rgb;}
+        if(!rgb)continue;
+        var variant3=0;
+        if(lvl===3){
+          var vKey;
+          if(cell.id&&cell.id.indexOf("+")!==-1){vKey=cell.id;}
+          else{vKey=rgb[0]+","+rgb[1]+","+rgb[2];}
+          if(vKey&&colourFreq[vKey]>=30)variant3=(cellCol+cellRow*3)%4;
+        }
+        oc.drawImage(getTile(rgb,rgb2,variant3),cellX,cellY);
+      }
+      offscreenRef.current=offscreen;
+      setOffscreenVersion(function(v){return v+1;});
+    });
+    return function(){if(realisticRafRef.current){cancelAnimationFrame(realisticRafRef.current);realisticRafRef.current=null;}};
+  },[pat,cmap,sW,sH,level,fabricCt]);
+
+  // Effect B: scale the offscreen canvas to the display canvas
+  React.useEffect(function(){
+    if(!offscreenRef.current||!displayRef.current||!sW||!sH)return;
+    var off=offscreenRef.current;
+    var displayCs=Math.max(2,Math.min(16,Math.floor(700/sW),Math.floor(500/sH)));
+    var canvas=displayRef.current;
+    canvas.width=sW*displayCs;canvas.height=sH*displayCs;
+    var ctx2d=canvas.getContext("2d");
+    ctx2d.imageSmoothingEnabled=true;ctx2d.imageSmoothingQuality="high";
+    ctx2d.drawImage(off,0,0,sW*displayCs,sH*displayCs);
+  },[offscreenVersion,sW,sH]);
+
+  var lvlLabels=["","Flat","Shaded","Detailed","Detailed+blend"];
+  var fc2=fabricCt||14;var sc2=fc2<=11?3:fc2<=17?2:1;
+  return (
+    <div className="modal-overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}} style={{zIndex:1200}}>
+      <div className="modal-box" style={{maxWidth:"min(90vw,900px)",maxHeight:"90vh",display:"flex",flexDirection:"column",padding:0,overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderBottom:"1px solid #e2e8f0",flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontWeight:700,fontSize:15}}>Realistic preview</span>
+            <div style={{display:"flex",gap:4}}>
+              {[1,2,3,4].map(function(l){
+                return <button key={l} onClick={function(){onLevelChange(l);}} style={{padding:"3px 8px",borderRadius:5,border:"1px solid "+(level===l?"#0d9488":"#e2e8f0"),background:level===l?"#f0fdfa":"#fff",color:level===l?"#0d9488":"#475569",fontSize:11,fontWeight:600,cursor:"pointer"}}>{lvlLabels[l]}</button>;
+              })}
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b",lineHeight:1,padding:"0 4px"}}>&times;</button>
+        </div>
+        <div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:"#f8fafc",padding:16}}>
+          <canvas ref={displayRef} style={{display:"block",maxWidth:"100%",maxHeight:"calc(90vh - 100px)",imageRendering:"auto"}}/>
+        </div>
+        <div style={{padding:"8px 16px",borderTop:"1px solid #e2e8f0",flexShrink:0,fontSize:11,color:"#64748b"}}>
+          {sW}\u00D7{sH} \u00B7 {fc2}-count\u00B7 {sc2} strand{sc2!==1?"s":""}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80),[sH,setSH]=useState(80);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null);
@@ -64,6 +281,8 @@ const totalTime=useMemo(()=>{if(!statsSessions||statsSessions.length===0)return 
 const[statsSettings,setStatsSettings]=useState({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true});
 const[statsView,setStatsView]=useState(false);
 const[statsTab,setStatsTab]=useState('all');
+const[trackerPreviewOpen,setTrackerPreviewOpen]=useState(false);
+const[trackerPreviewLevel,setTrackerPreviewLevel]=useState(2);
 const[celebration,setCelebration]=useState(null);
 const celebratedRef=useRef(new Set());
 const goalCelebrationRef=useRef({daily:false,weekly:false,monthly:false});
@@ -3231,7 +3450,7 @@ return(
     </div>
   )}
   <div className="tb-sdiv"/>
-  <button className={"tb-btn"+(statsView?" tb-btn--on":"")} onClick={()=>{finaliseAutoSession();setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);}} title="Stats dashboard" style={{flexShrink:0}}>{Icons.barChart()}</button>
+  <button className={"tb-btn"+(trackerPreviewOpen?" tb-btn--on":"")} onClick={()=>setTrackerPreviewOpen(v=>!v)} title="Realistic preview" style={{flexShrink:0}}>{Icons.eye()}</button>
   {/* Thread usage toggle */}
   <div className="tb-sdiv"/>
   <div style={{position:"relative",display:"inline-flex",alignItems:"center"}}>
@@ -3437,6 +3656,8 @@ return(
   )}
 
   {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&project.pattern&&project.settings){processLoadedProject(project);ProjectStorage.setActiveProject(project.id).catch(()=>{});setStatsView(false);}}).catch(()=>{});}}/>}
+
+  {trackerPreviewOpen&&pat&&<TrackerPreviewModal pat={pat} cmap={cmap} sW={sW} sH={sH} fabricCt={fabricCt} level={trackerPreviewLevel} onLevelChange={setTrackerPreviewLevel} onClose={()=>setTrackerPreviewOpen(false)}/>}
 
   {!statsView&&!pat&&<div style={{maxWidth:500, margin:"40px auto", textAlign:"center"}}>
     <div className="card" style={{padding:"30px"}}>
