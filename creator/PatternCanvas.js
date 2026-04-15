@@ -25,8 +25,10 @@ window.PatternCanvas = function PatternCanvas() {
   var antsIntervalRef = React.useRef(null);
   // Latest context snapshot ref — updated every render so the interval callback
   // always reads current state rather than the closed-over stale value.
-  var ctxRef = React.useRef(ctx);
-  ctxRef.current = ctx;
+  // Must be the MERGED snapshot across all 4 contexts because drawPatternBaseOnCanvas
+  // and drawPatternOverlayOnCanvas expect the pre-refactor merged state shape.
+  var ctxRef = React.useRef({});
+  ctxRef.current = Object.assign({}, ctx, cv, gen, { G: G, pcRef: app.pcRef, tab: app.tab });
 
   // ── Effect: Animated marching ants for highlight outline mode
   var hlAntsRef = React.useRef(null);
@@ -88,7 +90,7 @@ window.PatternCanvas = function PatternCanvas() {
     // Capture values needed inside the RAF callback (avoids stale-closure issues
     // if the component unmounts or re-renders before the frame fires).
     var canvas = app.pcRef.current;
-    var snap = ctx; // current context snapshot
+    var snap = ctxRef.current; // merged snapshot across all 4 contexts
     rafRef.current = requestAnimationFrame(function() {
       rafRef.current = null;
       if (!canvas) return;
@@ -123,7 +125,7 @@ window.PatternCanvas = function PatternCanvas() {
     var canvas = app.pcRef.current;
     var context = canvas.getContext("2d");
     context.putImageData(baseCacheRef.current, 0, 0);
-    drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, cv.cs, G, ctx);
+    drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, cv.cs, G, ctxRef.current);
   }, [
     cv.hoverCoords, cv.selectedColorId, cv.bsStart,
     // structural deps — needed so the overlay is redrawn correctly when these change
