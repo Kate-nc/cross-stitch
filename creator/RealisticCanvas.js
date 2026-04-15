@@ -31,8 +31,13 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
 
   // ── Effect A: render the full offscreen realistic canvas ───────────────────
   // Re-runs when pattern data or rendering level changes.
+  // Debounced with RAF to avoid wasted renders when settings change rapidly.
+  var realisticRafRef = React.useRef(null);
   React.useEffect(function() {
     if (!pat || !sW || !sH) return;
+    if (realisticRafRef.current) cancelAnimationFrame(realisticRafRef.current);
+    realisticRafRef.current = requestAnimationFrame(function() {
+    realisticRafRef.current = null;
 
     // Clamp CELL_SIZE so the offscreen canvas fits within browser limits (~8192px).
     var MAX_DIM = 8192;
@@ -428,6 +433,8 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
 
     offscreenRef.current = offscreen;
     setOffscreenVersion(function(v) { return v + 1; });
+    }); // end of RAF callback
+    return function() { if (realisticRafRef.current) { cancelAnimationFrame(realisticRafRef.current); realisticRafRef.current = null; } };
   }, [pat, cmap, sW, sH, realisticLevel, ctx.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────

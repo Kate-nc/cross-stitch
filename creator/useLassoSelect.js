@@ -166,12 +166,38 @@ window.useLassoSelect = function useLassoSelect(state) {
       return Math.sqrt(Math.pow(x1 - x, 2) + Math.pow(y1 - y, 2)) * 0.35;
     }
 
+    // Binary min-heap for A* open set (replaces Array.sort per pop)
     var heap = [{ idx: start, cost: heuristic(x0, y0) }];
+    function _heapUp(i) {
+      while (i > 0) {
+        var p = (i - 1) >> 1;
+        if (heap[p].cost <= heap[i].cost) break;
+        var tmp = heap[p]; heap[p] = heap[i]; heap[i] = tmp;
+        i = p;
+      }
+    }
+    function _heapPop() {
+      var top = heap[0];
+      var last = heap.pop();
+      if (heap.length > 0) {
+        heap[0] = last;
+        var i = 0, len = heap.length;
+        while (true) {
+          var l = 2 * i + 1, r = 2 * i + 2, smallest = i;
+          if (l < len && heap[l].cost < heap[smallest].cost) smallest = l;
+          if (r < len && heap[r].cost < heap[smallest].cost) smallest = r;
+          if (smallest === i) break;
+          var t2 = heap[i]; heap[i] = heap[smallest]; heap[smallest] = t2;
+          i = smallest;
+        }
+      }
+      return top;
+    }
+    function _heapPush(item) { heap.push(item); _heapUp(heap.length - 1); }
     var closed = new Uint8Array(size);
 
     while (heap.length > 0) {
-      heap.sort(function(a, b) { return a.cost - b.cost; });
-      var top = heap.shift();
+      var top = _heapPop();
       var cur = top.idx;
       if (cur === end) break;
       if (closed[cur]) continue;
@@ -195,7 +221,7 @@ window.useLassoSelect = function useLassoSelect(state) {
           if (nd < dist[ni]) {
             dist[ni] = nd;
             prev[ni] = cur;
-            heap.push({ idx: ni, cost: nd + heuristic(nx, ny) });
+            _heapPush({ idx: ni, cost: nd + heuristic(nx, ny) });
           }
         }
       }

@@ -65,7 +65,7 @@ function Section({title,children,isOpen,onToggle,defaultOpen=true,badge=null}){
     currentOpen&&React.createElement("div", {style:{padding:"0 16px 16px"}}, children)
   );
 }
-function SliderRow({label,value,min,max,step=1,onChange,suffix="",format=null,helpText=null}){
+var SliderRow=React.memo(function SliderRow({label,value,min,max,step=1,onChange,suffix="",format=null,helpText=null}){
   return React.createElement("div", {style:{marginBottom:2}},
     React.createElement("div", {style:{display:"flex",justifyContent:"space-between",fontSize:12,color:"#475569",marginBottom:3}},
       React.createElement("span", {style:{display:"flex",alignItems:"center",gap:3}}, label, helpText&&React.createElement(InfoIcon,{text:helpText})),
@@ -73,11 +73,11 @@ function SliderRow({label,value,min,max,step=1,onChange,suffix="",format=null,he
     ),
     React.createElement("input", {type:"range", min:min, max:max, step:step, value:value, onChange:e=>onChange(Number(e.target.value)), style:{width:"100%"}})
   );
-}
+});
 
 // ═══ Stats Components ═══
 
-function ProgressRing({percent, size}){
+var ProgressRing=React.memo(function ProgressRing({percent, size}){
   size = size || 56;
   var r = (size / 2) - 4;
   var circumference = 2 * Math.PI * r;
@@ -91,9 +91,9 @@ function ProgressRing({percent, size}){
     ),
     React.createElement("span", {className:"progress-ring-label"}, Math.round(percent || 0) + "%")
   );
-}
+});
 
-function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettings, onOpenStats, currentAutoSession}){
+var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettings, onOpenStats, currentAutoSession}){
   try {
     var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
     var todayStitches = getStatsTodayStitches(statsSessions || [], dayEndHour);
@@ -149,9 +149,9 @@ function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettin
       )
     );
   } catch(e) { console.warn('Stats: MiniStatsBar render error', e); return null; }
-}
+});
 
-function OverviewCards({statsSessions, totalCompleted, totalStitches}){
+var OverviewCards=React.memo(function OverviewCards({statsSessions, totalCompleted, totalStitches}){
   var stats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches);
   return React.createElement("div", {className:"stats-overview"},
     React.createElement("div", {className:"stats-overview-main"},
@@ -168,7 +168,7 @@ function OverviewCards({statsSessions, totalCompleted, totalStitches}){
       React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Sessions"), React.createElement("span", {className:"stats-value"}, (statsSessions||[]).length))
     )
   );
-}
+});
 
 function NoteEditor({sessionId, currentNote, onSave}){
   var ref = React.useRef(null);
@@ -240,7 +240,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote}){
 
 // ═══ Phase B: Charts & Milestones ═══
 
-function CumulativeChart({sessions, totalStitches, targetDate}){
+var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches, targetDate}){
   try {
   var data = getCumulativeProgressData(sessions);
   if (data.length < 2) return React.createElement("p", {className:"stats-empty"}, "Start stitching to see your progress chart");
@@ -302,9 +302,9 @@ function CumulativeChart({sessions, totalStitches, targetDate}){
     )
   );
   } catch(e) { console.warn('Stats: CumulativeChart render error', e); return null; }
-}
+});
 
-function DailyBarChart({sessions, dailyGoal, daysToShow, dayEndHour}){
+var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysToShow, dayEndHour}){
   try {
   daysToShow = daysToShow || 14;
   var data = getDailyStitchData(sessions, daysToShow, dayEndHour);
@@ -348,11 +348,11 @@ function DailyBarChart({sessions, dailyGoal, daysToShow, dayEndHour}){
     )
   );
   } catch(e) { console.warn('Stats: DailyBarChart render error', e); return null; }
-}
+});
 
 // ═══ Phase E: Speed Trend Chart ═══
 
-function SpeedTrendChart({sessions}){
+var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
   try {
   var raw = getSpeedTrendData(sessions);
   if (raw.length < 3) return React.createElement("p", {className:"stats-empty"}, "Need more sessions (≥10 min each) to show speed trend");
@@ -400,11 +400,11 @@ function SpeedTrendChart({sessions}){
     )
   );
   } catch(e) { console.warn('Stats: SpeedTrendChart render error', e); return null; }
-}
+});
 
 // ═══ Phase E: Colour Timeline ═══
 
-function ColourTimeline({sessions, palette, colourDoneCounts}){
+var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colourDoneCounts}){
   try {
   var timeline = getColourTimeline(sessions);
   if (!palette || palette.length === 0) return null;
@@ -447,7 +447,7 @@ function ColourTimeline({sessions, palette, colourDoneCounts}){
     React.createElement("div", {className:"colour-tl-list"}, rows)
   );
   } catch(e) { console.warn('Stats: ColourTimeline render error', e); return null; }
-}
+});
 
 function StatsChartSection({statsSessions, statsSettings, totalStitches, chartView, setChartView}){
   var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
@@ -471,7 +471,7 @@ function StatsChartSection({statsSessions, statsSettings, totalStitches, chartVi
   );
 }
 
-function MilestoneTracker({milestones, achievedMilestones}){
+var MilestoneTracker=React.memo(function MilestoneTracker({milestones, achievedMilestones}){
   if (!milestones || milestones.length === 0) return null;
   // Build a lookup from pct → exact achievedAt timestamp
   var exactDates = {};
@@ -507,7 +507,7 @@ function MilestoneTracker({milestones, achievedMilestones}){
     React.createElement("h3", {className:"stats-section-title"}, "Milestones"),
     React.createElement("div", {className:"milestone-row"}, badges)
   );
-}
+});
 
 // ═══ Phase C: Goals, Motivation & Celebrations ═══
 

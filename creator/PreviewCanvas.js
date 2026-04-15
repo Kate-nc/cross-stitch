@@ -114,25 +114,32 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
 
       ctx2d.lineWidth = 1;
 
-      // Vertical lines
+      // Batch minor lines into one path, major into another
+      ctx2d.strokeStyle = minorColor;
+      ctx2d.beginPath();
       for (var x = 0; x <= sW; x++) {
+        if (x % 10 === 0) continue;
         var px = Math.round(x * cs) + 0.5;
-        ctx2d.strokeStyle = (x % 10 === 0) ? majorColor : minorColor;
-        ctx2d.beginPath();
-        ctx2d.moveTo(px, 0);
-        ctx2d.lineTo(px, sH * cs);
-        ctx2d.stroke();
+        ctx2d.moveTo(px, 0); ctx2d.lineTo(px, sH * cs);
       }
-
-      // Horizontal lines
       for (var y = 0; y <= sH; y++) {
+        if (y % 10 === 0) continue;
         var py = Math.round(y * cs) + 0.5;
-        ctx2d.strokeStyle = (y % 10 === 0) ? majorColor : minorColor;
-        ctx2d.beginPath();
-        ctx2d.moveTo(0, py);
-        ctx2d.lineTo(sW * cs, py);
-        ctx2d.stroke();
+        ctx2d.moveTo(0, py); ctx2d.lineTo(sW * cs, py);
       }
+      ctx2d.stroke();
+
+      ctx2d.strokeStyle = majorColor;
+      ctx2d.beginPath();
+      for (var x2 = 0; x2 <= sW; x2 += 10) {
+        var px2 = Math.round(x2 * cs) + 0.5;
+        ctx2d.moveTo(px2, 0); ctx2d.lineTo(px2, sH * cs);
+      }
+      for (var y2 = 0; y2 <= sH; y2 += 10) {
+        var py2 = Math.round(y2 * cs) + 0.5;
+        ctx2d.moveTo(0, py2); ctx2d.lineTo(sW * cs, py2);
+      }
+      ctx2d.stroke();
     }
   }, [offscreenVersion, cs, sW, sH, previewShowGrid]);
 

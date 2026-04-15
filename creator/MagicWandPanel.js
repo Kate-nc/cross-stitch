@@ -273,7 +273,8 @@ window.MagicWandPanel = function MagicWandPanel() {
       var a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "selection-info.csv";
-      a.click();
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
     };
     return h("div", {
       style: { padding: "10px 14px", background: "#f0f9ff", borderBottom: "1px solid #bae6fd", fontSize: 11 }

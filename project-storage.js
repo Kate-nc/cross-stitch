@@ -63,7 +63,12 @@ const ProjectStorage = (() => {
     };
   }
 
+  let _cachedDB = null;
+
   function getDB() {
+    if (_cachedDB) {
+      try { _cachedDB.transaction(STORE_NAME); return Promise.resolve(_cachedDB); } catch(_) { _cachedDB = null; }
+    }
     return new Promise((resolve, reject) => {
       ensurePersistence();
       let request = indexedDB.open(DB_NAME, 3);
@@ -94,7 +99,7 @@ const ProjectStorage = (() => {
           db.createObjectStore(STATS_STORE);
         }
       };
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => { _cachedDB = request.result; resolve(request.result); };
       request.onerror = () => reject(request.error);
     });
   }

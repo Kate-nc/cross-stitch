@@ -1,55 +1,49 @@
 function findSolid(lab,p){if(!p||!p.length)return{type:"solid",id:"__empty__",name:"",rgb:[0,0,0],lab:[0,0,0],dist:Infinity};let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE2(lab,p[i].lab);if(d<bd){bd=d;b=p[i];}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:Math.sqrt(bd)};}
 function findBest(lab, palette, allowBlends = true) {
   const solidMatch = findSolid(lab, palette);
-  if (!allowBlends) return solidMatch;
+  if (!allowBlends || !findBest._blends || findBest._blendPalette !== palette) return solidMatch;
 
-  let bestBlend = null;
   let bestBlendDist = 1e9;
-
-  for (let i = 0; i < palette.length; i++) {
-    for (let j = i + 1; j < palette.length; j++) {
-      const threadA = palette[i];
-      const threadB = palette[j];
-      const blendLab = [
-        (threadA.lab[0] + threadB.lab[0]) / 2,
-        (threadA.lab[1] + threadB.lab[1]) / 2,
-        (threadA.lab[2] + threadB.lab[2]) / 2
-      ];
-      const dist = dE2(lab, blendLab);
-
-      if (dist < bestBlendDist) {
-        bestBlendDist = dist;
-        bestBlend = {
-          threads: [threadA, threadB],
-          lab: blendLab
-        };
-      }
-    }
+  let bestBlendIdx = -1;
+  const blends = findBest._blends;
+  for (let i = 0; i < blends.length; i++) {
+    const dist = dE2(lab, blends[i].lab);
+    if (dist < bestBlendDist) { bestBlendDist = dist; bestBlendIdx = i; }
   }
 
-  if (bestBlend && (Math.sqrt(bestBlendDist) + 3 < solidMatch.dist) && solidMatch.dist > 5) {
-    const threadA = bestBlend.threads[0];
-    const threadB = bestBlend.threads[1];
-    const blendId = threadA.id + "+" + threadB.id;
-    const blendRgb = [
-      Math.round((threadA.rgb[0] + threadB.rgb[0]) / 2),
-      Math.round((threadA.rgb[1] + threadB.rgb[1]) / 2),
-      Math.round((threadA.rgb[2] + threadB.rgb[2]) / 2)
-    ];
-
+  if (bestBlendIdx >= 0 && (Math.sqrt(bestBlendDist) + 3 < solidMatch.dist) && solidMatch.dist > 5) {
+    const b = blends[bestBlendIdx];
     return {
       type: "blend",
-      id: blendId,
-      name: blendId,
-      rgb: blendRgb,
-      lab: bestBlend.lab,
-      threads: bestBlend.threads,
+      id: b.id,
+      name: b.id,
+      rgb: b.rgb,
+      lab: b.lab,
+      threads: b.threads,
       dist: Math.sqrt(bestBlendDist)
     };
   }
 
   return solidMatch;
 }
+// Pre-compute blend pairs once per palette — call before dithering.
+findBest.precomputeBlends = function(palette) {
+  findBest._blendPalette = palette;
+  const blends = [];
+  for (let i = 0; i < palette.length; i++) {
+    for (let j = i + 1; j < palette.length; j++) {
+      const a = palette[i], b = palette[j];
+      const lab = [(a.lab[0]+b.lab[0])/2, (a.lab[1]+b.lab[1])/2, (a.lab[2]+b.lab[2])/2];
+      blends.push({
+        id: a.id + "+" + b.id,
+        lab: lab,
+        rgb: [Math.round((a.rgb[0]+b.rgb[0])/2), Math.round((a.rgb[1]+b.rgb[1])/2), Math.round((a.rgb[2]+b.rgb[2])/2)],
+        threads: [a, b]
+      });
+    }
+  }
+  findBest._blends = blends;
+};
 function luminance(rgb){return rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114;}
 
 function quantize(data,w,h,n,allowedPalette,options){
@@ -127,6 +121,9 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){return quantize(
  */
 function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { confettiDitherThreshold = 4.0 } = {}) {
   const N = w * h;
+
+  // Pre-compute blend table once for the whole dithering pass
+  if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
 
   // Working buffer in float so error diffusion doesn't clip
   const d = new Float32Array(N * 3);
@@ -282,16 +279,16 @@ function analyseColourCoverage(img,palette,sampleSize){
 }
 function buildPalette(patArr){
   let usage={};
+  let symbolMap={};
   for(let i=0;i<patArr.length;i++){
     let m=patArr[i];if(m.id==="__skip__"||m.id==="__empty__")continue;
-    if(!usage[m.id])usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};
+    if(!usage[m.id]){usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};}
     usage[m.id].count++;
+    if(m.symbol&&!symbolMap[m.id])symbolMap[m.id]=m.symbol;
   }
   let entries=Object.values(usage).sort((a,b)=>b.count-a.count);
   entries.forEach((e,i)=>{
-    // Try to find an existing symbol in the pattern array
-    const cell = patArr.find(c => c.id === e.id && c.symbol);
-    e.symbol = cell ? cell.symbol : SYMS[i%SYMS.length];
+    e.symbol=symbolMap[e.id]||SYMS[i%SYMS.length];
   });
   let cm={};entries.forEach(e=>{cm[e.id]=e;});
   return{pal:entries,cmap:cm};
