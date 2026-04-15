@@ -290,7 +290,7 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
 
 // ─── Modal outer wrapper ──────────────────────────────────────────────────────
 window.SubstituteFromStashModal = function SubstituteFromStashModal() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;

@@ -500,19 +500,107 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     canvas.handlePatPointerCancel,
   ]);
 
-  const ctx = {...state, ...history, ...canvas, ...io, isActive};
+  // ── PatternDataContext value (core pattern data, dimensions, derived values) ──
+  const pdCtx = useMemo(function() { return {
+    pat: state.pat, setPat: state.setPat,
+    pal: state.pal, setPal: state.setPal,
+    cmap: state.cmap, setCmap: state.setCmap,
+    sW: state.sW, setSW: state.setSW, sH: state.sH, setSH: state.setSH,
+    arLock: state.arLock, setArLock: state.setArLock,
+    ar: state.ar, setAr: state.setAr,
+    chgW: state.chgW, chgH: state.chgH, slRsz: state.slRsz,
+    fabricCt: state.fabricCt, setFabricCt: state.setFabricCt,
+    skeinPrice: state.skeinPrice, setSkeinPrice: state.setSkeinPrice,
+    stitchSpeed: state.stitchSpeed, setStitchSpeed: state.setStitchSpeed,
+    done: state.done, setDone: state.setDone,
+    isScratchMode: state.isScratchMode, setIsScratchMode: state.setIsScratchMode,
+    scratchPalette: state.scratchPalette, setScratchPalette: state.setScratchPalette,
+    dmcSearch: state.dmcSearch, setDmcSearch: state.setDmcSearch,
+    colPickerOpen: state.colPickerOpen, setColPickerOpen: state.setColPickerOpen,
+    parkMarkers: state.parkMarkers, setParkMarkers: state.setParkMarkers,
+    hlRow: state.hlRow, setHlRow: state.setHlRow,
+    hlCol: state.hlCol, setHlCol: state.setHlCol,
+    totalTime: state.totalTime, setTotalTime: state.setTotalTime,
+    sessions: state.sessions, setSessions: state.setSessions,
+    partialStitches: state.partialStitches, setPartialStitches: state.setPartialStitches,
+    partialStitchTool: state.partialStitchTool, setPartialStitchTool: state.setPartialStitchTool,
+    partialStitchToolRef: state.partialStitchToolRef,
+    threadOwned: state.threadOwned, setThreadOwned: state.setThreadOwned,
+    globalStash: state.globalStash, setGlobalStash: state.setGlobalStash,
+    kittingResult: state.kittingResult, setKittingResult: state.setKittingResult,
+    altOpen: state.altOpen, setAltOpen: state.setAltOpen,
+    substituteModalOpen: state.substituteModalOpen, setSubstituteModalOpen: state.setSubstituteModalOpen,
+    substituteProposal: state.substituteProposal, setSubstituteProposal: state.setSubstituteProposal,
+    substituteModalKey: state.substituteModalKey, setSubstituteModalKey: state.setSubstituteModalKey,
+    substituteMaxDeltaE: state.substituteMaxDeltaE, setSubstituteMaxDeltaE: state.setSubstituteMaxDeltaE,
+    buildPaletteWithScratch: state.buildPaletteWithScratch,
+    resetAll: state.resetAll,
+    initBlankGrid: state.initBlankGrid,
+    startScratch: state.startScratch,
+    addScratchColour: state.addScratchColour,
+    removeScratchColour: state.removeScratchColour,
+    toggleOwned: state.toggleOwned,
+    displayPal: state.displayPal,
+    totalStitchable: state.totalStitchable,
+    skeinData: state.skeinData, totalSkeins: state.totalSkeins,
+    blendCount: state.blendCount, difficulty: state.difficulty,
+    doneCount: state.doneCount, dmcFiltered: state.dmcFiltered,
+    colourDoneCounts: state.colourDoneCounts,
+    progressPct: state.progressPct,
+    ownedCount: state.ownedCount, toBuyCount: state.toBuyCount, toBuyList: state.toBuyList,
+  }; }, [
+    state.pat, state.pal, state.cmap,
+    state.sW, state.sH, state.arLock, state.ar,
+    state.fabricCt, state.skeinPrice, state.stitchSpeed,
+    state.done, state.isScratchMode, state.scratchPalette,
+    state.dmcSearch, state.colPickerOpen,
+    state.parkMarkers, state.hlRow, state.hlCol,
+    state.totalTime, state.sessions,
+    state.partialStitches, state.partialStitchTool,
+    state.threadOwned, state.globalStash,
+    state.kittingResult, state.altOpen,
+    state.substituteModalOpen, state.substituteProposal,
+    state.substituteModalKey, state.substituteMaxDeltaE,
+    state.displayPal, state.totalStitchable,
+    state.skeinData, state.totalSkeins,
+    state.blendCount, state.difficulty,
+    state.doneCount, state.dmcFiltered,
+    state.colourDoneCounts, state.progressPct,
+    state.ownedCount, state.toBuyCount, state.toBuyList,
+  ]);
+
+  // Full merged state for exportPDF (which reads a mix of pattern + derived values)
+  const exportData = useMemo(function() { return {
+    pat: state.pat, pal: state.pal, cmap: state.cmap,
+    sW: state.sW, sH: state.sH, fabricCt: state.fabricCt,
+    skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed,
+    done: state.done, bsLines: state.bsLines,
+    partialStitches: state.partialStitches,
+    threadOwned: state.threadOwned,
+    totalStitchable: state.totalStitchable, skeinData: state.skeinData,
+    totalSkeins: state.totalSkeins, blendCount: state.blendCount,
+    difficulty: state.difficulty, doneCount: state.doneCount,
+    totalTime: state.totalTime, sessions: state.sessions,
+  }; }, [
+    state.pat, state.pal, state.cmap, state.sW, state.sH,
+    state.fabricCt, state.skeinPrice, state.stitchSpeed,
+    state.done, state.bsLines, state.partialStitches,
+    state.threadOwned, state.totalStitchable, state.skeinData,
+    state.totalSkeins, state.blendCount, state.difficulty,
+    state.doneCount, state.totalTime, state.sessions,
+  ]);
 
   return (
     <window.GenerationContext.Provider value={genCtx}>
     <window.AppContext.Provider value={appCtx}>
     <window.CanvasContext.Provider value={cvCtx}>
-    <window.CreatorContext.Provider value={ctx}>
+    <window.PatternDataContext.Provider value={pdCtx}>
       <input ref={state.loadRef} type="file" accept=".json" onChange={io.loadProject} style={{display:"none"}}/>
       <Header page="creator" tab={state.tab} onPageChange={state.setTab}
         onOpen={()=>state.loadRef.current.click()}
         onSave={state.pat&&state.pal?io.saveProject:null}
         onTrack={state.pat&&state.pal?io.handleOpenInTracker:null}
-        onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},ctx):null}
+        onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData):null}
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
         setModal={state.setModal} />
       {state.pat&&state.pal&&<ContextBar
@@ -700,7 +788,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         <div style={{fontSize:14,color:"#475569",fontWeight:500}}>Generating pattern\u2026</div>
       </div>}
       <window.CreatorToastContainer/>
-    </window.CreatorContext.Provider>
+    </window.PatternDataContext.Provider>
     </window.CanvasContext.Provider>
     </window.AppContext.Provider>
     </window.GenerationContext.Provider>

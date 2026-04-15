@@ -3,7 +3,7 @@
    Depends on: CreatorContext (context.js) */
 
 window.CreatorContextMenu = function CreatorContextMenu() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var h = React.createElement;
   var menu = cv.contextMenu;

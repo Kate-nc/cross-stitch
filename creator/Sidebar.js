@@ -4,7 +4,7 @@
    Depends on: Section, SliderRow, Tooltip (components.js), CreatorContext, GenerationContext (context.js) */
 
 window.CreatorSidebar = function CreatorSidebar() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var gen = window.useGeneration();

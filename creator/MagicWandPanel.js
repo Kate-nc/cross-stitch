@@ -3,7 +3,7 @@
    Reads from CreatorContext. */
 
 window.MagicWandPanel = function MagicWandPanel() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;

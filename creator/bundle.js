@@ -16,12 +16,12 @@
 window.GenerationContext = React.createContext(null);
 window.AppContext = React.createContext(null);
 window.CanvasContext = React.createContext(null);
-window.CreatorContext = React.createContext(null);
+window.PatternDataContext = React.createContext(null);
 
 window.useGeneration = function useGeneration() { return React.useContext(window.GenerationContext); };
 window.useApp = function useApp() { return React.useContext(window.AppContext); };
 window.useCanvas = function useCanvas() { return React.useContext(window.CanvasContext); };
-window.usePatternData = function usePatternData() { return React.useContext(window.CreatorContext); };
+window.usePatternData = function usePatternData() { return React.useContext(window.PatternDataContext); };
 
 
 /* ─── generate.js ─── */
@@ -1198,7 +1198,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
    Depends on: context.js (CreatorContext) */
 
 window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
@@ -1371,7 +1371,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
    Depends on: context.js (CreatorContext) */
 
 window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
@@ -6297,7 +6297,7 @@ window.usePreview = function usePreview(state) {
                CreatorContext, GenerationContext (context.js) */
 
 window.PatternCanvas = function PatternCanvas() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var gen = window.useGeneration();
@@ -6459,7 +6459,7 @@ window.PatternCanvas = function PatternCanvas() {
                gridCoord (helpers.js global) */
 
 window.CreatorSplitPane = function CreatorSplitPane() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
@@ -6841,7 +6841,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
    Depends on: CreatorContext, GenerationContext (context.js) */
 
 window.CreatorToolStrip = function CreatorToolStrip() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var gen = window.useGeneration();
@@ -7455,7 +7455,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
    Reads from CreatorContext. */
 
 window.MagicWandPanel = function MagicWandPanel() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
@@ -8103,7 +8103,7 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
 
 // ─── Modal outer wrapper ──────────────────────────────────────────────────────
 window.SubstituteFromStashModal = function SubstituteFromStashModal() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
@@ -8787,7 +8787,7 @@ function SubstituteFromStashModalInner(props) {
    Depends on: Section, SliderRow, Tooltip (components.js), CreatorContext, GenerationContext (context.js) */
 
 window.CreatorSidebar = function CreatorSidebar() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var gen = window.useGeneration();
@@ -9552,11 +9552,10 @@ window.CreatorSidebar = function CreatorSidebar() {
 
 /* ─── Toast.js ─── */
 /* creator/Toast.js — Toast notification overlay.
-   Reads from CreatorContext. Shows temporary messages that auto-dismiss.
-   Depends on: CreatorContext (context.js) */
+   Reads from AppContext. Shows temporary messages that auto-dismiss.
+   Depends on: AppContext (context.js) */
 
 window.CreatorToastContainer = function CreatorToastContainer() {
-  var ctx = React.useContext(window.CreatorContext);
   var app = window.useApp();
   var h = React.createElement;
   if (!app.toasts || app.toasts.length === 0) return null;
@@ -9612,7 +9611,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
    Depends on: CreatorContext (context.js) */
 
 window.CreatorContextMenu = function CreatorContextMenu() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var h = React.createElement;
   var menu = cv.contextMenu;
@@ -9736,7 +9735,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
                CreatorContext, GenerationContext (context.js) */
 
 window.CreatorPatternTab = function CreatorPatternTab() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var gen = window.useGeneration();
@@ -10052,7 +10051,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
                StashBridge (stash-bridge.js, optional), CreatorContext (context.js) */
 
 window.CreatorProjectTab = function CreatorProjectTab() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var app = window.useApp();
   var h = React.createElement;
 
@@ -10457,7 +10456,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                window.confettiTier (helpers.js), CreatorContext (context.js) */
 
 window.CreatorLegendTab = function CreatorLegendTab() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
@@ -10548,7 +10547,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                CreatorContext (context.js) */
 
 window.CreatorExportTab = function CreatorExportTab() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;

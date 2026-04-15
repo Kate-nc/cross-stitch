@@ -12,9 +12,9 @@
 window.GenerationContext = React.createContext(null);
 window.AppContext = React.createContext(null);
 window.CanvasContext = React.createContext(null);
-window.CreatorContext = React.createContext(null);
+window.PatternDataContext = React.createContext(null);
 
 window.useGeneration = function useGeneration() { return React.useContext(window.GenerationContext); };
 window.useApp = function useApp() { return React.useContext(window.AppContext); };
 window.useCanvas = function useCanvas() { return React.useContext(window.CanvasContext); };
-window.usePatternData = function usePatternData() { return React.useContext(window.CreatorContext); };
+window.usePatternData = function usePatternData() { return React.useContext(window.PatternDataContext); };

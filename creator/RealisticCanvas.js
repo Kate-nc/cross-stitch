@@ -7,7 +7,7 @@
    Depends on: context.js (CreatorContext) */
 
 window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;

@@ -1,9 +1,8 @@
 /* creator/Toast.js — Toast notification overlay.
-   Reads from CreatorContext. Shows temporary messages that auto-dismiss.
-   Depends on: CreatorContext (context.js) */
+   Reads from AppContext. Shows temporary messages that auto-dismiss.
+   Depends on: AppContext (context.js) */
 
 window.CreatorToastContainer = function CreatorToastContainer() {
-  var ctx = React.useContext(window.CreatorContext);
   var app = window.useApp();
   var h = React.createElement;
   if (!app.toasts || app.toasts.length === 0) return null;

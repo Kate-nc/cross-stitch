@@ -5,7 +5,7 @@
                StashBridge (stash-bridge.js, optional), CreatorContext (context.js) */
 
 window.CreatorProjectTab = function CreatorProjectTab() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
   var app = window.useApp();
   var h = React.createElement;
 
