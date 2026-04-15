@@ -291,6 +291,7 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
 // ─── Modal outer wrapper ──────────────────────────────────────────────────────
 window.SubstituteFromStashModal = function SubstituteFromStashModal() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
   if (!ctx.substituteModalOpen || !ctx.substituteProposal) return null;
   return h(SubstituteFromStashModalInner, { key: ctx.substituteModalKey, ctx: ctx });
@@ -557,7 +558,7 @@ function SubstituteFromStashModalInner(props) {
 
     // Step 4: Guard — nothing changed
     if (changes.length === 0 && !psChanged) {
-      ctx.addToast("No stitches were changed.", { type: "info", duration: 2000 });
+      app.addToast("No stitches were changed.", { type: "info", duration: 2000 });
       return;
     }
 
@@ -587,7 +588,7 @@ function SubstituteFromStashModalInner(props) {
     // Step 5: Close and toast
     ctx.setSubstituteModalOpen(false);
     ctx.setSubstituteProposal(null);
-    ctx.addToast(
+    app.addToast(
       changes.length + " stitches updated across " + enabledSubs.length + " colour" + (enabledSubs.length !== 1 ? "s" : "") + ". Ctrl+Z to undo.",
       { type: "success", duration: 4000 }
     );

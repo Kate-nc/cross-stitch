@@ -1199,6 +1199,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
 
 window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
 
   var displayRef = React.useRef(null);
@@ -1213,8 +1214,8 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
   var sW = ctx.sW;
   var sH = ctx.sH;
   var cs = ctx.cs;
-  var previewShowGrid = ctx.previewShowGrid;
-  var previewFabricBg = ctx.previewFabricBg;
+  var previewShowGrid = app.previewShowGrid;
+  var previewFabricBg = app.previewFabricBg;
 
   // Effect A — build the offscreen 1-px-per-stitch image cache.
   // Re-runs only when pattern data or fabric-bg toggle changes.
@@ -1370,6 +1371,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
 
 window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
 
   var displayRef = React.useRef(null);
@@ -1385,11 +1387,11 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var sW = ctx.sW;
   var sH = ctx.sH;
   var cs = ctx.cs;
-  var previewShowGrid = ctx.previewShowGrid;
-  // inputLevel prop overrides ctx.realisticLevel — used by SplitPane right pane
-  var realisticLevel = (props && props.inputLevel != null) ? props.inputLevel : ctx.realisticLevel;
+  var previewShowGrid = app.previewShowGrid;
+  // inputLevel prop overrides app.realisticLevel — used by SplitPane right pane
+  var realisticLevel = (props && props.inputLevel != null) ? props.inputLevel : app.realisticLevel;
   var fabricCt = ctx.fabricCt;
-  var coverageOverride = ctx.coverageOverride;
+  var coverageOverride = app.coverageOverride;
 
   // ── Effect A: render the full offscreen realistic canvas ───────────────────
   // Re-runs when pattern data or rendering level changes.
@@ -1797,7 +1799,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     setOffscreenVersion(function(v) { return v + 1; });
     }); // end of RAF callback
     return function() { if (realisticRafRef.current) { cancelAnimationFrame(realisticRafRef.current); realisticRafRef.current = null; } };
-  }, [pat, cmap, sW, sH, realisticLevel, ctx.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride]);
+  }, [pat, cmap, sW, sH, realisticLevel, app.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────
   // Runs whenever the offscreen is rebuilt (offscreenVersion) or zoom changes.
@@ -6294,9 +6296,10 @@ window.usePreview = function usePreview(state) {
 
 window.PatternCanvas = function PatternCanvas() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var gen = window.useGeneration();
   var h = React.createElement;
-  var G = ctx.G;
+  var G = app.G;
 
   // Cache of the base render (stitches + grid + committed bsLines + border).
   // Avoids re-drawing the expensive base on every mouse-move.
@@ -6369,11 +6372,11 @@ window.PatternCanvas = function PatternCanvas() {
   // ── Effect 1: Full render (base + overlay). Fires when pattern content changes.
   // Uses RAF so rapid zoom-slider drags collapse into a single paint per frame.
   React.useEffect(function() {
-    if (!ctx.pat || !ctx.cmap || !ctx.pcRef.current || ctx.tab !== "pattern") return;
+    if (!ctx.pat || !ctx.cmap || !app.pcRef.current || app.tab !== "pattern") return;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     // Capture values needed inside the RAF callback (avoids stale-closure issues
     // if the component unmounts or re-renders before the frame fires).
-    var canvas = ctx.pcRef.current;
+    var canvas = app.pcRef.current;
     var snap = ctx; // current context snapshot
     rafRef.current = requestAnimationFrame(function() {
       rafRef.current = null;
@@ -6390,7 +6393,7 @@ window.PatternCanvas = function PatternCanvas() {
     };
   }, [
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
-    ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
+    ctx.bsLines, app.tab, ctx.showOverlay, ctx.overlayOpacity,
     gen.img, ctx.partialStitches, ctx.stitchType, ctx.partialStitchTool,
     gen.showCleanupDiff, gen.cleanupDiff,
     ctx.dimFraction, ctx.dimHiId, ctx.bgDimOpacity, ctx.bgDimDesaturation,
@@ -6400,27 +6403,27 @@ window.PatternCanvas = function PatternCanvas() {
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
   // Restores the cached base from ImageData then repaints just the hover elements.
   React.useEffect(function() {
-    if (!ctx.pat || !ctx.cmap || !ctx.pcRef.current || ctx.tab !== "pattern") return;
+    if (!ctx.pat || !ctx.cmap || !app.pcRef.current || app.tab !== "pattern") return;
     if (!baseCacheRef.current) return; // base not ready yet — Effect 1 will draw everything
     // Skip restoring the base cache while a drag-draw is in progress: applyBrush
     // imperatively paints directly onto the canvas and the overlay-only redraw
     // must not overwrite those uncommitted pixels with the stale cached image.
     if (ctx.isDraggingRef && ctx.isDraggingRef.current) return;
-    var canvas = ctx.pcRef.current;
+    var canvas = app.pcRef.current;
     var context = canvas.getContext("2d");
     context.putImageData(baseCacheRef.current, 0, 0);
     drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, ctx.cs, G, ctx);
   }, [
     ctx.hoverCoords, ctx.selectedColorId, ctx.bsStart,
     // structural deps — needed so the overlay is redrawn correctly when these change
-    ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.tab,
+    ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, app.tab,
     ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.partialStitchTool, ctx.bsLines,
     ctx.lassoMode, ctx.lassoPoints, ctx.lassoPreviewMask, ctx.lassoCursor, ctx.lassoInProgress,
     ctx.selectionMask, ctx.confettiPreview
   ]);
 
   return h("canvas", {
-    ref: ctx.pcRef,
+    ref: app.pcRef,
     style: {
       display: "block",
       touchAction: "none",
@@ -6454,6 +6457,7 @@ window.PatternCanvas = function PatternCanvas() {
 
 window.CreatorSplitPane = function CreatorSplitPane() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
 
   var containerRef   = React.useRef(null);
@@ -6463,7 +6467,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
   var rafSyncRef     = React.useRef(null);
 
   // Local ratio shadow — updated immediately during drag for smooth visual feedback
-  var _ratio = React.useState(ctx.splitPaneRatio || 0.5);
+  var _ratio = React.useState(app.splitPaneRatio || 0.5);
   var ratio = _ratio[0], setRatio = _ratio[1];
 
   // Narrow mode: container < 560px → stacked layout
@@ -6524,11 +6528,11 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       document.body.style.userSelect = "";
       // If dragged past edge threshold → exit split pane
       if (ratio < 0.1 || ratio > 0.9) {
-        ctx.setSplitPaneEnabled(false);
+        app.setSplitPaneEnabled(false);
         if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", false);
         return;
       }
-      ctx.setSplitPaneRatio(ratio);
+      app.setSplitPaneRatio(ratio);
       if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneRatio", ratio);
     }
     document.addEventListener("pointermove", onMove);
@@ -6541,8 +6545,8 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   // Scroll sync: left pane ↔ right pane (debounced to one rAF per direction)
   React.useEffect(function() {
-    if (!ctx.splitPaneSyncEnabled) return;
-    var left  = ctx.scrollRef.current;
+    if (!app.splitPaneSyncEnabled) return;
+    var left  = app.scrollRef.current;
     var right = rightScrollRef.current;
     if (!left || !right) return;
 
@@ -6551,10 +6555,10 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       if (rafSyncRef.current) return;
       rafSyncRef.current = requestAnimationFrame(function() {
         rafSyncRef.current = null;
-        if (!ctx.scrollRef.current || !rightScrollRef.current) return;
+        if (!app.scrollRef.current || !rightScrollRef.current) return;
         syncingRef.current = true;
-        rightScrollRef.current.scrollLeft = ctx.scrollRef.current.scrollLeft;
-        rightScrollRef.current.scrollTop  = ctx.scrollRef.current.scrollTop;
+        rightScrollRef.current.scrollLeft = app.scrollRef.current.scrollLeft;
+        rightScrollRef.current.scrollTop  = app.scrollRef.current.scrollTop;
         syncingRef.current = false;
       });
     }
@@ -6563,10 +6567,10 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       if (rafSyncRef.current) return;
       rafSyncRef.current = requestAnimationFrame(function() {
         rafSyncRef.current = null;
-        if (!ctx.scrollRef.current || !rightScrollRef.current) return;
+        if (!app.scrollRef.current || !rightScrollRef.current) return;
         syncingRef.current = true;
-        ctx.scrollRef.current.scrollLeft = rightScrollRef.current.scrollLeft;
-        ctx.scrollRef.current.scrollTop  = rightScrollRef.current.scrollTop;
+        app.scrollRef.current.scrollLeft = rightScrollRef.current.scrollLeft;
+        app.scrollRef.current.scrollTop  = rightScrollRef.current.scrollTop;
         syncingRef.current = false;
       });
     }
@@ -6578,14 +6582,14 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       right.removeEventListener("scroll", syncR2L);
       if (rafSyncRef.current) { cancelAnimationFrame(rafSyncRef.current); rafSyncRef.current = null; }
     };
-  }, [ctx.splitPaneSyncEnabled]);
+  }, [app.splitPaneSyncEnabled]);
 
   // Context-menu handler for the left pane (chart) scroll container
   function onLeftContextMenu(e) {
     if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
     e.preventDefault();
-    if (!ctx.pcRef.current || !ctx.pat) return;
-    var gc = gridCoord(ctx.pcRef, e, ctx.cs, ctx.G, false);
+    if (!app.pcRef.current || !ctx.pat) return;
+    var gc = gridCoord(app.pcRef, e, ctx.cs, app.G, false);
     if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
     var idx = gc.gy * ctx.sW + gc.gx;
     var cell = ctx.pat[idx];
@@ -6601,7 +6605,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   // Which canvas to render in the right pane
   function rightPaneCanvas() {
-    var mode = ctx.rightPaneMode || "level2";
+    var mode = app.rightPaneMode || "level2";
     if (mode === "wysiwyg") {
       return h(window.CreatorPreviewCanvas, null);
     }
@@ -6629,14 +6633,14 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   // Exit split pane
   function exitSplit() {
-    ctx.setSplitPaneEnabled(false);
+    app.setSplitPaneEnabled(false);
     if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", false);
   }
 
   // Toggle sync
   function toggleSync() {
-    var next = !ctx.splitPaneSyncEnabled;
-    ctx.setSplitPaneSyncEnabled(next);
+    var next = !app.splitPaneSyncEnabled;
+    app.setSplitPaneSyncEnabled(next);
     if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneSyncEnabled", next);
   }
 
@@ -6663,7 +6667,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
     return h("div", { ref: containerRef, style: { width: "100%" } },
       // Chart pane — full width
       h("div", {
-        ref: ctx.scrollRef,
+        ref: app.scrollRef,
         style: { overflow: "auto", maxHeight: 400, border: "0.5px solid #e2e8f0", borderRadius: "8px 8px 0 0", background: "#f1f5f9", cursor: leftCursor },
         onContextMenu: onLeftContextMenu,
       }, h(window.PatternCanvas, null)),
@@ -6719,9 +6723,9 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
         }, "\xD7")
       ),
-      // Chart scroll container — this IS ctx.scrollRef
+      // Chart scroll container — this IS app.scrollRef
       h("div", {
-        ref: ctx.scrollRef,
+        ref: app.scrollRef,
         style: { flex: 1, overflow: "auto", background: "#f1f5f9", cursor: leftCursor },
         onContextMenu: onLeftContextMenu,
       }, h(window.PatternCanvas, null))
@@ -6746,15 +6750,15 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       // Sync lock button
       h("button", {
         onClick: toggleSync,
-        title: ctx.splitPaneSyncEnabled ? "Scroll sync on \u2014 click to disable" : "Scroll sync off \u2014 click to enable",
+        title: app.splitPaneSyncEnabled ? "Scroll sync on \u2014 click to disable" : "Scroll sync off \u2014 click to enable",
         style: {
-          background: ctx.splitPaneSyncEnabled ? "#e0fdf4" : "#fff",
-          border: "1px solid " + (ctx.splitPaneSyncEnabled ? "#0d9488" : "#d1d5db"),
+          background: app.splitPaneSyncEnabled ? "#e0fdf4" : "#fff",
+          border: "1px solid " + (app.splitPaneSyncEnabled ? "#0d9488" : "#d1d5db"),
           borderRadius: 4, width: 20, height: 20, padding: 0, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
         },
-      }, renderSyncIcon(ctx.splitPaneSyncEnabled)),
+      }, renderSyncIcon(app.splitPaneSyncEnabled)),
 
       // Drag handle dots
       h("div", { style: { display: "flex", flexDirection: "column", gap: 2, opacity: 0.4, marginTop: 4 } },
@@ -6779,7 +6783,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
               display: "flex", alignItems: "center", gap: 2, padding: 0,
             },
           },
-            MODE_LABELS[ctx.rightPaneMode || "level2"] || "Preview",
+            MODE_LABELS[app.rightPaneMode || "level2"] || "Preview",
             h("span", { style: { fontSize: 9, marginLeft: 2 } }, "\u25BE")
           ),
           rightDropOpen && h("div", {
@@ -6794,16 +6798,16 @@ window.CreatorSplitPane = function CreatorSplitPane() {
               return h("button", {
                 key: m,
                 onClick: function() {
-                  ctx.setRightPaneMode(m);
+                  app.setRightPaneMode(m);
                   if (typeof UserPrefs !== "undefined") UserPrefs.set("rightPaneMode", m);
                   setRightDropOpen(false);
                 },
                 style: {
                   display: "block", width: "100%", textAlign: "left",
-                  padding: "5px 12px", background: ctx.rightPaneMode === m ? "#f0fdfa" : "none",
+                  padding: "5px 12px", background: app.rightPaneMode === m ? "#f0fdfa" : "none",
                   border: "none", cursor: "pointer", fontSize: 11,
-                  color: ctx.rightPaneMode === m ? "#0d9488" : "#475569",
-                  fontWeight: ctx.rightPaneMode === m ? 600 : 400,
+                  color: app.rightPaneMode === m ? "#0d9488" : "#475569",
+                  fontWeight: app.rightPaneMode === m ? 600 : 400,
                 },
               }, MODE_LABELS[m]);
             })
@@ -6834,6 +6838,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
 window.CreatorToolStrip = function CreatorToolStrip() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var gen = window.useGeneration();
   var h = React.createElement;
 
@@ -6842,14 +6847,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // ResizeObserver: progressively collapse strip groups when narrow
   React.useEffect(function() {
-    var el = ctx.stripRef.current;
+    var el = app.stripRef.current;
     if (!el) return;
     var frame = null;
     var obs = new ResizeObserver(function() {
       if (frame) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(function() {
         var w = el.clientWidth;
-        ctx.setStripCollapsed({ brush: w < 680, bs: w < 550 });
+        app.setStripCollapsed({ brush: w < 680, bs: w < 550 });
       });
     });
     obs.observe(el);
@@ -6858,13 +6863,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // Close overflow menu on outside click
   React.useEffect(function() {
-    if (!ctx.overflowOpen) return;
+    if (!app.overflowOpen) return;
     function close(e) {
-      if (ctx.overflowRef.current && !ctx.overflowRef.current.contains(e.target)) ctx.setOverflowOpen(false);
+      if (app.overflowRef.current && !app.overflowRef.current.contains(e.target)) app.setOverflowOpen(false);
     }
     document.addEventListener("pointerdown", close);
     return function() { document.removeEventListener("pointerdown", close); };
-  }, [ctx.overflowOpen]);
+  }, [app.overflowOpen]);
 
   // Preview dropdown local state — must be declared before early return (Rules of Hooks)
   var previewWrapRef = React.useRef(null);
@@ -6878,9 +6883,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { document.removeEventListener("pointerdown", close); };
   }, [previewMenuOpen]);
 
-  if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
+  if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
 
-  var sc = ctx.stripCollapsed || {};
+  var sc = app.stripCollapsed || {};
 
   // Palette data sorted by usage — needed early for auto-select
   var palData = (ctx.displayPal || ctx.pal || []).slice().sort(function(a,b){return (b.count||0)-(a.count||0);});
@@ -7244,12 +7249,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       return h("button", {
         key:kl[0],
         className:"tb-ovf-item"+(ctx.brushMode===kl[0]?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setBrushAndActivate(kl[0]); ctx.setOverflowOpen(false);}
+        onClick:function(){ctx.setBrushAndActivate(kl[0]); app.setOverflowOpen(false);}
       }, kl[1]+(ctx.brushMode===kl[0]?" \u2713":""));
     })
   ] : null;
 
-  var overflowMenu = ctx.overflowOpen ? h("div", {className:"tb-overflow-menu"},
+  var overflowMenu = app.overflowOpen ? h("div", {className:"tb-overflow-menu"},
     h("span", {className:"tb-ovf-lbl"}, "Display"),
     overlayItems,
     brushItems
@@ -7266,69 +7271,69 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
       background:active?"var(--accent)":"transparent"}});
   }
-  var isPixel     = ctx.previewActive && ctx.previewMode === "pixel";
-  var isRealistic = ctx.previewActive && ctx.previewMode === "realistic";
+  var isPixel     = app.previewActive && app.previewMode === "pixel";
+  var isRealistic = app.previewActive && app.previewMode === "realistic";
   var previewLabel = isPixel ? "Pixel \u25BE" : isRealistic ? "Realistic \u25BE" : "Preview \u25BE";
   var previewDropWrap = h("div", {className:"tb-overflow-wrap", ref:previewWrapRef},
     h("button", {
-      className:"tb-btn"+(ctx.previewActive?" tb-btn--on":""),
+      className:"tb-btn"+(app.previewActive?" tb-btn--on":""),
       onClick:function(){setPreviewMenuOpen(function(o){return !o;});},
       title:"Preview mode"
     }, previewLabel),
     previewMenuOpen && h("div", {className:"tb-overflow-menu", style:{minWidth:195,right:0}},
       h("span", {className:"tb-ovf-lbl"}, "View"),
       h("button", {
-        className:"tb-ovf-item"+(!ctx.previewActive?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(false); setPreviewMenuOpen(false);}
-      }, radioBtn(!ctx.previewActive), " Chart"),
+        className:"tb-ovf-item"+(!app.previewActive?" tb-ovf-item--on":""),
+        onClick:function(){app.setPreviewActive(false); setPreviewMenuOpen(false);}
+      }, radioBtn(!app.previewActive), " Chart"),
       h("button", {
         className:"tb-ovf-item"+(isPixel?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("pixel"); setPreviewMenuOpen(false);}
+        onClick:function(){app.setPreviewActive(true); app.setPreviewMode("pixel"); setPreviewMenuOpen(false);}
       }, radioBtn(isPixel), " Pixel preview"),
       h("button", {
         className:"tb-ovf-item"+(isRealistic?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("realistic"); setPreviewMenuOpen(false);}
+        onClick:function(){app.setPreviewActive(true); app.setPreviewMode("realistic"); setPreviewMenuOpen(false);}
       }, radioBtn(isRealistic), " Realistic"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Options"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.previewShowGrid?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;}); setPreviewMenuOpen(false);},
-        disabled:!ctx.previewActive,
-        style:{opacity:ctx.previewActive?1:0.4}
-      }, chkBox(ctx.previewShowGrid), " Grid overlay"),
+        className:"tb-ovf-item"+(app.previewShowGrid?" tb-ovf-item--on":""),
+        onClick:function(){app.setPreviewShowGrid(function(v){return !v;}); setPreviewMenuOpen(false);},
+        disabled:!app.previewActive,
+        style:{opacity:app.previewActive?1:0.4}
+      }, chkBox(app.previewShowGrid), " Grid overlay"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.previewFabricBg?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;}); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.previewFabricBg?" tb-ovf-item--on":""),
+        onClick:function(){app.setPreviewFabricBg(function(v){return !v;}); setPreviewMenuOpen(false);},
         disabled:!isPixel,
         style:{opacity:isPixel?1:0.4}
-      }, chkBox(ctx.previewFabricBg), " Fabric background"),
+      }, chkBox(app.previewFabricBg), " Fabric background"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Realistic level"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.realisticLevel===1?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(1); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.realisticLevel===1?" tb-ovf-item--on":""),
+        onClick:function(){app.setRealisticLevel(1); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===1), " Flat (Level 1)"),
+      }, radioBtn(app.realisticLevel===1), " Flat (Level 1)"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.realisticLevel===2?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(2); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.realisticLevel===2?" tb-ovf-item--on":""),
+        onClick:function(){app.setRealisticLevel(2); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===2), " Shaded (Level 2)"),
+      }, radioBtn(app.realisticLevel===2), " Shaded (Level 2)"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.realisticLevel===3?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(3); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.realisticLevel===3?" tb-ovf-item--on":""),
+        onClick:function(){app.setRealisticLevel(3); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===3), " Detailed (Level 3)"),
+      }, radioBtn(app.realisticLevel===3), " Detailed (Level 3)"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.realisticLevel===4?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(4); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.realisticLevel===4?" tb-ovf-item--on":""),
+        onClick:function(){app.setRealisticLevel(4); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===4), " Detailed \u2014 Blend (3a)"),
+      }, radioBtn(app.realisticLevel===4), " Detailed \u2014 Blend (3a)"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Thread coverage"),
       // Coverage slider + auto/manual indicator
@@ -7336,8 +7341,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         var sFc = ctx.fabricCt || 14;
         var sSC = sFc <= 11 ? 3 : sFc <= 17 ? 2 : 1;
         var sAutoCov = Math.min(1, Math.max(0, Math.min(1, Math.max(0, (sFc - 8) / 24)) * (sSC / 2)));
-        var isManual = ctx.coverageOverride !== null && ctx.coverageOverride !== undefined;
-        var dispCov = isManual ? ctx.coverageOverride : sAutoCov;
+        var isManual = app.coverageOverride !== null && app.coverageOverride !== undefined;
+        var dispCov = isManual ? app.coverageOverride : sAutoCov;
         var dispPct = Math.round(dispCov * 100);
         return h("div", {style:{padding:"4px 14px 6px"}},
           h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
@@ -7346,7 +7351,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               value: dispPct,
               disabled: !isRealistic,
               onChange: function(e) {
-                ctx.setCoverageOverride(parseInt(e.target.value) / 100);
+                app.setCoverageOverride(parseInt(e.target.value) / 100);
               },
               style:{flex:1, accentColor:"var(--accent)", opacity:isRealistic?1:0.4}
             }),
@@ -7357,7 +7362,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               isManual ? "Manual" : "Auto (" + sFc + "-count, " + sSC + " strand" + (sSC!==1?"s":"") + ")"
             ),
             isManual && h("button", {
-              onClick: function(e) { e.stopPropagation(); ctx.setCoverageOverride(null); },
+              onClick: function(e) { e.stopPropagation(); app.setCoverageOverride(null); },
               title: "Reset to auto",
               style:{marginLeft:"auto",fontSize:10,padding:"2px 6px",border:"1px solid #fed7aa",borderRadius:4,
                      background:"#fff7ed",color:"#c2410c",cursor:"pointer", lineHeight:1.2}
@@ -7369,11 +7374,11 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           // Quick presets
           h("div", {style:{display:"flex",gap:3,marginTop:5}},
             [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
-              var active = isManual && Math.abs(ctx.coverageOverride - preset[1]) < 0.03;
+              var active = isManual && Math.abs(app.coverageOverride - preset[1]) < 0.03;
               return h("button", {
                 key: preset[0],
                 disabled: !isRealistic,
-                onClick: function(e) { e.stopPropagation(); ctx.setCoverageOverride(preset[1]); },
+                onClick: function(e) { e.stopPropagation(); app.setCoverageOverride(preset[1]); },
                 style:{flex:1,fontSize:9,padding:"3px 0",border:"1px solid "+(active?"var(--accent)":"#cbd5e1"),
                        borderRadius:4,background:active?"var(--accent)":"transparent",
                        color:active?"#fff":"var(--text-secondary)",cursor:isRealistic?"pointer":"default",
@@ -7386,10 +7391,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   );
 
-  var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:ctx.overflowRef},
+  var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:app.overflowRef},
     h("button", {
       className:"tb-overflow-btn",
-      onClick:function(){ctx.setOverflowOpen(function(o){return !o;});},
+      onClick:function(){app.setOverflowOpen(function(o){return !o;});},
       title:"More options"
     }, "\u00B7\u00B7\u00B7"),
     overflowMenu
@@ -7401,12 +7406,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
   );
   var splitBtn = h("button", {
-    className: "tb-btn" + (ctx.splitPaneEnabled ? " tb-btn--on" : ""),
-    title: ctx.splitPaneEnabled ? "Exit split view (\\)" : "Split view: chart + preview (\\)",
+    className: "tb-btn" + (app.splitPaneEnabled ? " tb-btn--on" : ""),
+    title: app.splitPaneEnabled ? "Exit split view (\\)" : "Split view: chart + preview (\\)",
     disabled: !(ctx.pat && ctx.pal),
     onClick: function() {
-      var next = !ctx.splitPaneEnabled;
-      ctx.setSplitPaneEnabled(next);
+      var next = !app.splitPaneEnabled;
+      app.setSplitPaneEnabled(next);
       if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", next);
     },
     style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
@@ -7415,7 +7420,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row"},
       h("div", {className:"pill-row"},
-        h("div", {ref:ctx.stripRef, className:"pill"},
+        h("div", {ref:app.stripRef, className:"pill"},
           brushGrp,
           stitchDrop,
           sizeGrp,
@@ -7446,9 +7451,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
 window.MagicWandPanel = function MagicWandPanel() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
 
-  if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
+  if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
   if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso" && !ctx.hasSelection) return null;
 
   var isSelTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
@@ -8092,6 +8098,7 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
 // ─── Modal outer wrapper ──────────────────────────────────────────────────────
 window.SubstituteFromStashModal = function SubstituteFromStashModal() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
   if (!ctx.substituteModalOpen || !ctx.substituteProposal) return null;
   return h(SubstituteFromStashModalInner, { key: ctx.substituteModalKey, ctx: ctx });
@@ -8358,7 +8365,7 @@ function SubstituteFromStashModalInner(props) {
 
     // Step 4: Guard — nothing changed
     if (changes.length === 0 && !psChanged) {
-      ctx.addToast("No stitches were changed.", { type: "info", duration: 2000 });
+      app.addToast("No stitches were changed.", { type: "info", duration: 2000 });
       return;
     }
 
@@ -8388,7 +8395,7 @@ function SubstituteFromStashModalInner(props) {
     // Step 5: Close and toast
     ctx.setSubstituteModalOpen(false);
     ctx.setSubstituteProposal(null);
-    ctx.addToast(
+    app.addToast(
       changes.length + " stitches updated across " + enabledSubs.length + " colour" + (enabledSubs.length !== 1 ? "s" : "") + ". Ctrl+Z to undo.",
       { type: "success", duration: 4000 }
     );
@@ -8774,6 +8781,7 @@ function SubstituteFromStashModalInner(props) {
 
 window.CreatorSidebar = function CreatorSidebar() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var gen = window.useGeneration();
   var h = React.createElement;
   var _pco = React.useState(false); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
@@ -9040,7 +9048,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Dimensions section ──────────────────────────────────────────────────────
   var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
-  var dimSection = h(Section, {title:"Dimensions", isOpen:ctx.dimOpen, onToggle:ctx.setDimOpen, badge:dimBadge},
+  var dimSection = h(Section, {title:"Dimensions", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
@@ -9064,7 +9072,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
-  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:ctx.palOpen, onToggle:ctx.setPalOpen},
+  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:8}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
         helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
@@ -9268,9 +9276,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("div", {style:{fontSize:11,color:"#475569",marginTop:4,lineHeight:1.5}}, desc);
       })()
     ),
-    gen.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
-      "Preview estimate: removes ~", (ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
-      " (", ((ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles) / Math.max(1, ctx.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
+    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
+      "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
+      " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),
     ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
       h("button", {
@@ -9303,7 +9311,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       )
     ),
     (function() {
-      var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, ctx.previewStats);
+      var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
       if (!warning) return null;
       var isDanger = warning.level === "danger";
       return h("div", {style:{
@@ -9318,14 +9326,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     })(),
     h("button", {
-      onClick:function(){ctx.setPalAdvanced(function(o){return !o;});},
+      onClick:function(){app.setPalAdvanced(function(o){return !o;});},
       style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
     },
-      h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+      h("span", {style:{fontSize:9,display:"inline-block",transform:app.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
       "Dithering",
       gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block",marginLeft:2}}) : null
     ),
-    ctx.palAdvanced && h(React.Fragment, null,
+    app.palAdvanced && h(React.Fragment, null,
       h("div", {style:{marginTop:6,padding:"8px 10px",background:"#fff7ed",borderRadius:8,border:"0.5px solid #fed7aa",fontSize:10,color:"#b45309"}},
         "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
       ),
@@ -9359,7 +9367,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var strengthLabels=["Gentle","Balanced","Thorough"];
     var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
     var strengthIdx=strengthKeys.indexOf(sc2.strength);
-    return h(Section, {title:"Stitch Cleanup", isOpen:ctx.cleanupOpen, onToggle:ctx.setCleanupOpen, badge:scBadge},
+    return h(Section, {title:"Stitch Cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:scBadge},
       h("div", {style:{marginTop:8}},
         h(Toggle, {
           checked:sc2.enabled,
@@ -9411,7 +9419,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Fabric & Floss section ──────────────────────────────────────────────────
   var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
-  var fabSection = h(Section, {title:"Fabric & Floss", isOpen:ctx.fabOpen, onToggle:ctx.setFabOpen, badge:fabBadge},
+  var fabSection = h(Section, {title:"Fabric & Floss", isOpen:app.fabOpen, onToggle:app.setFabOpen, badge:fabBadge},
     h("div", {style:{marginTop:8}},
       h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
         h("span", {style:{fontSize:12,color:"#475569",fontWeight:600}}, "Fabric count"),
@@ -9429,7 +9437,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Adjustments section (non-scratch) ──────────────────────────────────────
   var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}) : null;
-  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:ctx.adjOpen, onToggle:ctx.setAdjOpen, badge:adjBadge},
+  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:8}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
@@ -9453,7 +9461,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Background section (non-scratch) ───────────────────────────────────────
   var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}) : null;
-  var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:ctx.bgOpen, onToggle:ctx.setBgOpen, badge:bgBadge},
+  var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:app.bgOpen, onToggle:app.setBgOpen, badge:bgBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}},
       h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){gen.setSkipBg(e.target.checked);}}),
       h("span", null, "Skip background"),
@@ -9541,8 +9549,9 @@ window.CreatorSidebar = function CreatorSidebar() {
 
 window.CreatorToastContainer = function CreatorToastContainer() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
-  if (!ctx.toasts || ctx.toasts.length === 0) return null;
+  if (!app.toasts || app.toasts.length === 0) return null;
 
   var typeStyles = {
     info:    { bg: "#f0f9ff", border: "#bae6fd", color: "#0369a1", icon: Icons.info },
@@ -9558,7 +9567,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
       pointerEvents: "none", maxWidth: 340
     }
   },
-    ctx.toasts.map(function(toast) {
+    app.toasts.map(function(toast) {
       var ts = typeStyles[toast.type] || typeStyles.info;
       return h("div", {
         key: toast.id,
@@ -9576,7 +9585,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
         h("span", { style: { fontSize: 14, flexShrink: 0 } }, ts.icon()),
         h("span", { style: { flex: 1 } }, toast.message),
         h("button", {
-          onClick: function() { ctx.dismissToast(toast.id); },
+          onClick: function() { app.dismissToast(toast.id); },
           style: {
             background: "none", border: "none", cursor: "pointer",
             color: ts.color, opacity: 0.6, fontSize: 14, padding: 0,
@@ -9719,18 +9728,19 @@ window.CreatorContextMenu = function CreatorContextMenu() {
 
 window.CreatorPatternTab = function CreatorPatternTab() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var gen = window.useGeneration();
   var h = React.createElement;
 
   var _dismissed = React.useState(false); var confettiBannerDismissed = _dismissed[0], setConfettiBannerDismissed = _dismissed[1];
   var prevConfettiKeyRef = React.useRef(null);
   React.useEffect(function() {
-    var newKey = ctx.confettiData ? (ctx.confettiData.raw.singles + "|" + ctx.confettiData.clean.singles) : null;
+    var newKey = app.confettiData ? (app.confettiData.raw.singles + "|" + app.confettiData.clean.singles) : null;
     if (prevConfettiKeyRef.current !== newKey) {
       prevConfettiKeyRef.current = newKey;
       if (newKey) setConfettiBannerDismissed(false);
     }
-  }, [ctx.confettiData]);
+  }, [app.confettiData]);
 
   // Track Shift/Alt modifier keys when a selection tool is active.
   // Updates ctx.selectionModifier so MagicWandPanel can show the effective mode.
@@ -9756,7 +9766,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   }, [ctx.activeTool]);
 
   if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "pattern") return null;
+  if (app.tab !== "pattern") return null;
 
   // PaletteSwap confirm view takes over when active
   if (ctx.paletteSwap && ctx.paletteSwap.showConfirm) {
@@ -9765,7 +9775,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   // Build status text
   var statusText;
-  if (ctx.eyedropperEmpty) {
+  if (app.eyedropperEmpty) {
     statusText = "\u26A0 That cell is empty \u2014 no colour to sample.";
   } else if (ctx.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
@@ -9805,22 +9815,22 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       style:{fontSize:12,color:"#94a3b8",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
     }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
-    !ctx.shortcutsHintDismissed && h("div", {
+    !app.shortcutsHintDismissed && h("div", {
       style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
         onClick: function() {
           localStorage.setItem("shortcuts_hint_dismissed", "1");
-          ctx.setShortcutsHintDismissed(true);
+          app.setShortcutsHintDismissed(true);
         },
         style:{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}
       }, "\xD7")
     ),
 
-    !confettiBannerDismissed && ctx.confettiData && gen.orphans > 0 && (function() {
-      var rawSingles = ctx.confettiData.raw.singles;
-      var cleanSingles = ctx.confettiData.clean.singles;
+    !confettiBannerDismissed && app.confettiData && gen.orphans > 0 && (function() {
+      var rawSingles = app.confettiData.raw.singles;
+      var cleanSingles = app.confettiData.clean.singles;
       var removed = rawSingles - cleanSingles;
       var totalStitchable = ctx.pat ? ctx.pat.filter(function(m){return m.id!=="__skip__"&&m.id!=="__empty__";}).length : 1;
       var pctOfTotal = removed / Math.max(1, totalStitchable) * 100;
@@ -9838,15 +9848,15 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h(window.MagicWandPanel, null),
 
-    ctx.splitPaneEnabled
+    app.splitPaneEnabled
       ? h(window.CreatorSplitPane, null)
       : h("div", {
-      ref:ctx.scrollRef,
+      ref:app.scrollRef,
       style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#f1f5f9",cursor:(function(){
         var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
         if (ctx.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
-        if (ctx.previewActive) return "default";
+        if (app.previewActive) return "default";
         if (ctx.activeTool === "fill") return "cell";
         if (ctx.activeTool === "eraseBs") return "not-allowed";
         if (ctx.activeTool || ctx.partialStitchTool) return "crosshair";
@@ -9856,9 +9866,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         // Right-click context menu (except when backstitch has a special right-click action)
         if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
         e.preventDefault();
-        var pcRef = ctx.pcRef;
+        var pcRef = app.pcRef;
         if (!pcRef.current || !ctx.pat) return;
-        var gc = gridCoord(pcRef, e, ctx.cs, ctx.G, false);
+        var gc = gridCoord(pcRef, e, ctx.cs, app.G, false);
         if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
         var idx = gc.gy * ctx.sW + gc.gx;
         var cell = ctx.pat[idx];
@@ -9873,8 +9883,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
       }
     },
-      ctx.previewActive
-        ? (ctx.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
+      app.previewActive
+        ? (app.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
         : h(window.PatternCanvas, null)
     ),
 
@@ -10033,10 +10043,11 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
 window.CreatorProjectTab = function CreatorProjectTab() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
 
   if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "project") return null;
+  if (app.tab !== "project") return null;
 
   var confettiTier = window.confettiTier;
 
@@ -10066,8 +10077,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       )
     );
 
-    var confettiBadge = ctx.confettiData && (function() {
-      var cd = ctx.confettiData.clean;
+    var confettiBadge = app.confettiData && (function() {
+      var cd = app.confettiData.clean;
       var t = confettiTier(cd.pct);
       var barW = Math.max(3, Math.min(100, Math.round(100 - cd.pct * 5)));
       return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0"}},
@@ -10083,8 +10094,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             cd.singles.toLocaleString() + " isolated (" + cd.pct.toFixed(1) + "%)"
           )
         ),
-        ctx.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:4}},
-          ctx.confettiData.raw.singles.toLocaleString() + " before orphan removal"
+        app.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:4}},
+          app.confettiData.raw.singles.toLocaleString() + " before orphan removal"
         )
       );
     })();
@@ -10321,7 +10332,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               ctx.setSubstituteModalKey(function(k) { return k + 1; });
               ctx.setSubstituteModalOpen(true);
             }).catch(function() {
-              ctx.addToast("Failed to load stash data.", { type: "error", duration: 3000 });
+              app.addToast("Failed to load stash data.", { type: "error", duration: 3000 });
             });
           },
           disabled: (function() {
@@ -10376,7 +10387,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           h("button", {
             onClick:function(){
               var lines = ctx.kittingResult.missing.concat(ctx.kittingResult.short);
-              ctx.copyText(lines.join("\n"), "kit");
+              app.copyText(lines.join("\n"), "kit");
             },
             style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer"}
           }, "Copy gaps"),
@@ -10400,19 +10411,19 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("button", {
           onClick:function(){
             var txt=ctx.toBuyList.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
-            ctx.copyText(txt, "shopping");
+            app.copyText(txt, "shopping");
           },
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}
         }, "Copy To-Buy List"),
         h("button", {
           onClick:function(){
             var txt=ctx.skeinData.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
-            ctx.copyText(txt, "full");
+            app.copyText(txt, "full");
           },
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Copy Full List")
       ),
-      ctx.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")
+      app.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")
     );
   }
 
@@ -10437,10 +10448,11 @@ window.CreatorProjectTab = function CreatorProjectTab() {
 
 window.CreatorLegendTab = function CreatorLegendTab() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
 
   if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "legend") return null;
+  if (app.tab !== "legend") return null;
 
   var headerCols = ["Sym","","DMC","Name","Type","Stitches","Skeins"];
   if (ctx.done) headerCols.push("Done");
@@ -10473,8 +10485,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           ctx.pal.map(function(p, i) {
             var dc = ctx.colourDoneCounts[p.id] || {total:0, done:0};
             var sk = skeinEst(p.count, ctx.fabricCt);
-            var confettiCount = ctx.confettiData && ctx.confettiData.clean && ctx.confettiData.clean.colorConfetti
-              ? ctx.confettiData.clean.colorConfetti[p.id]
+            var confettiCount = app.confettiData && app.confettiData.clean && app.confettiData.clean.colorConfetti
+              ? app.confettiData.clean.colorConfetti[p.id]
               : null;
             var nameCell = h("td", {style:{padding:"6px 10px",fontSize:11,color:"#475569"}},
               p.type === "blend"
@@ -10487,7 +10499,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             );
             return h("tr", {
               key:i,
-              onClick:function(){ctx.setHiId(ctx.hiId===p.id?null:p.id); ctx.setTab("pattern");},
+              onClick:function(){ctx.setHiId(ctx.hiId===p.id?null:p.id); app.setTab("pattern");},
               style:{borderBottom:"0.5px solid #f1f5f9",cursor:"pointer",background:ctx.hiId===p.id?"#fff7ed":"transparent"}
             },
               h("td", {style:{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}, p.symbol),
@@ -10526,42 +10538,43 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
 window.CreatorExportTab = function CreatorExportTab() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
 
-  var G = ctx.G;
+  var G = app.G;
 
   // renderExport callback — must be declared before any early returns (Rules of Hooks)
   var renderExport = React.useCallback(function() {
-    if (ctx.tab !== "export" || !ctx.expRef.current || !ctx.pat || !ctx.cmap) return;
-    var epC = ctx.exportPage % ctx.pxX;
-    var epR = Math.floor(ctx.exportPage / ctx.pxX);
+    if (app.tab !== "export" || !app.expRef.current || !ctx.pat || !ctx.cmap) return;
+    var epC = app.exportPage % app.pxX;
+    var epR = Math.floor(app.exportPage / app.pxX);
     var eX0 = epC * A4W, eY0 = epR * A4H;
     var eW = Math.min(A4W, ctx.sW - eX0), eH = Math.min(A4H, ctx.sH - eY0);
-    var dW2 = ctx.pageMode ? eW : ctx.sW;
-    var dH2 = ctx.pageMode ? eH : ctx.sH;
-    var oX2 = ctx.pageMode ? eX0 : 0;
-    var oY2 = ctx.pageMode ? eY0 : 0;
+    var dW2 = app.pageMode ? eW : ctx.sW;
+    var dH2 = app.pageMode ? eH : ctx.sH;
+    var oX2 = app.pageMode ? eX0 : 0;
+    var oY2 = app.pageMode ? eY0 : 0;
     var expCs = Math.max(8, Math.min(20, Math.floor(750 / Math.max(dW2, dH2))));
-    ctx.expRef.current.width  = dW2 * expCs + G + 2;
-    ctx.expRef.current.height = dH2 * expCs + G + 2;
+    app.expRef.current.width  = dW2 * expCs + G + 2;
+    app.expRef.current.height = dH2 * expCs + G + 2;
     // Draw without overlay
     var exportState = Object.assign({}, ctx, {showOverlay: false, overlayOpacity: 0});
-    drawPatternOnCanvas(ctx.expRef.current.getContext("2d"), oX2, oY2, dW2, dH2, expCs, G, exportState);
+    drawPatternOnCanvas(app.expRef.current.getContext("2d"), oX2, oY2, dW2, dH2, expCs, G, exportState);
   }, [
-    ctx.tab, ctx.pat, ctx.cmap, ctx.sW, ctx.sH, ctx.pageMode, ctx.exportPage, ctx.pxX,
+    app.tab, ctx.pat, ctx.cmap, ctx.sW, ctx.sH, app.pageMode, app.exportPage, app.pxX,
     ctx.view, ctx.hiId, ctx.showCtr, ctx.bsLines, ctx.partialStitches
   ]);
 
   React.useEffect(function() { renderExport(); }, [renderExport]);
 
   if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "export") return null;
+  if (app.tab !== "export") return null;
 
   return h("div", {style:{display:"flex",flexDirection:"column",gap:12}},
-    ctx.copied && h("div", {style:{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!"),
+    app.copied && h("div", {style:{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!"),
 
     h("button", {
-      onClick: ctx.handleOpenInTracker,
+      onClick: app.handleOpenInTracker,
       style:{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:8}
     }, Icons.thread(), " Open in Stitch Tracker \u2192"),
 
@@ -10573,7 +10586,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         h("label", {style:{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6}},
           "Chart Mode:",
           h("select", {
-            value:ctx.pdfDisplayMode, onChange:function(e){ctx.setPdfDisplayMode(e.target.value);},
+            value:app.pdfDisplayMode, onChange:function(e){app.setPdfDisplayMode(e.target.value);},
             style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
           },
             h("option", {value:"color_symbol"}, "Color + Symbols"),
@@ -10584,7 +10597,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         h("label", {style:{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6}},
           "Cell Size:",
           h("select", {
-            value:ctx.pdfCellSize, onChange:function(e){ctx.setPdfCellSize(Number(e.target.value));},
+            value:app.pdfCellSize, onChange:function(e){app.setPdfCellSize(Number(e.target.value));},
             style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
           },
             h("option", {value:2.5}, "Small (2.5mm)"),
@@ -10594,8 +10607,8 @@ window.CreatorExportTab = function CreatorExportTab() {
         ),
         h("label", {style:{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}},
           h("input", {
-            type:"checkbox", checked:ctx.pdfSinglePage,
-            onChange:function(e){ctx.setPdfSinglePage(e.target.checked);}
+            type:"checkbox", checked:app.pdfSinglePage,
+            onChange:function(e){app.setPdfSinglePage(e.target.checked);}
           }),
           " Single Page"
         )
@@ -10603,7 +10616,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       h("div", {style:{display:"flex",gap:8,flexWrap:"wrap"}},
         h("button", {
           onClick:function(){
-            exportPDF({displayMode:ctx.pdfDisplayMode, cellSize:ctx.pdfCellSize, singlePage:ctx.pdfSinglePage}, ctx);
+            exportPDF({displayMode:app.pdfDisplayMode, cellSize:app.pdfCellSize, singlePage:app.pdfSinglePage}, ctx);
           },
           style:{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none"}
         }, "Download Pattern PDF"),
@@ -10621,27 +10634,27 @@ window.CreatorExportTab = function CreatorExportTab() {
       h("div", {style:{display:"flex",gap:8,alignItems:"center",marginTop:8,marginBottom:8}},
         h("label", {style:{display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer"}},
           h("input", {
-            type:"checkbox", checked:ctx.pageMode,
-            onChange:function(e){ctx.setPageMode(e.target.checked); ctx.setExportPage(0);}
+            type:"checkbox", checked:app.pageMode,
+            onChange:function(e){app.setPageMode(e.target.checked); app.setExportPage(0);}
           }),
           "A4 pages"
         ),
-        ctx.pageMode && h(React.Fragment, null,
+        app.pageMode && h(React.Fragment, null,
           h("button", {
-            onClick:function(){ctx.setExportPage(function(p){return Math.max(0,p-1);});},
-            disabled:ctx.exportPage===0,
+            onClick:function(){app.setExportPage(function(p){return Math.max(0,p-1);});},
+            disabled:app.exportPage===0,
             style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
           }, "\u25C4"),
-          h("span", {style:{fontSize:12}}, "Page "+(ctx.exportPage+1)+"/"+ctx.totPg),
+          h("span", {style:{fontSize:12}}, "Page "+(app.exportPage+1)+"/"+app.totPg),
           h("button", {
-            onClick:function(){ctx.setExportPage(function(p){return Math.min(ctx.totPg-1,p+1);});},
-            disabled:ctx.exportPage>=ctx.totPg-1,
+            onClick:function(){app.setExportPage(function(p){return Math.min(app.totPg-1,p+1);});},
+            disabled:app.exportPage>=app.totPg-1,
             style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
           }, "\u25BA")
         )
       ),
       h("div", {style:{overflow:"auto",maxHeight:400,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#fff"}},
-        h("canvas", {ref:ctx.expRef, style:{display:"block"}})
+        h("canvas", {ref:app.expRef, style:{display:"block"}})
       )
     ),
 
@@ -10651,11 +10664,11 @@ window.CreatorExportTab = function CreatorExportTab() {
       ),
       h("div", {style:{display:"flex",gap:8}},
         h("button", {
-          onClick:ctx.saveProject,
+          onClick:app.saveProject,
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}
         }, "Save (.json)"),
         h("button", {
-          onClick:function(){ctx.loadRef.current.click();},
+          onClick:function(){app.loadRef.current.click();},
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Load")
       )

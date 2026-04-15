@@ -8,6 +8,7 @@
 
 window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
 
   var displayRef = React.useRef(null);
@@ -23,11 +24,11 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var sW = ctx.sW;
   var sH = ctx.sH;
   var cs = ctx.cs;
-  var previewShowGrid = ctx.previewShowGrid;
-  // inputLevel prop overrides ctx.realisticLevel — used by SplitPane right pane
-  var realisticLevel = (props && props.inputLevel != null) ? props.inputLevel : ctx.realisticLevel;
+  var previewShowGrid = app.previewShowGrid;
+  // inputLevel prop overrides app.realisticLevel — used by SplitPane right pane
+  var realisticLevel = (props && props.inputLevel != null) ? props.inputLevel : app.realisticLevel;
   var fabricCt = ctx.fabricCt;
-  var coverageOverride = ctx.coverageOverride;
+  var coverageOverride = app.coverageOverride;
 
   // ── Effect A: render the full offscreen realistic canvas ───────────────────
   // Re-runs when pattern data or rendering level changes.
@@ -435,7 +436,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     setOffscreenVersion(function(v) { return v + 1; });
     }); // end of RAF callback
     return function() { if (realisticRafRef.current) { cancelAnimationFrame(realisticRafRef.current); realisticRafRef.current = null; } };
-  }, [pat, cmap, sW, sH, realisticLevel, ctx.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride]);
+  }, [pat, cmap, sW, sH, realisticLevel, app.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────
   // Runs whenever the offscreen is rebuilt (offscreenVersion) or zoom changes.

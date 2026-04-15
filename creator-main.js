@@ -317,10 +317,85 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     canvas.applyCrop, canvas.srcClick, canvas.autoCrop,
   ]);
 
+  // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
+  const appCtx = useMemo(function() { return {
+    tab: state.tab, setTab: state.setTab,
+    modal: state.modal, setModal: state.setModal,
+    sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
+    loadError: state.loadError, setLoadError: state.setLoadError,
+    copied: state.copied, setCopied: state.setCopied, copyText: state.copyText,
+    dimOpen: state.dimOpen, setDimOpen: state.setDimOpen,
+    palOpen: state.palOpen, setPalOpen: state.setPalOpen,
+    fabOpen: state.fabOpen, setFabOpen: state.setFabOpen,
+    adjOpen: state.adjOpen, setAdjOpen: state.setAdjOpen,
+    bgOpen: state.bgOpen, setBgOpen: state.setBgOpen,
+    palAdvanced: state.palAdvanced, setPalAdvanced: state.setPalAdvanced,
+    cleanupOpen: state.cleanupOpen, setCleanupOpen: state.setCleanupOpen,
+    splitPaneEnabled: state.splitPaneEnabled, setSplitPaneEnabled: state.setSplitPaneEnabled,
+    splitPaneRatio: state.splitPaneRatio, setSplitPaneRatio: state.setSplitPaneRatio,
+    splitPaneSyncEnabled: state.splitPaneSyncEnabled, setSplitPaneSyncEnabled: state.setSplitPaneSyncEnabled,
+    rightPaneMode: state.rightPaneMode, setRightPaneMode: state.setRightPaneMode,
+    exportPage: state.exportPage, setExportPage: state.setExportPage,
+    pageMode: state.pageMode, setPageMode: state.setPageMode,
+    pdfDisplayMode: state.pdfDisplayMode, setPdfDisplayMode: state.setPdfDisplayMode,
+    pdfCellSize: state.pdfCellSize, setPdfCellSize: state.setPdfCellSize,
+    pdfSinglePage: state.pdfSinglePage, setPdfSinglePage: state.setPdfSinglePage,
+    toasts: state.toasts, addToast: state.addToast, dismissToast: state.dismissToast,
+    pcRef: state.pcRef, scrollRef: state.scrollRef, expRef: state.expRef, loadRef: state.loadRef,
+    stripRef: state.stripRef, overflowRef: state.overflowRef,
+    overflowOpen: state.overflowOpen, setOverflowOpen: state.setOverflowOpen,
+    stripCollapsed: state.stripCollapsed, setStripCollapsed: state.setStripCollapsed,
+    shortcutsHintDismissed: state.shortcutsHintDismissed, setShortcutsHintDismissed: state.setShortcutsHintDismissed,
+    namePromptOpen: state.namePromptOpen, setNamePromptOpen: state.setNamePromptOpen,
+    projectName: state.projectName, setProjectName: state.setProjectName,
+    eyedropperEmpty: state.eyedropperEmpty, setEyedropperEmpty: state.setEyedropperEmpty,
+    projectIdRef: state.projectIdRef, createdAtRef: state.createdAtRef, userActedRef: state.userActedRef,
+    G: state.G,
+    pxX: state.pxX, pxY: state.pxY, totPg: state.totPg,
+    previewActive: state.previewActive, setPreviewActive: state.setPreviewActive,
+    previewShowGrid: state.previewShowGrid, setPreviewShowGrid: state.setPreviewShowGrid,
+    previewFabricBg: state.previewFabricBg, setPreviewFabricBg: state.setPreviewFabricBg,
+    previewMode: state.previewMode, setPreviewMode: state.setPreviewMode,
+    realisticLevel: state.realisticLevel, setRealisticLevel: state.setRealisticLevel,
+    coverageOverride: state.coverageOverride, setCoverageOverride: state.setCoverageOverride,
+    previewUrl: state.previewUrl, setPreviewUrl: state.setPreviewUrl,
+    previewStats: state.previewStats, setPreviewStats: state.setPreviewStats,
+    confettiData: state.confettiData, setConfettiData: state.setConfettiData,
+    previewHeatmap: state.previewHeatmap, setPreviewHeatmap: state.setPreviewHeatmap,
+    previewMapped: state.previewMapped, setPreviewMapped: state.setPreviewMapped,
+    previewColors: state.previewColors, setPreviewColors: state.setPreviewColors,
+    previewDims: state.previewDims, setPreviewDims: state.setPreviewDims,
+    previewHighlight: state.previewHighlight, setPreviewHighlight: state.setPreviewHighlight,
+    previewTimerRef: state.previewTimerRef,
+    saveProject: io.saveProject, doSaveProject: io.doSaveProject,
+    handleFile: io.handleFile, loadProject: io.loadProject,
+    handleOpenInTracker: io.handleOpenInTracker,
+    isActive: isActive,
+  }; }, [
+    state.tab, state.modal, state.sidebarOpen, state.loadError,
+    state.copied, state.dimOpen, state.palOpen, state.fabOpen,
+    state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen,
+    state.splitPaneEnabled, state.splitPaneRatio,
+    state.splitPaneSyncEnabled, state.rightPaneMode,
+    state.exportPage, state.pageMode,
+    state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage,
+    state.toasts, state.overflowOpen, state.stripCollapsed,
+    state.shortcutsHintDismissed, state.namePromptOpen, state.projectName,
+    state.eyedropperEmpty, state.pxX, state.pxY, state.totPg,
+    state.previewActive, state.previewShowGrid, state.previewFabricBg,
+    state.previewMode, state.realisticLevel, state.coverageOverride,
+    state.previewUrl, state.previewStats, state.confettiData,
+    state.previewHeatmap, state.previewMapped, state.previewColors,
+    state.previewDims, state.previewHighlight,
+    io.saveProject, io.doSaveProject, io.handleFile, io.loadProject,
+    io.handleOpenInTracker, isActive,
+  ]);
+
   const ctx = {...state, ...history, ...canvas, ...io, isActive};
 
   return (
     <window.GenerationContext.Provider value={genCtx}>
+    <window.AppContext.Provider value={appCtx}>
     <window.CreatorContext.Provider value={ctx}>
       <input ref={state.loadRef} type="file" accept=".json" onChange={io.loadProject} style={{display:"none"}}/>
       <Header page="creator" tab={state.tab} onPageChange={state.setTab}
@@ -516,6 +591,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       </div>}
       <window.CreatorToastContainer/>
     </window.CreatorContext.Provider>
+    </window.AppContext.Provider>
     </window.GenerationContext.Provider>
   );
 }

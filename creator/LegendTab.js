@@ -5,10 +5,11 @@
 
 window.CreatorLegendTab = function CreatorLegendTab() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
 
   if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "legend") return null;
+  if (app.tab !== "legend") return null;
 
   var headerCols = ["Sym","","DMC","Name","Type","Stitches","Skeins"];
   if (ctx.done) headerCols.push("Done");
@@ -41,8 +42,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           ctx.pal.map(function(p, i) {
             var dc = ctx.colourDoneCounts[p.id] || {total:0, done:0};
             var sk = skeinEst(p.count, ctx.fabricCt);
-            var confettiCount = ctx.confettiData && ctx.confettiData.clean && ctx.confettiData.clean.colorConfetti
-              ? ctx.confettiData.clean.colorConfetti[p.id]
+            var confettiCount = app.confettiData && app.confettiData.clean && app.confettiData.clean.colorConfetti
+              ? app.confettiData.clean.colorConfetti[p.id]
               : null;
             var nameCell = h("td", {style:{padding:"6px 10px",fontSize:11,color:"#475569"}},
               p.type === "blend"
@@ -55,7 +56,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             );
             return h("tr", {
               key:i,
-              onClick:function(){ctx.setHiId(ctx.hiId===p.id?null:p.id); ctx.setTab("pattern");},
+              onClick:function(){ctx.setHiId(ctx.hiId===p.id?null:p.id); app.setTab("pattern");},
               style:{borderBottom:"0.5px solid #f1f5f9",cursor:"pointer",background:ctx.hiId===p.id?"#fff7ed":"transparent"}
             },
               h("td", {style:{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}, p.symbol),

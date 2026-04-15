@@ -6,9 +6,10 @@
 
 window.PatternCanvas = function PatternCanvas() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var gen = window.useGeneration();
   var h = React.createElement;
-  var G = ctx.G;
+  var G = app.G;
 
   // Cache of the base render (stitches + grid + committed bsLines + border).
   // Avoids re-drawing the expensive base on every mouse-move.
@@ -81,11 +82,11 @@ window.PatternCanvas = function PatternCanvas() {
   // ── Effect 1: Full render (base + overlay). Fires when pattern content changes.
   // Uses RAF so rapid zoom-slider drags collapse into a single paint per frame.
   React.useEffect(function() {
-    if (!ctx.pat || !ctx.cmap || !ctx.pcRef.current || ctx.tab !== "pattern") return;
+    if (!ctx.pat || !ctx.cmap || !app.pcRef.current || app.tab !== "pattern") return;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     // Capture values needed inside the RAF callback (avoids stale-closure issues
     // if the component unmounts or re-renders before the frame fires).
-    var canvas = ctx.pcRef.current;
+    var canvas = app.pcRef.current;
     var snap = ctx; // current context snapshot
     rafRef.current = requestAnimationFrame(function() {
       rafRef.current = null;
@@ -102,7 +103,7 @@ window.PatternCanvas = function PatternCanvas() {
     };
   }, [
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
-    ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
+    ctx.bsLines, app.tab, ctx.showOverlay, ctx.overlayOpacity,
     gen.img, ctx.partialStitches, ctx.stitchType, ctx.partialStitchTool,
     gen.showCleanupDiff, gen.cleanupDiff,
     ctx.dimFraction, ctx.dimHiId, ctx.bgDimOpacity, ctx.bgDimDesaturation,
@@ -112,27 +113,27 @@ window.PatternCanvas = function PatternCanvas() {
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
   // Restores the cached base from ImageData then repaints just the hover elements.
   React.useEffect(function() {
-    if (!ctx.pat || !ctx.cmap || !ctx.pcRef.current || ctx.tab !== "pattern") return;
+    if (!ctx.pat || !ctx.cmap || !app.pcRef.current || app.tab !== "pattern") return;
     if (!baseCacheRef.current) return; // base not ready yet — Effect 1 will draw everything
     // Skip restoring the base cache while a drag-draw is in progress: applyBrush
     // imperatively paints directly onto the canvas and the overlay-only redraw
     // must not overwrite those uncommitted pixels with the stale cached image.
     if (ctx.isDraggingRef && ctx.isDraggingRef.current) return;
-    var canvas = ctx.pcRef.current;
+    var canvas = app.pcRef.current;
     var context = canvas.getContext("2d");
     context.putImageData(baseCacheRef.current, 0, 0);
     drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, ctx.cs, G, ctx);
   }, [
     ctx.hoverCoords, ctx.selectedColorId, ctx.bsStart,
     // structural deps — needed so the overlay is redrawn correctly when these change
-    ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.tab,
+    ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, app.tab,
     ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.partialStitchTool, ctx.bsLines,
     ctx.lassoMode, ctx.lassoPoints, ctx.lassoPreviewMask, ctx.lassoCursor, ctx.lassoInProgress,
     ctx.selectionMask, ctx.confettiPreview
   ]);
 
   return h("canvas", {
-    ref: ctx.pcRef,
+    ref: app.pcRef,
     style: {
       display: "block",
       touchAction: "none",

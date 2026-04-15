@@ -4,9 +4,10 @@
 
 window.MagicWandPanel = function MagicWandPanel() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
 
-  if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
+  if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
   if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso" && !ctx.hasSelection) return null;
 
   var isSelTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";

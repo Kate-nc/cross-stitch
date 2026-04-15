@@ -8,6 +8,7 @@
 
 window.CreatorSplitPane = function CreatorSplitPane() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
 
   var containerRef   = React.useRef(null);
@@ -17,7 +18,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
   var rafSyncRef     = React.useRef(null);
 
   // Local ratio shadow — updated immediately during drag for smooth visual feedback
-  var _ratio = React.useState(ctx.splitPaneRatio || 0.5);
+  var _ratio = React.useState(app.splitPaneRatio || 0.5);
   var ratio = _ratio[0], setRatio = _ratio[1];
 
   // Narrow mode: container < 560px → stacked layout
@@ -78,11 +79,11 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       document.body.style.userSelect = "";
       // If dragged past edge threshold → exit split pane
       if (ratio < 0.1 || ratio > 0.9) {
-        ctx.setSplitPaneEnabled(false);
+        app.setSplitPaneEnabled(false);
         if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", false);
         return;
       }
-      ctx.setSplitPaneRatio(ratio);
+      app.setSplitPaneRatio(ratio);
       if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneRatio", ratio);
     }
     document.addEventListener("pointermove", onMove);
@@ -95,8 +96,8 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   // Scroll sync: left pane ↔ right pane (debounced to one rAF per direction)
   React.useEffect(function() {
-    if (!ctx.splitPaneSyncEnabled) return;
-    var left  = ctx.scrollRef.current;
+    if (!app.splitPaneSyncEnabled) return;
+    var left  = app.scrollRef.current;
     var right = rightScrollRef.current;
     if (!left || !right) return;
 
@@ -105,10 +106,10 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       if (rafSyncRef.current) return;
       rafSyncRef.current = requestAnimationFrame(function() {
         rafSyncRef.current = null;
-        if (!ctx.scrollRef.current || !rightScrollRef.current) return;
+        if (!app.scrollRef.current || !rightScrollRef.current) return;
         syncingRef.current = true;
-        rightScrollRef.current.scrollLeft = ctx.scrollRef.current.scrollLeft;
-        rightScrollRef.current.scrollTop  = ctx.scrollRef.current.scrollTop;
+        rightScrollRef.current.scrollLeft = app.scrollRef.current.scrollLeft;
+        rightScrollRef.current.scrollTop  = app.scrollRef.current.scrollTop;
         syncingRef.current = false;
       });
     }
@@ -117,10 +118,10 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       if (rafSyncRef.current) return;
       rafSyncRef.current = requestAnimationFrame(function() {
         rafSyncRef.current = null;
-        if (!ctx.scrollRef.current || !rightScrollRef.current) return;
+        if (!app.scrollRef.current || !rightScrollRef.current) return;
         syncingRef.current = true;
-        ctx.scrollRef.current.scrollLeft = rightScrollRef.current.scrollLeft;
-        ctx.scrollRef.current.scrollTop  = rightScrollRef.current.scrollTop;
+        app.scrollRef.current.scrollLeft = rightScrollRef.current.scrollLeft;
+        app.scrollRef.current.scrollTop  = rightScrollRef.current.scrollTop;
         syncingRef.current = false;
       });
     }
@@ -132,14 +133,14 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       right.removeEventListener("scroll", syncR2L);
       if (rafSyncRef.current) { cancelAnimationFrame(rafSyncRef.current); rafSyncRef.current = null; }
     };
-  }, [ctx.splitPaneSyncEnabled]);
+  }, [app.splitPaneSyncEnabled]);
 
   // Context-menu handler for the left pane (chart) scroll container
   function onLeftContextMenu(e) {
     if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
     e.preventDefault();
-    if (!ctx.pcRef.current || !ctx.pat) return;
-    var gc = gridCoord(ctx.pcRef, e, ctx.cs, ctx.G, false);
+    if (!app.pcRef.current || !ctx.pat) return;
+    var gc = gridCoord(app.pcRef, e, ctx.cs, app.G, false);
     if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
     var idx = gc.gy * ctx.sW + gc.gx;
     var cell = ctx.pat[idx];
@@ -155,7 +156,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   // Which canvas to render in the right pane
   function rightPaneCanvas() {
-    var mode = ctx.rightPaneMode || "level2";
+    var mode = app.rightPaneMode || "level2";
     if (mode === "wysiwyg") {
       return h(window.CreatorPreviewCanvas, null);
     }
@@ -183,14 +184,14 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   // Exit split pane
   function exitSplit() {
-    ctx.setSplitPaneEnabled(false);
+    app.setSplitPaneEnabled(false);
     if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", false);
   }
 
   // Toggle sync
   function toggleSync() {
-    var next = !ctx.splitPaneSyncEnabled;
-    ctx.setSplitPaneSyncEnabled(next);
+    var next = !app.splitPaneSyncEnabled;
+    app.setSplitPaneSyncEnabled(next);
     if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneSyncEnabled", next);
   }
 
@@ -217,7 +218,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
     return h("div", { ref: containerRef, style: { width: "100%" } },
       // Chart pane — full width
       h("div", {
-        ref: ctx.scrollRef,
+        ref: app.scrollRef,
         style: { overflow: "auto", maxHeight: 400, border: "0.5px solid #e2e8f0", borderRadius: "8px 8px 0 0", background: "#f1f5f9", cursor: leftCursor },
         onContextMenu: onLeftContextMenu,
       }, h(window.PatternCanvas, null)),
@@ -273,9 +274,9 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
         }, "\xD7")
       ),
-      // Chart scroll container — this IS ctx.scrollRef
+      // Chart scroll container — this IS app.scrollRef
       h("div", {
-        ref: ctx.scrollRef,
+        ref: app.scrollRef,
         style: { flex: 1, overflow: "auto", background: "#f1f5f9", cursor: leftCursor },
         onContextMenu: onLeftContextMenu,
       }, h(window.PatternCanvas, null))
@@ -300,15 +301,15 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       // Sync lock button
       h("button", {
         onClick: toggleSync,
-        title: ctx.splitPaneSyncEnabled ? "Scroll sync on \u2014 click to disable" : "Scroll sync off \u2014 click to enable",
+        title: app.splitPaneSyncEnabled ? "Scroll sync on \u2014 click to disable" : "Scroll sync off \u2014 click to enable",
         style: {
-          background: ctx.splitPaneSyncEnabled ? "#e0fdf4" : "#fff",
-          border: "1px solid " + (ctx.splitPaneSyncEnabled ? "#0d9488" : "#d1d5db"),
+          background: app.splitPaneSyncEnabled ? "#e0fdf4" : "#fff",
+          border: "1px solid " + (app.splitPaneSyncEnabled ? "#0d9488" : "#d1d5db"),
           borderRadius: 4, width: 20, height: 20, padding: 0, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
         },
-      }, renderSyncIcon(ctx.splitPaneSyncEnabled)),
+      }, renderSyncIcon(app.splitPaneSyncEnabled)),
 
       // Drag handle dots
       h("div", { style: { display: "flex", flexDirection: "column", gap: 2, opacity: 0.4, marginTop: 4 } },
@@ -333,7 +334,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
               display: "flex", alignItems: "center", gap: 2, padding: 0,
             },
           },
-            MODE_LABELS[ctx.rightPaneMode || "level2"] || "Preview",
+            MODE_LABELS[app.rightPaneMode || "level2"] || "Preview",
             h("span", { style: { fontSize: 9, marginLeft: 2 } }, "\u25BE")
           ),
           rightDropOpen && h("div", {
@@ -348,16 +349,16 @@ window.CreatorSplitPane = function CreatorSplitPane() {
               return h("button", {
                 key: m,
                 onClick: function() {
-                  ctx.setRightPaneMode(m);
+                  app.setRightPaneMode(m);
                   if (typeof UserPrefs !== "undefined") UserPrefs.set("rightPaneMode", m);
                   setRightDropOpen(false);
                 },
                 style: {
                   display: "block", width: "100%", textAlign: "left",
-                  padding: "5px 12px", background: ctx.rightPaneMode === m ? "#f0fdfa" : "none",
+                  padding: "5px 12px", background: app.rightPaneMode === m ? "#f0fdfa" : "none",
                   border: "none", cursor: "pointer", fontSize: 11,
-                  color: ctx.rightPaneMode === m ? "#0d9488" : "#475569",
-                  fontWeight: ctx.rightPaneMode === m ? 600 : 400,
+                  color: app.rightPaneMode === m ? "#0d9488" : "#475569",
+                  fontWeight: app.rightPaneMode === m ? 600 : 400,
                 },
               }, MODE_LABELS[m]);
             })

@@ -4,6 +4,7 @@
 
 window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
 
   var displayRef = React.useRef(null);
@@ -18,8 +19,8 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
   var sW = ctx.sW;
   var sH = ctx.sH;
   var cs = ctx.cs;
-  var previewShowGrid = ctx.previewShowGrid;
-  var previewFabricBg = ctx.previewFabricBg;
+  var previewShowGrid = app.previewShowGrid;
+  var previewFabricBg = app.previewFabricBg;
 
   // Effect A — build the offscreen 1-px-per-stitch image cache.
   // Re-runs only when pattern data or fabric-bg toggle changes.

@@ -6,18 +6,19 @@
 
 window.CreatorPatternTab = function CreatorPatternTab() {
   var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var gen = window.useGeneration();
   var h = React.createElement;
 
   var _dismissed = React.useState(false); var confettiBannerDismissed = _dismissed[0], setConfettiBannerDismissed = _dismissed[1];
   var prevConfettiKeyRef = React.useRef(null);
   React.useEffect(function() {
-    var newKey = ctx.confettiData ? (ctx.confettiData.raw.singles + "|" + ctx.confettiData.clean.singles) : null;
+    var newKey = app.confettiData ? (app.confettiData.raw.singles + "|" + app.confettiData.clean.singles) : null;
     if (prevConfettiKeyRef.current !== newKey) {
       prevConfettiKeyRef.current = newKey;
       if (newKey) setConfettiBannerDismissed(false);
     }
-  }, [ctx.confettiData]);
+  }, [app.confettiData]);
 
   // Track Shift/Alt modifier keys when a selection tool is active.
   // Updates ctx.selectionModifier so MagicWandPanel can show the effective mode.
@@ -43,7 +44,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   }, [ctx.activeTool]);
 
   if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "pattern") return null;
+  if (app.tab !== "pattern") return null;
 
   // PaletteSwap confirm view takes over when active
   if (ctx.paletteSwap && ctx.paletteSwap.showConfirm) {
@@ -52,7 +53,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   // Build status text
   var statusText;
-  if (ctx.eyedropperEmpty) {
+  if (app.eyedropperEmpty) {
     statusText = "\u26A0 That cell is empty \u2014 no colour to sample.";
   } else if (ctx.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
@@ -92,22 +93,22 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       style:{fontSize:12,color:"#94a3b8",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
     }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
-    !ctx.shortcutsHintDismissed && h("div", {
+    !app.shortcutsHintDismissed && h("div", {
       style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
         onClick: function() {
           localStorage.setItem("shortcuts_hint_dismissed", "1");
-          ctx.setShortcutsHintDismissed(true);
+          app.setShortcutsHintDismissed(true);
         },
         style:{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}
       }, "\xD7")
     ),
 
-    !confettiBannerDismissed && ctx.confettiData && gen.orphans > 0 && (function() {
-      var rawSingles = ctx.confettiData.raw.singles;
-      var cleanSingles = ctx.confettiData.clean.singles;
+    !confettiBannerDismissed && app.confettiData && gen.orphans > 0 && (function() {
+      var rawSingles = app.confettiData.raw.singles;
+      var cleanSingles = app.confettiData.clean.singles;
       var removed = rawSingles - cleanSingles;
       var totalStitchable = ctx.pat ? ctx.pat.filter(function(m){return m.id!=="__skip__"&&m.id!=="__empty__";}).length : 1;
       var pctOfTotal = removed / Math.max(1, totalStitchable) * 100;
@@ -125,15 +126,15 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h(window.MagicWandPanel, null),
 
-    ctx.splitPaneEnabled
+    app.splitPaneEnabled
       ? h(window.CreatorSplitPane, null)
       : h("div", {
-      ref:ctx.scrollRef,
+      ref:app.scrollRef,
       style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#f1f5f9",cursor:(function(){
         var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
         if (ctx.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
-        if (ctx.previewActive) return "default";
+        if (app.previewActive) return "default";
         if (ctx.activeTool === "fill") return "cell";
         if (ctx.activeTool === "eraseBs") return "not-allowed";
         if (ctx.activeTool || ctx.partialStitchTool) return "crosshair";
@@ -143,9 +144,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         // Right-click context menu (except when backstitch has a special right-click action)
         if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
         e.preventDefault();
-        var pcRef = ctx.pcRef;
+        var pcRef = app.pcRef;
         if (!pcRef.current || !ctx.pat) return;
-        var gc = gridCoord(pcRef, e, ctx.cs, ctx.G, false);
+        var gc = gridCoord(pcRef, e, ctx.cs, app.G, false);
         if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
         var idx = gc.gy * ctx.sW + gc.gx;
         var cell = ctx.pat[idx];
@@ -160,8 +161,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
       }
     },
-      ctx.previewActive
-        ? (ctx.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
+      app.previewActive
+        ? (app.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
         : h(window.PatternCanvas, null)
     ),
 
