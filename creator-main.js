@@ -245,9 +245,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
   // Handler identity is stabilised via a ref; the ref is updated synchronously on
   // each render so the latest function is always called despite the empty dep list.
-  const _cvHRef  = React.useRef(canvas);  _cvHRef.current  = canvas;
-  const _ioRef   = React.useRef(io);      _ioRef.current   = io;
-  const _histRef = React.useRef(history); _histRef.current = history;
+  // Refs are initialised with null; the current assignment below runs before any
+  // useMemo so the refs are always populated when context values are built.
+  const _cvHRef  = React.useRef(null);  _cvHRef.current  = canvas;
+  const _ioRef   = React.useRef(null);  _ioRef.current   = io;
+  const _histRef = React.useRef(null);  _histRef.current = history;
 
   const stableHandlePatPointerDown   = React.useCallback(function(e){_cvHRef.current.handlePatPointerDown(e);},   []);
   const stableHandlePatPointerMove   = React.useCallback(function(e){_cvHRef.current.handlePatPointerMove(e);},   []);

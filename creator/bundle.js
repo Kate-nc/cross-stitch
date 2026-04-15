@@ -10570,7 +10570,8 @@ window.CreatorExportTab = function CreatorExportTab() {
     var expCs = Math.max(8, Math.min(20, Math.floor(750 / Math.max(dW2, dH2))));
     app.expRef.current.width  = dW2 * expCs + G + 2;
     app.expRef.current.height = dH2 * expCs + G + 2;
-    // Draw without overlay — merge CanvasContext fields (view, hiId, showCtr, bsLines, etc.)
+    // Draw without overlay — merge CanvasContext (view, hiId, bsLines, activeTool, etc.) so
+    // drawPatternOnCanvas receives all required fields; final object overrides suppress the overlay.
     var exportState = Object.assign({}, ctx, cv, {showOverlay: false, overlayOpacity: 0});
     drawPatternOnCanvas(app.expRef.current.getContext("2d"), oX2, oY2, dW2, dH2, expCs, G, exportState);
   }, [
