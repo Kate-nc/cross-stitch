@@ -16,6 +16,9 @@ function stitchesToSkeins({
   isBlended = false,
   blendRatio = null
 }) {
+  if (fabricCount <= 0) fabricCount = 14;
+  if (strandsUsed <= 0) strandsUsed = 2;
+  if (wasteFactor >= 1) wasteFactor = 0.20;
   const holePitchCm = 2.54 / fabricCount;
   const threadPerStitchCm = holePitchCm * 4.8 * strandsUsed;
   const totalThreadCm = stitchCount * threadPerStitchCm;
@@ -61,6 +64,9 @@ function skeinsToStitches({
   skeinLengthM = 8.0,
   wasteFactor = 0.20
 }) {
+  if (fabricCount <= 0) fabricCount = 14;
+  if (strandsUsed <= 0) strandsUsed = 2;
+  if (wasteFactor >= 1) wasteFactor = 0.20;
   const holePitchCm = 2.54 / fabricCount;
   const threadPerStitchCm = holePitchCm * 4.8 * strandsUsed;
   const skeinLengthCm = skeinLengthM * 100;

@@ -121,7 +121,11 @@ window.useMagicWand = function useMagicWand(state) {
   }
 
   // Merge newMask into existing mask using the specified operation mode
+  // Merge two selection masks (delegates to shared global if available).
   function mergeMasks(existing, newMask, opMode, size) {
+    if (typeof window !== 'undefined' && typeof window.mergeMasks === 'function') {
+      return window.mergeMasks(existing, newMask, opMode, size);
+    }
     var out = new Uint8Array(size);
     for (var i = 0; i < size; i++) {
       var e = existing ? existing[i] : 0;

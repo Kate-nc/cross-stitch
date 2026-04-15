@@ -41,9 +41,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
 
-  var p = opts.allowedPalette
-    ? quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed})
-    : quantize(raw, width, height, maxC, {seed: opts.seed});
+  var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
@@ -555,16 +553,18 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     _drawMarchingAnts(ctx2d, offX, offY, dW, dH, cSz, gut, pat, sW, sH, hl.hiId, hl.antsOffset);
   }
 
-  // Grid lines (every 10)
+  // Grid lines (every 10) — batched into single path
   if (cSz >= 3) {
     ctx2d.strokeStyle = "rgba(0,0,0,0.2)";
     ctx2d.lineWidth = cSz >= 8 ? 1.5 : 1;
+    ctx2d.beginPath();
     for (var gx = 0; gx <= dW; gx += 10) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut + gx * cSz, gut); ctx2d.lineTo(gut + gx * cSz, gut + dH * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut + gx * cSz, gut); ctx2d.lineTo(gut + gx * cSz, gut + dH * cSz);
     }
     for (var gy = 0; gy <= dH; gy += 10) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut, gut + gy * cSz); ctx2d.lineTo(gut + dW * cSz, gut + gy * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut, gut + gy * cSz); ctx2d.lineTo(gut + dW * cSz, gut + gy * cSz);
     }
+    ctx2d.stroke();
   }
 
   // Centre crosshair
@@ -574,12 +574,14 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     ctx2d.setLineDash([6, 4]);
     var cx2 = Math.floor(sW / 2) - offX;
     var cy2 = Math.floor(sH / 2) - offY;
+    ctx2d.beginPath();
     if (cx2 >= 0 && cx2 <= dW) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut + cx2 * cSz, gut); ctx2d.lineTo(gut + cx2 * cSz, gut + dH * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut + cx2 * cSz, gut); ctx2d.lineTo(gut + cx2 * cSz, gut + dH * cSz);
     }
     if (cy2 >= 0 && cy2 <= dH) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut, gut + cy2 * cSz); ctx2d.lineTo(gut + dW * cSz, gut + cy2 * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut, gut + cy2 * cSz); ctx2d.lineTo(gut + dW * cSz, gut + cy2 * cSz);
     }
+    ctx2d.stroke();
     ctx2d.setLineDash([]);
   }
 
@@ -844,16 +846,18 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     }
   }
 
-  // Grid lines (every 10)
+  // Grid lines (every 10) — batched into single path
   if (cSz >= 3) {
     ctx2d.strokeStyle = "rgba(0,0,0,0.2)";
     ctx2d.lineWidth = cSz >= 8 ? 1.5 : 1;
+    ctx2d.beginPath();
     for (var gx = 0; gx <= dW; gx += 10) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut + gx * cSz, gut); ctx2d.lineTo(gut + gx * cSz, gut + dH * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut + gx * cSz, gut); ctx2d.lineTo(gut + gx * cSz, gut + dH * cSz);
     }
     for (var gy = 0; gy <= dH; gy += 10) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut, gut + gy * cSz); ctx2d.lineTo(gut + dW * cSz, gut + gy * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut, gut + gy * cSz); ctx2d.lineTo(gut + dW * cSz, gut + gy * cSz);
     }
+    ctx2d.stroke();
   }
 
   // Centre crosshair
@@ -863,26 +867,30 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     ctx2d.setLineDash([6, 4]);
     var cx2 = Math.floor(sW / 2) - offX;
     var cy2 = Math.floor(sH / 2) - offY;
+    ctx2d.beginPath();
     if (cx2 >= 0 && cx2 <= dW) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut + cx2 * cSz, gut); ctx2d.lineTo(gut + cx2 * cSz, gut + dH * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut + cx2 * cSz, gut); ctx2d.lineTo(gut + cx2 * cSz, gut + dH * cSz);
     }
     if (cy2 >= 0 && cy2 <= dH) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut, gut + cy2 * cSz); ctx2d.lineTo(gut + dW * cSz, gut + cy2 * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut, gut + cy2 * cSz); ctx2d.lineTo(gut + dW * cSz, gut + cy2 * cSz);
     }
+    ctx2d.stroke();
     ctx2d.setLineDash([]);
   }
 
-  // Committed backstitch lines (no hover-erase highlight — that is drawn in drawPatternOverlayOnCanvas)
+  // Committed backstitch lines — batched into single path
   if (bsLines.length > 0) {
     ctx2d.lineCap = "round";
+    ctx2d.strokeStyle = "#333";
+    ctx2d.lineWidth = Math.max(2, cSz * 0.15);
+    ctx2d.beginPath();
     bsLines.forEach(function(ln) {
       var lx1 = ln.x1 - offX, ly1 = ln.y1 - offY, lx2 = ln.x2 - offX, ly2 = ln.y2 - offY;
       if (lx1 >= 0 && lx1 <= dW && ly1 >= 0 && ly1 <= dH && lx2 >= 0 && lx2 <= dW && ly2 >= 0 && ly2 <= dH) {
-        ctx2d.strokeStyle = "#333";
-        ctx2d.lineWidth = Math.max(2, cSz * 0.15);
-        ctx2d.beginPath(); ctx2d.moveTo(gut + lx1 * cSz, gut + ly1 * cSz); ctx2d.lineTo(gut + lx2 * cSz, gut + ly2 * cSz); ctx2d.stroke();
+        ctx2d.moveTo(gut + lx1 * cSz, gut + ly1 * cSz); ctx2d.lineTo(gut + lx2 * cSz, gut + ly2 * cSz);
       }
     });
+    ctx2d.stroke();
   }
 
   // Outer border
@@ -1286,25 +1294,32 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
 
       ctx2d.lineWidth = 1;
 
-      // Vertical lines
+      // Batch minor lines into one path, major into another
+      ctx2d.strokeStyle = minorColor;
+      ctx2d.beginPath();
       for (var x = 0; x <= sW; x++) {
+        if (x % 10 === 0) continue;
         var px = Math.round(x * cs) + 0.5;
-        ctx2d.strokeStyle = (x % 10 === 0) ? majorColor : minorColor;
-        ctx2d.beginPath();
-        ctx2d.moveTo(px, 0);
-        ctx2d.lineTo(px, sH * cs);
-        ctx2d.stroke();
+        ctx2d.moveTo(px, 0); ctx2d.lineTo(px, sH * cs);
       }
-
-      // Horizontal lines
       for (var y = 0; y <= sH; y++) {
+        if (y % 10 === 0) continue;
         var py = Math.round(y * cs) + 0.5;
-        ctx2d.strokeStyle = (y % 10 === 0) ? majorColor : minorColor;
-        ctx2d.beginPath();
-        ctx2d.moveTo(0, py);
-        ctx2d.lineTo(sW * cs, py);
-        ctx2d.stroke();
+        ctx2d.moveTo(0, py); ctx2d.lineTo(sW * cs, py);
       }
+      ctx2d.stroke();
+
+      ctx2d.strokeStyle = majorColor;
+      ctx2d.beginPath();
+      for (var x2 = 0; x2 <= sW; x2 += 10) {
+        var px2 = Math.round(x2 * cs) + 0.5;
+        ctx2d.moveTo(px2, 0); ctx2d.lineTo(px2, sH * cs);
+      }
+      for (var y2 = 0; y2 <= sH; y2 += 10) {
+        var py2 = Math.round(y2 * cs) + 0.5;
+        ctx2d.moveTo(0, py2); ctx2d.lineTo(sW * cs, py2);
+      }
+      ctx2d.stroke();
     }
   }, [offscreenVersion, cs, sW, sH, previewShowGrid]);
 
@@ -1363,8 +1378,13 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
 
   // ── Effect A: render the full offscreen realistic canvas ───────────────────
   // Re-runs when pattern data or rendering level changes.
+  // Debounced with RAF to avoid wasted renders when settings change rapidly.
+  var realisticRafRef = React.useRef(null);
   React.useEffect(function() {
     if (!pat || !sW || !sH) return;
+    if (realisticRafRef.current) cancelAnimationFrame(realisticRafRef.current);
+    realisticRafRef.current = requestAnimationFrame(function() {
+    realisticRafRef.current = null;
 
     // Clamp CELL_SIZE so the offscreen canvas fits within browser limits (~8192px).
     var MAX_DIM = 8192;
@@ -1760,6 +1780,8 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
 
     offscreenRef.current = offscreen;
     setOffscreenVersion(function(v) { return v + 1; });
+    }); // end of RAF callback
+    return function() { if (realisticRafRef.current) { cancelAnimationFrame(realisticRafRef.current); realisticRafRef.current = null; } };
   }, [pat, cmap, sW, sH, realisticLevel, ctx.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────
@@ -2583,7 +2605,11 @@ window.useMagicWand = function useMagicWand(state) {
   }
 
   // Merge newMask into existing mask using the specified operation mode
+  // Merge two selection masks (delegates to shared global if available).
   function mergeMasks(existing, newMask, opMode, size) {
+    if (typeof window !== 'undefined' && typeof window.mergeMasks === 'function') {
+      return window.mergeMasks(existing, newMask, opMode, size);
+    }
     var out = new Uint8Array(size);
     for (var i = 0; i < size; i++) {
       var e = existing ? existing[i] : 0;
@@ -3114,19 +3140,6 @@ window.useLassoSelect = function useLassoSelect(state) {
   }
 
   // Merge newMask into an existing selection mask — matches useMagicWand.mergeMasks
-  function mergeMasks(existing, newMask, opMode, size) {
-    var out = new Uint8Array(size);
-    for (var i = 0; i < size; i++) {
-      var e = existing ? existing[i] : 0;
-      var n = newMask[i];
-      if (opMode === "add")        out[i] = (e || n) ? 1 : 0;
-      else if (opMode === "subtract")  out[i] = (e && !n) ? 1 : 0;
-      else if (opMode === "intersect") out[i] = (e && n)  ? 1 : 0;
-      else                         out[i] = n;  // replace
-    }
-    return out;
-  }
-
   // ─── Magnetic-lasso helpers ───────────────────────────────────────────────────
 
   // Returns a LAB value for a grid cell (uses cmap entry if available).
@@ -3192,12 +3205,38 @@ window.useLassoSelect = function useLassoSelect(state) {
       return Math.sqrt(Math.pow(x1 - x, 2) + Math.pow(y1 - y, 2)) * 0.35;
     }
 
+    // Binary min-heap for A* open set (replaces Array.sort per pop)
     var heap = [{ idx: start, cost: heuristic(x0, y0) }];
+    function _heapUp(i) {
+      while (i > 0) {
+        var p = (i - 1) >> 1;
+        if (heap[p].cost <= heap[i].cost) break;
+        var tmp = heap[p]; heap[p] = heap[i]; heap[i] = tmp;
+        i = p;
+      }
+    }
+    function _heapPop() {
+      var top = heap[0];
+      var last = heap.pop();
+      if (heap.length > 0) {
+        heap[0] = last;
+        var i = 0, len = heap.length;
+        while (true) {
+          var l = 2 * i + 1, r = 2 * i + 2, smallest = i;
+          if (l < len && heap[l].cost < heap[smallest].cost) smallest = l;
+          if (r < len && heap[r].cost < heap[smallest].cost) smallest = r;
+          if (smallest === i) break;
+          var t2 = heap[i]; heap[i] = heap[smallest]; heap[smallest] = t2;
+          i = smallest;
+        }
+      }
+      return top;
+    }
+    function _heapPush(item) { heap.push(item); _heapUp(heap.length - 1); }
     var closed = new Uint8Array(size);
 
     while (heap.length > 0) {
-      heap.sort(function(a, b) { return a.cost - b.cost; });
-      var top = heap.shift();
+      var top = _heapPop();
       var cur = top.idx;
       if (cur === end) break;
       if (closed[cur]) continue;
@@ -3221,7 +3260,7 @@ window.useLassoSelect = function useLassoSelect(state) {
           if (nd < dist[ni]) {
             dist[ni] = nd;
             prev[ni] = cur;
-            heap.push({ idx: ni, cost: nd + heuristic(nx, ny) });
+            _heapPush({ idx: ni, cost: nd + heuristic(nx, ny) });
           }
         }
       }
@@ -7657,7 +7696,8 @@ window.MagicWandPanel = function MagicWandPanel() {
       var a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "selection-info.csv";
-      a.click();
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
     };
     return h("div", {
       style: { padding: "10px 14px", background: "#f0f9ff", borderBottom: "1px solid #bae6fd", fontSize: 11 }

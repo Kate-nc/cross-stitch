@@ -1,107 +1,52 @@
-function findSolid(lab,p){let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE2(lab,p[i].lab);if(d<bd){bd=d;b=p[i];}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:Math.sqrt(bd)};}
+function findSolid(lab,p){if(!p||!p.length)return{type:"solid",id:"__empty__",name:"",rgb:[0,0,0],lab:[0,0,0],dist:Infinity};let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE2(lab,p[i].lab);if(d<bd){bd=d;b=p[i];}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:Math.sqrt(bd)};}
 function findBest(lab, palette, allowBlends = true) {
   const solidMatch = findSolid(lab, palette);
-  if (!allowBlends) return solidMatch;
+  if (!allowBlends || !findBest._blends || findBest._blendPalette !== palette) return solidMatch;
 
-  let bestBlend = null;
   let bestBlendDist = 1e9;
-
-  for (let i = 0; i < palette.length; i++) {
-    for (let j = i + 1; j < palette.length; j++) {
-      const threadA = palette[i];
-      const threadB = palette[j];
-      const blendLab = [
-        (threadA.lab[0] + threadB.lab[0]) / 2,
-        (threadA.lab[1] + threadB.lab[1]) / 2,
-        (threadA.lab[2] + threadB.lab[2]) / 2
-      ];
-      const dist = dE2(lab, blendLab);
-
-      if (dist < bestBlendDist) {
-        bestBlendDist = dist;
-        bestBlend = {
-          threads: [threadA, threadB],
-          lab: blendLab
-        };
-      }
-    }
+  let bestBlendIdx = -1;
+  const blends = findBest._blends;
+  for (let i = 0; i < blends.length; i++) {
+    const dist = dE2(lab, blends[i].lab);
+    if (dist < bestBlendDist) { bestBlendDist = dist; bestBlendIdx = i; }
   }
 
-  if (bestBlend && (Math.sqrt(bestBlendDist) + 3 < solidMatch.dist) && solidMatch.dist > 5) {
-    const threadA = bestBlend.threads[0];
-    const threadB = bestBlend.threads[1];
-    const blendId = threadA.id + "+" + threadB.id;
-    const blendRgb = [
-      Math.round((threadA.rgb[0] + threadB.rgb[0]) / 2),
-      Math.round((threadA.rgb[1] + threadB.rgb[1]) / 2),
-      Math.round((threadA.rgb[2] + threadB.rgb[2]) / 2)
-    ];
-
+  if (bestBlendIdx >= 0 && (Math.sqrt(bestBlendDist) + 3 < solidMatch.dist) && solidMatch.dist > 5) {
+    const b = blends[bestBlendIdx];
     return {
       type: "blend",
-      id: blendId,
-      name: blendId,
-      rgb: blendRgb,
-      lab: bestBlend.lab,
-      threads: bestBlend.threads,
+      id: b.id,
+      name: b.id,
+      rgb: b.rgb,
+      lab: b.lab,
+      threads: b.threads,
       dist: Math.sqrt(bestBlendDist)
     };
   }
 
   return solidMatch;
 }
+// Pre-compute blend pairs once per palette — call before dithering.
+findBest.precomputeBlends = function(palette) {
+  findBest._blendPalette = palette;
+  const blends = [];
+  for (let i = 0; i < palette.length; i++) {
+    for (let j = i + 1; j < palette.length; j++) {
+      const a = palette[i], b = palette[j];
+      const lab = [(a.lab[0]+b.lab[0])/2, (a.lab[1]+b.lab[1])/2, (a.lab[2]+b.lab[2])/2];
+      blends.push({
+        id: a.id + "+" + b.id,
+        lab: lab,
+        rgb: [Math.round((a.rgb[0]+b.rgb[0])/2), Math.round((a.rgb[1]+b.rgb[1])/2), Math.round((a.rgb[2]+b.rgb[2])/2)],
+        threads: [a, b]
+      });
+    }
+  }
+  findBest._blends = blends;
+};
 function luminance(rgb){return rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114;}
 
-function quantize(data,w,h,n,options){
-  let seed=(options&&options.seed!=null)?options.seed:1337;
-  function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
-  let px=[], len=w*h;
-  for(let i=0;i<len;i++){let j=i*4;px.push(rgbToLab(data[j],data[j+1],data[j+2]));}
-  let cs=[px[Math.floor(random()*px.length)]];
-  let ds=new Float32Array(px.length);
-  for(let i=0;i<px.length;i++){ds[i]=1e9;}
-  while(cs.length<Math.min(n,px.length)){
-    let lastCenter = cs[cs.length-1];
-    let sum=0;
-    for(let i=0;i<px.length;i++){
-      let distSq = dE2(px[i], lastCenter);
-      if (distSq < ds[i]) ds[i] = distSq;
-      sum += ds[i];
-    }
-    let r=random()*sum,acc=0;
-    for(let i=0;i<px.length;i++){
-      acc+=ds[i];
-      if(acc>=r){cs.push([px[i][0],px[i][1],px[i][2]]);break;}
-    }
-  }
-  for(let it=0;it<20;it++){
-    let cl=cs.map(()=>[]);
-    for(let pi=0;pi<px.length;pi++){
-      let md=1e9,mi=0;
-      for(let c=0;c<cs.length;c++){let d=dE2(px[pi],cs[c]);if(d<md){md=d;mi=c;}}
-      cl[mi].push(px[pi]);
-    }
-    let mv=false;
-    for(let c2=0;c2<cs.length;c2++){
-      if(!cl[c2].length)continue;
-      let nv=[cl[c2].reduce((s,q)=>s+q[0],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[1],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[2],0)/cl[c2].length];
-      if(dE2(nv,cs[c2])>0.25)mv=true;
-      cs[c2]=nv;
-    }
-    if(!mv)break;
-  }
-  let pl=[],used=new Set();
-  for(let ci=0;ci<cs.length;ci++){
-    let b=null,bd=1e9;
-    for(let ti=0;ti<DMC.length;ti++){
-      if(used.has(DMC[ti].id))continue;
-      let d2=dE2(cs[ci],DMC[ti].lab);if(d2<bd){bd=d2;b=DMC[ti];}
-    }
-    if(b){used.add(b.id);pl.push(b);}
-  }
-  return pl;
-}
-function quantizeConstrained(data,w,h,n,allowedPalette,options){
+function quantize(data,w,h,n,allowedPalette,options){
   var pool=allowedPalette&&allowedPalette.length?allowedPalette:DMC;
   var maxN=Math.min(n,pool.length);
   let seed=(options&&options.seed!=null)?options.seed:1337;
@@ -152,6 +97,7 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   }
   return pl;
 }
+function quantizeConstrained(data,w,h,n,allowedPalette,options){return quantize(data,w,h,n,allowedPalette,options);}
 /**
  * Floyd-Steinberg dithering with Stage 2 confetti-aware color selection.
  *
@@ -175,6 +121,9 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
  */
 function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { confettiDitherThreshold = 4.0 } = {}) {
   const N = w * h;
+
+  // Pre-compute blend table once for the whole dithering pass
+  if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
 
   // Working buffer in float so error diffusion doesn't clip
   const d = new Float32Array(N * 3);
@@ -330,16 +279,16 @@ function analyseColourCoverage(img,palette,sampleSize){
 }
 function buildPalette(patArr){
   let usage={};
+  let symbolMap={};
   for(let i=0;i<patArr.length;i++){
     let m=patArr[i];if(m.id==="__skip__"||m.id==="__empty__")continue;
-    if(!usage[m.id])usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};
+    if(!usage[m.id]){usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};}
     usage[m.id].count++;
+    if(m.symbol&&!symbolMap[m.id])symbolMap[m.id]=m.symbol;
   }
   let entries=Object.values(usage).sort((a,b)=>b.count-a.count);
   entries.forEach((e,i)=>{
-    // Try to find an existing symbol in the pattern array
-    const cell = patArr.find(c => c.id === e.id && c.symbol);
-    e.symbol = cell ? cell.symbol : SYMS[i%SYMS.length];
+    e.symbol=symbolMap[e.id]||SYMS[i%SYMS.length];
   });
   let cm={};entries.forEach(e=>{cm[e.id]=e;});
   return{pal:entries,cmap:cm};

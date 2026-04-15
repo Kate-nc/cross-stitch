@@ -32,8 +32,8 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   const splitPosRef = useRef(50);
   const containerRef = useRef(null);
   const dragging = useRef(false);
-  const rafRef = useRef(null);       // FIX 2: rAF throttle handle
-  const pendingPosRef = useRef(null); // FIX 2: latest pending position
+  const rafRef = useRef(null);
+  const pendingPosRef = useRef(null);
   // auto-sweep
   const [sweeping, setSweeping] = useState(false);
   const sweepAnimRef = useRef(null);
@@ -49,13 +49,11 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   // heatmap overlay
   const [showHeatmap, setShowHeatmap] = useState(false);
 
-  // FIX 2: compute clamped split% from a pointer event
   function computePos(e) {
     if (!containerRef.current) return null;
     var rect = containerRef.current.getBoundingClientRect();
     return Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
   }
-  // FIX 2: schedule a single setSplitPos call per animation frame
   function scheduleUpdate(pos) {
     pendingPosRef.current = pos;
     splitPosRef.current = pos;
@@ -137,8 +135,8 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
       if (rect.width > 0) setZoomPos({cx: e.clientX - rect.left, cy: e.clientY - rect.top, W: rect.width, H: rect.height});
     } else if (zoomPos) { setZoomPos(null); }
     if (!dragging.current) return;
-    var pos = computePos(e); // FIX 2: use helper
-    if (pos !== null) scheduleUpdate(pos); // FIX 2: rAF throttle
+    var pos = computePos(e);
+    if (pos !== null) scheduleUpdate(pos);
   }
 
   var LENS = 140, ZOOM = 2.5;
@@ -151,7 +149,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           if(altHeld.current)return;
           dragging.current=true; setSweeping(false);
           e.currentTarget.setPointerCapture(e.pointerId);
-          var pos=computePos(e); // FIX 1: snap divider to click position immediately
+          var pos=computePos(e);
           if(pos!==null){splitPosRef.current=pos;setSplitPos(pos);}
         }}
         onPointerMove={handlePointerMove}
@@ -162,7 +160,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
             setSplitPos(pendingPosRef.current);
             pendingPosRef.current=null;
           }
-          if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;} // FIX 2: flush pending position before clearing rAF
+          if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}
           if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
         }}
         onPointerCancel={function(){
@@ -173,16 +171,16 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
             pendingPosRef.current=null;
           }
           if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}
-        }} // FIX 3
+        }}
         onPointerLeave={function(){if(!dragging.current)setZoomPos(null);}}>
-        <img src={originalSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt="Original"/>       {/* FIX 4 */}
+        <img src={originalSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt="Original"/>
         <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`}}>
-          <img src={previewSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>  {/* FIX 4 */}
+          <img src={previewSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>
         </div>
         {showDiff&&diffUrl&&<img src={diffUrl} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",pointerEvents:"none",zIndex:4}} alt="" aria-hidden="true"/>}
         {showHeatmap&&heatmapSrc&&<img src={heatmapSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
         {highlightSrc&&<img src={highlightSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:6}} alt="" aria-hidden="true"/>}
-        <div style={{position:"absolute",top:0,bottom:0,left:`${splitPos}%`,width:3,background:"#fff",boxShadow:"0 0 4px rgba(0,0,0,0.3)",transform:"translateX(-50%)",zIndex:2,pointerEvents:"none",willChange:"left"}}> {/* FIX 5 */}
+        <div style={{position:"absolute",top:0,bottom:0,left:`${splitPos}%`,width:3,background:"#fff",boxShadow:"0 0 4px rgba(0,0,0,0.3)",transform:"translateX(-50%)",zIndex:2,pointerEvents:"none",willChange:"left"}}>
           <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:28,height:28,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#475569"}}>⟺</div>
         </div>
         <span style={{position:"absolute",top:8,left:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{leftLabel||"Original"}</span>

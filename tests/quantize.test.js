@@ -78,16 +78,16 @@ describe('quantize — determinism (same seed ⇒ same palette)', () => {
     const w = 20, h = 20;
     const data = gradientImage(w, h);
     const seed = 42;
-    const result1 = quantize(data, w, h, 8, { seed });
-    const result2 = quantize(data, w, h, 8, { seed });
+    const result1 = quantize(data, w, h, 8, null, { seed });
+    const result2 = quantize(data, w, h, 8, null, { seed });
     expect(result1.map(d => d.id)).toEqual(result2.map(d => d.id));
   });
 
   test('different seeds can produce different palettes', () => {
     const w = 30, h = 30;
     const data = gradientImage(w, h);
-    const result1 = quantize(data, w, h, 10, { seed: 1 });
-    const result2 = quantize(data, w, h, 10, { seed: 9999999 });
+    const result1 = quantize(data, w, h, 10, null, { seed: 1 });
+    const result2 = quantize(data, w, h, 10, null, { seed: 9999999 });
     // With a wide gradient and different seeds it is very likely (but not
     // guaranteed) that at least one entry differs; we assert they are not
     // always completely identical.
@@ -107,14 +107,14 @@ describe('quantize — determinism (same seed ⇒ same palette)', () => {
   test('returns at most n entries', () => {
     const w = 10, h = 10;
     const data = gradientImage(w, h);
-    const result = quantize(data, w, h, 5, { seed: 1337 });
+    const result = quantize(data, w, h, 5, null, { seed: 1337 });
     expect(result.length).toBeLessThanOrEqual(5);
   });
 
   test('returned entries are valid DMC objects with id, name, rgb, lab', () => {
     const w = 10, h = 10;
     const data = gradientImage(w, h);
-    const result = quantize(data, w, h, 4, { seed: 100 });
+    const result = quantize(data, w, h, 4, null, { seed: 100 });
     for (const entry of result) {
       expect(entry).toHaveProperty('id');
       expect(entry).toHaveProperty('name');
@@ -126,7 +126,7 @@ describe('quantize — determinism (same seed ⇒ same palette)', () => {
   test('no duplicate IDs in output', () => {
     const w = 20, h = 20;
     const data = gradientImage(w, h);
-    const result = quantize(data, w, h, 10, { seed: 55 });
+    const result = quantize(data, w, h, 10, null, { seed: 55 });
     const ids = result.map(d => d.id);
     expect(new Set(ids).size).toBe(ids.length);
   });

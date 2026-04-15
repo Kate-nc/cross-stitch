@@ -29,9 +29,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
 
-  var p = opts.allowedPalette
-    ? quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed})
-    : quantize(raw, width, height, maxC, {seed: opts.seed});
+  var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);

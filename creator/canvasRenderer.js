@@ -370,16 +370,18 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     _drawMarchingAnts(ctx2d, offX, offY, dW, dH, cSz, gut, pat, sW, sH, hl.hiId, hl.antsOffset);
   }
 
-  // Grid lines (every 10)
+  // Grid lines (every 10) — batched into single path
   if (cSz >= 3) {
     ctx2d.strokeStyle = "rgba(0,0,0,0.2)";
     ctx2d.lineWidth = cSz >= 8 ? 1.5 : 1;
+    ctx2d.beginPath();
     for (var gx = 0; gx <= dW; gx += 10) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut + gx * cSz, gut); ctx2d.lineTo(gut + gx * cSz, gut + dH * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut + gx * cSz, gut); ctx2d.lineTo(gut + gx * cSz, gut + dH * cSz);
     }
     for (var gy = 0; gy <= dH; gy += 10) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut, gut + gy * cSz); ctx2d.lineTo(gut + dW * cSz, gut + gy * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut, gut + gy * cSz); ctx2d.lineTo(gut + dW * cSz, gut + gy * cSz);
     }
+    ctx2d.stroke();
   }
 
   // Centre crosshair
@@ -389,12 +391,14 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     ctx2d.setLineDash([6, 4]);
     var cx2 = Math.floor(sW / 2) - offX;
     var cy2 = Math.floor(sH / 2) - offY;
+    ctx2d.beginPath();
     if (cx2 >= 0 && cx2 <= dW) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut + cx2 * cSz, gut); ctx2d.lineTo(gut + cx2 * cSz, gut + dH * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut + cx2 * cSz, gut); ctx2d.lineTo(gut + cx2 * cSz, gut + dH * cSz);
     }
     if (cy2 >= 0 && cy2 <= dH) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut, gut + cy2 * cSz); ctx2d.lineTo(gut + dW * cSz, gut + cy2 * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut, gut + cy2 * cSz); ctx2d.lineTo(gut + dW * cSz, gut + cy2 * cSz);
     }
+    ctx2d.stroke();
     ctx2d.setLineDash([]);
   }
 
@@ -659,16 +663,18 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     }
   }
 
-  // Grid lines (every 10)
+  // Grid lines (every 10) — batched into single path
   if (cSz >= 3) {
     ctx2d.strokeStyle = "rgba(0,0,0,0.2)";
     ctx2d.lineWidth = cSz >= 8 ? 1.5 : 1;
+    ctx2d.beginPath();
     for (var gx = 0; gx <= dW; gx += 10) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut + gx * cSz, gut); ctx2d.lineTo(gut + gx * cSz, gut + dH * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut + gx * cSz, gut); ctx2d.lineTo(gut + gx * cSz, gut + dH * cSz);
     }
     for (var gy = 0; gy <= dH; gy += 10) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut, gut + gy * cSz); ctx2d.lineTo(gut + dW * cSz, gut + gy * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut, gut + gy * cSz); ctx2d.lineTo(gut + dW * cSz, gut + gy * cSz);
     }
+    ctx2d.stroke();
   }
 
   // Centre crosshair
@@ -678,26 +684,30 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     ctx2d.setLineDash([6, 4]);
     var cx2 = Math.floor(sW / 2) - offX;
     var cy2 = Math.floor(sH / 2) - offY;
+    ctx2d.beginPath();
     if (cx2 >= 0 && cx2 <= dW) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut + cx2 * cSz, gut); ctx2d.lineTo(gut + cx2 * cSz, gut + dH * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut + cx2 * cSz, gut); ctx2d.lineTo(gut + cx2 * cSz, gut + dH * cSz);
     }
     if (cy2 >= 0 && cy2 <= dH) {
-      ctx2d.beginPath(); ctx2d.moveTo(gut, gut + cy2 * cSz); ctx2d.lineTo(gut + dW * cSz, gut + cy2 * cSz); ctx2d.stroke();
+      ctx2d.moveTo(gut, gut + cy2 * cSz); ctx2d.lineTo(gut + dW * cSz, gut + cy2 * cSz);
     }
+    ctx2d.stroke();
     ctx2d.setLineDash([]);
   }
 
-  // Committed backstitch lines (no hover-erase highlight — that is drawn in drawPatternOverlayOnCanvas)
+  // Committed backstitch lines — batched into single path
   if (bsLines.length > 0) {
     ctx2d.lineCap = "round";
+    ctx2d.strokeStyle = "#333";
+    ctx2d.lineWidth = Math.max(2, cSz * 0.15);
+    ctx2d.beginPath();
     bsLines.forEach(function(ln) {
       var lx1 = ln.x1 - offX, ly1 = ln.y1 - offY, lx2 = ln.x2 - offX, ly2 = ln.y2 - offY;
       if (lx1 >= 0 && lx1 <= dW && ly1 >= 0 && ly1 <= dH && lx2 >= 0 && lx2 <= dW && ly2 >= 0 && ly2 <= dH) {
-        ctx2d.strokeStyle = "#333";
-        ctx2d.lineWidth = Math.max(2, cSz * 0.15);
-        ctx2d.beginPath(); ctx2d.moveTo(gut + lx1 * cSz, gut + ly1 * cSz); ctx2d.lineTo(gut + lx2 * cSz, gut + ly2 * cSz); ctx2d.stroke();
+        ctx2d.moveTo(gut + lx1 * cSz, gut + ly1 * cSz); ctx2d.lineTo(gut + lx2 * cSz, gut + ly2 * cSz);
       }
     });
+    ctx2d.stroke();
   }
 
   // Outer border

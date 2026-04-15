@@ -27,6 +27,37 @@ const[trackHistory,setTrackHistory]=useState([]);
 const[redoStack,setRedoStack]=useState([]);
 const TRACK_HISTORY_MAX=50;
 
+// ── Incremental stitch counters ──
+const doneCountRef=useRef(0);
+const colourDoneCountsRef=useRef({});
+const[countsVer,setCountsVer]=useState(0);
+function recomputeAllCounts(patArr,doneArr,hs,hd){
+  let dc=0,cdc={};
+  if(patArr){
+    for(let i=0;i<patArr.length;i++){const id=patArr[i].id;if(id==="__skip__"||id==="__empty__")continue;if(!cdc[id])cdc[id]={total:0,done:0,halfTotal:0,halfDone:0};cdc[id].total++;if(doneArr&&doneArr[i]){dc++;cdc[id].done++;}}
+    if(hs)hs.forEach(function(hsv,idx){
+      if(hsv.fwd){var id=hsv.fwd.id;if(!cdc[id])cdc[id]={total:0,done:0,halfTotal:0,halfDone:0};cdc[id].halfTotal++;var hdv=hd&&hd.get(idx);if(hdv&&hdv.fwd)cdc[id].halfDone++;}
+      if(hsv.bck){var id=hsv.bck.id;if(!cdc[id])cdc[id]={total:0,done:0,halfTotal:0,halfDone:0};cdc[id].halfTotal++;var hdv=hd&&hd.get(idx);if(hdv&&hdv.bck)cdc[id].halfDone++;}
+    });
+  }
+  doneCountRef.current=dc;colourDoneCountsRef.current=cdc;setCountsVer(function(v){return v+1;});
+}
+function applyDoneCountsDelta(changes,patArr,newDoneArr){
+  if(!changes||!changes.length||!patArr)return;
+  var dc=doneCountRef.current,cdc=colourDoneCountsRef.current;
+  // Shallow-copy only affected colour entries
+  var touched={};
+  for(var i=0;i<changes.length;i++){
+    var idx=changes[i].idx,oldV=changes[i].oldVal,newV=newDoneArr[idx];
+    if(oldV===newV)continue;
+    var id=patArr[idx].id;if(id==="__skip__"||id==="__empty__")continue;
+    if(!touched[id]){touched[id]=true;cdc[id]=cdc[id]?{total:cdc[id].total,done:cdc[id].done,halfTotal:cdc[id].halfTotal,halfDone:cdc[id].halfDone}:{total:0,done:0,halfTotal:0,halfDone:0};}
+    if(oldV&&!newV){dc--;cdc[id].done--;}
+    else if(!oldV&&newV){dc++;cdc[id].done++;}
+  }
+  doneCountRef.current=dc;colourDoneCountsRef.current=cdc;setCountsVer(function(v){return v+1;});
+}
+
 const[sessions,setSessions]=useState([]);
 const[statsSessions,setStatsSessions]=useState([]);
 const totalTime=useMemo(()=>{if(!statsSessions||statsSessions.length===0)return 0;return statsSessions.reduce(function(sum,s){return sum+getSessionSeconds(s);},0);},[statsSessions]);
@@ -177,8 +208,6 @@ const [importArLock, setImportArLock] = useState(true);
 const [importName, setImportName] = useState("");
 const [importFabricCt, setImportFabricCt] = useState(14);
 
-const prevDoneCount=useRef(0);
-const modeToggleRef=useRef(0);
 const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
 const projectIdRef=useRef(null);    // current project's storage ID
 const createdAtRef=useRef(null);    // stable createdAt ISO string for the active project
@@ -193,7 +222,7 @@ const tStripRef=useRef(null);
 const tOverflowRef=useRef(null);
 const halfMenuRef=useRef(null);
 
-const doneCount=useMemo(()=>{if(!done)return 0;let c=0;for(let i=0;i<done.length;i++)if(done[i])c++;return c;},[done]);
+const doneCount=countsVer>=0?doneCountRef.current:0;
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id!=="__skip__"&&id!=="__empty__")c++;}return c;},[pat]);
 
 // Half-stitch counts
@@ -219,17 +248,10 @@ const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(sta
 const todayBarPct=combinedTotal>0?Math.min((todayStitchesForBar/combinedTotal)*100,Math.min(progressPct,100)):0;
 const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
 
-const colourDoneCounts=useMemo(()=>{
-  if(!pat||!done)return{};
-  let c={};
-  for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id==="__skip__"||id==="__empty__")continue;if(!c[id])c[id]={total:0,done:0,halfTotal:0,halfDone:0};c[id].total++;if(done[i])c[id].done++;}
-  // Count half stitches per colour
-  halfStitches.forEach((hs,idx)=>{
-    if(hs.fwd){const id=hs.fwd.id;if(!c[id])c[id]={total:0,done:0,halfTotal:0,halfDone:0};c[id].halfTotal++;const hd=halfDone.get(idx);if(hd&&hd.fwd)c[id].halfDone++;}
-    if(hs.bck){const id=hs.bck.id;if(!c[id])c[id]={total:0,done:0,halfTotal:0,halfDone:0};c[id].halfTotal++;const hd=halfDone.get(idx);if(hd&&hd.bck)c[id].halfDone++;}
-  });
-  return c;
-},[pat,done,halfStitches,halfDone]);
+const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
+
+// Full recompute only on structural changes (pattern load, half-stitch structure edits)
+useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches]);
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
@@ -238,7 +260,7 @@ const focusableColors=useMemo(()=>{
   if(!highlightSkipDone)return list;
   const incomplete=list.filter(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;});
   return incomplete.length>0?incomplete:list;
-},[pal,colourDoneCounts,highlightSkipDone,onlyStarted]);
+},[pal,countsVer,highlightSkipDone,onlyStarted]);
 
 const sections=useMemo(()=>{
   if(!statsView||!pat||!done)return[];
@@ -282,7 +304,7 @@ useEffect(()=>{
     }
   }
   prevFocusDoneRef.current=isNowComplete;
-},[colourDoneCounts,focusColour,stitchView,highlightSkipDone,pal]);
+},[countsVer,focusColour,stitchView,highlightSkipDone,pal]);
 
 const estCompletion=useMemo(()=>{let t=totalTime+liveAutoElapsed;if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,liveAutoElapsed,doneCount,totalStitchable]);
 const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
@@ -322,7 +344,7 @@ function getStitchingDateLocal(now){
     if(deh>0&&d.getHours()<deh)d.setDate(d.getDate()-1);
     const y=d.getFullYear(),m=('0'+(d.getMonth()+1)).slice(-2),day=('0'+d.getDate()).slice(-2);
     return y+'-'+m+'-'+day;
-  }catch(e){console.warn('Stats: getStitchingDateLocal error',e);const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+  }catch(e){const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
 }
 function recordAutoActivity(completed,undone){
   try{
@@ -364,7 +386,7 @@ function recordAutoActivity(completed,undone){
       pendingColoursRef.current.clear();
     }
     clearTimeout(autoIdleTimerRef.current);
-    autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){console.warn('Stats: idle finalise error',e);}},IDLE_THRESHOLD_MS);
+    autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){}},IDLE_THRESHOLD_MS);
     // Reset inactivity pause timer (only if not manually paused)
     clearTimeout(inactivityTimerRef.current);
     const inactThresh=(statsSettings.inactivityPauseSec||0)*1000;
@@ -377,7 +399,7 @@ function recordAutoActivity(completed,undone){
         }
       },inactThresh);
     }
-  }catch(e){console.warn('Stats: recordAutoActivity error',e);}
+  }catch(e){}
 }
 function finaliseAutoSession(){
   try{
@@ -435,7 +457,7 @@ function finaliseAutoSession(){
       setSessionSavedToast({sessionId:finalised.id,stitches:finalised.netStitches,durationMin:finalised.durationMinutes,showNoteInput:false,noteText:''});
     }
     return finalised;
-  }catch(e){console.warn('Stats: finaliseAutoSession error',e);currentAutoSessionRef.current=null;return null;}
+  }catch(e){currentAutoSessionRef.current=null;return null;}
 }
 finaliseAutoSessionRef.current=finaliseAutoSession;
 
@@ -517,7 +539,7 @@ useEffect(()=>{
               return unique.length>0?[...prev,...unique]:prev;
             });
           }
-        }catch(me){console.warn('Stats: milestone check error',me);}
+        }catch(me){}
       }
     }
     // Auto-snapshot: on new stitching day, save a snapshot of the current done-state
@@ -542,10 +564,10 @@ useEffect(()=>{
           });
           lastSnapshotDateRef.current=today;
         }
-      }catch(e){console.warn('Stats: auto-snapshot error',e);}
+      }catch(e){}
     }
     prevAutoCountRef.current={done:curDone,halfDone:curHalf};
-  }catch(e){console.warn('Stats: auto-detect effect error',e);}
+  }catch(e){}
 },[doneCount,halfStitchCounts.done]);
 // Session onboarding toast: auto-dismiss after 8s (only for very first session ever)
 useEffect(()=>{
@@ -585,11 +607,11 @@ useEffect(()=>{
       if(!prev.monthly&&cur>=monthlyGoal){goalCelebrationRef.current={...prev,monthly:true};setCelebration({label:'Monthly goal reached! '+cur.toLocaleString()+' / '+monthlyGoal.toLocaleString()+' stitches',pct:null});}
       else if(prev.monthly&&cur<monthlyGoal)goalCelebrationRef.current={...prev,monthly:false};
     }
-  }catch(e){console.warn('Stats: goal-completion effect error',e);}
+  }catch(e){}
 },[todayStitchesForBar,liveAutoStitches,statsSessions,statsSettings]);
 // Edit session note
 function editSessionNote(sessionId,noteText){
-  try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){console.warn('Stats: editSessionNote error',e);}
+  try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){}
 }
 
 // ═══ Analysis worker lifecycle ═══
@@ -604,8 +626,8 @@ useEffect(()=>{
         setAnalysisRunning(false);
       }
     };
-    w.onerror=function(err){console.warn("Analysis worker error:",err);setAnalysisRunning(false);};
-  }catch(e){console.warn("Could not start analysis worker:",e);}
+    w.onerror=function(err){setAnalysisRunning(false);};
+  }catch(e){}
   return()=>{clearTimeout(analysisThrottleRef.current);if(analysisWorkerRef.current){analysisWorkerRef.current.terminate();analysisWorkerRef.current=null;}};
 },[]);
 
@@ -671,7 +693,7 @@ const threadUsageSummary=useMemo(()=>{
   return{isolated,small,medium,large,total,estChanges,mostScattered,mostClustered};
 },[analysisResult,pat]);
 
-function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0)pushTrackHistory(changes);setDone(nd);}
+function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);}setDone(nd);}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 function copyProgressSummary(){
   let t=totalTime+liveAutoElapsed;
@@ -705,6 +727,7 @@ function undoTrack(){
   let nd=new Uint8Array(done);
   let redoEntry=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
+  applyDoneCountsDelta(redoEntry,pat,nd);
   setDone(nd);
   setTrackHistory(prev=>prev.slice(0,-1));
   setRedoStack(prev=>{let n=[...prev,redoEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
@@ -715,6 +738,7 @@ function redoTrack(){
   let nd=new Uint8Array(done);
   let undoEntry=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
+  applyDoneCountsDelta(undoEntry,pat,nd);
   setDone(nd);
   setRedoStack(prev=>prev.slice(0,-1));
   setTrackHistory(prev=>{let n=[...prev,undoEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
@@ -768,7 +792,7 @@ function handleStitchRemoval(cellIdx) {
 
   const newPat = [...pat];
   newPat[cellIdx] = { id:"__empty__", type:"skip", rgb:[255,255,255], lab:[100,0,0] };
-  if (previousDone) { const nd=new Uint8Array(done); nd[cellIdx]=0; setDone(nd); }
+  if (previousDone) { const nd=new Uint8Array(done); nd[cellIdx]=0; applyDoneCountsDelta([{idx:cellIdx,oldVal:1}],pat,nd); setDone(nd); }
   const newPal = rebuildPaletteCounts(newPat, pal);
   const newCmap = {}; newPal.forEach(p => { newCmap[p.id] = p; });
   setPat(newPat); setPal(newPal); setCmap(newCmap);
@@ -842,7 +866,7 @@ function applyUndo() {
     if (previousEditEntry === null) newEdits.delete(cellIdx);
     else newEdits.set(cellIdx, previousEditEntry);
     setSingleStitchEdits(newEdits);
-    if (previousDone) { const nd=new Uint8Array(done); nd[cellIdx]=1; setDone(nd); }
+    if (previousDone) { const nd=new Uint8Array(done); nd[cellIdx]=1; applyDoneCountsDelta([{idx:cellIdx,oldVal:0}],pat,nd); setDone(nd); }
     const newPal = rebuildPaletteCounts(newPat, pal);
     const newCmap = {}; newPal.forEach(p => { newCmap[p.id] = p; });
     setPat(newPat); setPal(newPal); setCmap(newCmap);
@@ -1791,11 +1815,13 @@ useEffect(() => {
 }, []);
 
 // ═══ Tracker auto-save ═══
-// Builds a fresh snapshot on every relevant state change (synchronous, no delay).
-// The actual DB write is debounced 5 seconds to avoid hammering storage.
-// lastSnapshotRef is always up-to-date, so beforeunload can use it safely.
-useEffect(() => {
-  if (!pat || !pal) return;
+// Marks the project as dirty on every relevant state change but defers the
+// expensive snapshot serialisation until the 5-second debounce timer fires.
+// lastSnapshotRef is rebuilt lazily by buildSnapshot() for beforeunload.
+const autoSaveDirtyRef = useRef(false);
+const buildSnapshotRef = useRef(null);
+const buildSnapshot = () => {
+  if (!pat || !pal) return null;
   if (!projectIdRef.current) projectIdRef.current = "proj_" + Date.now();
   if (!createdAtRef.current) createdAtRef.current = new Date().toISOString();
   const sseArr = [...singleStitchEdits.entries()];
@@ -1804,7 +1830,7 @@ useEffect(() => {
     bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb } : undefined
   }]);
   const hdArr = [...halfDone.entries()];
-  const project = {
+  return {
     version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
     createdAt: createdAtRef.current, updatedAt: new Date().toISOString(),
     settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
@@ -1817,8 +1843,17 @@ useEffect(() => {
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
   };
-  lastSnapshotRef.current = project;
+};
+buildSnapshotRef.current = buildSnapshot;
+useEffect(() => {
+  if (!pat || !pal) return;
+  autoSaveDirtyRef.current = true;
   const saveTimer = setTimeout(() => {
+    if (!autoSaveDirtyRef.current) return;
+    autoSaveDirtyRef.current = false;
+    const project = buildSnapshot();
+    if (!project) return;
+    lastSnapshotRef.current = project;
     ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Tracker auto-save failed:", err));
     saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err));
     if (typeof StashBridge !== "undefined" && skeinData.length > 0) {
@@ -1833,7 +1868,7 @@ useEffect(() => {
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
     halfStitches, halfDone, singleStitchEdits, liveAutoElapsed,
-    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots]);
+    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots, achievedMilestones]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 // Uses only refs so the handler is never stale; drag in-progress mutations are applied
@@ -1842,7 +1877,12 @@ useEffect(() => {
   const handleBeforeUnload = () => {
     try {
     isUnloadingRef.current = true;
-    const project = lastSnapshotRef.current;
+    // Build a fresh snapshot if dirty (deferred save may not have fired yet)
+    let project = lastSnapshotRef.current;
+    if (autoSaveDirtyRef.current || !project) {
+      const fresh = buildSnapshotRef.current();
+      if (fresh) { project = fresh; lastSnapshotRef.current = fresh; }
+    }
     if (!project) return;
     let projectToSave = project;
     // If a drag is in progress, apply the pending in-place mutations to a fresh done copy
@@ -1875,7 +1915,7 @@ useEffect(() => {
       .catch(err => console.error("Tracker unload auto-save failed:", err));
     saveProjectToDB(projectToSave)
       .catch(err => console.error("Tracker DB unload auto-save failed:", err));
-    } catch(e) { console.warn('beforeunload save error', e); }
+    } catch(e) {}
   };
   window.addEventListener("beforeunload", handleBeforeUnload);
   return () => window.removeEventListener("beforeunload", handleBeforeUnload);
@@ -2536,6 +2576,7 @@ function handleStitchMouseDown(e){
     }
     if(changes.length){
       pushTrackHistory(changes);
+      applyDoneCountsDelta(changes,pat,done);
       setDone(new Uint8Array(done));
       renderStitch();
     }
@@ -2570,14 +2611,16 @@ function handleStitchMouseMove(e){
     let idx=gc.gy*sW+gc.gx;
     let cell=pat[idx];
     if(cell && cell.id!=="__skip__" && cell.id!=="__empty__"){
-      let name="";
-      if(cell.type==="blend"){
-        name=cell.threads[0].name+"+"+cell.threads[1].name;
-      }else{
-        let t=DMC.find(d=>d.id===cell.id);
-        if(t) name=t.name;
+      // Only update state if the hovered cell actually changed
+      if(!hoverInfo || hoverInfo.row!==gc.gy+1 || hoverInfo.col!==gc.gx+1){
+        let name="";
+        if(cell.type==="blend"){
+          name=cell.threads[0].name+"+"+cell.threads[1].name;
+        }else{
+          let ci=cmap&&cmap[cell.id]; name=ci?ci.name:"";
+        }
+        setHoverInfo({row:gc.gy+1, col:gc.gx+1, id:cell.id, name:name, x:e.clientX, y:e.clientY});
       }
-      setHoverInfo({row:gc.gy+1, col:gc.gx+1, id:cell.id, name:name, x:e.clientX, y:e.clientY});
     } else {
       setHoverInfo(null);
     }
@@ -2605,6 +2648,7 @@ function handleMouseUp(){
   if(isPanning){setIsPanning(false);return;}
   if(dragStateRef.current.isDragging&&dragChangesRef.current.length>0){
     pushTrackHistory([...dragChangesRef.current]);
+    applyDoneCountsDelta(dragChangesRef.current,pat,done);
     let nd = new Uint8Array(done);
     setDone(nd);
     dragChangesRef.current=[];
@@ -2692,6 +2736,7 @@ function handleTouchStart(e){
     // End any active stitch drag
     if(dragStateRef.current.isDragging&&dragChangesRef.current.length>0){
       pushTrackHistory([...dragChangesRef.current]);
+      applyDoneCountsDelta(dragChangesRef.current,pat,done);
       setDone(new Uint8Array(done)); dragChangesRef.current=[];
     }
     dragStateRef.current.isDragging=false;
@@ -2774,6 +2819,7 @@ function handleTouchEnd(e){
           }
           if(changes.length){
             pushTrackHistory(changes);
+            applyDoneCountsDelta(changes,pat,done);
             setDone(new Uint8Array(done));
             renderStitch();
           }
@@ -2783,6 +2829,7 @@ function handleTouchEnd(e){
         const nd=new Uint8Array(done);
         nd[idx]=nv;
         pushTrackHistory([{idx,oldVal:done[idx]}]);
+        applyDoneCountsDelta([{idx,oldVal:done[idx]}],pat,nd);
         setDone(nd);
         drawCellDirectly(idx,nv);
       }
@@ -2873,7 +2920,7 @@ useEffect(()=>{
   window.addEventListener("keydown",handleKeyDown);
   window.addEventListener("keyup",handleKeyUp);
   return()=>{window.removeEventListener("keydown",handleKeyDown);window.removeEventListener("keyup",handleKeyUp);};
-},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,halfMenuOpen,tOverflowOpen,drawer,halfDisambig,halfStitchTool,halfToast,focusColour,pat,pal,undoSnapshot,colourDoneCounts,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive]);
+},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,halfMenuOpen,tOverflowOpen,drawer,halfDisambig,halfStitchTool,halfToast,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
@@ -3050,7 +3097,7 @@ return(
         </>}
         {stitchMode==="track"&&trackHistory.length>0&&<button className="tb-ovf-item" onClick={()=>{undoTrack();setTOverflowOpen(false);}}>↩ Undo ({trackHistory.length})</button>}
         {stitchMode==="track"&&redoStack.length>0&&<button className="tb-ovf-item" onClick={()=>{redoTrack();setTOverflowOpen(false);}}>↪ Redo ({redoStack.length})</button>}
-        {done&&doneCount>0&&<button className="tb-ovf-item" style={{color:"#dc2626"}} onClick={()=>{if(confirm("Clear all progress?")){setDone(new Uint8Array(pat.length));setTrackHistory([]);setRedoStack([]);}setTOverflowOpen(false);}}>Reset progress</button>}
+        {done&&doneCount>0&&<button className="tb-ovf-item" style={{color:"#dc2626"}} onClick={()=>{if(confirm("Clear all progress?")){var nd=new Uint8Array(pat.length);setDone(nd);recomputeAllCounts(pat,nd,halfStitches,halfDone);setTrackHistory([]);setRedoStack([]);}setTOverflowOpen(false);}}>Reset progress</button>}
         {pat&&pal&&<button className="tb-ovf-item" onClick={()=>{copyProgressSummary();setTOverflowOpen(false);}}>{Icons.clipboard()} Copy Progress Summary</button>}}
         <div className="tb-ovf-sep"/>
       </>}

@@ -954,8 +954,8 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
     setEdited({ ...edited, tags: edited.tags.filter(t => t !== tagToRemove) });
   };
 
-  const removeThread = (idToRemove) => {
-    setEdited({ ...edited, threads: edited.threads.filter(t => t.id !== idToRemove) });
+  const removeThread = (indexToRemove) => {
+    setEdited({ ...edited, threads: edited.threads.filter((_, i) => i !== indexToRemove) });
   };
 
   const updateThreadQty = (idx, newQty) => {
@@ -1137,7 +1137,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
                       <span style={{ fontSize: 11, color: "#94a3b8", width: 16 }}>{displayUnit}</span>
                     </div>
 
-                    <button onClick={() => removeThread(t.id)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: "4px" }}>×</button>
+                    <button onClick={() => removeThread(idx)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: "4px" }}>×</button>
                   </div>
                 );
               })}

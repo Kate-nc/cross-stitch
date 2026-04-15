@@ -89,6 +89,10 @@ function parseOXS(xmlString) {
     throw new Error("Could not determine chart dimensions");
   }
 
+  if (width > 5000 || height > 5000) {
+    throw new Error("Chart dimensions too large (max 5000×5000): " + width + "×" + height);
+  }
+
   // Parse palette
   const paletteMap = {};
   const palContainer = chart.querySelector("palette") || chart.querySelector("Palette") || chart.querySelector("colors") || chart.querySelector("Colors");

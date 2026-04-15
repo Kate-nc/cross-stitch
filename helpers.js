@@ -1,4 +1,14 @@
-function drawCk(ctx,x,y,s){for(let cy=0;cy<s;cy+=CK)for(let cx=0;cx<s;cx+=CK){ctx.fillStyle=((Math.floor(cx/CK)+Math.floor(cy/CK))%2===0)?"#f0f0f0":"#dcdcdc";ctx.fillRect(x+cx,y+cy,Math.min(CK,s-cx),Math.min(CK,s-cy));}}
+var _ckCache={sz:0,canvas:null};
+function drawCk(ctx,x,y,s){
+  if(s<=0)return;
+  if(_ckCache.sz!==s){
+    var c=document.createElement("canvas");c.width=s;c.height=s;
+    var cx=c.getContext("2d");
+    for(var cy2=0;cy2<s;cy2+=CK)for(var cx2=0;cx2<s;cx2+=CK){cx.fillStyle=((Math.floor(cx2/CK)+Math.floor(cy2/CK))%2===0)?"#f0f0f0":"#dcdcdc";cx.fillRect(cx2,cy2,Math.min(CK,s-cx2),Math.min(CK,s-cy2));}
+    _ckCache.sz=s;_ckCache.canvas=c;
+  }
+  ctx.drawImage(_ckCache.canvas,x,y);
+}
 
 function fmtTime(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?`${h}h ${m}m`:`${m}m`;}
 function fmtTimeL(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);if(h>0)return`${h} hr${h>1?"s":""} ${m} min`;return`${m} min`;}
@@ -55,7 +65,11 @@ async function ensurePersistence() {
   return false;
 }
 
+var _helpersCachedDB = null;
 function getDB() {
+  if (_helpersCachedDB) {
+    try { _helpersCachedDB.transaction(STORE_NAME); return Promise.resolve(_helpersCachedDB); } catch(_) { _helpersCachedDB = null; }
+  }
   return new Promise((resolve, reject) => {
     ensurePersistence().catch(() => {});
     let request = indexedDB.open(DB_NAME, 3);
@@ -71,7 +85,15 @@ function getDB() {
         db.createObjectStore("stats_summaries");
       }
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      let db = request.result;
+      db.onversionchange = () => {
+        try { db.close(); } catch(_) {}
+        if (_helpersCachedDB === db) _helpersCachedDB = null;
+      };
+      _helpersCachedDB = db;
+      resolve(db);
+    };
     request.onerror = () => reject(request.error);
   });
 }
@@ -910,7 +932,19 @@ function getColourTimeline(sessions) {
   return timeline;
 }
 
-// hitTestHalfStitch is replaced by hitTestQuadrant above.
+// Merge two selection masks using the given operation mode.
+function mergeMasks(existing, newMask, opMode, size) {
+  var out = new Uint8Array(size);
+  for (var i = 0; i < size; i++) {
+    var e = existing ? existing[i] : 0;
+    var n = newMask[i];
+    if (opMode === "add")        out[i] = (e || n) ? 1 : 0;
+    else if (opMode === "subtract")  out[i] = (e && !n) ? 1 : 0;
+    else if (opMode === "intersect") out[i] = (e && n) ? 1 : 0;
+    else                         out[i] = n; // replace
+  }
+  return out;
+}
 
 /**
  * Draws geometric shapes for the standard pattern symbols directly onto a jsPDF instance.
