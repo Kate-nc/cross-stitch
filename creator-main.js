@@ -242,6 +242,35 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   usePreviewHook(state);
   useKeyboardShortcutsHook(state, history, io);
 
+  // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
+  // Handler identity is stabilised via a ref; the ref is updated synchronously on
+  // each render so the latest function is always called despite the empty dep list.
+  const _cvHRef  = React.useRef(canvas);  _cvHRef.current  = canvas;
+  const _ioRef   = React.useRef(io);      _ioRef.current   = io;
+  const _histRef = React.useRef(history); _histRef.current = history;
+
+  const stableHandlePatPointerDown   = React.useCallback(function(e){_cvHRef.current.handlePatPointerDown(e);},   []);
+  const stableHandlePatPointerMove   = React.useCallback(function(e){_cvHRef.current.handlePatPointerMove(e);},   []);
+  const stableHandlePatPointerUp     = React.useCallback(function(e){_cvHRef.current.handlePatPointerUp(e);},     []);
+  const stableHandlePatPointerLeave  = React.useCallback(function(e){_cvHRef.current.handlePatPointerLeave(e);},  []);
+  const stableHandlePatPointerCancel = React.useCallback(function(e){_cvHRef.current.handlePatPointerCancel(e);}, []);
+  const stableHandleCropPointerDown  = React.useCallback(function(e){_cvHRef.current.handleCropPointerDown(e);},  []);
+  const stableHandleCropPointerMove  = React.useCallback(function(e){_cvHRef.current.handleCropPointerMove(e);},  []);
+  const stableHandleCropPointerUp    = React.useCallback(function(e){_cvHRef.current.handleCropPointerUp(e);},    []);
+  const stableHandleCropPointerCancel= React.useCallback(function(e){_cvHRef.current.handleCropPointerCancel(e);},[]);
+  const stableApplyCrop              = React.useCallback(function()  {_cvHRef.current.applyCrop();},               []);
+  const stableSrcClick               = React.useCallback(function(e){_cvHRef.current.srcClick(e);},               []);
+  const stableAutoCrop               = React.useCallback(function()  {_cvHRef.current.autoCrop();},               []);
+
+  const stableSaveProject         = React.useCallback(function()  {_ioRef.current.saveProject();},         []);
+  const stableDoSaveProject       = React.useCallback(function(n) {_ioRef.current.doSaveProject(n);},      []);
+  const stableHandleFile          = React.useCallback(function(e) {_ioRef.current.handleFile(e);},         []);
+  const stableLoadProject         = React.useCallback(function(e) {_ioRef.current.loadProject(e);},        []);
+  const stableHandleOpenInTracker = React.useCallback(function()  {_ioRef.current.handleOpenInTracker();}, []);
+
+  const stableUndoEdit = React.useCallback(function(){_histRef.current.undoEdit();}, []);
+  const stableRedoEdit = React.useCallback(function(){_histRef.current.redoEdit();}, []);
+
   // ── GenerationContext value (image-to-pattern generation params & callbacks) ──
   const genCtx = useMemo(function() { return {
     img: state.img, setImg: state.setImg,
@@ -289,13 +318,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     stashPalette: state.stashPalette,
     blendsAutoDisabled: state.blendsAutoDisabled,
     effectiveAllowBlends: state.effectiveAllowBlends,
-    handleCropPointerDown: canvas.handleCropPointerDown,
-    handleCropPointerMove: canvas.handleCropPointerMove,
-    handleCropPointerUp: canvas.handleCropPointerUp,
-    handleCropPointerCancel: canvas.handleCropPointerCancel,
-    applyCrop: canvas.applyCrop,
-    srcClick: canvas.srcClick,
-    autoCrop: canvas.autoCrop,
+    handleCropPointerDown: stableHandleCropPointerDown,
+    handleCropPointerMove: stableHandleCropPointerMove,
+    handleCropPointerUp: stableHandleCropPointerUp,
+    handleCropPointerCancel: stableHandleCropPointerCancel,
+    applyCrop: stableApplyCrop,
+    srcClick: stableSrcClick,
+    autoCrop: stableAutoCrop,
   }; }, [
     state.img, state.isUploading, state.isDragging,
     state.maxC, state.bri, state.con, state.sat, state.dith,
@@ -312,9 +341,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.cleanupDiff, state.showCleanupDiff,
     state.stashThreadCount, state.effectiveMaxC, state.stashPalette,
     state.blendsAutoDisabled, state.effectiveAllowBlends,
-    canvas.handleCropPointerDown, canvas.handleCropPointerMove,
-    canvas.handleCropPointerUp, canvas.handleCropPointerCancel,
-    canvas.applyCrop, canvas.srcClick, canvas.autoCrop,
   ]);
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
@@ -367,9 +393,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     previewDims: state.previewDims, setPreviewDims: state.setPreviewDims,
     previewHighlight: state.previewHighlight, setPreviewHighlight: state.setPreviewHighlight,
     previewTimerRef: state.previewTimerRef,
-    saveProject: io.saveProject, doSaveProject: io.doSaveProject,
-    handleFile: io.handleFile, loadProject: io.loadProject,
-    handleOpenInTracker: io.handleOpenInTracker,
+    saveProject: stableSaveProject, doSaveProject: stableDoSaveProject,
+    handleFile: stableHandleFile, loadProject: stableLoadProject,
+    handleOpenInTracker: stableHandleOpenInTracker,
     isActive: isActive,
   }; }, [
     state.tab, state.modal, state.sidebarOpen, state.loadError,
@@ -387,8 +413,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.previewUrl, state.previewStats, state.confettiData,
     state.previewHeatmap, state.previewMapped, state.previewColors,
     state.previewDims, state.previewHighlight,
-    io.saveProject, io.doSaveProject, io.handleFile, io.loadProject,
-    io.handleOpenInTracker, isActive,
+    isActive,
   ]);
 
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
@@ -426,12 +451,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     setTool: state.setTool, setHsTool: state.setHsTool, setPsTool: state.setPsTool,
     stitchType: state.stitchType, fitZ: state.fitZ,
     cs: state.cs,
-    undoEdit: history.undoEdit, redoEdit: history.redoEdit,
-    handlePatPointerDown: canvas.handlePatPointerDown,
-    handlePatPointerUp: canvas.handlePatPointerUp,
-    handlePatPointerMove: canvas.handlePatPointerMove,
-    handlePatPointerLeave: canvas.handlePatPointerLeave,
-    handlePatPointerCancel: canvas.handlePatPointerCancel,
+    undoEdit: stableUndoEdit, redoEdit: stableRedoEdit,
+    handlePatPointerDown: stableHandlePatPointerDown,
+    handlePatPointerUp: stableHandlePatPointerUp,
+    handlePatPointerMove: stableHandlePatPointerMove,
+    handlePatPointerLeave: stableHandlePatPointerLeave,
+    handlePatPointerCancel: stableHandlePatPointerCancel,
     isDraggingRef: canvas.isDraggingRef,
     paletteSwap: state.paletteSwap,
     selectionMask: state.selectionMask, setSelectionMask: state.setSelectionMask,
@@ -485,6 +510,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.selectionModifier, state.bsLines, state.bsStart, state.bsContinuous,
     state.editHistory, state.redoHistory, state.stitchType, state.cs,
     state.paletteSwap,
+    state.pat, state.cmap, state.sW, state.sH,
     state.selectionMask, state.wandTolerance, state.wandContiguous,
     state.wandOpMode, state.wandPanel,
     state.confettiThreshold, state.confettiPreview,
@@ -494,10 +520,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.selectionStats, state.selectionReplaceColorCount,
     state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor,
     state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress,
-    history.undoEdit, history.redoEdit,
-    canvas.handlePatPointerDown, canvas.handlePatPointerUp,
-    canvas.handlePatPointerMove, canvas.handlePatPointerLeave,
-    canvas.handlePatPointerCancel,
   ]);
 
   // ── PatternDataContext value (core pattern data, dimensions, derived values) ──
