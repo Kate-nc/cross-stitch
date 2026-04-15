@@ -99,7 +99,16 @@ const ProjectStorage = (() => {
           db.createObjectStore(STATS_STORE);
         }
       };
-      request.onsuccess = () => { _cachedDB = request.result; resolve(request.result); };
+      request.onblocked = () => console.warn("ProjectStorage IndexedDB open was blocked by another open connection.");
+      request.onsuccess = () => {
+        let db = request.result;
+        db.onversionchange = () => {
+          db.close();
+          if (_cachedDB === db) _cachedDB = null;
+        };
+        _cachedDB = db;
+        resolve(db);
+      };
       request.onerror = () => reject(request.error);
     });
   }

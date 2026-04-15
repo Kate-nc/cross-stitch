@@ -85,7 +85,15 @@ function getDB() {
         db.createObjectStore("stats_summaries");
       }
     };
-    request.onsuccess = () => { _helpersCachedDB = request.result; resolve(request.result); };
+    request.onsuccess = () => {
+      let db = request.result;
+      db.onversionchange = () => {
+        try { db.close(); } catch(_) {}
+        if (_helpersCachedDB === db) _helpersCachedDB = null;
+      };
+      _helpersCachedDB = db;
+      resolve(db);
+    };
     request.onerror = () => reject(request.error);
   });
 }

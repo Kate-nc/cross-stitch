@@ -250,8 +250,8 @@ const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
 
 const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
 
-// Full recompute on structural changes (pattern load, half-stitch edits)
-useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches,halfDone]);
+// Full recompute only on structural changes (pattern load, half-stitch structure edits)
+useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches]);
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
@@ -1819,7 +1819,8 @@ useEffect(() => {
 // expensive snapshot serialisation until the 5-second debounce timer fires.
 // lastSnapshotRef is rebuilt lazily by buildSnapshot() for beforeunload.
 const autoSaveDirtyRef = useRef(false);
-const buildSnapshot = React.useCallback(() => {
+const buildSnapshotRef = useRef(null);
+const buildSnapshot = () => {
   if (!pat || !pal) return null;
   if (!projectIdRef.current) projectIdRef.current = "proj_" + Date.now();
   if (!createdAtRef.current) createdAtRef.current = new Date().toISOString();
@@ -1842,7 +1843,8 @@ const buildSnapshot = React.useCallback(() => {
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
   };
-});
+};
+buildSnapshotRef.current = buildSnapshot;
 useEffect(() => {
   if (!pat || !pal) return;
   autoSaveDirtyRef.current = true;
@@ -1866,7 +1868,7 @@ useEffect(() => {
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
     halfStitches, halfDone, singleStitchEdits, liveAutoElapsed,
-    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots]);
+    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots, achievedMilestones]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 // Uses only refs so the handler is never stale; drag in-progress mutations are applied
@@ -1878,7 +1880,7 @@ useEffect(() => {
     // Build a fresh snapshot if dirty (deferred save may not have fired yet)
     let project = lastSnapshotRef.current;
     if (autoSaveDirtyRef.current || !project) {
-      const fresh = buildSnapshot();
+      const fresh = buildSnapshotRef.current();
       if (fresh) { project = fresh; lastSnapshotRef.current = fresh; }
     }
     if (!project) return;
