@@ -266,6 +266,13 @@ const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total
 useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches]);
 useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_layerVis_'+pid,JSON.stringify(layerVis));}catch(_){}},[layerVis]);
 useEffect(()=>{try{localStorage.setItem('cs_bsThickness',String(bsThickness));}catch(_){}},[bsThickness]);
+// ── Zoom-adaptive detail level ──
+const[lockDetailLevel,setLockDetailLevel]=useState(()=>{try{return !!JSON.parse(localStorage.getItem('cs_lockDetail')||'false');}catch(_){return false;}});
+useEffect(()=>{try{localStorage.setItem('cs_lockDetail',String(lockDetailLevel));}catch(_){}},[lockDetailLevel]);
+// tierRef: current render tier (1–4) with hysteresis; default zoom=1→scs=20→Tier 3
+const tierRef=useRef(3);
+const tierFadeRef=useRef({symbolOpacity:1.0,bsHsOpacity:1.0,animRafId:null});
+const renderStitchRef=useRef(null);
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
@@ -1979,6 +1986,21 @@ useEffect(() => {
     halfStitches, halfDone, parkMarkers, totalTime, liveAutoElapsed, sessions, hlRow, hlCol,
     threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots]);
 
+// ── Zoom-adaptive tier helpers ──
+// Compute rendering tier (1–4) from cell size with hysteresis.
+// Thresholds — appear/disappear: T1↔T2 5px/3px, T2↔T3 13px/10px, T3↔T4 26px/22px
+function computeDetailTier(cSz,cur){
+  let t=cur;
+  for(let i=0;i<4;i++){let n=t;if(t===1){if(cSz>=5)n=2;}else if(t===2){if(cSz<3)n=1;else if(cSz>=13)n=3;}else if(t===3){if(cSz<10)n=2;else if(cSz>=26)n=4;}else{if(cSz<22)n=3;}if(n===t)break;t=n;}
+  return t;
+}
+// Symbol font size: Tier 3 (12–24px) scales 7→14px linearly; Tier 4 continues growing
+function tierSymFontSz(cSz){
+  if(cSz<=12)return 7;
+  if(cSz<=24)return Math.round(7+(cSz-12)*7/12);
+  return Math.round(14+(cSz-24)*0.5);
+}
+
 // ═══ Half-stitch cell rendering ═══
 // Renders half-stitch triangle fills, diagonal lines, and symbols for one cell.
 // Called from inside drawStitch and drawCellDirectly.
@@ -2067,14 +2089,16 @@ function _drawHalfStitchCell(ctx, px, py, cSz, hs, hd, cmap, view, focusColour, 
 function drawStitch(ctx,cSz,viewportRect){
   let gut=G,dW=sW,dH=sH;
 
-  // Clear full canvas — single fillRect is GPU-accelerated regardless of size,
-  // and avoids stale-cell jerk when scroll reveals previously undrawn areas.
+  // Determine effective tier and animated feature opacities
+  const tier=lockDetailLevel?3:tierRef.current;
+  const symAlpha=lockDetailLevel?1.0:tierFadeRef.current.symbolOpacity;
+  const bsHsAlpha=lockDetailLevel?1.0:tierFadeRef.current.bsHsOpacity;
+
   ctx.fillStyle="#fff";
   ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
 
-  // Compute cell draw range: viewport + overdraw buffer so cells just off-screen
-  // are pre-rendered before scrolling reveals them.
-  const OVERDRAW=400;
+  // Viewport culling: 20-cell overdraw buffer for smooth panning
+  const OVERDRAW=Math.max(40,20*cSz);
   let startX=0,startY=0,endX=dW,endY=dH;
   if(viewportRect){
     startX=Math.max(0,Math.floor((viewportRect.left-gut-OVERDRAW)/cSz));
@@ -2083,18 +2107,18 @@ function drawStitch(ctx,cSz,viewportRect){
     endY=Math.min(dH,Math.ceil((viewportRect.bottom-gut+OVERDRAW)/cSz));
   }
 
-  // Hoist font strings — same for all cells at a given zoom level
-  const fSym=`bold ${Math.max(7,cSz*0.65)}px monospace`;
-  const fCol=`bold ${Math.max(7,cSz*0.6)}px monospace`;
-  const fHlDim=`${Math.max(6,cSz*0.45)}px monospace`;
-  const fHlFocus=`bold ${Math.max(7,cSz*0.7)}px monospace`;
+  // Tier-aware font sizes
+  const symPx=tierSymFontSz(cSz);
+  const fSym=`bold ${symPx}px monospace`;
+  const fCol=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;
+  const fHlDim=`${Math.max(6,Math.round(cSz*0.45))}px monospace`;
+  const fHlFocus=`bold ${symPx}px monospace`;
   ctx.textAlign="center";ctx.textBaseline="middle";
 
-  // Zoom thresholds for half-stitch rendering detail
-  const zoomPct = stitchZoom * 100;
-  const hsLowZoom = zoomPct < 40;
-  const hsMedZoom = zoomPct >= 40 && zoomPct <= 80;
-  const hsHighZoom = zoomPct > 80;
+  // Half-stitch detail flags — driven by tier rather than raw zoom percentage
+  const hsLowZoom=tier===2;   // Tier 2: triangle fill only
+  const hsMedZoom=tier===3;   // Tier 3: triangle + diagonal line
+  const hsHighZoom=tier>=4;   // Tier 4: full detail (tri + line + symbol)
 
   for(let y=startY;y<endY;y++){
     for(let x=startX;x<endX;x++){
@@ -2102,45 +2126,70 @@ function drawStitch(ctx,cSz,viewportRect){
       let info=(m.id==="__skip__"||m.id==="__empty__")?null:(cmap?cmap[m.id]:null);
       let px=gut+x*cSz,py=gut+y*cSz;
       let isDn=done&&done[idx];
+
+      // ── Tier 1 fast path: flat color blocks, no symbols, no cell borders ──
+      if(tier===1){
+        if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle="#f0f4f8";ctx.fillRect(px,py,cSz,cSz);continue;}
+        if(isDn){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+        else{const r2=Math.round(m.rgb[0]*0.45+255*0.55),g2=Math.round(m.rgb[1]*0.45+255*0.55),b2=Math.round(m.rgb[2]*0.45+255*0.55);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
+        continue;
+      }
+
       let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__"&&m.id!=="__empty__";
       const effectiveDimmed=dimmed&&highlightMode!=="outline"&&highlightMode!=="tint";
-      // Dim level: 0=white, 1=full colour; used by isolate/spotlight backgrounds
       const dimR=Math.round(255-(255-m.rgb[0])*trackerDimLevel),dimG=Math.round(255-(255-m.rgb[1])*trackerDimLevel),dimB=Math.round(255-(255-m.rgb[2])*trackerDimLevel);
       const dimFill=effectiveDimmed?`rgb(${dimR},${dimG},${dimB})`:'#f1f5f9';
       if(m.id==="__skip__"||m.id==="__empty__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}
-        // Half stitches on skip/empty cells
         let hs=halfStitches.get(idx);
-        if(hs&&layerVis.half){
+        if(hs&&layerVis.half&&bsHsAlpha>0.01){
           let hd=halfDone.get(idx)||{};
+          ctx.save();ctx.globalAlpha=bsHsAlpha;
           _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,hsLowZoom,hsMedZoom,hsHighZoom);
+          ctx.restore();
         }
         continue;
       }
       if(layerVis.full){
       if(stitchView==="symbol"){
         if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-        else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#1e293b";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+        else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
       }else if(stitchView==="colour"){
         ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-        if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+        if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
       }else if(highlightMode==="outline"||highlightMode==="tint"){
         ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-        if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+        if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
         if(highlightMode==="tint"&&focusColour&&m.id===focusColour){const tr=parseInt(tintColor.slice(1,3),16),tg=parseInt(tintColor.slice(3,5),16),tb=parseInt(tintColor.slice(5,7),16);ctx.fillStyle=`rgba(${tr},${tg},${tb},${tintOpacity})`;ctx.fillRect(px,py,cSz,cSz);}
       }else if(highlightMode==="spotlight"){
         if(dimmed){ctx.fillStyle="#e8ecf0";ctx.fillRect(px,py,cSz,cSz);}
-        else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
+        else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
       }else{
         if(isDn){ctx.fillStyle=effectiveDimmed?dimFill:`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-        else if(dimmed){ctx.fillStyle=dimFill;ctx.fillRect(px,py,cSz,cSz);if(trackerDimLevel<0.25&&info&&cSz>=8){ctx.fillStyle=`rgba(0,0,0,${Math.max(0.04,0.12-trackerDimLevel*0.4)})`;ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}else if(trackerDimLevel>=0.25&&info&&cSz>=8){ctx.fillStyle=luminance(m.rgb)>140?'rgba(0,0,0,0.5)':'rgba(255,255,255,0.6)';ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-        else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#1e293b";ctx.font=fHlFocus;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+        else if(dimmed){ctx.fillStyle=dimFill;ctx.fillRect(px,py,cSz,cSz);if(symAlpha>0.01&&trackerDimLevel<0.25&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=`rgba(0,0,0,${Math.max(0.04,0.12-trackerDimLevel*0.4)})`;ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}else if(symAlpha>0.01&&trackerDimLevel>=0.25&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?'rgba(0,0,0,0.5)':'rgba(255,255,255,0.6)';ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+        else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=fHlFocus;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+      }
+      // Tier 4: thread ID secondary label below the symbol (cell > 40px)
+      if(tier>=4&&cSz>40&&info&&symAlpha>0.01&&m.id!=="__skip__"&&m.id!=="__empty__"){
+        ctx.save();ctx.globalAlpha=symAlpha*0.7;ctx.fillStyle="rgba(100,116,139,1)";
+        ctx.font=`${Math.max(6,Math.round(cSz*0.2))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+        ctx.fillText(m.id,px+cSz/2,py+cSz*0.8);ctx.restore();
       }
       } // end layerVis.full
-      // Render half stitches on top of full-stitch cells
+      // Tier 4: stitch direction indicators on undone full-stitch cells (cell > 40px)
+      if(tier>=4&&cSz>40&&m.id!=="__skip__"&&m.id!=="__empty__"&&!isDn&&layerVis.full){
+        ctx.save();ctx.globalAlpha=0.1;ctx.strokeStyle="#333";ctx.lineWidth=0.8;
+        const pd4=Math.max(2,cSz*0.12);
+        ctx.beginPath();ctx.moveTo(px+pd4,py+cSz-pd4);ctx.lineTo(px+cSz-pd4,py+pd4);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(px+pd4,py+pd4);ctx.lineTo(px+cSz-pd4,py+cSz-pd4);ctx.stroke();
+        ctx.restore();
+      }
+      // Render half stitches on top of full-stitch cells (faded at T1 boundary)
       let hs=halfStitches.get(idx);
-      if(hs&&layerVis.half){
+      if(hs&&layerVis.half&&bsHsAlpha>0.01){
         let hd=halfDone.get(idx)||{};
+        ctx.save();ctx.globalAlpha=bsHsAlpha;
         _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,layerVis.full?effectiveDimmed:false,hsLowZoom,hsMedZoom,hsHighZoom);
+        ctx.restore();
       }
       if(cSz>=4){ctx.strokeStyle=(effectiveDimmed&&layerVis.full)?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
     }
@@ -2169,18 +2218,24 @@ function drawStitch(ctx,cSz,viewportRect){
     ctx.setLineDash([]);ctx.restore();
   }
 
-  // Grid lines — only within visible range
-  if(cSz>=3){
+  // Grid lines — tier-adaptive
+  if(tier===1){
+    // Tier 1: only 10-block lines, subtle spatial reference
+    ctx.lineWidth=1;
+    for(let gx=startX;gx<=endX;gx++){if(gx%10!==0)continue;ctx.strokeStyle="rgba(204,204,204,0.4)";ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut+startY*cSz);ctx.lineTo(gut+gx*cSz,gut+endY*cSz);ctx.stroke();}
+    for(let gy=startY;gy<=endY;gy++){if(gy%10!==0)continue;ctx.strokeStyle="rgba(204,204,204,0.4)";ctx.beginPath();ctx.moveTo(gut+startX*cSz,gut+gy*cSz);ctx.lineTo(gut+endX*cSz,gut+gy*cSz);ctx.stroke();}
+  }else{
+    const gridOp=tier===2?0.30:tier===3?0.50:0.60;
+    const grid10Op=tier===2?0.60:tier===3?0.90:1.0;
+    const grid10Lw=tier>=4?2:1;
     for(let gx=startX;gx<=endX;gx++){
-      if(gx%10===0){ctx.strokeStyle="#444";ctx.lineWidth=2;}
-      else if(gx%5===0){ctx.strokeStyle="#aaa";ctx.lineWidth=1;}
-      else continue;
+      const is10=gx%10===0,is5=gx%5===0;if(!is5&&!is10)continue;
+      ctx.lineWidth=is10?grid10Lw:1;ctx.strokeStyle=is10?`rgba(68,68,68,${grid10Op})`:`rgba(170,170,170,${gridOp})`;
       ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut+startY*cSz);ctx.lineTo(gut+gx*cSz,gut+endY*cSz);ctx.stroke();
     }
     for(let gy=startY;gy<=endY;gy++){
-      if(gy%10===0){ctx.strokeStyle="#444";ctx.lineWidth=2;}
-      else if(gy%5===0){ctx.strokeStyle="#aaa";ctx.lineWidth=1;}
-      else continue;
+      const is10=gy%10===0,is5=gy%5===0;if(!is5&&!is10)continue;
+      ctx.lineWidth=is10?grid10Lw:1;ctx.strokeStyle=is10?`rgba(68,68,68,${grid10Op})`:`rgba(170,170,170,${gridOp})`;
       ctx.beginPath();ctx.moveTo(gut+startX*cSz,gut+gy*cSz);ctx.lineTo(gut+endX*cSz,gut+gy*cSz);ctx.stroke();
     }
     ctx.lineWidth=1;
@@ -2189,7 +2244,13 @@ function drawStitch(ctx,cSz,viewportRect){
   // Centre marks, crosshair, backstitch, park markers, border — always draw (cheap)
   if(showCtr){ctx.strokeStyle="rgba(200,60,60,0.3)";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(gut+Math.floor(sW/2)*cSz,gut+startY*cSz);ctx.lineTo(gut+Math.floor(sW/2)*cSz,gut+endY*cSz);ctx.stroke();ctx.beginPath();ctx.moveTo(gut+startX*cSz,gut+Math.floor(sH/2)*cSz);ctx.lineTo(gut+endX*cSz,gut+Math.floor(sH/2)*cSz);ctx.stroke();ctx.setLineDash([]);}
   if(hlRow>=0&&hlCol>=0){ctx.strokeStyle="rgba(59,130,246,0.6)";ctx.lineWidth=2;ctx.setLineDash([]);if(hlRow>=startY&&hlRow<endY){ctx.beginPath();ctx.moveTo(gut+startX*cSz,gut+hlRow*cSz+cSz/2);ctx.lineTo(gut+endX*cSz,gut+hlRow*cSz+cSz/2);ctx.stroke();}if(hlCol>=startX&&hlCol<endX){ctx.beginPath();ctx.moveTo(gut+hlCol*cSz+cSz/2,gut+startY*cSz);ctx.lineTo(gut+hlCol*cSz+cSz/2,gut+endY*cSz);ctx.stroke();}}
-  if(bsLines.length>0&&layerVis.backstitch){ctx.lineWidth=bsThickness;ctx.lineCap="round";bsLines.forEach(ln=>{ctx.strokeStyle=ln.color||"#333";ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();});}
+  // Backstitch: hidden at Tier 1, forced 1px at Tier 2, user thickness at Tier 3+
+  if(bsLines.length>0&&layerVis.backstitch&&bsHsAlpha>0.01){
+    ctx.save();ctx.globalAlpha=bsHsAlpha;
+    ctx.lineWidth=tier===2?1:bsThickness;ctx.lineCap="round";
+    bsLines.forEach(ln=>{ctx.strokeStyle=ln.color||"#333";ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();});
+    ctx.restore();
+  }
   if(parkMarkers.length>0){parkMarkers.forEach(pm=>{let cx2=gut+pm.x*cSz,cy2=gut+pm.y*cSz,r=Math.max(4,cSz*0.35);ctx.fillStyle=`rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;ctx.strokeStyle="#000";ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx2,cy2,r,0,Math.PI*2);ctx.fill();ctx.stroke();});}
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
 }
@@ -2211,8 +2272,33 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel]);
 useEffect(()=>renderStitch(),[renderStitch]);
+// Keep renderStitchRef current so animation callbacks always call the latest closure
+useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
+// Tier-change handler: compute new tier, animate feature opacities across boundaries
+useEffect(()=>{
+  const eff=lockDetailLevel?3:computeDetailTier(scs,tierRef.current);
+  tierRef.current=eff;
+  const tSym=eff>=3?1.0:0.0,tBsHs=eff>=2?1.0:0.0;
+  const startSym=tierFadeRef.current.symbolOpacity,startBsHs=tierFadeRef.current.bsHsOpacity;
+  if(tierFadeRef.current.animRafId){cancelAnimationFrame(tierFadeRef.current.animRafId);tierFadeRef.current.animRafId=null;}
+  if(Math.abs(startSym-tSym)>=0.01||Math.abs(startBsHs-tBsHs)>=0.01){
+    const durSym=tSym>startSym?200:150,durBsHs=tBsHs>startBsHs?200:150;
+    const startMs=performance.now();
+    const animate=()=>{
+      const el=performance.now()-startMs;
+      const tS=Math.min(1,el/durSym),tB=Math.min(1,el/durBsHs);
+      tierFadeRef.current.symbolOpacity=startSym+(tSym-startSym)*tS;
+      tierFadeRef.current.bsHsOpacity=startBsHs+(tBsHs-startBsHs)*tB;
+      if(renderStitchRef.current)renderStitchRef.current();
+      if(tS<1||tB<1){tierFadeRef.current.animRafId=requestAnimationFrame(animate);}
+      else{tierFadeRef.current.animRafId=null;}
+    };
+    tierFadeRef.current.animRafId=requestAnimationFrame(animate);
+  }
+  return()=>{if(tierFadeRef.current.animRafId){cancelAnimationFrame(tierFadeRef.current.animRafId);tierFadeRef.current.animRafId=null;}};
+},[scs,lockDetailLevel]);
 
 // ═══ Thread usage overlay rendering ═══
 useEffect(()=>{
@@ -2345,10 +2431,23 @@ function drawCellDirectly(idx, nv) {
   const info = m.id==="__skip__"||m.id==="__empty__"?null:(cmap?cmap[m.id]:null);
   const isDn = nv;
   const cSz = scs;
+  // Tier-aware rendering
+  const tier=lockDetailLevel?3:tierRef.current;
+  const symAlpha=lockDetailLevel?1.0:tierFadeRef.current.symbolOpacity;
+  const bsHsAlpha=lockDetailLevel?1.0:tierFadeRef.current.bsHsOpacity;
+  const symPx=tierSymFontSz(cSz);
   const dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__"&&m.id!=="__empty__";
   const effectiveDimmed2=dimmed&&highlightMode!=="outline"&&highlightMode!=="tint";
 
   ctx.clearRect(px, py, cSz, cSz);
+
+  // Tier 1 fast path: flat color fill only
+  if(tier===1){
+    if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle="#f0f4f8";ctx.fillRect(px,py,cSz,cSz);return;}
+    if(isDn){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+    else{const r2=Math.round(m.rgb[0]*0.45+255*0.55),g2=Math.round(m.rgb[1]*0.45+255*0.55),b2=Math.round(m.rgb[2]*0.45+255*0.55);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
+    return;
+  }
 
   if(m.id==="__skip__"||m.id==="__empty__"){
     drawCk(ctx,px,py,cSz);
@@ -2356,40 +2455,47 @@ function drawCellDirectly(idx, nv) {
       ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";
       ctx.strokeRect(px,py,cSz,cSz);
     }
-    // Half stitches on skip/empty cells in direct draw
     let hs=halfStitches.get(idx);
-    if(hs){
+    if(hs&&bsHsAlpha>0.01){
       let hd=halfDone.get(idx)||{};
-      let zp=stitchZoom*100;
-      _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,zp<40,zp>=40&&zp<=80,zp>80);
+      ctx.save();ctx.globalAlpha=bsHsAlpha;
+      _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,tier===2,tier===3,tier>=4);
+      ctx.restore();
     }
     return;
   }
 
   if(stitchView==="symbol"){
     if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-    else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#1e293b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+    else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=`bold ${symPx}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
   }else if(stitchView==="colour"){
     ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-    if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+    if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
   }else if(highlightMode==="outline"||highlightMode==="tint"){
     ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-    if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+    if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
     if(highlightMode==="tint"&&focusColour&&m.id===focusColour){const tr=parseInt(tintColor.slice(1,3),16),tg=parseInt(tintColor.slice(3,5),16),tb=parseInt(tintColor.slice(5,7),16);ctx.fillStyle=`rgba(${tr},${tg},${tb},${tintOpacity})`;ctx.fillRect(px,py,cSz,cSz);}
   }else if(highlightMode==="spotlight"){
     if(dimmed){ctx.fillStyle="#e8ecf0";ctx.fillRect(px,py,cSz,cSz);}
-    else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
+    else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
   }else{
     if(isDn){ctx.fillStyle=dimmed?"#f1f5f9":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-    else if(dimmed){ctx.fillStyle="#f1f5f9";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,cSz*0.45)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-    else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#1e293b";ctx.font=`bold ${Math.max(7,cSz*0.7)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+    else if(dimmed){ctx.fillStyle="#f1f5f9";ctx.fillRect(px,py,cSz,cSz);if(symAlpha>0.01&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,Math.round(cSz*0.45))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+    else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=`bold ${symPx}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
   }
-  // Half stitches on full-stitch cells in direct draw
+  // Tier 4 thread ID label
+  if(tier>=4&&cSz>40&&info&&symAlpha>0.01){
+    ctx.save();ctx.globalAlpha=symAlpha*0.7;ctx.fillStyle="rgba(100,116,139,1)";
+    ctx.font=`${Math.max(6,Math.round(cSz*0.2))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(m.id,px+cSz/2,py+cSz*0.8);ctx.restore();
+  }
+  // Half stitches
   let hs=halfStitches.get(idx);
-  if(hs){
+  if(hs&&bsHsAlpha>0.01){
     let hd=halfDone.get(idx)||{};
-    let zp=stitchZoom*100;
-    _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,effectiveDimmed2,zp<40,zp>=40&&zp<=80,zp>80);
+    ctx.save();ctx.globalAlpha=bsHsAlpha;
+    _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,effectiveDimmed2,tier===2,tier===3,tier>=4);
+    ctx.restore();
   }
   if(cSz>=4){ctx.strokeStyle=effectiveDimmed2?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
 }
@@ -3636,6 +3742,11 @@ return(
           {[['symbol','Symbol'],['colour','Colour'],['highlight','Highlight']].map(([k,l])=>
             <button key={k} className={stitchView===k?"on":""} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>
           )}
+        </div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",marginBottom:4}}>
+          <label title="Disable zoom-adaptive rendering — always use Tier 3 (Detail) regardless of zoom level" style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:lockDetailLevel?"#0d9488":"#94a3b8",cursor:"pointer",userSelect:"none"}}>
+            <input type="checkbox" checked={lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>Lock detail
+          </label>
         </div>
         {stitchView==="highlight"&&<div style={{fontSize:11,color:"#475569"}}>Focus one colour at a time. ◀ ▶ or <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #cbd5e1",borderRadius:3,background:"#f1f5f9"}}>[ ]</kbd> to cycle.</div>}
         {stitchView==="highlight"&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:6}}>
