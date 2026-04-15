@@ -5,11 +5,12 @@
                StashBridge (stash-bridge.js, optional), CreatorContext (context.js) */
 
 window.CreatorProjectTab = function CreatorProjectTab() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var app = window.useApp();
   var h = React.createElement;
 
   if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "project") return null;
+  if (app.tab !== "project") return null;
 
   var confettiTier = window.confettiTier;
 
@@ -39,8 +40,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       )
     );
 
-    var confettiBadge = ctx.confettiData && (function() {
-      var cd = ctx.confettiData.clean;
+    var confettiBadge = app.confettiData && (function() {
+      var cd = app.confettiData.clean;
       var t = confettiTier(cd.pct);
       var barW = Math.max(3, Math.min(100, Math.round(100 - cd.pct * 5)));
       return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0"}},
@@ -56,8 +57,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             cd.singles.toLocaleString() + " isolated (" + cd.pct.toFixed(1) + "%)"
           )
         ),
-        ctx.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:4}},
-          ctx.confettiData.raw.singles.toLocaleString() + " before orphan removal"
+        app.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:4}},
+          app.confettiData.raw.singles.toLocaleString() + " before orphan removal"
         )
       );
     })();
@@ -294,7 +295,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               ctx.setSubstituteModalKey(function(k) { return k + 1; });
               ctx.setSubstituteModalOpen(true);
             }).catch(function() {
-              ctx.addToast("Failed to load stash data.", { type: "error", duration: 3000 });
+              app.addToast("Failed to load stash data.", { type: "error", duration: 3000 });
             });
           },
           disabled: (function() {
@@ -349,7 +350,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           h("button", {
             onClick:function(){
               var lines = ctx.kittingResult.missing.concat(ctx.kittingResult.short);
-              ctx.copyText(lines.join("\n"), "kit");
+              app.copyText(lines.join("\n"), "kit");
             },
             style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer"}
           }, "Copy gaps"),
@@ -373,19 +374,19 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("button", {
           onClick:function(){
             var txt=ctx.toBuyList.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
-            ctx.copyText(txt, "shopping");
+            app.copyText(txt, "shopping");
           },
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}
         }, "Copy To-Buy List"),
         h("button", {
           onClick:function(){
             var txt=ctx.skeinData.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
-            ctx.copyText(txt, "full");
+            app.copyText(txt, "full");
           },
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Copy Full List")
       ),
-      ctx.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")
+      app.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")
     );
   }
 

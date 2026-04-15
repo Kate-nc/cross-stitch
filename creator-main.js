@@ -242,16 +242,389 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   usePreviewHook(state);
   useKeyboardShortcutsHook(state, history, io);
 
-  const ctx = {...state, ...history, ...canvas, ...io, isActive};
+  // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
+  // Handler identity is stabilised via a ref; the ref is updated synchronously on
+  // each render so the latest function is always called despite the empty dep list.
+  // Refs are initialised with null; the current assignment below runs before any
+  // useMemo so the refs are always populated when context values are built.
+  const _cvHRef  = React.useRef(null);  _cvHRef.current  = canvas;
+  const _ioRef   = React.useRef(null);  _ioRef.current   = io;
+  const _histRef = React.useRef(null);  _histRef.current = history;
+
+  const stableHandlePatPointerDown   = React.useCallback(function(e){_cvHRef.current.handlePatPointerDown(e);},   []);
+  const stableHandlePatPointerMove   = React.useCallback(function(e){_cvHRef.current.handlePatPointerMove(e);},   []);
+  const stableHandlePatPointerUp     = React.useCallback(function(e){_cvHRef.current.handlePatPointerUp(e);},     []);
+  const stableHandlePatPointerLeave  = React.useCallback(function(e){_cvHRef.current.handlePatPointerLeave(e);},  []);
+  const stableHandlePatPointerCancel = React.useCallback(function(e){_cvHRef.current.handlePatPointerCancel(e);}, []);
+  const stableHandleCropPointerDown  = React.useCallback(function(e){_cvHRef.current.handleCropPointerDown(e);},  []);
+  const stableHandleCropPointerMove  = React.useCallback(function(e){_cvHRef.current.handleCropPointerMove(e);},  []);
+  const stableHandleCropPointerUp    = React.useCallback(function(e){_cvHRef.current.handleCropPointerUp(e);},    []);
+  const stableHandleCropPointerCancel= React.useCallback(function(e){_cvHRef.current.handleCropPointerCancel(e);},[]);
+  const stableApplyCrop              = React.useCallback(function()  {_cvHRef.current.applyCrop();},               []);
+  const stableSrcClick               = React.useCallback(function(e){_cvHRef.current.srcClick(e);},               []);
+  const stableAutoCrop               = React.useCallback(function()  {_cvHRef.current.autoCrop();},               []);
+
+  const stableSaveProject         = React.useCallback(function()  {_ioRef.current.saveProject();},         []);
+  const stableDoSaveProject       = React.useCallback(function(n) {_ioRef.current.doSaveProject(n);},      []);
+  const stableHandleFile          = React.useCallback(function(e) {_ioRef.current.handleFile(e);},         []);
+  const stableLoadProject         = React.useCallback(function(e) {_ioRef.current.loadProject(e);},        []);
+  const stableHandleOpenInTracker = React.useCallback(function()  {_ioRef.current.handleOpenInTracker();}, []);
+
+  const stableUndoEdit = React.useCallback(function(){_histRef.current.undoEdit();}, []);
+  const stableRedoEdit = React.useCallback(function(){_histRef.current.redoEdit();}, []);
+
+  // ── GenerationContext value (image-to-pattern generation params & callbacks) ──
+  const genCtx = useMemo(function() { return {
+    img: state.img, setImg: state.setImg,
+    isUploading: state.isUploading, setIsUploading: state.setIsUploading,
+    isDragging: state.isDragging, setIsDragging: state.setIsDragging,
+    maxC: state.maxC, setMaxC: state.setMaxC,
+    bri: state.bri, setBri: state.setBri,
+    con: state.con, setCon: state.setCon,
+    sat: state.sat, setSat: state.setSat,
+    dith: state.dith, setDith: state.setDith,
+    skipBg: state.skipBg, setSkipBg: state.setSkipBg,
+    bgTh: state.bgTh, setBgTh: state.setBgTh,
+    bgCol: state.bgCol, setBgCol: state.setBgCol,
+    pickBg: state.pickBg, setPickBg: state.setPickBg,
+    minSt: state.minSt, setMinSt: state.setMinSt,
+    smooth: state.smooth, setSmooth: state.setSmooth,
+    smoothType: state.smoothType, setSmoothType: state.setSmoothType,
+    orphans: state.orphans, setOrphans: state.setOrphans,
+    allowBlends: state.allowBlends, setAllowBlends: state.setAllowBlends,
+    busy: state.busy, setBusy: state.setBusy,
+    origW: state.origW, setOrigW: state.setOrigW,
+    origH: state.origH, setOrigH: state.setOrigH,
+    hasGenerated: state.hasGenerated, setHasGenerated: state.setHasGenerated,
+    stitchCleanup: state.stitchCleanup, setStitchCleanup: state.setStitchCleanup,
+    isCropping: state.isCropping, setIsCropping: state.setIsCropping,
+    cropRect: state.cropRect, setCropRect: state.setCropRect,
+    cropStartRef: state.cropStartRef, cropRef: state.cropRef,
+    generate: state.generate,
+    randomise: state.randomise,
+    generateGallery: state.generateGallery,
+    promoteVariation: state.promoteVariation,
+    applyVariationSeed: state.applyVariationSeed,
+    variationSeed: state.variationSeed, setVariationSeed: state.setVariationSeed,
+    variationSubset: state.variationSubset, setVariationSubset: state.setVariationSubset,
+    variationHistory: state.variationHistory, setVariationHistory: state.setVariationHistory,
+    gallerySlots: state.gallerySlots,
+    galleryOpen: state.galleryOpen, setGalleryOpen: state.setGalleryOpen,
+    stashConstrained: state.stashConstrained, setStashConstrained: state.setStashConstrained,
+    coverageGaps: state.coverageGaps, setCoverageGaps: state.setCoverageGaps,
+    cleanupDiff: state.cleanupDiff, setCleanupDiff: state.setCleanupDiff,
+    showCleanupDiff: state.showCleanupDiff, setShowCleanupDiff: state.setShowCleanupDiff,
+    fRef: state.fRef, prevSW: state.prevSW, prevSH: state.prevSH,
+    stashThreadCount: state.stashThreadCount,
+    effectiveMaxC: state.effectiveMaxC,
+    stashPalette: state.stashPalette,
+    blendsAutoDisabled: state.blendsAutoDisabled,
+    effectiveAllowBlends: state.effectiveAllowBlends,
+    handleCropPointerDown: stableHandleCropPointerDown,
+    handleCropPointerMove: stableHandleCropPointerMove,
+    handleCropPointerUp: stableHandleCropPointerUp,
+    handleCropPointerCancel: stableHandleCropPointerCancel,
+    applyCrop: stableApplyCrop,
+    srcClick: stableSrcClick,
+    autoCrop: stableAutoCrop,
+  }; }, [
+    state.img, state.isUploading, state.isDragging,
+    state.maxC, state.bri, state.con, state.sat, state.dith,
+    state.skipBg, state.bgTh, state.bgCol, state.pickBg,
+    state.minSt, state.smooth, state.smoothType,
+    state.orphans, state.allowBlends, state.busy,
+    state.origW, state.origH, state.hasGenerated,
+    state.stitchCleanup, state.isCropping, state.cropRect,
+    state.generate, state.randomise, state.generateGallery,
+    state.promoteVariation, state.applyVariationSeed,
+    state.variationSeed, state.variationSubset, state.variationHistory,
+    state.gallerySlots, state.galleryOpen,
+    state.stashConstrained, state.coverageGaps,
+    state.cleanupDiff, state.showCleanupDiff,
+    state.stashThreadCount, state.effectiveMaxC, state.stashPalette,
+    state.blendsAutoDisabled, state.effectiveAllowBlends,
+  ]);
+
+  // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
+  const appCtx = useMemo(function() { return {
+    tab: state.tab, setTab: state.setTab,
+    modal: state.modal, setModal: state.setModal,
+    sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
+    loadError: state.loadError, setLoadError: state.setLoadError,
+    copied: state.copied, setCopied: state.setCopied, copyText: state.copyText,
+    dimOpen: state.dimOpen, setDimOpen: state.setDimOpen,
+    palOpen: state.palOpen, setPalOpen: state.setPalOpen,
+    fabOpen: state.fabOpen, setFabOpen: state.setFabOpen,
+    adjOpen: state.adjOpen, setAdjOpen: state.setAdjOpen,
+    bgOpen: state.bgOpen, setBgOpen: state.setBgOpen,
+    palAdvanced: state.palAdvanced, setPalAdvanced: state.setPalAdvanced,
+    cleanupOpen: state.cleanupOpen, setCleanupOpen: state.setCleanupOpen,
+    splitPaneEnabled: state.splitPaneEnabled, setSplitPaneEnabled: state.setSplitPaneEnabled,
+    splitPaneRatio: state.splitPaneRatio, setSplitPaneRatio: state.setSplitPaneRatio,
+    splitPaneSyncEnabled: state.splitPaneSyncEnabled, setSplitPaneSyncEnabled: state.setSplitPaneSyncEnabled,
+    rightPaneMode: state.rightPaneMode, setRightPaneMode: state.setRightPaneMode,
+    exportPage: state.exportPage, setExportPage: state.setExportPage,
+    pageMode: state.pageMode, setPageMode: state.setPageMode,
+    pdfDisplayMode: state.pdfDisplayMode, setPdfDisplayMode: state.setPdfDisplayMode,
+    pdfCellSize: state.pdfCellSize, setPdfCellSize: state.setPdfCellSize,
+    pdfSinglePage: state.pdfSinglePage, setPdfSinglePage: state.setPdfSinglePage,
+    toasts: state.toasts, addToast: state.addToast, dismissToast: state.dismissToast,
+    pcRef: state.pcRef, scrollRef: state.scrollRef, expRef: state.expRef, loadRef: state.loadRef,
+    stripRef: state.stripRef, overflowRef: state.overflowRef,
+    overflowOpen: state.overflowOpen, setOverflowOpen: state.setOverflowOpen,
+    stripCollapsed: state.stripCollapsed, setStripCollapsed: state.setStripCollapsed,
+    shortcutsHintDismissed: state.shortcutsHintDismissed, setShortcutsHintDismissed: state.setShortcutsHintDismissed,
+    namePromptOpen: state.namePromptOpen, setNamePromptOpen: state.setNamePromptOpen,
+    projectName: state.projectName, setProjectName: state.setProjectName,
+    eyedropperEmpty: state.eyedropperEmpty, setEyedropperEmpty: state.setEyedropperEmpty,
+    projectIdRef: state.projectIdRef, createdAtRef: state.createdAtRef, userActedRef: state.userActedRef,
+    G: state.G,
+    pxX: state.pxX, pxY: state.pxY, totPg: state.totPg,
+    previewActive: state.previewActive, setPreviewActive: state.setPreviewActive,
+    previewShowGrid: state.previewShowGrid, setPreviewShowGrid: state.setPreviewShowGrid,
+    previewFabricBg: state.previewFabricBg, setPreviewFabricBg: state.setPreviewFabricBg,
+    previewMode: state.previewMode, setPreviewMode: state.setPreviewMode,
+    realisticLevel: state.realisticLevel, setRealisticLevel: state.setRealisticLevel,
+    coverageOverride: state.coverageOverride, setCoverageOverride: state.setCoverageOverride,
+    previewUrl: state.previewUrl, setPreviewUrl: state.setPreviewUrl,
+    previewStats: state.previewStats, setPreviewStats: state.setPreviewStats,
+    confettiData: state.confettiData, setConfettiData: state.setConfettiData,
+    previewHeatmap: state.previewHeatmap, setPreviewHeatmap: state.setPreviewHeatmap,
+    previewMapped: state.previewMapped, setPreviewMapped: state.setPreviewMapped,
+    previewColors: state.previewColors, setPreviewColors: state.setPreviewColors,
+    previewDims: state.previewDims, setPreviewDims: state.setPreviewDims,
+    previewHighlight: state.previewHighlight, setPreviewHighlight: state.setPreviewHighlight,
+    previewTimerRef: state.previewTimerRef,
+    saveProject: stableSaveProject, doSaveProject: stableDoSaveProject,
+    handleFile: stableHandleFile, loadProject: stableLoadProject,
+    handleOpenInTracker: stableHandleOpenInTracker,
+    isActive: isActive,
+  }; }, [
+    state.tab, state.modal, state.sidebarOpen, state.loadError,
+    state.copied, state.dimOpen, state.palOpen, state.fabOpen,
+    state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen,
+    state.splitPaneEnabled, state.splitPaneRatio,
+    state.splitPaneSyncEnabled, state.rightPaneMode,
+    state.exportPage, state.pageMode,
+    state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage,
+    state.toasts, state.overflowOpen, state.stripCollapsed,
+    state.shortcutsHintDismissed, state.namePromptOpen, state.projectName,
+    state.eyedropperEmpty, state.pxX, state.pxY, state.totPg,
+    state.previewActive, state.previewShowGrid, state.previewFabricBg,
+    state.previewMode, state.realisticLevel, state.coverageOverride,
+    state.previewUrl, state.previewStats, state.confettiData,
+    state.previewHeatmap, state.previewMapped, state.previewColors,
+    state.previewDims, state.previewHighlight,
+    isActive,
+  ]);
+
+  // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
+  const cvCtx = useMemo(function() { return {
+    activeTool: state.activeTool, setActiveTool: state.setActiveTool, activeToolRef: state.activeToolRef,
+    brushMode: state.brushMode, setBrushMode: state.setBrushMode, brushModeRef: state.brushModeRef,
+    brushSize: state.brushSize, setBrushSize: state.setBrushSize,
+    selectedColorId: state.selectedColorId, setSelectedColorId: state.setSelectedColorId,
+    view: state.view, setView: state.setView,
+    zoom: state.zoom, setZoom: state.setZoom,
+    hiId: state.hiId, setHiId: state.setHiId,
+    showCtr: state.showCtr, setShowCtr: state.setShowCtr,
+    showOverlay: state.showOverlay, setShowOverlay: state.setShowOverlay,
+    overlayOpacity: state.overlayOpacity, setOverlayOpacity: state.setOverlayOpacity,
+    highlightMode: state.highlightMode, setHighlightMode: state.setHighlightMode,
+    bgDimOpacity: state.bgDimOpacity, setBgDimOpacity: state.setBgDimOpacity,
+    hiAdvanced: state.hiAdvanced, setHiAdvanced: state.setHiAdvanced,
+    bgDimDesaturation: state.bgDimDesaturation, setBgDimDesaturation: state.setBgDimDesaturation,
+    dimFraction: state.dimFraction, dimHiId: state.dimHiId,
+    tintColor: state.tintColor, setTintColor: state.setTintColor,
+    tintOpacity: state.tintOpacity, setTintOpacity: state.setTintOpacity,
+    spotDimOpacity: state.spotDimOpacity, setSpotDimOpacity: state.setSpotDimOpacity,
+    antsOffset: state.antsOffset, setAntsOffset: state.setAntsOffset,
+    hoverCoords: state.hoverCoords, setHoverCoords: state.setHoverCoords,
+    contextMenu: state.contextMenu, setContextMenu: state.setContextMenu,
+    selectionModifier: state.selectionModifier, setSelectionModifier: state.setSelectionModifier,
+    bsLines: state.bsLines, setBsLines: state.setBsLines,
+    bsStart: state.bsStart, setBsStart: state.setBsStart,
+    bsContinuous: state.bsContinuous, setBsContinuous: state.setBsContinuous,
+    editHistory: state.editHistory, setEditHistory: state.setEditHistory,
+    redoHistory: state.redoHistory, setRedoHistory: state.setRedoHistory,
+    EDIT_HISTORY_MAX: state.EDIT_HISTORY_MAX,
+    selectStitchType: state.selectStitchType,
+    setBrushAndActivate: state.setBrushAndActivate,
+    setTool: state.setTool, setHsTool: state.setHsTool, setPsTool: state.setPsTool,
+    stitchType: state.stitchType, fitZ: state.fitZ,
+    cs: state.cs,
+    undoEdit: stableUndoEdit, redoEdit: stableRedoEdit,
+    handlePatPointerDown: stableHandlePatPointerDown,
+    handlePatPointerUp: stableHandlePatPointerUp,
+    handlePatPointerMove: stableHandlePatPointerMove,
+    handlePatPointerLeave: stableHandlePatPointerLeave,
+    handlePatPointerCancel: stableHandlePatPointerCancel,
+    isDraggingRef: canvas.isDraggingRef,
+    paletteSwap: state.paletteSwap,
+    selectionMask: state.selectionMask, setSelectionMask: state.setSelectionMask,
+    wandTolerance: state.wandTolerance, setWandTolerance: state.setWandTolerance,
+    wandContiguous: state.wandContiguous, setWandContiguous: state.setWandContiguous,
+    wandOpMode: state.wandOpMode, setWandOpMode: state.setWandOpMode,
+    setSelectionOpMode: state.setSelectionOpMode,
+    wandPanel: state.wandPanel, setWandPanel: state.setWandPanel,
+    confettiThreshold: state.confettiThreshold, setConfettiThreshold: state.setConfettiThreshold,
+    confettiPreview: state.confettiPreview, setConfettiPreview: state.setConfettiPreview,
+    reduceTarget: state.reduceTarget, setReduceTarget: state.setReduceTarget,
+    reducePreview: state.reducePreview, setReducePreview: state.setReducePreview,
+    replaceSource: state.replaceSource, setReplaceSource: state.setReplaceSource,
+    replaceDest: state.replaceDest, setReplaceDest: state.setReplaceDest,
+    replaceFuzzy: state.replaceFuzzy, setReplaceFuzzy: state.setReplaceFuzzy,
+    replaceFuzzyTol: state.replaceFuzzyTol, setReplaceFuzzyTol: state.setReplaceFuzzyTol,
+    outlineColor: state.outlineColor, setOutlineColor: state.setOutlineColor,
+    applyWandSelect: state.applyWandSelect, clearSelection: state.clearSelection,
+    invertSelection: state.invertSelection, selectAll: state.selectAll,
+    selectAllOfColorId: state.selectAllOfColorId,
+    previewConfettiCleanup: state.previewConfettiCleanup,
+    applyConfettiCleanup: state.applyConfettiCleanup,
+    previewColorReduction: state.previewColorReduction,
+    applyColorReduction: state.applyColorReduction,
+    selectionReplaceColorCount: state.selectionReplaceColorCount,
+    applyColorReplacement: state.applyColorReplacement,
+    selectionStats: state.selectionStats,
+    applyOutlineGeneration: state.applyOutlineGeneration,
+    selectionCount: state.selectionCount, hasSelection: state.hasSelection,
+    lassoMode: state.lassoMode, setLassoMode: state.setLassoMode,
+    lassoPoints: state.lassoPoints, setLassoPoints: state.setLassoPoints,
+    lassoActive: state.lassoActive, setLassoActive: state.setLassoActive,
+    lassoCursor: state.lassoCursor, setLassoCursor: state.setLassoCursor,
+    lassoPreviewMask: state.lassoPreviewMask, setLassoPreviewMask: state.setLassoPreviewMask,
+    lassoOpMode: state.lassoOpMode, setLassoOpMode: state.setLassoOpMode,
+    lassoPointCount: state.lassoPointCount, lassoInProgress: state.lassoInProgress,
+    startLasso: state.startLasso, extendLasso: state.extendLasso,
+    finalizeLasso: state.finalizeLasso, cancelLasso: state.cancelLasso,
+    isNearStart: state.isNearStart,
+    lassoLinePath: state.lassoLinePath,
+    lassoMagneticPath: state.lassoMagneticPath,
+    lassoBoundaryPath: state.lassoBoundaryPath,
+  }; }, [
+    state.activeTool, state.brushMode, state.brushSize,
+    state.selectedColorId, state.view, state.zoom,
+    state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity,
+    state.highlightMode, state.bgDimOpacity, state.hiAdvanced,
+    state.bgDimDesaturation, state.dimFraction, state.dimHiId,
+    state.tintColor, state.tintOpacity, state.spotDimOpacity,
+    state.antsOffset, state.hoverCoords, state.contextMenu,
+    state.selectionModifier, state.bsLines, state.bsStart, state.bsContinuous,
+    state.editHistory, state.redoHistory, state.stitchType, state.cs,
+    state.paletteSwap,
+    state.pat, state.cmap, state.sW, state.sH,
+    state.selectionMask, state.wandTolerance, state.wandContiguous,
+    state.wandOpMode, state.wandPanel,
+    state.confettiThreshold, state.confettiPreview,
+    state.reduceTarget, state.reducePreview,
+    state.replaceSource, state.replaceDest, state.replaceFuzzy, state.replaceFuzzyTol,
+    state.outlineColor, state.selectionCount, state.hasSelection,
+    state.selectionStats, state.selectionReplaceColorCount,
+    state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor,
+    state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress,
+  ]);
+
+  // ── PatternDataContext value (core pattern data, dimensions, derived values) ──
+  const pdCtx = useMemo(function() { return {
+    pat: state.pat, setPat: state.setPat,
+    pal: state.pal, setPal: state.setPal,
+    cmap: state.cmap, setCmap: state.setCmap,
+    sW: state.sW, setSW: state.setSW, sH: state.sH, setSH: state.setSH,
+    arLock: state.arLock, setArLock: state.setArLock,
+    ar: state.ar, setAr: state.setAr,
+    chgW: state.chgW, chgH: state.chgH, slRsz: state.slRsz,
+    fabricCt: state.fabricCt, setFabricCt: state.setFabricCt,
+    skeinPrice: state.skeinPrice, setSkeinPrice: state.setSkeinPrice,
+    stitchSpeed: state.stitchSpeed, setStitchSpeed: state.setStitchSpeed,
+    done: state.done, setDone: state.setDone,
+    isScratchMode: state.isScratchMode, setIsScratchMode: state.setIsScratchMode,
+    scratchPalette: state.scratchPalette, setScratchPalette: state.setScratchPalette,
+    dmcSearch: state.dmcSearch, setDmcSearch: state.setDmcSearch,
+    colPickerOpen: state.colPickerOpen, setColPickerOpen: state.setColPickerOpen,
+    parkMarkers: state.parkMarkers, setParkMarkers: state.setParkMarkers,
+    hlRow: state.hlRow, setHlRow: state.setHlRow,
+    hlCol: state.hlCol, setHlCol: state.setHlCol,
+    totalTime: state.totalTime, setTotalTime: state.setTotalTime,
+    sessions: state.sessions, setSessions: state.setSessions,
+    partialStitches: state.partialStitches, setPartialStitches: state.setPartialStitches,
+    partialStitchTool: state.partialStitchTool, setPartialStitchTool: state.setPartialStitchTool,
+    partialStitchToolRef: state.partialStitchToolRef,
+    threadOwned: state.threadOwned, setThreadOwned: state.setThreadOwned,
+    globalStash: state.globalStash, setGlobalStash: state.setGlobalStash,
+    kittingResult: state.kittingResult, setKittingResult: state.setKittingResult,
+    altOpen: state.altOpen, setAltOpen: state.setAltOpen,
+    substituteModalOpen: state.substituteModalOpen, setSubstituteModalOpen: state.setSubstituteModalOpen,
+    substituteProposal: state.substituteProposal, setSubstituteProposal: state.setSubstituteProposal,
+    substituteModalKey: state.substituteModalKey, setSubstituteModalKey: state.setSubstituteModalKey,
+    substituteMaxDeltaE: state.substituteMaxDeltaE, setSubstituteMaxDeltaE: state.setSubstituteMaxDeltaE,
+    buildPaletteWithScratch: state.buildPaletteWithScratch,
+    resetAll: state.resetAll,
+    initBlankGrid: state.initBlankGrid,
+    startScratch: state.startScratch,
+    addScratchColour: state.addScratchColour,
+    removeScratchColour: state.removeScratchColour,
+    toggleOwned: state.toggleOwned,
+    displayPal: state.displayPal,
+    totalStitchable: state.totalStitchable,
+    skeinData: state.skeinData, totalSkeins: state.totalSkeins,
+    blendCount: state.blendCount, difficulty: state.difficulty,
+    doneCount: state.doneCount, dmcFiltered: state.dmcFiltered,
+    colourDoneCounts: state.colourDoneCounts,
+    progressPct: state.progressPct,
+    ownedCount: state.ownedCount, toBuyCount: state.toBuyCount, toBuyList: state.toBuyList,
+  }; }, [
+    state.pat, state.pal, state.cmap,
+    state.sW, state.sH, state.arLock, state.ar,
+    state.fabricCt, state.skeinPrice, state.stitchSpeed,
+    state.done, state.isScratchMode, state.scratchPalette,
+    state.dmcSearch, state.colPickerOpen,
+    state.parkMarkers, state.hlRow, state.hlCol,
+    state.totalTime, state.sessions,
+    state.partialStitches, state.partialStitchTool,
+    state.threadOwned, state.globalStash,
+    state.kittingResult, state.altOpen,
+    state.substituteModalOpen, state.substituteProposal,
+    state.substituteModalKey, state.substituteMaxDeltaE,
+    state.displayPal, state.totalStitchable,
+    state.skeinData, state.totalSkeins,
+    state.blendCount, state.difficulty,
+    state.doneCount, state.dmcFiltered,
+    state.colourDoneCounts, state.progressPct,
+    state.ownedCount, state.toBuyCount, state.toBuyList,
+  ]);
+
+  // Full merged state for exportPDF (which reads a mix of pattern + derived values)
+  const exportData = useMemo(function() { return {
+    pat: state.pat, pal: state.pal, cmap: state.cmap,
+    sW: state.sW, sH: state.sH, fabricCt: state.fabricCt,
+    skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed,
+    done: state.done, bsLines: state.bsLines,
+    partialStitches: state.partialStitches,
+    threadOwned: state.threadOwned,
+    totalStitchable: state.totalStitchable, skeinData: state.skeinData,
+    totalSkeins: state.totalSkeins, blendCount: state.blendCount,
+    difficulty: state.difficulty, doneCount: state.doneCount,
+    totalTime: state.totalTime, sessions: state.sessions,
+  }; }, [
+    state.pat, state.pal, state.cmap, state.sW, state.sH,
+    state.fabricCt, state.skeinPrice, state.stitchSpeed,
+    state.done, state.bsLines, state.partialStitches,
+    state.threadOwned, state.totalStitchable, state.skeinData,
+    state.totalSkeins, state.blendCount, state.difficulty,
+    state.doneCount, state.totalTime, state.sessions,
+  ]);
 
   return (
-    <window.CreatorContext.Provider value={ctx}>
+    <window.GenerationContext.Provider value={genCtx}>
+    <window.AppContext.Provider value={appCtx}>
+    <window.CanvasContext.Provider value={cvCtx}>
+    <window.PatternDataContext.Provider value={pdCtx}>
       <input ref={state.loadRef} type="file" accept=".json" onChange={io.loadProject} style={{display:"none"}}/>
       <Header page="creator" tab={state.tab} onPageChange={state.setTab}
         onOpen={()=>state.loadRef.current.click()}
         onSave={state.pat&&state.pal?io.saveProject:null}
         onTrack={state.pat&&state.pal?io.handleOpenInTracker:null}
-        onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},ctx):null}
+        onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData):null}
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
         setModal={state.setModal} />
       {state.pat&&state.pal&&<ContextBar
@@ -439,7 +812,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         <div style={{fontSize:14,color:"#475569",fontWeight:500}}>Generating pattern\u2026</div>
       </div>}
       <window.CreatorToastContainer/>
-    </window.CreatorContext.Provider>
+    </window.PatternDataContext.Provider>
+    </window.CanvasContext.Provider>
+    </window.AppContext.Provider>
+    </window.GenerationContext.Provider>
   );
 }
 

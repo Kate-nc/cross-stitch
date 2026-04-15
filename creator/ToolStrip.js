@@ -1,9 +1,13 @@
 /* creator/ToolStrip.js — The main tool strip bar above the pattern canvas.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: CreatorContext (context.js) */
+   Reads from CreatorContext and GenerationContext.
+   Loaded as a plain <script> before the main Babel script.
+   Depends on: CreatorContext, GenerationContext (context.js) */
 
 window.CreatorToolStrip = function CreatorToolStrip() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
+  var gen = window.useGeneration();
   var h = React.createElement;
 
   // Local state
@@ -11,14 +15,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // ResizeObserver: progressively collapse strip groups when narrow
   React.useEffect(function() {
-    var el = ctx.stripRef.current;
+    var el = app.stripRef.current;
     if (!el) return;
     var frame = null;
     var obs = new ResizeObserver(function() {
       if (frame) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(function() {
         var w = el.clientWidth;
-        ctx.setStripCollapsed({ brush: w < 680, bs: w < 550 });
+        app.setStripCollapsed({ brush: w < 680, bs: w < 550 });
       });
     });
     obs.observe(el);
@@ -27,13 +31,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // Close overflow menu on outside click
   React.useEffect(function() {
-    if (!ctx.overflowOpen) return;
+    if (!app.overflowOpen) return;
     function close(e) {
-      if (ctx.overflowRef.current && !ctx.overflowRef.current.contains(e.target)) ctx.setOverflowOpen(false);
+      if (app.overflowRef.current && !app.overflowRef.current.contains(e.target)) app.setOverflowOpen(false);
     }
     document.addEventListener("pointerdown", close);
     return function() { document.removeEventListener("pointerdown", close); };
-  }, [ctx.overflowOpen]);
+  }, [app.overflowOpen]);
 
   // Preview dropdown local state — must be declared before early return (Rules of Hooks)
   var previewWrapRef = React.useRef(null);
@@ -47,9 +51,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { document.removeEventListener("pointerdown", close); };
   }, [previewMenuOpen]);
 
-  if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
+  if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
 
-  var sc = ctx.stripCollapsed || {};
+  var sc = app.stripCollapsed || {};
 
   // Palette data sorted by usage — needed early for auto-select
   var palData = (ctx.displayPal || ctx.pal || []).slice().sort(function(a,b){return (b.count||0)-(a.count||0);});
@@ -102,35 +106,35 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       className:"tb-grp"+(sc.brush?" tb-hidden":"")
     },
       h("button", {
-        className:"tb-btn"+(ctx.brushMode==="paint" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
+        className:"tb-btn"+(cv.brushMode==="paint" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
         onClick:function(){
-          if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
-          ctx.setBrushAndActivate("paint");
+          if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
+          cv.setBrushAndActivate("paint");
         },
         title:"Paint (P)"
       }, "Paint"),
       h("button", {
-        className:"tb-btn"+(ctx.brushMode==="fill" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
+        className:"tb-btn"+(cv.brushMode==="fill" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
         onClick:function(){
-          if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
-          ctx.setBrushAndActivate("fill");
+          if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
+          cv.setBrushAndActivate("fill");
         },
         title:"Fill (F)"
       }, "Fill"),
       h("button", {
-        className:"tb-btn"+(ctx.stitchType==="erase"?" tb-btn--red":""),
-        onClick:function(){ctx.selectStitchType("erase");}, title:"Erase (5)"
+        className:"tb-btn"+(cv.stitchType==="erase"?" tb-btn--red":""),
+        onClick:function(){cv.selectStitchType("erase");}, title:"Erase (5)"
       }, svgErase, "Erase"),
       h("button", {
-        className:"tb-btn"+(ctx.activeTool==="eyedropper"?" tb-btn--on":""),
-        onClick:function(){ctx.setActiveTool("eyedropper"); ctx.setBsStart(null); ctx.setPartialStitchTool(null);},
+        className:"tb-btn"+(cv.activeTool==="eyedropper"?" tb-btn--on":""),
+        onClick:function(){cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);},
         title:"Eyedropper (I)"
       }, "Pick")
     )
   ];
 
   // Stitch type dropdown — shown only when paint or fill is the active brush mode
-  var showStitchGrp = (ctx.brushMode==="paint" || ctx.brushMode==="fill") && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase";
+  var showStitchGrp = (cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase";
   var stitchMeta = {
     "cross":         {icon:svgX,         label:"Cross",       cls:"tb-btn--green"},
     "quarter":       {icon:svgQtr,       label:"\u00BC Stitch",  cls:"tb-btn--blue"},
@@ -139,7 +143,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     "three-quarter": {icon:svgThreeQtr,  label:"\u00BE Stitch",  cls:"tb-btn--blue"},
     "backstitch":    {icon:null,         label:"Bs",           cls:"tb-btn--on"}
   };
-  var activeSM = stitchMeta[ctx.stitchType] || stitchMeta["cross"];
+  var activeSM = stitchMeta[cv.stitchType] || stitchMeta["cross"];
   var stitchDrop = showStitchGrp ? [
     h("div", {key:"sdiv-stitch", className:"tb-sdiv"}),
     h("div", {key:"stitch-drop", className:"tb-drop-wrap"},
@@ -152,8 +156,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           var m = stitchMeta[k];
           return h("button", {
             key:k,
-            className:"tb-drop-item" + (ctx.stitchType===k?" tb-drop-item--on":""),
-            onClick:function(){ctx.selectStitchType(k);}
+            className:"tb-drop-item" + (cv.stitchType===k?" tb-drop-item--on":""),
+            onClick:function(){cv.selectStitchType(k);}
           }, m.icon, m.label);
         })
       )
@@ -165,17 +169,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
   var swatchRow = showStitchGrp && palData.length > 0 ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
-    ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId] ? h("span", {
+    cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
       style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0}
     },
-      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[ctx.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block"}}),
-      h("span", {style:{fontWeight:600,color:"#0d9488"}}, ctx.selectedColorId)
+      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block"}}),
+      h("span", {style:{fontWeight:600,color:"#0d9488"}}, cv.selectedColorId)
     ) : h("span", {style:{fontSize:10,color:"#94a3b8",marginRight:6,flexShrink:0}}, "none selected"),
     swatchesShown.map(function(p) {
-      var isSel = ctx.selectedColorId === p.id;
+      var isSel = cv.selectedColorId === p.id;
       return h("button", {
         key: p.id,
-        onClick: function() { ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id); },
+        onClick: function() { cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id); },
         title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
         "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
         "aria-pressed": isSel,
@@ -204,22 +208,22 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // Brush size group
   var showBrushSize = (
-    ((ctx.stitchType === "cross" || ctx.stitchType === "half-fwd" || ctx.stitchType === "half-bck") && ctx.brushMode === "paint") ||
-    ctx.stitchType === "erase"
-  ) && ctx.activeTool !== "eyedropper";
+    ((cv.stitchType === "cross" || cv.stitchType === "half-fwd" || cv.stitchType === "half-bck") && cv.brushMode === "paint") ||
+    cv.stitchType === "erase"
+  ) && cv.activeTool !== "eyedropper";
   var sizeGrp = showBrushSize ? [
     h("div", {key:"sdiv-sz", className:"tb-sdiv"}),
     h("div", {
       key:"size-grp",
       className:"tb-grp",
-      style:{display:"flex",alignItems:"center",gap:4,opacity:(ctx.selectedColorId||ctx.stitchType==="erase")?1:0.6}
+      style:{display:"flex",alignItems:"center",gap:4,opacity:(cv.selectedColorId||cv.stitchType==="erase")?1:0.6}
     },
       h("span", {style:{fontSize:10,color:"#475569",textTransform:"uppercase",fontWeight:600}}, "Size"),
       [1,2,3].map(function(sz) {
         return h("button", {
           key:sz,
-          className:"tb-btn"+(ctx.brushSize===sz?" tb-btn--on":""),
-          onClick:function(){ctx.setBrushSize(sz);},
+          className:"tb-btn"+(cv.brushSize===sz?" tb-btn--on":""),
+          onClick:function(){cv.setBrushSize(sz);},
           style:{padding:"2px 6px",minWidth:24}
         }, sz);
       })
@@ -227,28 +231,28 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   ] : null;
 
   // Backstitch continuous
-  var bsCont = (ctx.stitchType === "backstitch") ? [
+  var bsCont = (cv.stitchType === "backstitch") ? [
     h("div", {key:"sdiv-bs", className:"tb-sdiv"}),
     h("label", {
       key:"bs-cont",
       style:{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#475569",flexShrink:0}
     },
       h("input", {
-        type:"checkbox", checked:ctx.bsContinuous,
-        onChange:function(e){ctx.setBsContinuous(e.target.checked); ctx.setBsStart(null);}
+        type:"checkbox", checked:cv.bsContinuous,
+        onChange:function(e){cv.setBsContinuous(e.target.checked); cv.setBsStart(null);}
       }),
       "Continuous"
     )
   ] : null;
 
   // Selection tools dropdown
-  var isSelectActive = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
-  var selIcon = ctx.activeTool === "magicWand" ? svgWand :
-                ctx.activeTool === "lasso" && ctx.lassoMode === "polygon" ? svgPolygon :
-                ctx.activeTool === "lasso" && ctx.lassoMode === "magnetic" ? svgMagnetic :
-                ctx.activeTool === "lasso" ? svgFreehand : svgWand;
-  var selLabel = ctx.activeTool === "magicWand" ? "Wand" :
-                 ctx.activeTool === "lasso" ? (ctx.lassoMode === "polygon" ? "Poly" : ctx.lassoMode === "magnetic" ? "Mag" : "Lasso") :
+  var isSelectActive = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
+  var selIcon = cv.activeTool === "magicWand" ? svgWand :
+                cv.activeTool === "lasso" && cv.lassoMode === "polygon" ? svgPolygon :
+                cv.activeTool === "lasso" && cv.lassoMode === "magnetic" ? svgMagnetic :
+                cv.activeTool === "lasso" ? svgFreehand : svgWand;
+  var selLabel = cv.activeTool === "magicWand" ? "Wand" :
+                 cv.activeTool === "lasso" ? (cv.lassoMode === "polygon" ? "Poly" : cv.lassoMode === "magnetic" ? "Mag" : "Lasso") :
                  "Select";
   var selectDrop = [
     h("div", {key:"sdiv-select", className:"tb-sdiv"}),
@@ -259,90 +263,90 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       }, selIcon, selLabel, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
       h("div", {className:"tb-dropdown"},
         h("button", {
-          className:"tb-drop-item"+(ctx.activeTool==="magicWand"?" tb-drop-item--on":""),
+          className:"tb-drop-item"+(cv.activeTool==="magicWand"?" tb-drop-item--on":""),
           onClick:function(){
-            if (ctx.activeTool==="magicWand") ctx.setActiveTool(null);
-            else { ctx.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); ctx.setBsStart(null); if (ctx.cancelLasso) ctx.cancelLasso(); }
+            if (cv.activeTool==="magicWand") cv.setActiveTool(null);
+            else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
           }
         }, svgWand, "Magic Wand"),
         h("button", {
-          className:"tb-drop-item"+(ctx.activeTool==="lasso"&&ctx.lassoMode==="freehand"?" tb-drop-item--on":""),
+          className:"tb-drop-item"+(cv.activeTool==="lasso"&&cv.lassoMode==="freehand"?" tb-drop-item--on":""),
           onClick:function(){
-            var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="freehand";
-            if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
-            else{ctx.setActiveTool("lasso");ctx.setLassoMode("freehand");ctx.setPartialStitchTool(null);ctx.setBsStart(null);}
+            var same=cv.activeTool==="lasso"&&cv.lassoMode==="freehand";
+            if (same){cv.cancelLasso();cv.setActiveTool(null);cv.setLassoMode(null);}
+            else{cv.setActiveTool("lasso");cv.setLassoMode("freehand");ctx.setPartialStitchTool(null);cv.setBsStart(null);}
           }
         }, svgFreehand, "Freehand"),
         h("button", {
-          className:"tb-drop-item"+(ctx.activeTool==="lasso"&&ctx.lassoMode==="polygon"?" tb-drop-item--on":""),
+          className:"tb-drop-item"+(cv.activeTool==="lasso"&&cv.lassoMode==="polygon"?" tb-drop-item--on":""),
           onClick:function(){
-            var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="polygon";
-            if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
-            else{ctx.setActiveTool("lasso");ctx.setLassoMode("polygon");ctx.setPartialStitchTool(null);ctx.setBsStart(null);}
+            var same=cv.activeTool==="lasso"&&cv.lassoMode==="polygon";
+            if (same){cv.cancelLasso();cv.setActiveTool(null);cv.setLassoMode(null);}
+            else{cv.setActiveTool("lasso");cv.setLassoMode("polygon");ctx.setPartialStitchTool(null);cv.setBsStart(null);}
           }
         }, svgPolygon, "Polygon"),
         h("button", {
-          className:"tb-drop-item"+(ctx.activeTool==="lasso"&&ctx.lassoMode==="magnetic"?" tb-drop-item--on":""),
+          className:"tb-drop-item"+(cv.activeTool==="lasso"&&cv.lassoMode==="magnetic"?" tb-drop-item--on":""),
           onClick:function(){
-            var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="magnetic";
-            if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
-            else{ctx.setActiveTool("lasso");ctx.setLassoMode("magnetic");ctx.setPartialStitchTool(null);ctx.setBsStart(null);}
+            var same=cv.activeTool==="lasso"&&cv.lassoMode==="magnetic";
+            if (same){cv.cancelLasso();cv.setActiveTool(null);cv.setLassoMode(null);}
+            else{cv.setActiveTool("lasso");cv.setLassoMode("magnetic");ctx.setPartialStitchTool(null);cv.setBsStart(null);}
           }
         }, svgMagnetic, "Magnetic"),
-        (ctx.hasSelection || ctx.lassoInProgress) && h("div", {style:{borderTop:"1px solid var(--border)",marginTop:3,paddingTop:3}},
+        (cv.hasSelection || cv.lassoInProgress) && h("div", {style:{borderTop:"1px solid var(--border)",marginTop:3,paddingTop:3}},
           h("button", {
             className:"tb-drop-item",
-            onClick:function(){if(ctx.cancelLasso)ctx.cancelLasso();if(ctx.clearSelection)ctx.clearSelection();}
-          }, "\u2715 Clear (", (ctx.selectionCount||0).toLocaleString(), ")")
+            onClick:function(){if(cv.cancelLasso)cv.cancelLasso();if(cv.clearSelection)cv.clearSelection();}
+          }, "\u2715 Clear (", (cv.selectionCount||0).toLocaleString(), ")")
         )
       )
     ),
-    (ctx.hasSelection || ctx.lassoInProgress) && h("button", {
+    (cv.hasSelection || cv.lassoInProgress) && h("button", {
       key:"select-clear",
       className:"tb-btn",
-      onClick:function(){if(ctx.cancelLasso)ctx.cancelLasso();if(ctx.clearSelection)ctx.clearSelection();},
+      onClick:function(){if(cv.cancelLasso)cv.cancelLasso();if(cv.clearSelection)cv.clearSelection();},
       title:"Clear selection (Esc)",
       style:{fontSize:9,padding:"2px 5px",color:"#475569"}
-    }, (ctx.selectionCount||0).toLocaleString()+" sel")
+    }, (cv.selectionCount||0).toLocaleString()+" sel")
   ];
 
   // Colour chip
-  var colChip = ((ctx.stitchType==="cross"||ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck") &&
-    ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId]) ?
+  var colChip = ((cv.stitchType==="cross"||cv.stitchType==="half-fwd"||cv.stitchType==="half-bck") &&
+    cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId]) ?
     h("span", {
       style:{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,
-        background:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"#e0f2fe":"#f1f5f9",
+        background:(cv.stitchType==="half-fwd"||cv.stitchType==="half-bck")?"#e0f2fe":"#f1f5f9",
         flexShrink:0,
-        border:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"1px solid #7dd3fc":"none"
+        border:(cv.stitchType==="half-fwd"||cv.stitchType==="half-bck")?"1px solid #7dd3fc":"none"
       }
     },
       h("span", {style:{width:10,height:10,borderRadius:2,
-        background:"rgb("+ctx.cmap[ctx.selectedColorId].rgb+")",
+        background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",
         border:"1px solid #cbd5e1",display:"inline-block"}}),
-      ctx.selectedColorId
+      cv.selectedColorId
     ) : null;
 
   // Active tool indicator badge
   var badgeLabel, badgeBg, badgeColor, badgeDot;
-  if (ctx.activeTool === "eyedropper") {
+  if (cv.activeTool === "eyedropper") {
     badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#eab308";
-  } else if (ctx.activeTool === "magicWand") {
+  } else if (cv.activeTool === "magicWand") {
     badgeLabel = "Magic Wand"; badgeBg = "#f3e8ff"; badgeColor = "#6b21a8"; badgeDot = "#a855f7";
-  } else if (ctx.activeTool === "lasso") {
-    var lm = ctx.lassoMode === "polygon" ? "Polygon" : ctx.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
+  } else if (cv.activeTool === "lasso") {
+    var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
     badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#fff7ed"; badgeColor = "#9a3412"; badgeDot = "#f97316";
-  } else if (ctx.stitchType === "erase" || ctx.activeTool === "eraseAll" || ctx.activeTool === "eraseBs") {
+  } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
     badgeLabel = "Erase"; badgeBg = "#fef2f2"; badgeColor = "#991b1b"; badgeDot = "#ef4444";
-  } else if (ctx.stitchType === "backstitch") {
+  } else if (cv.stitchType === "backstitch") {
     badgeLabel = "Backstitch"; badgeBg = "#f5f5f5"; badgeColor = "#404040"; badgeDot = "#737373";
-  } else if (ctx.stitchType === "half-fwd") {
+  } else if (cv.stitchType === "half-fwd") {
     badgeLabel = "Half /"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
-  } else if (ctx.stitchType === "half-bck") {
+  } else if (cv.stitchType === "half-bck") {
     badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
-  } else if (ctx.brushMode === "fill") {
+  } else if (cv.brushMode === "fill") {
     badgeLabel = "Fill"; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
-  } else if (ctx.brushMode === "paint") {
-    var szTxt = ctx.brushSize > 1 ? " " + ctx.brushSize + "\xD7" + ctx.brushSize : "";
+  } else if (cv.brushMode === "paint") {
+    var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
     badgeLabel = "Paint" + szTxt; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
   } else {
     badgeLabel = null;
@@ -361,46 +365,46 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var zoomGrp = h("div", {className:"tb-zoom-grp"},
     h("span", {className:"tb-zoom-lbl"}, "Zoom"),
     h("input", {
-      type:"range", min:0.05, max:3, step:0.05, value:ctx.zoom,
-      onChange:function(e){ctx.setZoom(Number(e.target.value));},
+      type:"range", min:0.05, max:3, step:0.05, value:cv.zoom,
+      onChange:function(e){cv.setZoom(Number(e.target.value));},
       style:{width:55}
     }),
-    h("span", {className:"tb-zoom-pct"}, Math.round(ctx.zoom*100)+"%"),
-    h("button", {className:"tb-fit-btn", onClick:ctx.fitZ}, "Fit")
+    h("span", {className:"tb-zoom-pct"}, Math.round(cv.zoom*100)+"%"),
+    h("button", {className:"tb-fit-btn", onClick:cv.fitZ}, "Fit")
   );
 
   // Undo/Redo
-  var undoRedo = (ctx.editHistory.length > 0 || ctx.redoHistory.length > 0) ? [
+  var undoRedo = (cv.editHistory.length > 0 || cv.redoHistory.length > 0) ? [
     h("div", {key:"sdiv-ur", className:"tb-sdiv"}),
     h("button", {
       key:"undo", className:"tb-btn",
-      onClick:ctx.undoEdit, disabled:!ctx.editHistory.length,
+      onClick:cv.undoEdit, disabled:!cv.editHistory.length,
       title:"Undo (Ctrl+Z)",
-      style:{opacity:ctx.editHistory.length?1:0.3}
+      style:{opacity:cv.editHistory.length?1:0.3}
     }, "\u21A9"),
     h("button", {
       key:"redo", className:"tb-btn",
-      onClick:ctx.redoEdit, disabled:!ctx.redoHistory.length,
+      onClick:cv.redoEdit, disabled:!cv.redoHistory.length,
       title:"Redo (Ctrl+Y)",
-      style:{opacity:ctx.redoHistory.length?1:0.3}
+      style:{opacity:cv.redoHistory.length?1:0.3}
     }, "\u21AA")
   ] : null;
 
   // Overflow menu items
-  var overlayItems = (ctx.img && ctx.img.src) ? [
+  var overlayItems = (gen.img && gen.img.src) ? [
     h("button", {
       key:"overlay-btn",
-      className:"tb-ovf-item"+(ctx.showOverlay?" tb-ovf-item--on":""),
-      onClick:function(){ctx.setShowOverlay(function(v){return !v;});}
+      className:"tb-ovf-item"+(cv.showOverlay?" tb-ovf-item--on":""),
+      onClick:function(){cv.setShowOverlay(function(v){return !v;});}
     },
       h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-        border:"2px solid "+(ctx.showOverlay?"#0d9488":"#cbd5e1")}}),
-      " Overlay"+(ctx.showOverlay?" \u2713":"")
+        border:"2px solid "+(cv.showOverlay?"#0d9488":"#cbd5e1")}}),
+      " Overlay"+(cv.showOverlay?" \u2713":"")
     ),
-    ctx.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
+    cv.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
       h("input", {
-        type:"range",min:0.1,max:0.8,step:0.05,value:ctx.overlayOpacity,
-        onChange:function(e){ctx.setOverlayOpacity(Number(e.target.value));},
+        type:"range",min:0.1,max:0.8,step:0.05,value:cv.overlayOpacity,
+        onChange:function(e){cv.setOverlayOpacity(Number(e.target.value));},
         style:{width:"100%"}
       })
     )
@@ -412,13 +416,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     [["paint","Paint"],["fill","Fill"]].map(function(kl) {
       return h("button", {
         key:kl[0],
-        className:"tb-ovf-item"+(ctx.brushMode===kl[0]?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setBrushAndActivate(kl[0]); ctx.setOverflowOpen(false);}
-      }, kl[1]+(ctx.brushMode===kl[0]?" \u2713":""));
+        className:"tb-ovf-item"+(cv.brushMode===kl[0]?" tb-ovf-item--on":""),
+        onClick:function(){cv.setBrushAndActivate(kl[0]); app.setOverflowOpen(false);}
+      }, kl[1]+(cv.brushMode===kl[0]?" \u2713":""));
     })
   ] : null;
 
-  var overflowMenu = ctx.overflowOpen ? h("div", {className:"tb-overflow-menu"},
+  var overflowMenu = app.overflowOpen ? h("div", {className:"tb-overflow-menu"},
     h("span", {className:"tb-ovf-lbl"}, "Display"),
     overlayItems,
     brushItems
@@ -435,69 +439,69 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
       background:active?"var(--accent)":"transparent"}});
   }
-  var isPixel     = ctx.previewActive && ctx.previewMode === "pixel";
-  var isRealistic = ctx.previewActive && ctx.previewMode === "realistic";
+  var isPixel     = app.previewActive && app.previewMode === "pixel";
+  var isRealistic = app.previewActive && app.previewMode === "realistic";
   var previewLabel = isPixel ? "Pixel \u25BE" : isRealistic ? "Realistic \u25BE" : "Preview \u25BE";
   var previewDropWrap = h("div", {className:"tb-overflow-wrap", ref:previewWrapRef},
     h("button", {
-      className:"tb-btn"+(ctx.previewActive?" tb-btn--on":""),
+      className:"tb-btn"+(app.previewActive?" tb-btn--on":""),
       onClick:function(){setPreviewMenuOpen(function(o){return !o;});},
       title:"Preview mode"
     }, previewLabel),
     previewMenuOpen && h("div", {className:"tb-overflow-menu", style:{minWidth:195,right:0}},
       h("span", {className:"tb-ovf-lbl"}, "View"),
       h("button", {
-        className:"tb-ovf-item"+(!ctx.previewActive?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(false); setPreviewMenuOpen(false);}
-      }, radioBtn(!ctx.previewActive), " Chart"),
+        className:"tb-ovf-item"+(!app.previewActive?" tb-ovf-item--on":""),
+        onClick:function(){app.setPreviewActive(false); setPreviewMenuOpen(false);}
+      }, radioBtn(!app.previewActive), " Chart"),
       h("button", {
         className:"tb-ovf-item"+(isPixel?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("pixel"); setPreviewMenuOpen(false);}
+        onClick:function(){app.setPreviewActive(true); app.setPreviewMode("pixel"); setPreviewMenuOpen(false);}
       }, radioBtn(isPixel), " Pixel preview"),
       h("button", {
         className:"tb-ovf-item"+(isRealistic?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("realistic"); setPreviewMenuOpen(false);}
+        onClick:function(){app.setPreviewActive(true); app.setPreviewMode("realistic"); setPreviewMenuOpen(false);}
       }, radioBtn(isRealistic), " Realistic"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Options"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.previewShowGrid?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;}); setPreviewMenuOpen(false);},
-        disabled:!ctx.previewActive,
-        style:{opacity:ctx.previewActive?1:0.4}
-      }, chkBox(ctx.previewShowGrid), " Grid overlay"),
+        className:"tb-ovf-item"+(app.previewShowGrid?" tb-ovf-item--on":""),
+        onClick:function(){app.setPreviewShowGrid(function(v){return !v;}); setPreviewMenuOpen(false);},
+        disabled:!app.previewActive,
+        style:{opacity:app.previewActive?1:0.4}
+      }, chkBox(app.previewShowGrid), " Grid overlay"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.previewFabricBg?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;}); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.previewFabricBg?" tb-ovf-item--on":""),
+        onClick:function(){app.setPreviewFabricBg(function(v){return !v;}); setPreviewMenuOpen(false);},
         disabled:!isPixel,
         style:{opacity:isPixel?1:0.4}
-      }, chkBox(ctx.previewFabricBg), " Fabric background"),
+      }, chkBox(app.previewFabricBg), " Fabric background"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Realistic level"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.realisticLevel===1?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(1); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.realisticLevel===1?" tb-ovf-item--on":""),
+        onClick:function(){app.setRealisticLevel(1); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===1), " Flat (Level 1)"),
+      }, radioBtn(app.realisticLevel===1), " Flat (Level 1)"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.realisticLevel===2?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(2); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.realisticLevel===2?" tb-ovf-item--on":""),
+        onClick:function(){app.setRealisticLevel(2); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===2), " Shaded (Level 2)"),
+      }, radioBtn(app.realisticLevel===2), " Shaded (Level 2)"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.realisticLevel===3?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(3); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.realisticLevel===3?" tb-ovf-item--on":""),
+        onClick:function(){app.setRealisticLevel(3); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===3), " Detailed (Level 3)"),
+      }, radioBtn(app.realisticLevel===3), " Detailed (Level 3)"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.realisticLevel===4?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(4); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.realisticLevel===4?" tb-ovf-item--on":""),
+        onClick:function(){app.setRealisticLevel(4); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===4), " Detailed \u2014 Blend (3a)"),
+      }, radioBtn(app.realisticLevel===4), " Detailed \u2014 Blend (3a)"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Thread coverage"),
       // Coverage slider + auto/manual indicator
@@ -505,8 +509,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         var sFc = ctx.fabricCt || 14;
         var sSC = sFc <= 11 ? 3 : sFc <= 17 ? 2 : 1;
         var sAutoCov = Math.min(1, Math.max(0, Math.min(1, Math.max(0, (sFc - 8) / 24)) * (sSC / 2)));
-        var isManual = ctx.coverageOverride !== null && ctx.coverageOverride !== undefined;
-        var dispCov = isManual ? ctx.coverageOverride : sAutoCov;
+        var isManual = app.coverageOverride !== null && app.coverageOverride !== undefined;
+        var dispCov = isManual ? app.coverageOverride : sAutoCov;
         var dispPct = Math.round(dispCov * 100);
         return h("div", {style:{padding:"4px 14px 6px"}},
           h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
@@ -515,7 +519,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               value: dispPct,
               disabled: !isRealistic,
               onChange: function(e) {
-                ctx.setCoverageOverride(parseInt(e.target.value) / 100);
+                app.setCoverageOverride(parseInt(e.target.value) / 100);
               },
               style:{flex:1, accentColor:"var(--accent)", opacity:isRealistic?1:0.4}
             }),
@@ -526,7 +530,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               isManual ? "Manual" : "Auto (" + sFc + "-count, " + sSC + " strand" + (sSC!==1?"s":"") + ")"
             ),
             isManual && h("button", {
-              onClick: function(e) { e.stopPropagation(); ctx.setCoverageOverride(null); },
+              onClick: function(e) { e.stopPropagation(); app.setCoverageOverride(null); },
               title: "Reset to auto",
               style:{marginLeft:"auto",fontSize:10,padding:"2px 6px",border:"1px solid #fed7aa",borderRadius:4,
                      background:"#fff7ed",color:"#c2410c",cursor:"pointer", lineHeight:1.2}
@@ -538,11 +542,11 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           // Quick presets
           h("div", {style:{display:"flex",gap:3,marginTop:5}},
             [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
-              var active = isManual && Math.abs(ctx.coverageOverride - preset[1]) < 0.03;
+              var active = isManual && Math.abs(app.coverageOverride - preset[1]) < 0.03;
               return h("button", {
                 key: preset[0],
                 disabled: !isRealistic,
-                onClick: function(e) { e.stopPropagation(); ctx.setCoverageOverride(preset[1]); },
+                onClick: function(e) { e.stopPropagation(); app.setCoverageOverride(preset[1]); },
                 style:{flex:1,fontSize:9,padding:"3px 0",border:"1px solid "+(active?"var(--accent)":"#cbd5e1"),
                        borderRadius:4,background:active?"var(--accent)":"transparent",
                        color:active?"#fff":"var(--text-secondary)",cursor:isRealistic?"pointer":"default",
@@ -555,10 +559,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   );
 
-  var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:ctx.overflowRef},
+  var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:app.overflowRef},
     h("button", {
       className:"tb-overflow-btn",
-      onClick:function(){ctx.setOverflowOpen(function(o){return !o;});},
+      onClick:function(){app.setOverflowOpen(function(o){return !o;});},
       title:"More options"
     }, "\u00B7\u00B7\u00B7"),
     overflowMenu
@@ -570,12 +574,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
   );
   var splitBtn = h("button", {
-    className: "tb-btn" + (ctx.splitPaneEnabled ? " tb-btn--on" : ""),
-    title: ctx.splitPaneEnabled ? "Exit split view (\\)" : "Split view: chart + preview (\\)",
+    className: "tb-btn" + (app.splitPaneEnabled ? " tb-btn--on" : ""),
+    title: app.splitPaneEnabled ? "Exit split view (\\)" : "Split view: chart + preview (\\)",
     disabled: !(ctx.pat && ctx.pal),
     onClick: function() {
-      var next = !ctx.splitPaneEnabled;
-      ctx.setSplitPaneEnabled(next);
+      var next = !app.splitPaneEnabled;
+      app.setSplitPaneEnabled(next);
       if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", next);
     },
     style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
@@ -584,7 +588,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row"},
       h("div", {className:"pill-row"},
-        h("div", {ref:ctx.stripRef, className:"pill"},
+        h("div", {ref:app.stripRef, className:"pill"},
           brushGrp,
           stitchDrop,
           sizeGrp,

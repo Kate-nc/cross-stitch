@@ -2,11 +2,26 @@
    Do not edit directly. Edit the source files in creator/ and re-run the build. */
 
 /* ─── context.js ─── */
-/* creator/context.js — Shared context for CreatorApp sub-components.
+/* creator/context.js — Shared contexts for CreatorApp sub-components.
    Loaded as a plain <script> tag before any creator component or hook files.
-   React is already a global from the CDN script. */
+   React is already a global from the CDN script.
 
-window.CreatorContext = React.createContext(null);
+   Four contexts, split by concern:
+   1. GenerationContext — image-to-pattern generation parameters & callbacks
+   2. AppContext        — UI housekeeping (tabs, modals, panels, toasts, refs, export, preview)
+   3. CanvasContext     — drawing tools, view, zoom, highlight, selection, edit history
+   4. PatternDataContext (was CreatorContext) — core pattern data & derived values
+*/
+
+window.GenerationContext = React.createContext(null);
+window.AppContext = React.createContext(null);
+window.CanvasContext = React.createContext(null);
+window.PatternDataContext = React.createContext(null);
+
+window.useGeneration = function useGeneration() { return React.useContext(window.GenerationContext); };
+window.useApp = function useApp() { return React.useContext(window.AppContext); };
+window.useCanvas = function useCanvas() { return React.useContext(window.CanvasContext); };
+window.usePatternData = function usePatternData() { return React.useContext(window.PatternDataContext); };
 
 
 /* ─── generate.js ─── */
@@ -1183,7 +1198,9 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
    Depends on: context.js (CreatorContext) */
 
 window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
   var h = React.createElement;
 
   var displayRef = React.useRef(null);
@@ -1197,9 +1214,9 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
   var pal = ctx.pal;
   var sW = ctx.sW;
   var sH = ctx.sH;
-  var cs = ctx.cs;
-  var previewShowGrid = ctx.previewShowGrid;
-  var previewFabricBg = ctx.previewFabricBg;
+  var cs = cv.cs;
+  var previewShowGrid = app.previewShowGrid;
+  var previewFabricBg = app.previewFabricBg;
 
   // Effect A — build the offscreen 1-px-per-stitch image cache.
   // Re-runs only when pattern data or fabric-bg toggle changes.
@@ -1354,7 +1371,9 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
    Depends on: context.js (CreatorContext) */
 
 window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
   var h = React.createElement;
 
   var displayRef = React.useRef(null);
@@ -1369,12 +1388,12 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var pal = ctx.pal;
   var sW = ctx.sW;
   var sH = ctx.sH;
-  var cs = ctx.cs;
-  var previewShowGrid = ctx.previewShowGrid;
-  // inputLevel prop overrides ctx.realisticLevel — used by SplitPane right pane
-  var realisticLevel = (props && props.inputLevel != null) ? props.inputLevel : ctx.realisticLevel;
+  var cs = cv.cs;
+  var previewShowGrid = app.previewShowGrid;
+  // inputLevel prop overrides app.realisticLevel — used by SplitPane right pane
+  var realisticLevel = (props && props.inputLevel != null) ? props.inputLevel : app.realisticLevel;
   var fabricCt = ctx.fabricCt;
-  var coverageOverride = ctx.coverageOverride;
+  var coverageOverride = app.coverageOverride;
 
   // ── Effect A: render the full offscreen realistic canvas ───────────────────
   // Re-runs when pattern data or rendering level changes.
@@ -1782,7 +1801,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     setOffscreenVersion(function(v) { return v + 1; });
     }); // end of RAF callback
     return function() { if (realisticRafRef.current) { cancelAnimationFrame(realisticRafRef.current); realisticRafRef.current = null; } };
-  }, [pat, cmap, sW, sH, realisticLevel, ctx.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride]);
+  }, [pat, cmap, sW, sH, realisticLevel, app.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────
   // Runs whenever the offscreen is rebuilt (offscreenVersion) or zoom changes.
@@ -6272,14 +6291,18 @@ window.usePreview = function usePreview(state) {
 
 /* ─── PatternCanvas.js ─── */
 /* creator/PatternCanvas.js — The interactive pattern canvas component.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
+   Reads from CreatorContext and GenerationContext.
+   Loaded as a plain <script> before the main Babel script.
    Depends on: drawPatternBaseOnCanvas, drawPatternOverlayOnCanvas (canvasRenderer.js),
-               CreatorContext (context.js) */
+               CreatorContext, GenerationContext (context.js) */
 
 window.PatternCanvas = function PatternCanvas() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
+  var gen = window.useGeneration();
   var h = React.createElement;
-  var G = ctx.G;
+  var G = app.G;
 
   // Cache of the base render (stitches + grid + committed bsLines + border).
   // Avoids re-drawing the expensive base on every mouse-move.
@@ -6294,16 +6317,18 @@ window.PatternCanvas = function PatternCanvas() {
   var antsIntervalRef = React.useRef(null);
   // Latest context snapshot ref — updated every render so the interval callback
   // always reads current state rather than the closed-over stale value.
-  var ctxRef = React.useRef(ctx);
-  ctxRef.current = ctx;
+  // Must be the MERGED snapshot across all 4 contexts because drawPatternBaseOnCanvas
+  // and drawPatternOverlayOnCanvas expect the pre-refactor merged state shape.
+  var ctxRef = React.useRef({});
+  ctxRef.current = Object.assign({}, ctx, cv, gen, { G: G, pcRef: app.pcRef, tab: app.tab });
 
   // ── Effect: Animated marching ants for highlight outline mode
   var hlAntsRef = React.useRef(null);
   React.useEffect(function() {
-    var needAnts = ctx.highlightMode === "outline" && ctx.hiId;
+    var needAnts = cv.highlightMode === "outline" && cv.hiId;
     if (!needAnts) {
       if (hlAntsRef.current) { clearInterval(hlAntsRef.current); hlAntsRef.current = null; }
-      if (ctx.antsOffset !== 0 && ctx.setAntsOffset) ctx.setAntsOffset(0);
+      if (cv.antsOffset !== 0 && cv.setAntsOffset) cv.setAntsOffset(0);
       return;
     }
     if (hlAntsRef.current) return;
@@ -6322,11 +6347,11 @@ window.PatternCanvas = function PatternCanvas() {
     return function() {
       if (hlAntsRef.current) { clearInterval(hlAntsRef.current); hlAntsRef.current = null; }
     };
-  }, [ctx.highlightMode, ctx.hiId]);
+  }, [cv.highlightMode, cv.hiId]);
 
   // ── Effect: Animated marching ants for selection mask
   React.useEffect(function() {
-    var hasSelection = ctx.selectionMask || ctx.lassoPreviewMask;
+    var hasSelection = cv.selectionMask || cv.lassoPreviewMask;
     if (!hasSelection) {
       if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
       antsOffsetRef.current = 0;
@@ -6347,17 +6372,17 @@ window.PatternCanvas = function PatternCanvas() {
     return function() {
       if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
     };
-  }, [ctx.selectionMask, ctx.lassoPreviewMask]);
+  }, [cv.selectionMask, cv.lassoPreviewMask]);
 
   // ── Effect 1: Full render (base + overlay). Fires when pattern content changes.
   // Uses RAF so rapid zoom-slider drags collapse into a single paint per frame.
   React.useEffect(function() {
-    if (!ctx.pat || !ctx.cmap || !ctx.pcRef.current || ctx.tab !== "pattern") return;
+    if (!ctx.pat || !ctx.cmap || !app.pcRef.current || app.tab !== "pattern") return;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     // Capture values needed inside the RAF callback (avoids stale-closure issues
     // if the component unmounts or re-renders before the frame fires).
-    var canvas = ctx.pcRef.current;
-    var snap = ctx; // current context snapshot
+    var canvas = app.pcRef.current;
+    var snap = ctxRef.current; // merged snapshot across all 4 contexts
     rafRef.current = requestAnimationFrame(function() {
       rafRef.current = null;
       if (!canvas) return;
@@ -6372,38 +6397,38 @@ window.PatternCanvas = function PatternCanvas() {
       if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     };
   }, [
-    ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
-    ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
-    ctx.img, ctx.partialStitches, ctx.stitchType, ctx.partialStitchTool,
-    ctx.showCleanupDiff, ctx.cleanupDiff,
-    ctx.dimFraction, ctx.dimHiId, ctx.bgDimOpacity, ctx.bgDimDesaturation,
-    ctx.highlightMode, ctx.tintColor, ctx.tintOpacity, ctx.spotDimOpacity
+    ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, cv.view, cv.hiId, cv.showCtr,
+    cv.bsLines, app.tab, cv.showOverlay, cv.overlayOpacity,
+    gen.img, ctx.partialStitches, cv.stitchType, ctx.partialStitchTool,
+    gen.showCleanupDiff, gen.cleanupDiff,
+    cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
+    cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
   // Restores the cached base from ImageData then repaints just the hover elements.
   React.useEffect(function() {
-    if (!ctx.pat || !ctx.cmap || !ctx.pcRef.current || ctx.tab !== "pattern") return;
+    if (!ctx.pat || !ctx.cmap || !app.pcRef.current || app.tab !== "pattern") return;
     if (!baseCacheRef.current) return; // base not ready yet — Effect 1 will draw everything
     // Skip restoring the base cache while a drag-draw is in progress: applyBrush
     // imperatively paints directly onto the canvas and the overlay-only redraw
     // must not overwrite those uncommitted pixels with the stale cached image.
-    if (ctx.isDraggingRef && ctx.isDraggingRef.current) return;
-    var canvas = ctx.pcRef.current;
+    if (cv.isDraggingRef && cv.isDraggingRef.current) return;
+    var canvas = app.pcRef.current;
     var context = canvas.getContext("2d");
     context.putImageData(baseCacheRef.current, 0, 0);
-    drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, ctx.cs, G, ctx);
+    drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, cv.cs, G, ctxRef.current);
   }, [
-    ctx.hoverCoords, ctx.selectedColorId, ctx.bsStart,
+    cv.hoverCoords, cv.selectedColorId, cv.bsStart,
     // structural deps — needed so the overlay is redrawn correctly when these change
-    ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.tab,
-    ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.partialStitchTool, ctx.bsLines,
-    ctx.lassoMode, ctx.lassoPoints, ctx.lassoPreviewMask, ctx.lassoCursor, ctx.lassoInProgress,
-    ctx.selectionMask, ctx.confettiPreview
+    ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, app.tab,
+    cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,
+    cv.lassoMode, cv.lassoPoints, cv.lassoPreviewMask, cv.lassoCursor, cv.lassoInProgress,
+    cv.selectionMask, cv.confettiPreview
   ]);
 
   return h("canvas", {
-    ref: ctx.pcRef,
+    ref: app.pcRef,
     style: {
       display: "block",
       touchAction: "none",
@@ -6411,15 +6436,15 @@ window.PatternCanvas = function PatternCanvas() {
       WebkitUserSelect: "none",
       WebkitTouchCallout: "none"
     },
-    onPointerDown:   ctx.handlePatPointerDown,
-    onPointerUp:     ctx.handlePatPointerUp,
-    onPointerMove:   ctx.handlePatPointerMove,
-    onPointerLeave:  ctx.handlePatPointerLeave,
-    onPointerCancel: ctx.handlePatPointerCancel,
+    onPointerDown:   cv.handlePatPointerDown,
+    onPointerUp:     cv.handlePatPointerUp,
+    onPointerMove:   cv.handlePatPointerMove,
+    onPointerLeave:  cv.handlePatPointerLeave,
+    onPointerCancel: cv.handlePatPointerCancel,
     onContextMenu: function(e) {
-      if (ctx.activeTool === "backstitch" && ctx.bsStart) {
+      if (cv.activeTool === "backstitch" && cv.bsStart) {
         e.preventDefault();
-        ctx.setBsStart(null);
+        cv.setBsStart(null);
       }
     }
   });
@@ -6436,7 +6461,9 @@ window.PatternCanvas = function PatternCanvas() {
                gridCoord (helpers.js global) */
 
 window.CreatorSplitPane = function CreatorSplitPane() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
   var h = React.createElement;
 
   var containerRef   = React.useRef(null);
@@ -6446,7 +6473,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
   var rafSyncRef     = React.useRef(null);
 
   // Local ratio shadow — updated immediately during drag for smooth visual feedback
-  var _ratio = React.useState(ctx.splitPaneRatio || 0.5);
+  var _ratio = React.useState(app.splitPaneRatio || 0.5);
   var ratio = _ratio[0], setRatio = _ratio[1];
 
   // Narrow mode: container < 560px → stacked layout
@@ -6507,11 +6534,11 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       document.body.style.userSelect = "";
       // If dragged past edge threshold → exit split pane
       if (ratio < 0.1 || ratio > 0.9) {
-        ctx.setSplitPaneEnabled(false);
+        app.setSplitPaneEnabled(false);
         if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", false);
         return;
       }
-      ctx.setSplitPaneRatio(ratio);
+      app.setSplitPaneRatio(ratio);
       if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneRatio", ratio);
     }
     document.addEventListener("pointermove", onMove);
@@ -6524,8 +6551,8 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   // Scroll sync: left pane ↔ right pane (debounced to one rAF per direction)
   React.useEffect(function() {
-    if (!ctx.splitPaneSyncEnabled) return;
-    var left  = ctx.scrollRef.current;
+    if (!app.splitPaneSyncEnabled) return;
+    var left  = app.scrollRef.current;
     var right = rightScrollRef.current;
     if (!left || !right) return;
 
@@ -6534,10 +6561,10 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       if (rafSyncRef.current) return;
       rafSyncRef.current = requestAnimationFrame(function() {
         rafSyncRef.current = null;
-        if (!ctx.scrollRef.current || !rightScrollRef.current) return;
+        if (!app.scrollRef.current || !rightScrollRef.current) return;
         syncingRef.current = true;
-        rightScrollRef.current.scrollLeft = ctx.scrollRef.current.scrollLeft;
-        rightScrollRef.current.scrollTop  = ctx.scrollRef.current.scrollTop;
+        rightScrollRef.current.scrollLeft = app.scrollRef.current.scrollLeft;
+        rightScrollRef.current.scrollTop  = app.scrollRef.current.scrollTop;
         syncingRef.current = false;
       });
     }
@@ -6546,10 +6573,10 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       if (rafSyncRef.current) return;
       rafSyncRef.current = requestAnimationFrame(function() {
         rafSyncRef.current = null;
-        if (!ctx.scrollRef.current || !rightScrollRef.current) return;
+        if (!app.scrollRef.current || !rightScrollRef.current) return;
         syncingRef.current = true;
-        ctx.scrollRef.current.scrollLeft = rightScrollRef.current.scrollLeft;
-        ctx.scrollRef.current.scrollTop  = rightScrollRef.current.scrollTop;
+        app.scrollRef.current.scrollLeft = rightScrollRef.current.scrollLeft;
+        app.scrollRef.current.scrollTop  = rightScrollRef.current.scrollTop;
         syncingRef.current = false;
       });
     }
@@ -6561,30 +6588,30 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       right.removeEventListener("scroll", syncR2L);
       if (rafSyncRef.current) { cancelAnimationFrame(rafSyncRef.current); rafSyncRef.current = null; }
     };
-  }, [ctx.splitPaneSyncEnabled]);
+  }, [app.splitPaneSyncEnabled]);
 
   // Context-menu handler for the left pane (chart) scroll container
   function onLeftContextMenu(e) {
-    if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
+    if (cv.activeTool === "backstitch" && cv.bsStart) return;
     e.preventDefault();
-    if (!ctx.pcRef.current || !ctx.pat) return;
-    var gc = gridCoord(ctx.pcRef, e, ctx.cs, ctx.G, false);
+    if (!app.pcRef.current || !ctx.pat) return;
+    var gc = gridCoord(app.pcRef, e, cv.cs, app.G, false);
     if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
     var idx = gc.gy * ctx.sW + gc.gx;
     var cell = ctx.pat[idx];
     var rcIsHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
-    if ((ctx.activeTool === "paint" || ctx.activeTool === "fill" || rcIsHsTool) &&
+    if ((cv.activeTool === "paint" || cv.activeTool === "fill" || rcIsHsTool) &&
         cell && cell.id !== "__skip__" && cell.id !== "__empty__" &&
         ctx.cmap && ctx.cmap[cell.id]) {
-      ctx.setSelectedColorId(cell.id);
+      cv.setSelectedColorId(cell.id);
       return;
     }
-    ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
+    cv.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
   }
 
   // Which canvas to render in the right pane
   function rightPaneCanvas() {
-    var mode = ctx.rightPaneMode || "level2";
+    var mode = app.rightPaneMode || "level2";
     if (mode === "wysiwyg") {
       return h(window.CreatorPreviewCanvas, null);
     }
@@ -6602,24 +6629,24 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   // Cursor for the chart (left) pane
   var leftCursor = (function() {
-    if (ctx.activeTool === "eyedropper") return "copy";
-    if (ctx.activeTool === "magicWand" || ctx.activeTool === "lasso") return "crosshair";
-    if (ctx.activeTool === "fill") return "cell";
-    if (ctx.activeTool === "eraseBs") return "not-allowed";
-    if (ctx.activeTool || ctx.partialStitchTool) return "crosshair";
+    if (cv.activeTool === "eyedropper") return "copy";
+    if (cv.activeTool === "magicWand" || cv.activeTool === "lasso") return "crosshair";
+    if (cv.activeTool === "fill") return "cell";
+    if (cv.activeTool === "eraseBs") return "not-allowed";
+    if (cv.activeTool || ctx.partialStitchTool) return "crosshair";
     return "default";
   })();
 
   // Exit split pane
   function exitSplit() {
-    ctx.setSplitPaneEnabled(false);
+    app.setSplitPaneEnabled(false);
     if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", false);
   }
 
   // Toggle sync
   function toggleSync() {
-    var next = !ctx.splitPaneSyncEnabled;
-    ctx.setSplitPaneSyncEnabled(next);
+    var next = !app.splitPaneSyncEnabled;
+    app.setSplitPaneSyncEnabled(next);
     if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneSyncEnabled", next);
   }
 
@@ -6646,7 +6673,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
     return h("div", { ref: containerRef, style: { width: "100%" } },
       // Chart pane — full width
       h("div", {
-        ref: ctx.scrollRef,
+        ref: app.scrollRef,
         style: { overflow: "auto", maxHeight: 400, border: "0.5px solid #e2e8f0", borderRadius: "8px 8px 0 0", background: "#f1f5f9", cursor: leftCursor },
         onContextMenu: onLeftContextMenu,
       }, h(window.PatternCanvas, null)),
@@ -6702,9 +6729,9 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
         }, "\xD7")
       ),
-      // Chart scroll container — this IS ctx.scrollRef
+      // Chart scroll container — this IS app.scrollRef
       h("div", {
-        ref: ctx.scrollRef,
+        ref: app.scrollRef,
         style: { flex: 1, overflow: "auto", background: "#f1f5f9", cursor: leftCursor },
         onContextMenu: onLeftContextMenu,
       }, h(window.PatternCanvas, null))
@@ -6729,15 +6756,15 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       // Sync lock button
       h("button", {
         onClick: toggleSync,
-        title: ctx.splitPaneSyncEnabled ? "Scroll sync on \u2014 click to disable" : "Scroll sync off \u2014 click to enable",
+        title: app.splitPaneSyncEnabled ? "Scroll sync on \u2014 click to disable" : "Scroll sync off \u2014 click to enable",
         style: {
-          background: ctx.splitPaneSyncEnabled ? "#e0fdf4" : "#fff",
-          border: "1px solid " + (ctx.splitPaneSyncEnabled ? "#0d9488" : "#d1d5db"),
+          background: app.splitPaneSyncEnabled ? "#e0fdf4" : "#fff",
+          border: "1px solid " + (app.splitPaneSyncEnabled ? "#0d9488" : "#d1d5db"),
           borderRadius: 4, width: 20, height: 20, padding: 0, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
         },
-      }, renderSyncIcon(ctx.splitPaneSyncEnabled)),
+      }, renderSyncIcon(app.splitPaneSyncEnabled)),
 
       // Drag handle dots
       h("div", { style: { display: "flex", flexDirection: "column", gap: 2, opacity: 0.4, marginTop: 4 } },
@@ -6762,7 +6789,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
               display: "flex", alignItems: "center", gap: 2, padding: 0,
             },
           },
-            MODE_LABELS[ctx.rightPaneMode || "level2"] || "Preview",
+            MODE_LABELS[app.rightPaneMode || "level2"] || "Preview",
             h("span", { style: { fontSize: 9, marginLeft: 2 } }, "\u25BE")
           ),
           rightDropOpen && h("div", {
@@ -6777,16 +6804,16 @@ window.CreatorSplitPane = function CreatorSplitPane() {
               return h("button", {
                 key: m,
                 onClick: function() {
-                  ctx.setRightPaneMode(m);
+                  app.setRightPaneMode(m);
                   if (typeof UserPrefs !== "undefined") UserPrefs.set("rightPaneMode", m);
                   setRightDropOpen(false);
                 },
                 style: {
                   display: "block", width: "100%", textAlign: "left",
-                  padding: "5px 12px", background: ctx.rightPaneMode === m ? "#f0fdfa" : "none",
+                  padding: "5px 12px", background: app.rightPaneMode === m ? "#f0fdfa" : "none",
                   border: "none", cursor: "pointer", fontSize: 11,
-                  color: ctx.rightPaneMode === m ? "#0d9488" : "#475569",
-                  fontWeight: ctx.rightPaneMode === m ? 600 : 400,
+                  color: app.rightPaneMode === m ? "#0d9488" : "#475569",
+                  fontWeight: app.rightPaneMode === m ? 600 : 400,
                 },
               }, MODE_LABELS[m]);
             })
@@ -6811,11 +6838,15 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
 /* ─── ToolStrip.js ─── */
 /* creator/ToolStrip.js — The main tool strip bar above the pattern canvas.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: CreatorContext (context.js) */
+   Reads from CreatorContext and GenerationContext.
+   Loaded as a plain <script> before the main Babel script.
+   Depends on: CreatorContext, GenerationContext (context.js) */
 
 window.CreatorToolStrip = function CreatorToolStrip() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
+  var gen = window.useGeneration();
   var h = React.createElement;
 
   // Local state
@@ -6823,14 +6854,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // ResizeObserver: progressively collapse strip groups when narrow
   React.useEffect(function() {
-    var el = ctx.stripRef.current;
+    var el = app.stripRef.current;
     if (!el) return;
     var frame = null;
     var obs = new ResizeObserver(function() {
       if (frame) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(function() {
         var w = el.clientWidth;
-        ctx.setStripCollapsed({ brush: w < 680, bs: w < 550 });
+        app.setStripCollapsed({ brush: w < 680, bs: w < 550 });
       });
     });
     obs.observe(el);
@@ -6839,13 +6870,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // Close overflow menu on outside click
   React.useEffect(function() {
-    if (!ctx.overflowOpen) return;
+    if (!app.overflowOpen) return;
     function close(e) {
-      if (ctx.overflowRef.current && !ctx.overflowRef.current.contains(e.target)) ctx.setOverflowOpen(false);
+      if (app.overflowRef.current && !app.overflowRef.current.contains(e.target)) app.setOverflowOpen(false);
     }
     document.addEventListener("pointerdown", close);
     return function() { document.removeEventListener("pointerdown", close); };
-  }, [ctx.overflowOpen]);
+  }, [app.overflowOpen]);
 
   // Preview dropdown local state — must be declared before early return (Rules of Hooks)
   var previewWrapRef = React.useRef(null);
@@ -6859,9 +6890,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { document.removeEventListener("pointerdown", close); };
   }, [previewMenuOpen]);
 
-  if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
+  if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
 
-  var sc = ctx.stripCollapsed || {};
+  var sc = app.stripCollapsed || {};
 
   // Palette data sorted by usage — needed early for auto-select
   var palData = (ctx.displayPal || ctx.pal || []).slice().sort(function(a,b){return (b.count||0)-(a.count||0);});
@@ -6914,35 +6945,35 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       className:"tb-grp"+(sc.brush?" tb-hidden":"")
     },
       h("button", {
-        className:"tb-btn"+(ctx.brushMode==="paint" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
+        className:"tb-btn"+(cv.brushMode==="paint" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
         onClick:function(){
-          if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
-          ctx.setBrushAndActivate("paint");
+          if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
+          cv.setBrushAndActivate("paint");
         },
         title:"Paint (P)"
       }, "Paint"),
       h("button", {
-        className:"tb-btn"+(ctx.brushMode==="fill" && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase"?" tb-btn--on":""),
+        className:"tb-btn"+(cv.brushMode==="fill" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
         onClick:function(){
-          if (!ctx.selectedColorId && palData.length > 0) ctx.setSelectedColorId(palData[0].id);
-          ctx.setBrushAndActivate("fill");
+          if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
+          cv.setBrushAndActivate("fill");
         },
         title:"Fill (F)"
       }, "Fill"),
       h("button", {
-        className:"tb-btn"+(ctx.stitchType==="erase"?" tb-btn--red":""),
-        onClick:function(){ctx.selectStitchType("erase");}, title:"Erase (5)"
+        className:"tb-btn"+(cv.stitchType==="erase"?" tb-btn--red":""),
+        onClick:function(){cv.selectStitchType("erase");}, title:"Erase (5)"
       }, svgErase, "Erase"),
       h("button", {
-        className:"tb-btn"+(ctx.activeTool==="eyedropper"?" tb-btn--on":""),
-        onClick:function(){ctx.setActiveTool("eyedropper"); ctx.setBsStart(null); ctx.setPartialStitchTool(null);},
+        className:"tb-btn"+(cv.activeTool==="eyedropper"?" tb-btn--on":""),
+        onClick:function(){cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);},
         title:"Eyedropper (I)"
       }, "Pick")
     )
   ];
 
   // Stitch type dropdown — shown only when paint or fill is the active brush mode
-  var showStitchGrp = (ctx.brushMode==="paint" || ctx.brushMode==="fill") && ctx.activeTool!=="eyedropper" && ctx.stitchType!=="erase";
+  var showStitchGrp = (cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase";
   var stitchMeta = {
     "cross":         {icon:svgX,         label:"Cross",       cls:"tb-btn--green"},
     "quarter":       {icon:svgQtr,       label:"\u00BC Stitch",  cls:"tb-btn--blue"},
@@ -6951,7 +6982,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     "three-quarter": {icon:svgThreeQtr,  label:"\u00BE Stitch",  cls:"tb-btn--blue"},
     "backstitch":    {icon:null,         label:"Bs",           cls:"tb-btn--on"}
   };
-  var activeSM = stitchMeta[ctx.stitchType] || stitchMeta["cross"];
+  var activeSM = stitchMeta[cv.stitchType] || stitchMeta["cross"];
   var stitchDrop = showStitchGrp ? [
     h("div", {key:"sdiv-stitch", className:"tb-sdiv"}),
     h("div", {key:"stitch-drop", className:"tb-drop-wrap"},
@@ -6964,8 +6995,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           var m = stitchMeta[k];
           return h("button", {
             key:k,
-            className:"tb-drop-item" + (ctx.stitchType===k?" tb-drop-item--on":""),
-            onClick:function(){ctx.selectStitchType(k);}
+            className:"tb-drop-item" + (cv.stitchType===k?" tb-drop-item--on":""),
+            onClick:function(){cv.selectStitchType(k);}
           }, m.icon, m.label);
         })
       )
@@ -6977,17 +7008,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
   var swatchRow = showStitchGrp && palData.length > 0 ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
-    ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId] ? h("span", {
+    cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
       style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0}
     },
-      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[ctx.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block"}}),
-      h("span", {style:{fontWeight:600,color:"#0d9488"}}, ctx.selectedColorId)
+      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block"}}),
+      h("span", {style:{fontWeight:600,color:"#0d9488"}}, cv.selectedColorId)
     ) : h("span", {style:{fontSize:10,color:"#94a3b8",marginRight:6,flexShrink:0}}, "none selected"),
     swatchesShown.map(function(p) {
-      var isSel = ctx.selectedColorId === p.id;
+      var isSel = cv.selectedColorId === p.id;
       return h("button", {
         key: p.id,
-        onClick: function() { ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id); },
+        onClick: function() { cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id); },
         title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
         "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
         "aria-pressed": isSel,
@@ -7016,22 +7047,22 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // Brush size group
   var showBrushSize = (
-    ((ctx.stitchType === "cross" || ctx.stitchType === "half-fwd" || ctx.stitchType === "half-bck") && ctx.brushMode === "paint") ||
-    ctx.stitchType === "erase"
-  ) && ctx.activeTool !== "eyedropper";
+    ((cv.stitchType === "cross" || cv.stitchType === "half-fwd" || cv.stitchType === "half-bck") && cv.brushMode === "paint") ||
+    cv.stitchType === "erase"
+  ) && cv.activeTool !== "eyedropper";
   var sizeGrp = showBrushSize ? [
     h("div", {key:"sdiv-sz", className:"tb-sdiv"}),
     h("div", {
       key:"size-grp",
       className:"tb-grp",
-      style:{display:"flex",alignItems:"center",gap:4,opacity:(ctx.selectedColorId||ctx.stitchType==="erase")?1:0.6}
+      style:{display:"flex",alignItems:"center",gap:4,opacity:(cv.selectedColorId||cv.stitchType==="erase")?1:0.6}
     },
       h("span", {style:{fontSize:10,color:"#475569",textTransform:"uppercase",fontWeight:600}}, "Size"),
       [1,2,3].map(function(sz) {
         return h("button", {
           key:sz,
-          className:"tb-btn"+(ctx.brushSize===sz?" tb-btn--on":""),
-          onClick:function(){ctx.setBrushSize(sz);},
+          className:"tb-btn"+(cv.brushSize===sz?" tb-btn--on":""),
+          onClick:function(){cv.setBrushSize(sz);},
           style:{padding:"2px 6px",minWidth:24}
         }, sz);
       })
@@ -7039,28 +7070,28 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   ] : null;
 
   // Backstitch continuous
-  var bsCont = (ctx.stitchType === "backstitch") ? [
+  var bsCont = (cv.stitchType === "backstitch") ? [
     h("div", {key:"sdiv-bs", className:"tb-sdiv"}),
     h("label", {
       key:"bs-cont",
       style:{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#475569",flexShrink:0}
     },
       h("input", {
-        type:"checkbox", checked:ctx.bsContinuous,
-        onChange:function(e){ctx.setBsContinuous(e.target.checked); ctx.setBsStart(null);}
+        type:"checkbox", checked:cv.bsContinuous,
+        onChange:function(e){cv.setBsContinuous(e.target.checked); cv.setBsStart(null);}
       }),
       "Continuous"
     )
   ] : null;
 
   // Selection tools dropdown
-  var isSelectActive = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
-  var selIcon = ctx.activeTool === "magicWand" ? svgWand :
-                ctx.activeTool === "lasso" && ctx.lassoMode === "polygon" ? svgPolygon :
-                ctx.activeTool === "lasso" && ctx.lassoMode === "magnetic" ? svgMagnetic :
-                ctx.activeTool === "lasso" ? svgFreehand : svgWand;
-  var selLabel = ctx.activeTool === "magicWand" ? "Wand" :
-                 ctx.activeTool === "lasso" ? (ctx.lassoMode === "polygon" ? "Poly" : ctx.lassoMode === "magnetic" ? "Mag" : "Lasso") :
+  var isSelectActive = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
+  var selIcon = cv.activeTool === "magicWand" ? svgWand :
+                cv.activeTool === "lasso" && cv.lassoMode === "polygon" ? svgPolygon :
+                cv.activeTool === "lasso" && cv.lassoMode === "magnetic" ? svgMagnetic :
+                cv.activeTool === "lasso" ? svgFreehand : svgWand;
+  var selLabel = cv.activeTool === "magicWand" ? "Wand" :
+                 cv.activeTool === "lasso" ? (cv.lassoMode === "polygon" ? "Poly" : cv.lassoMode === "magnetic" ? "Mag" : "Lasso") :
                  "Select";
   var selectDrop = [
     h("div", {key:"sdiv-select", className:"tb-sdiv"}),
@@ -7071,90 +7102,90 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       }, selIcon, selLabel, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
       h("div", {className:"tb-dropdown"},
         h("button", {
-          className:"tb-drop-item"+(ctx.activeTool==="magicWand"?" tb-drop-item--on":""),
+          className:"tb-drop-item"+(cv.activeTool==="magicWand"?" tb-drop-item--on":""),
           onClick:function(){
-            if (ctx.activeTool==="magicWand") ctx.setActiveTool(null);
-            else { ctx.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); ctx.setBsStart(null); if (ctx.cancelLasso) ctx.cancelLasso(); }
+            if (cv.activeTool==="magicWand") cv.setActiveTool(null);
+            else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
           }
         }, svgWand, "Magic Wand"),
         h("button", {
-          className:"tb-drop-item"+(ctx.activeTool==="lasso"&&ctx.lassoMode==="freehand"?" tb-drop-item--on":""),
+          className:"tb-drop-item"+(cv.activeTool==="lasso"&&cv.lassoMode==="freehand"?" tb-drop-item--on":""),
           onClick:function(){
-            var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="freehand";
-            if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
-            else{ctx.setActiveTool("lasso");ctx.setLassoMode("freehand");ctx.setPartialStitchTool(null);ctx.setBsStart(null);}
+            var same=cv.activeTool==="lasso"&&cv.lassoMode==="freehand";
+            if (same){cv.cancelLasso();cv.setActiveTool(null);cv.setLassoMode(null);}
+            else{cv.setActiveTool("lasso");cv.setLassoMode("freehand");ctx.setPartialStitchTool(null);cv.setBsStart(null);}
           }
         }, svgFreehand, "Freehand"),
         h("button", {
-          className:"tb-drop-item"+(ctx.activeTool==="lasso"&&ctx.lassoMode==="polygon"?" tb-drop-item--on":""),
+          className:"tb-drop-item"+(cv.activeTool==="lasso"&&cv.lassoMode==="polygon"?" tb-drop-item--on":""),
           onClick:function(){
-            var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="polygon";
-            if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
-            else{ctx.setActiveTool("lasso");ctx.setLassoMode("polygon");ctx.setPartialStitchTool(null);ctx.setBsStart(null);}
+            var same=cv.activeTool==="lasso"&&cv.lassoMode==="polygon";
+            if (same){cv.cancelLasso();cv.setActiveTool(null);cv.setLassoMode(null);}
+            else{cv.setActiveTool("lasso");cv.setLassoMode("polygon");ctx.setPartialStitchTool(null);cv.setBsStart(null);}
           }
         }, svgPolygon, "Polygon"),
         h("button", {
-          className:"tb-drop-item"+(ctx.activeTool==="lasso"&&ctx.lassoMode==="magnetic"?" tb-drop-item--on":""),
+          className:"tb-drop-item"+(cv.activeTool==="lasso"&&cv.lassoMode==="magnetic"?" tb-drop-item--on":""),
           onClick:function(){
-            var same=ctx.activeTool==="lasso"&&ctx.lassoMode==="magnetic";
-            if (same){ctx.cancelLasso();ctx.setActiveTool(null);ctx.setLassoMode(null);}
-            else{ctx.setActiveTool("lasso");ctx.setLassoMode("magnetic");ctx.setPartialStitchTool(null);ctx.setBsStart(null);}
+            var same=cv.activeTool==="lasso"&&cv.lassoMode==="magnetic";
+            if (same){cv.cancelLasso();cv.setActiveTool(null);cv.setLassoMode(null);}
+            else{cv.setActiveTool("lasso");cv.setLassoMode("magnetic");ctx.setPartialStitchTool(null);cv.setBsStart(null);}
           }
         }, svgMagnetic, "Magnetic"),
-        (ctx.hasSelection || ctx.lassoInProgress) && h("div", {style:{borderTop:"1px solid var(--border)",marginTop:3,paddingTop:3}},
+        (cv.hasSelection || cv.lassoInProgress) && h("div", {style:{borderTop:"1px solid var(--border)",marginTop:3,paddingTop:3}},
           h("button", {
             className:"tb-drop-item",
-            onClick:function(){if(ctx.cancelLasso)ctx.cancelLasso();if(ctx.clearSelection)ctx.clearSelection();}
-          }, "\u2715 Clear (", (ctx.selectionCount||0).toLocaleString(), ")")
+            onClick:function(){if(cv.cancelLasso)cv.cancelLasso();if(cv.clearSelection)cv.clearSelection();}
+          }, "\u2715 Clear (", (cv.selectionCount||0).toLocaleString(), ")")
         )
       )
     ),
-    (ctx.hasSelection || ctx.lassoInProgress) && h("button", {
+    (cv.hasSelection || cv.lassoInProgress) && h("button", {
       key:"select-clear",
       className:"tb-btn",
-      onClick:function(){if(ctx.cancelLasso)ctx.cancelLasso();if(ctx.clearSelection)ctx.clearSelection();},
+      onClick:function(){if(cv.cancelLasso)cv.cancelLasso();if(cv.clearSelection)cv.clearSelection();},
       title:"Clear selection (Esc)",
       style:{fontSize:9,padding:"2px 5px",color:"#475569"}
-    }, (ctx.selectionCount||0).toLocaleString()+" sel")
+    }, (cv.selectionCount||0).toLocaleString()+" sel")
   ];
 
   // Colour chip
-  var colChip = ((ctx.stitchType==="cross"||ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck") &&
-    ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId]) ?
+  var colChip = ((cv.stitchType==="cross"||cv.stitchType==="half-fwd"||cv.stitchType==="half-bck") &&
+    cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId]) ?
     h("span", {
       style:{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,
-        background:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"#e0f2fe":"#f1f5f9",
+        background:(cv.stitchType==="half-fwd"||cv.stitchType==="half-bck")?"#e0f2fe":"#f1f5f9",
         flexShrink:0,
-        border:(ctx.stitchType==="half-fwd"||ctx.stitchType==="half-bck")?"1px solid #7dd3fc":"none"
+        border:(cv.stitchType==="half-fwd"||cv.stitchType==="half-bck")?"1px solid #7dd3fc":"none"
       }
     },
       h("span", {style:{width:10,height:10,borderRadius:2,
-        background:"rgb("+ctx.cmap[ctx.selectedColorId].rgb+")",
+        background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",
         border:"1px solid #cbd5e1",display:"inline-block"}}),
-      ctx.selectedColorId
+      cv.selectedColorId
     ) : null;
 
   // Active tool indicator badge
   var badgeLabel, badgeBg, badgeColor, badgeDot;
-  if (ctx.activeTool === "eyedropper") {
+  if (cv.activeTool === "eyedropper") {
     badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#eab308";
-  } else if (ctx.activeTool === "magicWand") {
+  } else if (cv.activeTool === "magicWand") {
     badgeLabel = "Magic Wand"; badgeBg = "#f3e8ff"; badgeColor = "#6b21a8"; badgeDot = "#a855f7";
-  } else if (ctx.activeTool === "lasso") {
-    var lm = ctx.lassoMode === "polygon" ? "Polygon" : ctx.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
+  } else if (cv.activeTool === "lasso") {
+    var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
     badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#fff7ed"; badgeColor = "#9a3412"; badgeDot = "#f97316";
-  } else if (ctx.stitchType === "erase" || ctx.activeTool === "eraseAll" || ctx.activeTool === "eraseBs") {
+  } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
     badgeLabel = "Erase"; badgeBg = "#fef2f2"; badgeColor = "#991b1b"; badgeDot = "#ef4444";
-  } else if (ctx.stitchType === "backstitch") {
+  } else if (cv.stitchType === "backstitch") {
     badgeLabel = "Backstitch"; badgeBg = "#f5f5f5"; badgeColor = "#404040"; badgeDot = "#737373";
-  } else if (ctx.stitchType === "half-fwd") {
+  } else if (cv.stitchType === "half-fwd") {
     badgeLabel = "Half /"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
-  } else if (ctx.stitchType === "half-bck") {
+  } else if (cv.stitchType === "half-bck") {
     badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
-  } else if (ctx.brushMode === "fill") {
+  } else if (cv.brushMode === "fill") {
     badgeLabel = "Fill"; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
-  } else if (ctx.brushMode === "paint") {
-    var szTxt = ctx.brushSize > 1 ? " " + ctx.brushSize + "\xD7" + ctx.brushSize : "";
+  } else if (cv.brushMode === "paint") {
+    var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
     badgeLabel = "Paint" + szTxt; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
   } else {
     badgeLabel = null;
@@ -7173,46 +7204,46 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var zoomGrp = h("div", {className:"tb-zoom-grp"},
     h("span", {className:"tb-zoom-lbl"}, "Zoom"),
     h("input", {
-      type:"range", min:0.05, max:3, step:0.05, value:ctx.zoom,
-      onChange:function(e){ctx.setZoom(Number(e.target.value));},
+      type:"range", min:0.05, max:3, step:0.05, value:cv.zoom,
+      onChange:function(e){cv.setZoom(Number(e.target.value));},
       style:{width:55}
     }),
-    h("span", {className:"tb-zoom-pct"}, Math.round(ctx.zoom*100)+"%"),
-    h("button", {className:"tb-fit-btn", onClick:ctx.fitZ}, "Fit")
+    h("span", {className:"tb-zoom-pct"}, Math.round(cv.zoom*100)+"%"),
+    h("button", {className:"tb-fit-btn", onClick:cv.fitZ}, "Fit")
   );
 
   // Undo/Redo
-  var undoRedo = (ctx.editHistory.length > 0 || ctx.redoHistory.length > 0) ? [
+  var undoRedo = (cv.editHistory.length > 0 || cv.redoHistory.length > 0) ? [
     h("div", {key:"sdiv-ur", className:"tb-sdiv"}),
     h("button", {
       key:"undo", className:"tb-btn",
-      onClick:ctx.undoEdit, disabled:!ctx.editHistory.length,
+      onClick:cv.undoEdit, disabled:!cv.editHistory.length,
       title:"Undo (Ctrl+Z)",
-      style:{opacity:ctx.editHistory.length?1:0.3}
+      style:{opacity:cv.editHistory.length?1:0.3}
     }, "\u21A9"),
     h("button", {
       key:"redo", className:"tb-btn",
-      onClick:ctx.redoEdit, disabled:!ctx.redoHistory.length,
+      onClick:cv.redoEdit, disabled:!cv.redoHistory.length,
       title:"Redo (Ctrl+Y)",
-      style:{opacity:ctx.redoHistory.length?1:0.3}
+      style:{opacity:cv.redoHistory.length?1:0.3}
     }, "\u21AA")
   ] : null;
 
   // Overflow menu items
-  var overlayItems = (ctx.img && ctx.img.src) ? [
+  var overlayItems = (gen.img && gen.img.src) ? [
     h("button", {
       key:"overlay-btn",
-      className:"tb-ovf-item"+(ctx.showOverlay?" tb-ovf-item--on":""),
-      onClick:function(){ctx.setShowOverlay(function(v){return !v;});}
+      className:"tb-ovf-item"+(cv.showOverlay?" tb-ovf-item--on":""),
+      onClick:function(){cv.setShowOverlay(function(v){return !v;});}
     },
       h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-        border:"2px solid "+(ctx.showOverlay?"#0d9488":"#cbd5e1")}}),
-      " Overlay"+(ctx.showOverlay?" \u2713":"")
+        border:"2px solid "+(cv.showOverlay?"#0d9488":"#cbd5e1")}}),
+      " Overlay"+(cv.showOverlay?" \u2713":"")
     ),
-    ctx.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
+    cv.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
       h("input", {
-        type:"range",min:0.1,max:0.8,step:0.05,value:ctx.overlayOpacity,
-        onChange:function(e){ctx.setOverlayOpacity(Number(e.target.value));},
+        type:"range",min:0.1,max:0.8,step:0.05,value:cv.overlayOpacity,
+        onChange:function(e){cv.setOverlayOpacity(Number(e.target.value));},
         style:{width:"100%"}
       })
     )
@@ -7224,13 +7255,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     [["paint","Paint"],["fill","Fill"]].map(function(kl) {
       return h("button", {
         key:kl[0],
-        className:"tb-ovf-item"+(ctx.brushMode===kl[0]?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setBrushAndActivate(kl[0]); ctx.setOverflowOpen(false);}
-      }, kl[1]+(ctx.brushMode===kl[0]?" \u2713":""));
+        className:"tb-ovf-item"+(cv.brushMode===kl[0]?" tb-ovf-item--on":""),
+        onClick:function(){cv.setBrushAndActivate(kl[0]); app.setOverflowOpen(false);}
+      }, kl[1]+(cv.brushMode===kl[0]?" \u2713":""));
     })
   ] : null;
 
-  var overflowMenu = ctx.overflowOpen ? h("div", {className:"tb-overflow-menu"},
+  var overflowMenu = app.overflowOpen ? h("div", {className:"tb-overflow-menu"},
     h("span", {className:"tb-ovf-lbl"}, "Display"),
     overlayItems,
     brushItems
@@ -7247,69 +7278,69 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
       background:active?"var(--accent)":"transparent"}});
   }
-  var isPixel     = ctx.previewActive && ctx.previewMode === "pixel";
-  var isRealistic = ctx.previewActive && ctx.previewMode === "realistic";
+  var isPixel     = app.previewActive && app.previewMode === "pixel";
+  var isRealistic = app.previewActive && app.previewMode === "realistic";
   var previewLabel = isPixel ? "Pixel \u25BE" : isRealistic ? "Realistic \u25BE" : "Preview \u25BE";
   var previewDropWrap = h("div", {className:"tb-overflow-wrap", ref:previewWrapRef},
     h("button", {
-      className:"tb-btn"+(ctx.previewActive?" tb-btn--on":""),
+      className:"tb-btn"+(app.previewActive?" tb-btn--on":""),
       onClick:function(){setPreviewMenuOpen(function(o){return !o;});},
       title:"Preview mode"
     }, previewLabel),
     previewMenuOpen && h("div", {className:"tb-overflow-menu", style:{minWidth:195,right:0}},
       h("span", {className:"tb-ovf-lbl"}, "View"),
       h("button", {
-        className:"tb-ovf-item"+(!ctx.previewActive?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(false); setPreviewMenuOpen(false);}
-      }, radioBtn(!ctx.previewActive), " Chart"),
+        className:"tb-ovf-item"+(!app.previewActive?" tb-ovf-item--on":""),
+        onClick:function(){app.setPreviewActive(false); setPreviewMenuOpen(false);}
+      }, radioBtn(!app.previewActive), " Chart"),
       h("button", {
         className:"tb-ovf-item"+(isPixel?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("pixel"); setPreviewMenuOpen(false);}
+        onClick:function(){app.setPreviewActive(true); app.setPreviewMode("pixel"); setPreviewMenuOpen(false);}
       }, radioBtn(isPixel), " Pixel preview"),
       h("button", {
         className:"tb-ovf-item"+(isRealistic?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewActive(true); ctx.setPreviewMode("realistic"); setPreviewMenuOpen(false);}
+        onClick:function(){app.setPreviewActive(true); app.setPreviewMode("realistic"); setPreviewMenuOpen(false);}
       }, radioBtn(isRealistic), " Realistic"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Options"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.previewShowGrid?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewShowGrid(function(v){return !v;}); setPreviewMenuOpen(false);},
-        disabled:!ctx.previewActive,
-        style:{opacity:ctx.previewActive?1:0.4}
-      }, chkBox(ctx.previewShowGrid), " Grid overlay"),
+        className:"tb-ovf-item"+(app.previewShowGrid?" tb-ovf-item--on":""),
+        onClick:function(){app.setPreviewShowGrid(function(v){return !v;}); setPreviewMenuOpen(false);},
+        disabled:!app.previewActive,
+        style:{opacity:app.previewActive?1:0.4}
+      }, chkBox(app.previewShowGrid), " Grid overlay"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.previewFabricBg?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setPreviewFabricBg(function(v){return !v;}); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.previewFabricBg?" tb-ovf-item--on":""),
+        onClick:function(){app.setPreviewFabricBg(function(v){return !v;}); setPreviewMenuOpen(false);},
         disabled:!isPixel,
         style:{opacity:isPixel?1:0.4}
-      }, chkBox(ctx.previewFabricBg), " Fabric background"),
+      }, chkBox(app.previewFabricBg), " Fabric background"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Realistic level"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.realisticLevel===1?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(1); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.realisticLevel===1?" tb-ovf-item--on":""),
+        onClick:function(){app.setRealisticLevel(1); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===1), " Flat (Level 1)"),
+      }, radioBtn(app.realisticLevel===1), " Flat (Level 1)"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.realisticLevel===2?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(2); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.realisticLevel===2?" tb-ovf-item--on":""),
+        onClick:function(){app.setRealisticLevel(2); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===2), " Shaded (Level 2)"),
+      }, radioBtn(app.realisticLevel===2), " Shaded (Level 2)"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.realisticLevel===3?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(3); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.realisticLevel===3?" tb-ovf-item--on":""),
+        onClick:function(){app.setRealisticLevel(3); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===3), " Detailed (Level 3)"),
+      }, radioBtn(app.realisticLevel===3), " Detailed (Level 3)"),
       h("button", {
-        className:"tb-ovf-item"+(ctx.realisticLevel===4?" tb-ovf-item--on":""),
-        onClick:function(){ctx.setRealisticLevel(4); setPreviewMenuOpen(false);},
+        className:"tb-ovf-item"+(app.realisticLevel===4?" tb-ovf-item--on":""),
+        onClick:function(){app.setRealisticLevel(4); setPreviewMenuOpen(false);},
         disabled:!isRealistic,
         style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(ctx.realisticLevel===4), " Detailed \u2014 Blend (3a)"),
+      }, radioBtn(app.realisticLevel===4), " Detailed \u2014 Blend (3a)"),
       h("div", {className:"tb-ovf-sep"}),
       h("span", {className:"tb-ovf-lbl"}, "Thread coverage"),
       // Coverage slider + auto/manual indicator
@@ -7317,8 +7348,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         var sFc = ctx.fabricCt || 14;
         var sSC = sFc <= 11 ? 3 : sFc <= 17 ? 2 : 1;
         var sAutoCov = Math.min(1, Math.max(0, Math.min(1, Math.max(0, (sFc - 8) / 24)) * (sSC / 2)));
-        var isManual = ctx.coverageOverride !== null && ctx.coverageOverride !== undefined;
-        var dispCov = isManual ? ctx.coverageOverride : sAutoCov;
+        var isManual = app.coverageOverride !== null && app.coverageOverride !== undefined;
+        var dispCov = isManual ? app.coverageOverride : sAutoCov;
         var dispPct = Math.round(dispCov * 100);
         return h("div", {style:{padding:"4px 14px 6px"}},
           h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
@@ -7327,7 +7358,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               value: dispPct,
               disabled: !isRealistic,
               onChange: function(e) {
-                ctx.setCoverageOverride(parseInt(e.target.value) / 100);
+                app.setCoverageOverride(parseInt(e.target.value) / 100);
               },
               style:{flex:1, accentColor:"var(--accent)", opacity:isRealistic?1:0.4}
             }),
@@ -7338,7 +7369,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               isManual ? "Manual" : "Auto (" + sFc + "-count, " + sSC + " strand" + (sSC!==1?"s":"") + ")"
             ),
             isManual && h("button", {
-              onClick: function(e) { e.stopPropagation(); ctx.setCoverageOverride(null); },
+              onClick: function(e) { e.stopPropagation(); app.setCoverageOverride(null); },
               title: "Reset to auto",
               style:{marginLeft:"auto",fontSize:10,padding:"2px 6px",border:"1px solid #fed7aa",borderRadius:4,
                      background:"#fff7ed",color:"#c2410c",cursor:"pointer", lineHeight:1.2}
@@ -7350,11 +7381,11 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           // Quick presets
           h("div", {style:{display:"flex",gap:3,marginTop:5}},
             [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
-              var active = isManual && Math.abs(ctx.coverageOverride - preset[1]) < 0.03;
+              var active = isManual && Math.abs(app.coverageOverride - preset[1]) < 0.03;
               return h("button", {
                 key: preset[0],
                 disabled: !isRealistic,
-                onClick: function(e) { e.stopPropagation(); ctx.setCoverageOverride(preset[1]); },
+                onClick: function(e) { e.stopPropagation(); app.setCoverageOverride(preset[1]); },
                 style:{flex:1,fontSize:9,padding:"3px 0",border:"1px solid "+(active?"var(--accent)":"#cbd5e1"),
                        borderRadius:4,background:active?"var(--accent)":"transparent",
                        color:active?"#fff":"var(--text-secondary)",cursor:isRealistic?"pointer":"default",
@@ -7367,10 +7398,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   );
 
-  var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:ctx.overflowRef},
+  var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:app.overflowRef},
     h("button", {
       className:"tb-overflow-btn",
-      onClick:function(){ctx.setOverflowOpen(function(o){return !o;});},
+      onClick:function(){app.setOverflowOpen(function(o){return !o;});},
       title:"More options"
     }, "\u00B7\u00B7\u00B7"),
     overflowMenu
@@ -7382,12 +7413,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
   );
   var splitBtn = h("button", {
-    className: "tb-btn" + (ctx.splitPaneEnabled ? " tb-btn--on" : ""),
-    title: ctx.splitPaneEnabled ? "Exit split view (\\)" : "Split view: chart + preview (\\)",
+    className: "tb-btn" + (app.splitPaneEnabled ? " tb-btn--on" : ""),
+    title: app.splitPaneEnabled ? "Exit split view (\\)" : "Split view: chart + preview (\\)",
     disabled: !(ctx.pat && ctx.pal),
     onClick: function() {
-      var next = !ctx.splitPaneEnabled;
-      ctx.setSplitPaneEnabled(next);
+      var next = !app.splitPaneEnabled;
+      app.setSplitPaneEnabled(next);
       if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", next);
     },
     style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
@@ -7396,7 +7427,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row"},
       h("div", {className:"pill-row"},
-        h("div", {ref:ctx.stripRef, className:"pill"},
+        h("div", {ref:app.stripRef, className:"pill"},
           brushGrp,
           stitchDrop,
           sizeGrp,
@@ -7426,15 +7457,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
    Reads from CreatorContext. */
 
 window.MagicWandPanel = function MagicWandPanel() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
   var h = React.createElement;
 
-  if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
-  if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso" && !ctx.hasSelection) return null;
+  if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
+  if (cv.activeTool !== "magicWand" && cv.activeTool !== "lasso" && !cv.hasSelection) return null;
 
-  var isSelTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
-  var hasSelection = ctx.hasSelection;
-  var panel = ctx.wandPanel;
+  var isSelTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
+  var hasSelection = cv.hasSelection;
+  var panel = cv.wandPanel;
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   function btn(label, onClick, opts) {
@@ -7480,14 +7513,14 @@ window.MagicWandPanel = function MagicWandPanel() {
 
   // ─── Op mode buttons (shared across wand + lasso) ───────────────────────────
   function opBtn(icon, label, mode, title) {
-    var isPersistent = ctx.wandOpMode === mode;
-    var isModifier   = ctx.selectionModifier === mode;
+    var isPersistent = cv.wandOpMode === mode;
+    var isModifier   = cv.selectionModifier === mode;
     var className = "tb-btn" +
       (isPersistent ? " tb-btn--on" : "") +
       (isModifier   ? " tb-btn--mod-active" : "");
     return h("button", {
       className: className,
-      onClick: function() { ctx.setSelectionOpMode(mode); },
+      onClick: function() { cv.setSelectionOpMode(mode); },
       title: title,
       style: { position: "relative" }
     }, icon, label,
@@ -7501,28 +7534,28 @@ window.MagicWandPanel = function MagicWandPanel() {
   }
 
   // ─── First toolbar row: tool options ─────────────────────────────────────────
-  var toolLabel = ctx.activeTool === "lasso" ? "Lasso" : "Wand";
+  var toolLabel = cv.activeTool === "lasso" ? "Lasso" : "Wand";
   var optionsRow = isSelTool ? h("div", { className: "tb-strip--sel" },
     h("div", { className: "tb-strip-inner" },
       h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } }, toolLabel),
       h("div", { className: "tb-sdiv" }),
       // Tolerance slider (wand only)
-      ctx.activeTool === "magicWand" && h("label", { style: { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } },
+      cv.activeTool === "magicWand" && h("label", { style: { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } },
         "Tolerance",
         h("input", {
-          type: "range", min: 0, max: 100, step: 1, value: ctx.wandTolerance,
-          onChange: function(e) { ctx.setWandTolerance(Number(e.target.value)); },
+          type: "range", min: 0, max: 100, step: 1, value: cv.wandTolerance,
+          onChange: function(e) { cv.setWandTolerance(Number(e.target.value)); },
           style: { width: 80 }
         }),
-        h("span", { style: { minWidth: 22, textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 11 } }, ctx.wandTolerance),
+        h("span", { style: { minWidth: 22, textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 11 } }, cv.wandTolerance),
         h("span", { style: { fontSize: 9, color: "var(--text-tertiary)", marginLeft: 1 } },
-          ctx.wandTolerance === 0 ? "(exact)" : ctx.wandTolerance <= 5 ? "(similar)" : ctx.wandTolerance <= 15 ? "(broad)" : "(very broad)")
+          cv.wandTolerance === 0 ? "(exact)" : cv.wandTolerance <= 5 ? "(similar)" : cv.wandTolerance <= 15 ? "(broad)" : "(very broad)")
       ),
-      ctx.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
+      cv.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
       // Contiguous / Global toggle (wand only)
-      ctx.activeTool === "magicWand" && h("div", { className: "tb-grp" },
-        btn("Contiguous", function() { ctx.setWandContiguous(true); }, { active: ctx.wandContiguous, title: "Only select cells connected to the clicked cell" }),
-        btn("Global",     function() { ctx.setWandContiguous(false); }, { active: !ctx.wandContiguous, title: "Select all matching cells across the whole pattern" })
+      cv.activeTool === "magicWand" && h("div", { className: "tb-grp" },
+        btn("Contiguous", function() { cv.setWandContiguous(true); }, { active: cv.wandContiguous, title: "Only select cells connected to the clicked cell" }),
+        btn("Global",     function() { cv.setWandContiguous(false); }, { active: !cv.wandContiguous, title: "Select all matching cells across the whole pattern" })
       ),
       h("div", { className: "tb-sdiv" }),
       // Op mode buttons
@@ -7540,21 +7573,21 @@ window.MagicWandPanel = function MagicWandPanel() {
   var selRow = hasSelection ? h("div", { className: "tb-strip--sel" },
     h("div", { className: "tb-strip-inner" },
       h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } },
-        ctx.selectionCount.toLocaleString() + "\u00a0stitch" + (ctx.selectionCount !== 1 ? "es" : "") + " selected"
+        cv.selectionCount.toLocaleString() + "\u00a0stitch" + (cv.selectionCount !== 1 ? "es" : "") + " selected"
       ),
       h("div", { className: "tb-sdiv" }),
       h("div", { className: "tb-grp" },
-        btn("Deselect", ctx.clearSelection,   { title: "Deselect all (Esc)" }),
-        btn("Invert",   ctx.invertSelection,  { title: "Invert selection (Ctrl+\u21E7+I)" }),
-        btn("All",      ctx.selectAll,        { title: "Select all stitches (Ctrl+A)" })
+        btn("Deselect", cv.clearSelection,   { title: "Deselect all (Esc)" }),
+        btn("Invert",   cv.invertSelection,  { title: "Invert selection (Ctrl+\u21E7+I)" }),
+        btn("All",      cv.selectAll,        { title: "Select all stitches (Ctrl+A)" })
       ),
       h("div", { className: "tb-sdiv" }),
       h("div", { className: "tb-grp" },
-        btn("Confetti\u2026",       function() { ctx.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti" }),
-        btn("Reduce Colours\u2026", function() { ctx.setWandPanel(panel === "reduce"   ? null : "reduce");    }, { active: panel === "reduce" }),
-        btn("Replace Colour\u2026", function() { ctx.setWandPanel(panel === "replace"  ? null : "replace");   }, { active: panel === "replace" }),
-        btn("Stitch Info\u2026",    function() { ctx.setWandPanel(panel === "info"     ? null : "info");      }, { active: panel === "info" }),
-        btn("Outline\u2026",        function() { ctx.setWandPanel(panel === "outline"  ? null : "outline");   }, { active: panel === "outline" })
+        btn("Confetti\u2026",       function() { cv.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti" }),
+        btn("Reduce Colours\u2026", function() { cv.setWandPanel(panel === "reduce"   ? null : "reduce");    }, { active: panel === "reduce" }),
+        btn("Replace Colour\u2026", function() { cv.setWandPanel(panel === "replace"  ? null : "replace");   }, { active: panel === "replace" }),
+        btn("Stitch Info\u2026",    function() { cv.setWandPanel(panel === "info"     ? null : "info");      }, { active: panel === "info" }),
+        btn("Outline\u2026",        function() { cv.setWandPanel(panel === "outline"  ? null : "outline");   }, { active: panel === "outline" })
       )
     )
   ) : null;
@@ -7568,25 +7601,25 @@ window.MagicWandPanel = function MagicWandPanel() {
     h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
       "Min cluster size:",
       h("input", {
-        type: "range", min: 1, max: 10, step: 1, value: ctx.confettiThreshold,
-        onChange: function(e) { ctx.setConfettiThreshold(Number(e.target.value)); ctx.setConfettiPreview(null); },
+        type: "range", min: 1, max: 10, step: 1, value: cv.confettiThreshold,
+        onChange: function(e) { cv.setConfettiThreshold(Number(e.target.value)); cv.setConfettiPreview(null); },
         style: { width: 70 }
       }),
-      h("span", { style: { minWidth: 14 } }, ctx.confettiThreshold)
+      h("span", { style: { minWidth: 14 } }, cv.confettiThreshold)
     ),
-    ctx.confettiPreview
-      ? h("span", { style: { color: "#b45309" } }, ctx.confettiPreview.size + " stitches flagged")
+    cv.confettiPreview
+      ? h("span", { style: { color: "#b45309" } }, cv.confettiPreview.size + " stitches flagged")
       : null,
-    btn("Preview", ctx.previewConfettiCleanup, { style: { fontSize: 10 } }),
-    btn("Apply", ctx.applyConfettiCleanup, {
-      green: true, disabled: !ctx.confettiPreview || !ctx.confettiPreview.size,
+    btn("Preview", cv.previewConfettiCleanup, { style: { fontSize: 10 } }),
+    btn("Apply", cv.applyConfettiCleanup, {
+      green: true, disabled: !cv.confettiPreview || !cv.confettiPreview.size,
       style: { fontSize: 10 }
     }),
-    btn("\u00D7", function() { ctx.setWandPanel(null); ctx.setConfettiPreview(null); }, { style: { fontSize: 10 } })
+    btn("\u00D7", function() { cv.setWandPanel(null); cv.setConfettiPreview(null); }, { style: { fontSize: 10 } })
   ) : null;
 
   // ─── Reduce colours panel ────────────────────────────────────────────────────
-  var selColors = ctx.selectionStats ? ctx.selectionStats.colors : 0;
+  var selColors = cv.selectionStats ? cv.selectionStats.colors : 0;
   var reducePanel = (panel === "reduce" && hasSelection) ? h("div", {
     style: { padding: "10px 14px", background: "#f0fdf4", borderBottom: "1px solid #bbf7d0",
       fontSize: 11 }
@@ -7597,22 +7630,22 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
         "Target:",
         h("input", {
-          type: "number", min: 1, max: selColors, value: ctx.reduceTarget,
-          onChange: function(e) { ctx.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); ctx.setReducePreview(null); },
+          type: "number", min: 1, max: selColors, value: cv.reduceTarget,
+          onChange: function(e) { cv.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); cv.setReducePreview(null); },
           style: { width: 50, padding: "1px 4px" }
         })
       ),
-      btn("Preview merges", ctx.previewColorReduction, { style: { fontSize: 10 } }),
-      btn("Apply", ctx.applyColorReduction, {
-        green: true, disabled: !ctx.reducePreview || !ctx.reducePreview.length,
+      btn("Preview merges", cv.previewColorReduction, { style: { fontSize: 10 } }),
+      btn("Apply", cv.applyColorReduction, {
+        green: true, disabled: !cv.reducePreview || !cv.reducePreview.length,
         style: { fontSize: 10 }
       }),
-      btn("\u00D7", function() { ctx.setWandPanel(null); ctx.setReducePreview(null); }, { style: { fontSize: 10 } })
+      btn("\u00D7", function() { cv.setWandPanel(null); cv.setReducePreview(null); }, { style: { fontSize: 10 } })
     ),
-    ctx.reducePreview && ctx.reducePreview.length ? h("div", {
+    cv.reducePreview && cv.reducePreview.length ? h("div", {
       style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #bbf7d0", paddingTop: 6 }
     },
-      ctx.reducePreview.map(function(m, i) {
+      cv.reducePreview.map(function(m, i) {
         var fromE = ctx.cmap && ctx.cmap[m.from];
         var toE   = ctx.cmap && ctx.cmap[m.to];
         return h("div", { key: i, style: { display: "flex", alignItems: "center", gap: 5, marginBottom: 2 } },
@@ -7627,9 +7660,9 @@ window.MagicWandPanel = function MagicWandPanel() {
 
   // ─── Replace colour panel ────────────────────────────────────────────────────
   var replacePanel = (panel === "replace" && hasSelection) ? (function() {
-    var srcEntry = ctx.cmap && ctx.replaceSource ? ctx.cmap[ctx.replaceSource] : null;
-    var dstEntry = ctx.cmap && ctx.replaceDest   ? ctx.cmap[ctx.replaceDest]   : null;
-    var affectedCount = ctx.selectionReplaceColorCount;
+    var srcEntry = ctx.cmap && cv.replaceSource ? ctx.cmap[cv.replaceSource] : null;
+    var dstEntry = ctx.cmap && cv.replaceDest   ? ctx.cmap[cv.replaceDest]   : null;
+    var affectedCount = cv.selectionReplaceColorCount;
 
     // Color picker options from current palette
     var palOpts = ctx.pal ? ctx.pal.map(function(p) {
@@ -7644,8 +7677,8 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
         "Source:", srcEntry ? swatch(srcEntry.rgb) : null,
         h("select", {
-          value: ctx.replaceSource || "",
-          onChange: function(e) { ctx.setReplaceSource(e.target.value || null); },
+          value: cv.replaceSource || "",
+          onChange: function(e) { cv.setReplaceSource(e.target.value || null); },
           style: { fontSize: 11 }
         }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
       ),
@@ -7653,29 +7686,29 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
         "Target:", dstEntry ? swatch(dstEntry.rgb) : null,
         h("select", {
-          value: ctx.replaceDest || "",
-          onChange: function(e) { ctx.setReplaceDest(e.target.value || null); },
+          value: cv.replaceDest || "",
+          onChange: function(e) { cv.setReplaceDest(e.target.value || null); },
           style: { fontSize: 11 }
         }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
       ),
       h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
         h("input", {
-          type: "checkbox", checked: ctx.replaceFuzzy,
-          onChange: function(e) { ctx.setReplaceFuzzy(e.target.checked); }
+          type: "checkbox", checked: cv.replaceFuzzy,
+          onChange: function(e) { cv.setReplaceFuzzy(e.target.checked); }
         }), "Fuzzy",
-        ctx.replaceFuzzy ? [
-          h("input", { key: "tol", type: "range", min: 0, max: 20, step: 1, value: ctx.replaceFuzzyTol,
-            onChange: function(e) { ctx.setReplaceFuzzyTol(Number(e.target.value)); },
+        cv.replaceFuzzy ? [
+          h("input", { key: "tol", type: "range", min: 0, max: 20, step: 1, value: cv.replaceFuzzyTol,
+            onChange: function(e) { cv.setReplaceFuzzyTol(Number(e.target.value)); },
             style: { width: 50 } }),
-          h("span", { key: "v" }, "\u0394E\u2264" + ctx.replaceFuzzyTol)
+          h("span", { key: "v" }, "\u0394E\u2264" + cv.replaceFuzzyTol)
         ] : null
       ),
       affectedCount > 0 ? h("span", { style: { color: "#7e22ce" } }, affectedCount + " stitches affected") : null,
-      btn("Apply", ctx.applyColorReplacement, {
-        green: true, disabled: !ctx.replaceSource || !ctx.replaceDest || !affectedCount,
+      btn("Apply", cv.applyColorReplacement, {
+        green: true, disabled: !cv.replaceSource || !cv.replaceDest || !affectedCount,
         style: { fontSize: 10 }
       }),
-      btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
+      btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
     );
   })() : null;
 
@@ -7684,7 +7717,7 @@ window.MagicWandPanel = function MagicWandPanel() {
     fontWeight: 600, color: "#0369a1", fontSize: 10, whiteSpace: "nowrap" };
   var cellStyle = { padding: "2px 6px", fontSize: 11 };
   var infoPanel = (panel === "info") ? (function() {
-    var stats = ctx.selectionStats;
+    var stats = cv.selectionStats;
     if (!stats) return null;
     var exportCSV = function() {
       var lines = ["DMC,Name,Stitches,Skeins"];
@@ -7707,7 +7740,7 @@ window.MagicWandPanel = function MagicWandPanel() {
         h("span", { style: { color: "#0369a1" } },
           stats.total.toLocaleString() + " stitches, " + stats.colors + " colours, ~" + stats.totalSkeins.toFixed(1) + " skeins"),
         btn("Export CSV", exportCSV, { style: { fontSize: 10 } }),
-        btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
+        btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
       ),
       h("div", { style: { maxHeight: 140, overflowY: "auto" } },
         h("table", { style: { borderCollapse: "collapse", width: "100%" } },
@@ -7748,23 +7781,23 @@ window.MagicWandPanel = function MagicWandPanel() {
     h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
       "Outline thread (DMC):",
       h("input", {
-        type: "text", value: ctx.outlineColor,
-        onChange: function(e) { ctx.setOutlineColor(e.target.value.trim()); },
+        type: "text", value: cv.outlineColor,
+        onChange: function(e) { cv.setOutlineColor(e.target.value.trim()); },
         style: { width: 60, padding: "1px 4px", fontSize: 11 }
       })
     ),
     (function() {
-      var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === ctx.outlineColor; }) : null;
+      var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === cv.outlineColor; }) : null;
       return dmcEntry ? h("span", { style: { display: "flex", alignItems: "center", gap: 3 } },
         swatch(dmcEntry.rgb), h("span", { style: { color: "#334155" } }, dmcEntry.name)
       ) : h("span", { style: { color: "#ef4444" } }, "Unknown DMC");
     })(),
-    btn("Generate", ctx.applyOutlineGeneration, {
+    btn("Generate", cv.applyOutlineGeneration, {
       green: true,
-      disabled: !(typeof DMC !== "undefined" && DMC.find(function(d) { return d.id === ctx.outlineColor; })),
+      disabled: !(typeof DMC !== "undefined" && DMC.find(function(d) { return d.id === cv.outlineColor; })),
       style: { fontSize: 10 }
     }),
-    btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
+    btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
   ) : null;
 
   return h("div", null,
@@ -8072,7 +8105,9 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
 
 // ─── Modal outer wrapper ──────────────────────────────────────────────────────
 window.SubstituteFromStashModal = function SubstituteFromStashModal() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
   var h = React.createElement;
   if (!ctx.substituteModalOpen || !ctx.substituteProposal) return null;
   return h(SubstituteFromStashModalInner, { key: ctx.substituteModalKey, ctx: ctx });
@@ -8339,18 +8374,18 @@ function SubstituteFromStashModalInner(props) {
 
     // Step 4: Guard — nothing changed
     if (changes.length === 0 && !psChanged) {
-      ctx.addToast("No stitches were changed.", { type: "info", duration: 2000 });
+      app.addToast("No stitches were changed.", { type: "info", duration: 2000 });
       return;
     }
 
     // Step 4: Commit undo entry
-    ctx.setEditHistory(function(prev) {
+    cv.setEditHistory(function(prev) {
       var entry = { type: "stashSubstitution", changes: changes, psChanges: psChanges.length > 0 ? psChanges : undefined };
       var n = prev.concat([entry]);
-      if (n.length > ctx.EDIT_HISTORY_MAX) n = n.slice(n.length - ctx.EDIT_HISTORY_MAX);
+      if (n.length > cv.EDIT_HISTORY_MAX) n = n.slice(n.length - cv.EDIT_HISTORY_MAX);
       return n;
     });
-    ctx.setRedoHistory([]);
+    cv.setRedoHistory([]);
     ctx.setPat(np);
     if (psChanged) ctx.setPartialStitches(nm);
 
@@ -8369,7 +8404,7 @@ function SubstituteFromStashModalInner(props) {
     // Step 5: Close and toast
     ctx.setSubstituteModalOpen(false);
     ctx.setSubstituteProposal(null);
-    ctx.addToast(
+    app.addToast(
       changes.length + " stitches updated across " + enabledSubs.length + " colour" + (enabledSubs.length !== 1 ? "s" : "") + ". Ctrl+Z to undo.",
       { type: "success", duration: 4000 }
     );
@@ -8749,11 +8784,15 @@ function SubstituteFromStashModalInner(props) {
 
 /* ─── Sidebar.js ─── */
 /* creator/Sidebar.js — Settings sidebar for the Creator app.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: Section, SliderRow, Tooltip (components.js), CreatorContext (context.js) */
+   Reads from CreatorContext and GenerationContext.
+   Loaded as a plain <script> before the main Babel script.
+   Depends on: Section, SliderRow, Tooltip (components.js), CreatorContext, GenerationContext (context.js) */
 
 window.CreatorSidebar = function CreatorSidebar() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
+  var gen = window.useGeneration();
   var h = React.createElement;
   var _pco = React.useState(false); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
   var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
@@ -8824,11 +8863,11 @@ window.CreatorSidebar = function CreatorSidebar() {
   var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
     var displayPal = ctx.displayPal || ctx.pal || [];
     var isHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
-    var isPaintMode = ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool;
-    var selInfo = ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId];
+    var isPaintMode = cv.activeTool === "paint" || cv.activeTool === "fill" || isHsTool;
+    var selInfo = cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
     var chips = displayPal.map(function(p) {
-      var ips = isPaintMode && ctx.selectedColorId === p.id;
-      var ihs = ctx.hiId === p.id;
+      var ips = isPaintMode && cv.selectedColorId === p.id;
+      var ihs = cv.hiId === p.id;
       var isUnused = ctx.isScratchMode && p.count === 0;
       return h("div", {
         key: p.id,
@@ -8837,9 +8876,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         "aria-pressed": ips || ihs,
         onClick: function() {
           if (isPaintMode) {
-            ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
+            cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
           } else {
-            ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+            cv.setHiId(cv.hiId === p.id ? null : p.id);
           }
         },
         onKeyDown: function(e) {
@@ -8847,9 +8886,9 @@ window.CreatorSidebar = function CreatorSidebar() {
           if (e.key === " " || e.key === "Enter") {
             e.preventDefault();
             if (isPaintMode) {
-              ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
+              cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
             } else {
-              ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+              cv.setHiId(cv.hiId === p.id ? null : p.id);
             }
           }
         },
@@ -8896,7 +8935,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("span", {style:{fontWeight:600,color:"#0d9488"}}, "DMC " + selInfo.id),
               h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
               h("button", {
-                onClick:function(){ctx.setSelectedColorId(null);},
+                onClick:function(){cv.setSelectedColorId(null);},
                 title:"Clear selection",
                 style:{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:13,lineHeight:1,padding:"0 2px",flexShrink:0}
               }, "\xD7")
@@ -8914,58 +8953,58 @@ window.CreatorSidebar = function CreatorSidebar() {
   })() : null;
 
   // ── Crop image card ──────────────────────────────────────────────────────────
-  var imageCard = (ctx.pat && ctx.img && ctx.img.src) ? h("div", {className:"card"},
+  var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {className:"card"},
     h("div", {
-      style:{position:"relative",touchAction:"none",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none"}, ref:ctx.cropRef,
-      onPointerDown:ctx.handleCropPointerDown,
-      onPointerMove:ctx.handleCropPointerMove,
-      onPointerUp:ctx.handleCropPointerUp,
-      onPointerCancel:ctx.handleCropPointerCancel,
-      onPointerLeave:ctx.handleCropPointerUp
+      style:{position:"relative",touchAction:"none",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none"}, ref:gen.cropRef,
+      onPointerDown:gen.handleCropPointerDown,
+      onPointerMove:gen.handleCropPointerMove,
+      onPointerUp:gen.handleCropPointerUp,
+      onPointerCancel:gen.handleCropPointerCancel,
+      onPointerLeave:gen.handleCropPointerUp
     },
       h("img", {
-        src:ctx.img.src, alt:"",
+        src:gen.img.src, alt:"",
         style:{width:"100%",display:"block",
-          cursor:ctx.isCropping?"crosshair":(ctx.pickBg?"crosshair":"default"),
-          opacity:ctx.isCropping?0.7:1
+          cursor:gen.isCropping?"crosshair":(gen.pickBg?"crosshair":"default"),
+          opacity:gen.isCropping?0.7:1
         },
-        onClick:ctx.srcClick
+        onClick:gen.srcClick
       }),
-      ctx.isCropping && ctx.cropRect && h("div", {style:{
-        position:"absolute",left:ctx.cropRect.x,top:ctx.cropRect.y,
-        width:ctx.cropRect.w,height:ctx.cropRect.h,
+      gen.isCropping && gen.cropRect && h("div", {style:{
+        position:"absolute",left:gen.cropRect.x,top:gen.cropRect.y,
+        width:gen.cropRect.w,height:gen.cropRect.h,
         border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",
         boxSizing:"border-box",pointerEvents:"none"
       }})
     ),
-    ctx.isCropping
+    gen.isCropping
       ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
           h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Draw a rectangle"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
-              onClick:function(){ctx.setIsCropping(false); ctx.setCropRect(null);},
+              onClick:function(){gen.setIsCropping(false); gen.setCropRect(null);},
               style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Cancel"),
             h("button", {
-              onClick:ctx.applyCrop,
+              onClick:gen.applyCrop,
               style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}
             }, "Apply")
           )
         )
       : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
-          h("span", {style:{fontSize:11,color:"#94a3b8"}}, ctx.origW+"×"+ctx.origH+"px"),
+          h("span", {style:{fontSize:11,color:"#94a3b8"}}, gen.origW+"×"+gen.origH+"px"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
-              onClick:function(){ctx.setIsCropping(true); ctx.setCropRect(null);},
+              onClick:function(){gen.setIsCropping(true); gen.setCropRect(null);},
               style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Crop"),
             h("button", {
-              onClick:function(){ctx.fRef.current.click();},
+              onClick:function(){gen.fRef.current.click();},
               style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Change")
           )
         ),
-    ctx.pickBg && h("div", {style:{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}},
+    gen.pickBg && h("div", {style:{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}},
       "Click to pick BG"
     )
   ) : null;
@@ -9019,7 +9058,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Dimensions section ──────────────────────────────────────────────────────
   var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
-  var dimSection = h(Section, {title:"Dimensions", isOpen:ctx.dimOpen, onToggle:ctx.setDimOpen, badge:dimBadge},
+  var dimSection = h(Section, {title:"Dimensions", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
@@ -9043,54 +9082,54 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
-  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:ctx.palOpen, onToggle:ctx.setPalOpen},
+  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:ctx.stashConstrained && ctx.stashThreadCount ? Math.max(10, ctx.stashThreadCount) : 40, onChange:ctx.setMaxC,
+      h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
         helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
-      ctx.stashConstrained && ctx.stashThreadCount && ctx.maxC > ctx.stashThreadCount && h("div", {style:{fontSize:10,color:"#d97706",marginTop:2}},
-        "Clamped to " + ctx.stashThreadCount + " (stash size)"
+      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#d97706",marginTop:2}},
+        "Clamped to " + gen.stashThreadCount + " (stash size)"
       )
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:ctx.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:8,marginTop:8,opacity:ctx.blendsAutoDisabled?0.5:1}},
-      h("input", {type:"checkbox", checked:ctx.allowBlends, disabled:ctx.blendsAutoDisabled, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:8,marginTop:8,opacity:gen.blendsAutoDisabled?0.5:1}},
+      h("input", {type:"checkbox", checked:gen.allowBlends, disabled:gen.blendsAutoDisabled, onChange:function(e){gen.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
     ),
-    ctx.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:8}},
+    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:8}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
     ),
     typeof StashBridge !== "undefined" && h("label", {
       style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:4}
     },
-      h("input", {type:"checkbox", checked:ctx.stashConstrained, onChange:function(e){ctx.setStashConstrained(e.target.checked);}}),
+      h("input", {type:"checkbox", checked:gen.stashConstrained, onChange:function(e){gen.setStashConstrained(e.target.checked);}}),
       h("span", null, "Use only stash threads"),
       h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
     ),
-    ctx.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
+    gen.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
       h("div", {style:{fontSize:11,color:"#0d9488",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:8,padding:"6px 10px",marginBottom:8}},
-        (ctx.stashThreadCount || 0) + " thread" + ((ctx.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
-          (ctx.effectiveMaxC && ctx.effectiveMaxC < ctx.maxC ? " \u2014 palette limited to " + ctx.effectiveMaxC + " colours" : "")
+        (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
+          (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? " \u2014 palette limited to " + gen.effectiveMaxC + " colours" : "")
       ),
-      ctx.stashPalette && ctx.stashPalette.length > 0 && h("div", {style:{marginBottom:8}},
+      gen.stashPalette && gen.stashPalette.length > 0 && h("div", {style:{marginBottom:8}},
         h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
-          (stashStripExpanded ? ctx.stashPalette : ctx.stashPalette.slice(0,60)).map(function(t) {
+          (stashStripExpanded ? gen.stashPalette : gen.stashPalette.slice(0,60)).map(function(t) {
             return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:140},
               h("div", {style:{width:12,height:12,borderRadius:2,background:"rgb(" + t.rgb.join(",") + ")"}})
             );
           })
         ),
-        ctx.stashPalette.length > 60 && h("button", {
+        gen.stashPalette.length > 60 && h("button", {
           onClick:function(){setStashStripExpanded(function(o){return !o;});},
           style:{fontSize:10,color:"#0d9488",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
-        }, stashStripExpanded ? "Show less" : "+" + (ctx.stashPalette.length - 60) + " more")
+        }, stashStripExpanded ? "Show less" : "+" + (gen.stashPalette.length - 60) + " more")
       ),
-      ctx.coverageGaps && ctx.coverageGaps.hasGaps && h("div", {style:{
+      gen.coverageGaps && gen.coverageGaps.hasGaps && h("div", {style:{
         fontSize:11,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,
         padding:"6px 10px",marginBottom:8,color:"#991b1b",display:"flex",alignItems:"flex-start",gap:6
       }},
         h("span", {style:{fontSize:13,lineHeight:1,flexShrink:0}}, Icons.warning()),
         h("span", null, "Your stash may lack coverage in: ",
-          ctx.coverageGaps.gaps.map(function(g, i) {
+          gen.coverageGaps.gaps.map(function(g, i) {
             return h("span", {key:g.hue},
               (i > 0 ? ", " : ""),
               h("strong", null, g.hue),
@@ -9137,17 +9176,17 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("div", {style:{borderTop:"0.5px solid #e2e8f0",marginTop:8,paddingTop:10}},
         h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}},
           h("button", {
-            onClick:function(){ ctx.randomise(); },
-            disabled:!(ctx.stashPalette && ctx.stashPalette.length > 0) || !ctx.img,
+            onClick:function(){ gen.randomise(); },
+            disabled:!(gen.stashPalette && gen.stashPalette.length > 0) || !gen.img,
             style:{display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:500,padding:"5px 12px",borderRadius:8,border:"0.5px solid #99f6e4",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
           }, Icons.shuffle(), " Randomise"),
-          ctx.variationSeed ? (seedEditing ?
+          gen.variationSeed ? (seedEditing ?
             h("span", {style:{display:"flex",alignItems:"center",gap:3}},
               h("input", {
                 type:"number", value:seedTmp, autoFocus:true,
                 onChange:function(e){setSeedTmp(e.target.value);},
                 onKeyDown:function(e){
-                  if (e.key==="Enter"){ var n=parseInt(seedTmp,10); if(!isNaN(n)&&n>0){ctx.applyVariationSeed(n>>>0);} setSeedEditing(false); }
+                  if (e.key==="Enter"){ var n=parseInt(seedTmp,10); if(!isNaN(n)&&n>0){gen.applyVariationSeed(n>>>0);} setSeedEditing(false); }
                   else if(e.key==="Escape"){setSeedEditing(false);}
                 },
                 onBlur:function(){setSeedEditing(false);},
@@ -9155,31 +9194,31 @@ window.CreatorSidebar = function CreatorSidebar() {
               })
             ) :
             h("span", {
-              onClick:function(){setSeedEditing(true);setSeedTmp(String(ctx.variationSeed));},
+              onClick:function(){setSeedEditing(true);setSeedTmp(String(gen.variationSeed));},
               title:"Click to enter a specific seed",
               style:{fontSize:10,color:"#94a3b8",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
-            }, "#" + ctx.variationSeed)
+            }, "#" + gen.variationSeed)
           ) : null
         ),
-        ctx.stashConstrained && ctx.variationSeed && ctx.variationSubset && ctx.stashPalette && ctx.stashPalette.length >= 3 && h("div", {
+        gen.stashConstrained && gen.variationSeed && gen.variationSubset && gen.stashPalette && gen.stashPalette.length >= 3 && h("div", {
           style:{fontSize:10,color:"#0d9488",marginBottom:6,display:"flex",alignItems:"center",gap:4}
-        }, Icons.dice(), " Roulette \u2014 using " + ctx.variationSubset.length + " of " + ctx.stashPalette.length + " threads"),
+        }, Icons.dice(), " Roulette \u2014 using " + gen.variationSubset.length + " of " + gen.stashPalette.length + " threads"),
         h("button", {
           onClick:function(){
-            ctx.setGalleryOpen(function(o){return !o;});
-            if (!ctx.galleryOpen) ctx.generateGallery();
+            gen.setGalleryOpen(function(o){return !o;});
+            if (!gen.galleryOpen) gen.generateGallery();
           },
           style:{fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,marginBottom:4}
         },
-          h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          h("span", {style:{fontSize:9,display:"inline-block",transform:gen.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
           "Explore variations"
         ),
-        ctx.galleryOpen && h("div", {style:{marginTop:4}},
+        gen.galleryOpen && h("div", {style:{marginTop:4}},
           h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}},
-            ctx.gallerySlots.map(function(slot, i) {
+            gen.gallerySlots.map(function(slot, i) {
               return h("div", {
                 key:i,
-                onClick:function(){ if (!slot.loading && slot.url) { ctx.promoteVariation(slot); ctx.setGalleryOpen(false); } },
+                onClick:function(){ if (!slot.loading && slot.url) { gen.promoteVariation(slot); gen.setGalleryOpen(false); } },
                 style:{
                   borderRadius:8,overflow:"hidden",border:"0.5px solid #e2e8f0",
                   cursor:(!slot.loading && slot.url) ? "pointer" : "default",
@@ -9201,18 +9240,18 @@ window.CreatorSidebar = function CreatorSidebar() {
           ),
           h("div", {style:{display:"flex",justifyContent:"center"}},
             h("button", {
-              onClick:function(){ ctx.generateGallery(); },
+              onClick:function(){ gen.generateGallery(); },
               style:{fontSize:11,padding:"4px 12px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"inherit"}
             }, "New batch")
           )
         ),
-        ctx.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
+        gen.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
           h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:4}}, "Recent variations"),
           h("div", {style:{display:"flex",gap:4,overflowX:"auto",paddingBottom:4}},
-            ctx.variationHistory.map(function(entry, i) {
+            gen.variationHistory.map(function(entry, i) {
               return h("div", {
                 key:(entry.timestamp || i) + "-" + i,
-                onClick:function(){ ctx.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); },
+                onClick:function(){ gen.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); },
                 title:"Seed #" + entry.seed,
                 style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid #e2e8f0"}
               },
@@ -9227,19 +9266,19 @@ window.CreatorSidebar = function CreatorSidebar() {
       )
     ),
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Min stitches per colour", value:ctx.minSt, min:0, max:50, onChange:ctx.setMinSt,
+      h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
         format:function(v){return v===0?"Off":v;},
         helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
     ),
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Remove Orphans", value:ctx.orphans, min:0, max:3, onChange:ctx.setOrphans,
+      h(SliderRow, {label:"Remove Orphans", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
         format:function(v){return v===0?"Off":String(v);},
         helpText:"Removes isolated stitches with no same-colour neighbours — reduces confetti and makes the pattern easier to stitch"}),
-      ctx.orphans > 0 && (function() {
+      gen.orphans > 0 && (function() {
         var desc;
-        if (ctx.orphans === 1) {
+        if (gen.orphans === 1) {
           desc = h("span", null, "Removes ", h("strong", null, "isolated single stitches"), " \u2014 cells with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets clusters of exactly 1 stitch.");
-        } else if (ctx.orphans === 2) {
+        } else if (gen.orphans === 2) {
           desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
         } else {
           desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#dc2626",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
@@ -9247,42 +9286,42 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("div", {style:{fontSize:11,color:"#475569",marginTop:4,lineHeight:1.5}}, desc);
       })()
     ),
-    ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
-      "Preview estimate: removes ~", (ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
-      " (", ((ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles) / Math.max(1, ctx.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
+    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
+      "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
+      " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),
-    ctx.pat && ctx.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+    ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
       h("button", {
-        onClick:function(){ctx.setShowCleanupDiff(function(d){return !d;});},
+        onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
         style:{
           fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-          border:ctx.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e2e8f0",
-          background:ctx.showCleanupDiff?"#f0fdfa":"#fff",
-          color:ctx.showCleanupDiff?"#0d9488":"#475569",
-          fontWeight:ctx.showCleanupDiff?600:400,
+          border:gen.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e2e8f0",
+          background:gen.showCleanupDiff?"#f0fdfa":"#fff",
+          color:gen.showCleanupDiff?"#0d9488":"#475569",
+          fontWeight:gen.showCleanupDiff?600:400,
           display:"flex",alignItems:"center",gap:4,lineHeight:1.4
         }
-      }, Icons.eye(), " " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
+      }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
     ),
-    ctx.showCleanupDiff && ctx.cleanupDiff && h("div", {style:{
+    gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
       fontSize:11,color:"#475569",padding:"6px 10px",
       background:"#fdf4ff",border:"1px solid #f0abfc",borderRadius:8,
       marginTop:4,lineHeight:1.5
     }},
       h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
-      ctx.cleanupDiff.count.toLocaleString(), " stitches changed",
-      ctx.totalStitchable > 0 ? " (" + (ctx.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-      Object.keys(ctx.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#94a3b8"}},
-        Object.entries(ctx.cleanupDiff.byColour)
+      gen.cleanupDiff.count.toLocaleString(), " stitches changed",
+      ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
+      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#94a3b8"}},
+        Object.entries(gen.cleanupDiff.byColour)
           .sort(function(a,b){return b[1]-a[1];})
           .slice(0,4)
           .map(function(e){return "DMC "+e[0]+": "+e[1];})
           .join(" \xB7 ") +
-          (Object.keys(ctx.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(ctx.cleanupDiff.byColour).length - 4) + " more" : "")
+          (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
       )
     ),
     (function() {
-      var warning = getCleanupWarning(ctx.sW, ctx.sH, ctx.orphans, ctx.previewStats);
+      var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
       if (!warning) return null;
       var isDanger = warning.level === "danger";
       return h("div", {style:{
@@ -9297,14 +9336,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     })(),
     h("button", {
-      onClick:function(){ctx.setPalAdvanced(function(o){return !o;});},
+      onClick:function(){app.setPalAdvanced(function(o){return !o;});},
       style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
     },
-      h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+      h("span", {style:{fontSize:9,display:"inline-block",transform:app.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
       "Dithering",
-      ctx.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block",marginLeft:2}}) : null
+      gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block",marginLeft:2}}) : null
     ),
-    ctx.palAdvanced && h(React.Fragment, null,
+    app.palAdvanced && h(React.Fragment, null,
       h("div", {style:{marginTop:6,padding:"8px 10px",background:"#fff7ed",borderRadius:8,border:"0.5px solid #fed7aa",fontSize:10,color:"#b45309"}},
         "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
       ),
@@ -9312,14 +9351,14 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Maps each pixel directly to its closest DMC colour. Fewer scattered stitches", width:200},
             h("button", {
-              onClick:function(){ctx.setDith(false);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:!ctx.dith?500:400,background:!ctx.dith?"#fff":"transparent",borderRadius:6,color:!ctx.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:!ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              onClick:function(){gen.setDith(false);},
+              style:{padding:"5px 12px",fontSize:12,fontWeight:!gen.dith?500:400,background:!gen.dith?"#fff":"transparent",borderRadius:6,color:!gen.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:!gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Direct")
           ),
           h(Tooltip, {text:"Uses Floyd-Steinberg error diffusion for smoother colour gradients, but creates more scattered stitches", width:220},
             h("button", {
-              onClick:function(){ctx.setDith(true);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.dith?500:400,background:ctx.dith?"#fff":"transparent",borderRadius:6,color:ctx.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              onClick:function(){gen.setDith(true);},
+              style:{padding:"5px 12px",fontSize:12,fontWeight:gen.dith?500:400,background:gen.dith?"#fff":"transparent",borderRadius:6,color:gen.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Dithered")
           )
         )
@@ -9329,7 +9368,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Stitch Cleanup section (non-scratch) ────────────────────────────────────
   var cleanupSection = !ctx.isScratchMode ? (function() {
-    var sc2 = ctx.stitchCleanup;
+    var sc2 = gen.stitchCleanup;
     var scBadge = h("span", {style:{
       fontSize:11,fontWeight:500,padding:"1px 8px",borderRadius:10,
       color:sc2.enabled?"#0d9488":"#94a3b8",background:sc2.enabled?"#f0fdfa":"#f1f5f9"
@@ -9338,11 +9377,11 @@ window.CreatorSidebar = function CreatorSidebar() {
     var strengthLabels=["Gentle","Balanced","Thorough"];
     var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
     var strengthIdx=strengthKeys.indexOf(sc2.strength);
-    return h(Section, {title:"Stitch Cleanup", isOpen:ctx.cleanupOpen, onToggle:ctx.setCleanupOpen, badge:scBadge},
+    return h(Section, {title:"Stitch Cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:scBadge},
       h("div", {style:{marginTop:8}},
         h(Toggle, {
           checked:sc2.enabled,
-          onChange:function(v){ctx.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
+          onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
           label:"Stitch Cleanup",
           help:"Automatically removes scattered single stitches that are hard to sew. Turn off if you want to keep the full dithered detail."
         }),
@@ -9357,7 +9396,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             ),
             h("input", {
               type:"range",min:0,max:2,step:1,value:strengthIdx,
-              onChange:function(e){ctx.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[+e.target.value]});});},
+              onChange:function(e){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[+e.target.value]});});},
               style:{width:"100%",accentColor:"#0d9488"}
             }),
             h("div", {style:{display:"flex",justifyContent:"space-between",marginTop:6,gap:4}},
@@ -9365,7 +9404,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                 return h(Tooltip, {key:l, text:strengthDescs[i], width:160},
                   h("span", {
                     style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#94a3b8",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
-                    onClick:function(){ctx.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
+                    onClick:function(){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
                   }, l)
                 );
               })
@@ -9373,13 +9412,13 @@ window.CreatorSidebar = function CreatorSidebar() {
           ),
           h(Toggle, {
             checked:sc2.protectDetails,
-            onChange:function(v){ctx.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},
+            onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},
             label:"Protect fine details",
             help:"Uses edge detection to preserve small stitches in important outlines \u2014 eyes, lettering, thin lines. Turn off for simpler designs."
           }),
           h(Toggle, {
             checked:sc2.smoothDithering,
-            onChange:function(v){ctx.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});});},
+            onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});});},
             label:"Smooth dithering",
             help:"Reduces confetti during dithering itself (before cleanup runs). Cleaner output, but may slightly shift colors in gradient areas."
           })
@@ -9390,7 +9429,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Fabric & Floss section ──────────────────────────────────────────────────
   var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
-  var fabSection = h(Section, {title:"Fabric & Floss", isOpen:ctx.fabOpen, onToggle:ctx.setFabOpen, badge:fabBadge},
+  var fabSection = h(Section, {title:"Fabric & Floss", isOpen:app.fabOpen, onToggle:app.setFabOpen, badge:fabBadge},
     h("div", {style:{marginTop:8}},
       h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
         h("span", {style:{fontSize:12,color:"#475569",fontWeight:600}}, "Fabric count"),
@@ -9407,54 +9446,54 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   // ── Adjustments section (non-scratch) ──────────────────────────────────────
-  var adjBadge = (ctx.bri||ctx.con||ctx.sat||ctx.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}) : null;
-  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:ctx.adjOpen, onToggle:ctx.setAdjOpen, badge:adjBadge},
+  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}) : null;
+  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Smooth", value:ctx.smooth, min:0, max:4, step:0.1, onChange:ctx.setSmooth,
+      h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
         helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
-      ctx.smooth===0 && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
-      ctx.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
+      gen.smooth===0 && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
+      gen.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
         h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
-            h("button", {onClick:function(){ctx.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="median"?500:400,background:ctx.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="median"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
+            h("button", {onClick:function(){gen.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:gen.smoothType==="median"?500:400,background:gen.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:gen.smoothType==="median"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
           ),
           h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:180},
-            h("button", {onClick:function(){ctx.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="gaussian"?500:400,background:ctx.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="gaussian"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
+            h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:gen.smoothType==="gaussian"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
           )
         )
       ),
-      h(SliderRow, {label:"Brightness", value:ctx.bri, min:-50, max:50, onChange:ctx.setBri, format:function(v){return (v>0?"+":"")+v+"%";}}),
-      h(SliderRow, {label:"Contrast", value:ctx.con, min:-50, max:50, onChange:ctx.setCon, format:function(v){return (v>0?"+":"")+v+"%";}}),
-      h(SliderRow, {label:"Saturation", value:ctx.sat, min:-50, max:50, onChange:ctx.setSat, format:function(v){return (v>0?"+":"")+v+"%";}})
+      h(SliderRow, {label:"Brightness", value:gen.bri, min:-50, max:50, onChange:gen.setBri, format:function(v){return (v>0?"+":"")+v+"%";}}),
+      h(SliderRow, {label:"Contrast", value:gen.con, min:-50, max:50, onChange:gen.setCon, format:function(v){return (v>0?"+":"")+v+"%";}}),
+      h(SliderRow, {label:"Saturation", value:gen.sat, min:-50, max:50, onChange:gen.setSat, format:function(v){return (v>0?"+":"")+v+"%";}})
     )
   ) : null;
 
   // ── Background section (non-scratch) ───────────────────────────────────────
-  var bgBadge = ctx.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}) : null;
-  var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:ctx.bgOpen, onToggle:ctx.setBgOpen, badge:bgBadge},
+  var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}) : null;
+  var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:app.bgOpen, onToggle:app.setBgOpen, badge:bgBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}},
-      h("input", {type:"checkbox", checked:ctx.skipBg, onChange:function(e){ctx.setSkipBg(e.target.checked);}}),
+      h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){gen.setSkipBg(e.target.checked);}}),
       h("span", null, "Skip background"),
       h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})
     ),
-    ctx.skipBg && h("div", {style:{marginTop:10}},
+    gen.skipBg && h("div", {style:{marginTop:10}},
       h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
         h("div", {
-          onClick:function(){ctx.setPickBg(true);},
-          style:{width:24,height:24,borderRadius:6,background:"rgb("+ctx.bgCol+")",border:"2px solid #e2e8f0",cursor:"pointer"}
+          onClick:function(){gen.setPickBg(true);},
+          style:{width:24,height:24,borderRadius:6,background:"rgb("+gen.bgCol+")",border:"2px solid #e2e8f0",cursor:"pointer"}
         }),
         h("button", {
-          onClick:function(){ctx.setPickBg(true);},
+          onClick:function(){gen.setPickBg(true);},
           style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa",cursor:"pointer"}
         }, "Pick")
       ),
-      h(SliderRow, {label:"Tolerance", value:ctx.bgTh, min:3, max:50, onChange:ctx.setBgTh,
+      h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
         helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
       ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#f1f5f9",borderRadius:8,fontSize:11,color:"#475569"}},
         h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
         h("button", {
-          onClick:ctx.autoCrop,
+          onClick:gen.autoCrop,
           style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,cursor:"pointer",color:"#1e293b"}
         }, "Auto-Crop to Stitches")
       )
@@ -9468,11 +9507,11 @@ window.CreatorSidebar = function CreatorSidebar() {
         style:{padding:"8px 14px",fontSize:12,fontWeight:600,background:"#dc2626",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}
       }, "Reset Canvas")
     : h("button", {
-        onClick:ctx.generate, disabled:ctx.busy,
+        onClick:gen.generate, disabled:gen.busy,
         style:{padding:"8px 14px",fontSize:12,fontWeight:600,
-          background:ctx.busy?"#94a3b8":"#0d9488",color:"#fff",
-          border:"none",borderRadius:8,cursor:ctx.busy?"wait":"pointer"}
-      }, ctx.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
+          background:gen.busy?"#94a3b8":"#0d9488",color:"#fff",
+          border:"none",borderRadius:8,cursor:gen.busy?"wait":"pointer"}
+      }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
   return h(React.Fragment, null,
     palChipsSection,
@@ -9485,14 +9524,14 @@ window.CreatorSidebar = function CreatorSidebar() {
         [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
           return h("button", {
             key:kl[0],
-            onClick:function(){ctx.setView(kl[0]);},
+            onClick:function(){cv.setView(kl[0]);},
             title:"Cycle view (V)",
             style:{
-              flex:1,padding:"4px 6px",fontSize:11,fontWeight:ctx.view===kl[0]?600:400,
+              flex:1,padding:"4px 6px",fontSize:11,fontWeight:cv.view===kl[0]?600:400,
               border:"none",cursor:"pointer",borderRadius:6,fontFamily:"inherit",
-              background:ctx.view===kl[0]?"var(--surface)":"transparent",
-              color:ctx.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
-              boxShadow:ctx.view===kl[0]?"var(--shadow-sm)":"none"
+              background:cv.view===kl[0]?"var(--surface)":"transparent",
+              color:cv.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
+              boxShadow:cv.view===kl[0]?"var(--shadow-sm)":"none"
             }
           }, kl[1]);
         })
@@ -9506,8 +9545,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     fabSection,
     adjSection,
     bgSection,
-    ctx.pat && ctx.pal && ctx.paletteSwap && ctx.paletteSwap.shiftSection,
-    ctx.pat && ctx.pal && ctx.paletteSwap && ctx.paletteSwap.presetSection,
+    ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
+    ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
     actionBtn
   );
 };
@@ -9515,13 +9554,13 @@ window.CreatorSidebar = function CreatorSidebar() {
 
 /* ─── Toast.js ─── */
 /* creator/Toast.js — Toast notification overlay.
-   Reads from CreatorContext. Shows temporary messages that auto-dismiss.
-   Depends on: CreatorContext (context.js) */
+   Reads from AppContext. Shows temporary messages that auto-dismiss.
+   Depends on: AppContext (context.js) */
 
 window.CreatorToastContainer = function CreatorToastContainer() {
-  var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
-  if (!ctx.toasts || ctx.toasts.length === 0) return null;
+  if (!app.toasts || app.toasts.length === 0) return null;
 
   var typeStyles = {
     info:    { bg: "#f0f9ff", border: "#bae6fd", color: "#0369a1", icon: Icons.info },
@@ -9537,7 +9576,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
       pointerEvents: "none", maxWidth: 340
     }
   },
-    ctx.toasts.map(function(toast) {
+    app.toasts.map(function(toast) {
       var ts = typeStyles[toast.type] || typeStyles.info;
       return h("div", {
         key: toast.id,
@@ -9555,7 +9594,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
         h("span", { style: { fontSize: 14, flexShrink: 0 } }, ts.icon()),
         h("span", { style: { flex: 1 } }, toast.message),
         h("button", {
-          onClick: function() { ctx.dismissToast(toast.id); },
+          onClick: function() { app.dismissToast(toast.id); },
           style: {
             background: "none", border: "none", cursor: "pointer",
             color: ts.color, opacity: 0.6, fontSize: 14, padding: 0,
@@ -9574,15 +9613,16 @@ window.CreatorToastContainer = function CreatorToastContainer() {
    Depends on: CreatorContext (context.js) */
 
 window.CreatorContextMenu = function CreatorContextMenu() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
   var h = React.createElement;
-  var menu = ctx.contextMenu;
+  var menu = cv.contextMenu;
 
   // Close menu on outside click or Escape.
   // Must be declared before any early returns (Rules of Hooks).
   React.useEffect(function() {
     if (!menu) return;
-    function close() { ctx.setContextMenu(null); }
+    function close() { cv.setContextMenu(null); }
     function onKey(e) { if (e.key === "Escape") close(); }
     document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", onKey);
@@ -9604,7 +9644,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     return h("button", {
       key: key,
       onPointerDown: function(e) { e.stopPropagation(); },
-      onClick: function(e) { e.stopPropagation(); onClick(); ctx.setContextMenu(null); },
+      onClick: function(e) { e.stopPropagation(); onClick(); cv.setContextMenu(null); },
       disabled: opts.disabled,
       style: {
         display:"block", width:"100%", textAlign:"left",
@@ -9645,44 +9685,44 @@ window.CreatorContextMenu = function CreatorContextMenu() {
 
     // Pick this colour
     item([Icons.eyedropper(), " Pick this colour"], function() {
-      if (cellInfo) ctx.setSelectedColorId(cellInfo.id);
+      if (cellInfo) cv.setSelectedColorId(cellInfo.id);
     }, {disabled: !hasCellColour, k: 'pick'}),
 
     // Fill from here — switch to fill tool so user can click the area
     item([Icons.bucket(), " Switch to fill tool"], function() {
-      ctx.selectStitchType("cross");
-      ctx.setBrushAndActivate("fill");
-    }, {disabled: !ctx.selectedColorId, k: 'fill'}),
+      cv.selectStitchType("cross");
+      cv.setBrushAndActivate("fill");
+    }, {disabled: !cv.selectedColorId, k: 'fill'}),
 
     sep(),
 
     // Select similar
     item([Icons.wand(), " Select similar (wand)"], function() {
-      ctx.setActiveTool("magicWand");
+      cv.setActiveTool("magicWand");
       ctx.setPartialStitchTool(null);
-      ctx.setBsStart(null);
-      ctx.applyWandSelect(menu.gx, menu.gy, ctx.wandOpMode);
+      cv.setBsStart(null);
+      cv.applyWandSelect(menu.gx, menu.gy, cv.wandOpMode);
     }, {disabled: !hasCellColour, k: 'wand'}),
 
     // Select all of this colour
     item([Icons.palette(), " Select all of this colour"], function() {
-      if (cellInfo) ctx.selectAllOfColorId(cellInfo.id);
+      if (cellInfo) cv.selectAllOfColorId(cellInfo.id);
     }, {disabled: !hasCellColour, k: 'selectall'}),
 
     sep(),
 
     // Highlight this colour
-    item(ctx.hiId === (cellInfo ? cellInfo.id : null) ? [Icons.magnifyMinus(), " Remove highlight"] : [Icons.magnify(), " Highlight this colour"], function() {
-      if (cellInfo) ctx.setHiId(ctx.hiId === cellInfo.id ? null : cellInfo.id);
+    item(cv.hiId === (cellInfo ? cellInfo.id : null) ? [Icons.magnifyMinus(), " Remove highlight"] : [Icons.magnify(), " Highlight this colour"], function() {
+      if (cellInfo) cv.setHiId(cv.hiId === cellInfo.id ? null : cellInfo.id);
     }, {disabled: !hasCellColour, k: 'highlight'}),
 
     // Stitch info
     hasCellColour && item([Icons.info(), " Stitch info"], function() {
       if (cellInfo) {
-        ctx.setActiveTool("magicWand");
+        cv.setActiveTool("magicWand");
         ctx.setPartialStitchTool(null);
-        ctx.applyWandSelect(menu.gx, menu.gy, "replace");
-        ctx.setWandPanel("info");
+        cv.applyWandSelect(menu.gx, menu.gy, "replace");
+        cv.setWandPanel("info");
       }
     }, {k: 'info'})
   );
@@ -9691,89 +9731,94 @@ window.CreatorContextMenu = function CreatorContextMenu() {
 
 /* ─── PatternTab.js ─── */
 /* creator/PatternTab.js — The pattern view tab (canvas area + palette chips).
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: PatternCanvas (PatternCanvas.js), Tooltip (components.js), CreatorContext (context.js) */
+   Reads from CreatorContext and GenerationContext.
+   Loaded as a plain <script> before the main Babel script.
+   Depends on: PatternCanvas (PatternCanvas.js), Tooltip (components.js),
+               CreatorContext, GenerationContext (context.js) */
 
 window.CreatorPatternTab = function CreatorPatternTab() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
+  var gen = window.useGeneration();
   var h = React.createElement;
 
   var _dismissed = React.useState(false); var confettiBannerDismissed = _dismissed[0], setConfettiBannerDismissed = _dismissed[1];
   var prevConfettiKeyRef = React.useRef(null);
   React.useEffect(function() {
-    var newKey = ctx.confettiData ? (ctx.confettiData.raw.singles + "|" + ctx.confettiData.clean.singles) : null;
+    var newKey = app.confettiData ? (app.confettiData.raw.singles + "|" + app.confettiData.clean.singles) : null;
     if (prevConfettiKeyRef.current !== newKey) {
       prevConfettiKeyRef.current = newKey;
       if (newKey) setConfettiBannerDismissed(false);
     }
-  }, [ctx.confettiData]);
+  }, [app.confettiData]);
 
   // Track Shift/Alt modifier keys when a selection tool is active.
-  // Updates ctx.selectionModifier so MagicWandPanel can show the effective mode.
+  // Updates cv.selectionModifier so MagicWandPanel can show the effective mode.
   // Must be declared before any early returns (Rules of Hooks).
   React.useEffect(function() {
-    if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso") {
-      ctx.setSelectionModifier(null);
+    if (cv.activeTool !== "magicWand" && cv.activeTool !== "lasso") {
+      cv.setSelectionModifier(null);
       return;
     }
     function update(e) {
-      if (e.shiftKey && e.altKey)  ctx.setSelectionModifier("intersect");
-      else if (e.shiftKey)         ctx.setSelectionModifier("add");
-      else if (e.altKey)           ctx.setSelectionModifier("subtract");
-      else                         ctx.setSelectionModifier(null);
+      if (e.shiftKey && e.altKey)  cv.setSelectionModifier("intersect");
+      else if (e.shiftKey)         cv.setSelectionModifier("add");
+      else if (e.altKey)           cv.setSelectionModifier("subtract");
+      else                         cv.setSelectionModifier(null);
     }
     window.addEventListener("keydown", update);
     window.addEventListener("keyup",   update);
     return function() {
       window.removeEventListener("keydown", update);
       window.removeEventListener("keyup",   update);
-      ctx.setSelectionModifier(null);
+      cv.setSelectionModifier(null);
     };
-  }, [ctx.activeTool]);
+  }, [cv.activeTool]);
 
   if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "pattern") return null;
+  if (app.tab !== "pattern") return null;
 
   // PaletteSwap confirm view takes over when active
-  if (ctx.paletteSwap && ctx.paletteSwap.showConfirm) {
-    return ctx.paletteSwap.confirmView || null;
+  if (cv.paletteSwap && cv.paletteSwap.showConfirm) {
+    return cv.paletteSwap.confirmView || null;
   }
 
   // Build status text
   var statusText;
-  if (ctx.eyedropperEmpty) {
+  if (app.eyedropperEmpty) {
     statusText = "\u26A0 That cell is empty \u2014 no colour to sample.";
-  } else if (ctx.activeTool === "eyedropper") {
+  } else if (cv.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
-  } else if (ctx.activeTool === "magicWand") {
-    var wModLabel = ctx.selectionModifier === "add" ? "[+] Add" : ctx.selectionModifier === "subtract" ? "[\u2212] Subtract" : ctx.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
+  } else if (cv.activeTool === "magicWand") {
+    var wModLabel = cv.selectionModifier === "add" ? "[+] Add" : cv.selectionModifier === "subtract" ? "[\u2212] Subtract" : cv.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
     statusText = "Magic Wand \u2014 click to select by colour" + (wModLabel ? " \u2022 " + wModLabel : ". Shift=add, Alt=subtract.");
-  } else if (ctx.activeTool === "lasso") {
-    var lModLabel = ctx.selectionModifier === "add" ? "[+] Add" : ctx.selectionModifier === "subtract" ? "[\u2212] Subtract" : ctx.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
-    statusText = "Lasso (" + (ctx.lassoMode || "freehand") + ")" + (lModLabel ? " \u2022 " + lModLabel : "") + " \u2014 " +
-      (ctx.lassoMode === "freehand" ? "drag to paint selection." :
-       ctx.lassoMode === "polygon" ? "click to place anchor points. Click near start to close." :
+  } else if (cv.activeTool === "lasso") {
+    var lModLabel = cv.selectionModifier === "add" ? "[+] Add" : cv.selectionModifier === "subtract" ? "[\u2212] Subtract" : cv.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
+    statusText = "Lasso (" + (cv.lassoMode || "freehand") + ")" + (lModLabel ? " \u2022 " + lModLabel : "") + " \u2014 " +
+      (cv.lassoMode === "freehand" ? "drag to paint selection." :
+       cv.lassoMode === "polygon" ? "click to place anchor points. Click near start to close." :
        "click to place anchors; snaps to colour edges.");
-  } else if (ctx.stitchType === "cross") {
-    if (!ctx.selectedColorId) {
+  } else if (cv.stitchType === "cross") {
+    if (!cv.selectedColorId) {
       statusText = "Cross stitch \u2014 select a colour in the panel, or right-click the canvas to pick one.";
     } else {
-      statusText = "Cross stitch \u2014 " + (ctx.brushMode === "fill" ? "fill" : "paint") + " mode. Right-click any cell to change colour.";
+      statusText = "Cross stitch \u2014 " + (cv.brushMode === "fill" ? "fill" : "paint") + " mode. Right-click any cell to change colour.";
     }
-  } else if (ctx.stitchType === "half-fwd") {
+  } else if (cv.stitchType === "half-fwd") {
     statusText = "Half stitch / \u2014 click cells to place.";
-  } else if (ctx.stitchType === "half-bck") {
+  } else if (cv.stitchType === "half-bck") {
     statusText = "Half stitch \\ \u2014 click cells to place.";
-  } else if (ctx.stitchType === "backstitch") {
+  } else if (cv.stitchType === "backstitch") {
     statusText = "Backstitch \u2014 click grid intersections. Right-click to cancel.";
-  } else if (ctx.stitchType === "erase") {
+  } else if (cv.stitchType === "erase") {
     statusText = "Erase \u2014 click to remove stitches. Use backstitch erase (Bs tool) for backstitch lines.";
   } else {
     statusText = "Select a colour in the panel on the right, then choose a stitch type above.";
   }
 
   return h("div", null,
-    ctx.cs < 6 && (ctx.view === "symbol" || ctx.view === "both") && h("div", {
+    cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {
       style:{fontSize:12,color:"#475569",marginBottom:6,background:"#f1f5f9",padding:"6px 10px",borderRadius:8}
     }, "To see symbols, you may need to zoom in."),
 
@@ -9781,22 +9826,22 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       style:{fontSize:12,color:"#94a3b8",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
     }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
-    !ctx.shortcutsHintDismissed && h("div", {
+    !app.shortcutsHintDismissed && h("div", {
       style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
         onClick: function() {
           localStorage.setItem("shortcuts_hint_dismissed", "1");
-          ctx.setShortcutsHintDismissed(true);
+          app.setShortcutsHintDismissed(true);
         },
         style:{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}
       }, "\xD7")
     ),
 
-    !confettiBannerDismissed && ctx.confettiData && ctx.orphans > 0 && (function() {
-      var rawSingles = ctx.confettiData.raw.singles;
-      var cleanSingles = ctx.confettiData.clean.singles;
+    !confettiBannerDismissed && app.confettiData && gen.orphans > 0 && (function() {
+      var rawSingles = app.confettiData.raw.singles;
+      var cleanSingles = app.confettiData.clean.singles;
       var removed = rawSingles - cleanSingles;
       var totalStitchable = ctx.pat ? ctx.pat.filter(function(m){return m.id!=="__skip__"&&m.id!=="__empty__";}).length : 1;
       var pctOfTotal = removed / Math.max(1, totalStitchable) * 100;
@@ -9814,55 +9859,55 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h(window.MagicWandPanel, null),
 
-    ctx.splitPaneEnabled
+    app.splitPaneEnabled
       ? h(window.CreatorSplitPane, null)
       : h("div", {
-      ref:ctx.scrollRef,
+      ref:app.scrollRef,
       style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#f1f5f9",cursor:(function(){
-        var selTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
-        if (ctx.activeTool === "eyedropper") return "copy";
+        var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
+        if (cv.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
-        if (ctx.previewActive) return "default";
-        if (ctx.activeTool === "fill") return "cell";
-        if (ctx.activeTool === "eraseBs") return "not-allowed";
-        if (ctx.activeTool || ctx.partialStitchTool) return "crosshair";
+        if (app.previewActive) return "default";
+        if (cv.activeTool === "fill") return "cell";
+        if (cv.activeTool === "eraseBs") return "not-allowed";
+        if (cv.activeTool || ctx.partialStitchTool) return "crosshair";
         return "default";
       })()},
       onContextMenu: function(e) {
         // Right-click context menu (except when backstitch has a special right-click action)
-        if (ctx.activeTool === "backstitch" && ctx.bsStart) return;
+        if (cv.activeTool === "backstitch" && cv.bsStart) return;
         e.preventDefault();
-        var pcRef = ctx.pcRef;
+        var pcRef = app.pcRef;
         if (!pcRef.current || !ctx.pat) return;
-        var gc = gridCoord(pcRef, e, ctx.cs, ctx.G, false);
+        var gc = gridCoord(pcRef, e, cv.cs, app.G, false);
         if (!gc || gc.gx < 0 || gc.gx >= ctx.sW || gc.gy < 0 || gc.gy >= ctx.sH) return;
         var idx = gc.gy * ctx.sW + gc.gx;
         var cell = ctx.pat[idx];
         // In paint/fill mode, right-click directly picks the colour (eyedropper gesture)
         var rcIsHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
-        if ((ctx.activeTool === "paint" || ctx.activeTool === "fill" || rcIsHsTool) &&
+        if ((cv.activeTool === "paint" || cv.activeTool === "fill" || rcIsHsTool) &&
             cell && cell.id !== "__skip__" && cell.id !== "__empty__" &&
             ctx.cmap && ctx.cmap[cell.id]) {
-          ctx.setSelectedColorId(cell.id);
+          cv.setSelectedColorId(cell.id);
           return;
         }
-        ctx.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
+        cv.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
       }
     },
-      ctx.previewActive
-        ? (ctx.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
+      app.previewActive
+        ? (app.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
         : h(window.PatternCanvas, null)
     ),
 
     // Context menu overlay
-    ctx.contextMenu && h(window.CreatorContextMenu, null),
+    cv.contextMenu && h(window.CreatorContextMenu, null),
 
     // Enhanced status bar: tool hint + coordinates + colour-under-cursor
     (function() {
       var parts = [statusText];
-      if (ctx.hoverCoords && ctx.hoverCoords.gx >= 0 && ctx.hoverCoords.gx < ctx.sW && ctx.hoverCoords.gy >= 0 && ctx.hoverCoords.gy < ctx.sH) {
-        parts.push("X: " + (ctx.hoverCoords.gx + 1) + ", Y: " + (ctx.hoverCoords.gy + 1));
-        var hIdx = ctx.hoverCoords.gy * ctx.sW + ctx.hoverCoords.gx;
+      if (cv.hoverCoords && cv.hoverCoords.gx >= 0 && cv.hoverCoords.gx < ctx.sW && cv.hoverCoords.gy >= 0 && cv.hoverCoords.gy < ctx.sH) {
+        parts.push("X: " + (cv.hoverCoords.gx + 1) + ", Y: " + (cv.hoverCoords.gy + 1));
+        var hIdx = cv.hoverCoords.gy * ctx.sW + cv.hoverCoords.gx;
         var hCell = ctx.pat[hIdx];
         if (hCell && hCell.id !== "__skip__" && hCell.id !== "__empty__" && ctx.cmap && ctx.cmap[hCell.id]) {
           var info = ctx.cmap[hCell.id];
@@ -9873,8 +9918,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         h("span", null, parts[0]),
         parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#94a3b8",flexShrink:0}}, parts[1]),
         parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
-          ctx.cmap && ctx.pat && ctx.hoverCoords && (function() {
-            var hIdx2 = ctx.hoverCoords.gy * ctx.sW + ctx.hoverCoords.gx;
+          ctx.cmap && ctx.pat && cv.hoverCoords && (function() {
+            var hIdx2 = cv.hoverCoords.gy * ctx.sW + cv.hoverCoords.gx;
             var hCell2 = ctx.pat[hIdx2];
             if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
               return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
@@ -9888,29 +9933,29 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     })(),
 
     h("div", {style:{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}},
-      ctx.editHistory.length > 0 && h("button", {
-        onClick: ctx.undoEdit,
+      cv.editHistory.length > 0 && h("button", {
+        onClick: cv.undoEdit,
         style:{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}
       }, "\u21A9 Undo"),
-      ctx.redoHistory.length > 0 && h("button", {
-        onClick: ctx.redoEdit,
+      cv.redoHistory.length > 0 && h("button", {
+        onClick: cv.redoEdit,
         style:{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}
       }, "\u21AA Redo"),
-      ctx.hiId && h("button", {
-        onClick: function(){ctx.setHiId(null);},
+      cv.hiId && h("button", {
+        onClick: function(){cv.setHiId(null);},
         style:{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}
       }, "Clear \u2715")
     ),
 
-    ctx.hiId && h("div", {style:{background:"#fff7ed",border:"0.5px solid #fed7aa",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11,color:"#92400e"}},
+    cv.hiId && h("div", {style:{background:"#fff7ed",border:"0.5px solid #fed7aa",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11,color:"#92400e"}},
       // ── Mode toggle segmented control ──
       h("div", {style:{display:"flex",gap:0,marginBottom:6,borderRadius:6,overflow:"hidden",border:"1px solid #fdba74"}},
         ["isolate","outline","tint","spotlight"].map(function(m) {
           var labels = {isolate:"Isolate",outline:"Outline",tint:"Tint",spotlight:"Spotlight"};
-          var active = ctx.highlightMode === m;
+          var active = cv.highlightMode === m;
           return h("button", {
             key: m,
-            onClick: function() { ctx.setHighlightMode(m); },
+            onClick: function() { cv.setHighlightMode(m); },
             style:{
               flex:1, padding:"4px 0", fontSize:10, fontWeight: active ? 700 : 500, cursor:"pointer",
               border:"none", borderRight:"1px solid #fdba74",
@@ -9922,76 +9967,76 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ),
 
       // ── Isolate settings ──
-      ctx.highlightMode === "isolate" && h("div", null,
+      cv.highlightMode === "isolate" && h("div", null,
         h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Background dimming"),
           h("input", {
             type:"range", min:5, max:60, step:1,
-            value: Math.round(ctx.bgDimOpacity * 100),
+            value: Math.round(cv.bgDimOpacity * 100),
             onChange: function(e) {
               var op = parseInt(e.target.value) / 100;
-              ctx.setBgDimOpacity(op);
-              if (!ctx.hiAdvanced) ctx.setBgDimDesaturation(Math.min(1, (100 - parseInt(e.target.value)) / 100));
+              cv.setBgDimOpacity(op);
+              if (!cv.hiAdvanced) cv.setBgDimDesaturation(Math.min(1, (100 - parseInt(e.target.value)) / 100));
             },
             style:{flex:1,accentColor:"#ea580c"}
           }),
-          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.bgDimOpacity * 100) + "%")
+          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.bgDimOpacity * 100) + "%")
         ),
-        ctx.hiAdvanced && h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+        cv.hiAdvanced && h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Desaturation"),
           h("input", {
             type:"range", min:0, max:100, step:1,
-            value: Math.round(ctx.bgDimDesaturation * 100),
-            onChange: function(e) { ctx.setBgDimDesaturation(parseInt(e.target.value) / 100); },
+            value: Math.round(cv.bgDimDesaturation * 100),
+            onChange: function(e) { cv.setBgDimDesaturation(parseInt(e.target.value) / 100); },
             style:{flex:1,accentColor:"#ea580c"}
           }),
-          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.bgDimDesaturation * 100) + "%")
+          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.bgDimDesaturation * 100) + "%")
         ),
         h("div", {style:{display:"flex",justifyContent:"flex-end"}},
           h("label", {style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none"}},
-            h("input", {type:"checkbox", checked:ctx.hiAdvanced, onChange:function(e){ctx.setHiAdvanced(e.target.checked);}, style:{accentColor:"#ea580c"}}),
+            h("input", {type:"checkbox", checked:cv.hiAdvanced, onChange:function(e){cv.setHiAdvanced(e.target.checked);}, style:{accentColor:"#ea580c"}}),
             h("span", {style:{fontSize:10,color:"#92400e"}}, "Advanced (decouple sliders)")
           )
         )
       ),
 
       // ── Outline settings ──
-      ctx.highlightMode === "outline" && h("div", {style:{fontSize:10,color:"#78350f",fontStyle:"italic"}},
+      cv.highlightMode === "outline" && h("div", {style:{fontSize:10,color:"#78350f",fontStyle:"italic"}},
         "Animated marching ants highlight the boundary of the selected colour."
       ),
 
       // ── Tint settings ──
-      ctx.highlightMode === "tint" && h("div", null,
+      cv.highlightMode === "tint" && h("div", null,
         h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Tint colour"),
           h("input", {
             type:"color",
-            value: ctx.tintColor,
-            onChange: function(e) { ctx.setTintColor(e.target.value); },
+            value: cv.tintColor,
+            onChange: function(e) { cv.setTintColor(e.target.value); },
             style:{width:28,height:22,padding:0,border:"1px solid #fdba74",borderRadius:4,cursor:"pointer"}
           }),
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f",marginLeft:8}}, "Opacity"),
           h("input", {
             type:"range", min:10, max:80, step:1,
-            value: Math.round(ctx.tintOpacity * 100),
-            onChange: function(e) { ctx.setTintOpacity(parseInt(e.target.value) / 100); },
+            value: Math.round(cv.tintOpacity * 100),
+            onChange: function(e) { cv.setTintOpacity(parseInt(e.target.value) / 100); },
             style:{flex:1,accentColor:"#ea580c"}
           }),
-          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.tintOpacity * 100) + "%")
+          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.tintOpacity * 100) + "%")
         )
       ),
 
       // ── Spotlight settings ──
-      ctx.highlightMode === "spotlight" && h("div", null,
+      cv.highlightMode === "spotlight" && h("div", null,
         h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Dim strength"),
           h("input", {
             type:"range", min:5, max:50, step:1,
-            value: Math.round(ctx.spotDimOpacity * 100),
-            onChange: function(e) { ctx.setSpotDimOpacity(parseInt(e.target.value) / 100); },
+            value: Math.round(cv.spotDimOpacity * 100),
+            onChange: function(e) { cv.setSpotDimOpacity(parseInt(e.target.value) / 100); },
             style:{flex:1,accentColor:"#ea580c"}
           }),
-          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(ctx.spotDimOpacity * 100) + "%")
+          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.spotDimOpacity * 100) + "%")
         )
       )
     ),
@@ -10008,11 +10053,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
                StashBridge (stash-bridge.js, optional), CreatorContext (context.js) */
 
 window.CreatorProjectTab = function CreatorProjectTab() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var app = window.useApp();
   var h = React.createElement;
 
   if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "project") return null;
+  if (app.tab !== "project") return null;
 
   var confettiTier = window.confettiTier;
 
@@ -10042,8 +10088,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       )
     );
 
-    var confettiBadge = ctx.confettiData && (function() {
-      var cd = ctx.confettiData.clean;
+    var confettiBadge = app.confettiData && (function() {
+      var cd = app.confettiData.clean;
       var t = confettiTier(cd.pct);
       var barW = Math.max(3, Math.min(100, Math.round(100 - cd.pct * 5)));
       return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0"}},
@@ -10059,8 +10105,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             cd.singles.toLocaleString() + " isolated (" + cd.pct.toFixed(1) + "%)"
           )
         ),
-        ctx.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:4}},
-          ctx.confettiData.raw.singles.toLocaleString() + " before orphan removal"
+        app.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:4}},
+          app.confettiData.raw.singles.toLocaleString() + " before orphan removal"
         )
       );
     })();
@@ -10297,7 +10343,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               ctx.setSubstituteModalKey(function(k) { return k + 1; });
               ctx.setSubstituteModalOpen(true);
             }).catch(function() {
-              ctx.addToast("Failed to load stash data.", { type: "error", duration: 3000 });
+              app.addToast("Failed to load stash data.", { type: "error", duration: 3000 });
             });
           },
           disabled: (function() {
@@ -10352,7 +10398,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           h("button", {
             onClick:function(){
               var lines = ctx.kittingResult.missing.concat(ctx.kittingResult.short);
-              ctx.copyText(lines.join("\n"), "kit");
+              app.copyText(lines.join("\n"), "kit");
             },
             style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer"}
           }, "Copy gaps"),
@@ -10376,19 +10422,19 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("button", {
           onClick:function(){
             var txt=ctx.toBuyList.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
-            ctx.copyText(txt, "shopping");
+            app.copyText(txt, "shopping");
           },
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}
         }, "Copy To-Buy List"),
         h("button", {
           onClick:function(){
             var txt=ctx.skeinData.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
-            ctx.copyText(txt, "full");
+            app.copyText(txt, "full");
           },
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Copy Full List")
       ),
-      ctx.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")
+      app.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")
     );
   }
 
@@ -10412,11 +10458,13 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                window.confettiTier (helpers.js), CreatorContext (context.js) */
 
 window.CreatorLegendTab = function CreatorLegendTab() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
   var h = React.createElement;
 
   if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "legend") return null;
+  if (app.tab !== "legend") return null;
 
   var headerCols = ["Sym","","DMC","Name","Type","Stitches","Skeins"];
   if (ctx.done) headerCols.push("Done");
@@ -10449,8 +10497,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           ctx.pal.map(function(p, i) {
             var dc = ctx.colourDoneCounts[p.id] || {total:0, done:0};
             var sk = skeinEst(p.count, ctx.fabricCt);
-            var confettiCount = ctx.confettiData && ctx.confettiData.clean && ctx.confettiData.clean.colorConfetti
-              ? ctx.confettiData.clean.colorConfetti[p.id]
+            var confettiCount = app.confettiData && app.confettiData.clean && app.confettiData.clean.colorConfetti
+              ? app.confettiData.clean.colorConfetti[p.id]
               : null;
             var nameCell = h("td", {style:{padding:"6px 10px",fontSize:11,color:"#475569"}},
               p.type === "blend"
@@ -10463,8 +10511,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             );
             return h("tr", {
               key:i,
-              onClick:function(){ctx.setHiId(ctx.hiId===p.id?null:p.id); ctx.setTab("pattern");},
-              style:{borderBottom:"0.5px solid #f1f5f9",cursor:"pointer",background:ctx.hiId===p.id?"#fff7ed":"transparent"}
+              onClick:function(){cv.setHiId(cv.hiId===p.id?null:p.id); app.setTab("pattern");},
+              style:{borderBottom:"0.5px solid #f1f5f9",cursor:"pointer",background:cv.hiId===p.id?"#fff7ed":"transparent"}
             },
               h("td", {style:{padding:"6px 10px",fontFamily:"monospace",fontSize:16}}, p.symbol),
               h("td", {style:{padding:"6px 10px"}},
@@ -10501,43 +10549,46 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                CreatorContext (context.js) */
 
 window.CreatorExportTab = function CreatorExportTab() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
   var h = React.createElement;
 
-  var G = ctx.G;
+  var G = app.G;
 
   // renderExport callback — must be declared before any early returns (Rules of Hooks)
   var renderExport = React.useCallback(function() {
-    if (ctx.tab !== "export" || !ctx.expRef.current || !ctx.pat || !ctx.cmap) return;
-    var epC = ctx.exportPage % ctx.pxX;
-    var epR = Math.floor(ctx.exportPage / ctx.pxX);
+    if (app.tab !== "export" || !app.expRef.current || !ctx.pat || !ctx.cmap) return;
+    var epC = app.exportPage % app.pxX;
+    var epR = Math.floor(app.exportPage / app.pxX);
     var eX0 = epC * A4W, eY0 = epR * A4H;
     var eW = Math.min(A4W, ctx.sW - eX0), eH = Math.min(A4H, ctx.sH - eY0);
-    var dW2 = ctx.pageMode ? eW : ctx.sW;
-    var dH2 = ctx.pageMode ? eH : ctx.sH;
-    var oX2 = ctx.pageMode ? eX0 : 0;
-    var oY2 = ctx.pageMode ? eY0 : 0;
+    var dW2 = app.pageMode ? eW : ctx.sW;
+    var dH2 = app.pageMode ? eH : ctx.sH;
+    var oX2 = app.pageMode ? eX0 : 0;
+    var oY2 = app.pageMode ? eY0 : 0;
     var expCs = Math.max(8, Math.min(20, Math.floor(750 / Math.max(dW2, dH2))));
-    ctx.expRef.current.width  = dW2 * expCs + G + 2;
-    ctx.expRef.current.height = dH2 * expCs + G + 2;
-    // Draw without overlay
-    var exportState = Object.assign({}, ctx, {showOverlay: false, overlayOpacity: 0});
-    drawPatternOnCanvas(ctx.expRef.current.getContext("2d"), oX2, oY2, dW2, dH2, expCs, G, exportState);
+    app.expRef.current.width  = dW2 * expCs + G + 2;
+    app.expRef.current.height = dH2 * expCs + G + 2;
+    // Draw without overlay — merge CanvasContext (view, hiId, bsLines, activeTool, etc.) so
+    // drawPatternOnCanvas receives all required fields; final object overrides suppress the overlay.
+    var exportState = Object.assign({}, ctx, cv, {showOverlay: false, overlayOpacity: 0});
+    drawPatternOnCanvas(app.expRef.current.getContext("2d"), oX2, oY2, dW2, dH2, expCs, G, exportState);
   }, [
-    ctx.tab, ctx.pat, ctx.cmap, ctx.sW, ctx.sH, ctx.pageMode, ctx.exportPage, ctx.pxX,
-    ctx.view, ctx.hiId, ctx.showCtr, ctx.bsLines, ctx.partialStitches
+    app.tab, ctx.pat, ctx.cmap, ctx.sW, ctx.sH, app.pageMode, app.exportPage, app.pxX,
+    cv.view, cv.hiId, cv.showCtr, cv.bsLines, ctx.partialStitches
   ]);
 
   React.useEffect(function() { renderExport(); }, [renderExport]);
 
   if (!(ctx.pat && ctx.pal)) return null;
-  if (ctx.tab !== "export") return null;
+  if (app.tab !== "export") return null;
 
   return h("div", {style:{display:"flex",flexDirection:"column",gap:12}},
-    ctx.copied && h("div", {style:{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!"),
+    app.copied && h("div", {style:{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!"),
 
     h("button", {
-      onClick: ctx.handleOpenInTracker,
+      onClick: app.handleOpenInTracker,
       style:{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:8}
     }, Icons.thread(), " Open in Stitch Tracker \u2192"),
 
@@ -10549,7 +10600,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         h("label", {style:{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6}},
           "Chart Mode:",
           h("select", {
-            value:ctx.pdfDisplayMode, onChange:function(e){ctx.setPdfDisplayMode(e.target.value);},
+            value:app.pdfDisplayMode, onChange:function(e){app.setPdfDisplayMode(e.target.value);},
             style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
           },
             h("option", {value:"color_symbol"}, "Color + Symbols"),
@@ -10560,7 +10611,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         h("label", {style:{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6}},
           "Cell Size:",
           h("select", {
-            value:ctx.pdfCellSize, onChange:function(e){ctx.setPdfCellSize(Number(e.target.value));},
+            value:app.pdfCellSize, onChange:function(e){app.setPdfCellSize(Number(e.target.value));},
             style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
           },
             h("option", {value:2.5}, "Small (2.5mm)"),
@@ -10570,8 +10621,8 @@ window.CreatorExportTab = function CreatorExportTab() {
         ),
         h("label", {style:{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}},
           h("input", {
-            type:"checkbox", checked:ctx.pdfSinglePage,
-            onChange:function(e){ctx.setPdfSinglePage(e.target.checked);}
+            type:"checkbox", checked:app.pdfSinglePage,
+            onChange:function(e){app.setPdfSinglePage(e.target.checked);}
           }),
           " Single Page"
         )
@@ -10579,7 +10630,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       h("div", {style:{display:"flex",gap:8,flexWrap:"wrap"}},
         h("button", {
           onClick:function(){
-            exportPDF({displayMode:ctx.pdfDisplayMode, cellSize:ctx.pdfCellSize, singlePage:ctx.pdfSinglePage}, ctx);
+            exportPDF({displayMode:app.pdfDisplayMode, cellSize:app.pdfCellSize, singlePage:app.pdfSinglePage}, ctx);
           },
           style:{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none"}
         }, "Download Pattern PDF"),
@@ -10597,27 +10648,27 @@ window.CreatorExportTab = function CreatorExportTab() {
       h("div", {style:{display:"flex",gap:8,alignItems:"center",marginTop:8,marginBottom:8}},
         h("label", {style:{display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer"}},
           h("input", {
-            type:"checkbox", checked:ctx.pageMode,
-            onChange:function(e){ctx.setPageMode(e.target.checked); ctx.setExportPage(0);}
+            type:"checkbox", checked:app.pageMode,
+            onChange:function(e){app.setPageMode(e.target.checked); app.setExportPage(0);}
           }),
           "A4 pages"
         ),
-        ctx.pageMode && h(React.Fragment, null,
+        app.pageMode && h(React.Fragment, null,
           h("button", {
-            onClick:function(){ctx.setExportPage(function(p){return Math.max(0,p-1);});},
-            disabled:ctx.exportPage===0,
+            onClick:function(){app.setExportPage(function(p){return Math.max(0,p-1);});},
+            disabled:app.exportPage===0,
             style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
           }, "\u25C4"),
-          h("span", {style:{fontSize:12}}, "Page "+(ctx.exportPage+1)+"/"+ctx.totPg),
+          h("span", {style:{fontSize:12}}, "Page "+(app.exportPage+1)+"/"+app.totPg),
           h("button", {
-            onClick:function(){ctx.setExportPage(function(p){return Math.min(ctx.totPg-1,p+1);});},
-            disabled:ctx.exportPage>=ctx.totPg-1,
+            onClick:function(){app.setExportPage(function(p){return Math.min(app.totPg-1,p+1);});},
+            disabled:app.exportPage>=app.totPg-1,
             style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
           }, "\u25BA")
         )
       ),
       h("div", {style:{overflow:"auto",maxHeight:400,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#fff"}},
-        h("canvas", {ref:ctx.expRef, style:{display:"block"}})
+        h("canvas", {ref:app.expRef, style:{display:"block"}})
       )
     ),
 
@@ -10627,11 +10678,11 @@ window.CreatorExportTab = function CreatorExportTab() {
       ),
       h("div", {style:{display:"flex",gap:8}},
         h("button", {
-          onClick:ctx.saveProject,
+          onClick:app.saveProject,
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}
         }, "Save (.json)"),
         h("button", {
-          onClick:function(){ctx.loadRef.current.click();},
+          onClick:function(){app.loadRef.current.click();},
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Load")
       )

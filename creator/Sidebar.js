@@ -1,9 +1,13 @@
 /* creator/Sidebar.js — Settings sidebar for the Creator app.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: Section, SliderRow, Tooltip (components.js), CreatorContext (context.js) */
+   Reads from CreatorContext and GenerationContext.
+   Loaded as a plain <script> before the main Babel script.
+   Depends on: Section, SliderRow, Tooltip (components.js), CreatorContext, GenerationContext (context.js) */
 
 window.CreatorSidebar = function CreatorSidebar() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
+  var gen = window.useGeneration();
   var h = React.createElement;
   var _pco = React.useState(false); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
   var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
@@ -74,11 +78,11 @@ window.CreatorSidebar = function CreatorSidebar() {
   var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
     var displayPal = ctx.displayPal || ctx.pal || [];
     var isHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
-    var isPaintMode = ctx.activeTool === "paint" || ctx.activeTool === "fill" || isHsTool;
-    var selInfo = ctx.selectedColorId && ctx.cmap && ctx.cmap[ctx.selectedColorId];
+    var isPaintMode = cv.activeTool === "paint" || cv.activeTool === "fill" || isHsTool;
+    var selInfo = cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
     var chips = displayPal.map(function(p) {
-      var ips = isPaintMode && ctx.selectedColorId === p.id;
-      var ihs = ctx.hiId === p.id;
+      var ips = isPaintMode && cv.selectedColorId === p.id;
+      var ihs = cv.hiId === p.id;
       var isUnused = ctx.isScratchMode && p.count === 0;
       return h("div", {
         key: p.id,
@@ -87,9 +91,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         "aria-pressed": ips || ihs,
         onClick: function() {
           if (isPaintMode) {
-            ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
+            cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
           } else {
-            ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+            cv.setHiId(cv.hiId === p.id ? null : p.id);
           }
         },
         onKeyDown: function(e) {
@@ -97,9 +101,9 @@ window.CreatorSidebar = function CreatorSidebar() {
           if (e.key === " " || e.key === "Enter") {
             e.preventDefault();
             if (isPaintMode) {
-              ctx.setSelectedColorId(ctx.selectedColorId === p.id ? null : p.id);
+              cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
             } else {
-              ctx.setHiId(ctx.hiId === p.id ? null : p.id);
+              cv.setHiId(cv.hiId === p.id ? null : p.id);
             }
           }
         },
@@ -146,7 +150,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("span", {style:{fontWeight:600,color:"#0d9488"}}, "DMC " + selInfo.id),
               h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
               h("button", {
-                onClick:function(){ctx.setSelectedColorId(null);},
+                onClick:function(){cv.setSelectedColorId(null);},
                 title:"Clear selection",
                 style:{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:13,lineHeight:1,padding:"0 2px",flexShrink:0}
               }, "\xD7")
@@ -164,58 +168,58 @@ window.CreatorSidebar = function CreatorSidebar() {
   })() : null;
 
   // ── Crop image card ──────────────────────────────────────────────────────────
-  var imageCard = (ctx.pat && ctx.img && ctx.img.src) ? h("div", {className:"card"},
+  var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {className:"card"},
     h("div", {
-      style:{position:"relative",touchAction:"none",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none"}, ref:ctx.cropRef,
-      onPointerDown:ctx.handleCropPointerDown,
-      onPointerMove:ctx.handleCropPointerMove,
-      onPointerUp:ctx.handleCropPointerUp,
-      onPointerCancel:ctx.handleCropPointerCancel,
-      onPointerLeave:ctx.handleCropPointerUp
+      style:{position:"relative",touchAction:"none",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none"}, ref:gen.cropRef,
+      onPointerDown:gen.handleCropPointerDown,
+      onPointerMove:gen.handleCropPointerMove,
+      onPointerUp:gen.handleCropPointerUp,
+      onPointerCancel:gen.handleCropPointerCancel,
+      onPointerLeave:gen.handleCropPointerUp
     },
       h("img", {
-        src:ctx.img.src, alt:"",
+        src:gen.img.src, alt:"",
         style:{width:"100%",display:"block",
-          cursor:ctx.isCropping?"crosshair":(ctx.pickBg?"crosshair":"default"),
-          opacity:ctx.isCropping?0.7:1
+          cursor:gen.isCropping?"crosshair":(gen.pickBg?"crosshair":"default"),
+          opacity:gen.isCropping?0.7:1
         },
-        onClick:ctx.srcClick
+        onClick:gen.srcClick
       }),
-      ctx.isCropping && ctx.cropRect && h("div", {style:{
-        position:"absolute",left:ctx.cropRect.x,top:ctx.cropRect.y,
-        width:ctx.cropRect.w,height:ctx.cropRect.h,
+      gen.isCropping && gen.cropRect && h("div", {style:{
+        position:"absolute",left:gen.cropRect.x,top:gen.cropRect.y,
+        width:gen.cropRect.w,height:gen.cropRect.h,
         border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",
         boxSizing:"border-box",pointerEvents:"none"
       }})
     ),
-    ctx.isCropping
+    gen.isCropping
       ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
           h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Draw a rectangle"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
-              onClick:function(){ctx.setIsCropping(false); ctx.setCropRect(null);},
+              onClick:function(){gen.setIsCropping(false); gen.setCropRect(null);},
               style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Cancel"),
             h("button", {
-              onClick:ctx.applyCrop,
+              onClick:gen.applyCrop,
               style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}
             }, "Apply")
           )
         )
       : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
-          h("span", {style:{fontSize:11,color:"#94a3b8"}}, ctx.origW+"×"+ctx.origH+"px"),
+          h("span", {style:{fontSize:11,color:"#94a3b8"}}, gen.origW+"×"+gen.origH+"px"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
-              onClick:function(){ctx.setIsCropping(true); ctx.setCropRect(null);},
+              onClick:function(){gen.setIsCropping(true); gen.setCropRect(null);},
               style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Crop"),
             h("button", {
-              onClick:function(){ctx.fRef.current.click();},
+              onClick:function(){gen.fRef.current.click();},
               style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Change")
           )
         ),
-    ctx.pickBg && h("div", {style:{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}},
+    gen.pickBg && h("div", {style:{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}},
       "Click to pick BG"
     )
   ) : null;
@@ -269,7 +273,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Dimensions section ──────────────────────────────────────────────────────
   var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
-  var dimSection = h(Section, {title:"Dimensions", isOpen:ctx.dimOpen, onToggle:ctx.setDimOpen, badge:dimBadge},
+  var dimSection = h(Section, {title:"Dimensions", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
@@ -293,54 +297,54 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
-  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:ctx.palOpen, onToggle:ctx.setPalOpen},
+  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Max colours", value:ctx.maxC, min:10, max:ctx.stashConstrained && ctx.stashThreadCount ? Math.max(10, ctx.stashThreadCount) : 40, onChange:ctx.setMaxC,
+      h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
         helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
-      ctx.stashConstrained && ctx.stashThreadCount && ctx.maxC > ctx.stashThreadCount && h("div", {style:{fontSize:10,color:"#d97706",marginTop:2}},
-        "Clamped to " + ctx.stashThreadCount + " (stash size)"
+      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#d97706",marginTop:2}},
+        "Clamped to " + gen.stashThreadCount + " (stash size)"
       )
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:ctx.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:8,marginTop:8,opacity:ctx.blendsAutoDisabled?0.5:1}},
-      h("input", {type:"checkbox", checked:ctx.allowBlends, disabled:ctx.blendsAutoDisabled, onChange:function(e){ctx.setAllowBlends(e.target.checked);}}),
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:8,marginTop:8,opacity:gen.blendsAutoDisabled?0.5:1}},
+      h("input", {type:"checkbox", checked:gen.allowBlends, disabled:gen.blendsAutoDisabled, onChange:function(e){gen.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
     ),
-    ctx.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:8}},
+    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:8}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
     ),
     typeof StashBridge !== "undefined" && h("label", {
       style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:4}
     },
-      h("input", {type:"checkbox", checked:ctx.stashConstrained, onChange:function(e){ctx.setStashConstrained(e.target.checked);}}),
+      h("input", {type:"checkbox", checked:gen.stashConstrained, onChange:function(e){gen.setStashConstrained(e.target.checked);}}),
       h("span", null, "Use only stash threads"),
       h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
     ),
-    ctx.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
+    gen.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
       h("div", {style:{fontSize:11,color:"#0d9488",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:8,padding:"6px 10px",marginBottom:8}},
-        (ctx.stashThreadCount || 0) + " thread" + ((ctx.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
-          (ctx.effectiveMaxC && ctx.effectiveMaxC < ctx.maxC ? " \u2014 palette limited to " + ctx.effectiveMaxC + " colours" : "")
+        (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
+          (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? " \u2014 palette limited to " + gen.effectiveMaxC + " colours" : "")
       ),
-      ctx.stashPalette && ctx.stashPalette.length > 0 && h("div", {style:{marginBottom:8}},
+      gen.stashPalette && gen.stashPalette.length > 0 && h("div", {style:{marginBottom:8}},
         h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
-          (stashStripExpanded ? ctx.stashPalette : ctx.stashPalette.slice(0,60)).map(function(t) {
+          (stashStripExpanded ? gen.stashPalette : gen.stashPalette.slice(0,60)).map(function(t) {
             return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:140},
               h("div", {style:{width:12,height:12,borderRadius:2,background:"rgb(" + t.rgb.join(",") + ")"}})
             );
           })
         ),
-        ctx.stashPalette.length > 60 && h("button", {
+        gen.stashPalette.length > 60 && h("button", {
           onClick:function(){setStashStripExpanded(function(o){return !o;});},
           style:{fontSize:10,color:"#0d9488",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
-        }, stashStripExpanded ? "Show less" : "+" + (ctx.stashPalette.length - 60) + " more")
+        }, stashStripExpanded ? "Show less" : "+" + (gen.stashPalette.length - 60) + " more")
       ),
-      ctx.coverageGaps && ctx.coverageGaps.hasGaps && h("div", {style:{
+      gen.coverageGaps && gen.coverageGaps.hasGaps && h("div", {style:{
         fontSize:11,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,
         padding:"6px 10px",marginBottom:8,color:"#991b1b",display:"flex",alignItems:"flex-start",gap:6
       }},
         h("span", {style:{fontSize:13,lineHeight:1,flexShrink:0}}, Icons.warning()),
         h("span", null, "Your stash may lack coverage in: ",
-          ctx.coverageGaps.gaps.map(function(g, i) {
+          gen.coverageGaps.gaps.map(function(g, i) {
             return h("span", {key:g.hue},
               (i > 0 ? ", " : ""),
               h("strong", null, g.hue),
@@ -387,17 +391,17 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("div", {style:{borderTop:"0.5px solid #e2e8f0",marginTop:8,paddingTop:10}},
         h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}},
           h("button", {
-            onClick:function(){ ctx.randomise(); },
-            disabled:!(ctx.stashPalette && ctx.stashPalette.length > 0) || !ctx.img,
+            onClick:function(){ gen.randomise(); },
+            disabled:!(gen.stashPalette && gen.stashPalette.length > 0) || !gen.img,
             style:{display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:500,padding:"5px 12px",borderRadius:8,border:"0.5px solid #99f6e4",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
           }, Icons.shuffle(), " Randomise"),
-          ctx.variationSeed ? (seedEditing ?
+          gen.variationSeed ? (seedEditing ?
             h("span", {style:{display:"flex",alignItems:"center",gap:3}},
               h("input", {
                 type:"number", value:seedTmp, autoFocus:true,
                 onChange:function(e){setSeedTmp(e.target.value);},
                 onKeyDown:function(e){
-                  if (e.key==="Enter"){ var n=parseInt(seedTmp,10); if(!isNaN(n)&&n>0){ctx.applyVariationSeed(n>>>0);} setSeedEditing(false); }
+                  if (e.key==="Enter"){ var n=parseInt(seedTmp,10); if(!isNaN(n)&&n>0){gen.applyVariationSeed(n>>>0);} setSeedEditing(false); }
                   else if(e.key==="Escape"){setSeedEditing(false);}
                 },
                 onBlur:function(){setSeedEditing(false);},
@@ -405,31 +409,31 @@ window.CreatorSidebar = function CreatorSidebar() {
               })
             ) :
             h("span", {
-              onClick:function(){setSeedEditing(true);setSeedTmp(String(ctx.variationSeed));},
+              onClick:function(){setSeedEditing(true);setSeedTmp(String(gen.variationSeed));},
               title:"Click to enter a specific seed",
               style:{fontSize:10,color:"#94a3b8",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
-            }, "#" + ctx.variationSeed)
+            }, "#" + gen.variationSeed)
           ) : null
         ),
-        ctx.stashConstrained && ctx.variationSeed && ctx.variationSubset && ctx.stashPalette && ctx.stashPalette.length >= 3 && h("div", {
+        gen.stashConstrained && gen.variationSeed && gen.variationSubset && gen.stashPalette && gen.stashPalette.length >= 3 && h("div", {
           style:{fontSize:10,color:"#0d9488",marginBottom:6,display:"flex",alignItems:"center",gap:4}
-        }, Icons.dice(), " Roulette \u2014 using " + ctx.variationSubset.length + " of " + ctx.stashPalette.length + " threads"),
+        }, Icons.dice(), " Roulette \u2014 using " + gen.variationSubset.length + " of " + gen.stashPalette.length + " threads"),
         h("button", {
           onClick:function(){
-            ctx.setGalleryOpen(function(o){return !o;});
-            if (!ctx.galleryOpen) ctx.generateGallery();
+            gen.setGalleryOpen(function(o){return !o;});
+            if (!gen.galleryOpen) gen.generateGallery();
           },
           style:{fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,marginBottom:4}
         },
-          h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          h("span", {style:{fontSize:9,display:"inline-block",transform:gen.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
           "Explore variations"
         ),
-        ctx.galleryOpen && h("div", {style:{marginTop:4}},
+        gen.galleryOpen && h("div", {style:{marginTop:4}},
           h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}},
-            ctx.gallerySlots.map(function(slot, i) {
+            gen.gallerySlots.map(function(slot, i) {
               return h("div", {
                 key:i,
-                onClick:function(){ if (!slot.loading && slot.url) { ctx.promoteVariation(slot); ctx.setGalleryOpen(false); } },
+                onClick:function(){ if (!slot.loading && slot.url) { gen.promoteVariation(slot); gen.setGalleryOpen(false); } },
                 style:{
                   borderRadius:8,overflow:"hidden",border:"0.5px solid #e2e8f0",
                   cursor:(!slot.loading && slot.url) ? "pointer" : "default",
@@ -451,18 +455,18 @@ window.CreatorSidebar = function CreatorSidebar() {
           ),
           h("div", {style:{display:"flex",justifyContent:"center"}},
             h("button", {
-              onClick:function(){ ctx.generateGallery(); },
+              onClick:function(){ gen.generateGallery(); },
               style:{fontSize:11,padding:"4px 12px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"inherit"}
             }, "New batch")
           )
         ),
-        ctx.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
+        gen.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
           h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:4}}, "Recent variations"),
           h("div", {style:{display:"flex",gap:4,overflowX:"auto",paddingBottom:4}},
-            ctx.variationHistory.map(function(entry, i) {
+            gen.variationHistory.map(function(entry, i) {
               return h("div", {
                 key:(entry.timestamp || i) + "-" + i,
-                onClick:function(){ ctx.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); },
+                onClick:function(){ gen.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); },
                 title:"Seed #" + entry.seed,
                 style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid #e2e8f0"}
               },
@@ -477,19 +481,19 @@ window.CreatorSidebar = function CreatorSidebar() {
       )
     ),
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Min stitches per colour", value:ctx.minSt, min:0, max:50, onChange:ctx.setMinSt,
+      h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
         format:function(v){return v===0?"Off":v;},
         helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
     ),
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Remove Orphans", value:ctx.orphans, min:0, max:3, onChange:ctx.setOrphans,
+      h(SliderRow, {label:"Remove Orphans", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
         format:function(v){return v===0?"Off":String(v);},
         helpText:"Removes isolated stitches with no same-colour neighbours — reduces confetti and makes the pattern easier to stitch"}),
-      ctx.orphans > 0 && (function() {
+      gen.orphans > 0 && (function() {
         var desc;
-        if (ctx.orphans === 1) {
+        if (gen.orphans === 1) {
           desc = h("span", null, "Removes ", h("strong", null, "isolated single stitches"), " \u2014 cells with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets clusters of exactly 1 stitch.");
-        } else if (ctx.orphans === 2) {
+        } else if (gen.orphans === 2) {
           desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
         } else {
           desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#dc2626",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
@@ -497,42 +501,42 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("div", {style:{fontSize:11,color:"#475569",marginTop:4,lineHeight:1.5}}, desc);
       })()
     ),
-    ctx.orphans > 0 && ctx.previewStats && ctx.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
-      "Preview estimate: removes ~", (ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
-      " (", ((ctx.previewStats.confettiSingles - ctx.previewStats.confettiCleanSingles) / Math.max(1, ctx.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
+    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
+      "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
+      " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),
-    ctx.pat && ctx.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+    ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
       h("button", {
-        onClick:function(){ctx.setShowCleanupDiff(function(d){return !d;});},
+        onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
         style:{
           fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-          border:ctx.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e2e8f0",
-          background:ctx.showCleanupDiff?"#f0fdfa":"#fff",
-          color:ctx.showCleanupDiff?"#0d9488":"#475569",
-          fontWeight:ctx.showCleanupDiff?600:400,
+          border:gen.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e2e8f0",
+          background:gen.showCleanupDiff?"#f0fdfa":"#fff",
+          color:gen.showCleanupDiff?"#0d9488":"#475569",
+          fontWeight:gen.showCleanupDiff?600:400,
           display:"flex",alignItems:"center",gap:4,lineHeight:1.4
         }
-      }, Icons.eye(), " " + (ctx.showCleanupDiff ? "Hide changes" : "Show changes"))
+      }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
     ),
-    ctx.showCleanupDiff && ctx.cleanupDiff && h("div", {style:{
+    gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
       fontSize:11,color:"#475569",padding:"6px 10px",
       background:"#fdf4ff",border:"1px solid #f0abfc",borderRadius:8,
       marginTop:4,lineHeight:1.5
     }},
       h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
-      ctx.cleanupDiff.count.toLocaleString(), " stitches changed",
-      ctx.totalStitchable > 0 ? " (" + (ctx.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-      Object.keys(ctx.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#94a3b8"}},
-        Object.entries(ctx.cleanupDiff.byColour)
+      gen.cleanupDiff.count.toLocaleString(), " stitches changed",
+      ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
+      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#94a3b8"}},
+        Object.entries(gen.cleanupDiff.byColour)
           .sort(function(a,b){return b[1]-a[1];})
           .slice(0,4)
           .map(function(e){return "DMC "+e[0]+": "+e[1];})
           .join(" \xB7 ") +
-          (Object.keys(ctx.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(ctx.cleanupDiff.byColour).length - 4) + " more" : "")
+          (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
       )
     ),
     (function() {
-      var warning = getCleanupWarning(ctx.sW, ctx.sH, ctx.orphans, ctx.previewStats);
+      var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
       if (!warning) return null;
       var isDanger = warning.level === "danger";
       return h("div", {style:{
@@ -547,14 +551,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     })(),
     h("button", {
-      onClick:function(){ctx.setPalAdvanced(function(o){return !o;});},
+      onClick:function(){app.setPalAdvanced(function(o){return !o;});},
       style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
     },
-      h("span", {style:{fontSize:9,display:"inline-block",transform:ctx.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+      h("span", {style:{fontSize:9,display:"inline-block",transform:app.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
       "Dithering",
-      ctx.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block",marginLeft:2}}) : null
+      gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block",marginLeft:2}}) : null
     ),
-    ctx.palAdvanced && h(React.Fragment, null,
+    app.palAdvanced && h(React.Fragment, null,
       h("div", {style:{marginTop:6,padding:"8px 10px",background:"#fff7ed",borderRadius:8,border:"0.5px solid #fed7aa",fontSize:10,color:"#b45309"}},
         "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
       ),
@@ -562,14 +566,14 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Maps each pixel directly to its closest DMC colour. Fewer scattered stitches", width:200},
             h("button", {
-              onClick:function(){ctx.setDith(false);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:!ctx.dith?500:400,background:!ctx.dith?"#fff":"transparent",borderRadius:6,color:!ctx.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:!ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              onClick:function(){gen.setDith(false);},
+              style:{padding:"5px 12px",fontSize:12,fontWeight:!gen.dith?500:400,background:!gen.dith?"#fff":"transparent",borderRadius:6,color:!gen.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:!gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Direct")
           ),
           h(Tooltip, {text:"Uses Floyd-Steinberg error diffusion for smoother colour gradients, but creates more scattered stitches", width:220},
             h("button", {
-              onClick:function(){ctx.setDith(true);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.dith?500:400,background:ctx.dith?"#fff":"transparent",borderRadius:6,color:ctx.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              onClick:function(){gen.setDith(true);},
+              style:{padding:"5px 12px",fontSize:12,fontWeight:gen.dith?500:400,background:gen.dith?"#fff":"transparent",borderRadius:6,color:gen.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Dithered")
           )
         )
@@ -579,7 +583,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Stitch Cleanup section (non-scratch) ────────────────────────────────────
   var cleanupSection = !ctx.isScratchMode ? (function() {
-    var sc2 = ctx.stitchCleanup;
+    var sc2 = gen.stitchCleanup;
     var scBadge = h("span", {style:{
       fontSize:11,fontWeight:500,padding:"1px 8px",borderRadius:10,
       color:sc2.enabled?"#0d9488":"#94a3b8",background:sc2.enabled?"#f0fdfa":"#f1f5f9"
@@ -588,11 +592,11 @@ window.CreatorSidebar = function CreatorSidebar() {
     var strengthLabels=["Gentle","Balanced","Thorough"];
     var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
     var strengthIdx=strengthKeys.indexOf(sc2.strength);
-    return h(Section, {title:"Stitch Cleanup", isOpen:ctx.cleanupOpen, onToggle:ctx.setCleanupOpen, badge:scBadge},
+    return h(Section, {title:"Stitch Cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:scBadge},
       h("div", {style:{marginTop:8}},
         h(Toggle, {
           checked:sc2.enabled,
-          onChange:function(v){ctx.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
+          onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
           label:"Stitch Cleanup",
           help:"Automatically removes scattered single stitches that are hard to sew. Turn off if you want to keep the full dithered detail."
         }),
@@ -607,7 +611,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             ),
             h("input", {
               type:"range",min:0,max:2,step:1,value:strengthIdx,
-              onChange:function(e){ctx.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[+e.target.value]});});},
+              onChange:function(e){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[+e.target.value]});});},
               style:{width:"100%",accentColor:"#0d9488"}
             }),
             h("div", {style:{display:"flex",justifyContent:"space-between",marginTop:6,gap:4}},
@@ -615,7 +619,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                 return h(Tooltip, {key:l, text:strengthDescs[i], width:160},
                   h("span", {
                     style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#94a3b8",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
-                    onClick:function(){ctx.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
+                    onClick:function(){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
                   }, l)
                 );
               })
@@ -623,13 +627,13 @@ window.CreatorSidebar = function CreatorSidebar() {
           ),
           h(Toggle, {
             checked:sc2.protectDetails,
-            onChange:function(v){ctx.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},
+            onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},
             label:"Protect fine details",
             help:"Uses edge detection to preserve small stitches in important outlines \u2014 eyes, lettering, thin lines. Turn off for simpler designs."
           }),
           h(Toggle, {
             checked:sc2.smoothDithering,
-            onChange:function(v){ctx.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});});},
+            onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});});},
             label:"Smooth dithering",
             help:"Reduces confetti during dithering itself (before cleanup runs). Cleaner output, but may slightly shift colors in gradient areas."
           })
@@ -640,7 +644,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Fabric & Floss section ──────────────────────────────────────────────────
   var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
-  var fabSection = h(Section, {title:"Fabric & Floss", isOpen:ctx.fabOpen, onToggle:ctx.setFabOpen, badge:fabBadge},
+  var fabSection = h(Section, {title:"Fabric & Floss", isOpen:app.fabOpen, onToggle:app.setFabOpen, badge:fabBadge},
     h("div", {style:{marginTop:8}},
       h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
         h("span", {style:{fontSize:12,color:"#475569",fontWeight:600}}, "Fabric count"),
@@ -657,54 +661,54 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   // ── Adjustments section (non-scratch) ──────────────────────────────────────
-  var adjBadge = (ctx.bri||ctx.con||ctx.sat||ctx.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}) : null;
-  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:ctx.adjOpen, onToggle:ctx.setAdjOpen, badge:adjBadge},
+  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}) : null;
+  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:8}},
-      h(SliderRow, {label:"Smooth", value:ctx.smooth, min:0, max:4, step:0.1, onChange:ctx.setSmooth,
+      h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
         helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
-      ctx.smooth===0 && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
-      ctx.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
+      gen.smooth===0 && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
+      gen.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
         h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
-            h("button", {onClick:function(){ctx.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="median"?500:400,background:ctx.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="median"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
+            h("button", {onClick:function(){gen.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:gen.smoothType==="median"?500:400,background:gen.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:gen.smoothType==="median"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
           ),
           h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:180},
-            h("button", {onClick:function(){ctx.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:ctx.smoothType==="gaussian"?500:400,background:ctx.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:ctx.smoothType==="gaussian"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:ctx.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
+            h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:gen.smoothType==="gaussian"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
           )
         )
       ),
-      h(SliderRow, {label:"Brightness", value:ctx.bri, min:-50, max:50, onChange:ctx.setBri, format:function(v){return (v>0?"+":"")+v+"%";}}),
-      h(SliderRow, {label:"Contrast", value:ctx.con, min:-50, max:50, onChange:ctx.setCon, format:function(v){return (v>0?"+":"")+v+"%";}}),
-      h(SliderRow, {label:"Saturation", value:ctx.sat, min:-50, max:50, onChange:ctx.setSat, format:function(v){return (v>0?"+":"")+v+"%";}})
+      h(SliderRow, {label:"Brightness", value:gen.bri, min:-50, max:50, onChange:gen.setBri, format:function(v){return (v>0?"+":"")+v+"%";}}),
+      h(SliderRow, {label:"Contrast", value:gen.con, min:-50, max:50, onChange:gen.setCon, format:function(v){return (v>0?"+":"")+v+"%";}}),
+      h(SliderRow, {label:"Saturation", value:gen.sat, min:-50, max:50, onChange:gen.setSat, format:function(v){return (v>0?"+":"")+v+"%";}})
     )
   ) : null;
 
   // ── Background section (non-scratch) ───────────────────────────────────────
-  var bgBadge = ctx.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}) : null;
-  var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:ctx.bgOpen, onToggle:ctx.setBgOpen, badge:bgBadge},
+  var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}) : null;
+  var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:app.bgOpen, onToggle:app.setBgOpen, badge:bgBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}},
-      h("input", {type:"checkbox", checked:ctx.skipBg, onChange:function(e){ctx.setSkipBg(e.target.checked);}}),
+      h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){gen.setSkipBg(e.target.checked);}}),
       h("span", null, "Skip background"),
       h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})
     ),
-    ctx.skipBg && h("div", {style:{marginTop:10}},
+    gen.skipBg && h("div", {style:{marginTop:10}},
       h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
         h("div", {
-          onClick:function(){ctx.setPickBg(true);},
-          style:{width:24,height:24,borderRadius:6,background:"rgb("+ctx.bgCol+")",border:"2px solid #e2e8f0",cursor:"pointer"}
+          onClick:function(){gen.setPickBg(true);},
+          style:{width:24,height:24,borderRadius:6,background:"rgb("+gen.bgCol+")",border:"2px solid #e2e8f0",cursor:"pointer"}
         }),
         h("button", {
-          onClick:function(){ctx.setPickBg(true);},
+          onClick:function(){gen.setPickBg(true);},
           style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa",cursor:"pointer"}
         }, "Pick")
       ),
-      h(SliderRow, {label:"Tolerance", value:ctx.bgTh, min:3, max:50, onChange:ctx.setBgTh,
+      h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
         helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
       ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#f1f5f9",borderRadius:8,fontSize:11,color:"#475569"}},
         h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
         h("button", {
-          onClick:ctx.autoCrop,
+          onClick:gen.autoCrop,
           style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,cursor:"pointer",color:"#1e293b"}
         }, "Auto-Crop to Stitches")
       )
@@ -718,11 +722,11 @@ window.CreatorSidebar = function CreatorSidebar() {
         style:{padding:"8px 14px",fontSize:12,fontWeight:600,background:"#dc2626",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}
       }, "Reset Canvas")
     : h("button", {
-        onClick:ctx.generate, disabled:ctx.busy,
+        onClick:gen.generate, disabled:gen.busy,
         style:{padding:"8px 14px",fontSize:12,fontWeight:600,
-          background:ctx.busy?"#94a3b8":"#0d9488",color:"#fff",
-          border:"none",borderRadius:8,cursor:ctx.busy?"wait":"pointer"}
-      }, ctx.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
+          background:gen.busy?"#94a3b8":"#0d9488",color:"#fff",
+          border:"none",borderRadius:8,cursor:gen.busy?"wait":"pointer"}
+      }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
   return h(React.Fragment, null,
     palChipsSection,
@@ -735,14 +739,14 @@ window.CreatorSidebar = function CreatorSidebar() {
         [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
           return h("button", {
             key:kl[0],
-            onClick:function(){ctx.setView(kl[0]);},
+            onClick:function(){cv.setView(kl[0]);},
             title:"Cycle view (V)",
             style:{
-              flex:1,padding:"4px 6px",fontSize:11,fontWeight:ctx.view===kl[0]?600:400,
+              flex:1,padding:"4px 6px",fontSize:11,fontWeight:cv.view===kl[0]?600:400,
               border:"none",cursor:"pointer",borderRadius:6,fontFamily:"inherit",
-              background:ctx.view===kl[0]?"var(--surface)":"transparent",
-              color:ctx.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
-              boxShadow:ctx.view===kl[0]?"var(--shadow-sm)":"none"
+              background:cv.view===kl[0]?"var(--surface)":"transparent",
+              color:cv.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
+              boxShadow:cv.view===kl[0]?"var(--shadow-sm)":"none"
             }
           }, kl[1]);
         })
@@ -756,8 +760,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     fabSection,
     adjSection,
     bgSection,
-    ctx.pat && ctx.pal && ctx.paletteSwap && ctx.paletteSwap.shiftSection,
-    ctx.pat && ctx.pal && ctx.paletteSwap && ctx.paletteSwap.presetSection,
+    ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
+    ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
     actionBtn
   );
 };

@@ -1,12 +1,16 @@
 /* creator/PatternCanvas.js — The interactive pattern canvas component.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
+   Reads from CreatorContext and GenerationContext.
+   Loaded as a plain <script> before the main Babel script.
    Depends on: drawPatternBaseOnCanvas, drawPatternOverlayOnCanvas (canvasRenderer.js),
-               CreatorContext (context.js) */
+               CreatorContext, GenerationContext (context.js) */
 
 window.PatternCanvas = function PatternCanvas() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
+  var gen = window.useGeneration();
   var h = React.createElement;
-  var G = ctx.G;
+  var G = app.G;
 
   // Cache of the base render (stitches + grid + committed bsLines + border).
   // Avoids re-drawing the expensive base on every mouse-move.
@@ -21,16 +25,18 @@ window.PatternCanvas = function PatternCanvas() {
   var antsIntervalRef = React.useRef(null);
   // Latest context snapshot ref — updated every render so the interval callback
   // always reads current state rather than the closed-over stale value.
-  var ctxRef = React.useRef(ctx);
-  ctxRef.current = ctx;
+  // Must be the MERGED snapshot across all 4 contexts because drawPatternBaseOnCanvas
+  // and drawPatternOverlayOnCanvas expect the pre-refactor merged state shape.
+  var ctxRef = React.useRef({});
+  ctxRef.current = Object.assign({}, ctx, cv, gen, { G: G, pcRef: app.pcRef, tab: app.tab });
 
   // ── Effect: Animated marching ants for highlight outline mode
   var hlAntsRef = React.useRef(null);
   React.useEffect(function() {
-    var needAnts = ctx.highlightMode === "outline" && ctx.hiId;
+    var needAnts = cv.highlightMode === "outline" && cv.hiId;
     if (!needAnts) {
       if (hlAntsRef.current) { clearInterval(hlAntsRef.current); hlAntsRef.current = null; }
-      if (ctx.antsOffset !== 0 && ctx.setAntsOffset) ctx.setAntsOffset(0);
+      if (cv.antsOffset !== 0 && cv.setAntsOffset) cv.setAntsOffset(0);
       return;
     }
     if (hlAntsRef.current) return;
@@ -49,11 +55,11 @@ window.PatternCanvas = function PatternCanvas() {
     return function() {
       if (hlAntsRef.current) { clearInterval(hlAntsRef.current); hlAntsRef.current = null; }
     };
-  }, [ctx.highlightMode, ctx.hiId]);
+  }, [cv.highlightMode, cv.hiId]);
 
   // ── Effect: Animated marching ants for selection mask
   React.useEffect(function() {
-    var hasSelection = ctx.selectionMask || ctx.lassoPreviewMask;
+    var hasSelection = cv.selectionMask || cv.lassoPreviewMask;
     if (!hasSelection) {
       if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
       antsOffsetRef.current = 0;
@@ -74,17 +80,17 @@ window.PatternCanvas = function PatternCanvas() {
     return function() {
       if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
     };
-  }, [ctx.selectionMask, ctx.lassoPreviewMask]);
+  }, [cv.selectionMask, cv.lassoPreviewMask]);
 
   // ── Effect 1: Full render (base + overlay). Fires when pattern content changes.
   // Uses RAF so rapid zoom-slider drags collapse into a single paint per frame.
   React.useEffect(function() {
-    if (!ctx.pat || !ctx.cmap || !ctx.pcRef.current || ctx.tab !== "pattern") return;
+    if (!ctx.pat || !ctx.cmap || !app.pcRef.current || app.tab !== "pattern") return;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     // Capture values needed inside the RAF callback (avoids stale-closure issues
     // if the component unmounts or re-renders before the frame fires).
-    var canvas = ctx.pcRef.current;
-    var snap = ctx; // current context snapshot
+    var canvas = app.pcRef.current;
+    var snap = ctxRef.current; // merged snapshot across all 4 contexts
     rafRef.current = requestAnimationFrame(function() {
       rafRef.current = null;
       if (!canvas) return;
@@ -99,38 +105,38 @@ window.PatternCanvas = function PatternCanvas() {
       if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     };
   }, [
-    ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
-    ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
-    ctx.img, ctx.partialStitches, ctx.stitchType, ctx.partialStitchTool,
-    ctx.showCleanupDiff, ctx.cleanupDiff,
-    ctx.dimFraction, ctx.dimHiId, ctx.bgDimOpacity, ctx.bgDimDesaturation,
-    ctx.highlightMode, ctx.tintColor, ctx.tintOpacity, ctx.spotDimOpacity
+    ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, cv.view, cv.hiId, cv.showCtr,
+    cv.bsLines, app.tab, cv.showOverlay, cv.overlayOpacity,
+    gen.img, ctx.partialStitches, cv.stitchType, ctx.partialStitchTool,
+    gen.showCleanupDiff, gen.cleanupDiff,
+    cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
+    cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
   // Restores the cached base from ImageData then repaints just the hover elements.
   React.useEffect(function() {
-    if (!ctx.pat || !ctx.cmap || !ctx.pcRef.current || ctx.tab !== "pattern") return;
+    if (!ctx.pat || !ctx.cmap || !app.pcRef.current || app.tab !== "pattern") return;
     if (!baseCacheRef.current) return; // base not ready yet — Effect 1 will draw everything
     // Skip restoring the base cache while a drag-draw is in progress: applyBrush
     // imperatively paints directly onto the canvas and the overlay-only redraw
     // must not overwrite those uncommitted pixels with the stale cached image.
-    if (ctx.isDraggingRef && ctx.isDraggingRef.current) return;
-    var canvas = ctx.pcRef.current;
+    if (cv.isDraggingRef && cv.isDraggingRef.current) return;
+    var canvas = app.pcRef.current;
     var context = canvas.getContext("2d");
     context.putImageData(baseCacheRef.current, 0, 0);
-    drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, ctx.cs, G, ctx);
+    drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, cv.cs, G, ctxRef.current);
   }, [
-    ctx.hoverCoords, ctx.selectedColorId, ctx.bsStart,
+    cv.hoverCoords, cv.selectedColorId, cv.bsStart,
     // structural deps — needed so the overlay is redrawn correctly when these change
-    ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.tab,
-    ctx.activeTool, ctx.brushSize, ctx.stitchType, ctx.partialStitchTool, ctx.bsLines,
-    ctx.lassoMode, ctx.lassoPoints, ctx.lassoPreviewMask, ctx.lassoCursor, ctx.lassoInProgress,
-    ctx.selectionMask, ctx.confettiPreview
+    ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, app.tab,
+    cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,
+    cv.lassoMode, cv.lassoPoints, cv.lassoPreviewMask, cv.lassoCursor, cv.lassoInProgress,
+    cv.selectionMask, cv.confettiPreview
   ]);
 
   return h("canvas", {
-    ref: ctx.pcRef,
+    ref: app.pcRef,
     style: {
       display: "block",
       touchAction: "none",
@@ -138,15 +144,15 @@ window.PatternCanvas = function PatternCanvas() {
       WebkitUserSelect: "none",
       WebkitTouchCallout: "none"
     },
-    onPointerDown:   ctx.handlePatPointerDown,
-    onPointerUp:     ctx.handlePatPointerUp,
-    onPointerMove:   ctx.handlePatPointerMove,
-    onPointerLeave:  ctx.handlePatPointerLeave,
-    onPointerCancel: ctx.handlePatPointerCancel,
+    onPointerDown:   cv.handlePatPointerDown,
+    onPointerUp:     cv.handlePatPointerUp,
+    onPointerMove:   cv.handlePatPointerMove,
+    onPointerLeave:  cv.handlePatPointerLeave,
+    onPointerCancel: cv.handlePatPointerCancel,
     onContextMenu: function(e) {
-      if (ctx.activeTool === "backstitch" && ctx.bsStart) {
+      if (cv.activeTool === "backstitch" && cv.bsStart) {
         e.preventDefault();
-        ctx.setBsStart(null);
+        cv.setBsStart(null);
       }
     }
   });

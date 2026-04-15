@@ -1,11 +1,11 @@
 /* creator/Toast.js — Toast notification overlay.
-   Reads from CreatorContext. Shows temporary messages that auto-dismiss.
-   Depends on: CreatorContext (context.js) */
+   Reads from AppContext. Shows temporary messages that auto-dismiss.
+   Depends on: AppContext (context.js) */
 
 window.CreatorToastContainer = function CreatorToastContainer() {
-  var ctx = React.useContext(window.CreatorContext);
+  var app = window.useApp();
   var h = React.createElement;
-  if (!ctx.toasts || ctx.toasts.length === 0) return null;
+  if (!app.toasts || app.toasts.length === 0) return null;
 
   var typeStyles = {
     info:    { bg: "#f0f9ff", border: "#bae6fd", color: "#0369a1", icon: Icons.info },
@@ -21,7 +21,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
       pointerEvents: "none", maxWidth: 340
     }
   },
-    ctx.toasts.map(function(toast) {
+    app.toasts.map(function(toast) {
       var ts = typeStyles[toast.type] || typeStyles.info;
       return h("div", {
         key: toast.id,
@@ -39,7 +39,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
         h("span", { style: { fontSize: 14, flexShrink: 0 } }, ts.icon()),
         h("span", { style: { flex: 1 } }, toast.message),
         h("button", {
-          onClick: function() { ctx.dismissToast(toast.id); },
+          onClick: function() { app.dismissToast(toast.id); },
           style: {
             background: "none", border: "none", cursor: "pointer",
             color: ts.color, opacity: 0.6, fontSize: 14, padding: 0,

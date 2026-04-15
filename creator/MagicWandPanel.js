@@ -3,15 +3,17 @@
    Reads from CreatorContext. */
 
 window.MagicWandPanel = function MagicWandPanel() {
-  var ctx = React.useContext(window.CreatorContext);
+  var ctx = window.usePatternData();
+  var cv = window.useCanvas();
+  var app = window.useApp();
   var h = React.createElement;
 
-  if (!(ctx.pat && ctx.pal && ctx.tab === "pattern")) return null;
-  if (ctx.activeTool !== "magicWand" && ctx.activeTool !== "lasso" && !ctx.hasSelection) return null;
+  if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
+  if (cv.activeTool !== "magicWand" && cv.activeTool !== "lasso" && !cv.hasSelection) return null;
 
-  var isSelTool = ctx.activeTool === "magicWand" || ctx.activeTool === "lasso";
-  var hasSelection = ctx.hasSelection;
-  var panel = ctx.wandPanel;
+  var isSelTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
+  var hasSelection = cv.hasSelection;
+  var panel = cv.wandPanel;
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   function btn(label, onClick, opts) {
@@ -57,14 +59,14 @@ window.MagicWandPanel = function MagicWandPanel() {
 
   // ─── Op mode buttons (shared across wand + lasso) ───────────────────────────
   function opBtn(icon, label, mode, title) {
-    var isPersistent = ctx.wandOpMode === mode;
-    var isModifier   = ctx.selectionModifier === mode;
+    var isPersistent = cv.wandOpMode === mode;
+    var isModifier   = cv.selectionModifier === mode;
     var className = "tb-btn" +
       (isPersistent ? " tb-btn--on" : "") +
       (isModifier   ? " tb-btn--mod-active" : "");
     return h("button", {
       className: className,
-      onClick: function() { ctx.setSelectionOpMode(mode); },
+      onClick: function() { cv.setSelectionOpMode(mode); },
       title: title,
       style: { position: "relative" }
     }, icon, label,
@@ -78,28 +80,28 @@ window.MagicWandPanel = function MagicWandPanel() {
   }
 
   // ─── First toolbar row: tool options ─────────────────────────────────────────
-  var toolLabel = ctx.activeTool === "lasso" ? "Lasso" : "Wand";
+  var toolLabel = cv.activeTool === "lasso" ? "Lasso" : "Wand";
   var optionsRow = isSelTool ? h("div", { className: "tb-strip--sel" },
     h("div", { className: "tb-strip-inner" },
       h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } }, toolLabel),
       h("div", { className: "tb-sdiv" }),
       // Tolerance slider (wand only)
-      ctx.activeTool === "magicWand" && h("label", { style: { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } },
+      cv.activeTool === "magicWand" && h("label", { style: { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } },
         "Tolerance",
         h("input", {
-          type: "range", min: 0, max: 100, step: 1, value: ctx.wandTolerance,
-          onChange: function(e) { ctx.setWandTolerance(Number(e.target.value)); },
+          type: "range", min: 0, max: 100, step: 1, value: cv.wandTolerance,
+          onChange: function(e) { cv.setWandTolerance(Number(e.target.value)); },
           style: { width: 80 }
         }),
-        h("span", { style: { minWidth: 22, textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 11 } }, ctx.wandTolerance),
+        h("span", { style: { minWidth: 22, textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 11 } }, cv.wandTolerance),
         h("span", { style: { fontSize: 9, color: "var(--text-tertiary)", marginLeft: 1 } },
-          ctx.wandTolerance === 0 ? "(exact)" : ctx.wandTolerance <= 5 ? "(similar)" : ctx.wandTolerance <= 15 ? "(broad)" : "(very broad)")
+          cv.wandTolerance === 0 ? "(exact)" : cv.wandTolerance <= 5 ? "(similar)" : cv.wandTolerance <= 15 ? "(broad)" : "(very broad)")
       ),
-      ctx.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
+      cv.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
       // Contiguous / Global toggle (wand only)
-      ctx.activeTool === "magicWand" && h("div", { className: "tb-grp" },
-        btn("Contiguous", function() { ctx.setWandContiguous(true); }, { active: ctx.wandContiguous, title: "Only select cells connected to the clicked cell" }),
-        btn("Global",     function() { ctx.setWandContiguous(false); }, { active: !ctx.wandContiguous, title: "Select all matching cells across the whole pattern" })
+      cv.activeTool === "magicWand" && h("div", { className: "tb-grp" },
+        btn("Contiguous", function() { cv.setWandContiguous(true); }, { active: cv.wandContiguous, title: "Only select cells connected to the clicked cell" }),
+        btn("Global",     function() { cv.setWandContiguous(false); }, { active: !cv.wandContiguous, title: "Select all matching cells across the whole pattern" })
       ),
       h("div", { className: "tb-sdiv" }),
       // Op mode buttons
@@ -117,21 +119,21 @@ window.MagicWandPanel = function MagicWandPanel() {
   var selRow = hasSelection ? h("div", { className: "tb-strip--sel" },
     h("div", { className: "tb-strip-inner" },
       h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } },
-        ctx.selectionCount.toLocaleString() + "\u00a0stitch" + (ctx.selectionCount !== 1 ? "es" : "") + " selected"
+        cv.selectionCount.toLocaleString() + "\u00a0stitch" + (cv.selectionCount !== 1 ? "es" : "") + " selected"
       ),
       h("div", { className: "tb-sdiv" }),
       h("div", { className: "tb-grp" },
-        btn("Deselect", ctx.clearSelection,   { title: "Deselect all (Esc)" }),
-        btn("Invert",   ctx.invertSelection,  { title: "Invert selection (Ctrl+\u21E7+I)" }),
-        btn("All",      ctx.selectAll,        { title: "Select all stitches (Ctrl+A)" })
+        btn("Deselect", cv.clearSelection,   { title: "Deselect all (Esc)" }),
+        btn("Invert",   cv.invertSelection,  { title: "Invert selection (Ctrl+\u21E7+I)" }),
+        btn("All",      cv.selectAll,        { title: "Select all stitches (Ctrl+A)" })
       ),
       h("div", { className: "tb-sdiv" }),
       h("div", { className: "tb-grp" },
-        btn("Confetti\u2026",       function() { ctx.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti" }),
-        btn("Reduce Colours\u2026", function() { ctx.setWandPanel(panel === "reduce"   ? null : "reduce");    }, { active: panel === "reduce" }),
-        btn("Replace Colour\u2026", function() { ctx.setWandPanel(panel === "replace"  ? null : "replace");   }, { active: panel === "replace" }),
-        btn("Stitch Info\u2026",    function() { ctx.setWandPanel(panel === "info"     ? null : "info");      }, { active: panel === "info" }),
-        btn("Outline\u2026",        function() { ctx.setWandPanel(panel === "outline"  ? null : "outline");   }, { active: panel === "outline" })
+        btn("Confetti\u2026",       function() { cv.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti" }),
+        btn("Reduce Colours\u2026", function() { cv.setWandPanel(panel === "reduce"   ? null : "reduce");    }, { active: panel === "reduce" }),
+        btn("Replace Colour\u2026", function() { cv.setWandPanel(panel === "replace"  ? null : "replace");   }, { active: panel === "replace" }),
+        btn("Stitch Info\u2026",    function() { cv.setWandPanel(panel === "info"     ? null : "info");      }, { active: panel === "info" }),
+        btn("Outline\u2026",        function() { cv.setWandPanel(panel === "outline"  ? null : "outline");   }, { active: panel === "outline" })
       )
     )
   ) : null;
@@ -145,25 +147,25 @@ window.MagicWandPanel = function MagicWandPanel() {
     h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
       "Min cluster size:",
       h("input", {
-        type: "range", min: 1, max: 10, step: 1, value: ctx.confettiThreshold,
-        onChange: function(e) { ctx.setConfettiThreshold(Number(e.target.value)); ctx.setConfettiPreview(null); },
+        type: "range", min: 1, max: 10, step: 1, value: cv.confettiThreshold,
+        onChange: function(e) { cv.setConfettiThreshold(Number(e.target.value)); cv.setConfettiPreview(null); },
         style: { width: 70 }
       }),
-      h("span", { style: { minWidth: 14 } }, ctx.confettiThreshold)
+      h("span", { style: { minWidth: 14 } }, cv.confettiThreshold)
     ),
-    ctx.confettiPreview
-      ? h("span", { style: { color: "#b45309" } }, ctx.confettiPreview.size + " stitches flagged")
+    cv.confettiPreview
+      ? h("span", { style: { color: "#b45309" } }, cv.confettiPreview.size + " stitches flagged")
       : null,
-    btn("Preview", ctx.previewConfettiCleanup, { style: { fontSize: 10 } }),
-    btn("Apply", ctx.applyConfettiCleanup, {
-      green: true, disabled: !ctx.confettiPreview || !ctx.confettiPreview.size,
+    btn("Preview", cv.previewConfettiCleanup, { style: { fontSize: 10 } }),
+    btn("Apply", cv.applyConfettiCleanup, {
+      green: true, disabled: !cv.confettiPreview || !cv.confettiPreview.size,
       style: { fontSize: 10 }
     }),
-    btn("\u00D7", function() { ctx.setWandPanel(null); ctx.setConfettiPreview(null); }, { style: { fontSize: 10 } })
+    btn("\u00D7", function() { cv.setWandPanel(null); cv.setConfettiPreview(null); }, { style: { fontSize: 10 } })
   ) : null;
 
   // ─── Reduce colours panel ────────────────────────────────────────────────────
-  var selColors = ctx.selectionStats ? ctx.selectionStats.colors : 0;
+  var selColors = cv.selectionStats ? cv.selectionStats.colors : 0;
   var reducePanel = (panel === "reduce" && hasSelection) ? h("div", {
     style: { padding: "10px 14px", background: "#f0fdf4", borderBottom: "1px solid #bbf7d0",
       fontSize: 11 }
@@ -174,22 +176,22 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
         "Target:",
         h("input", {
-          type: "number", min: 1, max: selColors, value: ctx.reduceTarget,
-          onChange: function(e) { ctx.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); ctx.setReducePreview(null); },
+          type: "number", min: 1, max: selColors, value: cv.reduceTarget,
+          onChange: function(e) { cv.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); cv.setReducePreview(null); },
           style: { width: 50, padding: "1px 4px" }
         })
       ),
-      btn("Preview merges", ctx.previewColorReduction, { style: { fontSize: 10 } }),
-      btn("Apply", ctx.applyColorReduction, {
-        green: true, disabled: !ctx.reducePreview || !ctx.reducePreview.length,
+      btn("Preview merges", cv.previewColorReduction, { style: { fontSize: 10 } }),
+      btn("Apply", cv.applyColorReduction, {
+        green: true, disabled: !cv.reducePreview || !cv.reducePreview.length,
         style: { fontSize: 10 }
       }),
-      btn("\u00D7", function() { ctx.setWandPanel(null); ctx.setReducePreview(null); }, { style: { fontSize: 10 } })
+      btn("\u00D7", function() { cv.setWandPanel(null); cv.setReducePreview(null); }, { style: { fontSize: 10 } })
     ),
-    ctx.reducePreview && ctx.reducePreview.length ? h("div", {
+    cv.reducePreview && cv.reducePreview.length ? h("div", {
       style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #bbf7d0", paddingTop: 6 }
     },
-      ctx.reducePreview.map(function(m, i) {
+      cv.reducePreview.map(function(m, i) {
         var fromE = ctx.cmap && ctx.cmap[m.from];
         var toE   = ctx.cmap && ctx.cmap[m.to];
         return h("div", { key: i, style: { display: "flex", alignItems: "center", gap: 5, marginBottom: 2 } },
@@ -204,9 +206,9 @@ window.MagicWandPanel = function MagicWandPanel() {
 
   // ─── Replace colour panel ────────────────────────────────────────────────────
   var replacePanel = (panel === "replace" && hasSelection) ? (function() {
-    var srcEntry = ctx.cmap && ctx.replaceSource ? ctx.cmap[ctx.replaceSource] : null;
-    var dstEntry = ctx.cmap && ctx.replaceDest   ? ctx.cmap[ctx.replaceDest]   : null;
-    var affectedCount = ctx.selectionReplaceColorCount;
+    var srcEntry = ctx.cmap && cv.replaceSource ? ctx.cmap[cv.replaceSource] : null;
+    var dstEntry = ctx.cmap && cv.replaceDest   ? ctx.cmap[cv.replaceDest]   : null;
+    var affectedCount = cv.selectionReplaceColorCount;
 
     // Color picker options from current palette
     var palOpts = ctx.pal ? ctx.pal.map(function(p) {
@@ -221,8 +223,8 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
         "Source:", srcEntry ? swatch(srcEntry.rgb) : null,
         h("select", {
-          value: ctx.replaceSource || "",
-          onChange: function(e) { ctx.setReplaceSource(e.target.value || null); },
+          value: cv.replaceSource || "",
+          onChange: function(e) { cv.setReplaceSource(e.target.value || null); },
           style: { fontSize: 11 }
         }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
       ),
@@ -230,29 +232,29 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
         "Target:", dstEntry ? swatch(dstEntry.rgb) : null,
         h("select", {
-          value: ctx.replaceDest || "",
-          onChange: function(e) { ctx.setReplaceDest(e.target.value || null); },
+          value: cv.replaceDest || "",
+          onChange: function(e) { cv.setReplaceDest(e.target.value || null); },
           style: { fontSize: 11 }
         }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
       ),
       h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
         h("input", {
-          type: "checkbox", checked: ctx.replaceFuzzy,
-          onChange: function(e) { ctx.setReplaceFuzzy(e.target.checked); }
+          type: "checkbox", checked: cv.replaceFuzzy,
+          onChange: function(e) { cv.setReplaceFuzzy(e.target.checked); }
         }), "Fuzzy",
-        ctx.replaceFuzzy ? [
-          h("input", { key: "tol", type: "range", min: 0, max: 20, step: 1, value: ctx.replaceFuzzyTol,
-            onChange: function(e) { ctx.setReplaceFuzzyTol(Number(e.target.value)); },
+        cv.replaceFuzzy ? [
+          h("input", { key: "tol", type: "range", min: 0, max: 20, step: 1, value: cv.replaceFuzzyTol,
+            onChange: function(e) { cv.setReplaceFuzzyTol(Number(e.target.value)); },
             style: { width: 50 } }),
-          h("span", { key: "v" }, "\u0394E\u2264" + ctx.replaceFuzzyTol)
+          h("span", { key: "v" }, "\u0394E\u2264" + cv.replaceFuzzyTol)
         ] : null
       ),
       affectedCount > 0 ? h("span", { style: { color: "#7e22ce" } }, affectedCount + " stitches affected") : null,
-      btn("Apply", ctx.applyColorReplacement, {
-        green: true, disabled: !ctx.replaceSource || !ctx.replaceDest || !affectedCount,
+      btn("Apply", cv.applyColorReplacement, {
+        green: true, disabled: !cv.replaceSource || !cv.replaceDest || !affectedCount,
         style: { fontSize: 10 }
       }),
-      btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
+      btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
     );
   })() : null;
 
@@ -261,7 +263,7 @@ window.MagicWandPanel = function MagicWandPanel() {
     fontWeight: 600, color: "#0369a1", fontSize: 10, whiteSpace: "nowrap" };
   var cellStyle = { padding: "2px 6px", fontSize: 11 };
   var infoPanel = (panel === "info") ? (function() {
-    var stats = ctx.selectionStats;
+    var stats = cv.selectionStats;
     if (!stats) return null;
     var exportCSV = function() {
       var lines = ["DMC,Name,Stitches,Skeins"];
@@ -284,7 +286,7 @@ window.MagicWandPanel = function MagicWandPanel() {
         h("span", { style: { color: "#0369a1" } },
           stats.total.toLocaleString() + " stitches, " + stats.colors + " colours, ~" + stats.totalSkeins.toFixed(1) + " skeins"),
         btn("Export CSV", exportCSV, { style: { fontSize: 10 } }),
-        btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
+        btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
       ),
       h("div", { style: { maxHeight: 140, overflowY: "auto" } },
         h("table", { style: { borderCollapse: "collapse", width: "100%" } },
@@ -325,23 +327,23 @@ window.MagicWandPanel = function MagicWandPanel() {
     h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
       "Outline thread (DMC):",
       h("input", {
-        type: "text", value: ctx.outlineColor,
-        onChange: function(e) { ctx.setOutlineColor(e.target.value.trim()); },
+        type: "text", value: cv.outlineColor,
+        onChange: function(e) { cv.setOutlineColor(e.target.value.trim()); },
         style: { width: 60, padding: "1px 4px", fontSize: 11 }
       })
     ),
     (function() {
-      var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === ctx.outlineColor; }) : null;
+      var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === cv.outlineColor; }) : null;
       return dmcEntry ? h("span", { style: { display: "flex", alignItems: "center", gap: 3 } },
         swatch(dmcEntry.rgb), h("span", { style: { color: "#334155" } }, dmcEntry.name)
       ) : h("span", { style: { color: "#ef4444" } }, "Unknown DMC");
     })(),
-    btn("Generate", ctx.applyOutlineGeneration, {
+    btn("Generate", cv.applyOutlineGeneration, {
       green: true,
-      disabled: !(typeof DMC !== "undefined" && DMC.find(function(d) { return d.id === ctx.outlineColor; })),
+      disabled: !(typeof DMC !== "undefined" && DMC.find(function(d) { return d.id === cv.outlineColor; })),
       style: { fontSize: 10 }
     }),
-    btn("\u00D7", function() { ctx.setWandPanel(null); }, { style: { fontSize: 10 } })
+    btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
   ) : null;
 
   return h("div", null,
