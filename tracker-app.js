@@ -218,9 +218,18 @@ const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
 const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});
 const[halfMenuOpen,setHalfMenuOpen]=useState(false);
+const STITCH_LAYERS=[{id:'full',label:'Full Cross',key:'F'},{id:'half',label:'Half Stitch',key:'H'},{id:'backstitch',label:'Backstitch',key:'B'},{id:'quarter',label:'Quarter',key:null},{id:'petite',label:'Petite',key:null},{id:'french_knot',label:'French Knot',key:'K'},{id:'long_stitch',label:'Long Stitch',key:null}];
+const ALL_LAYERS_VISIBLE={full:true,half:true,backstitch:true,quarter:true,petite:true,french_knot:true,long_stitch:true};
+const[layerVis,setLayerVis]=useState(ALL_LAYERS_VISIBLE);
+const[soloPreState,setSoloPreState]=useState(null);
+const[layerPanelOpen,setLayerPanelOpen]=useState(false);
+const[bsThickness,setBsThickness]=useState(()=>{try{return parseInt(localStorage.getItem('cs_bsThickness')||'2');}catch(_){return 2;}});
+const[statsCountMode,setStatsCountMode]=useState('visible');
 const tStripRef=useRef(null);
 const tOverflowRef=useRef(null);
 const halfMenuRef=useRef(null);
+const layerPanelRef=useRef(null);
+const soloTimerRef=useRef(null);
 
 const doneCount=countsVer>=0?doneCountRef.current:0;
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id!=="__skip__"&&id!=="__empty__")c++;}return c;},[pat]);
@@ -242,16 +251,21 @@ const halfStitchCounts=useMemo(()=>{
 // Combined progress: full stitches + half stitches weighted at 0.5
 const combinedTotal=totalStitchable+halfStitchCounts.total*0.5;
 const combinedDone=doneCount+halfStitchCounts.done*0.5;
-const progressPct=combinedTotal>0?Math.round(combinedDone/combinedTotal*1000)/10:0;
+// Effective progress respects visible-layer filter
+const effectiveCombinedTotal=statsCountMode==='visible'?(layerVis.full?totalStitchable:0)+(layerVis.half?halfStitchCounts.total*0.5:0):combinedTotal;
+const effectiveCombinedDone=statsCountMode==='visible'?(layerVis.full?doneCount:0)+(layerVis.half?halfStitchCounts.done*0.5:0):combinedDone;
+const progressPct=effectiveCombinedTotal>0?Math.round(effectiveCombinedDone/effectiveCombinedTotal*1000)/10:0;
 // Today's stitches for progress bar accent segment
 const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsTodayStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
-const todayBarPct=combinedTotal>0?Math.min((todayStitchesForBar/combinedTotal)*100,Math.min(progressPct,100)):0;
+const todayBarPct=effectiveCombinedTotal>0?Math.min((todayStitchesForBar/effectiveCombinedTotal)*100,Math.min(progressPct,100)):0;
 const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
 
 const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
-
+const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:0,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length]);
 // Full recompute only on structural changes (pattern load, half-stitch structure edits)
 useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches]);
+useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_layerVis_'+pid,JSON.stringify(layerVis));}catch(_){}},[layerVis]);
+useEffect(()=>{try{localStorage.setItem('cs_bsThickness',String(bsThickness));}catch(_){}},[bsThickness]);
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
@@ -1619,6 +1633,7 @@ function processLoadedProject(project){
   if(project.hlCol>=0)setHlCol(project.hlCol);
   setProjectName(project.name||"");
   projectIdRef.current = project.id || null;
+  try{const saved=localStorage.getItem('cs_layerVis_'+(project.id||''));if(saved)setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);}catch(_){setLayerVis(ALL_LAYERS_VISIBLE);}
   const normalisedCreatedAt=(()=>{
     const value=project.createdAt;
     if(value==null||value==="")return null;
@@ -2095,12 +2110,13 @@ function drawStitch(ctx,cSz,viewportRect){
       if(m.id==="__skip__"||m.id==="__empty__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}
         // Half stitches on skip/empty cells
         let hs=halfStitches.get(idx);
-        if(hs){
+        if(hs&&layerVis.half){
           let hd=halfDone.get(idx)||{};
           _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,hsLowZoom,hsMedZoom,hsHighZoom);
         }
         continue;
       }
+      if(layerVis.full){
       if(stitchView==="symbol"){
         if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
         else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#1e293b";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
@@ -2119,13 +2135,14 @@ function drawStitch(ctx,cSz,viewportRect){
         else if(dimmed){ctx.fillStyle=dimFill;ctx.fillRect(px,py,cSz,cSz);if(trackerDimLevel<0.25&&info&&cSz>=8){ctx.fillStyle=`rgba(0,0,0,${Math.max(0.04,0.12-trackerDimLevel*0.4)})`;ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}else if(trackerDimLevel>=0.25&&info&&cSz>=8){ctx.fillStyle=luminance(m.rgb)>140?'rgba(0,0,0,0.5)':'rgba(255,255,255,0.6)';ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
         else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#1e293b";ctx.font=fHlFocus;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
       }
+      } // end layerVis.full
       // Render half stitches on top of full-stitch cells
       let hs=halfStitches.get(idx);
-      if(hs){
+      if(hs&&layerVis.half){
         let hd=halfDone.get(idx)||{};
-        _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,effectiveDimmed,hsLowZoom,hsMedZoom,hsHighZoom);
+        _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,layerVis.full?effectiveDimmed:false,hsLowZoom,hsMedZoom,hsHighZoom);
       }
-      if(cSz>=4){ctx.strokeStyle=effectiveDimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+      if(cSz>=4){ctx.strokeStyle=(effectiveDimmed&&layerVis.full)?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
     }
   }
 
@@ -2172,7 +2189,7 @@ function drawStitch(ctx,cSz,viewportRect){
   // Centre marks, crosshair, backstitch, park markers, border — always draw (cheap)
   if(showCtr){ctx.strokeStyle="rgba(200,60,60,0.3)";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(gut+Math.floor(sW/2)*cSz,gut+startY*cSz);ctx.lineTo(gut+Math.floor(sW/2)*cSz,gut+endY*cSz);ctx.stroke();ctx.beginPath();ctx.moveTo(gut+startX*cSz,gut+Math.floor(sH/2)*cSz);ctx.lineTo(gut+endX*cSz,gut+Math.floor(sH/2)*cSz);ctx.stroke();ctx.setLineDash([]);}
   if(hlRow>=0&&hlCol>=0){ctx.strokeStyle="rgba(59,130,246,0.6)";ctx.lineWidth=2;ctx.setLineDash([]);if(hlRow>=startY&&hlRow<endY){ctx.beginPath();ctx.moveTo(gut+startX*cSz,gut+hlRow*cSz+cSz/2);ctx.lineTo(gut+endX*cSz,gut+hlRow*cSz+cSz/2);ctx.stroke();}if(hlCol>=startX&&hlCol<endX){ctx.beginPath();ctx.moveTo(gut+hlCol*cSz+cSz/2,gut+startY*cSz);ctx.lineTo(gut+hlCol*cSz+cSz/2,gut+endY*cSz);ctx.stroke();}}
-  if(bsLines.length>0){ctx.strokeStyle="#333";ctx.lineWidth=Math.max(2,cSz*0.15);ctx.lineCap="round";bsLines.forEach(ln=>{ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();});}
+  if(bsLines.length>0&&layerVis.backstitch){ctx.lineWidth=bsThickness;ctx.lineCap="round";bsLines.forEach(ln=>{ctx.strokeStyle=ln.color||"#333";ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();});}
   if(parkMarkers.length>0){parkMarkers.forEach(pm=>{let cx2=gut+pm.x*cSz,cy2=gut+pm.y*cSz,r=Math.max(4,cSz*0.35);ctx.fillStyle=`rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;ctx.strokeStyle="#000";ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx2,cy2,r,0,Math.PI*2);ctx.fill();ctx.stroke();});}
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
 }
@@ -2194,7 +2211,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness]);
 useEffect(()=>renderStitch(),[renderStitch]);
 
 // ═══ Thread usage overlay rendering ═══
@@ -2863,6 +2880,7 @@ useEffect(()=>{
       if(halfStitchTool){setHalfStitchTool(null);return;}
       if(halfToast){setHalfToast(null);return;}
       if(tOverflowOpen){setTOverflowOpen(false);return;}
+      if(layerPanelOpen){setLayerPanelOpen(false);return;}
       if(focusColour&&stitchView==="highlight"){setFocusColour(null);return;}
       if(drawer){setDrawer(false);return;}
       return;
@@ -2877,6 +2895,12 @@ useEffect(()=>{
         if(nextView==="highlight"&&!focusColour){const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];if(first)setFocusColour(first.id);}
         return;
       }
+      // Layer toggle shortcuts
+      if(e.key==="f"||e.key==="F"){setLayerVis(v=>({...v,full:!v.full}));return;}
+      if(e.key==="h"||e.key==="H"){setLayerVis(v=>({...v,half:!v.half}));return;}
+      if(e.key==="b"||e.key==="B"){setLayerVis(v=>({...v,backstitch:!v.backstitch}));return;}
+      if(e.key==="k"||e.key==="K"){setLayerVis(v=>({...v,french_knot:!v.french_knot}));return;}
+      if(e.key==="a"||e.key==="A"){if(Object.values(layerVis).every(Boolean)){const allOff=Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,false]));setLayerVis(allOff);}else{setLayerVis(ALL_LAYERS_VISIBLE);}return;}
     }
     if(e.key==="d"||e.key==="D"){setDrawer(d=>!d);return;}
     if((e.key==="p"||e.key==="P")&&!isEditMode&&currentAutoSessionRef.current){
@@ -2920,7 +2944,7 @@ useEffect(()=>{
   window.addEventListener("keydown",handleKeyDown);
   window.addEventListener("keyup",handleKeyUp);
   return()=>{window.removeEventListener("keydown",handleKeyDown);window.removeEventListener("keyup",handleKeyUp);};
-},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,halfMenuOpen,tOverflowOpen,drawer,halfDisambig,halfStitchTool,halfToast,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive]);
+},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,halfMenuOpen,tOverflowOpen,drawer,halfDisambig,halfStitchTool,halfToast,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive,layerVis,layerPanelOpen]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
@@ -2961,6 +2985,13 @@ useEffect(()=>{
   document.addEventListener('mousedown',close);
   return()=>document.removeEventListener('mousedown',close);
 },[tOverflowOpen]);
+// Layer panel close on outside click
+useEffect(()=>{
+  if(!layerPanelOpen)return;
+  function close(e){if(layerPanelRef.current&&!layerPanelRef.current.contains(e.target))setLayerPanelOpen(false);}
+  document.addEventListener('mousedown',close);
+  return()=>document.removeEventListener('mousedown',close);
+},[layerPanelOpen]);
 // Half-stitch menu close on outside click
 useEffect(()=>{
   if(!halfMenuOpen)return;
@@ -3073,6 +3104,66 @@ return(
     <button className="tb-btn" onClick={redoTrack} disabled={!redoStack.length} title="Redo (Ctrl+Y)" style={{opacity:redoStack.length?1:0.3}}>↪</button>
   </>}
   <div className="tb-sdiv"/>
+  <div style={{position:"relative",display:"inline-flex",alignItems:"center"}} ref={layerPanelRef}>
+    <button className={"tb-btn"+(layerPanelOpen?" tb-btn--on":"")} title="Layer visibility (F/H/B/K/A)" onClick={()=>setLayerPanelOpen(o=>!o)} style={{flexShrink:0,color:!Object.values(layerVis).every(Boolean)?"#d97706":undefined}}>
+      <svg width="12" height="10" viewBox="0 0 14 12" fill="none"><rect x="1" y="1" width="12" height="2.5" rx="1" stroke="currentColor" strokeWidth="1.3"/><rect x="1" y="4.8" width="12" height="2.5" rx="1" stroke="currentColor" strokeWidth="1.3"/><rect x="1" y="8.5" width="12" height="2.5" rx="1" stroke="currentColor" strokeWidth="1.3"/></svg>
+      Layers
+    </button>
+    {layerPanelOpen&&<div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",zIndex:400,minWidth:290,paddingBottom:8}}>
+      <div style={{padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid #f1f5f9"}}>
+        <span style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Layer Visibility</span>
+        <div style={{display:"flex",gap:4}}>
+          <button onClick={()=>{setSoloPreState(null);setLayerVis(ALL_LAYERS_VISIBLE);}} style={{fontSize:10,padding:"2px 7px",borderRadius:5,border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",color:"#475569",fontWeight:600}}>Show all</button>
+          <button onClick={()=>{setSoloPreState(null);setLayerVis(Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,false])));}} style={{fontSize:10,padding:"2px 7px",borderRadius:5,border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",color:"#475569",fontWeight:600}}>Hide all</button>
+        </div>
+      </div>
+      {STITCH_LAYERS.map(layer=>{
+        const count=layerCounts[layer.id];
+        const vis=layerVis[layer.id];
+        const isSoloed=soloPreState!==null&&vis&&STITCH_LAYERS.filter(l=>layerVis[l.id]).length===1;
+        return(
+          <div key={layer.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 12px",opacity:count>0?1:0.4}}>
+            <button
+              title={isSoloed?"Long-press again to restore":"Click to toggle · Long-press to solo"}
+              style={{width:24,height:24,border:"none",borderRadius:5,background:vis?"#f0fdfa":"#f1f5f9",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,outline:isSoloed?"2px solid #0d9488":"none",outlineOffset:1}}
+              onClick={e=>{
+                clearTimeout(soloTimerRef.current);
+                if(e.altKey){
+                  if(isSoloed){setLayerVis(soloPreState);setSoloPreState(null);}
+                  else{setSoloPreState({...layerVis});setLayerVis(Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,l.id===layer.id])));}
+                }else if(isSoloed){
+                  setLayerVis(soloPreState);setSoloPreState(null);
+                }else{
+                  setSoloPreState(null);setLayerVis(v=>({...v,[layer.id]:!v[layer.id]}));
+                }
+              }}
+              onMouseDown={()=>{
+                soloTimerRef.current=setTimeout(()=>{
+                  if(isSoloed){setLayerVis(soloPreState);setSoloPreState(null);}
+                  else{setSoloPreState({...layerVis});setLayerVis(Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,l.id===layer.id])));}
+                },500);
+              }}
+              onMouseUp={()=>clearTimeout(soloTimerRef.current)}
+              onMouseLeave={()=>clearTimeout(soloTimerRef.current)}
+            >
+              {vis
+                ?<svg width="14" height="10" viewBox="0 0 16 11" fill="none"><ellipse cx="8" cy="5.5" rx="7" ry="4.5" stroke="#0d9488" strokeWidth="1.5"/><circle cx="8" cy="5.5" r="2.5" fill="#0d9488"/></svg>
+                :<svg width="14" height="10" viewBox="0 0 16 11" fill="none"><ellipse cx="8" cy="5.5" rx="7" ry="4.5" stroke="#94a3b8" strokeWidth="1.5"/><line x1="2" y1="1" x2="14" y2="10" stroke="#94a3b8" strokeWidth="1.5"/></svg>
+              }
+            </button>
+            <span style={{flex:1,fontSize:12,color:vis?"#1e293b":"#94a3b8",fontWeight:vis?500:400}}>{layer.label}{layer.key&&<span style={{marginLeft:4,fontSize:10,color:"#94a3b8",fontFamily:"monospace"}}>({layer.key})</span>}</span>
+            <span style={{fontSize:11,color:"#94a3b8",minWidth:36,textAlign:"right"}}>{count.toLocaleString()}</span>
+            {layer.id==='backstitch'&&<select title="Line thickness" value={bsThickness} onChange={e=>setBsThickness(parseInt(e.target.value))} style={{fontSize:10,padding:"1px 3px",borderRadius:4,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#475569",maxWidth:46,cursor:"pointer"}}><option value={1}>1px</option><option value={2}>2px</option><option value={3}>3px</option></select>}
+          </div>
+        );
+      })}
+      <div style={{borderTop:"1px solid #f1f5f9",margin:"4px 12px 0",padding:"6px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <span style={{fontSize:11,color:"#64748b"}}>Count</span>
+        <button onClick={()=>setStatsCountMode(m=>m==='visible'?'all':'visible')} style={{fontSize:10,padding:"2px 8px",borderRadius:5,border:"1px solid #e2e8f0",background:statsCountMode==='all'?"#eff6ff":"#f8fafc",color:statsCountMode==='all'?"#1d4ed8":"#475569",cursor:"pointer",fontWeight:600}}>{statsCountMode==='visible'?'Visible layers only':'All layers'}</button>
+      </div>
+    </div>}
+  </div>
+  <div className="tb-sdiv"/>
   <div className="tb-overflow-wrap" ref={tOverflowRef}>
     <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
     {tOverflowOpen&&<div className="tb-overflow-menu">
@@ -3148,7 +3239,7 @@ return(
   )}
 </div></div>
 {!isEditMode&&<div className="tb-progress"><div className="tb-progress-inner">
-  <span className="tb-progress-txt">{doneCount.toLocaleString()} / {totalStitchable.toLocaleString()}{halfStitchCounts.total>0?` + ${halfStitchCounts.done}/${halfStitchCounts.total}△`:""}{todayStitchesForBar>0&&progressPct<100?` (+${todayStitchesForBar} today)`:""} ({progressPct.toFixed(1)}%){progressPct>=100?<> {Icons.star()}</>:null}</span>
+  <span className="tb-progress-txt">{(()=>{const vFull=statsCountMode!=='visible'||layerVis.full;const vHalf=statsCountMode!=='visible'||layerVis.half;const dDisp=vFull?doneCount:0;const tDisp=vFull?totalStitchable:0;const hdDisp=vHalf?halfStitchCounts.done:0;const htDisp=vHalf?halfStitchCounts.total:0;return<>{dDisp.toLocaleString()} / {tDisp.toLocaleString()}{htDisp>0?` + ${hdDisp}/${htDisp}△`:""}{statsCountMode==='visible'&&(!layerVis.full||!layerVis.half)&&<span title="Counting visible layers only" style={{fontSize:10,color:"#d97706",marginLeft:3,fontWeight:600}}>●</span>}{todayStitchesForBar>0&&progressPct<100?` (+${todayStitchesForBar} today)`:""} ({progressPct.toFixed(1)}%){progressPct>=100?<> {Icons.star()}</>:null}</>;})()} </span>
   <div className="tb-progress-bar">
     {progressPct>=100&&<div className="tb-progress-fill tb-progress-fill--done" style={{width:"100%"}}/>}
     {progressPct<100&&prevBarPct>0&&<div className="tb-progress-fill" style={{width:prevBarPct+"%"}}/>}
