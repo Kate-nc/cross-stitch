@@ -1,4 +1,4 @@
-function findSolid(lab,p){let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE2(lab,p[i].lab);if(d<bd){bd=d;b=p[i];}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:Math.sqrt(bd)};}
+function findSolid(lab,p){if(!p||!p.length)return{type:"solid",id:"__empty__",name:"",rgb:[0,0,0],lab:[0,0,0],dist:Infinity};let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE2(lab,p[i].lab);if(d<bd){bd=d;b=p[i];}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:Math.sqrt(bd)};}
 function findBest(lab, palette, allowBlends = true) {
   const solidMatch = findSolid(lab, palette);
   if (!allowBlends) return solidMatch;
@@ -52,56 +52,7 @@ function findBest(lab, palette, allowBlends = true) {
 }
 function luminance(rgb){return rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114;}
 
-function quantize(data,w,h,n,options){
-  let seed=(options&&options.seed!=null)?options.seed:1337;
-  function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
-  let px=[], len=w*h;
-  for(let i=0;i<len;i++){let j=i*4;px.push(rgbToLab(data[j],data[j+1],data[j+2]));}
-  let cs=[px[Math.floor(random()*px.length)]];
-  let ds=new Float32Array(px.length);
-  for(let i=0;i<px.length;i++){ds[i]=1e9;}
-  while(cs.length<Math.min(n,px.length)){
-    let lastCenter = cs[cs.length-1];
-    let sum=0;
-    for(let i=0;i<px.length;i++){
-      let distSq = dE2(px[i], lastCenter);
-      if (distSq < ds[i]) ds[i] = distSq;
-      sum += ds[i];
-    }
-    let r=random()*sum,acc=0;
-    for(let i=0;i<px.length;i++){
-      acc+=ds[i];
-      if(acc>=r){cs.push([px[i][0],px[i][1],px[i][2]]);break;}
-    }
-  }
-  for(let it=0;it<20;it++){
-    let cl=cs.map(()=>[]);
-    for(let pi=0;pi<px.length;pi++){
-      let md=1e9,mi=0;
-      for(let c=0;c<cs.length;c++){let d=dE2(px[pi],cs[c]);if(d<md){md=d;mi=c;}}
-      cl[mi].push(px[pi]);
-    }
-    let mv=false;
-    for(let c2=0;c2<cs.length;c2++){
-      if(!cl[c2].length)continue;
-      let nv=[cl[c2].reduce((s,q)=>s+q[0],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[1],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[2],0)/cl[c2].length];
-      if(dE2(nv,cs[c2])>0.25)mv=true;
-      cs[c2]=nv;
-    }
-    if(!mv)break;
-  }
-  let pl=[],used=new Set();
-  for(let ci=0;ci<cs.length;ci++){
-    let b=null,bd=1e9;
-    for(let ti=0;ti<DMC.length;ti++){
-      if(used.has(DMC[ti].id))continue;
-      let d2=dE2(cs[ci],DMC[ti].lab);if(d2<bd){bd=d2;b=DMC[ti];}
-    }
-    if(b){used.add(b.id);pl.push(b);}
-  }
-  return pl;
-}
-function quantizeConstrained(data,w,h,n,allowedPalette,options){
+function quantize(data,w,h,n,allowedPalette,options){
   var pool=allowedPalette&&allowedPalette.length?allowedPalette:DMC;
   var maxN=Math.min(n,pool.length);
   let seed=(options&&options.seed!=null)?options.seed:1337;
@@ -152,6 +103,7 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   }
   return pl;
 }
+function quantizeConstrained(data,w,h,n,allowedPalette,options){return quantize(data,w,h,n,allowedPalette,options);}
 /**
  * Floyd-Steinberg dithering with Stage 2 confetti-aware color selection.
  *

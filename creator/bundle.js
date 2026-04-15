@@ -41,9 +41,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
 
-  var p = opts.allowedPalette
-    ? quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed})
-    : quantize(raw, width, height, maxC, {seed: opts.seed});
+  var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
@@ -2583,7 +2581,11 @@ window.useMagicWand = function useMagicWand(state) {
   }
 
   // Merge newMask into existing mask using the specified operation mode
+  // Merge two selection masks (delegates to shared global if available).
   function mergeMasks(existing, newMask, opMode, size) {
+    if (typeof window !== 'undefined' && typeof window.mergeMasks === 'function') {
+      return window.mergeMasks(existing, newMask, opMode, size);
+    }
     var out = new Uint8Array(size);
     for (var i = 0; i < size; i++) {
       var e = existing ? existing[i] : 0;
@@ -3114,19 +3116,6 @@ window.useLassoSelect = function useLassoSelect(state) {
   }
 
   // Merge newMask into an existing selection mask — matches useMagicWand.mergeMasks
-  function mergeMasks(existing, newMask, opMode, size) {
-    var out = new Uint8Array(size);
-    for (var i = 0; i < size; i++) {
-      var e = existing ? existing[i] : 0;
-      var n = newMask[i];
-      if (opMode === "add")        out[i] = (e || n) ? 1 : 0;
-      else if (opMode === "subtract")  out[i] = (e && !n) ? 1 : 0;
-      else if (opMode === "intersect") out[i] = (e && n)  ? 1 : 0;
-      else                         out[i] = n;  // replace
-    }
-    return out;
-  }
-
   // ─── Magnetic-lasso helpers ───────────────────────────────────────────────────
 
   // Returns a LAB value for a grid cell (uses cmap entry if available).

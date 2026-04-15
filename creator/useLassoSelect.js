@@ -101,19 +101,6 @@ window.useLassoSelect = function useLassoSelect(state) {
   }
 
   // Merge newMask into an existing selection mask — matches useMagicWand.mergeMasks
-  function mergeMasks(existing, newMask, opMode, size) {
-    var out = new Uint8Array(size);
-    for (var i = 0; i < size; i++) {
-      var e = existing ? existing[i] : 0;
-      var n = newMask[i];
-      if (opMode === "add")        out[i] = (e || n) ? 1 : 0;
-      else if (opMode === "subtract")  out[i] = (e && !n) ? 1 : 0;
-      else if (opMode === "intersect") out[i] = (e && n)  ? 1 : 0;
-      else                         out[i] = n;  // replace
-    }
-    return out;
-  }
-
   // ─── Magnetic-lasso helpers ───────────────────────────────────────────────────
 
   // Returns a LAB value for a grid cell (uses cmap entry if available).

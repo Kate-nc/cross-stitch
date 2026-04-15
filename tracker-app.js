@@ -177,8 +177,6 @@ const [importArLock, setImportArLock] = useState(true);
 const [importName, setImportName] = useState("");
 const [importFabricCt, setImportFabricCt] = useState(14);
 
-const prevDoneCount=useRef(0);
-const modeToggleRef=useRef(0);
 const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
 const projectIdRef=useRef(null);    // current project's storage ID
 const createdAtRef=useRef(null);    // stable createdAt ISO string for the active project
@@ -322,7 +320,7 @@ function getStitchingDateLocal(now){
     if(deh>0&&d.getHours()<deh)d.setDate(d.getDate()-1);
     const y=d.getFullYear(),m=('0'+(d.getMonth()+1)).slice(-2),day=('0'+d.getDate()).slice(-2);
     return y+'-'+m+'-'+day;
-  }catch(e){console.warn('Stats: getStitchingDateLocal error',e);const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+  }catch(e){const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
 }
 function recordAutoActivity(completed,undone){
   try{
@@ -364,7 +362,7 @@ function recordAutoActivity(completed,undone){
       pendingColoursRef.current.clear();
     }
     clearTimeout(autoIdleTimerRef.current);
-    autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){console.warn('Stats: idle finalise error',e);}},IDLE_THRESHOLD_MS);
+    autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){}},IDLE_THRESHOLD_MS);
     // Reset inactivity pause timer (only if not manually paused)
     clearTimeout(inactivityTimerRef.current);
     const inactThresh=(statsSettings.inactivityPauseSec||0)*1000;
@@ -377,7 +375,7 @@ function recordAutoActivity(completed,undone){
         }
       },inactThresh);
     }
-  }catch(e){console.warn('Stats: recordAutoActivity error',e);}
+  }catch(e){}
 }
 function finaliseAutoSession(){
   try{
@@ -435,7 +433,7 @@ function finaliseAutoSession(){
       setSessionSavedToast({sessionId:finalised.id,stitches:finalised.netStitches,durationMin:finalised.durationMinutes,showNoteInput:false,noteText:''});
     }
     return finalised;
-  }catch(e){console.warn('Stats: finaliseAutoSession error',e);currentAutoSessionRef.current=null;return null;}
+  }catch(e){currentAutoSessionRef.current=null;return null;}
 }
 finaliseAutoSessionRef.current=finaliseAutoSession;
 
@@ -517,7 +515,7 @@ useEffect(()=>{
               return unique.length>0?[...prev,...unique]:prev;
             });
           }
-        }catch(me){console.warn('Stats: milestone check error',me);}
+        }catch(me){}
       }
     }
     // Auto-snapshot: on new stitching day, save a snapshot of the current done-state
@@ -542,10 +540,10 @@ useEffect(()=>{
           });
           lastSnapshotDateRef.current=today;
         }
-      }catch(e){console.warn('Stats: auto-snapshot error',e);}
+      }catch(e){}
     }
     prevAutoCountRef.current={done:curDone,halfDone:curHalf};
-  }catch(e){console.warn('Stats: auto-detect effect error',e);}
+  }catch(e){}
 },[doneCount,halfStitchCounts.done]);
 // Session onboarding toast: auto-dismiss after 8s (only for very first session ever)
 useEffect(()=>{
@@ -585,11 +583,11 @@ useEffect(()=>{
       if(!prev.monthly&&cur>=monthlyGoal){goalCelebrationRef.current={...prev,monthly:true};setCelebration({label:'Monthly goal reached! '+cur.toLocaleString()+' / '+monthlyGoal.toLocaleString()+' stitches',pct:null});}
       else if(prev.monthly&&cur<monthlyGoal)goalCelebrationRef.current={...prev,monthly:false};
     }
-  }catch(e){console.warn('Stats: goal-completion effect error',e);}
+  }catch(e){}
 },[todayStitchesForBar,liveAutoStitches,statsSessions,statsSettings]);
 // Edit session note
 function editSessionNote(sessionId,noteText){
-  try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){console.warn('Stats: editSessionNote error',e);}
+  try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){}
 }
 
 // ═══ Analysis worker lifecycle ═══
@@ -604,8 +602,8 @@ useEffect(()=>{
         setAnalysisRunning(false);
       }
     };
-    w.onerror=function(err){console.warn("Analysis worker error:",err);setAnalysisRunning(false);};
-  }catch(e){console.warn("Could not start analysis worker:",e);}
+    w.onerror=function(err){setAnalysisRunning(false);};
+  }catch(e){}
   return()=>{clearTimeout(analysisThrottleRef.current);if(analysisWorkerRef.current){analysisWorkerRef.current.terminate();analysisWorkerRef.current=null;}};
 },[]);
 
@@ -1875,7 +1873,7 @@ useEffect(() => {
       .catch(err => console.error("Tracker unload auto-save failed:", err));
     saveProjectToDB(projectToSave)
       .catch(err => console.error("Tracker DB unload auto-save failed:", err));
-    } catch(e) { console.warn('beforeunload save error', e); }
+    } catch(e) {}
   };
   window.addEventListener("beforeunload", handleBeforeUnload);
   return () => window.removeEventListener("beforeunload", handleBeforeUnload);

@@ -1,8 +1,13 @@
 const SharedModals = {
   Help: ({ onClose }) => {
+    React.useEffect(function() {
+      var handler = function(e) { if (e.key === "Escape") onClose(); };
+      document.addEventListener("keydown", handler);
+      return function() { document.removeEventListener("keydown", handler); };
+    }, [onClose]);
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
       React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 600, maxHeight: "80vh", overflowY: "auto" } },
-        React.createElement("button", { className: "modal-close", onClick: onClose }, "×"),
+        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
         React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 22, color: "#1e293b" } }, "Help & User Guide"),
 
         React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 20 } },
@@ -49,9 +54,14 @@ const SharedModals = {
   },
 
   About: ({ onClose }) => {
+    React.useEffect(function() {
+      var handler = function(e) { if (e.key === "Escape") onClose(); };
+      document.addEventListener("keydown", handler);
+      return function() { document.removeEventListener("keydown", handler); };
+    }, [onClose]);
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
       React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500 } },
-        React.createElement("button", { className: "modal-close", onClick: onClose }, "×"),
+        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
         React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 22, color: "#1e293b" } }, "About"),
         React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
           React.createElement("p", { style: { margin: 0, color: "#475569", fontSize: 15, lineHeight: 1.5 } },
@@ -94,7 +104,7 @@ const SharedModals = {
 
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
       React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "80vh" } },
-        React.createElement("button", { className: "modal-close", onClick: onClose }, "×"),
+        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
         React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 20, color: "#1e293b" } },
           "Reassign Thread for ",
           React.createElement("span", { style: { fontFamily: "monospace", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, border: "1px solid #e2e8f0" } }, currentSymbol)
@@ -255,7 +265,7 @@ const SharedModals = {
 
     return React.createElement('div', { className: 'modal-overlay', onClick: onClose },
       React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 420, maxHeight: '80vh', overflowY: 'auto' } },
-        React.createElement('button', { className: 'modal-close', onClick: onClose }, '×'),
+        React.createElement('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '×'),
         React.createElement('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 20, color: '#1e293b' } }, 'Keyboard Shortcuts'),
         general,
         pageSection,

@@ -910,7 +910,19 @@ function getColourTimeline(sessions) {
   return timeline;
 }
 
-// hitTestHalfStitch is replaced by hitTestQuadrant above.
+// Merge two selection masks using the given operation mode.
+function mergeMasks(existing, newMask, opMode, size) {
+  var out = new Uint8Array(size);
+  for (var i = 0; i < size; i++) {
+    var e = existing ? existing[i] : 0;
+    var n = newMask[i];
+    if (opMode === "add")        out[i] = (e || n) ? 1 : 0;
+    else if (opMode === "subtract")  out[i] = (e && !n) ? 1 : 0;
+    else if (opMode === "intersect") out[i] = (e && n) ? 1 : 0;
+    else                         out[i] = n; // replace
+  }
+  return out;
+}
 
 /**
  * Draws geometric shapes for the standard pattern symbols directly onto a jsPDF instance.

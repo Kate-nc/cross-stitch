@@ -1078,6 +1078,10 @@ function usePaletteSwap(props) {
   // Compute mapping
   var computedMapping = React.useMemo(function() {
     if (activeMode === "preset" && activePreset) {
+      // Custom saved palette: activePreset is an array of hex colours
+      if (Array.isArray(activePreset)) {
+        return computePresetMapping(pal, activePreset, lockedIds);
+      }
       var presetData = getPresetById(activePreset);
       if (presetData) {
         var tier = activeTier || autoSelectTier(pal.length);
@@ -1611,7 +1615,7 @@ function usePaletteSwap(props) {
 
       // Apply preset button (Themes/Saved)
       (presetTab === "themes" && activePreset) && (function() {
-        var pName = (getPresetById(activePreset) || {}).name || activePreset;
+        var pName = Array.isArray(activePreset) ? "Saved Palette" : (getPresetById(activePreset) || {}).name || activePreset;
         return React.createElement("button", {
           onClick: function() { setShowConfirm(true); },
           style: {
@@ -1638,7 +1642,7 @@ function usePaletteSwap(props) {
       ),
       React.createElement("div", { style: { flex: 1 } },
         React.createElement("div", { style: { fontSize: 11, color: "#94a3b8", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 } },
-          "After" + (activeMode === "shift" ? " (" + shiftDeg + "\u00B0 shift)" : activeMode === "preset" && activePreset ? " (\u201C" + ((getPresetById(activePreset) || {}).name || activePreset) + "\u201D)" : "")
+          "After" + (activeMode === "shift" ? " (" + shiftDeg + "\u00B0 shift)" : activeMode === "preset" && activePreset ? " (\u201C" + (Array.isArray(activePreset) ? "Saved Palette" : (getPresetById(activePreset) || {}).name || activePreset) + "\u201D)" : "")
         ),
         React.createElement("div", { style: { borderRadius: 8, background: "#f1f5f9", overflow: "hidden", aspectRatio: sW + "/" + sH } },
           React.createElement("canvas", { ref: afterRef, style: { width: "100%", height: "100%", display: "block", imageRendering: "pixelated" } })

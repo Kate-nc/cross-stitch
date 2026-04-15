@@ -12,52 +12,6 @@ function computeClusters(pat, sW, sH) {
   var label = 0;
   var queue = [];
 
-  for (var start = 0; start < n; start++) {
-    if (clusterLabel[start] !== 0) continue;
-    var id = pat[start].id;
-    if (id === "__skip__" || id === "__empty__") { clusterLabel[start] = -1; continue; }
-
-    label++;
-    var size = 0;
-    queue.length = 0;
-    queue.push(start);
-    clusterLabel[start] = label;
-
-    var qi = 0;
-    while (qi < queue.length) {
-      var idx = queue[qi++];
-      size++;
-      var x = idx % sW, y = Math.floor(idx / sW);
-      // 4-connected neighbours
-      var neighbors = [
-        y > 0       ? idx - sW : -1,
-        y < sH - 1  ? idx + sW : -1,
-        x > 0       ? idx - 1  : -1,
-        x < sW - 1  ? idx + 1  : -1
-      ];
-      for (var ni = 0; ni < 4; ni++) {
-        var nb = neighbors[ni];
-        if (nb < 0 || clusterLabel[nb] !== 0) continue;
-        if (pat[nb].id === id) {
-          clusterLabel[nb] = label;
-          queue.push(nb);
-        } else {
-          clusterLabel[nb] = -2;  // different colour, mark visited
-        }
-      }
-    }
-    clusterSizes.push(size);
-    // Fix: cells of different colour that were tentatively marked -2 need to be reset to 0
-    // Actually the above approach has a bug: marking neighbors of wrong colour as -2 would
-    // skip them in future visits. Use a separate visitedSet instead.
-  }
-
-  // Re-do properly: only mark same-colour cells with the label
-  // Reset and redo without the -2 bug
-  clusterLabel = new Int32Array(n);
-  clusterSizes = [];
-  label = 0;
-
   for (var start2 = 0; start2 < n; start2++) {
     if (clusterLabel[start2] !== 0) continue;
     var id2 = pat[start2].id;

@@ -62,7 +62,7 @@ There are **three separate IndexedDB databases**:
 
 | Database | Version | Object Stores | Used By |
 |---|---|---|---|
-| `CrossStitchDB` | 2 | `projects`, `project_meta` | Creator, Tracker (generated patterns & progress) |
+| `CrossStitchDB` | 3 | `projects`, `project_meta`, `stats_summaries` | Creator, Tracker (generated patterns & progress) |
 | `stitch_manager_db` | 1 | `manager_state` | Stash Manager (thread inventory, pattern library) |
 
 ### `CrossStitchDB` details
