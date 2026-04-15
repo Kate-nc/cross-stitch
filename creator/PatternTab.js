@@ -1,9 +1,12 @@
 /* creator/PatternTab.js — The pattern view tab (canvas area + palette chips).
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: PatternCanvas (PatternCanvas.js), Tooltip (components.js), CreatorContext (context.js) */
+   Reads from CreatorContext and GenerationContext.
+   Loaded as a plain <script> before the main Babel script.
+   Depends on: PatternCanvas (PatternCanvas.js), Tooltip (components.js),
+               CreatorContext, GenerationContext (context.js) */
 
 window.CreatorPatternTab = function CreatorPatternTab() {
   var ctx = React.useContext(window.CreatorContext);
+  var gen = window.useGeneration();
   var h = React.createElement;
 
   var _dismissed = React.useState(false); var confettiBannerDismissed = _dismissed[0], setConfettiBannerDismissed = _dismissed[1];
@@ -102,7 +105,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }, "\xD7")
     ),
 
-    !confettiBannerDismissed && ctx.confettiData && ctx.orphans > 0 && (function() {
+    !confettiBannerDismissed && ctx.confettiData && gen.orphans > 0 && (function() {
       var rawSingles = ctx.confettiData.raw.singles;
       var cleanSingles = ctx.confettiData.clean.singles;
       var removed = rawSingles - cleanSingles;

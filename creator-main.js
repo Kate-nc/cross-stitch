@@ -242,9 +242,85 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   usePreviewHook(state);
   useKeyboardShortcutsHook(state, history, io);
 
+  // ── GenerationContext value (image-to-pattern generation params & callbacks) ──
+  const genCtx = useMemo(function() { return {
+    img: state.img, setImg: state.setImg,
+    isUploading: state.isUploading, setIsUploading: state.setIsUploading,
+    isDragging: state.isDragging, setIsDragging: state.setIsDragging,
+    maxC: state.maxC, setMaxC: state.setMaxC,
+    bri: state.bri, setBri: state.setBri,
+    con: state.con, setCon: state.setCon,
+    sat: state.sat, setSat: state.setSat,
+    dith: state.dith, setDith: state.setDith,
+    skipBg: state.skipBg, setSkipBg: state.setSkipBg,
+    bgTh: state.bgTh, setBgTh: state.setBgTh,
+    bgCol: state.bgCol, setBgCol: state.setBgCol,
+    pickBg: state.pickBg, setPickBg: state.setPickBg,
+    minSt: state.minSt, setMinSt: state.setMinSt,
+    smooth: state.smooth, setSmooth: state.setSmooth,
+    smoothType: state.smoothType, setSmoothType: state.setSmoothType,
+    orphans: state.orphans, setOrphans: state.setOrphans,
+    allowBlends: state.allowBlends, setAllowBlends: state.setAllowBlends,
+    busy: state.busy, setBusy: state.setBusy,
+    origW: state.origW, setOrigW: state.setOrigW,
+    origH: state.origH, setOrigH: state.setOrigH,
+    hasGenerated: state.hasGenerated, setHasGenerated: state.setHasGenerated,
+    stitchCleanup: state.stitchCleanup, setStitchCleanup: state.setStitchCleanup,
+    isCropping: state.isCropping, setIsCropping: state.setIsCropping,
+    cropRect: state.cropRect, setCropRect: state.setCropRect,
+    cropStartRef: state.cropStartRef, cropRef: state.cropRef,
+    generate: state.generate,
+    randomise: state.randomise,
+    generateGallery: state.generateGallery,
+    promoteVariation: state.promoteVariation,
+    applyVariationSeed: state.applyVariationSeed,
+    variationSeed: state.variationSeed, setVariationSeed: state.setVariationSeed,
+    variationSubset: state.variationSubset, setVariationSubset: state.setVariationSubset,
+    variationHistory: state.variationHistory, setVariationHistory: state.setVariationHistory,
+    gallerySlots: state.gallerySlots,
+    galleryOpen: state.galleryOpen, setGalleryOpen: state.setGalleryOpen,
+    stashConstrained: state.stashConstrained, setStashConstrained: state.setStashConstrained,
+    coverageGaps: state.coverageGaps, setCoverageGaps: state.setCoverageGaps,
+    cleanupDiff: state.cleanupDiff, setCleanupDiff: state.setCleanupDiff,
+    showCleanupDiff: state.showCleanupDiff, setShowCleanupDiff: state.setShowCleanupDiff,
+    fRef: state.fRef, prevSW: state.prevSW, prevSH: state.prevSH,
+    stashThreadCount: state.stashThreadCount,
+    effectiveMaxC: state.effectiveMaxC,
+    stashPalette: state.stashPalette,
+    blendsAutoDisabled: state.blendsAutoDisabled,
+    effectiveAllowBlends: state.effectiveAllowBlends,
+    handleCropPointerDown: canvas.handleCropPointerDown,
+    handleCropPointerMove: canvas.handleCropPointerMove,
+    handleCropPointerUp: canvas.handleCropPointerUp,
+    handleCropPointerCancel: canvas.handleCropPointerCancel,
+    applyCrop: canvas.applyCrop,
+    srcClick: canvas.srcClick,
+    autoCrop: canvas.autoCrop,
+  }; }, [
+    state.img, state.isUploading, state.isDragging,
+    state.maxC, state.bri, state.con, state.sat, state.dith,
+    state.skipBg, state.bgTh, state.bgCol, state.pickBg,
+    state.minSt, state.smooth, state.smoothType,
+    state.orphans, state.allowBlends, state.busy,
+    state.origW, state.origH, state.hasGenerated,
+    state.stitchCleanup, state.isCropping, state.cropRect,
+    state.generate, state.randomise, state.generateGallery,
+    state.promoteVariation, state.applyVariationSeed,
+    state.variationSeed, state.variationSubset, state.variationHistory,
+    state.gallerySlots, state.galleryOpen,
+    state.stashConstrained, state.coverageGaps,
+    state.cleanupDiff, state.showCleanupDiff,
+    state.stashThreadCount, state.effectiveMaxC, state.stashPalette,
+    state.blendsAutoDisabled, state.effectiveAllowBlends,
+    canvas.handleCropPointerDown, canvas.handleCropPointerMove,
+    canvas.handleCropPointerUp, canvas.handleCropPointerCancel,
+    canvas.applyCrop, canvas.srcClick, canvas.autoCrop,
+  ]);
+
   const ctx = {...state, ...history, ...canvas, ...io, isActive};
 
   return (
+    <window.GenerationContext.Provider value={genCtx}>
     <window.CreatorContext.Provider value={ctx}>
       <input ref={state.loadRef} type="file" accept=".json" onChange={io.loadProject} style={{display:"none"}}/>
       <Header page="creator" tab={state.tab} onPageChange={state.setTab}
@@ -440,6 +516,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       </div>}
       <window.CreatorToastContainer/>
     </window.CreatorContext.Provider>
+    </window.GenerationContext.Provider>
   );
 }
 

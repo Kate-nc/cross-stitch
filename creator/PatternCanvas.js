@@ -1,10 +1,12 @@
 /* creator/PatternCanvas.js — The interactive pattern canvas component.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
+   Reads from CreatorContext and GenerationContext.
+   Loaded as a plain <script> before the main Babel script.
    Depends on: drawPatternBaseOnCanvas, drawPatternOverlayOnCanvas (canvasRenderer.js),
-               CreatorContext (context.js) */
+               CreatorContext, GenerationContext (context.js) */
 
 window.PatternCanvas = function PatternCanvas() {
   var ctx = React.useContext(window.CreatorContext);
+  var gen = window.useGeneration();
   var h = React.createElement;
   var G = ctx.G;
 
@@ -101,8 +103,8 @@ window.PatternCanvas = function PatternCanvas() {
   }, [
     ctx.pat, ctx.cmap, ctx.cs, ctx.sW, ctx.sH, ctx.view, ctx.hiId, ctx.showCtr,
     ctx.bsLines, ctx.tab, ctx.showOverlay, ctx.overlayOpacity,
-    ctx.img, ctx.partialStitches, ctx.stitchType, ctx.partialStitchTool,
-    ctx.showCleanupDiff, ctx.cleanupDiff,
+    gen.img, ctx.partialStitches, ctx.stitchType, ctx.partialStitchTool,
+    gen.showCleanupDiff, gen.cleanupDiff,
     ctx.dimFraction, ctx.dimHiId, ctx.bgDimOpacity, ctx.bgDimDesaturation,
     ctx.highlightMode, ctx.tintColor, ctx.tintOpacity, ctx.spotDimOpacity
   ]);

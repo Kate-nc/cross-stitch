@@ -1,9 +1,11 @@
 /* creator/ToolStrip.js — The main tool strip bar above the pattern canvas.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: CreatorContext (context.js) */
+   Reads from CreatorContext and GenerationContext.
+   Loaded as a plain <script> before the main Babel script.
+   Depends on: CreatorContext, GenerationContext (context.js) */
 
 window.CreatorToolStrip = function CreatorToolStrip() {
   var ctx = React.useContext(window.CreatorContext);
+  var gen = window.useGeneration();
   var h = React.createElement;
 
   // Local state
@@ -387,7 +389,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   ] : null;
 
   // Overflow menu items
-  var overlayItems = (ctx.img && ctx.img.src) ? [
+  var overlayItems = (gen.img && gen.img.src) ? [
     h("button", {
       key:"overlay-btn",
       className:"tb-ovf-item"+(ctx.showOverlay?" tb-ovf-item--on":""),
