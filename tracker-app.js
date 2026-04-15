@@ -2572,6 +2572,39 @@ function handleStitchMouseDown(e){
 
   if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
 
+  // ═══ Range mode (2-click rectangle, desktop) ═══
+  if(rangeModeActive&&!halfStitchTool&&stitchMode==="track"&&!e.shiftKey){
+    if(!rangeAnchor){
+      // First click: toggle this cell and set it as the anchor; do NOT start drag
+      let nv=done[idx]?0:1;
+      const oldVal=done[idx];
+      done[idx]=nv;
+      drawCellDirectly(idx,nv);
+      pushTrackHistory([{idx,oldVal}]);
+      applyDoneCountsDelta([{idx,oldVal}],pat,done);
+      setDone(new Uint8Array(done));
+      lastClickedRef.current={idx,row:gy,col:gx,val:nv};
+      setRangeAnchor({idx,row:gy,col:gx,val:nv});
+    }else{
+      // Second click: fill rectangle from anchor to here
+      const a=rangeAnchor;
+      const minR=Math.min(a.row,gy),maxR=Math.max(a.row,gy);
+      const minC=Math.min(a.col,gx),maxC=Math.max(a.col,gx);
+      const targetVal=a.val;
+      const changes=[];
+      for(let r=minR;r<=maxR;r++){for(let c=minC;c<=maxC;c++){
+        const ci=r*sW+c;const cell=pat[ci];
+        if(cell.id==="__skip__"||cell.id==="__empty__")continue;
+        if(done[ci]!==targetVal){changes.push({idx:ci,oldVal:done[ci]});done[ci]=targetVal;}
+      }}
+      if(changes.length){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,done);setDone(new Uint8Array(done));renderStitch();}
+      lastClickedRef.current={idx,row:gy,col:gx,val:targetVal};
+      setRangeAnchor(null);
+    }
+    e.preventDefault();
+    return;
+  }
+
   // ═══ Shift+Click range fill ═══
   if(e.shiftKey&&lastClickedRef.current&&!halfStitchTool&&stitchMode==="track"){
     const a=lastClickedRef.current;
@@ -2813,11 +2846,17 @@ function handleTouchEnd(e){
       if(rangeModeActive&&!halfStitchTool){
         const gx=idx%sW,gy=Math.floor(idx/sW);
         if(!rangeAnchor){
-          // First tap sets anchor
+          // First tap: toggle the anchor cell AND record it as the anchor
           const nv=ts.tapVal;
+          const nd=new Uint8Array(done);
+          nd[idx]=nv;
+          pushTrackHistory([{idx,oldVal:done[idx]}]);
+          applyDoneCountsDelta([{idx,oldVal:done[idx]}],pat,nd);
+          setDone(nd);
+          drawCellDirectly(idx,nv);
           setRangeAnchor({idx,row:gy,col:gx,val:nv});
         }else{
-          // Second tap fills rectangle
+          // Second tap fills rectangle then clears anchor
           const a=rangeAnchor;
           const minR=Math.min(a.row,gy),maxR=Math.max(a.row,gy);
           const minC=Math.min(a.col,gx),maxC=Math.max(a.col,gx);
@@ -2840,6 +2879,7 @@ function handleTouchEnd(e){
             setDone(new Uint8Array(done));
             renderStitch();
           }
+          setRangeAnchor(null);
         }
       }else{
         const nv=ts.tapVal;
@@ -3369,7 +3409,7 @@ return(
 
     {isEditMode && <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>}
     {!shortcutsHintDismissed&&pat&&!isEditMode&&<div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>}
-    {!isEditMode && stitchMode==="track"&&!halfStitchTool&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
+    {!isEditMode && stitchMode==="track"&&!halfStitchTool&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{rangeModeActive?(rangeAnchor?(hasTouchRef.current?"Anchor set — tap second corner to fill rectangle":"Anchor set — click second corner to fill the rectangle · Esc to cancel"):(hasTouchRef.current?"Range mode — tap first corner of the rectangle":"Range mode — click first corner, then click second corner to mark a rectangle · Esc to cancel")):(hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag to pan · Ctrl+scroll to zoom · Shift+click for rectangle fill · Ctrl+Z undo")}{!rangeModeActive&&trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
     {!isEditMode && halfStitchTool&&halfStitchTool!=="erase"&&<div style={{fontSize:12,color:"#0284c7",background:"#e0f2fe",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #7dd3fc"}}>
       <strong>Half stitch {halfStitchTool==="fwd"?"/":"\\"}</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to place{selectedColorId&&cmap&&cmap[selectedColorId]?` using DMC ${selectedColorId}`:" using cell colour"}. {hasTouchRef.current?"Tap":"Click"} again to remove. Counts as 0.5 stitch.
     </div>}
