@@ -5,6 +5,223 @@ function uint8ToBase64(bytes){
   for(var i=0;i<bytes.length;i+=CHUNK)out+=String.fromCharCode.apply(null,bytes.subarray(i,i+CHUNK));
   return btoa(out);
 }
+
+// Standalone realistic preview modal for the tracker.
+// Adapted from creator/RealisticCanvas.js — no CreatorContext required.
+function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClose}){
+  var displayRef=React.useRef(null);
+  var offscreenRef=React.useRef(null);
+  var realisticRafRef=React.useRef(null);
+  var _offV=React.useState(0);var offscreenVersion=_offV[0],setOffscreenVersion=_offV[1];
+
+  // Effect A: render the full offscreen realistic canvas (identical logic to RealisticCanvas.js)
+  React.useEffect(function(){
+    if(!pat||!sW||!sH)return;
+    if(realisticRafRef.current)cancelAnimationFrame(realisticRafRef.current);
+    realisticRafRef.current=requestAnimationFrame(function(){
+      realisticRafRef.current=null;
+      var MAX_DIM=8192;
+      var maxCellSz=(level>=3)?32:16;
+      var rawCellSz=Math.floor(Math.min(MAX_DIM/sW,MAX_DIM/sH));
+      if(rawCellSz<1)return;
+      var CELL_SIZE=Math.max(4,Math.min(maxCellSz,rawCellSz));
+      var canvasW=sW*CELL_SIZE,canvasH=sH*CELL_SIZE;
+      var offscreen=document.createElement("canvas");
+      offscreen.width=canvasW;offscreen.height=canvasH;
+      var oc=offscreen.getContext("2d");
+      if(!oc)return;
+      var FR=245,FG=240,FB=230;
+      oc.fillStyle="rgb("+FR+","+FG+","+FB+")";
+      oc.fillRect(0,0,canvasW,canvasH);
+      var weaveStep=Math.max(3,Math.round(CELL_SIZE/4));
+      var fabricTile=document.createElement("canvas");
+      fabricTile.width=CELL_SIZE;fabricTile.height=CELL_SIZE;
+      var ftc=fabricTile.getContext("2d");
+      if(ftc){
+        ftc.fillStyle="rgb("+FR+","+FG+","+FB+")";
+        ftc.fillRect(0,0,CELL_SIZE,CELL_SIZE);
+        ftc.strokeStyle="rgba("+(Math.max(0,FR-10))+","+(Math.max(0,FG-10))+","+(Math.max(0,FB-10))+",0.07)";
+        ftc.lineWidth=1;
+        for(var wxi=0;wxi<CELL_SIZE;wxi+=weaveStep){ftc.beginPath();ftc.moveTo(wxi+0.5,0);ftc.lineTo(wxi+0.5,CELL_SIZE);ftc.stroke();}
+        for(var wyi=0;wyi<CELL_SIZE;wyi+=weaveStep){ftc.beginPath();ftc.moveTo(0,wyi+0.5);ftc.lineTo(CELL_SIZE,wyi+0.5);ftc.stroke();}
+        var weavePattern=oc.createPattern(fabricTile,"repeat");
+        oc.fillStyle=weavePattern||("rgb("+FR+","+FG+","+FB+")");
+        oc.fillRect(0,0,canvasW,canvasH);
+      }
+      var SC;var fc=fabricCt||14;
+      if(fc<=11){SC=3;}else if(fc<=17){SC=2;}else{SC=1;}
+      function _lerp(a,b,t){return a+(b-a)*t;}
+      function _clamp01(v){return v<0?0:v>1?1:v;}
+      var autoCoverage=_clamp01(_clamp01((fc-8)/24)*(SC/2));
+      var coverage=_clamp01(Math.round(autoCoverage/0.05)*0.05);
+      var sw=Math.max(CELL_SIZE*0.12,CELL_SIZE*_lerp(0.14,0.32,coverage));
+      var padding=Math.max(1,CELL_SIZE*_lerp(0.14,0.03,coverage));
+      var haloWidthMult=_lerp(1.1,1.5,coverage);
+      var haloOpacity=_lerp(0.06,0.18,coverage);
+      var twistAmpMult=_lerp(1.0,0.7,coverage);
+      var lvl=level;
+      function drawCross(tc,r1,g1,b1,r2,g2,b2,variant){
+        var x0=padding,y0=padding,x1=CELL_SIZE-padding,y1=CELL_SIZE-padding;
+        tc.lineCap="round";
+        if(lvl===1){
+          tc.lineWidth=sw;tc.strokeStyle="rgb("+r1+","+g1+","+b1+")";
+          tc.beginPath();tc.moveTo(x0,y1);tc.lineTo(x1,y0);tc.stroke();
+          tc.lineWidth=sw;tc.strokeStyle="rgb("+r2+","+g2+","+b2+")";
+          tc.beginPath();tc.moveTo(x0,y0);tc.lineTo(x1,y1);tc.stroke();
+        }else if(lvl===2){
+          var INV_SQ2=0.7071;var hs=sw/2;var cx=CELL_SIZE/2,cy=CELL_SIZE/2;
+          function makeGrad(perpX,perpY,r,g,b,factor){
+            var gx0=cx-perpX*hs,gy0=cy-perpY*hs,gx1=cx+perpX*hs,gy1=cy+perpY*hs;
+            var grad=tc.createLinearGradient(gx0,gy0,gx1,gy1);
+            function stop(f){return "rgb("+Math.min(255,Math.max(0,Math.round(r*f)))+","+Math.min(255,Math.max(0,Math.round(g*f)))+","+Math.min(255,Math.max(0,Math.round(b*f)))+")"}
+            grad.addColorStop(0.00,stop(factor*0.38));grad.addColorStop(0.28,stop(factor*0.90));
+            grad.addColorStop(0.50,stop(factor*1.22));grad.addColorStop(0.72,stop(factor*0.90));
+            grad.addColorStop(1.00,stop(factor*0.38));return grad;
+          }
+          tc.lineWidth=sw;tc.strokeStyle=makeGrad(INV_SQ2,INV_SQ2,r1,g1,b1,0.72);
+          tc.beginPath();tc.moveTo(x0,y1);tc.lineTo(x1,y0);tc.stroke();
+          tc.fillStyle="rgba(0,0,0,0.28)";tc.beginPath();tc.arc(cx,cy,sw*0.75,0,Math.PI*2);tc.fill();
+          tc.lineWidth=sw;tc.strokeStyle=makeGrad(INV_SQ2,-INV_SQ2,r2,g2,b2,1.15);
+          tc.beginPath();tc.moveTo(x0,y0);tc.lineTo(x1,y1);tc.stroke();
+        }else{
+          var SN=20,TF=2.5,TA=sw*0.3*twistAmpMult,ISW=sw/SC*1.2;
+          var IS_BLEND=!(r1===r2&&g1===g2&&b1===b2);
+          var lCX=CELL_SIZE/2,lCY=CELL_SIZE/2;
+          function hashVar(seed,si){var hv=((seed*1619)^(si*31337))|0;hv=(hv^(hv>>>13))*1540483477|0;hv=hv^(hv>>>15);return(((hv%8)+8)%8)-4;}
+          function mkPts(lsx,lsy,lex,ley,angle,si){var px=-Math.sin(angle),py=Math.cos(angle);var phase=si*(2*Math.PI/SC);var pts=[];for(var n=0;n<=SN;n++){var t=n/SN;var off=Math.sin(t*TF*2*Math.PI+phase)*TA;pts.push(lsx+(lex-lsx)*t+px*off,lsy+(ley-lsy)*t+py*off);}return pts;}
+          function drawStrand3(pts,fR,fGc,fBlu){
+            tc.beginPath();tc.moveTo(pts[0],pts[1]);for(var k=2;k<pts.length;k+=2)tc.lineTo(pts[k],pts[k+1]);
+            tc.lineWidth=ISW*haloWidthMult;tc.strokeStyle="rgba("+fR+","+fGc+","+fBlu+","+haloOpacity+")";tc.stroke();
+            tc.beginPath();tc.moveTo(pts[0],pts[1]);for(var k=2;k<pts.length;k+=2)tc.lineTo(pts[k],pts[k+1]);
+            tc.lineWidth=ISW;tc.strokeStyle="rgb("+fR+","+fGc+","+fBlu+")";tc.stroke();
+          }
+          function drawLeg3(lsx,lsy,lex,ley,angle,aR,aG,aB,bR,bG,bB,bright){
+            for(var si=0;si<SC;si++){
+              var sR,sGv,sB;
+              if(IS_BLEND){if(si%2===0){sR=aR;sGv=aG;sB=aB;}else{sR=bR;sGv=bG;sB=bB;}}
+              else{var vv=hashVar(variant*17+si,si);sR=Math.min(255,Math.max(0,aR+vv));sGv=Math.min(255,Math.max(0,aG+vv));sB=Math.min(255,Math.max(0,aB+vv));}
+              var dfR=Math.min(255,Math.max(0,Math.round(sR*bright)));
+              var dfG=Math.min(255,Math.max(0,Math.round(sGv*bright)));
+              var dfBlu=Math.min(255,Math.max(0,Math.round(sB*bright)));
+              drawStrand3(mkPts(lsx,lsy,lex,ley,angle,si),dfR,dfG,dfBlu);
+            }
+          }
+          function drawLeg3a(lsx,lsy,lex,ley,angle,aR,aG,aB,bR,bG,bB,bright){
+            if(!IS_BLEND||SC<2){drawLeg3(lsx,lsy,lex,ley,angle,aR,aG,aB,bR,bG,bB,bright);return;}
+            var pts0=mkPts(lsx,lsy,lex,ley,angle,0);var pts1=mkPts(lsx,lsy,lex,ley,angle,1);
+            function applyBright(r,g,b){return "rgb("+Math.min(255,Math.max(0,Math.round(r*bright)))+","+Math.min(255,Math.max(0,Math.round(g*bright)))+","+Math.min(255,Math.max(0,Math.round(b*bright)))+")"}
+            var cssA=applyBright(aR,aG,aB),cssB=applyBright(bR,bG,bB);
+            var crossIdx=[0];
+            for(var ck=1;ck<=Math.ceil(2*TF);ck++){var ci=Math.round(ck/(2*TF)*SN);if(ci>0&&ci<SN)crossIdx.push(ci);}
+            crossIdx.push(SN);
+            function drawSeg(pts,n0,n1,css){if(n1<=n0)return;tc.beginPath();tc.moveTo(pts[n0*2],pts[n0*2+1]);for(var k=n0+1;k<=n1;k++)tc.lineTo(pts[k*2],pts[k*2+1]);tc.lineWidth=ISW;tc.strokeStyle=css;tc.stroke();}
+            for(var seg=0;seg<crossIdx.length-1;seg++){
+              var n0=crossIdx[seg],n1=crossIdx[seg+1];
+              var midT=(n0+n1)/2/SN;var s0Front=Math.sin(midT*TF*2*Math.PI)>=0;
+              if(s0Front){drawSeg(pts1,n0,n1,cssB);drawSeg(pts0,n0,n1,cssA);}
+              else{drawSeg(pts0,n0,n1,cssA);drawSeg(pts1,n0,n1,cssB);}
+            }
+          }
+          tc.lineCap="round";tc.lineJoin="round";
+          var drawLegFn=(lvl===4)?drawLeg3a:drawLeg3;
+          drawLegFn(x0,y1,x1,y0,-Math.PI/4,r1,g1,b1,r2,g2,b2,0.78);
+          tc.fillStyle="rgba("+FR+","+FG+","+FB+",0.15)";tc.beginPath();tc.arc(lCX,lCY,sw*0.75,0,Math.PI*2);tc.fill();
+          drawLegFn(x0,y0,x1,y1,Math.PI/4,r1,g1,b1,r2,g2,b2,1.15);
+          var hlPts=mkPts(x0,y0,x1,y1,Math.PI/4,0);
+          tc.lineWidth=ISW*0.3;tc.strokeStyle="rgba(255,255,255,0.13)";
+          tc.beginPath();tc.moveTo(hlPts[0],hlPts[1]);for(var k=2;k<hlPts.length;k+=2)tc.lineTo(hlPts[k],hlPts[k+1]);tc.stroke();
+        }
+      }
+      var tileCache={};
+      function getTile(rgb,rgb2,variant){
+        var r1=rgb[0],g1=rgb[1],b1=rgb[2];
+        var r2=rgb2?rgb2[0]:r1,g2=rgb2?rgb2[1]:g1,b2=rgb2?rgb2[2]:b1;
+        var key=r1+","+g1+","+b1+"|"+r2+","+g2+","+b2+"|cov:"+coverage;
+        if(lvl===3||lvl===4)key+=":"+(variant|0);
+        if(tileCache[key])return tileCache[key];
+        var tileC=document.createElement("canvas");tileC.width=CELL_SIZE;tileC.height=CELL_SIZE;
+        var tc=tileC.getContext("2d");
+        drawCross(tc,r1,g1,b1,r2,g2,b2,variant|0);
+        tileCache[key]=tileC;return tileC;
+      }
+      var colourFreq={};
+      if(lvl===3||lvl===4){
+        for(var ci=0;ci<pat.length;ci++){
+          var cc=pat[ci];
+          if(!cc||cc.id==="__skip__"||cc.id==="__empty__")continue;
+          var cKey;
+          if(cc.id&&cc.id.indexOf("+")!==-1){cKey=cc.id;}
+          else{var cRgb=cc.rgb;if(!cRgb&&cmap){var cLk=cmap[cc.id];if(cLk)cRgb=cLk.rgb;}if(cRgb)cKey=cRgb[0]+","+cRgb[1]+","+cRgb[2];}
+          if(cKey)colourFreq[cKey]=(colourFreq[cKey]||0)+1;
+        }
+      }
+      for(var i=0;i<pat.length;i++){
+        var cell=pat[i];
+        if(!cell||cell.id==="__skip__"||cell.id==="__empty__")continue;
+        var cellCol=i%sW,cellRow=Math.floor(i/sW);
+        var cellX=cellCol*CELL_SIZE,cellY=cellRow*CELL_SIZE;
+        var rgb=cell.rgb,rgb2=null;
+        if(cell.id&&cell.id.indexOf("+")!==-1){
+          var blendParts=cell.id.split("+");
+          var e1=cmap&&cmap[blendParts[0]];var e2=cmap&&cmap[blendParts[1]];
+          if(e1)rgb=e1.rgb;if(e2)rgb2=e2.rgb;
+        }
+        if(!rgb&&cmap){var lookup=cmap[cell.id];if(lookup)rgb=lookup.rgb;}
+        if(!rgb)continue;
+        var variant3=0;
+        if(lvl===3){
+          var vKey;
+          if(cell.id&&cell.id.indexOf("+")!==-1){vKey=cell.id;}
+          else{vKey=rgb[0]+","+rgb[1]+","+rgb[2];}
+          if(vKey&&colourFreq[vKey]>=30)variant3=(cellCol+cellRow*3)%4;
+        }
+        oc.drawImage(getTile(rgb,rgb2,variant3),cellX,cellY);
+      }
+      offscreenRef.current=offscreen;
+      setOffscreenVersion(function(v){return v+1;});
+    });
+    return function(){if(realisticRafRef.current){cancelAnimationFrame(realisticRafRef.current);realisticRafRef.current=null;}};
+  },[pat,cmap,sW,sH,level,fabricCt]);
+
+  // Effect B: scale the offscreen canvas to the display canvas
+  React.useEffect(function(){
+    if(!offscreenRef.current||!displayRef.current||!sW||!sH)return;
+    var off=offscreenRef.current;
+    var displayCs=Math.max(2,Math.min(16,Math.floor(700/sW),Math.floor(500/sH)));
+    var canvas=displayRef.current;
+    canvas.width=sW*displayCs;canvas.height=sH*displayCs;
+    var ctx2d=canvas.getContext("2d");
+    ctx2d.imageSmoothingEnabled=true;ctx2d.imageSmoothingQuality="high";
+    ctx2d.drawImage(off,0,0,sW*displayCs,sH*displayCs);
+  },[offscreenVersion,sW,sH]);
+
+  var lvlLabels=["","Flat","Shaded","Detailed","Detailed+blend"];
+  var fc2=fabricCt||14;var sc2=fc2<=11?3:fc2<=17?2:1;
+  return (
+    <div className="modal-overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}} style={{zIndex:1200}}>
+      <div className="modal-box" style={{maxWidth:"min(90vw,900px)",maxHeight:"90vh",display:"flex",flexDirection:"column",padding:0,overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderBottom:"1px solid #e2e8f0",flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontWeight:700,fontSize:15}}>Realistic preview</span>
+            <div style={{display:"flex",gap:4}}>
+              {[1,2,3,4].map(function(l){
+                return <button key={l} onClick={function(){onLevelChange(l);}} style={{padding:"3px 8px",borderRadius:5,border:"1px solid "+(level===l?"#0d9488":"#e2e8f0"),background:level===l?"#f0fdfa":"#fff",color:level===l?"#0d9488":"#475569",fontSize:11,fontWeight:600,cursor:"pointer"}}>{lvlLabels[l]}</button>;
+              })}
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b",lineHeight:1,padding:"0 4px"}}>&times;</button>
+        </div>
+        <div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:"#f8fafc",padding:16}}>
+          <canvas ref={displayRef} style={{display:"block",maxWidth:"100%",maxHeight:"calc(90vh - 100px)",imageRendering:"auto"}}/>
+        </div>
+        <div style={{padding:"8px 16px",borderTop:"1px solid #e2e8f0",flexShrink:0,fontSize:11,color:"#64748b"}}>
+          {sW}\u00D7{sH} \u00B7 {fc2}-count\u00B7 {sc2} strand{sc2!==1?"s":""}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80),[sH,setSH]=useState(80);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null);
@@ -64,6 +281,8 @@ const totalTime=useMemo(()=>{if(!statsSessions||statsSessions.length===0)return 
 const[statsSettings,setStatsSettings]=useState({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true});
 const[statsView,setStatsView]=useState(false);
 const[statsTab,setStatsTab]=useState('all');
+const[trackerPreviewOpen,setTrackerPreviewOpen]=useState(false);
+const[trackerPreviewLevel,setTrackerPreviewLevel]=useState(2);
 const[celebration,setCelebration]=useState(null);
 const celebratedRef=useRef(new Set());
 const goalCelebrationRef=useRef({daily:false,weekly:false,monthly:false});
@@ -143,15 +362,8 @@ const[selectedColorId,setSelectedColorId]=useState(null);
 const[halfStitches,setHalfStitches]=useState(new Map());
 // Sparse map: cellIdx → { fwd?: 0|1, bck?: 0|1 }
 const[halfDone,setHalfDone]=useState(new Map());
-const[halfStitchTool,setHalfStitchTool]=useState(null); // null, "fwd", "bck", "erase"
-useEffect(()=>{if(stitchMode!=="track"||halfStitchTool){setRangeModeActive(false);setRangeAnchor(null);}},[stitchMode,halfStitchTool]);
-const[halfStitchTooltipDismissed,setHalfStitchTooltipDismissed]=useState(false);
-const[halfOnboardingDone,setHalfOnboardingDone]=useState(false);
-const[halfOnboardingStep,setHalfOnboardingStep]=useState(0);
-const[showHalfOnboarding,setShowHalfOnboarding]=useState(false);
+useEffect(()=>{if(stitchMode!=="track"){setRangeModeActive(false);setRangeAnchor(null);}},[stitchMode]);
 const[halfDisambig,setHalfDisambig]=useState(null); // {x, y, idx} for popup
-const halfEverPlaced=useRef(false);
-const[halfToast,setHalfToast]=useState(null);
 
 const[hoverInfo,setHoverInfo]=useState(null);
 const hoverRefs = useRef({ row: null, col: null });
@@ -195,6 +407,8 @@ const threadUsageRafRef=useRef(null);
 const[recDismissed,setRecDismissed]=useState(()=>new Set());
 const[recShowMore,setRecShowMore]=useState(false);
 const[recEnabled,setRecEnabled]=useState(()=>{try{return localStorage.getItem("cs_recEnabled")!=="0";}catch(_){return true;}});
+const[rpanelTab,setRpanelTab]=useState("colours");
+const[mobileDrawerOpen,setMobileDrawerOpen]=useState(false);
 
 const [importDialog, setImportDialog] = useState(null);
 const [importImage, setImportImage] = useState(null);
@@ -217,10 +431,15 @@ const[namePromptOpen,setNamePromptOpen]=useState(false);
 const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
 const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});
-const[halfMenuOpen,setHalfMenuOpen]=useState(false);
+const STITCH_LAYERS=[{id:'full',label:'Full Cross',key:'F'},{id:'half',label:'Half Stitch',key:'H'},{id:'backstitch',label:'Backstitch',key:'B'},{id:'quarter',label:'Quarter',key:null},{id:'petite',label:'Petite',key:null},{id:'french_knot',label:'French Knot',key:'K'},{id:'long_stitch',label:'Long Stitch',key:null}];
+const ALL_LAYERS_VISIBLE={full:true,half:true,backstitch:true,quarter:true,petite:true,french_knot:true,long_stitch:true};
+const[layerVis,setLayerVis]=useState(ALL_LAYERS_VISIBLE);
+const[soloPreState,setSoloPreState]=useState(null);
+const[bsThickness,setBsThickness]=useState(()=>{try{return parseInt(localStorage.getItem('cs_bsThickness')||'2');}catch(_){return 2;}});
+const[statsCountMode,setStatsCountMode]=useState('visible');
 const tStripRef=useRef(null);
 const tOverflowRef=useRef(null);
-const halfMenuRef=useRef(null);
+const soloTimerRef=useRef(null);
 
 const doneCount=countsVer>=0?doneCountRef.current:0;
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id!=="__skip__"&&id!=="__empty__")c++;}return c;},[pat]);
@@ -242,16 +461,28 @@ const halfStitchCounts=useMemo(()=>{
 // Combined progress: full stitches + half stitches weighted at 0.5
 const combinedTotal=totalStitchable+halfStitchCounts.total*0.5;
 const combinedDone=doneCount+halfStitchCounts.done*0.5;
-const progressPct=combinedTotal>0?Math.round(combinedDone/combinedTotal*1000)/10:0;
+// Effective progress respects visible-layer filter
+const effectiveCombinedTotal=statsCountMode==='visible'?(layerVis.full?totalStitchable:0)+(layerVis.half?halfStitchCounts.total*0.5:0):combinedTotal;
+const effectiveCombinedDone=statsCountMode==='visible'?(layerVis.full?doneCount:0)+(layerVis.half?halfStitchCounts.done*0.5:0):combinedDone;
+const progressPct=effectiveCombinedTotal>0?Math.round(effectiveCombinedDone/effectiveCombinedTotal*1000)/10:0;
 // Today's stitches for progress bar accent segment
 const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsTodayStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
-const todayBarPct=combinedTotal>0?Math.min((todayStitchesForBar/combinedTotal)*100,Math.min(progressPct,100)):0;
+const todayBarPct=effectiveCombinedTotal>0?Math.min((todayStitchesForBar/effectiveCombinedTotal)*100,Math.min(progressPct,100)):0;
 const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
 
 const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
-
+const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:0,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length]);
 // Full recompute only on structural changes (pattern load, half-stitch structure edits)
 useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches]);
+useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_layerVis_'+pid,JSON.stringify(layerVis));}catch(_){}},[layerVis]);
+useEffect(()=>{try{localStorage.setItem('cs_bsThickness',String(bsThickness));}catch(_){}},[bsThickness]);
+// ── Zoom-adaptive detail level ──
+const[lockDetailLevel,setLockDetailLevel]=useState(()=>{try{return !!JSON.parse(localStorage.getItem('cs_lockDetail')||'false');}catch(_){return false;}});
+useEffect(()=>{try{localStorage.setItem('cs_lockDetail',String(lockDetailLevel));}catch(_){}},[lockDetailLevel]);
+// tierRef: current render tier (1–4) with hysteresis; default zoom=1→scs=20→Tier 3
+const tierRef=useRef(3);
+const tierFadeRef=useRef({symbolOpacity:1.0,bsHsOpacity:1.0,animRafId:null});
+const renderStitchRef=useRef(null);
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
@@ -1565,7 +1796,6 @@ function processLoadedProject(project){
   } else {
     setHalfDone(new Map());
   }
-  setHalfStitchTool(null);
   setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);setRedoStack([]);
   if(project.settings && project.settings.pdfSettings) setPdfSettings(project.settings.pdfSettings);
   setThreadOwned(project.threadOwned||{});
@@ -1619,6 +1849,7 @@ function processLoadedProject(project){
   if(project.hlCol>=0)setHlCol(project.hlCol);
   setProjectName(project.name||"");
   projectIdRef.current = project.id || null;
+  try{const saved=localStorage.getItem('cs_layerVis_'+(project.id||''));if(saved)setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);}catch(_){setLayerVis(ALL_LAYERS_VISIBLE);}
   const normalisedCreatedAt=(()=>{
     const value=project.createdAt;
     if(value==null||value==="")return null;
@@ -1964,6 +2195,21 @@ useEffect(() => {
     halfStitches, halfDone, parkMarkers, totalTime, liveAutoElapsed, sessions, hlRow, hlCol,
     threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots]);
 
+// ── Zoom-adaptive tier helpers ──
+// Compute rendering tier (1–4) from cell size with hysteresis.
+// Thresholds — appear/disappear: T1↔T2 5px/3px, T2↔T3 13px/10px, T3↔T4 26px/22px
+function computeDetailTier(cSz,cur){
+  let t=cur;
+  for(let i=0;i<4;i++){let n=t;if(t===1){if(cSz>=5)n=2;}else if(t===2){if(cSz<3)n=1;else if(cSz>=13)n=3;}else if(t===3){if(cSz<10)n=2;else if(cSz>=26)n=4;}else{if(cSz<22)n=3;}if(n===t)break;t=n;}
+  return t;
+}
+// Symbol font size: Tier 3 (12–24px) scales 7→14px linearly; Tier 4 continues growing
+function tierSymFontSz(cSz){
+  if(cSz<=12)return 7;
+  if(cSz<=24)return Math.round(7+(cSz-12)*7/12);
+  return Math.round(14+(cSz-24)*0.5);
+}
+
 // ═══ Half-stitch cell rendering ═══
 // Renders half-stitch triangle fills, diagonal lines, and symbols for one cell.
 // Called from inside drawStitch and drawCellDirectly.
@@ -2052,14 +2298,16 @@ function _drawHalfStitchCell(ctx, px, py, cSz, hs, hd, cmap, view, focusColour, 
 function drawStitch(ctx,cSz,viewportRect){
   let gut=G,dW=sW,dH=sH;
 
-  // Clear full canvas — single fillRect is GPU-accelerated regardless of size,
-  // and avoids stale-cell jerk when scroll reveals previously undrawn areas.
+  // Determine effective tier and animated feature opacities
+  const tier=lockDetailLevel?3:tierRef.current;
+  const symAlpha=lockDetailLevel?1.0:tierFadeRef.current.symbolOpacity;
+  const bsHsAlpha=lockDetailLevel?1.0:tierFadeRef.current.bsHsOpacity;
+
   ctx.fillStyle="#fff";
   ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
 
-  // Compute cell draw range: viewport + overdraw buffer so cells just off-screen
-  // are pre-rendered before scrolling reveals them.
-  const OVERDRAW=400;
+  // Viewport culling: 20-cell overdraw buffer for smooth panning
+  const OVERDRAW=Math.max(40,20*cSz);
   let startX=0,startY=0,endX=dW,endY=dH;
   if(viewportRect){
     startX=Math.max(0,Math.floor((viewportRect.left-gut-OVERDRAW)/cSz));
@@ -2068,18 +2316,18 @@ function drawStitch(ctx,cSz,viewportRect){
     endY=Math.min(dH,Math.ceil((viewportRect.bottom-gut+OVERDRAW)/cSz));
   }
 
-  // Hoist font strings — same for all cells at a given zoom level
-  const fSym=`bold ${Math.max(7,cSz*0.65)}px monospace`;
-  const fCol=`bold ${Math.max(7,cSz*0.6)}px monospace`;
-  const fHlDim=`${Math.max(6,cSz*0.45)}px monospace`;
-  const fHlFocus=`bold ${Math.max(7,cSz*0.7)}px monospace`;
+  // Tier-aware font sizes
+  const symPx=tierSymFontSz(cSz);
+  const fSym=`bold ${symPx}px monospace`;
+  const fCol=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;
+  const fHlDim=`${Math.max(6,Math.round(cSz*0.45))}px monospace`;
+  const fHlFocus=`bold ${symPx}px monospace`;
   ctx.textAlign="center";ctx.textBaseline="middle";
 
-  // Zoom thresholds for half-stitch rendering detail
-  const zoomPct = stitchZoom * 100;
-  const hsLowZoom = zoomPct < 40;
-  const hsMedZoom = zoomPct >= 40 && zoomPct <= 80;
-  const hsHighZoom = zoomPct > 80;
+  // Half-stitch detail flags — driven by tier rather than raw zoom percentage
+  const hsLowZoom=tier===2;   // Tier 2: triangle fill only
+  const hsMedZoom=tier===3;   // Tier 3: triangle + diagonal line
+  const hsHighZoom=tier>=4;   // Tier 4: full detail (tri + line + symbol)
 
   for(let y=startY;y<endY;y++){
     for(let x=startX;x<endX;x++){
@@ -2087,45 +2335,72 @@ function drawStitch(ctx,cSz,viewportRect){
       let info=(m.id==="__skip__"||m.id==="__empty__")?null:(cmap?cmap[m.id]:null);
       let px=gut+x*cSz,py=gut+y*cSz;
       let isDn=done&&done[idx];
+
+      // ── Tier 1 fast path: flat color blocks, no symbols, no cell borders ──
+      if(tier===1){
+        if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle="#f0f4f8";ctx.fillRect(px,py,cSz,cSz);continue;}
+        if(isDn){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+        else{const r2=Math.round(m.rgb[0]*0.45+255*0.55),g2=Math.round(m.rgb[1]*0.45+255*0.55),b2=Math.round(m.rgb[2]*0.45+255*0.55);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
+        continue;
+      }
+
       let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__"&&m.id!=="__empty__";
       const effectiveDimmed=dimmed&&highlightMode!=="outline"&&highlightMode!=="tint";
-      // Dim level: 0=white, 1=full colour; used by isolate/spotlight backgrounds
       const dimR=Math.round(255-(255-m.rgb[0])*trackerDimLevel),dimG=Math.round(255-(255-m.rgb[1])*trackerDimLevel),dimB=Math.round(255-(255-m.rgb[2])*trackerDimLevel);
       const dimFill=effectiveDimmed?`rgb(${dimR},${dimG},${dimB})`:'#f1f5f9';
       if(m.id==="__skip__"||m.id==="__empty__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}
-        // Half stitches on skip/empty cells
         let hs=halfStitches.get(idx);
-        if(hs){
+        if(hs&&layerVis.half&&bsHsAlpha>0.01){
           let hd=halfDone.get(idx)||{};
+          ctx.save();ctx.globalAlpha=bsHsAlpha;
           _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,hsLowZoom,hsMedZoom,hsHighZoom);
+          ctx.restore();
         }
         continue;
       }
+      if(layerVis.full){
       if(stitchView==="symbol"){
         if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-        else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#1e293b";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+        else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
       }else if(stitchView==="colour"){
         ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-        if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+        if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
       }else if(highlightMode==="outline"||highlightMode==="tint"){
         ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-        if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
+        if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
         if(highlightMode==="tint"&&focusColour&&m.id===focusColour){const tr=parseInt(tintColor.slice(1,3),16),tg=parseInt(tintColor.slice(3,5),16),tb=parseInt(tintColor.slice(5,7),16);ctx.fillStyle=`rgba(${tr},${tg},${tb},${tintOpacity})`;ctx.fillRect(px,py,cSz,cSz);}
       }else if(highlightMode==="spotlight"){
         if(dimmed){ctx.fillStyle="#e8ecf0";ctx.fillRect(px,py,cSz,cSz);}
-        else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
+        else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
       }else{
         if(isDn){ctx.fillStyle=effectiveDimmed?dimFill:`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-        else if(dimmed){ctx.fillStyle=dimFill;ctx.fillRect(px,py,cSz,cSz);if(trackerDimLevel<0.25&&info&&cSz>=8){ctx.fillStyle=`rgba(0,0,0,${Math.max(0.04,0.12-trackerDimLevel*0.4)})`;ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}else if(trackerDimLevel>=0.25&&info&&cSz>=8){ctx.fillStyle=luminance(m.rgb)>140?'rgba(0,0,0,0.5)':'rgba(255,255,255,0.6)';ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-        else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#1e293b";ctx.font=fHlFocus;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+        else if(dimmed){ctx.fillStyle=dimFill;ctx.fillRect(px,py,cSz,cSz);if(symAlpha>0.01&&trackerDimLevel<0.25&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=`rgba(0,0,0,${Math.max(0.04,0.12-trackerDimLevel*0.4)})`;ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}else if(symAlpha>0.01&&trackerDimLevel>=0.25&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?'rgba(0,0,0,0.5)':'rgba(255,255,255,0.6)';ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+        else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=fHlFocus;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
       }
-      // Render half stitches on top of full-stitch cells
+      // Tier 4: thread ID secondary label below the symbol (cell > 40px)
+      if(tier>=4&&cSz>40&&info&&symAlpha>0.01&&m.id!=="__skip__"&&m.id!=="__empty__"){
+        ctx.save();ctx.globalAlpha=symAlpha*0.7;ctx.fillStyle="rgba(100,116,139,1)";
+        ctx.font=`${Math.max(6,Math.round(cSz*0.2))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+        ctx.fillText(m.id,px+cSz/2,py+cSz*0.8);ctx.restore();
+      }
+      } // end layerVis.full
+      // Tier 4: stitch direction indicators on undone full-stitch cells (cell > 40px)
+      if(tier>=4&&cSz>40&&m.id!=="__skip__"&&m.id!=="__empty__"&&!isDn&&layerVis.full){
+        ctx.save();ctx.globalAlpha=0.1;ctx.strokeStyle="#333";ctx.lineWidth=0.8;
+        const pd4=Math.max(2,cSz*0.12);
+        ctx.beginPath();ctx.moveTo(px+pd4,py+cSz-pd4);ctx.lineTo(px+cSz-pd4,py+pd4);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(px+pd4,py+pd4);ctx.lineTo(px+cSz-pd4,py+cSz-pd4);ctx.stroke();
+        ctx.restore();
+      }
+      // Render half stitches on top of full-stitch cells (faded at T1 boundary)
       let hs=halfStitches.get(idx);
-      if(hs){
+      if(hs&&layerVis.half&&bsHsAlpha>0.01){
         let hd=halfDone.get(idx)||{};
-        _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,effectiveDimmed,hsLowZoom,hsMedZoom,hsHighZoom);
+        ctx.save();ctx.globalAlpha=bsHsAlpha;
+        _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,layerVis.full?effectiveDimmed:false,hsLowZoom,hsMedZoom,hsHighZoom);
+        ctx.restore();
       }
-      if(cSz>=4){ctx.strokeStyle=effectiveDimmed?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+      if(cSz>=4){ctx.strokeStyle=(effectiveDimmed&&layerVis.full)?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
     }
   }
 
@@ -2152,18 +2427,24 @@ function drawStitch(ctx,cSz,viewportRect){
     ctx.setLineDash([]);ctx.restore();
   }
 
-  // Grid lines — only within visible range
-  if(cSz>=3){
+  // Grid lines — tier-adaptive
+  if(tier===1){
+    // Tier 1: only 10-block lines, subtle spatial reference
+    ctx.lineWidth=1;
+    for(let gx=startX;gx<=endX;gx++){if(gx%10!==0)continue;ctx.strokeStyle="rgba(204,204,204,0.4)";ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut+startY*cSz);ctx.lineTo(gut+gx*cSz,gut+endY*cSz);ctx.stroke();}
+    for(let gy=startY;gy<=endY;gy++){if(gy%10!==0)continue;ctx.strokeStyle="rgba(204,204,204,0.4)";ctx.beginPath();ctx.moveTo(gut+startX*cSz,gut+gy*cSz);ctx.lineTo(gut+endX*cSz,gut+gy*cSz);ctx.stroke();}
+  }else{
+    const gridOp=tier===2?0.30:tier===3?0.50:0.60;
+    const grid10Op=tier===2?0.60:tier===3?0.90:1.0;
+    const grid10Lw=tier>=4?2:1;
     for(let gx=startX;gx<=endX;gx++){
-      if(gx%10===0){ctx.strokeStyle="#444";ctx.lineWidth=2;}
-      else if(gx%5===0){ctx.strokeStyle="#aaa";ctx.lineWidth=1;}
-      else continue;
+      const is10=gx%10===0,is5=gx%5===0;if(!is5&&!is10)continue;
+      ctx.lineWidth=is10?grid10Lw:1;ctx.strokeStyle=is10?`rgba(68,68,68,${grid10Op})`:`rgba(170,170,170,${gridOp})`;
       ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut+startY*cSz);ctx.lineTo(gut+gx*cSz,gut+endY*cSz);ctx.stroke();
     }
     for(let gy=startY;gy<=endY;gy++){
-      if(gy%10===0){ctx.strokeStyle="#444";ctx.lineWidth=2;}
-      else if(gy%5===0){ctx.strokeStyle="#aaa";ctx.lineWidth=1;}
-      else continue;
+      const is10=gy%10===0,is5=gy%5===0;if(!is5&&!is10)continue;
+      ctx.lineWidth=is10?grid10Lw:1;ctx.strokeStyle=is10?`rgba(68,68,68,${grid10Op})`:`rgba(170,170,170,${gridOp})`;
       ctx.beginPath();ctx.moveTo(gut+startX*cSz,gut+gy*cSz);ctx.lineTo(gut+endX*cSz,gut+gy*cSz);ctx.stroke();
     }
     ctx.lineWidth=1;
@@ -2172,7 +2453,13 @@ function drawStitch(ctx,cSz,viewportRect){
   // Centre marks, crosshair, backstitch, park markers, border — always draw (cheap)
   if(showCtr){ctx.strokeStyle="rgba(200,60,60,0.3)";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(gut+Math.floor(sW/2)*cSz,gut+startY*cSz);ctx.lineTo(gut+Math.floor(sW/2)*cSz,gut+endY*cSz);ctx.stroke();ctx.beginPath();ctx.moveTo(gut+startX*cSz,gut+Math.floor(sH/2)*cSz);ctx.lineTo(gut+endX*cSz,gut+Math.floor(sH/2)*cSz);ctx.stroke();ctx.setLineDash([]);}
   if(hlRow>=0&&hlCol>=0){ctx.strokeStyle="rgba(59,130,246,0.6)";ctx.lineWidth=2;ctx.setLineDash([]);if(hlRow>=startY&&hlRow<endY){ctx.beginPath();ctx.moveTo(gut+startX*cSz,gut+hlRow*cSz+cSz/2);ctx.lineTo(gut+endX*cSz,gut+hlRow*cSz+cSz/2);ctx.stroke();}if(hlCol>=startX&&hlCol<endX){ctx.beginPath();ctx.moveTo(gut+hlCol*cSz+cSz/2,gut+startY*cSz);ctx.lineTo(gut+hlCol*cSz+cSz/2,gut+endY*cSz);ctx.stroke();}}
-  if(bsLines.length>0){ctx.strokeStyle="#333";ctx.lineWidth=Math.max(2,cSz*0.15);ctx.lineCap="round";bsLines.forEach(ln=>{ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();});}
+  // Backstitch: hidden at Tier 1, forced 1px at Tier 2, user thickness at Tier 3+
+  if(bsLines.length>0&&layerVis.backstitch&&bsHsAlpha>0.01){
+    ctx.save();ctx.globalAlpha=bsHsAlpha;
+    ctx.lineWidth=tier===2?1:bsThickness;ctx.lineCap="round";
+    bsLines.forEach(ln=>{ctx.strokeStyle=ln.color||"#333";ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();});
+    ctx.restore();
+  }
   if(parkMarkers.length>0){parkMarkers.forEach(pm=>{let cx2=gut+pm.x*cSz,cy2=gut+pm.y*cSz,r=Math.max(4,cSz*0.35);ctx.fillStyle=`rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;ctx.strokeStyle="#000";ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx2,cy2,r,0,Math.PI*2);ctx.fill();ctx.stroke();});}
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
 }
@@ -2194,8 +2481,33 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel]);
 useEffect(()=>renderStitch(),[renderStitch]);
+// Keep renderStitchRef current so animation callbacks always call the latest closure
+useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
+// Tier-change handler: compute new tier, animate feature opacities across boundaries
+useEffect(()=>{
+  const eff=lockDetailLevel?3:computeDetailTier(scs,tierRef.current);
+  tierRef.current=eff;
+  const tSym=eff>=3?1.0:0.0,tBsHs=eff>=2?1.0:0.0;
+  const startSym=tierFadeRef.current.symbolOpacity,startBsHs=tierFadeRef.current.bsHsOpacity;
+  if(tierFadeRef.current.animRafId){cancelAnimationFrame(tierFadeRef.current.animRafId);tierFadeRef.current.animRafId=null;}
+  if(Math.abs(startSym-tSym)>=0.01||Math.abs(startBsHs-tBsHs)>=0.01){
+    const durSym=tSym>startSym?200:150,durBsHs=tBsHs>startBsHs?200:150;
+    const startMs=performance.now();
+    const animate=()=>{
+      const el=performance.now()-startMs;
+      const tS=Math.min(1,el/durSym),tB=Math.min(1,el/durBsHs);
+      tierFadeRef.current.symbolOpacity=startSym+(tSym-startSym)*tS;
+      tierFadeRef.current.bsHsOpacity=startBsHs+(tBsHs-startBsHs)*tB;
+      if(renderStitchRef.current)renderStitchRef.current();
+      if(tS<1||tB<1){tierFadeRef.current.animRafId=requestAnimationFrame(animate);}
+      else{tierFadeRef.current.animRafId=null;}
+    };
+    tierFadeRef.current.animRafId=requestAnimationFrame(animate);
+  }
+  return()=>{if(tierFadeRef.current.animRafId){cancelAnimationFrame(tierFadeRef.current.animRafId);tierFadeRef.current.animRafId=null;}};
+},[scs,lockDetailLevel]);
 
 // ═══ Thread usage overlay rendering ═══
 useEffect(()=>{
@@ -2328,10 +2640,25 @@ function drawCellDirectly(idx, nv) {
   const info = m.id==="__skip__"||m.id==="__empty__"?null:(cmap?cmap[m.id]:null);
   const isDn = nv;
   const cSz = scs;
+  // Tier-aware rendering
+  const tier=lockDetailLevel?3:tierRef.current;
+  const symAlpha=lockDetailLevel?1.0:tierFadeRef.current.symbolOpacity;
+  const bsHsAlpha=lockDetailLevel?1.0:tierFadeRef.current.bsHsOpacity;
+  const symPx=tierSymFontSz(cSz);
   const dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__"&&m.id!=="__empty__";
   const effectiveDimmed2=dimmed&&highlightMode!=="outline"&&highlightMode!=="tint";
 
   ctx.clearRect(px, py, cSz, cSz);
+
+  // Tier 1 fast path: flat color fill only
+  if(tier===1){
+    if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle="#f0f4f8";ctx.fillRect(px,py,cSz,cSz);return;}
+    if(layerVis.full){
+      if(isDn){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+      else{const r2=Math.round(m.rgb[0]*0.45+255*0.55),g2=Math.round(m.rgb[1]*0.45+255*0.55),b2=Math.round(m.rgb[2]*0.45+255*0.55);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
+    }
+    return;
+  }
 
   if(m.id==="__skip__"||m.id==="__empty__"){
     drawCk(ctx,px,py,cSz);
@@ -2339,84 +2666,65 @@ function drawCellDirectly(idx, nv) {
       ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";
       ctx.strokeRect(px,py,cSz,cSz);
     }
-    // Half stitches on skip/empty cells in direct draw
     let hs=halfStitches.get(idx);
-    if(hs){
+    if(hs&&layerVis.half&&bsHsAlpha>0.01){
       let hd=halfDone.get(idx)||{};
-      let zp=stitchZoom*100;
-      _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,zp<40,zp>=40&&zp<=80,zp>80);
+      ctx.save();ctx.globalAlpha=bsHsAlpha;
+      _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,tier===2,tier===3,tier>=4);
+      ctx.restore();
     }
     return;
   }
 
-  if(stitchView==="symbol"){
-    if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-    else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#1e293b";ctx.font=`bold ${Math.max(7,cSz*0.65)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-  }else if(stitchView==="colour"){
-    ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-    if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
-  }else if(highlightMode==="outline"||highlightMode==="tint"){
-    ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-    if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}
-    if(highlightMode==="tint"&&focusColour&&m.id===focusColour){const tr=parseInt(tintColor.slice(1,3),16),tg=parseInt(tintColor.slice(3,5),16),tb=parseInt(tintColor.slice(5,7),16);ctx.fillStyle=`rgba(${tr},${tg},${tb},${tintOpacity})`;ctx.fillRect(px,py,cSz,cSz);}
-  }else if(highlightMode==="spotlight"){
-    if(dimmed){ctx.fillStyle="#e8ecf0";ctx.fillRect(px,py,cSz,cSz);}
-    else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&cSz>=6){ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,cSz*0.6)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
-  }else{
-    if(isDn){ctx.fillStyle=dimmed?"#f1f5f9":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-    else if(dimmed){ctx.fillStyle="#f1f5f9";ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=8){ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,cSz*0.45)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
-    else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&cSz>=6){ctx.fillStyle="#1e293b";ctx.font=`bold ${Math.max(7,cSz*0.7)}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);}}
+  if(layerVis.full){
+    if(stitchView==="symbol"){
+      if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
+      else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=`bold ${symPx}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+    }else if(stitchView==="colour"){
+      ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
+      if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
+    }else if(highlightMode==="outline"||highlightMode==="tint"){
+      ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
+      if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
+      if(highlightMode==="tint"&&focusColour&&m.id===focusColour){const tr=parseInt(tintColor.slice(1,3),16),tg=parseInt(tintColor.slice(3,5),16),tb=parseInt(tintColor.slice(5,7),16);ctx.fillStyle=`rgba(${tr},${tg},${tb},${tintOpacity})`;ctx.fillRect(px,py,cSz,cSz);}
+    }else if(highlightMode==="spotlight"){
+      if(dimmed){ctx.fillStyle="#e8ecf0";ctx.fillRect(px,py,cSz,cSz);}
+      else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
+    }else{
+      if(isDn){ctx.fillStyle=dimmed?"#f1f5f9":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+      else if(dimmed){ctx.fillStyle="#f1f5f9";ctx.fillRect(px,py,cSz,cSz);if(symAlpha>0.01&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,Math.round(cSz*0.45))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+      else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=`bold ${symPx}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+    }
   }
-  // Half stitches on full-stitch cells in direct draw
+  // Tier 4 thread ID label
+  if(tier>=4&&cSz>40&&info&&symAlpha>0.01&&layerVis.full){
+    ctx.save();ctx.globalAlpha=symAlpha*0.7;ctx.fillStyle="rgba(100,116,139,1)";
+    ctx.font=`${Math.max(6,Math.round(cSz*0.2))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(m.id,px+cSz/2,py+cSz*0.8);ctx.restore();
+  }
+  // Half stitches
   let hs=halfStitches.get(idx);
-  if(hs){
+  if(hs&&layerVis.half&&bsHsAlpha>0.01){
     let hd=halfDone.get(idx)||{};
-    let zp=stitchZoom*100;
-    _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,effectiveDimmed2,zp<40,zp>=40&&zp<=80,zp>80);
+    ctx.save();ctx.globalAlpha=bsHsAlpha;
+    _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,effectiveDimmed2,tier===2,tier===3,tier>=4);
+    ctx.restore();
   }
-  if(cSz>=4){ctx.strokeStyle=effectiveDimmed2?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+  if(cSz>=4){ctx.strokeStyle=(effectiveDimmed2&&layerVis.full)?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
 }
 
-// ═══ Half-stitch placement & marking helpers ═══
-function _placeHalfStitch(idx, dir, colorEntry) {
-  const m = pat[idx];
-  // Block placing on full cross if full cross exists and is not skip/empty
-  if (m && m.id !== "__skip__" && m.id !== "__empty__") {
-    // Check if it already has a full stitch and half tool is being used to place on it
-    // This is allowed — half stitches overlay full stitches
-  }
-
-  const newHs = new Map(halfStitches);
-  const existing = newHs.get(idx) || {};
-
-  // If same direction already exists with same colour, remove it (toggle)
-  if (existing[dir] && existing[dir].id === colorEntry.id) {
-    const entry = { ...existing };
-    delete entry[dir];
-    if (!entry.fwd && !entry.bck) newHs.delete(idx);
-    else newHs.set(idx, entry);
-    setHalfStitches(newHs);
-    renderStitch();
-    return;
-  }
-
-  // Check if placing two same-colour halves (would equal a full cross)
-  const otherDir = dir === "fwd" ? "bck" : "fwd";
-  if (existing[otherDir] && existing[otherDir].id === colorEntry.id) {
-    setHalfToast({ idx, msg: "This equals a full cross stitch. Convert?", colorId: colorEntry.id, dir });
-    // Still place it, but show toast
-  }
-
-  existing[dir] = { id: colorEntry.id, rgb: colorEntry.rgb, lab: colorEntry.lab, name: colorEntry.name, type: colorEntry.type || "solid" };
-  newHs.set(idx, { ...existing });
-  setHalfStitches(newHs);
-
-  // Mark that user has placed a half stitch
-  if (!halfEverPlaced.current) {
-    halfEverPlaced.current = true;
-  }
-
-  renderStitch();
+// ═══ Half-stitch marking helpers ═══
+function hitTestHalfStitch(localX, localY, cellSize, margin) {
+  // Determine which diagonal slash orientation (fwd=/ or bck=\) the click is closest to.
+  const normX = localX / cellSize;
+  const normY = localY / cellSize;
+  // "/" lies on y = 1 - x, "\" lies on y = x.
+  // If the click is within the margin of both diagonals, treat it as ambiguous.
+  const fwdDist = Math.abs(normY - (1 - normX));
+  const bckDist = Math.abs(normY - normX);
+  const threshold = margin / cellSize;
+  if (fwdDist < threshold && bckDist < threshold) return "ambiguous";
+  return fwdDist < bckDist ? "fwd" : "bck";
 }
 
 function _toggleHalfDone(idx, dir) {
@@ -2465,70 +2773,13 @@ function handleStitchMouseDown(e){
   if(gx<0||gx>=sW||gy<0||gy>=sH||!done)return;
   let idx=gy*sW+gx;
 
-  // ═══ Half Stitch Tool handling ═══
-  if(halfStitchTool&&halfStitchTool!=="erase"&&stitchMode==="track"){
-    // Placing a half stitch — need a selected colour
-    if(!selectedColorId||!cmap||!cmap[selectedColorId]){
-      // If no color selected, use the colour of the cell beneath
-      const m=pat[idx];
-      if(m&&m.id!=="__skip__"&&m.id!=="__empty__"&&cmap&&cmap[m.id]){
-        // Place half stitch using the cell's own colour
-        _placeHalfStitch(idx,halfStitchTool,m);
-      }
-    } else {
-      // Use the selected colour — but block placing on skip/empty cells
-      const m2=pat[idx];
-      if(m2&&(m2.id==="__skip__"||m2.id==="__empty__")){
-        e.preventDefault();return;
-      }
-      const pe=cmap[selectedColorId];
-      _placeHalfStitch(idx,halfStitchTool,pe);
-    }
-    e.preventDefault();
-    return;
-  }
-  if(halfStitchTool==="erase"&&stitchMode==="track"){
-    // Erasing: remove the half stitch in this cell for active direction
-    const hs=halfStitches.get(idx);
-    if(hs){
-      const newHs=new Map(halfStitches);
-      const entry={...hs};
-      // Try to determine which direction to erase based on click position
-      const rect=stitchRef.current.getBoundingClientRect();
-      const localX=e.clientX-rect.left-G-gx*scs;
-      const localY=e.clientY-rect.top-G-gy*scs;
-      const hitDir=hitTestHalfStitch(localX,localY,scs,6);
-      if(hitDir==="ambiguous"){
-        // Erase both if ambiguous
-        newHs.delete(idx);
-        const newHd=new Map(halfDone);
-        newHd.delete(idx);
-        setHalfDone(newHd);
-      } else {
-        delete entry[hitDir];
-        if(!entry.fwd&&!entry.bck) newHs.delete(idx);
-        else newHs.set(idx,entry);
-        const newHd=new Map(halfDone);
-        const hd=newHd.get(idx)||{};
-        delete hd[hitDir];
-        if(!hd.fwd&&!hd.bck) newHd.delete(idx);
-        else newHd.set(idx,hd);
-        setHalfDone(newHd);
-      }
-      setHalfStitches(newHs);
-      renderStitch();
-    }
-    e.preventDefault();
-    return;
-  }
-
-  // ═══ Tracker: Marking half stitches as done (no tool, track mode) ═══
+  // ═══ Tracker: Marking half stitches as done (track mode) ═══
   // If cell has half stitches and NO full stitch (or full is done), handle half marking
   const cellHasHalf=halfStitches.has(idx);
   const m2=pat[idx];
   const isFullCell=m2&&m2.id!=="__skip__"&&m2.id!=="__empty__";
 
-  if(cellHasHalf&&(!isFullCell||(done&&done[idx]))&&!halfStitchTool){
+  if(cellHasHalf&&(!isFullCell||(done&&done[idx]))){
     const hs=halfStitches.get(idx);
     const hasBoth=hs.fwd&&hs.bck;
     if(hasBoth){
@@ -2555,8 +2806,41 @@ function handleStitchMouseDown(e){
 
   if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
 
+  // ═══ Range mode (2-click rectangle, desktop) ═══
+  if(rangeModeActive&&stitchMode==="track"&&!e.shiftKey){
+    if(!rangeAnchor){
+      // First click: toggle this cell and set it as the anchor; do NOT start drag
+      let nv=done[idx]?0:1;
+      const oldVal=done[idx];
+      done[idx]=nv;
+      drawCellDirectly(idx,nv);
+      pushTrackHistory([{idx,oldVal}]);
+      applyDoneCountsDelta([{idx,oldVal}],pat,done);
+      setDone(new Uint8Array(done));
+      lastClickedRef.current={idx,row:gy,col:gx,val:nv};
+      setRangeAnchor({idx,row:gy,col:gx,val:nv});
+    }else{
+      // Second click: fill rectangle from anchor to here
+      const a=rangeAnchor;
+      const minR=Math.min(a.row,gy),maxR=Math.max(a.row,gy);
+      const minC=Math.min(a.col,gx),maxC=Math.max(a.col,gx);
+      const targetVal=a.val;
+      const changes=[];
+      for(let r=minR;r<=maxR;r++){for(let c=minC;c<=maxC;c++){
+        const ci=r*sW+c;const cell=pat[ci];
+        if(cell.id==="__skip__"||cell.id==="__empty__")continue;
+        if(done[ci]!==targetVal){changes.push({idx:ci,oldVal:done[ci]});done[ci]=targetVal;}
+      }}
+      if(changes.length){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,done);setDone(new Uint8Array(done));renderStitch();}
+      lastClickedRef.current={idx,row:gy,col:gx,val:targetVal};
+      setRangeAnchor(null);
+    }
+    e.preventDefault();
+    return;
+  }
+
   // ═══ Shift+Click range fill ═══
-  if(e.shiftKey&&lastClickedRef.current&&!halfStitchTool&&stitchMode==="track"){
+  if(e.shiftKey&&lastClickedRef.current&&stitchMode==="track"){
     const a=lastClickedRef.current;
     const bCol=gx,bRow=gy;
     const minR=Math.min(a.row,bRow),maxR=Math.max(a.row,bRow);
@@ -2793,14 +3077,20 @@ function handleTouchEnd(e){
       const gc={gx:idx%sW,gy:Math.floor(idx/sW)};
       setCellEditPopover({idx,row:gc.gy+1,col:gc.gx+1,x:t.clientX,y:t.clientY});
     }else if(stitchMode==="track"){
-      if(rangeModeActive&&!halfStitchTool){
+      if(rangeModeActive){
         const gx=idx%sW,gy=Math.floor(idx/sW);
         if(!rangeAnchor){
-          // First tap sets anchor
+          // First tap: toggle the anchor cell AND record it as the anchor
           const nv=ts.tapVal;
+          const nd=new Uint8Array(done);
+          nd[idx]=nv;
+          pushTrackHistory([{idx,oldVal:done[idx]}]);
+          applyDoneCountsDelta([{idx,oldVal:done[idx]}],pat,nd);
+          setDone(nd);
+          drawCellDirectly(idx,nv);
           setRangeAnchor({idx,row:gy,col:gx,val:nv});
         }else{
-          // Second tap fills rectangle
+          // Second tap fills rectangle then clears anchor
           const a=rangeAnchor;
           const minR=Math.min(a.row,gy),maxR=Math.max(a.row,gy);
           const minC=Math.min(a.col,gx),maxC=Math.max(a.col,gx);
@@ -2823,6 +3113,7 @@ function handleTouchEnd(e){
             setDone(new Uint8Array(done));
             renderStitch();
           }
+          setRangeAnchor(null);
         }
       }else{
         const nv=ts.tapVal;
@@ -2859,9 +3150,6 @@ useEffect(()=>{
       if(showExitEditModal){setShowExitEditModal(false);return;}
       if(cellEditPopover){setCellEditPopover(null);return;}
       if(importDialog){setImportDialog(null);return;}
-      if(halfMenuOpen){setHalfMenuOpen(false);return;}
-      if(halfStitchTool){setHalfStitchTool(null);return;}
-      if(halfToast){setHalfToast(null);return;}
       if(tOverflowOpen){setTOverflowOpen(false);return;}
       if(focusColour&&stitchView==="highlight"){setFocusColour(null);return;}
       if(drawer){setDrawer(false);return;}
@@ -2869,14 +3157,20 @@ useEffect(()=>{
     }
     if(e.key==="?"){setModal(m=>m==="shortcuts"?null:"shortcuts");return;}
     if(!isEditMode){
-      if(e.key==="t"||e.key==="T"){setStitchMode("track");setHalfStitchTool(null);return;}
-      if(e.key==="n"||e.key==="N"){setStitchMode("navigate");setHalfStitchTool(null);return;}
+      if(e.key==="t"||e.key==="T"){setStitchMode("track");return;}
+      if(e.key==="n"||e.key==="N"){setStitchMode("navigate");return;}
       if(e.key==="v"||e.key==="V"){
         const nextView=stitchView==="symbol"?"colour":stitchView==="colour"?"highlight":"symbol";
         setStitchView(nextView);
         if(nextView==="highlight"&&!focusColour){const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];if(first)setFocusColour(first.id);}
         return;
       }
+      // Layer toggle shortcuts
+      if(e.key==="f"||e.key==="F"){setLayerVis(v=>({...v,full:!v.full}));return;}
+      if(e.key==="h"||e.key==="H"){setLayerVis(v=>({...v,half:!v.half}));return;}
+      if(e.key==="b"||e.key==="B"){setLayerVis(v=>({...v,backstitch:!v.backstitch}));return;}
+      if(e.key==="k"||e.key==="K"){setLayerVis(v=>({...v,french_knot:!v.french_knot}));return;}
+      if(e.key==="a"||e.key==="A"){if(Object.values(layerVis).every(Boolean)){const allOff=Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,false]));setLayerVis(allOff);}else{setLayerVis(ALL_LAYERS_VISIBLE);}return;}
     }
     if(e.key==="d"||e.key==="D"){setDrawer(d=>!d);return;}
     if((e.key==="p"||e.key==="P")&&!isEditMode&&currentAutoSessionRef.current){
@@ -2920,7 +3214,7 @@ useEffect(()=>{
   window.addEventListener("keydown",handleKeyDown);
   window.addEventListener("keyup",handleKeyUp);
   return()=>{window.removeEventListener("keydown",handleKeyDown);window.removeEventListener("keyup",handleKeyUp);};
-},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,halfMenuOpen,tOverflowOpen,drawer,halfDisambig,halfStitchTool,halfToast,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive]);
+},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive,layerVis]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
@@ -2961,13 +3255,6 @@ useEffect(()=>{
   document.addEventListener('mousedown',close);
   return()=>document.removeEventListener('mousedown',close);
 },[tOverflowOpen]);
-// Half-stitch menu close on outside click
-useEffect(()=>{
-  if(!halfMenuOpen)return;
-  function close(e){if(halfMenuRef.current&&!halfMenuRef.current.contains(e.target))setHalfMenuOpen(false);}
-  document.addEventListener('mousedown',close);
-  return()=>document.removeEventListener('mousedown',close);
-},[halfMenuOpen]);
 // ResizeObserver — collapse stitch/view groups when toolbar is narrow
 useEffect(()=>{
   if(!tStripRef.current)return;
@@ -2982,18 +3269,7 @@ useEffect(()=>{
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} />
-{pat&&pal&&<ContextBar
-  name={projectName || (sW + '×' + sH + ' pattern')}
-  dimensions={pat ? {width:sW, height:sH} : null}
-  palette={pal}
-  pct={totalStitchable>0 ? Math.round(doneCount/totalStitchable*100) : 0}
-  page="tracker"
-  onEdit={handleEditInCreator}
-  onSave={saveProject}
-  onHome={()=>{if(onGoHome){onGoHome();}else if(typeof window.__goHome!=='undefined'){window.__goHome();}else if(typeof window.__switchToDesign!=='undefined'){window.__switchToDesign();}else{window.location.href='index.html';}}}
-  onNameChange={n=>setProjectName(n)}
-/>}
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>setProjectName(n)):undefined} />
 {namePromptOpen&&<NamePromptModal
   defaultName={projectName || (sW+'×'+sH+' pattern')}
   onConfirm={name=>{setProjectName(name);setNamePromptOpen(false);doSaveProject(name);}}
@@ -3004,32 +3280,12 @@ return(
 <div className="toolbar-row"><div className="pill-row" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
   <div ref={tStripRef} className="pill">
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
-    <button className={"tb-btn"+(stitchMode==="track"&&!halfStitchTool?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);}} title="Cross stitch (T)">
-      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Cross
+    <button className={"tb-btn"+(stitchMode==="track"?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");}} title="Mark stitch (T)">
+      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Mark
     </button>
-    <div ref={halfMenuRef} style={{position:"relative",display:"inline-flex"}}>
-      <button className={"tb-btn"+((halfStitchTool==="fwd"||halfStitchTool==="bck"||halfStitchTool==="erase")?" tb-btn--blue":"")} onClick={()=>setHalfMenuOpen(o=>!o)} title="Half stitch tools">
-        <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/></svg>Half{halfStitchTool&&halfStitchTool!=="erase"?(halfStitchTool==="fwd"?" /":"\\"):" ▾"}
-      </button>
-      {halfMenuOpen&&<div className="tb-page-dropdown" style={{top:"calc(100% + 4px)",left:0,minWidth:130,zIndex:202}}>
-        <button className={"tb-page-dropdown-item"+(halfStitchTool==="fwd"?" tb-page-dropdown-item--on":"")} onClick={()=>{if(halfStitchTool==="fwd"){setHalfStitchTool(null);setStitchMode("track");}else{setHalfStitchTool("fwd");setStitchMode("track");if(!halfOnboardingDone&&!showHalfOnboarding){setShowHalfOnboarding(true);setHalfOnboardingStep(0);}}setHalfMenuOpen(false);}}>
-          <svg width="10" height="10" viewBox="0 0 12 12" style={{marginRight:4,verticalAlign:"middle"}}><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/></svg>Half /
-        </button>
-        <button className={"tb-page-dropdown-item"+(halfStitchTool==="bck"?" tb-page-dropdown-item--on":"")} onClick={()=>{if(halfStitchTool==="bck"){setHalfStitchTool(null);setStitchMode("track");}else{setHalfStitchTool("bck");setStitchMode("track");if(!halfOnboardingDone&&!showHalfOnboarding){setShowHalfOnboarding(true);setHalfOnboardingStep(0);}}setHalfMenuOpen(false);}}>
-          <svg width="10" height="10" viewBox="0 0 12 12" style={{marginRight:4,verticalAlign:"middle"}}><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Half \
-        </button>
-        <button className={"tb-page-dropdown-item"+(halfStitchTool==="erase"?" tb-page-dropdown-item--on":"")} onClick={()=>{if(halfStitchTool==="erase"){setHalfStitchTool(null);setStitchMode("track");}else{setHalfStitchTool("erase");setStitchMode("track");}setHalfMenuOpen(false);}}>
-          <svg width="10" height="10" viewBox="0 0 12 12" style={{marginRight:4,verticalAlign:"middle"}}><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" strokeWidth="1.5"/></svg>Erase half
-        </button>
-      </div>}
-    </div>
-    <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");setHalfStitchTool(null);}} title="Navigate (N)">Nav</button>
-    {stitchMode==="track"&&!halfStitchTool&&<button className={"tb-btn"+(rangeModeActive?" tb-btn--blue":"")} onClick={()=>{setRangeModeActive(r=>!r);setRangeAnchor(null);}} title="Range select mode">⊞ Range</button>}
+    <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");}} title="Navigate (N)">Nav</button>
+    {stitchMode==="track"&&<button className={"tb-btn"+(rangeModeActive?" tb-btn--blue":"")} onClick={()=>{setRangeModeActive(r=>!r);setRangeAnchor(null);}} title="Range select mode">⊞ Range</button>}
   </div>
-  {(halfStitchTool==="fwd"||halfStitchTool==="bck")&&selectedColorId&&cmap&&cmap[selectedColorId]&&
-    <span style={{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,background:"#e0f2fe",flexShrink:0,border:"1px solid #7dd3fc"}}>
-      <span style={{width:10,height:10,borderRadius:2,background:`rgb(${cmap[selectedColorId].rgb})`,border:"1px solid #cbd5e1",display:"inline-block"}}/>{selectedColorId}
-    </span>}
   <div className="tb-sdiv"/>
   <div className={"tb-grp"+(tStripCollapsed.view?" tb-hidden":"")}>
     {[['symbol','Sym'],['colour','Col+Sym'],['highlight','HL']].map(([k,l])=><button key={k} className={"tb-btn"+(stitchView===k?" tb-btn--on":"")} title="Cycle view (V)" onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>)}
@@ -3039,7 +3295,7 @@ return(
     <button className="tb-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} title="Next colour ([)">▶</button>
   </>}
   <div className="tb-flex"/>
-  <div className="tb-zoom-grp">
+  <div className="tb-zoom-grp tb-desktop-only">
     <span className="tb-zoom-lbl">Zoom</span>
     <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} title="Zoom out" style={{padding:"0 5px",fontSize:15,border:"0.5px solid #e2e8f0",borderRadius:4,background:"#f8f9fa",cursor:"pointer",lineHeight:"22px",fontWeight:600}}>−</button>
     <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{width:55}}/>
@@ -3047,41 +3303,13 @@ return(
     <span className="tb-zoom-pct">{Math.round(stitchZoom*100)}%</span>
     <button className="tb-fit-btn" onClick={fitSZ}>Fit</button>
   </div>
-  <div className="tb-sdiv"/>
-  {liveAutoStitches > 0 && (
-    <div className="tb-btn" style={{flexShrink:0, background: liveAutoIsPaused ? '#fef3c7' : '#f0fdf4', border: '1px solid ' + (liveAutoIsPaused ? '#fde68a' : '#bbf7d0'), color: liveAutoIsPaused ? '#b45309' : '#16a34a', cursor: 'default'}} title="Session is automatically tracked">
-      {liveAutoIsPaused ? <>{Icons.pause()} Paused</> : <>{Icons.dot()} {fmtTime(liveAutoElapsed)} · {liveAutoStitches} st</>}
-    </div>
-  )}
-  <div className="tb-sdiv"/>
-  <button className={"tb-btn"+(statsView?" tb-btn--on":"")} onClick={()=>{finaliseAutoSession();setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);}} title="Stats dashboard" style={{flexShrink:0}}>{Icons.barChart()}</button>
-  {/* Thread usage toggle */}
-  <div className="tb-sdiv"/>
-  <div style={{position:"relative",display:"inline-flex",alignItems:"center"}}>
-    <button className={"tb-btn"+(threadUsageMode?" tb-btn--on":"")} title="Thread usage visualisation" onClick={()=>setThreadUsageMode(m=>m?null:"cluster")} style={{flexShrink:0}}>
-      <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5"/><path d="M7 2 Q10 5 7 7 Q4 9 7 12" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
-    </button>
-    {threadUsageMode&&<div style={{position:"absolute",top:"calc(100% + 4px)",right:0,background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 4px 12px rgba(0,0,0,0.1)",zIndex:300,minWidth:140,padding:6}}>
-      {[["cluster","Cluster size"],["distance","Isolation dist"]].map(([m,l])=>(
-        <button key={m} onClick={()=>setThreadUsageMode(m)} style={{display:"block",width:"100%",textAlign:"left",padding:"5px 10px",border:"none",borderRadius:5,background:threadUsageMode===m?"#f0fdfa":"transparent",color:threadUsageMode===m?"#0d9488":"#1e293b",fontSize:11,fontWeight:600,cursor:"pointer"}}>{l}{threadUsageMode===m?" ✓":""}</button>
-      ))}
-    </div>}
-  </div>
-  {stitchMode==="track"&&!isEditMode&&(trackHistory.length>0||redoStack.length>0)&&<>
-    <div className="tb-sdiv"/>
-    <button className="tb-btn" onClick={undoTrack} disabled={!trackHistory.length} title="Undo (Ctrl+Z)" style={{opacity:trackHistory.length?1:0.3}}>↩</button>
-    <button className="tb-btn" onClick={redoTrack} disabled={!redoStack.length} title="Redo (Ctrl+Y)" style={{opacity:redoStack.length?1:0.3}}>↪</button>
-  </>}
-  <div className="tb-sdiv"/>
   <div className="tb-overflow-wrap" ref={tOverflowRef}>
     <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
     {tOverflowOpen&&<div className="tb-overflow-menu">
       {!isEditMode&&<>
         {tStripCollapsed.stitch&&<><span className="tb-ovf-lbl">Stitch</span>
-          <button className={"tb-ovf-item"+(stitchMode==="track"&&!halfStitchTool?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);setTOverflowOpen(false);}}>Cross{stitchMode==="track"&&!halfStitchTool?" ✓":""}</button>
-          <button className={"tb-ovf-item"+(halfStitchTool==="fwd"?" tb-ovf-item--on":"")} onClick={()=>{setHalfStitchTool("fwd");setStitchMode("track");setTOverflowOpen(false);}}>Half /{halfStitchTool==="fwd"?" ✓":""}</button>
-          <button className={"tb-ovf-item"+(halfStitchTool==="bck"?" tb-ovf-item--on":"")} onClick={()=>{setHalfStitchTool("bck");setStitchMode("track");setTOverflowOpen(false);}}>Half \{halfStitchTool==="bck"?" ✓":""}</button>
-          <button className={"tb-ovf-item"+(stitchMode==="navigate"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("navigate");setHalfStitchTool(null);setTOverflowOpen(false);}}>Navigate{stitchMode==="navigate"?" ✓":""}</button>
+          <button className={"tb-ovf-item"+(stitchMode==="track"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setTOverflowOpen(false);}}>Mark{stitchMode==="track"?" ✓":""}</button>
+          <button className={"tb-ovf-item"+(stitchMode==="navigate"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("navigate");setTOverflowOpen(false);}}>Navigate{stitchMode==="navigate"?" ✓":""}</button>
           <div className="tb-ovf-sep"/>
         </>}
         {tStripCollapsed.view&&<><span className="tb-ovf-lbl">View</span>
@@ -3113,6 +3341,11 @@ return(
       }} title="Correct individual stitch colours — for imported patterns">Correct pattern colours…</button><div className="tb-ovf-sep"/></>
       }
       <button className="tb-ovf-item" onClick={()=>{setShowNavHelp(h=>!h);setTOverflowOpen(false);}}>{showNavHelp?"Hide":"Show"} controls help</button>
+      <div className="tb-ovf-sep"/>
+      <span className="tb-ovf-lbl">Tools</span>
+      <button className={"tb-ovf-item"+(trackerPreviewOpen?" tb-ovf-item--on":"")} onClick={()=>{setTrackerPreviewOpen(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Realistic preview{trackerPreviewOpen?" ✓":""}</button>
+      <button className={"tb-ovf-item"+(threadUsageMode?" tb-ovf-item--on":"")} onClick={()=>{setThreadUsageMode(m=>m?null:"cluster");setTOverflowOpen(false);}}>Thread usage{threadUsageMode?" ✓":""}</button>
+      <button className={"tb-ovf-item"} onClick={()=>{setRpanelTab("more");setMobileDrawerOpen(true);setTOverflowOpen(false);}}>Layers{!Object.values(layerVis).every(Boolean)?" (filtered)":""}</button>
       {(liveAutoStitches>0||totalTime>0)&&<>
         <div className="tb-ovf-sep"/>
         <span className="tb-ovf-lbl">Time Tracked</span>
@@ -3147,16 +3380,18 @@ return(
     </button>
   )}
 </div></div>
-{!isEditMode&&<div className="tb-progress"><div className="tb-progress-inner">
-  <span className="tb-progress-txt">{doneCount.toLocaleString()} / {totalStitchable.toLocaleString()}{halfStitchCounts.total>0?` + ${halfStitchCounts.done}/${halfStitchCounts.total}△`:""}{todayStitchesForBar>0&&progressPct<100?` (+${todayStitchesForBar} today)`:""} ({progressPct.toFixed(1)}%){progressPct>=100?<> {Icons.star()}</>:null}</span>
-  <div className="tb-progress-bar">
-    {progressPct>=100&&<div className="tb-progress-fill tb-progress-fill--done" style={{width:"100%"}}/>}
-    {progressPct<100&&prevBarPct>0&&<div className="tb-progress-fill" style={{width:prevBarPct+"%"}}/>}
-    {progressPct<100&&todayBarPct>0&&<div className="tb-progress-fill tb-progress-today" style={{width:todayBarPct+"%"}}/>}
+{!isEditMode&&<div className="info-strip" aria-live="polite">
+  <div className="info-strip-bar">
+    {progressPct>=100&&<div className="info-strip-fill info-strip-fill--done" style={{width:"100%"}}/>}
+    {progressPct<100&&prevBarPct>0&&<div className="info-strip-fill" style={{width:prevBarPct+"%"}}/>}
+    {progressPct<100&&todayBarPct>0&&<div className="info-strip-fill info-strip-today" style={{width:todayBarPct+"%"}}/>}
   </div>
-  <span className="tb-progress-rem">{progressPct>=100?"Complete!":Math.ceil(combinedTotal-combinedDone).toLocaleString()+" remaining"}</span>
-</div></div>}
-{!isEditMode&&<MiniStatsBar statsSessions={statsSessions} totalCompleted={doneCount} totalStitches={totalStitchable} statsSettings={statsSettings} onOpenStats={()=>{finaliseAutoSession();setStatsTab(projectIdRef.current||'all');setStatsView(true);}} currentAutoSession={currentAutoSessionRef.current}/>}
+  <div className="info-strip-row">
+    <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
+    {todayStitchesForBar>0&&<span className="info-strip-today-count">Today: {todayStitchesForBar}</span>}
+    {liveAutoStitches>0&&<span className="info-strip-timer">{liveAutoIsPaused?"⏸":"⏱"} {fmtTime(liveAutoElapsed)}</span>}
+  </div>
+</div>}
 {!sessionOnboardingShown&&liveAutoStitches>0&&statsSessions.length===0&&(
   <div className="session-onboarding-toast">
     <span>ℹ Sessions are tracked automatically as you stitch. View stats with the 📊 button.</span>
@@ -3200,6 +3435,8 @@ return(
   )}
 
   {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&project.pattern&&project.settings){processLoadedProject(project);ProjectStorage.setActiveProject(project.id).catch(()=>{});setStatsView(false);}}).catch(()=>{});}}/>}
+
+  {trackerPreviewOpen&&pat&&<TrackerPreviewModal pat={pat} cmap={cmap} sW={sW} sH={sH} fabricCt={fabricCt} level={trackerPreviewLevel} onLevelChange={setTrackerPreviewLevel} onClose={()=>setTrackerPreviewOpen(false)}/>}
 
   {!statsView&&!pat&&<div style={{maxWidth:500, margin:"40px auto", textAlign:"center"}}>
     <div className="card" style={{padding:"30px"}}>
@@ -3276,50 +3513,15 @@ return(
 
     {scs < 6 && !isEditMode && (stitchView === "symbol" || stitchView === "colour") && <div style={{fontSize: 12, color: "#475569", marginBottom: 6, background: "#f1f5f9", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
 
-    {isEditMode && <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>}
-    {!shortcutsHintDismissed&&pat&&!isEditMode&&<div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>}
-    {!isEditMode && stitchMode==="track"&&!halfStitchTool&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
-    {!isEditMode && halfStitchTool&&halfStitchTool!=="erase"&&<div style={{fontSize:12,color:"#0284c7",background:"#e0f2fe",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #7dd3fc"}}>
-      <strong>Half stitch {halfStitchTool==="fwd"?"/":"\\"}</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to place{selectedColorId&&cmap&&cmap[selectedColorId]?` using DMC ${selectedColorId}`:" using cell colour"}. {hasTouchRef.current?"Tap":"Click"} again to remove. Counts as 0.5 stitch.
-    </div>}
-    {!isEditMode && halfStitchTool==="erase"&&<div style={{fontSize:12,color:"#dc2626",background:"#fef2f2",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #fecaca"}}><strong>Erase mode</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to remove all half stitches from it.</div>}
-    {!isEditMode && stitchMode==="navigate"&&<div style={{fontSize:12,color:"#1e293b",background:"#f1f5f9",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>}
-    {advanceToast&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #bbf7d0",fontWeight:600}}>✓ Complete! Next: {advanceToast}</div>}
-
-    {/* Half stitch onboarding walkthrough */}
-    {showHalfOnboarding&&!halfOnboardingDone&&<div className="hs-scale-in" style={{fontSize:12,background:"#e0f2fe",padding:"10px 14px",borderRadius:8,marginBottom:6,border:"1px solid #7dd3fc"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-        <span style={{fontWeight:700,color:"#0284c7"}}>Half Stitch Tool — Step {halfOnboardingStep+1} of 3</span>
-        <button onClick={()=>{setShowHalfOnboarding(false);setHalfOnboardingDone(true);}} style={{background:"none",border:"none",color:"#0284c7",cursor:"pointer",fontSize:11,fontWeight:600}}>Got it</button>
-      </div>
-      <div style={{color:"#0c4a6e"}}>
-        {halfOnboardingStep===0&&"Select a half stitch direction — / or \\"}
-        {halfOnboardingStep===1&&"Tap a cell to place. The coloured triangle shows which half is covered."}
-        {halfOnboardingStep===2&&"Tap again to remove. You can place both directions in one cell."}
-      </div>
-      {halfOnboardingStep<2&&<button onClick={()=>setHalfOnboardingStep(s=>s+1)} style={{marginTop:6,fontSize:11,padding:"3px 12px",borderRadius:6,border:"1px solid #7dd3fc",background:"#f0f9ff",color:"#0284c7",cursor:"pointer",fontWeight:600}}>Next →</button>}
-      {halfOnboardingStep===2&&<button onClick={()=>{setShowHalfOnboarding(false);setHalfOnboardingDone(true);}} style={{marginTop:6,fontSize:11,padding:"3px 12px",borderRadius:6,border:"1px solid #7dd3fc",background:"#0284c7",color:"#fff",cursor:"pointer",fontWeight:600}}>Got it</button>}
-    </div>}
-
-    {/* Half stitch same-colour toast */}
-    {halfToast&&<div className="hs-scale-in" style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a",display:"flex",alignItems:"center",gap:8}}>
-      <span>{halfToast.msg}</span>
-      <button onClick={()=>{
-        // Convert two halves to a full cross
-        const newHs=new Map(halfStitches);
-        newHs.delete(halfToast.idx);
-        setHalfStitches(newHs);
-        setHalfDone(prev=>{
-          const newHd=new Map(prev);
-          newHd.delete(halfToast.idx);
-          return newHd;
-        });
-        // The cell already has the full stitch colour from pat[]
-        setHalfToast(null);
-        renderStitch();
-      }} style={{fontSize:11,padding:"2px 10px",borderRadius:6,border:"1px solid #fde68a",background:"#fff",color:"#d97706",cursor:"pointer",fontWeight:600}}>Convert</button>
-      <button onClick={()=>setHalfToast(null)} style={{fontSize:11,padding:"2px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer"}}>Keep</button>
-    </div>}
+    {/* ── Single banner slot (highest priority wins) ── */}
+    {(()=>{
+      if(isEditMode) return <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>;
+      if(advanceToast) return <div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #bbf7d0",fontWeight:600}}>✓ Complete! Next: {advanceToast}</div>;
+      if(stitchMode==="track") return <div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{rangeModeActive?(rangeAnchor?(hasTouchRef.current?"Anchor set — tap second corner to fill rectangle":"Anchor set — click second corner to fill the rectangle · Esc to cancel"):(hasTouchRef.current?"Range mode — tap first corner of the rectangle":"Range mode — click first corner, then click second corner to mark a rectangle · Esc to cancel")):(hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag to pan · Ctrl+scroll to zoom · Shift+click for rectangle fill · Ctrl+Z undo")}{!rangeModeActive&&trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
+      if(stitchMode==="navigate") return <div style={{fontSize:12,color:"#1e293b",background:"#f1f5f9",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>;
+      if(!shortcutsHintDismissed&&pat) return <div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>;
+      return null;
+    })()}
 
     <div ref={stitchScrollRef} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitch();scrollRafRef.current=null;})}}} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid #e2e8f0",borderRadius:"8px 8px 0 0",background:"#f1f5f9",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?"crosshair":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
       <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
@@ -3351,7 +3553,7 @@ return(
           })}
         </div>
         <div style={{ position: 'relative' }}>
-          <canvas ref={stitchRef} style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/>
 
           {/* Thread usage overlay */}
           {threadUsageMode&&<canvas ref={threadUsageCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:3,pointerEvents:"none"}}/>}
@@ -3399,12 +3601,22 @@ return(
     </div>
 
     {doneCount===0&&totalStitchable>0&&stitchMode==="track"&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:6,padding:"6px 10px",marginBottom:8,textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
+
+    {/* Floating undo — mobile only (shown via CSS) */}
+    {!isEditMode&&stitchMode==="track"&&trackHistory.length>0&&<button className="fab-undo" onClick={undoTrack} onContextMenu={e=>{e.preventDefault();if(redoStack.length)redoTrack();}} aria-label="Undo last stitch" title="Tap to undo · Long-press for redo">↩</button>}
+
     </div>{/* end canvas-area */}
 
     {/* ═══ RIGHT PANEL ═══ */}
-    <div className="rpanel">
+    <div className={"rpanel"+(mobileDrawerOpen?" rpanel--drawer-open":"")}>
+      <div className="rp-tabs">
+        {[["colours","Colours"],["session","Session"],["more","More"]].map(([k,l])=>
+          <button key={k} className={"rp-tab"+(rpanelTab===k?" rp-tab--on":"")} onClick={()=>{if(rpanelTab===k&&mobileDrawerOpen){setMobileDrawerOpen(false);}else{setRpanelTab(k);setMobileDrawerOpen(true);}}}>{l}</button>
+        )}
+      </div>
+      <div className="rp-tab-content">
       {/* ── Suggestions ── */}
-      {recEnabled&&recommendations&&recommendations.top.length>0&&<div className="rp-section">
+      {rpanelTab==="more"&&recEnabled&&recommendations&&recommendations.top.length>0&&<div className="rp-section">
         <div className="rp-heading" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span>Suggested <span className="badge">{recommendations.top.length}</span></span>
           <button onClick={()=>{setRecEnabled(false);try{localStorage.setItem("cs_recEnabled","0");}catch(_){}}} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12,padding:0}} title="Turn off suggestions">✕</button>
@@ -3446,11 +3658,11 @@ return(
         </div>}
       </div>}
       {/* Restore suggestions if hidden */}
-      {!recEnabled&&<div className="rp-section">
+      {rpanelTab==="more"&&!recEnabled&&<div className="rp-section">
         <button onClick={()=>{setRecEnabled(true);try{localStorage.setItem("cs_recEnabled","1");}catch(_){}}} style={{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",color:"#94a3b8",cursor:"pointer",width:"100%"}}>Enable suggestions</button>
       </div>}
       {/* Thread usage section (when enabled) */}
-      {threadUsageMode&&threadUsageSummary&&<div className="rp-section">
+      {rpanelTab==="more"&&threadUsageMode&&threadUsageSummary&&<div className="rp-section">
         <div className="rp-heading" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span>Thread usage</span>
           <div style={{display:"flex",gap:4}}>
@@ -3487,8 +3699,7 @@ return(
           {threadUsageSummary.mostClustered&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>Most clustered: DMC {threadUsageSummary.mostClustered.id} — cluster size {threadUsageSummary.mostClustered.largestClusterSize}</div>}
         </div>
       </div>}
-      {/* Session Stats */}
-      <div className="rp-section">
+      {rpanelTab==="session"&&<div className="rp-section">
         <div className="rp-heading">Session {liveAutoStitches>0&&<span className="badge">Live</span>}</div>
         <div className="sess-card">
           <div className="row"><span className="lbl">Time</span><span className="val">{fmtTime(liveAutoElapsed)}</span></div>
@@ -3496,15 +3707,20 @@ return(
           {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
           <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
         </div>
-      </div>
+      </div>}
 
       {/* View Mode */}
-      <div className="rp-section">
+      {rpanelTab==="more"&&<div className="rp-section">
         <div className="rp-heading">View</div>
         <div className="rp-pill-toggle" style={{marginBottom:8}}>
           {[['symbol','Symbol'],['colour','Colour'],['highlight','Highlight']].map(([k,l])=>
             <button key={k} className={stitchView===k?"on":""} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>
           )}
+        </div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",marginBottom:4}}>
+          <label title="Disable zoom-adaptive rendering — always use Tier 3 (Detail) regardless of zoom level" style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:lockDetailLevel?"#0d9488":"#94a3b8",cursor:"pointer",userSelect:"none"}}>
+            <input type="checkbox" checked={lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>Lock detail
+          </label>
         </div>
         {stitchView==="highlight"&&<div style={{fontSize:11,color:"#475569"}}>Focus one colour at a time. ◀ ▶ or <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #cbd5e1",borderRadius:3,background:"#f1f5f9"}}>[ ]</kbd> to cycle.</div>}
         {stitchView==="highlight"&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:6}}>
@@ -3544,10 +3760,10 @@ return(
             <span style={{width:28,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(spotDimOpacity*100)}%</span>
           </div>}
         </div>}
-      </div>
+      </div>}
 
       {/* Colours List */}
-      <div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+      {rpanelTab==="colours"&&<div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
         <div className="rp-heading">Colours <span className="badge">{pal.length}</span></div>
         <div className="col-list">
           {pal.map(p=>{let dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
@@ -3558,7 +3774,6 @@ return(
             let isFocused=focusColour===p.id;
             return <div key={p.id} className={"col-row"+(isFocused?" focus":"")} style={{opacity:complete&&!isFocused?0.5:1}} onClick={()=>{
               if(isEditMode){setEditModalColor(p);}
-              else if(halfStitchTool&&halfStitchTool!=="erase"){setSelectedColorId(selectedColorId===p.id?null:p.id);}
               else if(stitchView==="highlight"){setFocusColour(focusColour===p.id?null:p.id);}
               else{setStitchView("highlight");setFocusColour(p.id);}
             }}>
@@ -3573,107 +3788,54 @@ return(
             </div>;
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Quick Actions */}
-      <div className="rp-section">
+      {rpanelTab==="more"&&<div className="rp-section">
         <div className="rp-heading">Actions</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
           <button className="g-btn" style={{flex:1,justifyContent:"center",fontSize:10,padding:"5px 8px",display:"inline-flex",alignItems:"center",gap:5,border:"1px solid #e2e8f0",background:"#fff",borderRadius:8,cursor:"pointer",color:"#475569",fontWeight:600,fontFamily:"inherit"}} onClick={()=>{copyProgressSummary();}}>{Icons.clipboard()} Summary</button>
           <button className="g-btn" style={{flex:1,justifyContent:"center",fontSize:10,padding:"5px 8px",display:"inline-flex",alignItems:"center",gap:5,border:"1px solid #e2e8f0",background:"#fff",borderRadius:8,cursor:"pointer",color:"#475569",fontWeight:600,fontFamily:"inherit"}} onClick={handleEditInCreator}>{Icons.pencil()} Edit</button>
         </div>
-      </div>
+
+        {/* Project Info (moved from below-canvas) */}
+        <div style={{marginTop:12}}>
+          <div className="rp-heading">Project Info</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 16px",fontSize:11}}>
+            {[["Pattern size",sW+" × "+sH],["Stitchable",totalStitchable.toLocaleString()],["Colours",pal.length+""],["Skeins needed",totalSkeins+""]].map(function([l,v],i){return React.createElement("div",{key:i},React.createElement("div",{style:{color:"#94a3b8",fontWeight:600,marginBottom:1}},l),React.createElement("div",{style:{fontWeight:600,color:"#1e293b"}},v));})}
+          </div>
+        </div>
+
+        {/* Layers */}
+        <div style={{marginTop:12}}>
+          <div className="rp-heading" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span>Layers</span>
+            <div style={{display:"flex",gap:4}}>
+              <button onClick={()=>{setSoloPreState(null);setLayerVis(ALL_LAYERS_VISIBLE);}} style={{fontSize:10,padding:"2px 7px",borderRadius:5,border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",color:"#475569",fontWeight:600}}>All</button>
+              <button onClick={()=>{setSoloPreState(null);setLayerVis(Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,false])));}} style={{fontSize:10,padding:"2px 7px",borderRadius:5,border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",color:"#475569",fontWeight:600}}>None</button>
+            </div>
+          </div>
+          {STITCH_LAYERS.map(layer=>{
+            const count=layerCounts[layer.id];
+            const vis=layerVis[layer.id];
+            return <div key={layer.id} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",opacity:count>0?1:0.4}}>
+              <button onClick={()=>{setSoloPreState(null);setLayerVis(v=>({...v,[layer.id]:!v[layer.id]}));}} style={{width:22,height:22,border:"none",borderRadius:4,background:vis?"#f0fdfa":"#f1f5f9",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {vis?<svg width="12" height="9" viewBox="0 0 16 11" fill="none"><ellipse cx="8" cy="5.5" rx="7" ry="4.5" stroke="#0d9488" strokeWidth="1.5"/><circle cx="8" cy="5.5" r="2.5" fill="#0d9488"/></svg>:<svg width="12" height="9" viewBox="0 0 16 11" fill="none"><ellipse cx="8" cy="5.5" rx="7" ry="4.5" stroke="#94a3b8" strokeWidth="1.5"/><line x1="2" y1="1" x2="14" y2="10" stroke="#94a3b8" strokeWidth="1.5"/></svg>}
+              </button>
+              <span style={{flex:1,fontSize:11,color:vis?"#1e293b":"#94a3b8"}}>{layer.label}</span>
+              <span style={{fontSize:10,color:"#94a3b8"}}>{count.toLocaleString()}</span>
+              {layer.id==='backstitch'&&<select value={bsThickness} onChange={e=>setBsThickness(parseInt(e.target.value))} style={{fontSize:10,padding:"1px 3px",borderRadius:4,border:"1px solid #e2e8f0",maxWidth:42,cursor:"pointer"}}><option value={1}>1px</option><option value={2}>2px</option><option value={3}>3px</option></select>}
+            </div>;
+          })}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:4,paddingTop:4,borderTop:"0.5px solid #e2e8f0"}}>
+            <span style={{fontSize:10,color:"#64748b"}}>Count</span>
+            <button onClick={()=>setStatsCountMode(m=>m==='visible'?'all':'visible')} style={{fontSize:10,padding:"2px 8px",borderRadius:5,border:"1px solid #e2e8f0",background:statsCountMode==='all'?"#eff6ff":"#f8fafc",color:statsCountMode==='all'?"#1d4ed8":"#475569",cursor:"pointer",fontWeight:600}}>{statsCountMode==='visible'?'Visible layers only':'All layers'}</button>
+          </div>
+        </div>
+      </div>}
+      </div>{/* end rp-tab-content */}
     </div>{/* end rpanel */}
   </div>{/* end cs-main */}
-
-  <div style={{maxWidth:1100, margin:"0 auto", padding:"12px 16px"}}>
-    <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <Section title="Thread Organiser">
-        <div style={{marginTop:8,display:"flex",gap:12,marginBottom:10}}>
-          <div style={{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}}><span style={{fontWeight:700,color:"#16a34a"}}>{ownedCount}</span> <span style={{color:"#475569"}}>owned</span></div>
-          <div style={{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}}><span style={{fontWeight:700,color:"#ea580c"}}>{toBuyList.length}</span> <span style={{color:"#475569"}}>to buy</span></div>
-          <div style={{marginLeft:"auto",display:"flex",gap:4}}>
-            <button onClick={()=>setModal("calculator_batch")} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>Calculate thread needed</button>
-            <button onClick={()=>{if(!confirm("Mark all "+skeinData.length+" threads as owned?"))return;let n={};skeinData.forEach(d=>{n[d.id]="owned";});setThreadOwned(n);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #bbf7d0",borderRadius:6,background:"#f0fdf4",color:"#16a34a",cursor:"pointer"}}>Own all</button>
-            <button onClick={()=>{if(!confirm("Clear all thread ownership status?"))return;setThreadOwned({});}} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",cursor:"pointer"}}>Clear</button>
-          </div>
-        </div>
-        <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:320,overflow:"auto"}}>
-          {skeinData.map(d=>{
-            let st=threadOwned[d.id]||"";
-            let isOwned=st==="owned";
-            let gs=globalStash[d.id]||{owned:0};
-            let hasStash=gs.owned>0;
-            return<React.Fragment key={d.id}><div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,background:isOwned?"#f0fdf4":"#fff",border:"1px solid "+(isOwned?"#bbf7d0":"#f1f5f9")}}>
-              <span style={{width:16,height:16,borderRadius:3,background:`rgb(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
-              <span style={{fontWeight:700,fontSize:13,minWidth:44}}>DMC {d.id}</span>
-              <span style={{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
-              <span style={{fontSize:11,color:"#94a3b8",flexShrink:0}}>{d.skeins}sk</span>
-              <span className={"stash-badge"+(hasStash?" stash-badge--in":" stash-badge--out")} title={hasStash?`${gs.owned} in global stash`:"Not in global stash"}>{hasStash?`●${gs.owned}`:"○0"}</span>
-              <button onClick={()=>toggleOwned(d.id)} style={{fontSize:11,padding:"3px 10px",borderRadius:5,border:"1px solid "+(isOwned?"#bbf7d0":"#fed7aa"),background:isOwned?"#f0fdf4":"#fff7ed",color:isOwned?"#16a34a":"#ea580c",cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center"}}>{isOwned?"Owned":"To buy"}</button>
-              {typeof StashBridge!=="undefined"&&<button onClick={(e)=>{e.stopPropagation();setAltOpen(altOpen===d.id?null:d.id);}} style={{fontSize:10,padding:"2px 6px",borderRadius:4,border:"1px solid #e0e7ff",background:altOpen===d.id?"#e0e7ff":"#fff",color:"#4338ca",cursor:"pointer",fontWeight:600}} title="Show similar threads from stash">≈</button>}
-            </div>
-            {altOpen===d.id&&(()=>{const alts=StashBridge.suggestAlternatives(d.id,5,globalStash);return alts.length>0?<div style={{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}}><span style={{color:"#475569",fontWeight:600}}>Similar in stash:</span>{alts.map(a=><span key={a.id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}}><span style={{width:10,height:10,borderRadius:2,background:`rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`,border:"1px solid #cbd5e1"}}/><span style={{fontWeight:600}}>DMC {a.id}</span><span style={{color:"#475569"}}>{a.name}</span><span style={{color:"#94a3b8"}}>ΔE {a.deltaE}</span><span style={{color:"#4338ca"}}>{a.owned}sk</span></span>)}</div>:<div style={{padding:"6px 12px 8px 36px",fontSize:11,color:"#94a3b8"}}>No similar threads found in your stash.</div>;})()}
-            </React.Fragment>;})}
-        </div>
-        <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
-          <button onClick={()=>{let txt=toBuyList.map(d=>`DMC ${d.id} ${d.name} × ${d.skeins}`).join("\n");copyText(txt,"shopping");}} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Copy To-Buy List</button>
-          <button onClick={()=>{let txt=skeinData.map(d=>`DMC ${d.id} ${d.name} × ${d.skeins}`).join("\n");copyText(txt,"full");}} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}}>Copy Full List</button>
-          <button onClick={()=>{
-            if(typeof StashBridge==="undefined")return;
-            StashBridge.getGlobalStash().then(stash=>{
-              setGlobalStash(stash);
-              const shopping=[];
-              for(const d of skeinData){
-                const gs=stash[d.id]||{owned:0};
-                const deficit=d.skeins-gs.owned;
-                if(deficit>0) shopping.push({id:d.id,name:d.name,rgb:d.rgb,needed:d.skeins,owned:gs.owned,toBuy:deficit});
-              }
-              setKittingResult(shopping);
-            }).catch(()=>{});
-          }} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #d8b4fe",background:"#faf5ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Kit This Project</button>
-        </div>
-        {kittingResult&&<div style={{marginTop:10,padding:12,borderRadius:8,border:"1px solid #e9d5ff",background:"#faf5ff"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-            <span style={{fontSize:13,fontWeight:700,color:"#7c3aed"}}>{kittingResult.length===0?"Fully kitted! You own everything needed.":"Shopping list from stash diff"}</span>
-            <button onClick={()=>setKittingResult(null)} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:16}}>×</button>
-          </div>
-          {kittingResult.length>0&&<>
-            <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:200,overflow:"auto"}}>
-              {kittingResult.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,background:"#fff",border:"1px solid #f1f5f9"}}>
-                <span style={{width:14,height:14,borderRadius:3,background:`rgb(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
-                <span style={{fontWeight:600,fontSize:12}}>DMC {d.id}</span>
-                <span style={{fontSize:11,color:"#475569",flex:1}}>{d.name}</span>
-                <span style={{fontSize:11,color:"#94a3b8"}}>need {d.needed}, own {d.owned}</span>
-                <span style={{fontSize:11,fontWeight:700,color:"#7c3aed"}}>buy {d.toBuy}</span>
-              </div>)}
-            </div>
-            <div style={{display:"flex",gap:6,marginTop:8}}>
-              <button onClick={()=>{let txt=kittingResult.map(d=>`DMC ${d.id} ${d.name} × ${d.toBuy} skeins`).join("\n");copyText(txt,"kit");}} style={{padding:"6px 14px",fontSize:12,borderRadius:6,border:"none",background:"#7c3aed",color:"#fff",cursor:"pointer",fontWeight:600}}>Copy List</button>
-              <button onClick={()=>{
-                Promise.all(kittingResult.map(d=>StashBridge.updateThreadToBuy(d.id,true))).then(()=>{
-                  StashBridge.getGlobalStash().then(setGlobalStash).catch(()=>{});
-                  alert("Marked "+kittingResult.length+" threads as to-buy in your global stash.");
-                }).catch(()=>{});
-              }} style={{padding:"6px 14px",fontSize:12,borderRadius:6,border:"1px solid #d8b4fe",background:"#fff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Mark All To-Buy in Stash</button>
-            </div>
-          </>}
-        </div>}
-        {copied&&<div style={{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}>Copied!</div>}
-      </Section>
-
-      <Section title="Project Info">
-        <div style={{marginTop:8,display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}}>
-          {[["Pattern size",`${sW} × ${sH} stitches`],["Total cells",(sW*sH).toLocaleString()],["Stitchable",totalStitchable.toLocaleString()],["Skipped",(sW*sH-totalStitchable).toLocaleString()],["Colours",`${pal.length} (${blendCount} blend${blendCount!==1?"s":""})`],["Skeins needed",`${totalSkeins} (at ${fabricCt}ct)`]].map(([l,v],i)=><div key={i}><div style={{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>{l}</div><div style={{fontSize:14,fontWeight:600,color:"#1e293b"}}>{v}</div></div>)}
-        </div>
-      </Section>
-    </div>
-
-    <div style={{marginTop:20, display:"flex", gap:10, justifyContent:"center", padding:"20px", borderTop:"0.5px solid #e2e8f0"}}>
-      <button onClick={saveProject} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save Project (.json)</button>
-      <button onClick={()=>loadRef.current.click()} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}}>Load Different Project</button>
-    </div>
-  </div>
   </>}
 
   {importDialog==="image"&&importImage&&<div className="modal-overlay" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
