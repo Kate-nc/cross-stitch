@@ -414,6 +414,8 @@ const threadUsageRafRef=useRef(null);
 const[recDismissed,setRecDismissed]=useState(()=>new Set());
 const[recShowMore,setRecShowMore]=useState(false);
 const[recEnabled,setRecEnabled]=useState(()=>{try{return localStorage.getItem("cs_recEnabled")!=="0";}catch(_){return true;}});
+const[rpanelTab,setRpanelTab]=useState("colours");
+const[mobileDrawerOpen,setMobileDrawerOpen]=useState(false);
 
 const [importDialog, setImportDialog] = useState(null);
 const [importImage, setImportImage] = useState(null);
@@ -3378,18 +3380,7 @@ useEffect(()=>{
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} />
-{pat&&pal&&<ContextBar
-  name={projectName || (sW + '×' + sH + ' pattern')}
-  dimensions={pat ? {width:sW, height:sH} : null}
-  palette={pal}
-  pct={totalStitchable>0 ? Math.round(doneCount/totalStitchable*100) : 0}
-  page="tracker"
-  onEdit={handleEditInCreator}
-  onSave={saveProject}
-  onHome={()=>{if(onGoHome){onGoHome();}else if(typeof window.__goHome!=='undefined'){window.__goHome();}else if(typeof window.__switchToDesign!=='undefined'){window.__switchToDesign();}else{window.location.href='index.html';}}}
-  onNameChange={n=>setProjectName(n)}
-/>}
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>setProjectName(n)):undefined} />
 {namePromptOpen&&<NamePromptModal
   defaultName={projectName || (sW+'×'+sH+' pattern')}
   onConfirm={name=>{setProjectName(name);setNamePromptOpen(false);doSaveProject(name);}}
@@ -3400,8 +3391,8 @@ return(
 <div className="toolbar-row"><div className="pill-row" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
   <div ref={tStripRef} className="pill">
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
-    <button className={"tb-btn"+(stitchMode==="track"&&!halfStitchTool?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);}} title="Cross stitch (T)">
-      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Cross
+    <button className={"tb-btn"+(stitchMode==="track"&&!halfStitchTool?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);}} title="Mark stitch (T)">
+      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Mark
     </button>
     <div ref={halfMenuRef} style={{position:"relative",display:"inline-flex"}}>
       <button className={"tb-btn"+((halfStitchTool==="fwd"||halfStitchTool==="bck"||halfStitchTool==="erase")?" tb-btn--blue":"")} onClick={()=>setHalfMenuOpen(o=>!o)} title="Half stitch tools">
@@ -3435,7 +3426,7 @@ return(
     <button className="tb-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} title="Next colour ([)">▶</button>
   </>}
   <div className="tb-flex"/>
-  <div className="tb-zoom-grp">
+  <div className="tb-zoom-grp tb-desktop-only">
     <span className="tb-zoom-lbl">Zoom</span>
     <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} title="Zoom out" style={{padding:"0 5px",fontSize:15,border:"0.5px solid #e2e8f0",borderRadius:4,background:"#f8f9fa",cursor:"pointer",lineHeight:"22px",fontWeight:600}}>−</button>
     <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{width:55}}/>
@@ -3449,12 +3440,10 @@ return(
       {liveAutoIsPaused ? <>{Icons.pause()} Paused</> : <>{Icons.dot()} {fmtTime(liveAutoElapsed)} · {liveAutoStitches} st</>}
     </div>
   )}
-  <div className="tb-sdiv"/>
-  <button className={"tb-btn"+(trackerPreviewOpen?" tb-btn--on":"")} onClick={()=>setTrackerPreviewOpen(v=>!v)} title="Realistic preview" style={{flexShrink:0}}>{Icons.eye()}</button>
+  <button className={"tb-btn"+(trackerPreviewOpen?" tb-btn--on":"")} onClick={()=>setTrackerPreviewOpen(v=>!v)} title="Realistic preview" aria-label="Realistic preview" style={{flexShrink:0}}>{Icons.eye()}</button>
   {/* Thread usage toggle */}
-  <div className="tb-sdiv"/>
   <div style={{position:"relative",display:"inline-flex",alignItems:"center"}}>
-    <button className={"tb-btn"+(threadUsageMode?" tb-btn--on":"")} title="Thread usage visualisation" onClick={()=>setThreadUsageMode(m=>m?null:"cluster")} style={{flexShrink:0}}>
+    <button className={"tb-btn"+(threadUsageMode?" tb-btn--on":"")} title="Thread usage visualisation" aria-label="Thread usage visualisation" onClick={()=>setThreadUsageMode(m=>m?null:"cluster")} style={{flexShrink:0}}>
       <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5"/><path d="M7 2 Q10 5 7 7 Q4 9 7 12" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
     </button>
     {threadUsageMode&&<div style={{position:"absolute",top:"calc(100% + 4px)",right:0,background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 4px 12px rgba(0,0,0,0.1)",zIndex:300,minWidth:140,padding:6}}>
@@ -3465,8 +3454,8 @@ return(
   </div>
   {stitchMode==="track"&&!isEditMode&&(trackHistory.length>0||redoStack.length>0)&&<>
     <div className="tb-sdiv"/>
-    <button className="tb-btn" onClick={undoTrack} disabled={!trackHistory.length} title="Undo (Ctrl+Z)" style={{opacity:trackHistory.length?1:0.3}}>↩</button>
-    <button className="tb-btn" onClick={redoTrack} disabled={!redoStack.length} title="Redo (Ctrl+Y)" style={{opacity:redoStack.length?1:0.3}}>↪</button>
+    <button className="tb-btn" onClick={undoTrack} disabled={!trackHistory.length} title="Undo (Ctrl+Z)" aria-label="Undo" style={{opacity:trackHistory.length?1:0.3}}>↩</button>
+    <button className="tb-btn" onClick={redoTrack} disabled={!redoStack.length} title="Redo (Ctrl+Y)" aria-label="Redo" style={{opacity:redoStack.length?1:0.3}}>↪</button>
   </>}
   <div className="tb-sdiv"/>
   <div style={{position:"relative",display:"inline-flex",alignItems:"center"}} ref={layerPanelRef}>
@@ -3534,7 +3523,7 @@ return(
     {tOverflowOpen&&<div className="tb-overflow-menu">
       {!isEditMode&&<>
         {tStripCollapsed.stitch&&<><span className="tb-ovf-lbl">Stitch</span>
-          <button className={"tb-ovf-item"+(stitchMode==="track"&&!halfStitchTool?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);setTOverflowOpen(false);}}>Cross{stitchMode==="track"&&!halfStitchTool?" ✓":""}</button>
+          <button className={"tb-ovf-item"+(stitchMode==="track"&&!halfStitchTool?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setHalfStitchTool(null);setTOverflowOpen(false);}}>Mark{stitchMode==="track"&&!halfStitchTool?" ✓":""}</button>
           <button className={"tb-ovf-item"+(halfStitchTool==="fwd"?" tb-ovf-item--on":"")} onClick={()=>{setHalfStitchTool("fwd");setStitchMode("track");setTOverflowOpen(false);}}>Half /{halfStitchTool==="fwd"?" ✓":""}</button>
           <button className={"tb-ovf-item"+(halfStitchTool==="bck"?" tb-ovf-item--on":"")} onClick={()=>{setHalfStitchTool("bck");setStitchMode("track");setTOverflowOpen(false);}}>Half \{halfStitchTool==="bck"?" ✓":""}</button>
           <button className={"tb-ovf-item"+(stitchMode==="navigate"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("navigate");setHalfStitchTool(null);setTOverflowOpen(false);}}>Navigate{stitchMode==="navigate"?" ✓":""}</button>
@@ -3603,16 +3592,18 @@ return(
     </button>
   )}
 </div></div>
-{!isEditMode&&<div className="tb-progress"><div className="tb-progress-inner">
-  <span className="tb-progress-txt">{(()=>{const vFull=statsCountMode!=='visible'||layerVis.full;const vHalf=statsCountMode!=='visible'||layerVis.half;const dDisp=vFull?doneCount:0;const tDisp=vFull?totalStitchable:0;const hdDisp=vHalf?halfStitchCounts.done:0;const htDisp=vHalf?halfStitchCounts.total:0;return<>{dDisp.toLocaleString()} / {tDisp.toLocaleString()}{htDisp>0?` + ${hdDisp}/${htDisp}△`:""}{statsCountMode==='visible'&&(!layerVis.full||!layerVis.half)&&<span title="Counting visible layers only" style={{fontSize:10,color:"#d97706",marginLeft:3,fontWeight:600}}>●</span>}{todayStitchesForBar>0&&progressPct<100?` (+${todayStitchesForBar} today)`:""} ({progressPct.toFixed(1)}%){progressPct>=100?<> {Icons.star()}</>:null}</>;})()} </span>
-  <div className="tb-progress-bar">
-    {progressPct>=100&&<div className="tb-progress-fill tb-progress-fill--done" style={{width:"100%"}}/>}
-    {progressPct<100&&prevBarPct>0&&<div className="tb-progress-fill" style={{width:prevBarPct+"%"}}/>}
-    {progressPct<100&&todayBarPct>0&&<div className="tb-progress-fill tb-progress-today" style={{width:todayBarPct+"%"}}/>}
+{!isEditMode&&<div className="info-strip" aria-live="polite">
+  <div className="info-strip-bar">
+    {progressPct>=100&&<div className="info-strip-fill info-strip-fill--done" style={{width:"100%"}}/>}
+    {progressPct<100&&prevBarPct>0&&<div className="info-strip-fill" style={{width:prevBarPct+"%"}}/>}
+    {progressPct<100&&todayBarPct>0&&<div className="info-strip-fill info-strip-today" style={{width:todayBarPct+"%"}}/>}
   </div>
-  <span className="tb-progress-rem">{progressPct>=100?"Complete!":Math.ceil(combinedTotal-combinedDone).toLocaleString()+" remaining"}</span>
-</div></div>}
-{!isEditMode&&<MiniStatsBar statsSessions={statsSessions} totalCompleted={doneCount} totalStitches={totalStitchable} statsSettings={statsSettings} onOpenStats={()=>{finaliseAutoSession();setStatsTab(projectIdRef.current||'all');setStatsView(true);}} currentAutoSession={currentAutoSessionRef.current}/>}
+  <div className="info-strip-row">
+    <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
+    {todayStitchesForBar>0&&<span className="info-strip-today-count">Today: {todayStitchesForBar}</span>}
+    {liveAutoStitches>0&&<span className="info-strip-timer">{liveAutoIsPaused?"⏸":"⏱"} {fmtTime(liveAutoElapsed)}</span>}
+  </div>
+</div>}
 {!sessionOnboardingShown&&liveAutoStitches>0&&statsSessions.length===0&&(
   <div className="session-onboarding-toast">
     <span>ℹ Sessions are tracked automatically as you stitch. View stats with the 📊 button.</span>
@@ -3734,18 +3725,10 @@ return(
 
     {scs < 6 && !isEditMode && (stitchView === "symbol" || stitchView === "colour") && <div style={{fontSize: 12, color: "#475569", marginBottom: 6, background: "#f1f5f9", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
 
-    {isEditMode && <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>}
-    {!shortcutsHintDismissed&&pat&&!isEditMode&&<div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>}
-    {!isEditMode && stitchMode==="track"&&!halfStitchTool&&<div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{rangeModeActive?(rangeAnchor?(hasTouchRef.current?"Anchor set — tap second corner to fill rectangle":"Anchor set — click second corner to fill the rectangle · Esc to cancel"):(hasTouchRef.current?"Range mode — tap first corner of the rectangle":"Range mode — click first corner, then click second corner to mark a rectangle · Esc to cancel")):(hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag to pan · Ctrl+scroll to zoom · Shift+click for rectangle fill · Ctrl+Z undo")}{!rangeModeActive&&trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>}
-    {!isEditMode && halfStitchTool&&halfStitchTool!=="erase"&&<div style={{fontSize:12,color:"#0284c7",background:"#e0f2fe",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #7dd3fc"}}>
-      <strong>Half stitch {halfStitchTool==="fwd"?"/":"\\"}</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to place{selectedColorId&&cmap&&cmap[selectedColorId]?` using DMC ${selectedColorId}`:" using cell colour"}. {hasTouchRef.current?"Tap":"Click"} again to remove. Counts as 0.5 stitch.
-    </div>}
-    {!isEditMode && halfStitchTool==="erase"&&<div style={{fontSize:12,color:"#dc2626",background:"#fef2f2",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #fecaca"}}><strong>Erase mode</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to remove all half stitches from it.</div>}
-    {!isEditMode && stitchMode==="navigate"&&<div style={{fontSize:12,color:"#1e293b",background:"#f1f5f9",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>}
-    {advanceToast&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #bbf7d0",fontWeight:600}}>✓ Complete! Next: {advanceToast}</div>}
-
-    {/* Half stitch onboarding walkthrough */}
-    {showHalfOnboarding&&!halfOnboardingDone&&<div className="hs-scale-in" style={{fontSize:12,background:"#e0f2fe",padding:"10px 14px",borderRadius:8,marginBottom:6,border:"1px solid #7dd3fc"}}>
+    {/* ── Single banner slot (highest priority wins) ── */}
+    {(()=>{
+      if(isEditMode) return <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>;
+      if(showHalfOnboarding&&!halfOnboardingDone) return <div className="hs-scale-in" style={{fontSize:12,background:"#e0f2fe",padding:"10px 14px",borderRadius:8,marginBottom:6,border:"1px solid #7dd3fc"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
         <span style={{fontWeight:700,color:"#0284c7"}}>Half Stitch Tool — Step {halfOnboardingStep+1} of 3</span>
         <button onClick={()=>{setShowHalfOnboarding(false);setHalfOnboardingDone(true);}} style={{background:"none",border:"none",color:"#0284c7",cursor:"pointer",fontSize:11,fontWeight:600}}>Got it</button>
@@ -3757,7 +3740,15 @@ return(
       </div>
       {halfOnboardingStep<2&&<button onClick={()=>setHalfOnboardingStep(s=>s+1)} style={{marginTop:6,fontSize:11,padding:"3px 12px",borderRadius:6,border:"1px solid #7dd3fc",background:"#f0f9ff",color:"#0284c7",cursor:"pointer",fontWeight:600}}>Next →</button>}
       {halfOnboardingStep===2&&<button onClick={()=>{setShowHalfOnboarding(false);setHalfOnboardingDone(true);}} style={{marginTop:6,fontSize:11,padding:"3px 12px",borderRadius:6,border:"1px solid #7dd3fc",background:"#0284c7",color:"#fff",cursor:"pointer",fontWeight:600}}>Got it</button>}
-    </div>}
+    </div>;
+      if(advanceToast) return <div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #bbf7d0",fontWeight:600}}>✓ Complete! Next: {advanceToast}</div>;
+      if(halfStitchTool&&halfStitchTool!=="erase") return <div style={{fontSize:12,color:"#0284c7",background:"#e0f2fe",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #7dd3fc"}}><strong>Half stitch {halfStitchTool==="fwd"?"/":"\\"}</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to place{selectedColorId&&cmap&&cmap[selectedColorId]?` using DMC ${selectedColorId}`:" using cell colour"}. {hasTouchRef.current?"Tap":"Click"} again to remove. Counts as 0.5 stitch.</div>;
+      if(halfStitchTool==="erase") return <div style={{fontSize:12,color:"#dc2626",background:"#fef2f2",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #fecaca"}}><strong>Erase mode</strong> — {hasTouchRef.current?"Tap":"Click"} a cell to remove all half stitches from it.</div>;
+      if(stitchMode==="track"&&!halfStitchTool) return <div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{rangeModeActive?(rangeAnchor?(hasTouchRef.current?"Anchor set — tap second corner to fill rectangle":"Anchor set — click second corner to fill the rectangle · Esc to cancel"):(hasTouchRef.current?"Range mode — tap first corner of the rectangle":"Range mode — click first corner, then click second corner to mark a rectangle · Esc to cancel")):(hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag to pan · Ctrl+scroll to zoom · Shift+click for rectangle fill · Ctrl+Z undo")}{!rangeModeActive&&trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
+      if(stitchMode==="navigate") return <div style={{fontSize:12,color:"#1e293b",background:"#f1f5f9",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>;
+      if(!shortcutsHintDismissed&&pat) return <div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>;
+      return null;
+    })()}
 
     {/* Half stitch same-colour toast */}
     {halfToast&&<div className="hs-scale-in" style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a",display:"flex",alignItems:"center",gap:8}}>
@@ -3809,7 +3800,7 @@ return(
           })}
         </div>
         <div style={{ position: 'relative' }}>
-          <canvas ref={stitchRef} style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/>
 
           {/* Thread usage overlay */}
           {threadUsageMode&&<canvas ref={threadUsageCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:3,pointerEvents:"none"}}/>}
@@ -3857,12 +3848,22 @@ return(
     </div>
 
     {doneCount===0&&totalStitchable>0&&stitchMode==="track"&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:6,padding:"6px 10px",marginBottom:8,textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
+
+    {/* Floating undo — mobile only (shown via CSS) */}
+    {!isEditMode&&stitchMode==="track"&&trackHistory.length>0&&<button className="fab-undo" onClick={undoTrack} onContextMenu={e=>{e.preventDefault();if(redoStack.length)redoTrack();}} aria-label="Undo last stitch" title="Tap to undo · Long-press for redo">↩</button>}
+
     </div>{/* end canvas-area */}
 
     {/* ═══ RIGHT PANEL ═══ */}
-    <div className="rpanel">
+    <div className={"rpanel"+(mobileDrawerOpen?" rpanel--drawer-open":"")}>
+      <div className="rp-tabs">
+        {[["colours","Colours"],["session","Session"],["more","More"]].map(([k,l])=>
+          <button key={k} className={"rp-tab"+(rpanelTab===k?" rp-tab--on":"")} onClick={()=>{if(rpanelTab===k&&mobileDrawerOpen){setMobileDrawerOpen(false);}else{setRpanelTab(k);setMobileDrawerOpen(true);}}}>{l}</button>
+        )}
+      </div>
+      <div className="rp-tab-content">
       {/* ── Suggestions ── */}
-      {recEnabled&&recommendations&&recommendations.top.length>0&&<div className="rp-section">
+      {rpanelTab==="more"&&recEnabled&&recommendations&&recommendations.top.length>0&&<div className="rp-section">
         <div className="rp-heading" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span>Suggested <span className="badge">{recommendations.top.length}</span></span>
           <button onClick={()=>{setRecEnabled(false);try{localStorage.setItem("cs_recEnabled","0");}catch(_){}}} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12,padding:0}} title="Turn off suggestions">✕</button>
@@ -3904,11 +3905,11 @@ return(
         </div>}
       </div>}
       {/* Restore suggestions if hidden */}
-      {!recEnabled&&<div className="rp-section">
+      {rpanelTab==="more"&&!recEnabled&&<div className="rp-section">
         <button onClick={()=>{setRecEnabled(true);try{localStorage.setItem("cs_recEnabled","1");}catch(_){}}} style={{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",color:"#94a3b8",cursor:"pointer",width:"100%"}}>Enable suggestions</button>
       </div>}
       {/* Thread usage section (when enabled) */}
-      {threadUsageMode&&threadUsageSummary&&<div className="rp-section">
+      {rpanelTab==="more"&&threadUsageMode&&threadUsageSummary&&<div className="rp-section">
         <div className="rp-heading" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span>Thread usage</span>
           <div style={{display:"flex",gap:4}}>
@@ -3945,8 +3946,7 @@ return(
           {threadUsageSummary.mostClustered&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>Most clustered: DMC {threadUsageSummary.mostClustered.id} — cluster size {threadUsageSummary.mostClustered.largestClusterSize}</div>}
         </div>
       </div>}
-      {/* Session Stats */}
-      <div className="rp-section">
+      {rpanelTab==="session"&&<div className="rp-section">
         <div className="rp-heading">Session {liveAutoStitches>0&&<span className="badge">Live</span>}</div>
         <div className="sess-card">
           <div className="row"><span className="lbl">Time</span><span className="val">{fmtTime(liveAutoElapsed)}</span></div>
@@ -3954,10 +3954,10 @@ return(
           {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
           <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
         </div>
-      </div>
+      </div>}
 
       {/* View Mode */}
-      <div className="rp-section">
+      {rpanelTab==="more"&&<div className="rp-section">
         <div className="rp-heading">View</div>
         <div className="rp-pill-toggle" style={{marginBottom:8}}>
           {[['symbol','Symbol'],['colour','Colour'],['highlight','Highlight']].map(([k,l])=>
@@ -4007,10 +4007,10 @@ return(
             <span style={{width:28,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(spotDimOpacity*100)}%</span>
           </div>}
         </div>}
-      </div>
+      </div>}
 
       {/* Colours List */}
-      <div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+      {rpanelTab==="colours"&&<div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
         <div className="rp-heading">Colours <span className="badge">{pal.length}</span></div>
         <div className="col-list">
           {pal.map(p=>{let dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
@@ -4036,107 +4036,27 @@ return(
             </div>;
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Quick Actions */}
-      <div className="rp-section">
+      {rpanelTab==="more"&&<div className="rp-section">
         <div className="rp-heading">Actions</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
           <button className="g-btn" style={{flex:1,justifyContent:"center",fontSize:10,padding:"5px 8px",display:"inline-flex",alignItems:"center",gap:5,border:"1px solid #e2e8f0",background:"#fff",borderRadius:8,cursor:"pointer",color:"#475569",fontWeight:600,fontFamily:"inherit"}} onClick={()=>{copyProgressSummary();}}>{Icons.clipboard()} Summary</button>
           <button className="g-btn" style={{flex:1,justifyContent:"center",fontSize:10,padding:"5px 8px",display:"inline-flex",alignItems:"center",gap:5,border:"1px solid #e2e8f0",background:"#fff",borderRadius:8,cursor:"pointer",color:"#475569",fontWeight:600,fontFamily:"inherit"}} onClick={handleEditInCreator}>{Icons.pencil()} Edit</button>
         </div>
-      </div>
+
+        {/* Project Info (moved from below-canvas) */}
+        <div style={{marginTop:12}}>
+          <div className="rp-heading">Project Info</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 16px",fontSize:11}}>
+            {[["Pattern size",sW+" × "+sH],["Stitchable",totalStitchable.toLocaleString()],["Colours",pal.length+""],["Skeins needed",totalSkeins+""]].map(function([l,v],i){return React.createElement("div",{key:i},React.createElement("div",{style:{color:"#94a3b8",fontWeight:600,marginBottom:1}},l),React.createElement("div",{style:{fontWeight:600,color:"#1e293b"}},v));})}
+          </div>
+        </div>
+      </div>}
+      </div>{/* end rp-tab-content */}
     </div>{/* end rpanel */}
   </div>{/* end cs-main */}
-
-  <div style={{maxWidth:1100, margin:"0 auto", padding:"12px 16px"}}>
-    <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <Section title="Thread Organiser">
-        <div style={{marginTop:8,display:"flex",gap:12,marginBottom:10}}>
-          <div style={{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}}><span style={{fontWeight:700,color:"#16a34a"}}>{ownedCount}</span> <span style={{color:"#475569"}}>owned</span></div>
-          <div style={{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}}><span style={{fontWeight:700,color:"#ea580c"}}>{toBuyList.length}</span> <span style={{color:"#475569"}}>to buy</span></div>
-          <div style={{marginLeft:"auto",display:"flex",gap:4}}>
-            <button onClick={()=>setModal("calculator_batch")} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}}>Calculate thread needed</button>
-            <button onClick={()=>{if(!confirm("Mark all "+skeinData.length+" threads as owned?"))return;let n={};skeinData.forEach(d=>{n[d.id]="owned";});setThreadOwned(n);}} style={{fontSize:11,padding:"4px 10px",border:"1px solid #bbf7d0",borderRadius:6,background:"#f0fdf4",color:"#16a34a",cursor:"pointer"}}>Own all</button>
-            <button onClick={()=>{if(!confirm("Clear all thread ownership status?"))return;setThreadOwned({});}} style={{fontSize:11,padding:"4px 10px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",cursor:"pointer"}}>Clear</button>
-          </div>
-        </div>
-        <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:320,overflow:"auto"}}>
-          {skeinData.map(d=>{
-            let st=threadOwned[d.id]||"";
-            let isOwned=st==="owned";
-            let gs=globalStash[d.id]||{owned:0};
-            let hasStash=gs.owned>0;
-            return<React.Fragment key={d.id}><div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,background:isOwned?"#f0fdf4":"#fff",border:"1px solid "+(isOwned?"#bbf7d0":"#f1f5f9")}}>
-              <span style={{width:16,height:16,borderRadius:3,background:`rgb(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
-              <span style={{fontWeight:700,fontSize:13,minWidth:44}}>DMC {d.id}</span>
-              <span style={{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
-              <span style={{fontSize:11,color:"#94a3b8",flexShrink:0}}>{d.skeins}sk</span>
-              <span className={"stash-badge"+(hasStash?" stash-badge--in":" stash-badge--out")} title={hasStash?`${gs.owned} in global stash`:"Not in global stash"}>{hasStash?`●${gs.owned}`:"○0"}</span>
-              <button onClick={()=>toggleOwned(d.id)} style={{fontSize:11,padding:"3px 10px",borderRadius:5,border:"1px solid "+(isOwned?"#bbf7d0":"#fed7aa"),background:isOwned?"#f0fdf4":"#fff7ed",color:isOwned?"#16a34a":"#ea580c",cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center"}}>{isOwned?"Owned":"To buy"}</button>
-              {typeof StashBridge!=="undefined"&&<button onClick={(e)=>{e.stopPropagation();setAltOpen(altOpen===d.id?null:d.id);}} style={{fontSize:10,padding:"2px 6px",borderRadius:4,border:"1px solid #e0e7ff",background:altOpen===d.id?"#e0e7ff":"#fff",color:"#4338ca",cursor:"pointer",fontWeight:600}} title="Show similar threads from stash">≈</button>}
-            </div>
-            {altOpen===d.id&&(()=>{const alts=StashBridge.suggestAlternatives(d.id,5,globalStash);return alts.length>0?<div style={{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}}><span style={{color:"#475569",fontWeight:600}}>Similar in stash:</span>{alts.map(a=><span key={a.id} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}}><span style={{width:10,height:10,borderRadius:2,background:`rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`,border:"1px solid #cbd5e1"}}/><span style={{fontWeight:600}}>DMC {a.id}</span><span style={{color:"#475569"}}>{a.name}</span><span style={{color:"#94a3b8"}}>ΔE {a.deltaE}</span><span style={{color:"#4338ca"}}>{a.owned}sk</span></span>)}</div>:<div style={{padding:"6px 12px 8px 36px",fontSize:11,color:"#94a3b8"}}>No similar threads found in your stash.</div>;})()}
-            </React.Fragment>;})}
-        </div>
-        <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
-          <button onClick={()=>{let txt=toBuyList.map(d=>`DMC ${d.id} ${d.name} × ${d.skeins}`).join("\n");copyText(txt,"shopping");}} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Copy To-Buy List</button>
-          <button onClick={()=>{let txt=skeinData.map(d=>`DMC ${d.id} ${d.name} × ${d.skeins}`).join("\n");copyText(txt,"full");}} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}}>Copy Full List</button>
-          <button onClick={()=>{
-            if(typeof StashBridge==="undefined")return;
-            StashBridge.getGlobalStash().then(stash=>{
-              setGlobalStash(stash);
-              const shopping=[];
-              for(const d of skeinData){
-                const gs=stash[d.id]||{owned:0};
-                const deficit=d.skeins-gs.owned;
-                if(deficit>0) shopping.push({id:d.id,name:d.name,rgb:d.rgb,needed:d.skeins,owned:gs.owned,toBuy:deficit});
-              }
-              setKittingResult(shopping);
-            }).catch(()=>{});
-          }} style={{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #d8b4fe",background:"#faf5ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Kit This Project</button>
-        </div>
-        {kittingResult&&<div style={{marginTop:10,padding:12,borderRadius:8,border:"1px solid #e9d5ff",background:"#faf5ff"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-            <span style={{fontSize:13,fontWeight:700,color:"#7c3aed"}}>{kittingResult.length===0?"Fully kitted! You own everything needed.":"Shopping list from stash diff"}</span>
-            <button onClick={()=>setKittingResult(null)} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:16}}>×</button>
-          </div>
-          {kittingResult.length>0&&<>
-            <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:200,overflow:"auto"}}>
-              {kittingResult.map(d=><div key={d.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,background:"#fff",border:"1px solid #f1f5f9"}}>
-                <span style={{width:14,height:14,borderRadius:3,background:`rgb(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
-                <span style={{fontWeight:600,fontSize:12}}>DMC {d.id}</span>
-                <span style={{fontSize:11,color:"#475569",flex:1}}>{d.name}</span>
-                <span style={{fontSize:11,color:"#94a3b8"}}>need {d.needed}, own {d.owned}</span>
-                <span style={{fontSize:11,fontWeight:700,color:"#7c3aed"}}>buy {d.toBuy}</span>
-              </div>)}
-            </div>
-            <div style={{display:"flex",gap:6,marginTop:8}}>
-              <button onClick={()=>{let txt=kittingResult.map(d=>`DMC ${d.id} ${d.name} × ${d.toBuy} skeins`).join("\n");copyText(txt,"kit");}} style={{padding:"6px 14px",fontSize:12,borderRadius:6,border:"none",background:"#7c3aed",color:"#fff",cursor:"pointer",fontWeight:600}}>Copy List</button>
-              <button onClick={()=>{
-                Promise.all(kittingResult.map(d=>StashBridge.updateThreadToBuy(d.id,true))).then(()=>{
-                  StashBridge.getGlobalStash().then(setGlobalStash).catch(()=>{});
-                  alert("Marked "+kittingResult.length+" threads as to-buy in your global stash.");
-                }).catch(()=>{});
-              }} style={{padding:"6px 14px",fontSize:12,borderRadius:6,border:"1px solid #d8b4fe",background:"#fff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Mark All To-Buy in Stash</button>
-            </div>
-          </>}
-        </div>}
-        {copied&&<div style={{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}>Copied!</div>}
-      </Section>
-
-      <Section title="Project Info">
-        <div style={{marginTop:8,display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}}>
-          {[["Pattern size",`${sW} × ${sH} stitches`],["Total cells",(sW*sH).toLocaleString()],["Stitchable",totalStitchable.toLocaleString()],["Skipped",(sW*sH-totalStitchable).toLocaleString()],["Colours",`${pal.length} (${blendCount} blend${blendCount!==1?"s":""})`],["Skeins needed",`${totalSkeins} (at ${fabricCt}ct)`]].map(([l,v],i)=><div key={i}><div style={{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}>{l}</div><div style={{fontSize:14,fontWeight:600,color:"#1e293b"}}>{v}</div></div>)}
-        </div>
-      </Section>
-    </div>
-
-    <div style={{marginTop:20, display:"flex", gap:10, justifyContent:"center", padding:"20px", borderTop:"0.5px solid #e2e8f0"}}>
-      <button onClick={saveProject} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}}>Save Project (.json)</button>
-      <button onClick={()=>loadRef.current.click()} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}}>Load Different Project</button>
-    </div>
-  </div>
   </>}
 
   {importDialog==="image"&&importImage&&<div className="modal-overlay" onClick={()=>{setImportDialog(null);setImportImage(null);}}>

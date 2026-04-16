@@ -80,9 +80,22 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
   );
 }
 
-function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage }) {
+function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
+
+  // Inline editable project name state (for merged ContextBar)
+  const [editingName, setEditingName] = React.useState(false);
+  const [nameDraft, setNameDraft] = React.useState(propProjectName || '');
+  const nameInputRef = React.useRef(null);
+  React.useEffect(() => { setNameDraft(propProjectName || ''); }, [propProjectName]);
+  React.useEffect(() => { if (editingName && nameInputRef.current) nameInputRef.current.focus(); }, [editingName]);
+  function commitNameEdit() {
+    setEditingName(false);
+    const trimmed = (nameDraft || '').trim().slice(0, 60);
+    if (trimmed && trimmed !== propProjectName && onNameChange) onNameChange(trimmed);
+    else setNameDraft(propProjectName || '');
+  }
   React.useEffect(() => {
     if (!pageDrop) return;
     function close(e) { if (dropRef.current && !dropRef.current.contains(e.target)) setPageDrop(false); }
@@ -226,10 +239,32 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
         React.createElement('div', { className: 'tb-hgap' }),
 
-        // Active project badge
-        projName && React.createElement('div', { className: 'tb-proj-badge' },
-          React.createElement('span', { className: 'tb-proj-badge-name' }, projName),
-          pct !== null && React.createElement('span', { className: 'tb-proj-badge-pct' }, pct + '%')
+        // Active project badge — editable when onNameChange is provided
+        (propProjectName || projName) && React.createElement('div', { className: 'tb-proj-badge' },
+          onNameChange
+            ? (editingName
+              ? React.createElement('input', {
+                  ref: nameInputRef,
+                  className: 'tb-proj-badge-input',
+                  value: nameDraft,
+                  maxLength: 60,
+                  onChange: function(e) { setNameDraft(e.target.value); },
+                  onBlur: commitNameEdit,
+                  onKeyDown: function(e) {
+                    if (e.key === 'Enter') { e.target.blur(); }
+                    else if (e.key === 'Escape') { setNameDraft(propProjectName || ''); setEditingName(false); }
+                  },
+                  onClick: function(e) { e.stopPropagation(); }
+                })
+              : React.createElement('button', {
+                  type: 'button',
+                  className: 'tb-proj-badge-name tb-proj-badge-name--editable',
+                  onClick: function(e) { e.stopPropagation(); setEditingName(true); },
+                  title: 'Click to rename',
+                  'aria-label': 'Rename project'
+                }, propProjectName || projName))
+            : React.createElement('span', { className: 'tb-proj-badge-name' }, propProjectName || projName),
+          (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) !== null && React.createElement('span', { className: 'tb-proj-badge-pct' }, (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) + '%')
         ),
 
         React.createElement('div', { className: 'tb-sep' }),
