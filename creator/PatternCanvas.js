@@ -110,8 +110,7 @@ window.PatternCanvas = function PatternCanvas() {
     gen.img, ctx.partialStitches, cv.stitchType, ctx.partialStitchTool,
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
-    cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity
-  ]);
+    cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity    cv.diagnosticsEnabled, cv.diagnosticsResults, cv.diagnosticsSettings,  ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
   // Restores the cached base from ImageData then repaints just the hover elements.

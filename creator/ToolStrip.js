@@ -559,7 +559,19 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   );
 
-  var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:app.overflowRef},
+  var svgDiag = h("svg", {width:13,height:13,viewBox:"0 0 14 14",fill:"none"},
+    h("circle",{cx:"6",cy:"6",r:"4.5",stroke:"currentColor",strokeWidth:"1.4"}),
+    h("line",{x1:"9.2",y1:"9.2",x2:"12.5",y2:"12.5",stroke:"currentColor",strokeWidth:"1.6",strokeLinecap:"round"}),
+    h("line",{x1:"6",y1:"3.5",x2:"6",y2:"6",stroke:"currentColor",strokeWidth:"1.3",strokeLinecap:"round"}),
+    h("circle",{cx:"6",cy:"7.5",r:"0.7",fill:"currentColor"})
+  );
+  var diagBtn = h("button", {
+    className: "tb-btn" + (app.diagnosticsOpen ? " tb-btn--on" : ""),
+    title: "Diagnostics — analyse pattern for issues",
+    disabled: !(ctx.pat && ctx.pal),
+    onClick: function() { app.setDiagnosticsOpen(function(o) { return !o; }); },
+    style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
+  }, svgDiag, !sc.bs ? " Diag" : null);
     h("button", {
       className:"tb-overflow-btn",
       onClick:function(){app.setOverflowOpen(function(o){return !o;});},
@@ -602,6 +614,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           previewDropWrap,
           h("div", {className:"tb-sdiv"}),
           splitBtn,
+          h("div", {className:"tb-sdiv"}),
+          diagBtn,
           h("div", {className:"tb-sdiv"}),
           overflowWrap
         )

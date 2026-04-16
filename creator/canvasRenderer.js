@@ -507,6 +507,151 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
 };
 
 /**
+ * Draw all active diagnostic overlays on top of the stitches.
+ * Called inside drawPatternBaseOnCanvas so overlays are baked into the cached base.
+ * Stacking order (bottom→top): confetti crosshatch → heat map blocks → readability icons.
+ */
+function _drawDiagnosticsOverlay(ctx2d, offX, offY, dW, dH, cSz, gut, state) {
+  var diagEnabled  = state.diagnosticsEnabled;
+  var diagResults  = state.diagnosticsResults;
+  var diagSettings = state.diagnosticsSettings;
+  var sW = state.sW;
+  if (!diagEnabled || !diagResults) return;
+
+  // ── 1. Confetti crosshatch ─────────────────────────────────────────────────
+  if (diagEnabled.confetti && diagResults.confetti && diagResults.confetti.severity) {
+    ctx2d.save();
+    var sevColors = [
+      null,
+      [255, 23,  68,  0.60],   // sev 1: single — red
+      [255, 87,  34,  0.50],   // sev 2: pair — deep orange
+      [255, 193, 7,   0.40],   // sev 3: small cluster — amber
+    ];
+    var spacing    = Math.max(3, Math.min(cSz / 3, 6));
+    var lineW      = cSz < 8 ? 1 : 1.5;
+    var cfSeverity = diagResults.confetti.severity;
+
+    // Build cell lists per severity
+    var sevCells   = [[], [], [], []];
+    for (var dy = 0; dy < dH; dy++) {
+      for (var dx = 0; dx < dW; dx++) {
+        var si = (offY + dy) * sW + (offX + dx);
+        var sv = cfSeverity[si];
+        if (sv > 0 && sv <= 3) sevCells[sv].push({ dx: dx, dy: dy });
+      }
+    }
+
+    // For each severity level: create a pattern tile, fill each cell
+    for (var sev = 1; sev <= 3; sev++) {
+      if (!sevCells[sev].length) continue;
+      var col = sevColors[sev];
+
+      if (cSz >= 4) {
+        // Create a repeating hatch pattern tile
+        var tileSize = spacing * 2;
+        var tile = document.createElement("canvas");
+        tile.width  = tileSize;
+        tile.height = tileSize;
+        var tctx = tile.getContext("2d");
+        tctx.strokeStyle = "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + col[3] + ")";
+        tctx.lineWidth = Math.max(1, lineW);
+        // Forward diagonal (/)
+        tctx.beginPath(); tctx.moveTo(0, tileSize); tctx.lineTo(tileSize, 0); tctx.stroke();
+        // Backward diagonal (\)
+        tctx.beginPath(); tctx.moveTo(0, 0); tctx.lineTo(tileSize, tileSize); tctx.stroke();
+        // Extra tiles to close hatch gaps at edges
+        tctx.beginPath(); tctx.moveTo(-tileSize, tileSize); tctx.lineTo(0, 0); tctx.stroke();
+        tctx.beginPath(); tctx.moveTo(tileSize, 0); tctx.lineTo(tileSize * 2, tileSize); tctx.stroke();
+        tctx.beginPath(); tctx.moveTo(0, -tileSize); tctx.lineTo(tileSize, 0); tctx.stroke();
+        var patt = ctx2d.createPattern(tile, "repeat");
+        ctx2d.fillStyle = patt;
+      } else {
+        // Tiny cells — solid tint
+        ctx2d.fillStyle = "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + col[3] + ")";
+      }
+
+      for (var ci = 0; ci < sevCells[sev].length; ci++) {
+        var sc = sevCells[sev][ci];
+        ctx2d.fillRect(gut + sc.dx * cSz, gut + sc.dy * cSz, cSz, cSz);
+      }
+    }
+    ctx2d.restore();
+  }
+
+  // ── 2. Heat map block overlays ─────────────────────────────────────────────
+  if (diagEnabled.heatmap && diagResults.heatmap && diagResults.heatmap.blocks) {
+    ctx2d.save();
+    var metric = (diagSettings && diagSettings.heatmap && diagSettings.heatmap.metric) || "colorcount";
+    var isFrag = metric === "fragmentation";
+
+    function _hmColor(v) {
+      var bands = isFrag
+        ? [[5,"232,245,233",0.25],[15,"129,199,132",0.30],[25,"255,241,118",0.35],[40,"255,183,77",0.40],[60,"255,138,101",0.45]]
+        : [[2,"232,245,233",0.25],[5,"129,199,132",0.30],[8,"255,241,118",0.35],[12,"255,183,77",0.40],[16,"255,138,101",0.45]];
+      for (var bi = 0; bi < bands.length; bi++) { if (v <= bands[bi][0]) return "rgba(" + bands[bi][1] + "," + bands[bi][2] + ")"; }
+      return "rgba(239,83,80,0.50)";
+    }
+
+    var hmBlocks = diagResults.heatmap.blocks;
+    for (var hbi = 0; hbi < hmBlocks.length; hbi++) {
+      var blk = hmBlocks[hbi];
+      // Skip blocks outside the visible tile
+      if (blk.x + blk.w <= offX || blk.x >= offX + dW || blk.y + blk.h <= offY || blk.y >= offY + dH) continue;
+      var bpx = gut + (blk.x - offX) * cSz;
+      var bpy = gut + (blk.y - offY) * cSz;
+      var bpw = blk.w * cSz, bph = blk.h * cSz;
+      ctx2d.fillStyle = _hmColor(blk.value);
+      ctx2d.fillRect(bpx, bpy, bpw, bph);
+      // Number label at sufficient zoom
+      if (blk.value > 0 && bpw > 80 && bph > 80) {
+        ctx2d.fillStyle = "rgba(255,255,255,0.92)";
+        ctx2d.font = "bold " + Math.min(16, Math.floor(bpw / 4)) + "px system-ui";
+        ctx2d.textAlign = "center";
+        ctx2d.textBaseline = "middle";
+        ctx2d.shadowColor = "rgba(0,0,0,0.55)";
+        ctx2d.shadowBlur = 2;
+        ctx2d.fillText(blk.value, bpx + bpw / 2, bpy + bph / 2);
+        ctx2d.shadowBlur = 0;
+      }
+    }
+    ctx2d.restore();
+  }
+
+  // ── 3. Symbol readability indicators ──────────────────────────────────────
+  if (diagEnabled.readability && diagResults.readability) {
+    ctx2d.save();
+    var rdRes    = diagResults.readability;
+    var useIcon  = cSz >= 12;
+    var iconSize = useIcon ? Math.max(7, Math.round(cSz * 0.28)) : 0;
+    var dotSize  = Math.max(2, Math.round(cSz * 0.18));
+
+    function _drawReadMarks(cells, color) {
+      ctx2d.fillStyle = color;
+      if (useIcon) {
+        ctx2d.font = "bold " + iconSize + "px system-ui";
+        ctx2d.textAlign = "right";
+        ctx2d.textBaseline = "top";
+      }
+      for (var rdi = 0; rdi < cells.length; rdi++) {
+        var ri = cells[rdi];
+        var rx = (ri % sW) - offX, ry = Math.floor(ri / sW) - offY;
+        if (rx < 0 || rx >= dW || ry < 0 || ry >= dH) continue;
+        var rpx = gut + rx * cSz, rpy = gut + ry * cSz;
+        if (useIcon) {
+          ctx2d.fillText("\u26A0", rpx + cSz - 1, rpy + 1);
+        } else {
+          ctx2d.fillRect(rpx + cSz - dotSize, rpy, dotSize, dotSize);
+        }
+      }
+    }
+
+    _drawReadMarks(rdRes.failCells, "#D32F2F");
+    _drawReadMarks(rdRes.warnCells, "#F9A825");
+    ctx2d.restore();
+  }
+}
+
+/**
  * Draw only the static base of the pattern — stitches, grid, committed
  * backstitches, outer border.  Does NOT use hoverCoords, so the result can
  * be cached as an ImageData and composited with drawPatternOverlayOnCanvas.
@@ -662,6 +807,9 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
       }
     }
   }
+
+  // Diagnostic overlays (confetti, heat map, readability) — baked into base cache
+  _drawDiagnosticsOverlay(ctx2d, offX, offY, dW, dH, cSz, gut, state);
 
   // Grid lines (every 10) — batched into single path
   if (cSz >= 3) {
