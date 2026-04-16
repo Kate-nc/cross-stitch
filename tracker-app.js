@@ -435,12 +435,10 @@ const STITCH_LAYERS=[{id:'full',label:'Full Cross',key:'F'},{id:'half',label:'Ha
 const ALL_LAYERS_VISIBLE={full:true,half:true,backstitch:true,quarter:true,petite:true,french_knot:true,long_stitch:true};
 const[layerVis,setLayerVis]=useState(ALL_LAYERS_VISIBLE);
 const[soloPreState,setSoloPreState]=useState(null);
-const[layerPanelOpen,setLayerPanelOpen]=useState(false);
 const[bsThickness,setBsThickness]=useState(()=>{try{return parseInt(localStorage.getItem('cs_bsThickness')||'2');}catch(_){return 2;}});
 const[statsCountMode,setStatsCountMode]=useState('visible');
 const tStripRef=useRef(null);
 const tOverflowRef=useRef(null);
-const layerPanelRef=useRef(null);
 const soloTimerRef=useRef(null);
 
 const doneCount=countsVer>=0?doneCountRef.current:0;
@@ -2655,8 +2653,10 @@ function drawCellDirectly(idx, nv) {
   // Tier 1 fast path: flat color fill only
   if(tier===1){
     if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle="#f0f4f8";ctx.fillRect(px,py,cSz,cSz);return;}
-    if(isDn){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-    else{const r2=Math.round(m.rgb[0]*0.45+255*0.55),g2=Math.round(m.rgb[1]*0.45+255*0.55),b2=Math.round(m.rgb[2]*0.45+255*0.55);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
+    if(layerVis.full){
+      if(isDn){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+      else{const r2=Math.round(m.rgb[0]*0.45+255*0.55),g2=Math.round(m.rgb[1]*0.45+255*0.55),b2=Math.round(m.rgb[2]*0.45+255*0.55);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
+    }
     return;
   }
 
@@ -2667,7 +2667,7 @@ function drawCellDirectly(idx, nv) {
       ctx.strokeRect(px,py,cSz,cSz);
     }
     let hs=halfStitches.get(idx);
-    if(hs&&bsHsAlpha>0.01){
+    if(hs&&layerVis.half&&bsHsAlpha>0.01){
       let hd=halfDone.get(idx)||{};
       ctx.save();ctx.globalAlpha=bsHsAlpha;
       _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,tier===2,tier===3,tier>=4);
@@ -2676,49 +2676,50 @@ function drawCellDirectly(idx, nv) {
     return;
   }
 
-  if(stitchView==="symbol"){
-    if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-    else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=`bold ${symPx}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
-  }else if(stitchView==="colour"){
-    ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-    if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
-  }else if(highlightMode==="outline"||highlightMode==="tint"){
-    ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-    if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
-    if(highlightMode==="tint"&&focusColour&&m.id===focusColour){const tr=parseInt(tintColor.slice(1,3),16),tg=parseInt(tintColor.slice(3,5),16),tb=parseInt(tintColor.slice(5,7),16);ctx.fillStyle=`rgba(${tr},${tg},${tb},${tintOpacity})`;ctx.fillRect(px,py,cSz,cSz);}
-  }else if(highlightMode==="spotlight"){
-    if(dimmed){ctx.fillStyle="#e8ecf0";ctx.fillRect(px,py,cSz,cSz);}
-    else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
-  }else{
-    if(isDn){ctx.fillStyle=dimmed?"#f1f5f9":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-    else if(dimmed){ctx.fillStyle="#f1f5f9";ctx.fillRect(px,py,cSz,cSz);if(symAlpha>0.01&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,Math.round(cSz*0.45))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
-    else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=`bold ${symPx}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+  if(layerVis.full){
+    if(stitchView==="symbol"){
+      if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
+      else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=`bold ${symPx}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+    }else if(stitchView==="colour"){
+      ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
+      if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
+    }else if(highlightMode==="outline"||highlightMode==="tint"){
+      ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
+      if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
+      if(highlightMode==="tint"&&focusColour&&m.id===focusColour){const tr=parseInt(tintColor.slice(1,3),16),tg=parseInt(tintColor.slice(3,5),16),tb=parseInt(tintColor.slice(5,7),16);ctx.fillStyle=`rgba(${tr},${tg},${tb},${tintOpacity})`;ctx.fillRect(px,py,cSz,cSz);}
+    }else if(highlightMode==="spotlight"){
+      if(dimmed){ctx.fillStyle="#e8ecf0";ctx.fillRect(px,py,cSz,cSz);}
+      else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
+    }else{
+      if(isDn){ctx.fillStyle=dimmed?"#f1f5f9":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+      else if(dimmed){ctx.fillStyle="#f1f5f9";ctx.fillRect(px,py,cSz,cSz);if(symAlpha>0.01&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,Math.round(cSz*0.45))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+      else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=`bold ${symPx}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+    }
   }
   // Tier 4 thread ID label
-  if(tier>=4&&cSz>40&&info&&symAlpha>0.01){
+  if(tier>=4&&cSz>40&&info&&symAlpha>0.01&&layerVis.full){
     ctx.save();ctx.globalAlpha=symAlpha*0.7;ctx.fillStyle="rgba(100,116,139,1)";
     ctx.font=`${Math.max(6,Math.round(cSz*0.2))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";
     ctx.fillText(m.id,px+cSz/2,py+cSz*0.8);ctx.restore();
   }
   // Half stitches
   let hs=halfStitches.get(idx);
-  if(hs&&bsHsAlpha>0.01){
+  if(hs&&layerVis.half&&bsHsAlpha>0.01){
     let hd=halfDone.get(idx)||{};
     ctx.save();ctx.globalAlpha=bsHsAlpha;
     _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,effectiveDimmed2,tier===2,tier===3,tier>=4);
     ctx.restore();
   }
-  if(cSz>=4){ctx.strokeStyle=effectiveDimmed2?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+  if(cSz>=4){ctx.strokeStyle=(effectiveDimmed2&&layerVis.full)?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
 }
 
 // ═══ Half-stitch marking helpers ═══
 function hitTestHalfStitch(localX, localY, cellSize, margin) {
-  // Determine which diagonal half (fwd=/ or bck=\) the click landed in
-  // fwd "/" covers bottom-left triangle, bck "\" covers top-left triangle
+  // Determine which diagonal slash orientation (fwd=/ or bck=\) the click is closest to.
   const normX = localX / cellSize;
   const normY = localY / cellSize;
-  // For "/": below the line y = 1 - x means fwd
-  // For "\": below the line y = x means bck
+  // "/" lies on y = 1 - x, "\" lies on y = x.
+  // If the click is within the margin of both diagonals, treat it as ambiguous.
   const fwdDist = Math.abs(normY - (1 - normX));
   const bckDist = Math.abs(normY - normX);
   const threshold = margin / cellSize;
@@ -3150,7 +3151,6 @@ useEffect(()=>{
       if(cellEditPopover){setCellEditPopover(null);return;}
       if(importDialog){setImportDialog(null);return;}
       if(tOverflowOpen){setTOverflowOpen(false);return;}
-      if(layerPanelOpen){setLayerPanelOpen(false);return;}
       if(focusColour&&stitchView==="highlight"){setFocusColour(null);return;}
       if(drawer){setDrawer(false);return;}
       return;
@@ -3214,7 +3214,7 @@ useEffect(()=>{
   window.addEventListener("keydown",handleKeyDown);
   window.addEventListener("keyup",handleKeyUp);
   return()=>{window.removeEventListener("keydown",handleKeyDown);window.removeEventListener("keyup",handleKeyUp);};
-},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive,layerVis,layerPanelOpen]);
+},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive,layerVis]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
@@ -3255,13 +3255,6 @@ useEffect(()=>{
   document.addEventListener('mousedown',close);
   return()=>document.removeEventListener('mousedown',close);
 },[tOverflowOpen]);
-// Layer panel close on outside click
-useEffect(()=>{
-  if(!layerPanelOpen)return;
-  function close(e){if(layerPanelRef.current&&!layerPanelRef.current.contains(e.target))setLayerPanelOpen(false);}
-  document.addEventListener('mousedown',close);
-  return()=>document.removeEventListener('mousedown',close);
-},[layerPanelOpen]);
 // ResizeObserver — collapse stitch/view groups when toolbar is narrow
 useEffect(()=>{
   if(!tStripRef.current)return;
@@ -3814,7 +3807,7 @@ return(
         </div>
 
         {/* Layers */}
-        <div style={{marginTop:12}} ref={layerPanelRef}>
+        <div style={{marginTop:12}}>
           <div className="rp-heading" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span>Layers</span>
             <div style={{display:"flex",gap:4}}>

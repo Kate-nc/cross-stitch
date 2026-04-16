@@ -199,16 +199,6 @@ window.useCreatorState = function useCreatorState() {
   // Context menu
   var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
 
-  // Diagnostics panel
-  var _diagOpen     = useState(false); var diagnosticsOpen = _diagOpen[0], setDiagnosticsOpen = _diagOpen[1];
-  var _diagEnabled  = useState({ confetti: false, heatmap: false, readability: false });
-  var diagnosticsEnabled = _diagEnabled[0], setDiagnosticsEnabled = _diagEnabled[1];
-  var _diagSettings = useState({ confetti: { threshold: 3 }, heatmap: { metric: "colorcount", blockSize: 10 }, readability: {} });
-  var diagnosticsSettings = _diagSettings[0], setDiagnosticsSettings = _diagSettings[1];
-  var _diagResults  = useState({ confetti: null, heatmap: null, readability: null });
-  var diagnosticsResults = _diagResults[0], setDiagnosticsResults = _diagResults[1];
-  var diagTimerRef  = useRef(null);
-
   // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
   var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
 
@@ -887,26 +877,6 @@ window.useCreatorState = function useCreatorState() {
     lasso.setLassoOpMode(mode);
   }
 
-  // ─── Diagnostics computation (debounced 500ms) ───────────────────────────────
-  useEffect(function() {
-    if (diagTimerRef.current) clearTimeout(diagTimerRef.current);
-    if (!pat || !sW || !sH) { setDiagnosticsResults({ confetti: null, heatmap: null, readability: null }); return; }
-    var anyEnabled = diagnosticsEnabled.confetti || diagnosticsEnabled.heatmap || diagnosticsEnabled.readability;
-    if (!anyEnabled) { setDiagnosticsResults({ confetti: null, heatmap: null, readability: null }); return; }
-    diagTimerRef.current = setTimeout(function() {
-      diagTimerRef.current = null;
-      var threshold  = (diagnosticsSettings.confetti && diagnosticsSettings.confetti.threshold) || 3;
-      var blockSize  = (diagnosticsSettings.heatmap  && diagnosticsSettings.heatmap.blockSize)  || 10;
-      var metric     = (diagnosticsSettings.heatmap  && diagnosticsSettings.heatmap.metric)     || "colorcount";
-      setDiagnosticsResults({
-        confetti:    diagnosticsEnabled.confetti    ? _computeConfettiDiagnostic(pat, sW, sH, threshold)           : null,
-        heatmap:     diagnosticsEnabled.heatmap     ? _computeHeatmapDiagnostic(pat, sW, sH, blockSize, metric)    : null,
-        readability: diagnosticsEnabled.readability ? _computeReadabilityDiagnostic(pat, cmap, sW, sH)             : null,
-      });
-    }, 500);
-    return function() { if (diagTimerRef.current) { clearTimeout(diagTimerRef.current); diagTimerRef.current = null; } };
-  }, [pat, sW, sH, cmap, diagnosticsEnabled, diagnosticsSettings]);
-
   // ─── Scratch resize effect ───────────────────────────────────────────────────
   useEffect(function() {
     if (!isScratchMode || !pat) return;
@@ -1051,11 +1021,6 @@ window.useCreatorState = function useCreatorState() {
     eyedropperEmpty, setEyedropperEmpty,
     // Context menu
     contextMenu, setContextMenu,
-    // Diagnostics
-    diagnosticsOpen, setDiagnosticsOpen,
-    diagnosticsEnabled, setDiagnosticsEnabled,
-    diagnosticsSettings, setDiagnosticsSettings,
-    diagnosticsResults,
     // Toast notifications
     toasts, addToast, dismissToast,
     // Selection modifier key state (null | "add" | "subtract" | "intersect")

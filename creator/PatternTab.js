@@ -126,7 +126,6 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     })(),
 
     h(window.MagicWandPanel, null),
-    h(window.DiagnosticsPanel, null),
 
     app.splitPaneEnabled
       ? h(window.CreatorSplitPane, null)

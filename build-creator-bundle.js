@@ -12,7 +12,6 @@ const path = require('path');
 const ORDER = [
   'context.js',
   'generate.js',
-  'diagnosticsEngine.js',
   'canvasRenderer.js',
   'PreviewCanvas.js',
   'RealisticCanvas.js',
@@ -29,7 +28,6 @@ const ORDER = [
   'SplitPane.js',
   'ToolStrip.js',
   'MagicWandPanel.js',
-  'DiagnosticsPanel.js',
   'SubstituteFromStashModal.js',
   'Sidebar.js',
   'Toast.js',

@@ -195,159 +195,6 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
 };
 
 
-/* ─── diagnosticsEngine.js ─── */
-/* creator/diagnosticsEngine.js — Pure computation functions for pattern diagnostics.
-   Called from useDiagnostics (inside useCreatorState.js).
-   No external dependencies — safe to call on main thread. */
-
-// ─── Confetti / Isolation diagnostic ─────────────────────────────────────────
-// Returns { severity: Uint8Array, count, byColor, score }
-// severity[i]: 0=clean, 1=single stitch (high), 2=cluster of 2 (medium), 3=cluster ≤threshold (low)
-function _computeConfettiDiagnostic(pat, sW, sH, threshold) {
-  var n = pat.length;
-  var visited = new Uint8Array(n);
-  var severity = new Uint8Array(n);
-  var countBySev = [0, 0, 0, 0];
-  var colorCounts = {};
-
-  for (var i = 0; i < n; i++) {
-    if (visited[i]) continue;
-    var cell = pat[i];
-    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") { visited[i] = 1; continue; }
-    var colorId = cell.id;
-    var cluster = [i];
-    visited[i] = 1;
-    var head = 0;
-    while (head < cluster.length) {
-      var ci = cluster[head++];
-      var cx = ci % sW, cy = Math.floor(ci / sW);
-      var n1 = ci - 1, n2 = ci + 1, n3 = ci - sW, n4 = ci + sW;
-      if (cx > 0       && !visited[n1] && pat[n1] && pat[n1].id === colorId) { visited[n1] = 1; cluster.push(n1); }
-      if (cx < sW - 1  && !visited[n2] && pat[n2] && pat[n2].id === colorId) { visited[n2] = 1; cluster.push(n2); }
-      if (cy > 0       && !visited[n3] && pat[n3] && pat[n3].id === colorId) { visited[n3] = 1; cluster.push(n3); }
-      if (cy < sH - 1  && !visited[n4] && pat[n4] && pat[n4].id === colorId) { visited[n4] = 1; cluster.push(n4); }
-    }
-    var sz = cluster.length;
-    if (sz <= threshold) {
-      var sev = sz === 1 ? 1 : sz === 2 ? 2 : 3;
-      for (var k = 0; k < cluster.length; k++) {
-        var ki = cluster[k];
-        severity[ki] = sev;
-        countBySev[sev]++;
-        if (!colorCounts[colorId]) colorCounts[colorId] = { id: colorId, rgb: pat[ki].rgb || [128,128,128], count: 0 };
-        colorCounts[colorId].count++;
-      }
-    }
-  }
-
-  var total = countBySev[1] + countBySev[2] + countBySev[3];
-  var stitchable = 0;
-  for (var j = 0; j < n; j++) { if (pat[j] && pat[j].id !== "__skip__" && pat[j].id !== "__empty__") stitchable++; }
-  var score = stitchable > 0 ? total / stitchable * 100 : 0;
-  var byColor = Object.values(colorCounts).sort(function(a,b){return b.count-a.count;}).slice(0, 5);
-  return { severity: severity, count: total, byColor: byColor, score: score };
-}
-
-// ─── Stitch Density / Heat map diagnostic ────────────────────────────────────
-// Returns { blocks: [{x,y,w,h,value}], maxValue, avgValue, worstBlock }
-function _computeHeatmapDiagnostic(pat, sW, sH, blockSize, metric) {
-  var blocksX = Math.ceil(sW / blockSize);
-  var blocksY = Math.ceil(sH / blockSize);
-  var blocks = [];
-  var maxValue = 0, totalValue = 0, blockCount = 0;
-  var worstBlock = null;
-
-  for (var by = 0; by < blocksY; by++) {
-    for (var bx = 0; bx < blocksX; bx++) {
-      var x0 = bx * blockSize, y0 = by * blockSize;
-      var x1 = Math.min(x0 + blockSize, sW), y1 = Math.min(y0 + blockSize, sH);
-      var value = 0;
-
-      if (metric === "fragmentation") {
-        var bW = x1 - x0, bH = y1 - y0, bN = bW * bH;
-        var bVis = new Uint8Array(bN);
-        var clusters = 0;
-        for (var iy = 0; iy < bH; iy++) {
-          for (var ix = 0; ix < bW; ix++) {
-            var bi = iy * bW + ix;
-            if (bVis[bi]) continue;
-            var pi = (y0 + iy) * sW + (x0 + ix);
-            var pc = pat[pi];
-            if (!pc || pc.id === "__skip__" || pc.id === "__empty__") { bVis[bi] = 1; continue; }
-            clusters++;
-            var cid = pc.id;
-            var q = [bi]; bVis[bi] = 1; var qh = 0;
-            while (qh < q.length) {
-              var qi = q[qh++]; var qx = qi % bW, qy = Math.floor(qi / bW);
-              var nb; var npi;
-              if (qx > 0)     { nb = qi-1;   if (!bVis[nb]) { npi=(y0+Math.floor(nb/bW))*sW+(x0+nb%bW); if(pat[npi]&&pat[npi].id===cid){bVis[nb]=1;q.push(nb);} } }
-              if (qx < bW-1)  { nb = qi+1;   if (!bVis[nb]) { npi=(y0+Math.floor(nb/bW))*sW+(x0+nb%bW); if(pat[npi]&&pat[npi].id===cid){bVis[nb]=1;q.push(nb);} } }
-              if (qy > 0)     { nb = qi-bW;  if (!bVis[nb]) { npi=(y0+Math.floor(nb/bW))*sW+(x0+nb%bW); if(pat[npi]&&pat[npi].id===cid){bVis[nb]=1;q.push(nb);} } }
-              if (qy < bH-1)  { nb = qi+bW;  if (!bVis[nb]) { npi=(y0+Math.floor(nb/bW))*sW+(x0+nb%bW); if(pat[npi]&&pat[npi].id===cid){bVis[nb]=1;q.push(nb);} } }
-            }
-          }
-        }
-        value = clusters;
-      } else {
-        // colorcount
-        var colors = {};
-        for (var cy2 = y0; cy2 < y1; cy2++) {
-          for (var cx2 = x0; cx2 < x1; cx2++) {
-            var c2 = pat[cy2 * sW + cx2];
-            if (c2 && c2.id !== "__skip__" && c2.id !== "__empty__") colors[c2.id] = true;
-          }
-        }
-        value = Object.keys(colors).length;
-      }
-
-      blocks.push({ x: x0, y: y0, w: x1-x0, h: y1-y0, value: value });
-      if (value > maxValue) { maxValue = value; worstBlock = { x: x0, y: y0, value: value }; }
-      totalValue += value; blockCount++;
-    }
-  }
-
-  return { blocks: blocks, maxValue: maxValue, avgValue: blockCount > 0 ? totalValue / blockCount : 0, worstBlock: worstBlock };
-}
-
-// ─── Symbol Readability diagnostic ───────────────────────────────────────────
-// Returns { failCells: number[], warnCells: number[], failCount, warnCount, byColor, score }
-// Assumes symbols are black (#000000) — the dominant symbol color in cross-stitch charts.
-function _computeReadabilityDiagnostic(pat, cmap, sW, sH) {
-  function toLinear(c) { var s = c / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); }
-  function lum(rgb) { return 0.2126 * toLinear(rgb[0]) + 0.7152 * toLinear(rgb[1]) + 0.0722 * toLinear(rgb[2]); }
-  function cr(l1, l2) { var hi = Math.max(l1, l2), lo = Math.min(l1, l2); return (hi + 0.05) / (lo + 0.05); }
-
-  var symLum = 0; // black symbol
-  var failCells = [], warnCells = [];
-  var colorStats = {};
-
-  for (var i = 0; i < pat.length; i++) {
-    var cell = pat[i];
-    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-    var entry = cmap ? cmap[cell.id] : null;
-    var rgb = (entry && entry.rgb) || cell.rgb || [128, 128, 128];
-    var fillLum = lum(rgb);
-    var ratio = cr(fillLum, symLum);
-    if (ratio < 3.0) {
-      failCells.push(i);
-      if (!colorStats[cell.id]) colorStats[cell.id] = { id: cell.id, rgb: rgb, failCount: 0, warnCount: 0 };
-      colorStats[cell.id].failCount++;
-    } else if (ratio < 4.5) {
-      warnCells.push(i);
-      if (!colorStats[cell.id]) colorStats[cell.id] = { id: cell.id, rgb: rgb, failCount: 0, warnCount: 0 };
-      colorStats[cell.id].warnCount++;
-    }
-  }
-
-  var total = 0;
-  for (var j = 0; j < pat.length; j++) { if (pat[j] && pat[j].id !== "__skip__" && pat[j].id !== "__empty__") total++; }
-  var passCount = total - failCells.length - warnCells.length;
-  var score = total > 0 ? passCount / total * 100 : 100;
-  var byColor = Object.values(colorStats).sort(function(a,b){return (b.failCount+b.warnCount)-(a.failCount+a.warnCount);}).slice(0, 10);
-  return { failCells: failCells, warnCells: warnCells, failCount: failCells.length, warnCount: warnCells.length, byColor: byColor, score: score };
-}
-
-
 /* ─── canvasRenderer.js ─── */
 /* creator/canvasRenderer.js — Pure drawPattern function.
    Extracted from CreatorApp so PatternCanvas and export canvas can share it.
@@ -858,151 +705,6 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
 };
 
 /**
- * Draw all active diagnostic overlays on top of the stitches.
- * Called inside drawPatternBaseOnCanvas so overlays are baked into the cached base.
- * Stacking order (bottom→top): confetti crosshatch → heat map blocks → readability icons.
- */
-function _drawDiagnosticsOverlay(ctx2d, offX, offY, dW, dH, cSz, gut, state) {
-  var diagEnabled  = state.diagnosticsEnabled;
-  var diagResults  = state.diagnosticsResults;
-  var diagSettings = state.diagnosticsSettings;
-  var sW = state.sW;
-  if (!diagEnabled || !diagResults) return;
-
-  // ── 1. Confetti crosshatch ─────────────────────────────────────────────────
-  if (diagEnabled.confetti && diagResults.confetti && diagResults.confetti.severity) {
-    ctx2d.save();
-    var sevColors = [
-      null,
-      [255, 23,  68,  0.60],   // sev 1: single — red
-      [255, 87,  34,  0.50],   // sev 2: pair — deep orange
-      [255, 193, 7,   0.40],   // sev 3: small cluster — amber
-    ];
-    var spacing    = Math.max(3, Math.min(cSz / 3, 6));
-    var lineW      = cSz < 8 ? 1 : 1.5;
-    var cfSeverity = diagResults.confetti.severity;
-
-    // Build cell lists per severity
-    var sevCells   = [[], [], [], []];
-    for (var dy = 0; dy < dH; dy++) {
-      for (var dx = 0; dx < dW; dx++) {
-        var si = (offY + dy) * sW + (offX + dx);
-        var sv = cfSeverity[si];
-        if (sv > 0 && sv <= 3) sevCells[sv].push({ dx: dx, dy: dy });
-      }
-    }
-
-    // For each severity level: create a pattern tile, fill each cell
-    for (var sev = 1; sev <= 3; sev++) {
-      if (!sevCells[sev].length) continue;
-      var col = sevColors[sev];
-
-      if (cSz >= 4) {
-        // Create a repeating hatch pattern tile
-        var tileSize = spacing * 2;
-        var tile = document.createElement("canvas");
-        tile.width  = tileSize;
-        tile.height = tileSize;
-        var tctx = tile.getContext("2d");
-        tctx.strokeStyle = "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + col[3] + ")";
-        tctx.lineWidth = Math.max(1, lineW);
-        // Forward diagonal (/)
-        tctx.beginPath(); tctx.moveTo(0, tileSize); tctx.lineTo(tileSize, 0); tctx.stroke();
-        // Backward diagonal (\)
-        tctx.beginPath(); tctx.moveTo(0, 0); tctx.lineTo(tileSize, tileSize); tctx.stroke();
-        // Extra tiles to close hatch gaps at edges
-        tctx.beginPath(); tctx.moveTo(-tileSize, tileSize); tctx.lineTo(0, 0); tctx.stroke();
-        tctx.beginPath(); tctx.moveTo(tileSize, 0); tctx.lineTo(tileSize * 2, tileSize); tctx.stroke();
-        tctx.beginPath(); tctx.moveTo(0, -tileSize); tctx.lineTo(tileSize, 0); tctx.stroke();
-        var patt = ctx2d.createPattern(tile, "repeat");
-        ctx2d.fillStyle = patt;
-      } else {
-        // Tiny cells — solid tint
-        ctx2d.fillStyle = "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + col[3] + ")";
-      }
-
-      for (var ci = 0; ci < sevCells[sev].length; ci++) {
-        var sc = sevCells[sev][ci];
-        ctx2d.fillRect(gut + sc.dx * cSz, gut + sc.dy * cSz, cSz, cSz);
-      }
-    }
-    ctx2d.restore();
-  }
-
-  // ── 2. Heat map block overlays ─────────────────────────────────────────────
-  if (diagEnabled.heatmap && diagResults.heatmap && diagResults.heatmap.blocks) {
-    ctx2d.save();
-    var metric = (diagSettings && diagSettings.heatmap && diagSettings.heatmap.metric) || "colorcount";
-    var isFrag = metric === "fragmentation";
-
-    function _hmColor(v) {
-      var bands = isFrag
-        ? [[5,"232,245,233",0.25],[15,"129,199,132",0.30],[25,"255,241,118",0.35],[40,"255,183,77",0.40],[60,"255,138,101",0.45]]
-        : [[2,"232,245,233",0.25],[5,"129,199,132",0.30],[8,"255,241,118",0.35],[12,"255,183,77",0.40],[16,"255,138,101",0.45]];
-      for (var bi = 0; bi < bands.length; bi++) { if (v <= bands[bi][0]) return "rgba(" + bands[bi][1] + "," + bands[bi][2] + ")"; }
-      return "rgba(239,83,80,0.50)";
-    }
-
-    var hmBlocks = diagResults.heatmap.blocks;
-    for (var hbi = 0; hbi < hmBlocks.length; hbi++) {
-      var blk = hmBlocks[hbi];
-      // Skip blocks outside the visible tile
-      if (blk.x + blk.w <= offX || blk.x >= offX + dW || blk.y + blk.h <= offY || blk.y >= offY + dH) continue;
-      var bpx = gut + (blk.x - offX) * cSz;
-      var bpy = gut + (blk.y - offY) * cSz;
-      var bpw = blk.w * cSz, bph = blk.h * cSz;
-      ctx2d.fillStyle = _hmColor(blk.value);
-      ctx2d.fillRect(bpx, bpy, bpw, bph);
-      // Number label at sufficient zoom
-      if (blk.value > 0 && bpw > 80 && bph > 80) {
-        ctx2d.fillStyle = "rgba(255,255,255,0.92)";
-        ctx2d.font = "bold " + Math.min(16, Math.floor(bpw / 4)) + "px system-ui";
-        ctx2d.textAlign = "center";
-        ctx2d.textBaseline = "middle";
-        ctx2d.shadowColor = "rgba(0,0,0,0.55)";
-        ctx2d.shadowBlur = 2;
-        ctx2d.fillText(blk.value, bpx + bpw / 2, bpy + bph / 2);
-        ctx2d.shadowBlur = 0;
-      }
-    }
-    ctx2d.restore();
-  }
-
-  // ── 3. Symbol readability indicators ──────────────────────────────────────
-  if (diagEnabled.readability && diagResults.readability) {
-    ctx2d.save();
-    var rdRes    = diagResults.readability;
-    var useIcon  = cSz >= 12;
-    var iconSize = useIcon ? Math.max(7, Math.round(cSz * 0.28)) : 0;
-    var dotSize  = Math.max(2, Math.round(cSz * 0.18));
-
-    function _drawReadMarks(cells, color) {
-      ctx2d.fillStyle = color;
-      if (useIcon) {
-        ctx2d.font = "bold " + iconSize + "px system-ui";
-        ctx2d.textAlign = "right";
-        ctx2d.textBaseline = "top";
-      }
-      for (var rdi = 0; rdi < cells.length; rdi++) {
-        var ri = cells[rdi];
-        var rx = (ri % sW) - offX, ry = Math.floor(ri / sW) - offY;
-        if (rx < 0 || rx >= dW || ry < 0 || ry >= dH) continue;
-        var rpx = gut + rx * cSz, rpy = gut + ry * cSz;
-        if (useIcon) {
-          ctx2d.fillText("\u26A0", rpx + cSz - 1, rpy + 1);
-        } else {
-          ctx2d.fillRect(rpx + cSz - dotSize, rpy, dotSize, dotSize);
-        }
-      }
-    }
-
-    _drawReadMarks(rdRes.failCells, "#D32F2F");
-    _drawReadMarks(rdRes.warnCells, "#F9A825");
-    ctx2d.restore();
-  }
-}
-
-/**
  * Draw only the static base of the pattern — stitches, grid, committed
  * backstitches, outer border.  Does NOT use hoverCoords, so the result can
  * be cached as an ImageData and composited with drawPatternOverlayOnCanvas.
@@ -1158,9 +860,6 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
       }
     }
   }
-
-  // Diagnostic overlays (confetti, heat map, readability) — baked into base cache
-  _drawDiagnosticsOverlay(ctx2d, offX, offY, dW, dH, cSz, gut, state);
 
   // Grid lines (every 10) — batched into single path
   if (cSz >= 3) {
@@ -3956,16 +3655,6 @@ window.useCreatorState = function useCreatorState() {
   // Context menu
   var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
 
-  // Diagnostics panel
-  var _diagOpen     = useState(false); var diagnosticsOpen = _diagOpen[0], setDiagnosticsOpen = _diagOpen[1];
-  var _diagEnabled  = useState({ confetti: false, heatmap: false, readability: false });
-  var diagnosticsEnabled = _diagEnabled[0], setDiagnosticsEnabled = _diagEnabled[1];
-  var _diagSettings = useState({ confetti: { threshold: 3 }, heatmap: { metric: "colorcount", blockSize: 10 }, readability: {} });
-  var diagnosticsSettings = _diagSettings[0], setDiagnosticsSettings = _diagSettings[1];
-  var _diagResults  = useState({ confetti: null, heatmap: null, readability: null });
-  var diagnosticsResults = _diagResults[0], setDiagnosticsResults = _diagResults[1];
-  var diagTimerRef  = useRef(null);
-
   // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
   var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
 
@@ -4644,26 +4333,6 @@ window.useCreatorState = function useCreatorState() {
     lasso.setLassoOpMode(mode);
   }
 
-  // ─── Diagnostics computation (debounced 500ms) ───────────────────────────────
-  useEffect(function() {
-    if (diagTimerRef.current) clearTimeout(diagTimerRef.current);
-    if (!pat || !sW || !sH) { setDiagnosticsResults({ confetti: null, heatmap: null, readability: null }); return; }
-    var anyEnabled = diagnosticsEnabled.confetti || diagnosticsEnabled.heatmap || diagnosticsEnabled.readability;
-    if (!anyEnabled) { setDiagnosticsResults({ confetti: null, heatmap: null, readability: null }); return; }
-    diagTimerRef.current = setTimeout(function() {
-      diagTimerRef.current = null;
-      var threshold  = (diagnosticsSettings.confetti && diagnosticsSettings.confetti.threshold) || 3;
-      var blockSize  = (diagnosticsSettings.heatmap  && diagnosticsSettings.heatmap.blockSize)  || 10;
-      var metric     = (diagnosticsSettings.heatmap  && diagnosticsSettings.heatmap.metric)     || "colorcount";
-      setDiagnosticsResults({
-        confetti:    diagnosticsEnabled.confetti    ? _computeConfettiDiagnostic(pat, sW, sH, threshold)           : null,
-        heatmap:     diagnosticsEnabled.heatmap     ? _computeHeatmapDiagnostic(pat, sW, sH, blockSize, metric)    : null,
-        readability: diagnosticsEnabled.readability ? _computeReadabilityDiagnostic(pat, cmap, sW, sH)             : null,
-      });
-    }, 500);
-    return function() { if (diagTimerRef.current) { clearTimeout(diagTimerRef.current); diagTimerRef.current = null; } };
-  }, [pat, sW, sH, cmap, diagnosticsEnabled, diagnosticsSettings]);
-
   // ─── Scratch resize effect ───────────────────────────────────────────────────
   useEffect(function() {
     if (!isScratchMode || !pat) return;
@@ -4808,11 +4477,6 @@ window.useCreatorState = function useCreatorState() {
     eyedropperEmpty, setEyedropperEmpty,
     // Context menu
     contextMenu, setContextMenu,
-    // Diagnostics
-    diagnosticsOpen, setDiagnosticsOpen,
-    diagnosticsEnabled, setDiagnosticsEnabled,
-    diagnosticsSettings, setDiagnosticsSettings,
-    diagnosticsResults,
     // Toast notifications
     toasts, addToast, dismissToast,
     // Selection modifier key state (null | "add" | "subtract" | "intersect")
@@ -6738,7 +6402,8 @@ window.PatternCanvas = function PatternCanvas() {
     gen.img, ctx.partialStitches, cv.stitchType, ctx.partialStitchTool,
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
-    cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,    cv.diagnosticsEnabled, cv.diagnosticsResults, cv.diagnosticsSettings,  ]);
+    cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity
+  ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
   // Restores the cached base from ImageData then repaints just the hover elements.
@@ -7733,19 +7398,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   );
 
-  var svgDiag = h("svg", {width:13,height:13,viewBox:"0 0 14 14",fill:"none"},
-    h("circle",{cx:"6",cy:"6",r:"4.5",stroke:"currentColor",strokeWidth:"1.4"}),
-    h("line",{x1:"9.2",y1:"9.2",x2:"12.5",y2:"12.5",stroke:"currentColor",strokeWidth:"1.6",strokeLinecap:"round"}),
-    h("line",{x1:"6",y1:"3.5",x2:"6",y2:"6",stroke:"currentColor",strokeWidth:"1.3",strokeLinecap:"round"}),
-    h("circle",{cx:"6",cy:"7.5",r:"0.7",fill:"currentColor"})
-  );
-  var diagBtn = h("button", {
-    className: "tb-btn" + (app.diagnosticsOpen ? " tb-btn--on" : ""),
-    title: "Diagnostics — analyse pattern for issues",
-    disabled: !(ctx.pat && ctx.pal),
-    onClick: function() { app.setDiagnosticsOpen(function(o) { return !o; }); },
-    style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
-  }, svgDiag, !sc.bs ? " Diag" : null);
   var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:app.overflowRef},
     h("button", {
       className:"tb-overflow-btn",
@@ -7789,8 +7441,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           previewDropWrap,
           h("div", {className:"tb-sdiv"}),
           splitBtn,
-          h("div", {className:"tb-sdiv"}),
-          diagBtn,
           h("div", {className:"tb-sdiv"}),
           overflowWrap
         )
@@ -8158,351 +7808,6 @@ window.MagicWandPanel = function MagicWandPanel() {
     replacePanel,
     infoPanel,
     outlinePanel
-  );
-};
-
-
-/* ─── DiagnosticsPanel.js ─── */
-/* creator/DiagnosticsPanel.js — Pattern analysis / diagnostics panel.
-   Shows confetti, heat map, and symbol readability diagnostics.
-   Reads from AppContext (open state) and CanvasContext (enabled, settings, results).
-   Depends on: context.js */
-
-window.DiagnosticsPanel = function DiagnosticsPanel() {
-  var app = window.useApp();
-  var cv  = window.useCanvas();
-  var h   = React.createElement;
-
-  if (!app.diagnosticsOpen) return null;
-
-  var enabled  = cv.diagnosticsEnabled  || { confetti: false, heatmap: false, readability: false };
-  var settings = cv.diagnosticsSettings || { confetti: { threshold: 3 }, heatmap: { metric: "colorcount", blockSize: 10 }, readability: {} };
-  var results  = cv.diagnosticsResults  || { confetti: null, heatmap: null, readability: null };
-
-  // ── Helper: toggle a single diagnostic on/off ──────────────────────────────
-  function toggle(key) {
-    var next = Object.assign({}, enabled, { [key]: !enabled[key] });
-    cv.setDiagnosticsEnabled(next);
-  }
-
-  // ── Helper: update a settings field ───────────────────────────────────────
-  function setSetting(diag, field, value) {
-    var prev = settings[diag] || {};
-    cv.setDiagnosticsSettings(Object.assign({}, settings, { [diag]: Object.assign({}, prev, { [field]: value }) }));
-  }
-
-  // ── Toggle switch component ────────────────────────────────────────────────
-  function ToggleSwitch(props) {
-    return h("div", {
-      role: "switch",
-      "aria-checked": !!props.checked,
-      tabIndex: 0,
-      onClick: props.onChange,
-      onKeyDown: function(e) { if (e.key === " " || e.key === "Enter") { e.preventDefault(); props.onChange(); } },
-      style: { position: "relative", display: "inline-block", width: 28, height: 16, flexShrink: 0, cursor: "pointer" }
-    },
-      h("span", { style: { display: "block", position: "absolute", inset: 0, borderRadius: 8,
-        background: props.checked ? "#0d9488" : "#cbd5e1", transition: "background 0.15s" } }),
-      h("span", { style: { display: "block", position: "absolute", width: 12, height: 12, top: 2,
-        left: props.checked ? 14 : 2, borderRadius: "50%", background: "#fff",
-        transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" } })
-    );
-  }
-
-  // ── Issue badge ────────────────────────────────────────────────────────────
-  function Badge(props) {
-    if (props.count === 0) {
-      return h("span", { title: "No issues found",
-        style: { fontSize: 10, color: "#16a34a", fontWeight: 600 } }, "\u2713");
-    }
-    return h("span", { style: { fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8,
-      background: props.danger ? "#fef2f2" : "#fefce8",
-      color: props.danger ? "#dc2626" : "#92400e",
-      border: "1px solid " + (props.danger ? "#fecaca" : "#fef08a") } },
-      props.count.toLocaleString()
-    );
-  }
-
-  // ── Tiny colour swatch ─────────────────────────────────────────────────────
-  function Swatch(rgb) {
-    return h("span", { style: { display: "inline-block", width: 10, height: 10, borderRadius: 2,
-      background: "rgb(" + rgb + ")", border: "0.5px solid rgba(0,0,0,0.15)",
-      flexShrink: 0, verticalAlign: "middle", marginRight: 3 } });
-  }
-
-  // ── Score badge ────────────────────────────────────────────────────────────
-  function ScoreBadge(score, thresholds) {
-    // thresholds: [{max, color, label}]
-    var tier = { color: "#16a34a", label: "Excellent" };
-    for (var i = 0; i < thresholds.length; i++) {
-      if (score <= thresholds[i].max) { tier = thresholds[i]; break; }
-    }
-    if (!thresholds.some(function(t) { return score <= t.max; })) {
-      tier = thresholds[thresholds.length - 1];
-    }
-    return h("span", { style: { fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 6,
-      background: tier.color + "1a", color: tier.color, border: "1px solid " + tier.color + "33" } },
-      tier.label + " (" + score.toFixed(1) + "%)");
-  }
-
-  // ─── Confetti section content ──────────────────────────────────────────────
-  var confettiContent = (enabled.confetti && results.confetti) ? (function() {
-    var d = results.confetti;
-    var scoreThresholds = [
-      { max: 5,   color: "#16a34a", label: "Clean"       },
-      { max: 15,  color: "#d97706", label: "Moderate"    },
-      { max: 100, color: "#dc2626", label: "High confetti" }
-    ];
-    return h("div", { style: { marginTop: 8, paddingTop: 8, borderTop: "0.5px solid #e2e8f0" } },
-      // Threshold slider
-      h("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 6 } },
-        h("span", { style: { fontSize: 11, color: "#64748b", flexShrink: 0 } }, "Threshold"),
-        h("input", { type: "range", min: 1, max: 10, step: 1,
-          value: settings.confetti.threshold || 3,
-          onChange: function(e) { setSetting("confetti", "threshold", parseInt(e.target.value)); },
-          style: { flex: 1, accentColor: "#0d9488" }
-        }),
-        h("span", { style: { fontSize: 11, fontVariantNumeric: "tabular-nums", width: 14, textAlign: "right", flexShrink: 0 } },
-          settings.confetti.threshold || 3)
-      ),
-      // Stats
-      h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 } },
-        h("div", null,
-          h("div", { style: { fontSize: 10, color: "#94a3b8" } }, "Flagged stitches"),
-          h("div", { style: { fontSize: 13, fontWeight: 700, color: "#1e293b" } }, d.count.toLocaleString())
-        ),
-        h("div", null,
-          h("div", { style: { fontSize: 10, color: "#94a3b8" } }, "Confetti score"),
-          ScoreBadge(d.score, scoreThresholds)
-        )
-      ),
-      // Severity legend
-      h("div", { style: { display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" } },
-        h("span", { style: { display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "#64748b" } },
-          h("span", { style: { display: "inline-block", width: 10, height: 10, background: "rgba(255,23,68,0.6)", borderRadius: 1 } }), "Single"),
-        h("span", { style: { display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "#64748b" } },
-          h("span", { style: { display: "inline-block", width: 10, height: 10, background: "rgba(255,87,34,0.5)", borderRadius: 1 } }), "Pair"),
-        h("span", { style: { display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "#64748b" } },
-          h("span", { style: { display: "inline-block", width: 10, height: 10, background: "rgba(255,193,7,0.4)", borderRadius: 1 } }), "Cluster")
-      ),
-      // Top offending colours
-      d.byColor.length > 0 && h("div", null,
-        h("div", { style: { fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 } },
-          "Top confetti colours"),
-        d.byColor.map(function(c) {
-          return h("div", { key: c.id, style: { display: "flex", alignItems: "center", gap: 4, marginBottom: 2 } },
-            Swatch(c.rgb), h("span", { style: { fontSize: 10, fontWeight: 600, color: "#475569", minWidth: 28 } }, c.id),
-            h("span", { style: { fontSize: 10, color: "#94a3b8", flex: 1 } }, ""),
-            h("span", { style: { fontSize: 10, fontWeight: 600, color: "#1e293b" } }, c.count.toLocaleString(), " st")
-          );
-        })
-      )
-    );
-  })() : null;
-
-  // ─── Heatmap section content ───────────────────────────────────────────────
-  var heatmapContent = (enabled.heatmap && results.heatmap) ? (function() {
-    var d = results.heatmap;
-    var isFragmentation = (settings.heatmap.metric || "colorcount") === "fragmentation";
-
-    // Distribution — count blocks in each band
-    var bands = isFragmentation
-      ? [[5,"#e8f5e9"],[15,"#81c784"],[25,"#fff176"],[40,"#ffb74d"],[60,"#ff8a65"],["∞","#ef5350"]]
-      : [[2,"#e8f5e9"],[5,"#81c784"],[8,"#fff176"],[12,"#ffb74d"],[16,"#ff8a65"],["∞","#ef5350"]];
-    var bandCounts = bands.map(function() { return 0; });
-    (d.blocks || []).forEach(function(block) {
-      var v = block.value;
-      for (var bi = 0; bi < bands.length; bi++) {
-        var max = bands[bi][0];
-        if (max === "\u221E" || v <= max) { bandCounts[bi]++; break; }
-      }
-    });
-    var maxBandCount = Math.max.apply(null, bandCounts) || 1;
-
-    return h("div", { style: { marginTop: 8, paddingTop: 8, borderTop: "0.5px solid #e2e8f0" } },
-      // Metric toggle
-      h("div", { style: { display: "flex", gap: 4, marginBottom: 6 } },
-        ["colorcount", "fragmentation"].map(function(m) {
-          var labels = { colorcount: "Colour count", fragmentation: "Fragmentation" };
-          var active = (settings.heatmap.metric || "colorcount") === m;
-          return h("button", { key: m, onClick: function() { setSetting("heatmap", "metric", m); },
-            style: { flex: 1, fontSize: 10, padding: "4px 0", borderRadius: 4, cursor: "pointer",
-              border: "1px solid " + (active ? "#0d9488" : "#e2e8f0"),
-              background: active ? "#0d9488" : "#f8fafc", color: active ? "#fff" : "#475569",
-              fontWeight: active ? 700 : 400 }
-          }, labels[m]);
-        })
-      ),
-      // Block size
-      h("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 6 } },
-        h("span", { style: { fontSize: 11, color: "#64748b", flexShrink: 0 } }, "Block size"),
-        [5, 10, 20].map(function(sz) {
-          var active = (settings.heatmap.blockSize || 10) === sz;
-          return h("button", { key: sz, onClick: function() { setSetting("heatmap", "blockSize", sz); },
-            style: { flex: 1, fontSize: 10, padding: "3px 0", borderRadius: 4, cursor: "pointer",
-              border: "1px solid " + (active ? "#0d9488" : "#e2e8f0"),
-              background: active ? "#0d9488" : "#f8fafc", color: active ? "#fff" : "#475569",
-              fontWeight: active ? 700 : 400 }
-          }, sz + "\xD7" + sz);
-        })
-      ),
-      // Stats
-      d.worstBlock && h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 } },
-        h("div", null,
-          h("div", { style: { fontSize: 10, color: "#94a3b8" } }, "Avg " + (isFragmentation ? "clusters" : "colours") + " / block"),
-          h("div", { style: { fontSize: 13, fontWeight: 700, color: "#1e293b" } }, d.avgValue.toFixed(1))
-        ),
-        h("div", null,
-          h("div", { style: { fontSize: 10, color: "#94a3b8" } }, "Peak block"),
-          h("div", { style: { fontSize: 12, fontWeight: 700, color: "#dc2626" } },
-            d.worstBlock.value, " @ (", d.worstBlock.x + 1, ",", d.worstBlock.y + 1, ")")
-        )
-      ),
-      // Distribution histogram
-      h("div", { style: { marginBottom: 4 } },
-        h("div", { style: { fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 } },
-          "Distribution"),
-        h("div", { style: { display: "flex", gap: 2, alignItems: "flex-end", height: 30 } },
-          bands.map(function(band, bi) {
-            var pct = Math.round(bandCounts[bi] / maxBandCount * 100);
-            return h("div", { key: bi, title: (bi < bands.length-1 ? "\u2264" : ">") + bands[Math.max(0,bi-1)][0] + ": " + bandCounts[bi] + " blocks",
-              style: { flex: 1, height: Math.max(2, pct * 0.28) + "px", background: band[1],
-                border: "0.5px solid rgba(0,0,0,0.1)", borderRadius: 2, cursor: "default" } });
-          })
-        ),
-        h("div", { style: { display: "flex", gap: 2, marginTop: 2 } },
-          bands.map(function(band, bi) {
-            return h("div", { key: bi, style: { flex: 1, textAlign: "center", fontSize: 9, color: "#94a3b8" } },
-              band[0] === "\u221E" ? "17+" : band[0]);
-          })
-        )
-      )
-    );
-  })() : null;
-
-  // ─── Readability section content ───────────────────────────────────────────
-  var readabilityContent = (enabled.readability && results.readability) ? (function() {
-    var d = results.readability;
-    var scoreThresholds = [
-      { max: 100, color: "#16a34a", label: "No issues" },
-      { max: 99,  color: "#d97706", label: "Minor"     },
-      { max: 95,  color: "#dc2626", label: "Poor"      }
-    ];
-    // Reverse: score 100 is "No issues", low score is "Poor"
-    var tier;
-    if (d.score >= 99) tier = { color: "#16a34a", label: "No issues" };
-    else if (d.score >= 95) tier = { color: "#d97706", label: "Some issues" };
-    else tier = { color: "#dc2626", label: "Poor readability" };
-
-    return h("div", { style: { marginTop: 8, paddingTop: 8, borderTop: "0.5px solid #e2e8f0" } },
-      h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 } },
-        h("div", null,
-          h("div", { style: { fontSize: 10, color: "#94a3b8" } }, "Fail (< 3:1)"),
-          h("div", { style: { fontSize: 13, fontWeight: 700, color: d.failCount > 0 ? "#dc2626" : "#16a34a" } },
-            d.failCount.toLocaleString())
-        ),
-        h("div", null,
-          h("div", { style: { fontSize: 10, color: "#94a3b8" } }, "Warn (< 4.5:1)"),
-          h("div", { style: { fontSize: 13, fontWeight: 700, color: d.warnCount > 0 ? "#d97706" : "#16a34a" } },
-            d.warnCount.toLocaleString())
-        ),
-        h("div", null,
-          h("div", { style: { fontSize: 10, color: "#94a3b8" } }, "Readability score"),
-          h("span", { style: { fontSize: 11, fontWeight: 700, padding: "1px 6px", borderRadius: 6,
-            background: tier.color + "1a", color: tier.color, border: "1px solid " + tier.color + "33" } },
-            tier.label + " (" + d.score.toFixed(1) + "%)")
-        )
-      ),
-      // Legend
-      h("div", { style: { display: "flex", gap: 8, marginBottom: 6 } },
-        h("span", { style: { display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "#64748b" } },
-          h("span", { style: { fontSize: 11, color: "#D32F2F", fontWeight: 700 } }, "\u26A0"), " Fail"),
-        h("span", { style: { display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "#64748b" } },
-          h("span", { style: { fontSize: 11, color: "#F9A825", fontWeight: 700 } }, "\u26A0"), " Warning")
-      ),
-      // Top problem colours
-      d.byColor.length > 0 && h("div", null,
-        h("div", { style: { fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 } },
-          "Problem colours"),
-        d.byColor.slice(0, 5).map(function(c) {
-          return h("div", { key: c.id, style: { display: "flex", alignItems: "center", gap: 4, marginBottom: 3 } },
-            Swatch(c.rgb),
-            h("span", { style: { fontSize: 10, fontWeight: 600, color: "#475569", minWidth: 28, flexShrink: 0 } }, c.id),
-            c.failCount > 0 && h("span", { style: { fontSize: 10, color: "#dc2626", flexShrink: 0 } }, c.failCount + " \u2717"),
-            c.warnCount > 0 && h("span", { style: { fontSize: 10, color: "#d97706", flexShrink: 0 } }, c.warnCount + " \u26A0")
-          );
-        })
-      )
-    );
-  })() : null;
-
-  // ── Counts for badges ──────────────────────────────────────────────────────
-  var confettiCount = (enabled.confetti && results.confetti) ? results.confetti.count : -1;
-  var heatmapPeak   = (enabled.heatmap  && results.heatmap)  ? (results.heatmap.maxValue || 0) : -1;
-  var readBadCount  = (enabled.readability && results.readability)
-    ? results.readability.failCount + results.readability.warnCount : -1;
-
-  // ── Multiple-active notice ────────────────────────────────────────────────
-  var activeCount = (enabled.confetti ? 1 : 0) + (enabled.heatmap ? 1 : 0) + (enabled.readability ? 1 : 0);
-
-  // ─── Row renderer ─────────────────────────────────────────────────────────
-  function DiagRow(props) {
-    var on = props.on;
-    var count = props.count; // -1 = not yet computed
-    return h("div", { style: { marginBottom: on ? 6 : 2 } },
-      h("div", { style: { display: "flex", alignItems: "center", gap: 6, padding: "4px 0" } },
-        h(ToggleSwitch, { checked: on, onChange: function() { toggle(props.id); } }),
-        h("span", { style: { flex: 1, fontSize: 12, fontWeight: on ? 600 : 400,
-          color: on ? "#1e293b" : "#64748b", userSelect: "none", cursor: "pointer" },
-          onClick: function() { toggle(props.id); }
-        }, props.icon + " " + props.label),
-        on && count >= 0 && h(Badge, { count: count, danger: props.id === "readability" && count > 0 })
-      ),
-      on && props.children
-    );
-  }
-
-  return h("div", {
-    style: {
-      position: "relative", background: "#fff", border: "1px solid #e2e8f0",
-      borderRadius: 10, padding: "10px 12px", marginBottom: 8,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.08)", maxWidth: "100%"
-    }
-  },
-    // Header
-    h("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8 } },
-      h("span", { style: { fontSize: 13, fontWeight: 700, color: "#1e293b", flex: 1 } }, "\uD83D\uDD0D Diagnostics"),
-      activeCount > 0 && h("button", {
-        onClick: function() {
-          cv.setDiagnosticsEnabled({ confetti: false, heatmap: false, readability: false });
-        },
-        style: { fontSize: 10, padding: "2px 7px", borderRadius: 4, border: "1px solid #e2e8f0",
-          background: "#f8fafc", color: "#64748b", cursor: "pointer" }
-      }, "Clear all"),
-      h("button", {
-        onClick: function() { app.setDiagnosticsOpen(false); },
-        style: { fontSize: 13, background: "none", border: "none", cursor: "pointer",
-          color: "#94a3b8", lineHeight: 1, padding: "0 2px" }
-      }, "\xD7")
-    ),
-
-    // Multiple diagnostics notice
-    activeCount > 1 && h("div", { style: { fontSize: 10, color: "#94a3b8", fontStyle: "italic",
-      background: "#f8fafc", borderRadius: 4, padding: "3px 7px", marginBottom: 8 } },
-      "Multiple diagnostics active \u2014 consider reviewing one at a time for clarity."),
-
-    h(DiagRow, { id: "confetti", label: "Confetti Warning", icon: "\u26A0\uFE0F", on: enabled.confetti, count: confettiCount },
-      confettiContent),
-
-    h("div", { style: { borderTop: "0.5px solid #f1f5f9", marginBottom: 4 } }),
-
-    h(DiagRow, { id: "heatmap", label: "Stitch Density Map", icon: "\uD83C\uDF21\uFE0F", on: enabled.heatmap, count: heatmapPeak },
-      heatmapContent),
-
-    h("div", { style: { borderTop: "0.5px solid #f1f5f9", marginBottom: 4 } }),
-
-    h(DiagRow, { id: "readability", label: "Symbol Readability", icon: "\uD83D\uDC41\uFE0F", on: enabled.readability, count: readBadCount },
-      readabilityContent)
   );
 };
 
@@ -10553,7 +9858,6 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     })(),
 
     h(window.MagicWandPanel, null),
-    h(window.DiagnosticsPanel, null),
 
     app.splitPaneEnabled
       ? h(window.CreatorSplitPane, null)

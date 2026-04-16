@@ -399,7 +399,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleFile: stableHandleFile, loadProject: stableLoadProject,
     handleOpenInTracker: stableHandleOpenInTracker,
     isActive: isActive,
-    diagnosticsOpen: state.diagnosticsOpen, setDiagnosticsOpen: state.setDiagnosticsOpen,
   }; }, [
     state.tab, state.modal, state.sidebarOpen, state.loadError,
     state.copied, state.dimOpen, state.palOpen, state.fabOpen,
@@ -417,7 +416,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.previewHeatmap, state.previewMapped, state.previewColors,
     state.previewDims, state.previewHighlight,
     isActive,
-    state.diagnosticsOpen,
   ]);
 
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
@@ -503,9 +501,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     lassoLinePath: state.lassoLinePath,
     lassoMagneticPath: state.lassoMagneticPath,
     lassoBoundaryPath: state.lassoBoundaryPath,
-    diagnosticsEnabled: state.diagnosticsEnabled, setDiagnosticsEnabled: state.setDiagnosticsEnabled,
-    diagnosticsSettings: state.diagnosticsSettings, setDiagnosticsSettings: state.setDiagnosticsSettings,
-    diagnosticsResults: state.diagnosticsResults,
   }; }, [
     state.activeTool, state.brushMode, state.brushSize,
     state.selectedColorId, state.view, state.zoom,
@@ -527,7 +522,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.selectionStats, state.selectionReplaceColorCount,
     state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor,
     state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress,
-    state.diagnosticsEnabled, state.diagnosticsSettings, state.diagnosticsResults,
   ]);
 
   // ── PatternDataContext value (core pattern data, dimensions, derived values) ──
