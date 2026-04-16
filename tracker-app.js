@@ -3434,90 +3434,6 @@ return(
     <span className="tb-zoom-pct">{Math.round(stitchZoom*100)}%</span>
     <button className="tb-fit-btn" onClick={fitSZ}>Fit</button>
   </div>
-  <div className="tb-sdiv"/>
-  {liveAutoStitches > 0 && (
-    <div className="tb-btn" style={{flexShrink:0, background: liveAutoIsPaused ? '#fef3c7' : '#f0fdf4', border: '1px solid ' + (liveAutoIsPaused ? '#fde68a' : '#bbf7d0'), color: liveAutoIsPaused ? '#b45309' : '#16a34a', cursor: 'default'}} title="Session is automatically tracked">
-      {liveAutoIsPaused ? <>{Icons.pause()} Paused</> : <>{Icons.dot()} {fmtTime(liveAutoElapsed)} · {liveAutoStitches} st</>}
-    </div>
-  )}
-  <button className={"tb-btn"+(trackerPreviewOpen?" tb-btn--on":"")} onClick={()=>setTrackerPreviewOpen(v=>!v)} title="Realistic preview" aria-label="Realistic preview" style={{flexShrink:0}}>{Icons.eye()}</button>
-  {/* Thread usage toggle */}
-  <div style={{position:"relative",display:"inline-flex",alignItems:"center"}}>
-    <button className={"tb-btn"+(threadUsageMode?" tb-btn--on":"")} title="Thread usage visualisation" aria-label="Thread usage visualisation" onClick={()=>setThreadUsageMode(m=>m?null:"cluster")} style={{flexShrink:0}}>
-      <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5"/><path d="M7 2 Q10 5 7 7 Q4 9 7 12" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
-    </button>
-    {threadUsageMode&&<div style={{position:"absolute",top:"calc(100% + 4px)",right:0,background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 4px 12px rgba(0,0,0,0.1)",zIndex:300,minWidth:140,padding:6}}>
-      {[["cluster","Cluster size"],["distance","Isolation dist"]].map(([m,l])=>(
-        <button key={m} onClick={()=>setThreadUsageMode(m)} style={{display:"block",width:"100%",textAlign:"left",padding:"5px 10px",border:"none",borderRadius:5,background:threadUsageMode===m?"#f0fdfa":"transparent",color:threadUsageMode===m?"#0d9488":"#1e293b",fontSize:11,fontWeight:600,cursor:"pointer"}}>{l}{threadUsageMode===m?" ✓":""}</button>
-      ))}
-    </div>}
-  </div>
-  {stitchMode==="track"&&!isEditMode&&(trackHistory.length>0||redoStack.length>0)&&<>
-    <div className="tb-sdiv"/>
-    <button className="tb-btn" onClick={undoTrack} disabled={!trackHistory.length} title="Undo (Ctrl+Z)" aria-label="Undo" style={{opacity:trackHistory.length?1:0.3}}>↩</button>
-    <button className="tb-btn" onClick={redoTrack} disabled={!redoStack.length} title="Redo (Ctrl+Y)" aria-label="Redo" style={{opacity:redoStack.length?1:0.3}}>↪</button>
-  </>}
-  <div className="tb-sdiv"/>
-  <div style={{position:"relative",display:"inline-flex",alignItems:"center"}} ref={layerPanelRef}>
-    <button className={"tb-btn"+(layerPanelOpen?" tb-btn--on":"")} title="Layer visibility (F/H/B/K/A)" onClick={()=>setLayerPanelOpen(o=>!o)} style={{flexShrink:0,color:!Object.values(layerVis).every(Boolean)?"#d97706":undefined}}>
-      <svg width="12" height="10" viewBox="0 0 14 12" fill="none"><rect x="1" y="1" width="12" height="2.5" rx="1" stroke="currentColor" strokeWidth="1.3"/><rect x="1" y="4.8" width="12" height="2.5" rx="1" stroke="currentColor" strokeWidth="1.3"/><rect x="1" y="8.5" width="12" height="2.5" rx="1" stroke="currentColor" strokeWidth="1.3"/></svg>
-      Layers
-    </button>
-    {layerPanelOpen&&<div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",zIndex:400,minWidth:290,paddingBottom:8}}>
-      <div style={{padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid #f1f5f9"}}>
-        <span style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Layer Visibility</span>
-        <div style={{display:"flex",gap:4}}>
-          <button onClick={()=>{setSoloPreState(null);setLayerVis(ALL_LAYERS_VISIBLE);}} style={{fontSize:10,padding:"2px 7px",borderRadius:5,border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",color:"#475569",fontWeight:600}}>Show all</button>
-          <button onClick={()=>{setSoloPreState(null);setLayerVis(Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,false])));}} style={{fontSize:10,padding:"2px 7px",borderRadius:5,border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",color:"#475569",fontWeight:600}}>Hide all</button>
-        </div>
-      </div>
-      {STITCH_LAYERS.map(layer=>{
-        const count=layerCounts[layer.id];
-        const vis=layerVis[layer.id];
-        const isSoloed=soloPreState!==null&&vis&&STITCH_LAYERS.filter(l=>layerVis[l.id]).length===1;
-        return(
-          <div key={layer.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 12px",opacity:count>0?1:0.4}}>
-            <button
-              title={isSoloed?"Long-press again to restore":"Click to toggle · Long-press to solo"}
-              style={{width:24,height:24,border:"none",borderRadius:5,background:vis?"#f0fdfa":"#f1f5f9",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,outline:isSoloed?"2px solid #0d9488":"none",outlineOffset:1}}
-              onClick={e=>{
-                clearTimeout(soloTimerRef.current);
-                if(e.altKey){
-                  if(isSoloed){setLayerVis(soloPreState);setSoloPreState(null);}
-                  else{setSoloPreState({...layerVis});setLayerVis(Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,l.id===layer.id])));}
-                }else if(isSoloed){
-                  setLayerVis(soloPreState);setSoloPreState(null);
-                }else{
-                  setSoloPreState(null);setLayerVis(v=>({...v,[layer.id]:!v[layer.id]}));
-                }
-              }}
-              onMouseDown={()=>{
-                soloTimerRef.current=setTimeout(()=>{
-                  if(isSoloed){setLayerVis(soloPreState);setSoloPreState(null);}
-                  else{setSoloPreState({...layerVis});setLayerVis(Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,l.id===layer.id])));}
-                },500);
-              }}
-              onMouseUp={()=>clearTimeout(soloTimerRef.current)}
-              onMouseLeave={()=>clearTimeout(soloTimerRef.current)}
-            >
-              {vis
-                ?<svg width="14" height="10" viewBox="0 0 16 11" fill="none"><ellipse cx="8" cy="5.5" rx="7" ry="4.5" stroke="#0d9488" strokeWidth="1.5"/><circle cx="8" cy="5.5" r="2.5" fill="#0d9488"/></svg>
-                :<svg width="14" height="10" viewBox="0 0 16 11" fill="none"><ellipse cx="8" cy="5.5" rx="7" ry="4.5" stroke="#94a3b8" strokeWidth="1.5"/><line x1="2" y1="1" x2="14" y2="10" stroke="#94a3b8" strokeWidth="1.5"/></svg>
-              }
-            </button>
-            <span style={{flex:1,fontSize:12,color:vis?"#1e293b":"#94a3b8",fontWeight:vis?500:400}}>{layer.label}{layer.key&&<span style={{marginLeft:4,fontSize:10,color:"#94a3b8",fontFamily:"monospace"}}>({layer.key})</span>}</span>
-            <span style={{fontSize:11,color:"#94a3b8",minWidth:36,textAlign:"right"}}>{count.toLocaleString()}</span>
-            {layer.id==='backstitch'&&<select title="Line thickness" value={bsThickness} onChange={e=>setBsThickness(parseInt(e.target.value))} style={{fontSize:10,padding:"1px 3px",borderRadius:4,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#475569",maxWidth:46,cursor:"pointer"}}><option value={1}>1px</option><option value={2}>2px</option><option value={3}>3px</option></select>}
-          </div>
-        );
-      })}
-      <div style={{borderTop:"1px solid #f1f5f9",margin:"4px 12px 0",padding:"6px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <span style={{fontSize:11,color:"#64748b"}}>Count</span>
-        <button onClick={()=>setStatsCountMode(m=>m==='visible'?'all':'visible')} style={{fontSize:10,padding:"2px 8px",borderRadius:5,border:"1px solid #e2e8f0",background:statsCountMode==='all'?"#eff6ff":"#f8fafc",color:statsCountMode==='all'?"#1d4ed8":"#475569",cursor:"pointer",fontWeight:600}}>{statsCountMode==='visible'?'Visible layers only':'All layers'}</button>
-      </div>
-    </div>}
-  </div>
-  <div className="tb-sdiv"/>
   <div className="tb-overflow-wrap" ref={tOverflowRef}>
     <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
     {tOverflowOpen&&<div className="tb-overflow-menu">
@@ -3558,6 +3474,11 @@ return(
       }} title="Correct individual stitch colours — for imported patterns">Correct pattern colours…</button><div className="tb-ovf-sep"/></>
       }
       <button className="tb-ovf-item" onClick={()=>{setShowNavHelp(h=>!h);setTOverflowOpen(false);}}>{showNavHelp?"Hide":"Show"} controls help</button>
+      <div className="tb-ovf-sep"/>
+      <span className="tb-ovf-lbl">Tools</span>
+      <button className={"tb-ovf-item"+(trackerPreviewOpen?" tb-ovf-item--on":"")} onClick={()=>{setTrackerPreviewOpen(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Realistic preview{trackerPreviewOpen?" ✓":""}</button>
+      <button className={"tb-ovf-item"+(threadUsageMode?" tb-ovf-item--on":"")} onClick={()=>{setThreadUsageMode(m=>m?null:"cluster");setTOverflowOpen(false);}}>Thread usage{threadUsageMode?" ✓":""}</button>
+      <button className={"tb-ovf-item"} onClick={()=>{setRpanelTab("more");setMobileDrawerOpen(true);setTOverflowOpen(false);}}>Layers{!Object.values(layerVis).every(Boolean)?" (filtered)":""}</button>
       {(liveAutoStitches>0||totalTime>0)&&<>
         <div className="tb-ovf-sep"/>
         <span className="tb-ovf-lbl">Time Tracked</span>
@@ -4051,6 +3972,33 @@ return(
           <div className="rp-heading">Project Info</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 16px",fontSize:11}}>
             {[["Pattern size",sW+" × "+sH],["Stitchable",totalStitchable.toLocaleString()],["Colours",pal.length+""],["Skeins needed",totalSkeins+""]].map(function([l,v],i){return React.createElement("div",{key:i},React.createElement("div",{style:{color:"#94a3b8",fontWeight:600,marginBottom:1}},l),React.createElement("div",{style:{fontWeight:600,color:"#1e293b"}},v));})}
+          </div>
+        </div>
+
+        {/* Layers */}
+        <div style={{marginTop:12}} ref={layerPanelRef}>
+          <div className="rp-heading" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span>Layers</span>
+            <div style={{display:"flex",gap:4}}>
+              <button onClick={()=>{setSoloPreState(null);setLayerVis(ALL_LAYERS_VISIBLE);}} style={{fontSize:10,padding:"2px 7px",borderRadius:5,border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",color:"#475569",fontWeight:600}}>All</button>
+              <button onClick={()=>{setSoloPreState(null);setLayerVis(Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,false])));}} style={{fontSize:10,padding:"2px 7px",borderRadius:5,border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",color:"#475569",fontWeight:600}}>None</button>
+            </div>
+          </div>
+          {STITCH_LAYERS.map(layer=>{
+            const count=layerCounts[layer.id];
+            const vis=layerVis[layer.id];
+            return <div key={layer.id} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",opacity:count>0?1:0.4}}>
+              <button onClick={()=>{setSoloPreState(null);setLayerVis(v=>({...v,[layer.id]:!v[layer.id]}));}} style={{width:22,height:22,border:"none",borderRadius:4,background:vis?"#f0fdfa":"#f1f5f9",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {vis?<svg width="12" height="9" viewBox="0 0 16 11" fill="none"><ellipse cx="8" cy="5.5" rx="7" ry="4.5" stroke="#0d9488" strokeWidth="1.5"/><circle cx="8" cy="5.5" r="2.5" fill="#0d9488"/></svg>:<svg width="12" height="9" viewBox="0 0 16 11" fill="none"><ellipse cx="8" cy="5.5" rx="7" ry="4.5" stroke="#94a3b8" strokeWidth="1.5"/><line x1="2" y1="1" x2="14" y2="10" stroke="#94a3b8" strokeWidth="1.5"/></svg>}
+              </button>
+              <span style={{flex:1,fontSize:11,color:vis?"#1e293b":"#94a3b8"}}>{layer.label}</span>
+              <span style={{fontSize:10,color:"#94a3b8"}}>{count.toLocaleString()}</span>
+              {layer.id==='backstitch'&&<select value={bsThickness} onChange={e=>setBsThickness(parseInt(e.target.value))} style={{fontSize:10,padding:"1px 3px",borderRadius:4,border:"1px solid #e2e8f0",maxWidth:42,cursor:"pointer"}}><option value={1}>1px</option><option value={2}>2px</option><option value={3}>3px</option></select>}
+            </div>;
+          })}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:4,paddingTop:4,borderTop:"0.5px solid #e2e8f0"}}>
+            <span style={{fontSize:10,color:"#64748b"}}>Count</span>
+            <button onClick={()=>setStatsCountMode(m=>m==='visible'?'all':'visible')} style={{fontSize:10,padding:"2px 8px",borderRadius:5,border:"1px solid #e2e8f0",background:statsCountMode==='all'?"#eff6ff":"#f8fafc",color:statsCountMode==='all'?"#1d4ed8":"#475569",cursor:"pointer",fontWeight:600}}>{statsCountMode==='visible'?'Visible layers only':'All layers'}</button>
           </div>
         </div>
       </div>}

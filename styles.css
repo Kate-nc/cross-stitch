@@ -1644,7 +1644,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   .tb-ovf-item{min-height:44px;touch-action:manipulation;}
   .col-row{min-height:44px;}
   .rp-pill-toggle button{min-height:44px;}
-  .session-chip{min-height:44px;}
+  .session-chip{min-height:44px;display:none!important;}
   .status-bar{display:none;}
   .creator-pattern-chips{gap:6px!important;}
   .creator-palette-chip{min-width:44px;min-height:44px;padding:8px 12px!important;border-radius:8px!important;gap:6px!important;font-size:12px!important;}
