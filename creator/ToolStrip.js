@@ -572,6 +572,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     onClick: function() { app.setDiagnosticsOpen(function(o) { return !o; }); },
     style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
   }, svgDiag, !sc.bs ? " Diag" : null);
+  var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:app.overflowRef},
     h("button", {
       className:"tb-overflow-btn",
       onClick:function(){app.setOverflowOpen(function(o){return !o;});},

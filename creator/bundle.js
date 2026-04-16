@@ -6738,7 +6738,7 @@ window.PatternCanvas = function PatternCanvas() {
     gen.img, ctx.partialStitches, cv.stitchType, ctx.partialStitchTool,
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
-    cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity    cv.diagnosticsEnabled, cv.diagnosticsResults, cv.diagnosticsSettings,  ]);
+    cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,    cv.diagnosticsEnabled, cv.diagnosticsResults, cv.diagnosticsSettings,  ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
   // Restores the cached base from ImageData then repaints just the hover elements.
@@ -7746,6 +7746,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     onClick: function() { app.setDiagnosticsOpen(function(o) { return !o; }); },
     style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
   }, svgDiag, !sc.bs ? " Diag" : null);
+  var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:app.overflowRef},
     h("button", {
       className:"tb-overflow-btn",
       onClick:function(){app.setOverflowOpen(function(o){return !o;});},
