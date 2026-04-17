@@ -114,6 +114,29 @@ const ProjectStorage = (() => {
   }
 
   return {
+    // Mark projects as synced (sets lastSyncedAt on each).
+    async markSynced(projectIds, timestamp) {
+      const ts = timestamp || new Date().toISOString();
+      for (const id of projectIds) {
+        try {
+          const p = await this.get(id);
+          if (p) {
+            if (!p.syncMeta) p.syncMeta = {};
+            p.syncMeta.lastSyncedAt = ts;
+            p.syncMeta.syncVersion = (p.syncMeta.syncVersion || 0) + 1;
+            // Save without bumping updatedAt — only sync metadata changed
+            const db = await getDB();
+            await new Promise((resolve, reject) => {
+              const tx = db.transaction(STORE_NAME, "readwrite");
+              tx.objectStore(STORE_NAME).put(p, p.id);
+              tx.oncomplete = () => resolve();
+              tx.onerror = () => reject(tx.error);
+            });
+          }
+        } catch (e) { console.warn("markSynced failed for", id, e); }
+      }
+    },
+
     // Save a project. Assigns a new ID and createdAt if the project has none.
     // Returns a Promise<string> of the saved project ID.
     async save(project) {
@@ -122,6 +145,12 @@ const ProjectStorage = (() => {
         project.createdAt = new Date().toISOString();
       }
       project.updatedAt = new Date().toISOString();
+
+      // Maintain sync fingerprint for change detection during sync
+      if (typeof SyncEngine !== "undefined" && SyncEngine.computeFingerprint) {
+        if (!project.syncMeta) project.syncMeta = {};
+        project.syncMeta.fingerprint = SyncEngine.computeFingerprint(project);
+      }
       try {
         const db = await getDB();
         return new Promise((resolve, reject) => {
