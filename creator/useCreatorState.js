@@ -54,6 +54,7 @@ window.useCreatorState = function useCreatorState() {
   // UI state
   var _tab        = useState("pattern"); var tab        = _tab[0],        setTab        = _tab[1];
   var _sidOpen    = useState(true);      var sidebarOpen = _sidOpen[0],   setSidebarOpen = _sidOpen[1];
+  var _mDrawer    = useState(false);     var mobileDrawerOpen = _mDrawer[0]; var setMobileDrawerOpen = _mDrawer[1];
   var _loadErr    = useState(null);      var loadError  = _loadErr[0],    setLoadError  = _loadErr[1];
   var _copied     = useState(null);      var copied     = _copied[0],     setCopied     = _copied[1];
   var _modal      = useState(null);      var modal      = _modal[0],      setModal      = _modal[1];
@@ -903,7 +904,7 @@ window.useCreatorState = function useCreatorState() {
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
-    tab, setTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
+    tab, setTab, sidebarOpen, setSidebarOpen, mobileDrawerOpen, setMobileDrawerOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,

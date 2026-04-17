@@ -15,6 +15,9 @@ window.CreatorToastContainer = function CreatorToastContainer() {
   };
 
   return h("div", {
+    role: "status",
+    "aria-live": "polite",
+    "aria-relevant": "additions",
     style: {
       position: "fixed", bottom: 20, right: 20, zIndex: 10000,
       display: "flex", flexDirection: "column-reverse", gap: 8,
@@ -25,6 +28,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
       var ts = typeStyles[toast.type] || typeStyles.info;
       return h("div", {
         key: toast.id,
+        role: toast.type === "error" ? "alert" : undefined,
         style: {
           pointerEvents: "auto",
           display: "flex", alignItems: "center", gap: 8,

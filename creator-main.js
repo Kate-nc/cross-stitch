@@ -214,7 +214,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#dc2626":"#e2e8f0"),borderRadius:6,background:showHeatmap?"#fef2f2":"#f8f9fa",color:showHeatmap?"#dc2626":"#475569",fontWeight:500}}>
           {showHeatmap?"Hide heatmap":<>{Icons.fire()} Heatmap</>}
         </button>}
-        <span style={{fontSize:10,color:"#94a3b8"}}>Hold Alt to zoom</span>
+        <span style={{fontSize:10,color:"var(--text-tertiary)"}}>Hold Alt to zoom</span>
       </div>
     </div>
   );
@@ -358,6 +358,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}
     tab: state.tab, setTab: state.setTab,
     modal: state.modal, setModal: state.setModal,
     sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
+    mobileDrawerOpen: state.mobileDrawerOpen, setMobileDrawerOpen: state.setMobileDrawerOpen,
     loadError: state.loadError, setLoadError: state.setLoadError,
     copied: state.copied, setCopied: state.setCopied, copyText: state.copyText,
     dimOpen: state.dimOpen, setDimOpen: state.setDimOpen,
@@ -409,7 +410,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}
     isActive: isActive,
   }; }, [
     creatorMode,
-    state.tab, state.modal, state.sidebarOpen, state.loadError,
+    state.tab, state.modal, state.sidebarOpen, state.mobileDrawerOpen, state.loadError,
     state.copied, state.dimOpen, state.palOpen, state.fabOpen,
     state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen,
     state.splitPaneEnabled, state.splitPaneRatio,
@@ -690,7 +691,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}
               {state.previewUrl&&<div className="card">
                 <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#475569",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>Preview</span>
-                  {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#94a3b8"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
+                  {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"var(--text-tertiary)"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
                               {state.stitchCleanup&&state.stitchCleanup.enabled&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
                                 <button
                                   onClick={()=>state.setShowCleanupDiff(d=>!d)}
@@ -710,13 +711,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}
               {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
                 <div style={{fontSize:11,fontWeight:600,color:"#475569",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
-                  <div><div style={{fontSize:10,color:"#94a3b8"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.stitchable.toLocaleString()}</div></div>
-                  {state.skipBg&&<div><div style={{fontSize:10,color:"#94a3b8"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.skipped.toLocaleString()}</div></div>}
-                  <div><div style={{fontSize:10,color:"#94a3b8"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.uniqueColors}</div></div>
-                  {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"#94a3b8"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"#0d9488"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
-                  <div><div style={{fontSize:10,color:"#94a3b8"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.estSkeins}</div></div>
-                  <div><div style={{fontSize:10,color:"#94a3b8"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
-                  <div><div style={{fontSize:10,color:"#94a3b8"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
+                  <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.stitchable.toLocaleString()}</div></div>
+                  {state.skipBg&&<div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.skipped.toLocaleString()}</div></div>}
+                  <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.uniqueColors}</div></div>
+                  {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"#0d9488"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
+                  <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.estSkeins}</div></div>
+                  <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
+                  <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
                 </div>
                 {state.previewStats.confettiPct!=null&&(()=>{
                   const t=confettiTier(state.previewStats.confettiPct);
@@ -724,7 +725,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}
                   return(
                     <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #e2e8f0"}}>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
-                        <span style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
+                        <span style={{fontSize:10,color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
                         <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18"}}>{t.label}</span>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -733,12 +734,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}
                         </div>
                         <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString()} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
                       </div>
-                      <div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString()} after cleanup`:""}</div>
+                      <div style={{fontSize:10,color:"var(--text-tertiary)",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString()} after cleanup`:""}</div>
                     </div>
                   );
                 })()}
                 {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid #e2e8f0"}}>
-                  <div style={{fontSize:10,fontWeight:600,color:"#94a3b8",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
+                  <div style={{fontSize:10,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
                   <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>
                     {state.previewColors.map(function(pcol){
                       var sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
@@ -762,7 +763,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}
                           onMouseLeave={function(){state.setPreviewHighlight(null);}}>
                           <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid rgba(0,0,0,0.12)"}}/>
                           <span style={{fontSize:10,fontWeight:600,color:"#475569",flexShrink:0,minWidth:28}}>{pcol.id}</span>
-                          <span style={{fontSize:10,color:"#94a3b8",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
+                          <span style={{fontSize:10,color:"var(--text-tertiary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
                           <span style={{fontSize:10,fontWeight:600,color:"#1e293b",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString()}</span>
                         </div>
                       );
@@ -772,7 +773,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}
               </div>}
             </div>}
           </div>
-          {state.tab!=="stitch"&&<div className="rpanel">
+          {state.tab!=="stitch"&&<div className={"rpanel"+(state.mobileDrawerOpen?" rpanel--drawer-open":"")}>
+            <div className="rp-drag-handle" aria-hidden="true"/>
             <window.CreatorSidebar/>
             {!state.pat&&state.img&&<div className="card" style={{overflow:"hidden"}}>
               <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#475569"}}>Original Image</div>
@@ -781,13 +783,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}
                 {state.isCropping&&state.cropRect&&<div style={{position:"absolute",left:state.cropRect.x,top:state.cropRect.y,width:state.cropRect.w,height:state.cropRect.h,border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
               </div>
               {state.isCropping?<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}}>
-                <span style={{fontSize:10,color:"#94a3b8"}}>Draw a rectangle</span>
+                <span style={{fontSize:10,color:"var(--text-tertiary)"}}>Draw a rectangle</span>
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>{state.setIsCropping(false);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Cancel</button>
                   <button onClick={canvas.applyCrop} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}}>Apply</button>
                 </div>
               </div>:<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}}>
-                <span style={{fontSize:10,color:"#94a3b8"}}>{state.origW}×{state.origH}px</span>
+                <span style={{fontSize:10,color:"var(--text-tertiary)"}}>{state.origW}×{state.origH}px</span>
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Crop</button>
                   <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Change</button>

@@ -32,8 +32,9 @@ window.PatternCanvas = function PatternCanvas() {
 
   // ── Effect: Animated marching ants for highlight outline mode
   var hlAntsRef = React.useRef(null);
+  var reducedMotion = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   React.useEffect(function() {
-    var needAnts = cv.highlightMode === "outline" && cv.hiId;
+    var needAnts = cv.highlightMode === "outline" && cv.hiId && !reducedMotion;
     if (!needAnts) {
       if (hlAntsRef.current) { clearInterval(hlAntsRef.current); hlAntsRef.current = null; }
       if (cv.antsOffset !== 0 && cv.setAntsOffset) cv.setAntsOffset(0);
@@ -59,7 +60,7 @@ window.PatternCanvas = function PatternCanvas() {
 
   // ── Effect: Animated marching ants for selection mask
   React.useEffect(function() {
-    var hasSelection = cv.selectionMask || cv.lassoPreviewMask;
+    var hasSelection = (cv.selectionMask || cv.lassoPreviewMask) && !reducedMotion;
     if (!hasSelection) {
       if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
       antsOffsetRef.current = 0;
@@ -137,6 +138,9 @@ window.PatternCanvas = function PatternCanvas() {
 
   return h("canvas", {
     ref: app.pcRef,
+    tabIndex: 0,
+    role: "img",
+    "aria-label": ctx.sW && ctx.sH ? "Cross-stitch pattern " + ctx.sW + " by " + ctx.sH + " stitches" : "Cross-stitch pattern canvas",
     style: {
       display: "block",
       touchAction: "none",

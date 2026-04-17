@@ -96,8 +96,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       imgData: img ? img.src : null, partialStitches: psArr,
     };
     if (onSwitchToTrack) {
-      saveProjectToDB(project).catch(function() {});
-      ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function() {});
+      saveProjectToDB(project).catch(function(e) { console.error('Save failed:', e); });
+      ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function(e) { console.error('ProjectStorage save failed:', e); });
       onSwitchToTrack({ project: project, key: Date.now() });
       return;
     }
@@ -451,7 +451,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       if (p) {
         return ProjectStorage.save(p).then(function() {
           return saveProjectToDB(p);
-        }).catch(function() {});
+        }).catch(function(e) { console.error('Flush to IDB failed:', e); });
       }
       return Promise.resolve();
     };

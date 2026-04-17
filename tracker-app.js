@@ -3609,6 +3609,7 @@ return(
 
     {/* ═══ RIGHT PANEL ═══ */}
     <div className={"rpanel"+(mobileDrawerOpen?" rpanel--drawer-open":"")}>
+      <div className="rp-drag-handle" aria-hidden="true"/>
       <div className="rp-tabs">
         {[["colours","Colours"],["session","Session"],["more","More"]].map(([k,l])=>
           <button key={k} className={"rp-tab"+(rpanelTab===k?" rp-tab--on":"")} onClick={()=>{if(rpanelTab===k&&mobileDrawerOpen){setMobileDrawerOpen(false);}else{setRpanelTab(k);setMobileDrawerOpen(true);}}}>{l}</button>

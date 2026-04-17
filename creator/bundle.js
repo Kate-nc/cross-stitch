@@ -3510,6 +3510,7 @@ window.useCreatorState = function useCreatorState() {
   // UI state
   var _tab        = useState("pattern"); var tab        = _tab[0],        setTab        = _tab[1];
   var _sidOpen    = useState(true);      var sidebarOpen = _sidOpen[0],   setSidebarOpen = _sidOpen[1];
+  var _mDrawer    = useState(false);     var mobileDrawerOpen = _mDrawer[0]; var setMobileDrawerOpen = _mDrawer[1];
   var _loadErr    = useState(null);      var loadError  = _loadErr[0],    setLoadError  = _loadErr[1];
   var _copied     = useState(null);      var copied     = _copied[0],     setCopied     = _copied[1];
   var _modal      = useState(null);      var modal      = _modal[0],      setModal      = _modal[1];
@@ -4359,7 +4360,7 @@ window.useCreatorState = function useCreatorState() {
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
-    tab, setTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
+    tab, setTab, sidebarOpen, setSidebarOpen, mobileDrawerOpen, setMobileDrawerOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
@@ -5702,8 +5703,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       imgData: img ? img.src : null, partialStitches: psArr,
     };
     if (onSwitchToTrack) {
-      saveProjectToDB(project).catch(function() {});
-      ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function() {});
+      saveProjectToDB(project).catch(function(e) { console.error('Save failed:', e); });
+      ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function(e) { console.error('ProjectStorage save failed:', e); });
       onSwitchToTrack({ project: project, key: Date.now() });
       return;
     }
@@ -6057,7 +6058,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       if (p) {
         return ProjectStorage.save(p).then(function() {
           return saveProjectToDB(p);
-        }).catch(function() {});
+        }).catch(function(e) { console.error('Flush to IDB failed:', e); });
       }
       return Promise.resolve();
     };
@@ -6332,8 +6333,9 @@ window.PatternCanvas = function PatternCanvas() {
 
   // ── Effect: Animated marching ants for highlight outline mode
   var hlAntsRef = React.useRef(null);
+  var reducedMotion = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   React.useEffect(function() {
-    var needAnts = cv.highlightMode === "outline" && cv.hiId;
+    var needAnts = cv.highlightMode === "outline" && cv.hiId && !reducedMotion;
     if (!needAnts) {
       if (hlAntsRef.current) { clearInterval(hlAntsRef.current); hlAntsRef.current = null; }
       if (cv.antsOffset !== 0 && cv.setAntsOffset) cv.setAntsOffset(0);
@@ -6359,7 +6361,7 @@ window.PatternCanvas = function PatternCanvas() {
 
   // ── Effect: Animated marching ants for selection mask
   React.useEffect(function() {
-    var hasSelection = cv.selectionMask || cv.lassoPreviewMask;
+    var hasSelection = (cv.selectionMask || cv.lassoPreviewMask) && !reducedMotion;
     if (!hasSelection) {
       if (antsIntervalRef.current) { clearInterval(antsIntervalRef.current); antsIntervalRef.current = null; }
       antsOffsetRef.current = 0;
@@ -6437,6 +6439,9 @@ window.PatternCanvas = function PatternCanvas() {
 
   return h("canvas", {
     ref: app.pcRef,
+    tabIndex: 0,
+    role: "img",
+    "aria-label": ctx.sW && ctx.sH ? "Cross-stitch pattern " + ctx.sW + " by " + ctx.sH + " stitches" : "Cross-stitch pattern canvas",
     style: {
       display: "block",
       touchAction: "none",
@@ -6661,7 +6666,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
   // Sync icon SVG
   function renderSyncIcon(locked) {
     return h("svg", { width: 12, height: 12, viewBox: "0 0 14 14", fill: "none",
-      stroke: locked ? "#0d9488" : "#94a3b8", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" },
+      stroke: locked ? "#0d9488" : "var(--text-tertiary)", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" },
       locked
         ? [h("path",  { key: "shackle", d: "M4 6V4.5a3 3 0 016 0V6" }),
            h("rect",  { key: "body",    x: "2.5", y: "6", width: "9", height: "6.5", rx: "1.5" })]
@@ -6698,7 +6703,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         h("span", null, previewOpen ? "\u25B2 Hide preview" : "\u25BC Show preview"),
         h("button", {
           onClick: function(e) { e.stopPropagation(); exitSplit(); },
-          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          style: { background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", fontSize: 14, padding: "0 2px", lineHeight: 1 },
           title: "Exit split view",
         }, "\xD7")
       ),
@@ -6734,7 +6739,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         h("span", { style: { flex: 1 } }),
         h("button", {
           onClick: exitSplit, title: "Exit split view",
-          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          style: { background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", fontSize: 14, padding: "0 2px", lineHeight: 1 },
         }, "\xD7")
       ),
       // Chart scroll container — this IS app.scrollRef
@@ -6830,7 +6835,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         h("span", { style: { flex: 1 } }),
         h("button", {
           onClick: exitSplit, title: "Exit split view",
-          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          style: { background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", fontSize: 14, padding: "0 2px", lineHeight: 1 },
         }, "\xD7")
       ),
 
@@ -7069,7 +7074,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     },
       h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block"}}),
       h("span", {style:{fontWeight:600,color:"#0d9488"}}, cv.selectedColorId)
-    ) : h("span", {style:{fontSize:10,color:"#94a3b8",marginRight:6,flexShrink:0}}, "none selected"),
+    ) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)",marginRight:6,flexShrink:0}}, "none selected"),
     swatchesShown.map(function(p) {
       var isSel = cv.selectedColorId === p.id;
       return h("button", {
@@ -7275,12 +7280,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       key:"undo", className:"tb-btn",
       onClick:cv.undoEdit, disabled:!cv.editHistory.length,
       title:"Undo (Ctrl+Z)",
+      'aria-label':'Undo',
       style:{opacity:cv.editHistory.length?1:0.3}
     }, "\u21A9"),
     h("button", {
       key:"redo", className:"tb-btn",
       onClick:cv.redoEdit, disabled:!cv.redoHistory.length,
       title:"Redo (Ctrl+Y)",
+      'aria-label':'Redo',
       style:{opacity:cv.redoHistory.length?1:0.3}
     }, "\u21AA")
   ] : null;
@@ -7430,7 +7437,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               style:{marginLeft:"auto",fontSize:10,padding:"2px 6px",border:"1px solid #fed7aa",borderRadius:4,
                      background:"#fff7ed",color:"#c2410c",cursor:"pointer", lineHeight:1.2}
             }, "\u21BA Auto"),
-            !isManual && h("span", {style:{marginLeft:"auto",fontSize:10,color:"#94a3b8"}},
+            !isManual && h("span", {style:{marginLeft:"auto",fontSize:10,color:"var(--text-tertiary)"}},
               Math.round(sAutoCov * 100) + "%"
             )
           ),
@@ -7458,7 +7465,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("button", {
       className:"tb-overflow-btn",
       onClick:function(){app.setOverflowOpen(function(o){return !o;});},
-      title:"More options"
+      title:"More options",
+      'aria-label':'More options'
     }, "\u00B7\u00B7\u00B7"),
     overflowMenu
   );
@@ -7856,7 +7864,7 @@ window.MagicWandPanel = function MagicWandPanel() {
     btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
   ) : null;
 
-  return h("div", null,
+  return h("div", {"aria-label": "Magic wand tools"},
     optionsRow,
     selRow,
     confettiPanel,
@@ -8526,9 +8534,9 @@ function SubstituteFromStashModalInner(props) {
           swatch(sub.sourceRgb),
           h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sub.sourceId),
           sub.isBlendComponent
-            ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0 } }, "(blend)")
+            ? h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", flexShrink: 0 } }, "(blend)")
             : null,
-          h("span", { style: { color: "#94a3b8", fontSize: 13, flexShrink: 0 } }, "\u2192"),
+          h("span", { style: { color: "var(--text-tertiary)", fontSize: 13, flexShrink: 0 } }, "\u2192"),
           swatch(target.rgb),
           h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + target.id),
           h("span", { style: { fontSize: 11, color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
@@ -8536,7 +8544,7 @@ function SubstituteFromStashModalInner(props) {
             ? h("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: "#fff7ed", color: "#c2410c", flexShrink: 0 } }, "manual\u00B7\u0394E\u202F" + target.deltaE)
             : statusBadge(effStatus),
           !sub.includedFromNearMiss
-            ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
+            ? h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
             : null,
           h("span", {
             style: { fontSize: 10, color: target.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 44, textAlign: "right" }
@@ -8587,7 +8595,7 @@ function SubstituteFromStashModalInner(props) {
                 swatch(alt.rgb, 12),
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + alt.id),
                 h("span", { style: { color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
-                h("span", { style: { color: "#94a3b8", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
+                h("span", { style: { color: "var(--text-tertiary)", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
                 h("span", { style: { color: alt.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
                 isSelected ? h("span", { style: { color: "#7c3aed", fontWeight: 700, marginLeft: 4, flexShrink: 0 } }, "\u2713") : null
               );
@@ -8614,9 +8622,9 @@ function SubstituteFromStashModalInner(props) {
         h("span", { style: { fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sk.sourceId),
         h("span", { style: { color: "#475569", flex: 1 } }, sk.sourceName),
         sk.isBlendComponent
-          ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0 } }, "(blend)")
+          ? h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", flexShrink: 0 } }, "(blend)")
           : null,
-        h("span", { style: { color: "#94a3b8", fontSize: 11, flexShrink: 0 } }, reasonText),
+        h("span", { style: { color: "var(--text-tertiary)", fontSize: 11, flexShrink: 0 } }, reasonText),
         hasNm
           ? h("button", {
               onClick: function() { setNmExpanded(function(prev) { var n = Object.assign({}, prev); n[skk] = !n[skk]; return n; }); },
@@ -8668,7 +8676,7 @@ function SubstituteFromStashModalInner(props) {
     if (!originalThumb) {
       return h("div", { style: { marginBottom: 14 } },
         sectionHeader,
-        h("div", { style: { height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9", color: "#94a3b8", fontSize: 12 } },
+        h("div", { style: { height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9", color: "var(--text-tertiary)", fontSize: 12 } },
           "Generating preview\u2026"
         )
       );
@@ -8690,11 +8698,11 @@ function SubstituteFromStashModalInner(props) {
         : h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
             h("div", { style: { textAlign: "center" } },
               h("img", { src: originalThumb, alt: "Current pattern", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #e2e8f0" } }),
-              h("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "Current")
+              h("div", { style: { fontSize: 10, color: "var(--text-tertiary)", marginTop: 3 } }, "Current")
             ),
             h("div", { style: { textAlign: "center" } },
               h("img", { src: afterSrc, alt: "After substitution", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #e2e8f0" } }),
-              h("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "After substitution")
+              h("div", { style: { fontSize: 10, color: "var(--text-tertiary)", marginTop: 3 } }, "After substitution")
             )
           )
     );
@@ -8725,7 +8733,7 @@ function SubstituteFromStashModalInner(props) {
         h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1e293b", flex: 1 } }, "Substitute from Stash"),
         h("button", {
           onClick: closeModal,
-          style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8", padding: "0 4px", borderRadius: 6, lineHeight: 1 }
+          style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--text-tertiary)", padding: "0 4px", borderRadius: 6, lineHeight: 1 }
         }, "\xD7")
       ),
 
@@ -8745,7 +8753,7 @@ function SubstituteFromStashModalInner(props) {
             onChange: function(e) { handleSliderChange(parseInt(e.target.value)); },
             style: { width: "100%", accentColor: "#7c3aed", cursor: "pointer" }
           }),
-          h("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94a3b8", marginTop: 2 } },
+          h("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-tertiary)", marginTop: 2 } },
             h("span", null, "1 \u2014 exact match"),
             h("span", null, "40 \u2014 broad")
           ),
@@ -8757,7 +8765,7 @@ function SubstituteFromStashModalInner(props) {
               style: { width: 14, height: 14, accentColor: "#7c3aed", cursor: "pointer" }
             }),
             h("span", { style: { fontSize: 12, color: "#475569" } }, "Preserve colour contrast"),
-            h("span", { style: { fontSize: 10, color: "#94a3b8", marginLeft: 2 } },
+            h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", marginLeft: 2 } },
               "(avoid substitutions that make palette colours too similar)"
             )
           )
@@ -8792,7 +8800,7 @@ function SubstituteFromStashModalInner(props) {
 
         // No results at all
         p.substitutions.length === 0 && p.skipped.length === 0
-          ? h("div", { style: { padding: "20px", textAlign: "center", color: "#94a3b8", fontSize: 13 } },
+          ? h("div", { style: { padding: "20px", textAlign: "center", color: "var(--text-tertiary)", fontSize: 13 } },
               "No unowned threads found \u2014 all threads are already marked as owned."
             )
           : null,
@@ -8808,7 +8816,7 @@ function SubstituteFromStashModalInner(props) {
             ? h("span", { style: { color: "#b45309" } }, " \xB7 " + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : ""))
             : null
         ),
-        h("div", { style: { marginTop: 8, fontSize: 11, color: "#94a3b8" } },
+        h("div", { style: { marginTop: 8, fontSize: 11, color: "var(--text-tertiary)" } },
           "Tip: All changes can be undone with Ctrl+Z"
         )
       ),
@@ -8829,7 +8837,7 @@ function SubstituteFromStashModalInner(props) {
             cursor: enabledSubs.length === 0 ? "not-allowed" : "pointer",
             border: enabledSubs.length === 0 ? "1px solid #e2e8f0" : "1px solid #a78bfa",
             background: enabledSubs.length === 0 ? "#f8f9fa" : "#7c3aed",
-            color: enabledSubs.length === 0 ? "#94a3b8" : "#fff"
+            color: enabledSubs.length === 0 ? "var(--text-tertiary)" : "#fff"
           }
         }, applyLabel)
       )
@@ -8910,7 +8918,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       h("span", {style:{flex:1}},
         h("span", {style:{fontSize:12,fontWeight:500,color:"#1e293b",display:"block"}}, props.label),
-        props.help && h("span", {style:{fontSize:10,color:"#94a3b8",display:"block",marginTop:1}}, props.help)
+        props.help && h("span", {style:{fontSize:10,color:"var(--text-tertiary)",display:"block",marginTop:1}}, props.help)
       )
     );
   }
@@ -8961,7 +8969,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("span", {style:{fontWeight:500}}, p.id),
         isUnused && h("span", {
           onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
-          style:{fontSize:9,color:"#94a3b8",cursor:"pointer",marginLeft:2,lineHeight:1}
+          style:{fontSize:9,color:"var(--text-tertiary)",cursor:"pointer",marginLeft:2,lineHeight:1}
         }, "\xD7")
       );
     });
@@ -9035,7 +9043,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     ),
     gen.isCropping
       ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
-          h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Draw a rectangle"),
+          h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, "Draw a rectangle"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){gen.setIsCropping(false); gen.setCropRect(null);},
@@ -9048,7 +9056,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           )
         )
       : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
-          h("span", {style:{fontSize:11,color:"#94a3b8"}}, gen.origW+"×"+gen.origH+"px"),
+          h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, gen.origW+"×"+gen.origH+"px"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){gen.setIsCropping(true); gen.setCropRect(null);},
@@ -9080,7 +9088,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("span", {style:{width:16,height:16,borderRadius:"50%",background:"#0d9488",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
               h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
             ),
-            item[2] && h("span", {style:{fontSize:10,color:"#94a3b8"}}, item[2])
+            item[2] && h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, item[2])
           );
         })
       ),
@@ -9103,11 +9111,11 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1"}}),
               h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1e293b"}}, d.id),
               h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#94a3b8"}}, "+")
+              inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
             )
           );
         }),
-        ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#94a3b8",padding:"8px 0",textAlign:"center"}}, "No colours found")
+        ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
       )
     )
   ) : null;
@@ -9123,15 +9131,15 @@ window.CreatorSidebar = function CreatorSidebar() {
     ctx.arLock
       ? h("div", null,
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
-          h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
+          h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
         )
       : h("div", {style:{display:"flex",gap:10}},
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Width"),
+            h("label", {style:{fontSize:11,color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Width"),
             h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
           ),
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Height"),
+            h("label", {style:{fontSize:11,color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Height"),
             h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
           )
         )
@@ -9151,7 +9159,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
     ),
-    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:8}},
+    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:8}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
     ),
     typeof StashBridge !== "undefined" && h("label", {
@@ -9252,7 +9260,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             h("span", {
               onClick:function(){setSeedEditing(true);setSeedTmp(String(gen.variationSeed));},
               title:"Click to enter a specific seed",
-              style:{fontSize:10,color:"#94a3b8",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
+              style:{fontSize:10,color:"var(--text-tertiary)",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
             }, "#" + gen.variationSeed)
           ) : null
         ),
@@ -9282,7 +9290,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                 }
               },
                 slot.loading ?
-                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#94a3b8"}}, "\u2026") :
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--text-tertiary)"}}, "\u2026") :
                 slot.url ?
                   h("div", null,
                     h("img", {src:slot.url, style:{width:"100%",display:"block",imageRendering:"pixelated"}}),
@@ -9302,7 +9310,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           )
         ),
         gen.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
-          h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:4}}, "Recent variations"),
+          h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:4}}, "Recent variations"),
           h("div", {style:{display:"flex",gap:4,overflowX:"auto",paddingBottom:4}},
             gen.variationHistory.map(function(entry, i) {
               return h("div", {
@@ -9313,8 +9321,8 @@ window.CreatorSidebar = function CreatorSidebar() {
               },
                 entry.previewUrl ?
                   h("img", {src:entry.previewUrl, style:{width:32,height:32,display:"block",imageRendering:"pixelated",objectFit:"cover"}}) :
-                  h("div", {style:{width:32,height:32,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#94a3b8"}}, "?"),
-                h("div", {style:{fontSize:7,color:"#94a3b8",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
+                  h("div", {style:{width:32,height:32,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"var(--text-tertiary)"}}, "?"),
+                h("div", {style:{fontSize:7,color:"var(--text-tertiary)",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
               );
             })
           )
@@ -9342,7 +9350,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("div", {style:{fontSize:11,color:"#475569",marginTop:4,lineHeight:1.5}}, desc);
       })()
     ),
-    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
+    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"var(--text-tertiary)",marginTop:2}},
       "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
       " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),
@@ -9367,7 +9375,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
       gen.cleanupDiff.count.toLocaleString(), " stitches changed",
       ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#94a3b8"}},
+      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"var(--text-tertiary)"}},
         Object.entries(gen.cleanupDiff.byColour)
           .sort(function(a,b){return b[1]-a[1];})
           .slice(0,4)
@@ -9427,7 +9435,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var sc2 = gen.stitchCleanup;
     var scBadge = h("span", {style:{
       fontSize:11,fontWeight:500,padding:"1px 8px",borderRadius:10,
-      color:sc2.enabled?"#0d9488":"#94a3b8",background:sc2.enabled?"#f0fdfa":"#f1f5f9"
+      color:sc2.enabled?"#0d9488":"var(--text-tertiary)",background:sc2.enabled?"#f0fdfa":"#f1f5f9"
     }}, sc2.enabled ? "On \u2014 "+(sc2.strength[0].toUpperCase()+sc2.strength.slice(1)) : "Off");
     var strengthKeys=["gentle","balanced","thorough"];
     var strengthLabels=["Gentle","Balanced","Thorough"];
@@ -9459,7 +9467,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               strengthLabels.map(function(l,i) {
                 return h(Tooltip, {key:l, text:strengthDescs[i], width:160},
                   h("span", {
-                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#94a3b8",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
+                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"var(--text-tertiary)",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
                     onClick:function(){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
                   }, l)
                 );
@@ -9497,7 +9505,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
+      h("div", {style:{fontSize:11,color:"var(--text-tertiary)",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
     )
   );
 
@@ -9508,7 +9516,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
         helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
-      gen.smooth===0 && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
+      gen.smooth===0 && h("div", {style:{fontSize:11,color:"var(--text-tertiary)",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
       gen.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
         h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
@@ -9581,7 +9589,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     : h("button", {
         onClick:gen.generate, disabled:gen.busy,
         style:{padding:"8px 14px",fontSize:12,fontWeight:600,
-          background:gen.busy?"#94a3b8":"#0d9488",color:"#fff",
+          background:gen.busy?"var(--text-tertiary)":"#0d9488",color:"#fff",
           border:"none",borderRadius:8,cursor:gen.busy?"wait":"pointer"}
       }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
@@ -9644,31 +9652,31 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}, "Pattern Summary"),
     h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}},
       h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Dimensions"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Dimensions"),
         h("div", {style:{fontSize:13,fontWeight:600}}, ctx.sW+"\xD7"+ctx.sH)
       ),
       h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Stitchable"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Stitchable"),
         h("div", {style:{fontSize:13,fontWeight:600}}, (ctx.totalStitchable||0).toLocaleString())
       ),
       h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Colours"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Colours"),
         h("div", {style:{fontSize:13,fontWeight:600}}, (ctx.displayPal||ctx.pal||[]).length)
       ),
       ctx.difficulty && h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Difficulty"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Difficulty"),
         h("div", {style:{fontSize:13,fontWeight:600,color:ctx.difficulty.color||"inherit"}}, ctx.difficulty.label||"")
       ),
       ctx.totalSkeins && h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Skeins ("+ctx.fabricCt+"ct)"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Skeins ("+ctx.fabricCt+"ct)"),
         h("div", {style:{fontSize:13,fontWeight:600}}, ctx.totalSkeins)
       ),
       h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Est. Thread Cost"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Est. Thread Cost"),
         h("div", {style:{fontSize:13,fontWeight:600}}, "\xA3"+((ctx.totalSkeins||0)*ctx.skeinPrice).toFixed(2))
       ),
       h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Est. Time"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Est. Time"),
         h("div", {style:{fontSize:13,fontWeight:600}}, typeof fmtTimeL !== 'undefined' ? fmtTimeL(Math.round((ctx.totalStitchable||0)/(ctx.stitchSpeed||50)*3600)) : '')
       )
     ),
@@ -9700,7 +9708,10 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("button", {
           key: t[0],
           className: "rp-tab" + (sideTab === t[0] ? " rp-tab--on" : ""),
-          onClick: function() { setSideTab(t[0]); },
+          onClick: function() {
+            if (sideTab === t[0] && app.mobileDrawerOpen) { app.setMobileDrawerOpen(false); }
+            else { setSideTab(t[0]); app.setMobileDrawerOpen(true); }
+          },
           'aria-label': t[1] + ' tab'
         }, t[1]);
       })
@@ -9822,6 +9833,9 @@ window.CreatorToastContainer = function CreatorToastContainer() {
   };
 
   return h("div", {
+    role: "status",
+    "aria-live": "polite",
+    "aria-relevant": "additions",
     style: {
       position: "fixed", bottom: 20, right: 20, zIndex: 10000,
       display: "flex", flexDirection: "column-reverse", gap: 8,
@@ -9832,6 +9846,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
       var ts = typeStyles[toast.type] || typeStyles.info;
       return h("div", {
         key: toast.id,
+        role: toast.type === "error" ? "alert" : undefined,
         style: {
           pointerEvents: "auto",
           display: "flex", alignItems: "center", gap: 8,
@@ -9895,6 +9910,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     var key = opts.k || (typeof label === 'string' ? label : undefined);
     return h("button", {
       key: key,
+      role: "menuitem",
       onPointerDown: function(e) { e.stopPropagation(); },
       onClick: function(e) { e.stopPropagation(); onClick(); cv.setContextMenu(null); },
       disabled: opts.disabled,
@@ -9916,6 +9932,8 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   }
 
   return h("div", {
+    role: "menu",
+    "aria-label": "Pattern cell actions",
     style:{
       position:"fixed", left:menu.x, top:menu.y, zIndex:9999,
       background:"#fff", border:"1px solid #cbd5e1", borderRadius:8,
@@ -9932,7 +9950,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       "DMC " + cellInfo.id + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
     ),
     !hasCellColour && h("div", {
-      style:{padding:"5px 12px 4px",fontSize:11,color:"#94a3b8",borderBottom:"1px solid #f1f5f9",marginBottom:2}
+      style:{padding:"5px 12px 4px",fontSize:11,color:"var(--text-tertiary)",borderBottom:"1px solid #f1f5f9",marginBottom:2}
     }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
 
     // Pick this colour
@@ -10075,7 +10093,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     }, "To see symbols, you may need to zoom in."),
 
     ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
-      style:{fontSize:12,color:"#94a3b8",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
+      style:{fontSize:12,color:"var(--text-tertiary)",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
     }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
     !app.shortcutsHintDismissed && h("div", {
@@ -10168,7 +10186,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }
       return h("div", {className:"tb-status", style:{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
         h("span", null, parts[0]),
-        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#94a3b8",flexShrink:0}}, parts[1]),
+        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}, parts[1]),
         parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
           ctx.cmap && ctx.pat && cv.hoverCoords && (function() {
             var hIdx2 = cv.hoverCoords.gy * ctx.sW + cv.hoverCoords.gx;
@@ -10328,14 +10346,14 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     var difficultyBadge = ctx.difficulty && h("div", {
       style:{marginTop:12,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0",display:"flex",alignItems:"center",gap:10}
     },
-      h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
+      h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
       h("div", {style:{display:"flex",gap:2}},
         [1,2,3,4].map(function(s) {
           return h("span", {key:s, style:{fontSize:16,color:s<=ctx.difficulty.stars?ctx.difficulty.color:"#e2e8f0"}}, "\u2605");
         })
       ),
       h("span", {style:{fontSize:13,fontWeight:700,color:ctx.difficulty.color}}, ctx.difficulty.label),
-      h("span", {style:{fontSize:11,color:"#94a3b8",marginLeft:"auto"}},
+      h("span", {style:{fontSize:11,color:"var(--text-tertiary)",marginLeft:"auto"}},
         ctx.pal.length + " colours \xB7 " + (ctx.blendCount > 0 ? ctx.blendCount + " blends \xB7 " : "") + ctx.totalStitchable.toLocaleString() + " stitches"
       )
     );
@@ -10346,7 +10364,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       var barW = Math.max(3, Math.min(100, Math.round(100 - cd.pct * 5)));
       return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0"}},
         h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
-          h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
+          h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
           h("span", {style:{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18",marginLeft:"auto"}}, t.label)
         ),
         h("div", {style:{display:"flex",alignItems:"center",gap:8}},
@@ -10357,7 +10375,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             cd.singles.toLocaleString() + " isolated (" + cd.pct.toFixed(1) + "%)"
           )
         ),
-        app.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:4}},
+        app.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:4}},
           app.confettiData.raw.singles.toLocaleString() + " before orphan removal"
         )
       );
@@ -10377,7 +10395,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       },
         rows.map(function(r, i) {
           return h("div", {key:i},
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
+            h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
             h("div", {style:{fontSize:14,fontWeight:600,color:"#1e293b"}}, r[1])
           );
         })
@@ -10398,13 +10416,13 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         }),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px",marginTop:10}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
+            h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
             h("div", {style:{fontSize:16,fontWeight:700,color:"#1e293b"}},
               fmtTimeL(Math.round(ctx.totalStitchable / ctx.stitchSpeed * 3600))
             )
           ),
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
+            h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
             h("div", {style:{fontSize:16,fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"#16a34a":"#0d9488"}},
               ctx.doneCount >= ctx.totalStitchable ? "Done!" : fmtTimeL(Math.round((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed * 3600))
             )
@@ -10447,7 +10465,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                 h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}}, f.label+(isCurrent?" \u2713":"")),
                 h("td", {style:{padding:"6px 10px"}}, wIn.toFixed(1)+"\u2033 / "+wCm.toFixed(1)+" cm"),
                 h("td", {style:{padding:"6px 10px"}}, hIn.toFixed(1)+"\u2033 / "+hCm.toFixed(1)+" cm"),
-                h("td", {style:{padding:"6px 10px",fontSize:11,color:"#94a3b8"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
+                h("td", {style:{padding:"6px 10px",fontSize:11,color:"var(--text-tertiary)"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
               );
             })
           )
@@ -10470,21 +10488,21 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         ),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
+            h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
             h("div", {style:{fontSize:16,fontWeight:700,color:"#1e293b"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
-            h("div", {style:{fontSize:11,color:"#94a3b8"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
+            h("div", {style:{fontSize:11,color:"var(--text-tertiary)"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
           ),
           ctx.toBuyCount < ctx.skeinData.length && h("div", null,
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
+            h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
             h("div", {style:{fontSize:16,fontWeight:700,color:"#ea580c"}},
               "\xA3"+(ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)*ctx.skeinPrice).toFixed(2)
             ),
-            h("div", {style:{fontSize:11,color:"#94a3b8"}},
+            h("div", {style:{fontSize:11,color:"var(--text-tertiary)"}},
               ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)+" skeins"
             )
           )
         ),
-        h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
+        h("div", {style:{fontSize:11,color:"var(--text-tertiary)",marginTop:8}},
           "Doesn\u2019t include fabric, needles, hoop, or frame. DMC skeins typically \xA30.85\u2013\xA31.10 in UK shops."
         )
       )
@@ -10534,7 +10552,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1",flexShrink:0}}),
               h("span", {style:{fontWeight:700,fontSize:13,minWidth:44}}, "DMC "+d.id),
               h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              h("span", {style:{fontSize:11,color:"#94a3b8",flexShrink:0}}, d.skeins+"sk"),
+              h("span", {style:{fontSize:11,color:"var(--text-tertiary)",flexShrink:0}}, d.skeins+"sk"),
               h("button", {
                 onClick:function(){ctx.toggleOwned(d.id);},
                 style:{fontSize:11,padding:"3px 10px",borderRadius:5,cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center",
@@ -10567,12 +10585,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                         h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid #cbd5e1"}}),
                         h("span", {style:{fontWeight:600}}, "DMC "+a.id),
                         h("span", {style:{color:"#475569"}}, a.name),
-                        h("span", {style:{color:"#94a3b8"}}, "\u0394E "+a.deltaE),
+                        h("span", {style:{color:"var(--text-tertiary)"}}, "\u0394E "+a.deltaE),
                         h("span", {style:{color:"#4338ca"}}, a.owned+"sk")
                       );
                     })
                   )
-                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:11,color:"#94a3b8"}},
+                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:11,color:"var(--text-tertiary)"}},
                     "No similar threads found in your stash."
                   );
             })()
@@ -10730,7 +10748,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Total skeins: "+ctx.totalSkeins)
+      h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, "Total skeins: "+ctx.totalSkeins)
     ),
     h("div", {style:{overflow:"auto",maxHeight:540}},
       h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
@@ -10891,7 +10909,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           style:{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}
         }, "Cover Sheet PDF")
       ),
-      h("p", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
+      h("p", {style:{fontSize:11,color:"var(--text-tertiary)",marginTop:8}},
         "The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes \u2014 perfect for tucking into your project bag."
       )
     ),

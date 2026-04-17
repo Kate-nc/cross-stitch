@@ -33,6 +33,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     var key = opts.k || (typeof label === 'string' ? label : undefined);
     return h("button", {
       key: key,
+      role: "menuitem",
       onPointerDown: function(e) { e.stopPropagation(); },
       onClick: function(e) { e.stopPropagation(); onClick(); cv.setContextMenu(null); },
       disabled: opts.disabled,
@@ -54,6 +55,8 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   }
 
   return h("div", {
+    role: "menu",
+    "aria-label": "Pattern cell actions",
     style:{
       position:"fixed", left:menu.x, top:menu.y, zIndex:9999,
       background:"#fff", border:"1px solid #cbd5e1", borderRadius:8,
@@ -70,7 +73,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       "DMC " + cellInfo.id + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
     ),
     !hasCellColour && h("div", {
-      style:{padding:"5px 12px 4px",fontSize:11,color:"#94a3b8",borderBottom:"1px solid #f1f5f9",marginBottom:2}
+      style:{padding:"5px 12px 4px",fontSize:11,color:"var(--text-tertiary)",borderBottom:"1px solid #f1f5f9",marginBottom:2}
     }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
 
     // Pick this colour

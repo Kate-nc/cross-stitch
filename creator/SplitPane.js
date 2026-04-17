@@ -199,7 +199,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
   // Sync icon SVG
   function renderSyncIcon(locked) {
     return h("svg", { width: 12, height: 12, viewBox: "0 0 14 14", fill: "none",
-      stroke: locked ? "#0d9488" : "#94a3b8", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" },
+      stroke: locked ? "#0d9488" : "var(--text-tertiary)", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" },
       locked
         ? [h("path",  { key: "shackle", d: "M4 6V4.5a3 3 0 016 0V6" }),
            h("rect",  { key: "body",    x: "2.5", y: "6", width: "9", height: "6.5", rx: "1.5" })]
@@ -236,7 +236,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         h("span", null, previewOpen ? "\u25B2 Hide preview" : "\u25BC Show preview"),
         h("button", {
           onClick: function(e) { e.stopPropagation(); exitSplit(); },
-          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          style: { background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", fontSize: 14, padding: "0 2px", lineHeight: 1 },
           title: "Exit split view",
         }, "\xD7")
       ),
@@ -272,7 +272,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         h("span", { style: { flex: 1 } }),
         h("button", {
           onClick: exitSplit, title: "Exit split view",
-          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          style: { background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", fontSize: 14, padding: "0 2px", lineHeight: 1 },
         }, "\xD7")
       ),
       // Chart scroll container — this IS app.scrollRef
@@ -368,7 +368,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         h("span", { style: { flex: 1 } }),
         h("button", {
           onClick: exitSplit, title: "Exit split view",
-          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          style: { background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", fontSize: 14, padding: "0 2px", lineHeight: 1 },
         }, "\xD7")
       ),
 

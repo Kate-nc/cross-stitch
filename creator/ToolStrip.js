@@ -222,7 +222,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     },
       h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block"}}),
       h("span", {style:{fontWeight:600,color:"#0d9488"}}, cv.selectedColorId)
-    ) : h("span", {style:{fontSize:10,color:"#94a3b8",marginRight:6,flexShrink:0}}, "none selected"),
+    ) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)",marginRight:6,flexShrink:0}}, "none selected"),
     swatchesShown.map(function(p) {
       var isSel = cv.selectedColorId === p.id;
       return h("button", {
@@ -428,12 +428,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       key:"undo", className:"tb-btn",
       onClick:cv.undoEdit, disabled:!cv.editHistory.length,
       title:"Undo (Ctrl+Z)",
+      'aria-label':'Undo',
       style:{opacity:cv.editHistory.length?1:0.3}
     }, "\u21A9"),
     h("button", {
       key:"redo", className:"tb-btn",
       onClick:cv.redoEdit, disabled:!cv.redoHistory.length,
       title:"Redo (Ctrl+Y)",
+      'aria-label':'Redo',
       style:{opacity:cv.redoHistory.length?1:0.3}
     }, "\u21AA")
   ] : null;
@@ -583,7 +585,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               style:{marginLeft:"auto",fontSize:10,padding:"2px 6px",border:"1px solid #fed7aa",borderRadius:4,
                      background:"#fff7ed",color:"#c2410c",cursor:"pointer", lineHeight:1.2}
             }, "\u21BA Auto"),
-            !isManual && h("span", {style:{marginLeft:"auto",fontSize:10,color:"#94a3b8"}},
+            !isManual && h("span", {style:{marginLeft:"auto",fontSize:10,color:"var(--text-tertiary)"}},
               Math.round(sAutoCov * 100) + "%"
             )
           ),
@@ -611,7 +613,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("button", {
       className:"tb-overflow-btn",
       onClick:function(){app.setOverflowOpen(function(o){return !o;});},
-      title:"More options"
+      title:"More options",
+      'aria-label':'More options'
     }, "\u00B7\u00B7\u00B7"),
     overflowMenu
   );

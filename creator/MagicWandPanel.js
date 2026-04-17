@@ -346,7 +346,7 @@ window.MagicWandPanel = function MagicWandPanel() {
     btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
   ) : null;
 
-  return h("div", null,
+  return h("div", {"aria-label": "Magic wand tools"},
     optionsRow,
     selRow,
     confettiPanel,

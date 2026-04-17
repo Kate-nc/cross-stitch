@@ -1660,18 +1660,38 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   .tb-overflow-menu{min-width:240px;}
   .tb-ovf-item{min-height:44px;touch-action:manipulation;}
   .col-row{min-height:44px;}
-  .rp-pill-toggle button{min-height:44px;}
+  .rp-pill-toggle button{min-height:44px;font-size:12px;}
   .session-chip{min-height:44px;display:none!important;}
   .status-bar{display:none;}
   .creator-pattern-chips{gap:6px!important;}
   .creator-palette-chip{min-width:44px;min-height:44px;padding:8px 12px!important;border-radius:8px!important;gap:6px!important;font-size:12px!important;}
   .creator-palette-chip-swatch{width:18px!important;height:18px!important;border-radius:4px!important;}
   .creator-palette-chip-remove{min-width:24px;min-height:24px;font-size:12px!important;}
+  /* Swatch strip touch targets */
+  .swatch-strip-row{height:auto;min-height:44px;gap:4px;padding:4px 12px;}
+  .swatch-strip-row button{min-width:36px;min-height:36px;touch-action:manipulation;}
+  /* View toggle / highlight segment touch targets */
+  .rp-seg-btn,.rp-view-btn{min-height:36px!important;font-size:12px!important;touch-action:manipulation;}
+  /* Toggle switch touch target */
+  [role="switch"]{min-height:44px;}
+  /* Brush size radio touch targets */
+  .brush-size-btn{min-width:44px;min-height:44px;touch-action:manipulation;}
   /* Mobile drawer for rpanel */
   .rpanel{position:fixed;bottom:0;left:0;right:0;width:100%;border-left:none;border-top:1px solid var(--border);top:auto;max-height:44px;overflow:hidden;transition:max-height 0.25s ease;z-index:500;border-radius:16px 16px 0 0;box-shadow:0 -2px 12px rgba(0,0,0,0.08);}
   .rpanel--drawer-open{max-height:55dvh;overflow-y:auto;}
+  .rpanel .rp-drag-handle{display:block;}
   .rp-tabs{position:sticky;top:0;z-index:10;}
-  .rp-tab{min-height:44px;}
+  .rp-tab{min-height:44px;font-size:12px;}
+}
+/* Drawer handle (hidden on desktop, visible on touch) */
+.rp-drag-handle{display:none;width:32px;height:4px;border-radius:2px;background:var(--border);margin:6px auto 2px;flex-shrink:0;}
+/* Landscape phone — compact chrome to maximise canvas space */
+@media (pointer:coarse) and (max-height:500px) and (orientation:landscape){
+  .tb-topbar{height:40px;}
+  .pill-row{height:44px;}
+  .swatch-strip-row{min-height:36px;height:36px;}
+  .rpanel{max-height:40px;}
+  .rpanel--drawer-open{max-height:50dvh;}
 }
 .emb-legend-title {
   font-size: 12px;

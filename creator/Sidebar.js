@@ -69,7 +69,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       h("span", {style:{flex:1}},
         h("span", {style:{fontSize:12,fontWeight:500,color:"#1e293b",display:"block"}}, props.label),
-        props.help && h("span", {style:{fontSize:10,color:"#94a3b8",display:"block",marginTop:1}}, props.help)
+        props.help && h("span", {style:{fontSize:10,color:"var(--text-tertiary)",display:"block",marginTop:1}}, props.help)
       )
     );
   }
@@ -120,7 +120,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("span", {style:{fontWeight:500}}, p.id),
         isUnused && h("span", {
           onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
-          style:{fontSize:9,color:"#94a3b8",cursor:"pointer",marginLeft:2,lineHeight:1}
+          style:{fontSize:9,color:"var(--text-tertiary)",cursor:"pointer",marginLeft:2,lineHeight:1}
         }, "\xD7")
       );
     });
@@ -194,7 +194,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     ),
     gen.isCropping
       ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
-          h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Draw a rectangle"),
+          h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, "Draw a rectangle"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){gen.setIsCropping(false); gen.setCropRect(null);},
@@ -207,7 +207,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           )
         )
       : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
-          h("span", {style:{fontSize:11,color:"#94a3b8"}}, gen.origW+"×"+gen.origH+"px"),
+          h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, gen.origW+"×"+gen.origH+"px"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){gen.setIsCropping(true); gen.setCropRect(null);},
@@ -239,7 +239,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("span", {style:{width:16,height:16,borderRadius:"50%",background:"#0d9488",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
               h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
             ),
-            item[2] && h("span", {style:{fontSize:10,color:"#94a3b8"}}, item[2])
+            item[2] && h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, item[2])
           );
         })
       ),
@@ -262,11 +262,11 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1"}}),
               h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1e293b"}}, d.id),
               h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#94a3b8"}}, "+")
+              inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
             )
           );
         }),
-        ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#94a3b8",padding:"8px 0",textAlign:"center"}}, "No colours found")
+        ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
       )
     )
   ) : null;
@@ -282,15 +282,15 @@ window.CreatorSidebar = function CreatorSidebar() {
     ctx.arLock
       ? h("div", null,
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
-          h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
+          h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
         )
       : h("div", {style:{display:"flex",gap:10}},
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Width"),
+            h("label", {style:{fontSize:11,color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Width"),
             h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
           ),
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Height"),
+            h("label", {style:{fontSize:11,color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Height"),
             h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
           )
         )
@@ -310,7 +310,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
     ),
-    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:8}},
+    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:8}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
     ),
     typeof StashBridge !== "undefined" && h("label", {
@@ -411,7 +411,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             h("span", {
               onClick:function(){setSeedEditing(true);setSeedTmp(String(gen.variationSeed));},
               title:"Click to enter a specific seed",
-              style:{fontSize:10,color:"#94a3b8",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
+              style:{fontSize:10,color:"var(--text-tertiary)",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
             }, "#" + gen.variationSeed)
           ) : null
         ),
@@ -441,7 +441,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                 }
               },
                 slot.loading ?
-                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#94a3b8"}}, "\u2026") :
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--text-tertiary)"}}, "\u2026") :
                 slot.url ?
                   h("div", null,
                     h("img", {src:slot.url, style:{width:"100%",display:"block",imageRendering:"pixelated"}}),
@@ -461,7 +461,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           )
         ),
         gen.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
-          h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:4}}, "Recent variations"),
+          h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:4}}, "Recent variations"),
           h("div", {style:{display:"flex",gap:4,overflowX:"auto",paddingBottom:4}},
             gen.variationHistory.map(function(entry, i) {
               return h("div", {
@@ -472,8 +472,8 @@ window.CreatorSidebar = function CreatorSidebar() {
               },
                 entry.previewUrl ?
                   h("img", {src:entry.previewUrl, style:{width:32,height:32,display:"block",imageRendering:"pixelated",objectFit:"cover"}}) :
-                  h("div", {style:{width:32,height:32,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#94a3b8"}}, "?"),
-                h("div", {style:{fontSize:7,color:"#94a3b8",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
+                  h("div", {style:{width:32,height:32,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"var(--text-tertiary)"}}, "?"),
+                h("div", {style:{fontSize:7,color:"var(--text-tertiary)",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
               );
             })
           )
@@ -501,7 +501,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("div", {style:{fontSize:11,color:"#475569",marginTop:4,lineHeight:1.5}}, desc);
       })()
     ),
-    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
+    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"var(--text-tertiary)",marginTop:2}},
       "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
       " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),
@@ -526,7 +526,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
       gen.cleanupDiff.count.toLocaleString(), " stitches changed",
       ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#94a3b8"}},
+      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"var(--text-tertiary)"}},
         Object.entries(gen.cleanupDiff.byColour)
           .sort(function(a,b){return b[1]-a[1];})
           .slice(0,4)
@@ -586,7 +586,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var sc2 = gen.stitchCleanup;
     var scBadge = h("span", {style:{
       fontSize:11,fontWeight:500,padding:"1px 8px",borderRadius:10,
-      color:sc2.enabled?"#0d9488":"#94a3b8",background:sc2.enabled?"#f0fdfa":"#f1f5f9"
+      color:sc2.enabled?"#0d9488":"var(--text-tertiary)",background:sc2.enabled?"#f0fdfa":"#f1f5f9"
     }}, sc2.enabled ? "On \u2014 "+(sc2.strength[0].toUpperCase()+sc2.strength.slice(1)) : "Off");
     var strengthKeys=["gentle","balanced","thorough"];
     var strengthLabels=["Gentle","Balanced","Thorough"];
@@ -618,7 +618,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               strengthLabels.map(function(l,i) {
                 return h(Tooltip, {key:l, text:strengthDescs[i], width:160},
                   h("span", {
-                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#94a3b8",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
+                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"var(--text-tertiary)",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
                     onClick:function(){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
                   }, l)
                 );
@@ -656,7 +656,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
+      h("div", {style:{fontSize:11,color:"var(--text-tertiary)",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
     )
   );
 
@@ -667,7 +667,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
         helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
-      gen.smooth===0 && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
+      gen.smooth===0 && h("div", {style:{fontSize:11,color:"var(--text-tertiary)",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
       gen.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
         h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
@@ -740,7 +740,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     : h("button", {
         onClick:gen.generate, disabled:gen.busy,
         style:{padding:"8px 14px",fontSize:12,fontWeight:600,
-          background:gen.busy?"#94a3b8":"#0d9488",color:"#fff",
+          background:gen.busy?"var(--text-tertiary)":"#0d9488",color:"#fff",
           border:"none",borderRadius:8,cursor:gen.busy?"wait":"pointer"}
       }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
@@ -803,31 +803,31 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}, "Pattern Summary"),
     h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}},
       h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Dimensions"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Dimensions"),
         h("div", {style:{fontSize:13,fontWeight:600}}, ctx.sW+"\xD7"+ctx.sH)
       ),
       h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Stitchable"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Stitchable"),
         h("div", {style:{fontSize:13,fontWeight:600}}, (ctx.totalStitchable||0).toLocaleString())
       ),
       h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Colours"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Colours"),
         h("div", {style:{fontSize:13,fontWeight:600}}, (ctx.displayPal||ctx.pal||[]).length)
       ),
       ctx.difficulty && h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Difficulty"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Difficulty"),
         h("div", {style:{fontSize:13,fontWeight:600,color:ctx.difficulty.color||"inherit"}}, ctx.difficulty.label||"")
       ),
       ctx.totalSkeins && h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Skeins ("+ctx.fabricCt+"ct)"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Skeins ("+ctx.fabricCt+"ct)"),
         h("div", {style:{fontSize:13,fontWeight:600}}, ctx.totalSkeins)
       ),
       h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Est. Thread Cost"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Est. Thread Cost"),
         h("div", {style:{fontSize:13,fontWeight:600}}, "\xA3"+((ctx.totalSkeins||0)*ctx.skeinPrice).toFixed(2))
       ),
       h("div", null,
-        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Est. Time"),
+        h("div", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "Est. Time"),
         h("div", {style:{fontSize:13,fontWeight:600}}, typeof fmtTimeL !== 'undefined' ? fmtTimeL(Math.round((ctx.totalStitchable||0)/(ctx.stitchSpeed||50)*3600)) : '')
       )
     ),
@@ -859,7 +859,10 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("button", {
           key: t[0],
           className: "rp-tab" + (sideTab === t[0] ? " rp-tab--on" : ""),
-          onClick: function() { setSideTab(t[0]); },
+          onClick: function() {
+            if (sideTab === t[0] && app.mobileDrawerOpen) { app.setMobileDrawerOpen(false); }
+            else { setSideTab(t[0]); app.setMobileDrawerOpen(true); }
+          },
           'aria-label': t[1] + ' tab'
         }, t[1]);
       })

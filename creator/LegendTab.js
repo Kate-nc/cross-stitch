@@ -24,7 +24,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Total skeins: "+ctx.totalSkeins)
+      h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, "Total skeins: "+ctx.totalSkeins)
     ),
     h("div", {style:{overflow:"auto",maxHeight:540}},
       h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:12}},

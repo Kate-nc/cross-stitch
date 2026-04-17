@@ -95,7 +95,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           style:{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}
         }, "Cover Sheet PDF")
       ),
-      h("p", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
+      h("p", {style:{fontSize:11,color:"var(--text-tertiary)",marginTop:8}},
         "The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes \u2014 perfect for tucking into your project bag."
       )
     ),
