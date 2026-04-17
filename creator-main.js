@@ -240,7 +240,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const canvas = useCanvasInteractionHook(state, history);
   const io = useProjectIOHook(state, history, {onSwitchToTrack});
   usePreviewHook(state);
-  useKeyboardShortcutsHook(state, history, io);
+  useKeyboardShortcutsHook(Object.assign({}, state, {isActive: isActive}), history, io);
 
   // Expose setAppMode so UnifiedApp can switch modes
   React.useEffect(()=>{

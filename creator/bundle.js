@@ -7273,7 +7273,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   );
 
   // Undo/Redo
-  var undoRedo = (cv.editHistory.length > 0 || cv.redoHistory.length > 0) ? [
+  var undoRedo = [
     h("div", {key:"sdiv-ur", className:"tb-sdiv"}),
     h("button", {
       key:"undo", className:"tb-btn",
@@ -7287,7 +7287,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       title:"Redo (Ctrl+Y)",
       style:{opacity:cv.redoHistory.length?1:0.3}
     }, "\u21AA")
-  ] : null;
+  ];
 
   // Overflow menu items
   var overlayItems = (gen.img && gen.img.src) ? [
