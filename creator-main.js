@@ -249,6 +249,24 @@ function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}
     return function(){delete window.__creatorAutoSave;delete window.__creatorAddToast;};
   },[state.addToast]);
 
+  // If creator mounts with no content and no pending items, redirect to home after timeout
+  React.useEffect(function(){
+    if(state.img||state.pat) return;
+    // Check for pending items that will load content via effects
+    if(window.__pendingCreatorFile||window.__pendingCreatorJsonFile||window.__pendingCreatorAction) return;
+    // Also check if there's an active project to load from IDB
+    if(typeof ProjectStorage!=='undefined'){
+      var activeId;
+      try{activeId=localStorage.getItem('crossstitch_active_project');}catch(e){}
+      if(activeId) return; // will be loaded by useProjectIO
+    }
+    // Nothing to load — redirect to home
+    var t=setTimeout(function(){
+      if(!state.img&&!state.pat&&typeof window.__goHome==='function') window.__goHome();
+    },800);
+    return function(){clearTimeout(t);};
+  },[]);
+
   // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
   // Handler identity is stabilised via a ref; the ref is updated synchronously on
   // each render so the latest function is always called despite the empty dep list.
@@ -649,30 +667,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}
       <window.CreatorToolStrip/>
       <div className="cs-page-content" style={{padding:"20px 16px"}}>
         {state.loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{state.loadError}</div>}
-        {!state.img&&!state.pat&&<div
-            style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #0d9488":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#f0fdfa":"transparent",transition:"all 0.2s"}}
-            onDragOver={(e)=>{e.preventDefault();state.setIsDragging(true);}}
-            onDragEnter={(e)=>{e.preventDefault();state.setIsDragging(true);}}
-            onDragLeave={(e)=>{e.preventDefault();state.setIsDragging(false);}}
-            onDrop={(e)=>{e.preventDefault();state.setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0){io.handleFile(e.dataTransfer.files[0]);e.dataTransfer.clearData();}}}
-          >
-          <h1 style={{fontSize:28,fontWeight:700,color:"#1e293b",marginBottom:8}}>Welcome to Cross Stitch Pattern Generator</h1>
-          <p style={{fontSize:15,color:"#475569",marginBottom:32}}>Turn any photo into a detailed pattern, drop an image anywhere here, or continue working on an existing project.</p>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:24}}>
-            <div onClick={()=>state.fRef.current.click()} className="upload-area" style={{position:"relative"}}>
-              {state.isUploading&&<div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"rgba(255,255,255,0.8)",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:12,zIndex:10,fontWeight:600,color:"#0d9488"}}>Processing...</div>}
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1e293b",marginBottom:4}}>Create New Pattern</div><div style={{color:"#475569",fontSize:14}}>Upload an image (JPG, PNG)</div></div>
-            </div>
-            <div onClick={()=>state.loadRef.current.click()} className="upload-area">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1e293b",marginBottom:4}}>Load Existing Project</div><div style={{color:"#475569",fontSize:14}}>Open a saved JSON file</div></div>
-            </div>
-            <div onClick={state.startScratch} className="upload-area">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1e293b",marginBottom:4}}>Design from Scratch</div><div style={{color:"#475569",fontSize:14}}>Start with a blank grid and paint by hand</div></div>
-            </div>
-          </div>
+        {!state.img&&!state.pat&&<div style={{maxWidth:500,margin:"60px auto",textAlign:"center",padding:"30px 20px"}}>
+          <div style={{fontSize:15,color:"#475569",marginBottom:16}}>Loading project…</div>
+          <div style={{width:28,height:28,margin:"0 auto",border:"2.5px solid #e2e8f0",borderTopColor:"#0d9488",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
         </div>}
         <input ref={state.fRef} type="file" accept="image/*" onChange={io.handleFile} style={{display:"none"}}/>
         {(state.img||state.pat)&&<div className="cs-main">
@@ -877,10 +874,18 @@ function UnifiedApp(){
   },[mode]);
 
   const switchToCreate=React.useCallback(()=>{
+    // Brief: Edit→Create warns if pattern exists ("Regenerating will replace edits")
+    if(mode==='edit'){
+      if(!confirm('Switching to Create mode will allow regeneration which replaces your current edits. Continue?')) return;
+    }
+    // Brief: Track→Create warns if progress exists
+    if(mode==='track'){
+      if(!confirm('Switching to Create mode may reset your tracking progress. Continue?')) return;
+    }
     if(window.__creatorAutoSave) window.__creatorAutoSave();
     window.history.replaceState({},'','?mode=create');
     setMode('create');
-  },[]);
+  },[mode]);
   const switchToEdit=React.useCallback(()=>{
     if(window.__creatorAutoSave) window.__creatorAutoSave();
     window.history.replaceState({},'','?mode=edit');
@@ -1007,7 +1012,7 @@ function UnifiedApp(){
   const[homeModal,setHomeModal]=React.useState(null);
   const[showGlobalStats,setShowGlobalStats]=React.useState(false);
 
-  const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
+  const T=(trackerMounted&&trackerReady)?window.TrackerApp:null;
   return <>
     {mode==='home'&&<div>
       <Header page="home" tab="" onPageChange={()=>{}} setModal={setHomeModal} />
@@ -1026,23 +1031,23 @@ function UnifiedApp(){
       </div>}
       {homeModal==='help'&&<SharedModals.Help onClose={()=>setHomeModal(null)} />}
     </div>}
-    <div key={creatorResetKey} style={{display:creatorVisible?'':'none'}}>
-      <CreatorErrorBoundary><CreatorApp onSwitchToTrack={switchToTrack} isActive={creatorVisible} creatorMode={mode==='create'?'create':'edit'}/></CreatorErrorBoundary>
-    </div>
-    <div style={{display:mode==='track'?'':'none'}}>
-      {trackerMounted&&!trackerReady&&(
+    {creatorVisible&&<div key={creatorResetKey}>
+      <CreatorErrorBoundary><CreatorApp onSwitchToTrack={switchToTrack} isActive={true} creatorMode={mode==='create'?'create':'edit'}/></CreatorErrorBoundary>
+    </div>}
+    {mode==='track'&&<div>
+      {!trackerReady&&(
         <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:12,color:'#475569',fontSize:14}}>
           <div style={{width:28,height:28,border:'2.5px solid #e2e8f0',borderTopColor:'#0d9488',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
           Loading Stitch Tracker…
         </div>
       )}
-      {trackerMounted&&trackerReady&&T&&<T
+      {T&&<T
         onSwitchToDesign={switchToDesign}
         onGoHome={goHome}
-        isActive={mode==='track'}
+        isActive={true}
         incomingProject={pendingTrackerProject.current}
       />}
-    </div>
+    </div>}
     {mode==='stats'&&<div style={{position:'fixed',inset:0,background:'var(--surface)',zIndex:100,overflowY:'auto'}}>
       <Header page="home" tab="" onPageChange={()=>{}} setModal={()=>{}} />
       <GlobalStatsDashboard onClose={goHome} />

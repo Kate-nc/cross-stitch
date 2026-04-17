@@ -94,10 +94,12 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_v4';
+var CREATOR_CACHE_KEY = 'babel_creator_v5';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;
+  // Clear stale cache from previous versions
+  try { localStorage.removeItem('babel_creator_v3'); localStorage.removeItem('babel_creator_v4'); } catch(e) {}
   var cached = null;
   try { cached = localStorage.getItem(CREATOR_CACHE_KEY); } catch(e) {}
   if (cached) {
