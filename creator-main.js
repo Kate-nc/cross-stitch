@@ -244,10 +244,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}
 
   // Expose auto-save and toast to UnifiedApp for mode transitions
   React.useEffect(function(){
-    window.__creatorAutoSave=function(){if(state.pat&&state.pal)io.saveProject();};
+    window.__creatorAutoSave=function(){if(window.__flushProjectToIDB)window.__flushProjectToIDB();};
     window.__creatorAddToast=state.addToast;
     return function(){delete window.__creatorAutoSave;delete window.__creatorAddToast;};
-  },[state.pat,state.pal,io,state.addToast]);
+  },[state.addToast]);
 
   // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
   // Handler identity is stabilised via a ref; the ref is updated synchronously on
@@ -901,12 +901,14 @@ function UnifiedApp(){
     setMode('edit');
   },[]);
   const switchToStats=React.useCallback(()=>{
+    if(window.__creatorAutoSave) window.__creatorAutoSave();
     if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
     setTrackerMounted(true);
     window.history.replaceState({},'','?mode=stats');
     setMode('stats');
   },[]);
   const goHome=React.useCallback(()=>{
+    if(window.__creatorAutoSave) window.__creatorAutoSave();
     window.history.replaceState({},'',window.location.pathname);
     setHomeKey(k=>k+1);
     setMode('home');

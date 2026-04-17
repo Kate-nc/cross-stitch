@@ -5695,6 +5695,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     });
     var project = {
       version: 10, id: projectIdRef.current, page: "creator", name: projectName,
+      createdAt: state.createdAtRef.current || new Date().toISOString(), updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,

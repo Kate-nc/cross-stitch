@@ -329,10 +329,6 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               className: 'tb-page-dropdown-item',
               onClick: () => { onSave(); setFileMenuOpen(false); }
             }, 'Save (.json)'),
-            page === 'creator' && onTrack && React.createElement('button', {
-              className: 'tb-page-dropdown-item',
-              onClick: () => { onTrack(); setFileMenuOpen(false); }
-            }, 'Open in Stitch Tracker'),
             (page === 'create' || page === 'edit') && onTrack && React.createElement('button', {
               className: 'tb-page-dropdown-item',
               onClick: () => { onTrack(); setFileMenuOpen(false); }
