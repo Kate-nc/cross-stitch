@@ -18,9 +18,18 @@ window.useEditHistory = function useEditHistory(state) {
     // Handle add_colour undo: remove the added colour from scratchPalette, pal, cmap
     if (last.type === "add_colour" && last.addedEntry) {
       var aid = last.addedEntry.id;
+      var removedWasSelected = state.selectedColorId === aid;
+      var nextScratchPalette = Array.isArray(state.scratchPalette) ? state.scratchPalette.filter(function(p) { return p.id !== aid; }) : null;
+      var nextPal = Array.isArray(state.pal) ? state.pal.filter(function(p) { return p.id !== aid; }) : null;
+      var fallbackSelectedColorId = null;
+      if (removedWasSelected) {
+        if (nextScratchPalette && nextScratchPalette.length) fallbackSelectedColorId = nextScratchPalette[nextScratchPalette.length - 1].id;
+        else if (nextPal && nextPal.length) fallbackSelectedColorId = nextPal[0].id;
+      }
       state.setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== aid; }); });
       state.setPal(function(prev) { return prev ? prev.filter(function(p) { return p.id !== aid; }) : prev; });
       state.setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); delete n[aid]; return n; });
+      if (removedWasSelected && state.setSelectedColorId) state.setSelectedColorId(fallbackSelectedColorId);
       state.setEditHistory(function(prev) { return prev.slice(0, -1); });
       state.setRedoHistory(function(prev) {
         var n = prev.concat([{ type: "add_colour", changes: [], addedEntry: last.addedEntry }]);

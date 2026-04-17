@@ -202,15 +202,13 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         }, '×∕× Cross Stitch'),
 
         // App-section navigation tabs
-        React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections', role: 'tablist' },
+        React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
           appSections.map(({ id, label, href }) => {
             const switchMap = { tracker: '__switchToTrack', creator: '__switchToCreate', editor: '__switchToEdit', stats: '__switchToStats' };
             const fn = window[switchMap[id]];
             return React.createElement('a', {
               key: id,
               href,
-              role: 'tab',
-              'aria-selected': page === id,
               className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
               onClick: fn ? (e) => { e.preventDefault(); fn(); } : undefined,
               ...(page === id ? { 'aria-current': 'page' } : {}),

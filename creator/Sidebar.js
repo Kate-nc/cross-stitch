@@ -829,7 +829,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var mode = app.appMode || "edit";
   var sTab = app.sidebarTab || "settings";
 
-  var createTabs = [["settings","Settings"],["preview","Preview"],["project","Project"]];
+  var createTabs = [["settings","Settings"],["preview","Preview"]];
   var editTabs = [["palette","Palette"],["view","View"],["preview","Preview"],["more","More"]];
   var tabs = mode === "create" ? createTabs : editTabs;
 
@@ -1047,8 +1047,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       tabBar,
       h("div", {style:{overflowY:"auto",flex:1}},
         sTab === "settings" && settingsContent,
-        sTab === "preview" && previewPanel,
-        sTab === "project" && h("div", null, /* ProjectTab renders separately */)
+        sTab === "preview" && previewPanel
       ),
       createActions
     );
