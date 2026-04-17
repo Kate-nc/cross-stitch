@@ -853,6 +853,8 @@ function UnifiedApp(){
   const switchToDesign=React.useCallback(()=>{
     window.history.replaceState({},'',window.location.pathname);
     setMode('design');
+    // When coming from tracker, default to edit mode
+    if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');
   },[]);
   const switchToCreate=React.useCallback(()=>{
     window.history.replaceState({},'',window.location.pathname);

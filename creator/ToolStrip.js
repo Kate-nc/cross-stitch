@@ -67,7 +67,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         h("button", {className:"tb-btn", onClick:function(){ cv.setZoom(cv.fitZ||1); }, title:"Fit (Home)"}, "Fit")
       )
     ];
-    return h("div", {className:"toolbar-row"},
+    return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
           // Overlay toggle
@@ -85,19 +85,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             className:"tb-btn tb-btn--green",
             onClick:function(){ gen.generate(); },
             disabled:gen.busy,
+            "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
             title:gen.hasGenerated?"Regenerate pattern":"Generate pattern"
-          }, gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate"),
-          h("div", {className:"tb-sdiv"}),
-          // Edit Pattern → (only after generation)
-          gen.hasGenerated && h("button", {
-            className:"tb-btn tb-btn--on",
-            onClick:function(){
-              app.setAppMode("edit");
-              app.setSidebarTab("palette");
-              if(window.__switchToEdit) window.__switchToEdit();
-            },
-            title:"Edit the generated pattern"
-          }, "Edit Pattern \u2192")
+          }, gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate")
         )
       )
     );
@@ -638,7 +628,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   }, svgSplit, !sc.bs ? " Split" : null);
 
   return h(React.Fragment, null,
-    h("div", {className:"toolbar-row"},
+    h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
           brushGrp,

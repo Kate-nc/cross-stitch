@@ -202,38 +202,33 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         }, '×∕× Cross Stitch'),
 
         // App-section navigation tabs
-        React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
-          appSections.map(({ id, label, href }) =>
-            React.createElement('a', {
+        React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections', role: 'tablist' },
+          appSections.map(({ id, label, href }) => {
+            const switchMap = { tracker: '__switchToTrack', creator: '__switchToCreate', editor: '__switchToEdit', stats: '__switchToStats' };
+            const fn = window[switchMap[id]];
+            return React.createElement('a', {
               key: id,
               href,
+              role: 'tab',
+              'aria-selected': page === id,
               className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
-              onClick: id === 'tracker' && window.__switchToTrack
-                ? (e) => { e.preventDefault(); window.__switchToTrack(); }
-                : id === 'creator' && window.__switchToCreate
-                  ? (e) => { e.preventDefault(); window.__switchToCreate(); }
-                  : id === 'editor' && window.__switchToEdit
-                    ? (e) => { e.preventDefault(); window.__switchToEdit(); }
-                    : id === 'creator' && window.__switchToDesign
-                      ? (e) => { e.preventDefault(); window.__switchToDesign(); }
-                      : id === 'stats' && window.__switchToStats
-                        ? (e) => { e.preventDefault(); window.__switchToStats(); }
-                        : undefined,
+              onClick: fn ? (e) => { e.preventDefault(); fn(); } : undefined,
               ...(page === id ? { 'aria-current': 'page' } : {}),
-            }, label)
-          )
+            }, label);
+          })
         ),
 
-        // Creator sub-page dropdown (only on creator)
-        page === 'creator' && React.createElement('div', { ref: dropRef, style: { position: 'relative', flexShrink: 0, marginLeft: 6 } },
-          React.createElement('button', { className: 'tb-page-btn', onClick: () => setPageDrop(o => !o) },
+        // Sub-page dropdown (creator and editor modes)
+        (page === 'creator' || page === 'editor') && React.createElement('div', { ref: dropRef, style: { position: 'relative', flexShrink: 0, marginLeft: 6 } },
+          React.createElement('button', { className: 'tb-page-btn', onClick: () => setPageDrop(o => !o), 'aria-haspopup': 'true', 'aria-expanded': pageDrop },
             activeLabel,
             React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 1 } }, '▾')
           ),
-          pageDrop && React.createElement('div', { className: 'tb-page-dropdown' },
+          pageDrop && React.createElement('div', { className: 'tb-page-dropdown', role: 'menu' },
             creatorPages.map(([id, label]) =>
               React.createElement('button', {
                 key: id,
+                role: 'menuitem',
                 className: 'tb-page-dropdown-item' + (tab === id ? ' tb-page-dropdown-item--on' : ''),
                 onClick: () => { onPageChange(id); setPageDrop(false); }
               }, label)

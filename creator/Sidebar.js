@@ -741,10 +741,14 @@ window.CreatorSidebar = function CreatorSidebar() {
   if (validIds.indexOf(sTab) === -1) sTab = validIds[0];
 
   var tabBar = h("div", {
+    role:"tablist", "aria-label":mode === "create" ? "Create mode panels" : "Edit mode panels",
     style:{display:"flex",borderBottom:"1px solid var(--border)",background:"var(--surface)"}
   }, tabs.map(function(kl) {
     return h("button", {
       key:kl[0],
+      role:"tab",
+      "aria-selected":sTab===kl[0],
+      "aria-controls":"sidebar-panel-"+kl[0],
       onClick:function(){ app.setSidebarTab(kl[0]); },
       style:{
         flex:1,padding:"8px 2px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
@@ -919,6 +923,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       gen.img && h("button", {
         onClick:function(){ gen.generate(); },
         disabled:gen.busy,
+        "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
         style:{width:"100%",padding:"10px",fontSize:13,fontWeight:600,cursor:gen.busy?"wait":"pointer",
           border:"none",borderRadius:8,
           background:gen.busy?"#94a3b8":gen.hasGenerated?"var(--surface-tertiary)":"#0d9488",
@@ -926,6 +931,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       }, gen.busy ? "Generating\u2026" : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
       // Continue to Edit → (only after generation)
       gen.hasGenerated && h("button", {
+        "aria-label":"Continue to Edit mode",
         onClick:function(){
           app.setAppMode("edit");
           app.setSidebarTab("palette");
@@ -985,16 +991,20 @@ window.CreatorSidebar = function CreatorSidebar() {
     background:"var(--surface)", display:"flex", gap:8
   }},
     h("button", {
+      "aria-label":"Switch to Create mode",
       onClick:function(){
+        if(cv.editHistory.length > 0 && !confirm("Switch to Create mode? Your edits are auto-saved.")) return;
         app.setAppMode("create");
         app.setSidebarTab("settings");
         if(window.__switchToCreate) window.__switchToCreate();
+        app.addToast("Switched to Create mode", {type:"info", duration:2000});
       },
       style:{flex:1,padding:"10px",fontSize:12,fontWeight:500,cursor:"pointer",
         border:"1px solid var(--border)",borderRadius:8,background:"var(--surface)",
         color:"var(--text-secondary)"}
     }, "\u2190 Create"),
     h("button", {
+      "aria-label":"Open pattern in Stitch Tracker",
       onClick:function(){ app.handleOpenInTracker(); },
       style:{flex:2,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",
         border:"none",borderRadius:8,background:"#0d9488",color:"#fff",
