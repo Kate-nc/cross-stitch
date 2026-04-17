@@ -43,6 +43,21 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var _loading = useState(true);
   var loading = _loading[0], setLoading = _loading[1];
 
+  // Sync state
+  var _syncStatus = useState(null);
+  var syncStatus = _syncStatus[0], setSyncStatus = _syncStatus[1];
+  var _syncBusy = useState(false);
+  var syncBusy = _syncBusy[0], setSyncBusy = _syncBusy[1];
+  var _syncResult = useState(null);
+  var syncResult = _syncResult[0], setSyncResult = _syncResult[1];
+  var _syncPlan = useState(null);
+  var syncPlan = _syncPlan[0], setSyncPlan = _syncPlan[1];
+  var _editingDeviceName = useState(false);
+  var editingDeviceName = _editingDeviceName[0], setEditingDeviceName = _editingDeviceName[1];
+  var _deviceNameDraft = useState('');
+  var deviceNameDraft = _deviceNameDraft[0], setDeviceNameDraft = _deviceNameDraft[1];
+  var syncFileRef = React.useRef(null);
+
   // Hidden file inputs
   var imageInputRef = React.useRef(null);
   var openFileInputRef = React.useRef(null);
@@ -80,6 +95,75 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     });
     return function() { cancelled = true; };
   }, []);
+
+  // Load sync status
+  useEffect(function() {
+    if (typeof SyncEngine !== 'undefined') {
+      var st = SyncEngine.getSyncStatus();
+      setSyncStatus(st);
+      setDeviceNameDraft(st.deviceName || '');
+    }
+  }, []);
+
+  // Sync handlers
+  function handleExportSync() {
+    if (typeof SyncEngine === 'undefined') return;
+    setSyncBusy(true);
+    setSyncResult(null);
+    SyncEngine.downloadSync().then(function() {
+      setSyncResult({ type: 'success', message: 'Sync file exported successfully.' });
+      setSyncStatus(SyncEngine.getSyncStatus());
+    }).catch(function(err) {
+      setSyncResult({ type: 'error', message: 'Export failed: ' + err.message });
+    }).finally(function() { setSyncBusy(false); });
+  }
+
+  function handleSyncFileSelect(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (syncFileRef.current) syncFileRef.current.value = '';
+    setSyncBusy(true);
+    setSyncResult(null);
+    SyncEngine.readSyncFile(file).then(function(syncObj) {
+      return SyncEngine.prepareImport(syncObj);
+    }).then(function(plan) {
+      setSyncBusy(false);
+      setSyncPlan(plan);
+    }).catch(function(err) {
+      setSyncBusy(false);
+      setSyncResult({ type: 'error', message: 'Import failed: ' + err.message });
+    });
+  }
+
+  function handleApplySync(conflictResolutions) {
+    if (!syncPlan) return;
+    setSyncBusy(true);
+    setSyncPlan(null);
+    SyncEngine.executeImport(syncPlan, conflictResolutions).then(function(result) {
+      var parts = [];
+      if (result.imported > 0) parts.push(result.imported + ' imported');
+      if (result.merged > 0) parts.push(result.merged + ' merged');
+      if (result.conflictsResolved > 0) parts.push(result.conflictsResolved + ' resolved');
+      if (result.stashUpdated) parts.push('stash updated');
+      setSyncResult({ type: 'success', message: 'Sync complete: ' + (parts.join(', ') || 'no changes') + '.' });
+      setSyncStatus(SyncEngine.getSyncStatus());
+      // Refresh project list
+      if (typeof ProjectStorage !== 'undefined') {
+        ProjectStorage.listProjects().then(function(p) { setProjects(p || []); });
+      }
+    }).catch(function(err) {
+      setSyncResult({ type: 'error', message: 'Sync failed: ' + err.message });
+    }).finally(function() { setSyncBusy(false); });
+  }
+
+  function handleSaveDeviceName() {
+    setEditingDeviceName(false);
+    var trimmed = (deviceNameDraft || '').trim().slice(0, 60);
+    if (typeof SyncEngine !== 'undefined') {
+      SyncEngine.setDeviceName(trimmed);
+      setSyncStatus(SyncEngine.getSyncStatus());
+    }
+  }
 
   // Computed data
   var projectCount = projects.length;
@@ -372,6 +456,83 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         stashAlerts.projectsNeedThread > 0 && (stashAlerts.projectsNeedThread + ' project' + (stashAlerts.projectsNeedThread !== 1 ? 's' : '') + ' need thread')
       ),
       h('button', { className: 'home-stash-alert-link', onClick: onNavigateToStash }, 'Open stash manager \u2192')
-    )
+    ),
+
+    // Sync section
+    typeof SyncEngine !== 'undefined' && h('div', { className: 'home-panel sync-panel' },
+      h('div', { className: 'home-panel-header' }, Icons.cloudSync(), ' SYNC'),
+      h('div', { className: 'sync-panel-body' },
+        // Device name row
+        h('div', { className: 'sync-device-row' },
+          h('span', { className: 'sync-device-label' }, 'Device name:'),
+          editingDeviceName
+            ? h('input', {
+                className: 'sync-device-input',
+                value: deviceNameDraft,
+                maxLength: 60,
+                placeholder: 'e.g. Katie\u2019s laptop',
+                onChange: function(e) { setDeviceNameDraft(e.target.value); },
+                onBlur: handleSaveDeviceName,
+                onKeyDown: function(e) {
+                  if (e.key === 'Enter') e.target.blur();
+                  if (e.key === 'Escape') { setDeviceNameDraft(syncStatus ? syncStatus.deviceName || '' : ''); setEditingDeviceName(false); }
+                },
+                autoFocus: true
+              })
+            : h('button', {
+                className: 'sync-device-name-btn',
+                onClick: function() { setEditingDeviceName(true); },
+                title: 'Click to edit device name'
+              }, syncStatus && syncStatus.deviceName ? syncStatus.deviceName : 'Set device name\u2026')
+        ),
+
+        // Last sync times
+        syncStatus && (syncStatus.lastExportAt || syncStatus.lastImportAt) && h('div', { className: 'sync-timestamps' },
+          syncStatus.lastExportAt && h('div', { className: 'sync-timestamp' },
+            Icons.cloudSync(), ' Last export: ' + timeAgo(syncStatus.lastExportAt)
+          ),
+          syncStatus.lastImportAt && h('div', { className: 'sync-timestamp' },
+            Icons.cloudCheck(), ' Last import: ' + timeAgo(syncStatus.lastImportAt)
+          )
+        ),
+
+        // Result message
+        syncResult && h('div', { className: 'sync-result sync-result--' + syncResult.type }, syncResult.message),
+
+        // Action buttons
+        h('div', { className: 'sync-actions' },
+          h('button', {
+            className: 'home-btn home-btn--primary sync-action-btn',
+            onClick: handleExportSync,
+            disabled: syncBusy
+          }, syncBusy ? 'Working\u2026' : 'Export .csync'),
+          h('label', {
+            className: 'home-btn home-btn--secondary sync-action-btn',
+            style: { cursor: syncBusy ? 'not-allowed' : 'pointer' }
+          },
+            'Import .csync',
+            h('input', {
+              ref: syncFileRef,
+              type: 'file',
+              accept: '.csync',
+              style: { display: 'none' },
+              onChange: handleSyncFileSelect,
+              disabled: syncBusy
+            })
+          )
+        ),
+
+        h('p', { className: 'sync-hint' },
+          'Export a .csync file and place it in a shared folder (OneDrive, Google Drive, Dropbox) to sync between devices.'
+        )
+      )
+    ),
+
+    // Sync summary modal
+    syncPlan && h(SyncSummaryModal, {
+      plan: syncPlan,
+      onApply: handleApplySync,
+      onCancel: function() { setSyncPlan(null); }
+    })
   );
 }

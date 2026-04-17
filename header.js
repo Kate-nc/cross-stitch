@@ -266,6 +266,36 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
         React.createElement('div', { className: 'tb-sep' }),
 
+        // Sync status indicator
+        typeof SyncEngine !== 'undefined' && React.createElement('button', {
+          className: 'tb-nav-link tb-sync-indicator',
+          onClick: () => {
+            if (typeof window.__goHome === 'function') window.__goHome();
+            else window.location.href = 'index.html';
+          },
+          'aria-label': 'Sync status',
+          title: (function() {
+            try {
+              var st = SyncEngine.getSyncStatus();
+              if (st.lastExportAt || st.lastImportAt) {
+                var parts = [];
+                if (st.lastExportAt) parts.push('Last export: ' + new Date(st.lastExportAt).toLocaleString());
+                if (st.lastImportAt) parts.push('Last import: ' + new Date(st.lastImportAt).toLocaleString());
+                return parts.join('\n');
+              }
+              return 'Sync — not yet configured';
+            } catch(e) { return 'Sync'; }
+          })()
+        },
+          (function() {
+            try {
+              var st = SyncEngine.getSyncStatus();
+              if (st.lastExportAt || st.lastImportAt) return Icons.cloudCheck();
+              return Icons.cloudOff();
+            } catch(e) { return Icons.cloudOff(); }
+          })()
+        ),
+
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('shortcuts'), 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, '⌨'),
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('help') }, 'Help'),
 
@@ -329,6 +359,40 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 onChange: function(e) {
                   setFileMenuOpen(false);
                   if (onRestoreFile) { onRestoreFile(e); } else { handleInlineRestore(e); }
+                }
+              })
+            ),
+            // Sync separator and options
+            typeof SyncEngine !== 'undefined' && React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),
+            typeof SyncEngine !== 'undefined' && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => {
+                setFileMenuOpen(false);
+                SyncEngine.downloadSync().catch(function(e) { alert('Sync export failed: ' + e.message); });
+              }
+            }, Icons.cloudSync(), ' Export Sync (.csync)'),
+            typeof SyncEngine !== 'undefined' && React.createElement('label', {
+              className: 'tb-page-dropdown-item',
+              style: { display: 'block', cursor: 'pointer' }
+            },
+              Icons.cloudSync(), ' Import Sync (.csync)\u2026',
+              React.createElement('input', {
+                type: 'file',
+                accept: '.csync',
+                style: { display: 'none' },
+                onChange: function(e) {
+                  setFileMenuOpen(false);
+                  var file = e.target.files && e.target.files[0];
+                  if (!file) return;
+                  e.target.value = '';
+                  SyncEngine.readSyncFile(file).then(function(syncObj) {
+                    return SyncEngine.prepareImport(syncObj);
+                  }).then(function(plan) {
+                    // Dispatch a custom event so the home screen can show the modal
+                    window.dispatchEvent(new CustomEvent('sync-plan-ready', { detail: plan }));
+                  }).catch(function(err) {
+                    alert('Sync import failed: ' + err.message);
+                  });
                 }
               })
             )
