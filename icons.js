@@ -245,6 +245,38 @@ window.Icons = (function() {
     // X / Close — replaces ❌ (error/delete)
     x: function() {
       return svg(p('M18 6L6 18M6 6l12 12'));
+    },
+    // Image — photo/picture icon for Create mode
+    image: function() {
+      return svg(rc(3,3,18,18,2), c(8.5,8.5,1.5), pl('21 15 16 10 5 21'));
+    },
+    // Needle — sewing needle icon for Track mode
+    needle: function() {
+      return svg(p('M17.5 2.5l4 4-12 12-5 1 1-5 12-12z'), l(15,5,19,9));
+    },
+    // Arrow right — transition / next icon
+    arrowRight: function() {
+      return svg(l(5,12,19,12), pl('12 5 19 12 12 19'));
+    },
+    // Refresh / regenerate — cycle icon
+    refresh: function() {
+      return svg(pl('23 4 23 10 17 10'), pl('1 20 1 14 7 14'), p('M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15'));
+    },
+    // Layers / overlay icon
+    layers: function() {
+      return svg(poly('12 2 2 7 12 12 22 7'), pl('2 17 12 22 22 17'), pl('2 12 12 17 22 12'));
+    },
+    // Fit to screen
+    fitScreen: function() {
+      return svg(p('M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3'));
+    },
+    // Undo
+    undo: function() {
+      return svg(pl('1 4 1 10 7 10'), p('M3.51 15a9 9 0 1 0 2.13-9.36L1 10'));
+    },
+    // Redo
+    redo: function() {
+      return svg(pl('23 4 23 10 17 10'), p('M20.49 15a9 9 0 1 1-2.13-9.36L23 10'));
     }
   };
 })();

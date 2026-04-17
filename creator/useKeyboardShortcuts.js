@@ -4,6 +4,8 @@
    and io (from useProjectIO). */
 
 window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) {
+  var app = window.useApp();
+  var creatorMode = app && app.creatorMode;
   React.useEffect(function() {
     if (!state.isActive) return;
 
@@ -36,6 +38,12 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
 
       if (e.key === "?") { state.setModal(function(m) { return m === "shortcuts" ? null : "shortcuts"; }); return; }
       if (!state.pat) return;
+      if (creatorMode === "create") {
+        if (e.key === "=" || e.key === "+") { state.setZoom(function(z) { return Math.min(3, +(z + 0.1).toFixed(2)); }); return; }
+        if (e.key === "-") { state.setZoom(function(z) { return Math.max(0.05, +(z - 0.1).toFixed(2)); }); return; }
+        if (e.key === "0") { state.fitZ(); return; }
+        return;
+      }
 
       if (e.key === "1") { if (state.hiId) { state.setHighlightMode("isolate"); return; } state.selectStitchType("cross"); return; }
       if (e.key === "2") { if (state.hiId) { state.setHighlightMode("outline"); return; } state.selectStitchType("half-fwd"); return; }
@@ -82,7 +90,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     state.namePromptOpen, state.modal, state.overflowOpen,
     state.selectedColorId, state.partialStitchTool, state.hiId,
     state.hasSelection, state.lassoInProgress, state.highlightMode,
-    state.splitPaneEnabled,
+    state.splitPaneEnabled, creatorMode,
     history.undoEdit, history.redoEdit, io.saveProject,
   ]);
 };

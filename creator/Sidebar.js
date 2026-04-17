@@ -715,6 +715,22 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   ) : null;
 
+  // ── Sidebar tab state ─────────────────────────────────────────────────────
+  var _sideTab = React.useState(function() {
+    return app.creatorMode === 'create' ? 'settings' : 'palette';
+  });
+  var sideTab = _sideTab[0], setSideTab = _sideTab[1];
+
+  // Sync tab when mode changes
+  React.useEffect(function() {
+    if (app.creatorMode === 'create' && sideTab !== 'settings' && sideTab !== 'preview' && sideTab !== 'info') {
+      setSideTab('settings');
+    }
+    if (app.creatorMode === 'edit' && sideTab !== 'palette' && sideTab !== 'view' && sideTab !== 'preview' && sideTab !== 'more') {
+      setSideTab('palette');
+    }
+  }, [app.creatorMode]);
+
   // ── Generate / Reset button ─────────────────────────────────────────────────
   var actionBtn = ctx.isScratchMode
     ? h("button", {
@@ -728,9 +744,160 @@ window.CreatorSidebar = function CreatorSidebar() {
           border:"none",borderRadius:8,cursor:gen.busy?"wait":"pointer"}
       }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
-  return h(React.Fragment, null,
+  // ── Preview panel (shared between Create and Edit) ──────────────────────────
+  var previewPanel = h("div", {style:{padding:"10px 12px"}},
+    h("div", {style:{marginBottom:10}},
+      h("span", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5}}, "View Mode"),
+      h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:8,padding:2,marginTop:6}},
+        [["chart","Chart"],["pixel","Pixel"],["realistic","Realistic"]].map(function(kl) {
+          var isActive = kl[0] === "chart" ? !app.previewActive :
+            app.previewActive && app.previewMode === kl[0];
+          return h("button", {
+            key:kl[0],
+            onClick:function(){
+              if (kl[0] === "chart") { app.setPreviewActive(false); }
+              else { app.setPreviewActive(true); app.setPreviewMode(kl[0]); }
+            },
+            style:{flex:1,padding:"5px 6px",fontSize:11,fontWeight:isActive?600:400,
+              border:"none",cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+              background:isActive?"var(--surface)":"transparent",
+              color:isActive?"var(--text-primary)":"var(--text-secondary)",
+              boxShadow:isActive?"var(--shadow-sm)":"none"}
+          }, kl[1]);
+        })
+      )
+    ),
+    app.previewActive && app.previewMode === "realistic" && h("div", {style:{marginBottom:10}},
+      h("span", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5}}, "Realistic Level"),
+      h("div", {style:{display:"flex",flexDirection:"column",gap:3,marginTop:6}},
+        [[1,"Flat"],[2,"Shaded"],[3,"Detailed"],[4,"Detailed + Blend"]].map(function(kl) {
+          var isActive = app.realisticLevel === kl[0];
+          return h("button", {
+            key:kl[0],
+            onClick:function(){app.setRealisticLevel(kl[0]);},
+            style:{padding:"5px 10px",fontSize:11,fontWeight:isActive?600:400,
+              border:isActive?"1px solid var(--accent)":"1px solid var(--border)",
+              cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+              background:isActive?"var(--accent-light)":"var(--surface)",
+              color:isActive?"var(--accent)":"var(--text-secondary)"}
+          }, "Level "+kl[0]+": "+kl[1]);
+        })
+      )
+    ),
+    h("div", {style:{marginTop:8}},
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,cursor:"pointer"}},
+        h("input", {type:"checkbox",checked:app.previewShowGrid,onChange:function(){app.setPreviewShowGrid(function(v){return !v;});}}),
+        "Show grid overlay"
+      )
+    ),
+    app.previewActive && app.previewMode === "pixel" && h("div", {style:{marginTop:4}},
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,cursor:"pointer"}},
+        h("input", {type:"checkbox",checked:app.previewFabricBg,onChange:function(){app.setPreviewFabricBg(function(v){return !v;});}}),
+        "Fabric background"
+      )
+    )
+  );
+
+  // ── Project info panel (for Create mode Project tab and Edit mode More tab) ──
+  var projectInfoPanel = (ctx.pat && ctx.pal) ? h("div", {style:{padding:"10px 12px"}},
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}, "Pattern Summary"),
+    h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}},
+      h("div", null,
+        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Dimensions"),
+        h("div", {style:{fontSize:13,fontWeight:600}}, ctx.sW+"\xD7"+ctx.sH)
+      ),
+      h("div", null,
+        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Stitchable"),
+        h("div", {style:{fontSize:13,fontWeight:600}}, (ctx.totalStitchable||0).toLocaleString())
+      ),
+      h("div", null,
+        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Colours"),
+        h("div", {style:{fontSize:13,fontWeight:600}}, (ctx.displayPal||ctx.pal||[]).length)
+      ),
+      ctx.difficulty && h("div", null,
+        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Difficulty"),
+        h("div", {style:{fontSize:13,fontWeight:600,color:ctx.difficulty.color||"inherit"}}, ctx.difficulty.label||"")
+      ),
+      ctx.totalSkeins && h("div", null,
+        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Skeins ("+ctx.fabricCt+"ct)"),
+        h("div", {style:{fontSize:13,fontWeight:600}}, ctx.totalSkeins)
+      ),
+      h("div", null,
+        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Est. Thread Cost"),
+        h("div", {style:{fontSize:13,fontWeight:600}}, "\xA3"+((ctx.totalSkeins||0)*ctx.skeinPrice).toFixed(2))
+      ),
+      h("div", null,
+        h("div", {style:{fontSize:10,color:"#94a3b8"}}, "Est. Time"),
+        h("div", {style:{fontSize:13,fontWeight:600}}, typeof fmtTimeL !== 'undefined' ? fmtTimeL(Math.round((ctx.totalStitchable||0)/(ctx.stitchSpeed||50)*3600)) : '')
+      )
+    ),
+    // Finished size table
+    h("div", {style:{marginTop:12,paddingTop:12,borderTop:"1px solid var(--border)"}},
+      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}, "Finished Size"),
+      h("div", {style:{fontSize:11,color:"var(--text-secondary)"}},
+        typeof FABRIC_COUNTS !== 'undefined' ? FABRIC_COUNTS.map(function(fc){
+          var w=(ctx.sW/fc.ct).toFixed(1), ht=(ctx.sH/fc.ct).toFixed(1);
+          var wcm=(ctx.sW/fc.ct*2.54).toFixed(1), hcm=(ctx.sH/fc.ct*2.54).toFixed(1);
+          var isCurrent=fc.ct===ctx.fabricCt;
+          return h("div",{key:fc.ct,style:{display:"flex",gap:8,padding:"2px 0",fontWeight:isCurrent?600:400,color:isCurrent?"var(--accent)":"inherit"}},
+            h("span",{style:{minWidth:50}},fc.ct+"-count"),
+            h("span",null,w+'" \xD7 '+ht+'" ('+wcm+' \xD7 '+hcm+' cm)')
+          );
+        }) : null
+      )
+    )
+  ) : null;
+
+  // ── MODE-AWARE TAB RENDERING ───────────────────────────────────────────────
+  var createTabs = [['settings','Settings'],['preview','Preview'],['info','Project']];
+  var editTabs = [['palette','Palette'],['view','View'],['preview','Preview'],['more','More']];
+  var tabs = app.creatorMode === 'create' ? createTabs : editTabs;
+
+  function tabBar() {
+    return h("div", {className:"rp-tabs"},
+      tabs.map(function(t) {
+        return h("button", {
+          key: t[0],
+          className: "rp-tab" + (sideTab === t[0] ? " rp-tab--on" : ""),
+          onClick: function() { setSideTab(t[0]); },
+          'aria-label': t[1] + ' tab'
+        }, t[1]);
+      })
+    );
+  }
+
+  // ── Create mode tab contents ──
+  if (app.creatorMode === 'create') {
+    var settingsContent = h(React.Fragment, null,
+      imageCard,
+      dimSection,
+      fabSection,
+      !ctx.isScratchMode && palSection,
+      !ctx.isScratchMode && cleanupSection,
+      !ctx.isScratchMode && adjSection,
+      !ctx.isScratchMode && bgSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      actionBtn
+    );
+    return h(React.Fragment, null,
+      tabBar(),
+      h("div", {className:"rp-tab-content"},
+        sideTab === 'settings' && settingsContent,
+        sideTab === 'preview' && previewPanel,
+        sideTab === 'info' && projectInfoPanel
+      )
+    );
+  }
+
+  // ── Edit mode tab contents ──
+  var paletteContent = h(React.Fragment, null,
     palChipsSection,
-    // ── View toggle (Colour / Symbol / Both) ───────────────────────────────────
+    coloursSection
+  );
+
+  var viewContent = h(React.Fragment, null,
+    // View toggle (Colour / Symbol / Both)
     (ctx.pat && ctx.pal) ? h("div", {
       style:{borderBottom:"0.5px solid var(--border)",padding:"8px 12px",display:"flex",alignItems:"center",gap:8}
     },
@@ -752,16 +919,45 @@ window.CreatorSidebar = function CreatorSidebar() {
         })
       )
     ) : null,
-    imageCard,
-    coloursSection,
-    dimSection,
-    palSection,
-    cleanupSection,
-    fabSection,
-    adjSection,
-    bgSection,
-    ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
-    ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
-    actionBtn
+    // Highlight modes (placeholder — will be filled in from existing highlight section)
+    (ctx.pat && ctx.pal && cv.hiId) ? h("div", {style:{padding:"8px 12px",fontSize:11,color:"var(--text-secondary)"}},
+      "Highlighting DMC ", cv.hiId,
+      h("button", {
+        onClick:function(){cv.setHiId(null);},
+        style:{marginLeft:8,fontSize:10,padding:"2px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--surface)",cursor:"pointer"}
+      }, "Clear")
+    ) : null
+  );
+
+  var moreContent = h(React.Fragment, null,
+    // Collapsed Generation Settings accordion
+    h(Section, {title:"Generation Settings",open:false,badge:null},
+      dimSection,
+      fabSection,
+      !ctx.isScratchMode && palSection,
+      !ctx.isScratchMode && cleanupSection,
+      !ctx.isScratchMode && adjSection,
+      !ctx.isScratchMode && bgSection,
+      actionBtn
+    ),
+    // Project info
+    projectInfoPanel,
+    // Export link
+    (ctx.pat && ctx.pal) ? h("div", {style:{padding:"10px 12px",borderTop:"1px solid var(--border)"}},
+      h("button", {
+        onClick:function(){if(typeof window.__switchToTrack==='function')window.__switchToTrack();},
+        style:{width:"100%",padding:"8px",fontSize:12,fontWeight:600,background:"var(--accent)",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:4}
+      }, "Open in Tracker ", Icons.arrowRight())
+    ) : null
+  );
+
+  return h(React.Fragment, null,
+    tabBar(),
+    h("div", {className:"rp-tab-content"},
+      sideTab === 'palette' && paletteContent,
+      sideTab === 'view' && viewContent,
+      sideTab === 'preview' && previewPanel,
+      sideTab === 'more' && moreContent
+    )
   );
 };

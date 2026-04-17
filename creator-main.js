@@ -223,7 +223,7 @@ window.ComparisonSlider = ComparisonSlider;
 
 
 
-function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
+function CreatorApp({onSwitchToTrack=null, isActive=true, creatorMode='edit'}={}) {
   const useCreatorStateHook = window.useCreatorState;
   const useEditHistoryHook = window.useEditHistory;
   const useCanvasInteractionHook = window.useCanvasInteraction;
@@ -241,6 +241,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const io = useProjectIOHook(state, history, {onSwitchToTrack});
   usePreviewHook(state);
   useKeyboardShortcutsHook(state, history, io);
+
+  // Expose auto-save and toast to UnifiedApp for mode transitions
+  React.useEffect(function(){
+    window.__creatorAutoSave=function(){if(state.pat&&state.pal)io.saveProject();};
+    window.__creatorAddToast=state.addToast;
+    return function(){delete window.__creatorAutoSave;delete window.__creatorAddToast;};
+  },[state.pat,state.pal,io,state.addToast]);
 
   // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
   // Handler identity is stabilised via a ref; the ref is updated synchronously on
@@ -347,6 +354,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function() { return {
+    creatorMode: creatorMode,
     tab: state.tab, setTab: state.setTab,
     modal: state.modal, setModal: state.setModal,
     sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
@@ -400,6 +408,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleOpenInTracker: stableHandleOpenInTracker,
     isActive: isActive,
   }; }, [
+    creatorMode,
     state.tab, state.modal, state.sidebarOpen, state.loadError,
     state.copied, state.dimOpen, state.palOpen, state.fabOpen,
     state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen,
@@ -620,23 +629,17 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     <window.CanvasContext.Provider value={cvCtx}>
     <window.PatternDataContext.Provider value={pdCtx}>
       <input ref={state.loadRef} type="file" accept=".json" onChange={io.loadProject} style={{display:"none"}}/>
-      <Header page="creator" tab={state.tab} onPageChange={state.setTab}
+      <Header page={creatorMode} tab={state.tab} onPageChange={state.setTab}
         onOpen={()=>state.loadRef.current.click()}
         onSave={state.pat&&state.pal?io.saveProject:null}
         onTrack={state.pat&&state.pal?io.handleOpenInTracker:null}
         onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData):null}
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
-        setModal={state.setModal} />
-      {state.pat&&state.pal&&<ContextBar
-        name={state.projectName||(state.sW+'×'+state.sH+' pattern')}
-        dimensions={{width:state.sW,height:state.sH}}
-        palette={state.pal}
-        pct={null}
-        page="creator"
-        onTrack={io.handleOpenInTracker}
-        onSave={io.saveProject}
+        setModal={state.setModal}
+        projectName={state.projectName||(state.sW&&state.sH?(state.sW+'×'+state.sH+' pattern'):null)}
+        projectPct={state.progressPct}
         onNameChange={n=>state.setProjectName(n)}
-      />}
+      />
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
         onConfirm={name=>{state.setProjectName(name);state.setNamePromptOpen(false);io.doSaveProject(name);}}
@@ -822,6 +825,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
 function UnifiedApp(){
   const[mode,setMode]=React.useState(()=>{
     const p=new URLSearchParams(window.location.search);
+    if(p.get('mode')==='create') return 'create';
+    if(p.get('mode')==='edit') return 'edit';
     if(p.get('mode')==='track') return 'track';
     if(p.get('mode')==='stats') return 'stats';
     return 'home';
@@ -833,7 +838,12 @@ function UnifiedApp(){
   });
   const[trackerReady,setTrackerReady]=React.useState(typeof window.TrackerApp!=='undefined');
   const pendingTrackerProject=React.useRef(null);
+  const[fadeKey,setFadeKey]=React.useState(0);
+  const prevModeRef=React.useRef(mode);
   const[homeKey,setHomeKey]=React.useState(0);
+
+  // Creator is "visible" whenever mode is create or edit
+  var creatorVisible = mode === 'create' || mode === 'edit';
 
   React.useEffect(()=>{
     if(trackerReady)return;
@@ -842,16 +852,51 @@ function UnifiedApp(){
     return()=>clearInterval(poll);
   },[trackerReady, mode]);
 
+  // Fade animation + transition toast on mode change
+  React.useEffect(()=>{
+    if(prevModeRef.current===mode) return;
+    var from=prevModeRef.current;
+    prevModeRef.current=mode;
+    setFadeKey(k=>k+1);
+    // First-time transition hints
+    var label={create:'Create',edit:'Edit',track:'Track'}[mode];
+    if(label&&window.__creatorAddToast){
+      var firstKey='__modeVisited_'+mode;
+      if(!localStorage.getItem(firstKey)){
+        localStorage.setItem(firstKey,'1');
+        var hints={
+          create:'Adjust settings and generate your pattern here.',
+          edit:'Paint, fill, and fine-tune your pattern.',
+          track:'Mark stitches as you work.'
+        };
+        window.__creatorAddToast(label+' mode — '+hints[mode],{type:'info',duration:3500});
+      }
+    }
+  },[mode]);
+
+  const switchToCreate=React.useCallback(()=>{
+    if(window.__creatorAutoSave) window.__creatorAutoSave();
+    window.history.replaceState({},'','?mode=create');
+    setMode('create');
+  },[]);
+  const switchToEdit=React.useCallback(()=>{
+    if(window.__creatorAutoSave) window.__creatorAutoSave();
+    window.history.replaceState({},'','?mode=edit');
+    setMode('edit');
+  },[]);
   const switchToTrack=React.useCallback((incomingProject)=>{
+    if(window.__creatorAutoSave) window.__creatorAutoSave();
     if(incomingProject) pendingTrackerProject.current=incomingProject;
     if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
     setTrackerMounted(true);
     window.history.replaceState({},'','?mode=track');
     setMode('track');
   },[]);
+  // Legacy alias: switchToDesign maps to switchToEdit (backward compat)
   const switchToDesign=React.useCallback(()=>{
-    window.history.replaceState({},'',window.location.pathname);
-    setMode('design');
+    if(window.__creatorAutoSave) window.__creatorAutoSave();
+    window.history.replaceState({},'','?mode=edit');
+    setMode('edit');
   },[]);
   const switchToStats=React.useCallback(()=>{
     if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
@@ -866,27 +911,43 @@ function UnifiedApp(){
   },[]);
 
   React.useEffect(()=>{
+    window.__switchToCreate=switchToCreate;
+    window.__switchToEdit=switchToEdit;
     window.__switchToTrack=switchToTrack;
     window.__switchToDesign=switchToDesign;
     window.__switchToStats=switchToStats;
     window.__goHome=goHome;
-    return()=>{delete window.__switchToTrack;delete window.__switchToDesign;delete window.__switchToStats;delete window.__goHome;};
-  },[switchToTrack,switchToDesign,switchToStats,goHome]);
+    return()=>{delete window.__switchToCreate;delete window.__switchToEdit;delete window.__switchToTrack;delete window.__switchToDesign;delete window.__switchToStats;delete window.__goHome;};
+  },[switchToCreate,switchToEdit,switchToTrack,switchToDesign,switchToStats,goHome]);
+
+  // Handle browser back/forward navigation
+  React.useEffect(()=>{
+    function onPopState(){
+      const p=new URLSearchParams(window.location.search);
+      if(p.get('mode')==='create') setMode('create');
+      else if(p.get('mode')==='edit') setMode('edit');
+      else if(p.get('mode')==='track') setMode('track');
+      else if(p.get('mode')==='stats') setMode('stats');
+      else setMode('home');
+    }
+    window.addEventListener('popstate', onPopState);
+    return()=>window.removeEventListener('popstate', onPopState);
+  },[]);
 
   const handleHomeOpenCreatorWithImage=React.useCallback((file)=>{
     window.__pendingCreatorFile=file;
     if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
     setCreatorResetKey(k=>k+1);
-    window.history.replaceState({},'',window.location.pathname);
-    setMode('design');
+    window.history.replaceState({},'','?mode=create');
+    setMode('create');
   },[]);
 
   const handleHomeOpenCreatorBlank=React.useCallback(()=>{
     window.__pendingCreatorAction='scratch';
     if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
     setCreatorResetKey(k=>k+1);
-    window.history.replaceState({},'',window.location.pathname);
-    setMode('design');
+    window.history.replaceState({},'','?mode=edit');
+    setMode('edit');
   },[]);
 
   const handleHomeOpenFile=React.useCallback((file)=>{
@@ -894,8 +955,8 @@ function UnifiedApp(){
     if(ext==='json'){
       window.__pendingCreatorJsonFile=file;
       setCreatorResetKey(k=>k+1);
-      window.history.replaceState({},'',window.location.pathname);
-      setMode('design');
+      window.history.replaceState({},'','?mode=edit');
+      setMode('edit');
     } else if(ext==='oxs'||ext==='pdf'){
       window.__pendingTrackerImportFile=file;
       if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
@@ -906,8 +967,8 @@ function UnifiedApp(){
       window.__pendingCreatorFile=file;
       if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
       setCreatorResetKey(k=>k+1);
-      window.history.replaceState({},'',window.location.pathname);
-      setMode('design');
+      window.history.replaceState({},'','?mode=create');
+      setMode('create');
     }
   },[]);
 
@@ -930,8 +991,8 @@ function UnifiedApp(){
       });
     } else {
       setCreatorResetKey(k=>k+1);
-      window.history.replaceState({},'',window.location.pathname);
-      setMode('design');
+      window.history.replaceState({},'','?mode=edit');
+      setMode('edit');
     }
   },[switchToTrack]);
 
@@ -961,8 +1022,8 @@ function UnifiedApp(){
       </div>}
       {homeModal==='help'&&<SharedModals.Help onClose={()=>setHomeModal(null)} />}
     </div>}
-    <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
-      <CreatorErrorBoundary><CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/></CreatorErrorBoundary>
+    <div key={creatorResetKey} style={{display:creatorVisible?'':'none'}}>
+      <CreatorErrorBoundary><CreatorApp onSwitchToTrack={switchToTrack} isActive={creatorVisible} creatorMode={mode==='create'?'create':'edit'}/></CreatorErrorBoundary>
     </div>
     <div style={{display:mode==='track'?'':'none'}}>
       {trackerMounted&&!trackerReady&&(
@@ -979,9 +1040,10 @@ function UnifiedApp(){
       />}
     </div>
     {mode==='stats'&&<div style={{position:'fixed',inset:0,background:'var(--surface)',zIndex:100,overflowY:'auto'}}>
-      <Header page="stats" tab="" onPageChange={()=>{}} setModal={()=>{}} />
+      <Header page="home" tab="" onPageChange={()=>{}} setModal={()=>{}} />
       <GlobalStatsDashboard onClose={goHome} />
     </div>}
+    {fadeKey>0&&<div key={fadeKey} className="mode-panel-enter" style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:9999,background:'var(--surface)'}}/>}
   </>;
 }
 

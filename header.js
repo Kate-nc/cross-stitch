@@ -142,7 +142,14 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   const creatorPages = [['pattern','Pattern'],['project','Project'],['legend','Threads'],['export','Export']];
   const activeLabel = creatorPages.find(p => p[0] === tab)?.[1] || 'Pattern';
 
-  // App-section nav tabs
+  // Three-mode navigation tabs (primary)
+  const modeTabs = [
+    { id: 'create', label: 'Create', icon: 'image',  switchFn: '__switchToCreate' },
+    { id: 'edit',   label: 'Edit',   icon: 'pencil', switchFn: '__switchToEdit' },
+    { id: 'track',  label: 'Track',  icon: 'needle', switchFn: '__switchToTrack' },
+  ];
+
+  // Legacy app-section nav tabs (for pages that haven't migrated to three-mode yet)
   const appSections = [
     { id: 'creator', label: 'Create', href: 'index.html' },
     { id: 'tracker', label: 'Track',  href: 'stitch.html' },
@@ -150,6 +157,9 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     { id: 'stats', label: 'Stats', href: 'index.html?mode=stats' },
     { id: 'embroidery', label: 'Embroidery (BETA)', href: 'embroidery.html' },
   ];
+
+  // Determine if we're in three-mode SPA context
+  var isThreeMode = (page === 'create' || page === 'edit' || page === 'track' || page === 'home');
 
   // Active project summary for the badge (consumed from prop or read from ProjectStorage if available)
   const [projSummary, setProjSummary] = React.useState(null);
@@ -201,26 +211,46 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           onClick: () => { if (typeof window.__goHome === 'function') { window.__goHome(); } else if (page === 'creator') { window.scrollTo(0, 0); } else { window.location.href = 'index.html'; } }
         }, '×∕× Cross Stitch'),
 
-        // App-section navigation tabs
-        React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
-          appSections.map(({ id, label, href }) =>
-            React.createElement('a', {
-              key: id,
-              href,
-              className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
-              onClick: id === 'tracker' && window.__switchToTrack
-                ? (e) => { e.preventDefault(); window.__switchToTrack(); }
-                : id === 'creator' && window.__switchToDesign
-                  ? (e) => { e.preventDefault(); window.__switchToDesign(); }
-                  : id === 'stats' && window.__switchToStats
-                    ? (e) => { e.preventDefault(); window.__switchToStats(); }
-                    : undefined,
-              ...(page === id ? { 'aria-current': 'page' } : {}),
-            }, label)
-          )
-        ),
+        // App-section navigation tabs — three-mode system or legacy
+        isThreeMode
+          ? React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App modes' },
+              modeTabs.map(function(mt) {
+                var isActive = page === mt.id;
+                return React.createElement('button', {
+                  key: mt.id,
+                  type: 'button',
+                  className: 'tb-app-tab' + (isActive ? ' tb-app-tab--active' : ''),
+                  onClick: function() {
+                    var fn = window[mt.switchFn];
+                    if (typeof fn === 'function') fn();
+                  },
+                  'aria-label': mt.label + ' mode',
+                  ...(isActive ? { 'aria-current': 'page' } : {}),
+                },
+                  Icons[mt.icon] && React.createElement('span', { className: 'tb-app-tab-icon' }, Icons[mt.icon]()),
+                  React.createElement('span', { className: 'tb-app-tab-label' }, mt.label)
+                );
+              })
+            )
+          : React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
+              appSections.map(({ id, label, href }) =>
+                React.createElement('a', {
+                  key: id,
+                  href,
+                  className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
+                  onClick: id === 'tracker' && window.__switchToTrack
+                    ? (e) => { e.preventDefault(); window.__switchToTrack(); }
+                    : id === 'creator' && window.__switchToDesign
+                      ? (e) => { e.preventDefault(); window.__switchToDesign(); }
+                      : id === 'stats' && window.__switchToStats
+                        ? (e) => { e.preventDefault(); window.__switchToStats(); }
+                        : undefined,
+                  ...(page === id ? { 'aria-current': 'page' } : {}),
+                }, label)
+              )
+            ),
 
-        // Creator sub-page dropdown (only on creator)
+        // Creator sub-page dropdown (only on legacy creator page)
         page === 'creator' && React.createElement('div', { ref: dropRef, style: { position: 'relative', flexShrink: 0, marginLeft: 6 } },
           React.createElement('button', { className: 'tb-page-btn', onClick: () => setPageDrop(o => !o) },
             activeLabel,
@@ -303,6 +333,10 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               className: 'tb-page-dropdown-item',
               onClick: () => { onTrack(); setFileMenuOpen(false); }
             }, 'Open in Stitch Tracker'),
+            (page === 'create' || page === 'edit') && onTrack && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => { onTrack(); setFileMenuOpen(false); }
+            }, 'Open in Tracker'),
             onExportPDF && React.createElement('button', {
               className: 'tb-page-dropdown-item',
               onClick: () => { onExportPDF(); setFileMenuOpen(false); }
@@ -334,7 +368,26 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   if (onRestoreFile) { onRestoreFile(e); } else { handleInlineRestore(e); }
                 }
               })
-            )
+            ),
+            // Three-mode: extra nav items (Stash, Stats, Embroidery)
+            isThreeMode && React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),
+            isThreeMode && React.createElement('a', {
+              className: 'tb-page-dropdown-item',
+              href: 'manager.html',
+              style: { display: 'block', textDecoration: 'none', color: 'inherit' }
+            }, Icons.thread(), ' Thread Stash'),
+            isThreeMode && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: function() {
+                setFileMenuOpen(false);
+                if (typeof window.__switchToStats === 'function') window.__switchToStats();
+              }
+            }, Icons.barChart(), ' Statistics'),
+            isThreeMode && React.createElement('a', {
+              className: 'tb-page-dropdown-item',
+              href: 'embroidery.html',
+              style: { display: 'block', textDecoration: 'none', color: 'inherit' }
+            }, Icons.camera(), ' Embroidery (Beta)')
           )
         )
       )

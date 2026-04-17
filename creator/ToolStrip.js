@@ -53,6 +53,54 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
 
+  // ── Create mode: slim toolbar for generation ──
+  if (app.creatorMode === 'create') {
+    var createZoomGrp = h("div", {className:"tb-zoom-grp"},
+      h("span", {className:"tb-zoom-lbl"}, "Zoom"),
+      h("input", {
+        type:"range", min:0.05, max:3, step:0.05, value:cv.zoom,
+        onChange:function(e){cv.setZoom(Number(e.target.value));},
+        style:{width:55}
+      }),
+      h("span", {className:"tb-zoom-pct"}, Math.round(cv.zoom*100)+"%"),
+      h("button", {className:"tb-fit-btn", onClick:cv.fitZ, 'aria-label':'Fit to screen'}, "Fit")
+    );
+    var overlayToggle = (gen.img && gen.img.src) ? h("button", {
+      className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
+      onClick:function(){cv.setShowOverlay(function(v){return !v;});},
+      title:"Toggle source image overlay",
+      'aria-label':'Image overlay'
+    }, Icons.layers(), " Overlay") : null;
+    var regenBtn = h("button", {
+      className:"tb-btn tb-btn--accent",
+      onClick:function(){if(gen.generate)gen.generate();},
+      disabled:gen.busy,
+      title:gen.hasGenerated?"Regenerate pattern":"Generate pattern",
+      'aria-label':gen.hasGenerated?'Regenerate':'Generate'
+    }, Icons.refresh(), " "+(gen.hasGenerated?"Regenerate":"Generate"));
+    var editBtn = gen.hasGenerated ? h("button", {
+      className:"tb-btn tb-btn--primary",
+      onClick:function(){if(typeof window.__switchToEdit==='function')window.__switchToEdit();},
+      title:"Edit the generated pattern",
+      'aria-label':'Edit pattern'
+    }, "Edit Pattern ", Icons.arrowRight()) : null;
+    return h("div", {className:"toolbar-row toolbar-row--create"},
+      h("div", {className:"pill-row"},
+        h("div", {className:"pill"},
+          overlayToggle,
+          overlayToggle && h("div", {className:"tb-sdiv"}),
+          createZoomGrp,
+          h("div", {className:"tb-sdiv"}),
+          regenBtn,
+          editBtn && h("div", {className:"tb-sdiv"}),
+          editBtn
+        )
+      )
+    );
+  }
+
+  // ── Edit mode: full editing toolbar ──
+
   var sc = app.stripCollapsed || {};
 
   // Palette data sorted by usage — needed early for auto-select
