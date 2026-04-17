@@ -388,8 +388,31 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   SyncEngine.readSyncFile(file).then(function(syncObj) {
                     return SyncEngine.prepareImport(syncObj);
                   }).then(function(plan) {
-                    // Dispatch a custom event so the home screen can show the modal
-                    window.dispatchEvent(new CustomEvent('sync-plan-ready', { detail: plan }));
+                    // If home screen is mounted it listens for this event
+                    var evt = new CustomEvent('sync-plan-ready', { detail: plan, cancelable: true });
+                    var handled = !window.dispatchEvent(evt);
+                    // Fallback for tracker/manager pages: if no listener handled it,
+                    // show a simple confirm dialog
+                    if (!handled && page !== 'home') {
+                      var n = plan.newRemote.length;
+                      var m = plan.mergeTracking.length;
+                      var c = plan.conflicts.length;
+                      var parts = [];
+                      if (n) parts.push(n + ' new');
+                      if (m) parts.push(m + ' to merge');
+                      if (c) parts.push(c + ' conflict' + (c !== 1 ? 's' : ''));
+                      if (plan.stashMerge) parts.push('stash update');
+                      if (parts.length === 0) { alert('Nothing to sync — all projects are identical.'); return; }
+                      var msg = 'Import sync file?\n\n' + parts.join(', ');
+                      if (c > 0) msg += '\n\nConflicts will keep local versions. For detailed control, import from the home screen.';
+                      if (!window.confirm(msg)) return;
+                      var resolutions = {};
+                      plan.conflicts.forEach(function(entry) { resolutions[entry.id] = 'keep-local'; });
+                      SyncEngine.executeImport(plan, resolutions).then(function(result) {
+                        alert('Sync complete: ' + result.imported + ' imported, ' + result.merged + ' merged.');
+                        window.location.reload();
+                      }).catch(function(err) { alert('Sync failed: ' + err.message); });
+                    }
                   }).catch(function(err) {
                     alert('Sync import failed: ' + err.message);
                   });

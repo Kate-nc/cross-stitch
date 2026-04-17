@@ -105,6 +105,18 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     }
   }, []);
 
+  // Listen for sync-plan-ready events dispatched by the header File menu
+  useEffect(function() {
+    function handler(e) {
+      if (e.detail) {
+        e.preventDefault();
+        setSyncPlan(e.detail);
+      }
+    }
+    window.addEventListener('sync-plan-ready', handler);
+    return function() { window.removeEventListener('sync-plan-ready', handler); };
+  }, []);
+
   // Sync handlers
   function handleExportSync() {
     if (typeof SyncEngine === 'undefined') return;

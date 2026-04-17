@@ -2603,6 +2603,18 @@ kbd {
 .sync-choice-btn:hover { background: #f8fafc; border-color: #cbd5e1; }
 .sync-choice-btn--active { background: #0d9488; color: #fff; border-color: #0d9488; }
 .sync-choice-btn--active:hover { background: #0f766e; }
+
+/* Resolved label */
+.sync-conflict-resolved-label {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 600; color: #059669; margin-top: 6px;
+}
+
+/* Local-only muted row */
+.sync-project-row--muted { opacity: 0.6; }
+
+/* Stash merge preview */
+.sync-stash-preview { font-size: 13px; color: #475569; padding: 4px 0; }
 .thread-usage-legend>div{display:flex;align-items:center;gap:6px;}
 .tul-swatch{display:inline-block;width:14px;height:10px;border-radius:2px;flex-shrink:0;}
 .gsd-insights {

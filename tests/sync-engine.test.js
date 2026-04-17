@@ -21,6 +21,17 @@ global.localStorage = (() => {
 global.pako = pako;
 global.indexedDB = undefined; // Not available in Node — DB-dependent tests are skipped
 
+// Silence console.warn from expected IndexedDB fallback paths
+const originalWarn = console.warn;
+beforeAll(() => {
+  console.warn = function() {
+    var msg = String(arguments[0] || '');
+    if (msg.indexOf('SyncEngine:') === 0) return; // suppress expected sync warnings
+    originalWarn.apply(console, arguments);
+  };
+});
+afterAll(() => { console.warn = originalWarn; });
+
 // Stub ProjectStorage (sync-engine reads from it during export/import)
 global.ProjectStorage = {
   listProjects: async () => [],
@@ -464,5 +475,388 @@ describe('device identity', () => {
   test('get/set device name', () => {
     SE.setDeviceName("Katie's Laptop");
     expect(SE.getDeviceName()).toBe("Katie's Laptop");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// prepareImport (full pipeline, mocked ProjectStorage)
+// ---------------------------------------------------------------------------
+
+describe('prepareImport', () => {
+  const makeProject = (id, updatedAt, pattern, done) => ({
+    id,
+    name: 'Project ' + id,
+    w: 2, h: 2,
+    updatedAt,
+    settings: { sW: 2, sH: 2 },
+    pattern: pattern || [{ id: '310' }, { id: '550' }, { id: '310' }, { id: '550' }],
+    done: done || null,
+    sessions: [],
+    statsSessions: [],
+    totalTime: 0,
+    threadOwned: {}
+  });
+
+  const makeSyncObj = (projects, stash) => ({
+    _format: 'cross-stitch-sync',
+    _version: 1,
+    _createdAt: '2024-06-01T00:00:00Z',
+    _deviceId: 'dev_remote',
+    _deviceName: 'Remote Device',
+    _mode: 'full',
+    projects: projects,
+    stash: stash || null
+  });
+
+  beforeEach(() => {
+    // Reset stubs for each test
+    global.ProjectStorage = {
+      _store: {},
+      listProjects: async function() {
+        return Object.values(this._store).map(p => ({ id: p.id, name: p.name, updatedAt: p.updatedAt }));
+      },
+      get: async function(id) { return this._store[id] || null; },
+      save: async function(p) { this._store[p.id] = p; return p.id; }
+    };
+  });
+
+  test('plan includes new-remote for unknown projects', async () => {
+    const remote = makeProject('proj_r1', '2024-06-01T00:00:00Z');
+    const syncObj = makeSyncObj([{
+      id: 'proj_r1',
+      updatedAt: remote.updatedAt,
+      fingerprint: SE.computeFingerprint(remote),
+      data: remote
+    }]);
+
+    const plan = await SE.prepareImport(syncObj);
+    expect(plan.newRemote).toHaveLength(1);
+    expect(plan.newRemote[0].id).toBe('proj_r1');
+    expect(plan.identical).toHaveLength(0);
+    expect(plan.conflicts).toHaveLength(0);
+  });
+
+  test('plan marks identical projects', async () => {
+    const proj = makeProject('proj_1', '2024-06-01T00:00:00Z');
+    global.ProjectStorage._store['proj_1'] = proj;
+
+    const syncObj = makeSyncObj([{
+      id: 'proj_1',
+      updatedAt: proj.updatedAt,
+      fingerprint: SE.computeFingerprint(proj),
+      data: proj
+    }]);
+
+    const plan = await SE.prepareImport(syncObj);
+    expect(plan.identical).toHaveLength(1);
+    expect(plan.newRemote).toHaveLength(0);
+  });
+
+  test('plan classifies merge-tracking when pattern unchanged', async () => {
+    const local = makeProject('proj_1', '2024-06-01T00:00:00Z', undefined, [1, 0, 0, 0]);
+    const remote = makeProject('proj_1', '2024-06-02T00:00:00Z', undefined, [0, 1, 0, 0]);
+    global.ProjectStorage._store['proj_1'] = local;
+
+    const syncObj = makeSyncObj([{
+      id: 'proj_1',
+      updatedAt: remote.updatedAt,
+      fingerprint: SE.computeFingerprint(remote),
+      data: remote
+    }]);
+
+    const plan = await SE.prepareImport(syncObj);
+    expect(plan.mergeTracking).toHaveLength(1);
+    expect(plan.conflicts).toHaveLength(0);
+  });
+
+  test('plan classifies conflict when pattern changed', async () => {
+    const local = makeProject('proj_1', '2024-06-01T00:00:00Z', [{ id: '310' }, { id: '310' }, { id: '310' }, { id: '310' }]);
+    const remote = makeProject('proj_1', '2024-06-02T00:00:00Z', [{ id: '550' }, { id: '550' }, { id: '550' }, { id: '550' }]);
+    global.ProjectStorage._store['proj_1'] = local;
+
+    const syncObj = makeSyncObj([{
+      id: 'proj_1',
+      updatedAt: remote.updatedAt,
+      fingerprint: SE.computeFingerprint(remote),
+      data: remote
+    }]);
+
+    const plan = await SE.prepareImport(syncObj);
+    expect(plan.conflicts).toHaveLength(1);
+    expect(plan.mergeTracking).toHaveLength(0);
+  });
+
+  test('plan includes localOnly projects not in sync file', async () => {
+    const local = makeProject('proj_local', '2024-05-01T00:00:00Z');
+    global.ProjectStorage._store['proj_local'] = local;
+
+    const remote = makeProject('proj_r1', '2024-06-01T00:00:00Z');
+    const syncObj = makeSyncObj([{
+      id: 'proj_r1',
+      updatedAt: remote.updatedAt,
+      fingerprint: SE.computeFingerprint(remote),
+      data: remote
+    }]);
+
+    const plan = await SE.prepareImport(syncObj);
+    expect(plan.localOnly).toHaveLength(1);
+    expect(plan.localOnly[0].id).toBe('proj_local');
+    expect(plan.newRemote).toHaveLength(1);
+  });
+
+  test('plan includes stash merge when sync file has stash data', async () => {
+    const syncObj = makeSyncObj(
+      [{ id: 'proj_1', updatedAt: '2024-06-01', fingerprint: 'empty', data: makeProject('proj_1', '2024-06-01') }],
+      { threads: { '310': { owned: 3, tobuy: false, min_stock: 0 } }, patterns: [] }
+    );
+
+    const plan = await SE.prepareImport(syncObj);
+    expect(plan.stashMerge).not.toBeNull();
+    expect(plan.stashMerge.threads['310'].owned).toBe(3);
+  });
+
+  test('plan has correct summary from validation', async () => {
+    const syncObj = makeSyncObj([{
+      id: 'proj_1',
+      updatedAt: '2024-06-01',
+      data: makeProject('proj_1', '2024-06-01')
+    }]);
+
+    const plan = await SE.prepareImport(syncObj);
+    expect(plan.summary.deviceName).toBe('Remote Device');
+    expect(plan.summary.projectCount).toBe(1);
+    expect(plan.summary.createdAt).toBe('2024-06-01T00:00:00Z');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// executeImport (mocked ProjectStorage)
+// ---------------------------------------------------------------------------
+
+describe('executeImport', () => {
+  const makeProject = (id, updatedAt, pattern, done) => ({
+    id,
+    name: 'Project ' + id,
+    w: 2, h: 2,
+    updatedAt,
+    settings: { sW: 2, sH: 2 },
+    pattern: pattern || [{ id: '310' }, { id: '550' }, { id: '310' }, { id: '550' }],
+    done: done || null,
+    sessions: [],
+    statsSessions: [],
+    totalTime: 0,
+    threadOwned: {}
+  });
+
+  beforeEach(() => {
+    global.ProjectStorage = {
+      _store: {},
+      listProjects: async function() {
+        return Object.values(this._store).map(p => ({ id: p.id }));
+      },
+      get: async function(id) { return this._store[id] || null; },
+      save: async function(p) { this._store[p.id] = p; return p.id; }
+    };
+  });
+
+  test('imports new-remote projects', async () => {
+    const remote = makeProject('proj_r1', '2024-06-01T00:00:00Z');
+    const plan = {
+      newRemote: [{ id: 'proj_r1', remote: { data: remote } }],
+      mergeTracking: [],
+      conflicts: [],
+      stashMerge: null
+    };
+
+    const result = await SE.executeImport(plan, {});
+    expect(result.imported).toBe(1);
+    expect(global.ProjectStorage._store['proj_r1']).toBeDefined();
+    expect(global.ProjectStorage._store['proj_r1'].name).toBe('Project proj_r1');
+  });
+
+  test('merges tracking progress', async () => {
+    const local = makeProject('proj_1', '2024-06-01T00:00:00Z', undefined, [1, 0, 0, 0]);
+    const remote = makeProject('proj_1', '2024-06-02T00:00:00Z', undefined, [0, 1, 0, 0]);
+    global.ProjectStorage._store['proj_1'] = local;
+
+    const plan = {
+      newRemote: [],
+      mergeTracking: [{ id: 'proj_1', local: local, remote: { data: remote } }],
+      conflicts: [],
+      stashMerge: null
+    };
+
+    const result = await SE.executeImport(plan, {});
+    expect(result.merged).toBe(1);
+    const saved = global.ProjectStorage._store['proj_1'];
+    expect(saved.done).toEqual([1, 1, 0, 0]);
+  });
+
+  test('resolves conflict with keep-local (no change)', async () => {
+    const local = makeProject('proj_1', '2024-06-01T00:00:00Z', [{ id: '310' }, { id: '310' }, { id: '310' }, { id: '310' }]);
+    const remote = makeProject('proj_1', '2024-06-02T00:00:00Z', [{ id: '550' }, { id: '550' }, { id: '550' }, { id: '550' }]);
+    global.ProjectStorage._store['proj_1'] = local;
+
+    const plan = {
+      newRemote: [],
+      mergeTracking: [],
+      conflicts: [{ id: 'proj_1', local: local, remote: { data: remote } }],
+      stashMerge: null
+    };
+
+    const result = await SE.executeImport(plan, { 'proj_1': 'keep-local' });
+    expect(result.conflictsResolved).toBe(1);
+    // Local should be unchanged
+    expect(global.ProjectStorage._store['proj_1'].pattern[0].id).toBe('310');
+  });
+
+  test('resolves conflict with keep-remote (overwrites local)', async () => {
+    const local = makeProject('proj_1', '2024-06-01T00:00:00Z', [{ id: '310' }, { id: '310' }, { id: '310' }, { id: '310' }]);
+    const remote = makeProject('proj_1', '2024-06-02T00:00:00Z', [{ id: '550' }, { id: '550' }, { id: '550' }, { id: '550' }]);
+    global.ProjectStorage._store['proj_1'] = local;
+
+    const plan = {
+      newRemote: [],
+      mergeTracking: [],
+      conflicts: [{ id: 'proj_1', local: local, remote: { data: remote } }],
+      stashMerge: null
+    };
+
+    const result = await SE.executeImport(plan, { 'proj_1': 'keep-remote' });
+    expect(result.conflictsResolved).toBe(1);
+    expect(global.ProjectStorage._store['proj_1'].pattern[0].id).toBe('550');
+  });
+
+  test('resolves conflict with keep-both (creates copy)', async () => {
+    const local = makeProject('proj_1', '2024-06-01T00:00:00Z', [{ id: '310' }, { id: '310' }, { id: '310' }, { id: '310' }]);
+    const remote = makeProject('proj_1', '2024-06-02T00:00:00Z', [{ id: '550' }, { id: '550' }, { id: '550' }, { id: '550' }]);
+    global.ProjectStorage._store['proj_1'] = local;
+
+    const plan = {
+      newRemote: [],
+      mergeTracking: [],
+      conflicts: [{ id: 'proj_1', local: local, remote: { data: remote } }],
+      stashMerge: null
+    };
+
+    const result = await SE.executeImport(plan, { 'proj_1': 'keep-both' });
+    expect(result.conflictsResolved).toBe(1);
+    // Original should be untouched
+    expect(global.ProjectStorage._store['proj_1'].pattern[0].id).toBe('310');
+    // A new copy should exist
+    const allIds = Object.keys(global.ProjectStorage._store);
+    expect(allIds.length).toBe(2);
+    const copyId = allIds.find(k => k !== 'proj_1');
+    const copy = global.ProjectStorage._store[copyId];
+    expect(copy.pattern[0].id).toBe('550');
+    expect(copy.name).toContain('(synced)');
+  });
+
+  test('defaults unresolved conflicts to keep-local', async () => {
+    const local = makeProject('proj_1', '2024-06-01T00:00:00Z');
+    const remote = makeProject('proj_1', '2024-06-02T00:00:00Z', [{ id: '999' }, { id: '999' }, { id: '999' }, { id: '999' }]);
+    global.ProjectStorage._store['proj_1'] = local;
+
+    const plan = {
+      newRemote: [],
+      mergeTracking: [],
+      conflicts: [{ id: 'proj_1', local: local, remote: { data: remote } }],
+      stashMerge: null
+    };
+
+    // No resolutions provided — should default to keep-local
+    const result = await SE.executeImport(plan, {});
+    expect(result.conflictsResolved).toBe(1);
+    expect(global.ProjectStorage._store['proj_1'].pattern[0].id).toBe('310');
+  });
+
+  test('handles mixed operations in one import', async () => {
+    const existing = makeProject('proj_1', '2024-06-01T00:00:00Z', undefined, [1, 0, 0, 0]);
+    global.ProjectStorage._store['proj_1'] = existing;
+
+    const newRemote = makeProject('proj_new', '2024-06-01T00:00:00Z');
+    const mergeRemote = makeProject('proj_1', '2024-06-02T00:00:00Z', undefined, [0, 1, 0, 0]);
+
+    const plan = {
+      newRemote: [{ id: 'proj_new', remote: { data: newRemote } }],
+      mergeTracking: [{ id: 'proj_1', local: existing, remote: { data: mergeRemote } }],
+      conflicts: [],
+      stashMerge: null
+    };
+
+    const result = await SE.executeImport(plan, {});
+    expect(result.imported).toBe(1);
+    expect(result.merged).toBe(1);
+    expect(global.ProjectStorage._store['proj_new']).toBeDefined();
+    expect(global.ProjectStorage._store['proj_1'].done).toEqual([1, 1, 0, 0]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getSyncStatus
+// ---------------------------------------------------------------------------
+
+describe('getSyncStatus', () => {
+  test('returns device info and sync timestamps', () => {
+    const status = SE.getSyncStatus();
+    expect(status.deviceId).toMatch(/^dev_/);
+    expect(typeof status.hasFolderWatch).toBe('boolean');
+  });
+
+  test('reflects updated device name', () => {
+    SE.setDeviceName('My Test PC');
+    const status = SE.getSyncStatus();
+    expect(status.deviceName).toBe('My Test PC');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases
+// ---------------------------------------------------------------------------
+
+describe('edge cases', () => {
+  test('computeFingerprint handles empty pattern array', () => {
+    const proj = { settings: { sW: 0, sH: 0 }, pattern: [] };
+    const fp = SE.computeFingerprint(proj);
+    expect(typeof fp).toBe('string');
+    expect(fp).toMatch(/^fp_/);
+  });
+
+  test('mergeStash handles one-sided data', () => {
+    const localOnly = { threads: { '310': { owned: 2 } }, patterns: [{ id: 'p1', title: 'Test' }] };
+    const result = SE.mergeStash(localOnly, null);
+    expect(result.threads['310'].owned).toBe(2);
+    expect(result.patterns[0].title).toBe('Test');
+  });
+
+  test('mergeStash handles remote-only data', () => {
+    const remoteOnly = { threads: { '550': { owned: 1 } }, patterns: [] };
+    const result = SE.mergeStash(null, remoteOnly);
+    expect(result.threads['550'].owned).toBe(1);
+  });
+
+  test('mergeDoneArrays handles mismatched lengths gracefully', () => {
+    const local = [1, 0, 1];
+    const remote = [0, 1];
+    // Should handle the shorter array without crashing
+    const result = SE.mergeDoneArrays(local, remote, 3);
+    expect(result.length).toBe(3);
+    expect(result[0]).toBe(1);
+    expect(result[1]).toBe(1);
+    expect(result[2]).toBe(1);
+  });
+
+  test('validate rejects malformed input gracefully', () => {
+    expect(SE.validate(undefined).valid).toBe(false);
+    expect(SE.validate('string').valid).toBe(false);
+    expect(SE.validate(42).valid).toBe(false);
+    expect(SE.validate([]).valid).toBe(false);
+  });
+
+  test('compress handles empty projects array', () => {
+    const obj = { _format: 'cross-stitch-sync', _version: 1, projects: [] };
+    const compressed = SE.compress(obj);
+    const back = SE.decompress(compressed.buffer);
+    expect(back.projects).toEqual([]);
   });
 });
