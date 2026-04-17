@@ -910,13 +910,44 @@ window.CreatorSidebar = function CreatorSidebar() {
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection
     );
+    // ── Create mode bottom action bar ─────────────────────────────────────
+    var createActions = h("div", {style:{
+      flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
+      background:"var(--surface)", display:"flex", flexDirection:"column", gap:8
+    }},
+      // Generate / Regenerate button
+      gen.img && h("button", {
+        onClick:function(){ gen.generate(); },
+        disabled:gen.busy,
+        style:{width:"100%",padding:"10px",fontSize:13,fontWeight:600,cursor:gen.busy?"wait":"pointer",
+          border:"none",borderRadius:8,
+          background:gen.busy?"#94a3b8":gen.hasGenerated?"var(--surface-tertiary)":"#0d9488",
+          color:gen.hasGenerated?"var(--text-primary)":"#fff"}
+      }, gen.busy ? "Generating\u2026" : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
+      // Continue to Edit → (only after generation)
+      gen.hasGenerated && h("button", {
+        onClick:function(){
+          app.setAppMode("edit");
+          app.setSidebarTab("palette");
+          if(window.__switchToEdit) window.__switchToEdit();
+          app.addToast("Switched to Edit mode", {type:"info", duration:2000});
+        },
+        style:{width:"100%",padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",
+          border:"none",borderRadius:8,background:"#0d9488",color:"#fff",
+          display:"flex",alignItems:"center",justifyContent:"center",gap:6}
+      }, "Edit Pattern \u2192"),
+      // Hint text
+      !gen.img && h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
+        "Upload an image to get started")
+    );
     return h(React.Fragment, null,
       tabBar,
       h("div", {style:{overflowY:"auto",flex:1}},
         sTab === "settings" && settingsContent,
         sTab === "preview" && previewPanel,
         sTab === "project" && h("div", null, /* ProjectTab renders separately */)
-      )
+      ),
+      createActions
     );
   }
 
@@ -948,6 +979,29 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   );
 
+  // ── Edit mode bottom action bar ──────────────────────────────────────────
+  var editActions = (ctx.pat && ctx.pal) ? h("div", {style:{
+    flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
+    background:"var(--surface)", display:"flex", gap:8
+  }},
+    h("button", {
+      onClick:function(){
+        app.setAppMode("create");
+        app.setSidebarTab("settings");
+        if(window.__switchToCreate) window.__switchToCreate();
+      },
+      style:{flex:1,padding:"10px",fontSize:12,fontWeight:500,cursor:"pointer",
+        border:"1px solid var(--border)",borderRadius:8,background:"var(--surface)",
+        color:"var(--text-secondary)"}
+    }, "\u2190 Create"),
+    h("button", {
+      onClick:function(){ app.handleOpenInTracker(); },
+      style:{flex:2,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",
+        border:"none",borderRadius:8,background:"#0d9488",color:"#fff",
+        display:"flex",alignItems:"center",justifyContent:"center",gap:6}
+    }, "Start Tracking \u2192")
+  ) : null;
+
   return h(React.Fragment, null,
     tabBar,
     h("div", {style:{overflowY:"auto",flex:1}},
@@ -961,6 +1015,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       sTab === "preview" && previewPanel,
       sTab === "more" && moreContent
-    )
+    ),
+    editActions
   );
 };

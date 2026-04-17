@@ -303,7 +303,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               className: 'tb-page-dropdown-item',
               onClick: () => { onSave(); setFileMenuOpen(false); }
             }, 'Save (.json)'),
-            page === 'creator' && onTrack && React.createElement('button', {
+            (page === 'creator' || page === 'editor') && onTrack && React.createElement('button', {
               className: 'tb-page-dropdown-item',
               onClick: () => { onTrack(); setFileMenuOpen(false); }
             }, 'Open in Stitch Tracker'),
@@ -312,7 +312,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               onClick: () => { onExportPDF(); setFileMenuOpen(false); }
             }, 'Export PDF…'),
             // Separator before backup/restore
-            !!(onNewProject || onOpen || onSave || onTrack || onExportPDF) &&
+            !!(onNewProject || onOpen || onSave || ((page === 'creator' || page === 'editor') && onTrack) || onExportPDF) &&
               React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),
             // Backup — use prop handler if provided (e.g. manager shows status feedback), else inline
             React.createElement('button', {

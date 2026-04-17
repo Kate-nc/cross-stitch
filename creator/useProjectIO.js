@@ -98,6 +98,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (onSwitchToTrack) {
       saveProjectToDB(project).catch(function() {});
       ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function() {});
+      if (state.addToast) state.addToast("Opening in Stitch Tracker\u2026", {type:"info", duration:2000});
       onSwitchToTrack({ project: project, key: Date.now() });
       return;
     }

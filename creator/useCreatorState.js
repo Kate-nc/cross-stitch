@@ -576,6 +576,9 @@ window.useCreatorState = function useCreatorState() {
     var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
     setTimeout(function() { setZoom(z); }, 0);
     setBusy(false);
+    // Toast on successful generation
+    var colCount = result.pal ? result.pal.length : 0;
+    addToast("Pattern generated \u2014 " + sW + "\u00D7" + sH + ", " + colCount + " colours", {type:"success", duration:3000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
