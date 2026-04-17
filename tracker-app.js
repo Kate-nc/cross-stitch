@@ -292,6 +292,8 @@ const pendingMilestonesRef=useRef([]);
 const lastStitchActivityRef=useRef(null);
 const autoIdleTimerRef=useRef(null);
 const prevAutoCountRef=useRef({done:0,halfDone:0});
+const justLoadedRef=useRef(false);
+const justLoadedSettlePassRef=useRef(0);
 const autoStatsRef=useRef({doneCount:0,totalStitchable:0});
 const finaliseAutoSessionRef=useRef(null);
 const IDLE_THRESHOLD_MS=10*60*1000;
@@ -735,9 +737,14 @@ useEffect(()=>{
     const prev=prevAutoCountRef.current||{done:0,halfDone:0};
     const prevDone=prev.done;
     const prevHalf=prev.halfDone;
-    // Skip initial load or project load (sentinel value -1)
-    if(prevDone<0||prevHalf<0){
+    // Skip initial load or project load — justLoadedRef stays true until
+    // both doneCount and halfStitchCounts.done have settled post-load.
+    if(justLoadedRef.current||prevDone<0||prevHalf<0){
       prevAutoCountRef.current={done:curDone,halfDone:curHalf};
+      if(justLoadedRef.current){
+        justLoadedSettlePassRef.current=(justLoadedSettlePassRef.current||0)+1;
+        if(justLoadedSettlePassRef.current>=2&&prevDone>=0&&prevHalf>=0)justLoadedRef.current=false;
+      }
       return;
     }
     const doneDiff=curDone-prevDone;
@@ -1808,11 +1815,41 @@ function processLoadedProject(project){
   var rawStatsSessions=project.statsSessions||[];
   if(rawStatsSessions.length===0&&project.totalTime>0){
     var legacyDone=project.done?Array.from(project.done).filter(function(v){return v===1;}).length:0;
+    var normaliseSessionTime=(function(value){
+      if(value==null||value==="")return null;
+      var dt;
+      if(typeof value==="number"&&Number.isFinite(value))dt=new Date(value);
+      else if(typeof value==="string"){
+        var trimmed=value.trim();
+        if(!trimmed)return null;
+        if(/^\d+$/.test(trimmed))dt=new Date(Number(trimmed));
+        else dt=new Date(trimmed);
+      }else if(value instanceof Date)dt=value;
+      if(!dt||Number.isNaN(dt.getTime()))return null;
+      return dt.toISOString();
+    });
+    var legacyCreatedAtIso=normaliseSessionTime(project.createdAt);
+    var legacyUpdatedAtIso=normaliseSessionTime(project.updatedAt);
+    // Use createdAt for the legacy session date so historical stitches are never
+    // attributed to today.  Fall back to a date 24h in the past if createdAt is
+    // missing or resolves to today's local date.
+    var legacyDate=(function(){
+      var src=legacyCreatedAtIso||legacyUpdatedAtIso;
+      if(src){
+        var d=src.slice(0,10);
+        // Guard: if that date is today (local), push it back 24h
+        var today=getStitchingDate(new Date(),0);
+        if(d===today){var yest=new Date();yest.setDate(yest.getDate()-1);d=yest.getFullYear()+'-'+('0'+(yest.getMonth()+1)).slice(-2)+'-'+('0'+yest.getDate()).slice(-2);}
+        return d;
+      }
+      var yest=new Date();yest.setDate(yest.getDate()-1);return yest.getFullYear()+'-'+('0'+(yest.getMonth()+1)).slice(-2)+'-'+('0'+yest.getDate()).slice(-2);
+    })();
+    var legacyStart=legacyCreatedAtIso||legacyUpdatedAtIso||(function(){var d=new Date();d.setDate(d.getDate()-1);return d.toISOString();}());
     rawStatsSessions=[{
       id:'sess_legacy',
-      date:project.updatedAt?project.updatedAt.slice(0,10):new Date().toISOString().slice(0,10),
-      startTime:project.createdAt||project.updatedAt||new Date().toISOString(),
-      endTime:project.updatedAt||new Date().toISOString(),
+      date:legacyDate,
+      startTime:legacyStart,
+      endTime:legacyUpdatedAtIso||legacyStart,
       durationSeconds:project.totalTime,
       durationMinutes:Math.round(project.totalTime/60),
       stitchesCompleted:legacyDone,
@@ -1843,7 +1880,11 @@ function processLoadedProject(project){
   setDoneSnapshots(project.doneSnapshots||[]);
   lastSnapshotDateRef.current=null;
   // Reset auto-session count refs so loading doesn't trigger a spurious session
-  // (will be set accurately after next render via the doneCount/halfDone effects)
+  // justLoadedRef stays true until the stitch-delta effect has run at least once,
+  // protecting against the sentinel being consumed by a halfStitchCounts change
+  // before doneCount has been recomputed.
+  justLoadedRef.current=true;
+  justLoadedSettlePassRef.current=0;
   prevAutoCountRef.current={done:-1,halfDone:-1};
   if(project.hlRow>=0)setHlRow(project.hlRow);
   if(project.hlCol>=0)setHlCol(project.hlCol);

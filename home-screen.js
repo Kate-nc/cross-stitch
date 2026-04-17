@@ -115,11 +115,20 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   // Stash alerts
   var stashAlerts = useMemo(function() {
     if (!hasStash) return null;
+    // Build set of thread IDs required by any non-completed pattern
+    var activeIds = new Set();
+    if (patterns && patterns.length > 0) {
+      patterns.forEach(function(pat) {
+        if (pat.status === 'completed') return;
+        if (pat.threads) pat.threads.forEach(function(t) { activeIds.add(t.id); });
+      });
+    }
     var lowCount = 0;
     stashEntries.forEach(function(id) {
       var thread = stash[id];
       var threshold = thread.min_stock != null ? thread.min_stock : 1;
-      if (thread.owned <= threshold) lowCount++;
+      // Only warn if the thread is actually needed by an active project
+      if (thread.owned <= threshold && activeIds.has(id)) lowCount++;
     });
     // Projects needing thread — check patterns that have thread requirements unmet by stash
     var projectsNeedThread = 0;

@@ -264,6 +264,27 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tb-app-tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 .tb-app-tab--active{background:transparent;color:var(--accent);font-weight:600;}
 .tb-app-tab--active::after{content:'';position:absolute;bottom:-14px;left:12px;right:12px;height:2px;background:var(--accent);border-radius:2px;}
+/* Responsive: compact nav tabs on narrow screens */
+@media (max-width: 599px) {
+  .tb-app-nav{gap:0;margin-left:2px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+  .tb-app-nav::-webkit-scrollbar{display:none;}
+  .tb-app-tab{font-size:11px;padding:6px 8px;}
+  .tb-app-tab--active::after{left:6px;right:6px;}
+  .tb-topbar-inner{padding:0 8px;gap:2px;}
+  .tb-logo{font-size:13px;}
+  .tb-hgap{display:none;}
+  .tb-proj-badge{max-width:120px;padding:2px 6px;}
+  .tb-page-btn{font-size:11px;padding:4px 8px;}
+  .tb-sep{margin:0 2px;}
+}
+@media (max-width: 399px) {
+  .tb-app-tab{font-size:10px;padding:5px 6px;}
+  .tb-logo{display:none;}
+}
+/* Sidebar action bar: always visible above mobile drawer */
+@media (pointer: coarse) {
+  .rpanel .sidebar-actions{position:sticky;bottom:0;z-index:11;box-shadow:0 -2px 8px rgba(0,0,0,0.06);}
+}
 
 /* Active project badge */
 .tb-proj-badge{display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;background:var(--accent-light);border:1px solid var(--accent-border);flex-shrink:1;min-width:0;max-width:260px;overflow:hidden;}

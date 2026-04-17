@@ -240,7 +240,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const canvas = useCanvasInteractionHook(state, history);
   const io = useProjectIOHook(state, history, {onSwitchToTrack});
   usePreviewHook(state);
-  useKeyboardShortcutsHook(state, history, io);
+  useKeyboardShortcutsHook(Object.assign({}, state, {isActive: isActive}), history, io);
+
+  // Expose setAppMode so UnifiedApp can switch modes
+  React.useEffect(()=>{
+    window.__setCreatorAppMode=state.setAppMode;
+    return()=>{delete window.__setCreatorAppMode;};
+  },[state.setAppMode]);
 
   // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
   // Handler identity is stabilised via a ref; the ref is updated synchronously on
@@ -347,6 +353,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function() { return {
+    appMode: state.appMode, setAppMode: state.setAppMode,
+    sidebarTab: state.sidebarTab, setSidebarTab: state.setSidebarTab,
     tab: state.tab, setTab: state.setTab,
     modal: state.modal, setModal: state.setModal,
     sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
@@ -400,6 +408,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleOpenInTracker: stableHandleOpenInTracker,
     isActive: isActive,
   }; }, [
+    state.appMode, state.sidebarTab,
     state.tab, state.modal, state.sidebarOpen, state.loadError,
     state.copied, state.dimOpen, state.palOpen, state.fabOpen,
     state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen,
@@ -620,23 +629,15 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     <window.CanvasContext.Provider value={cvCtx}>
     <window.PatternDataContext.Provider value={pdCtx}>
       <input ref={state.loadRef} type="file" accept=".json" onChange={io.loadProject} style={{display:"none"}}/>
-      <Header page="creator" tab={state.tab} onPageChange={state.setTab}
+      <Header page={state.appMode==='edit'?'editor':'creator'} tab={state.tab} onPageChange={state.setTab}
         onOpen={()=>state.loadRef.current.click()}
         onSave={state.pat&&state.pal?io.saveProject:null}
         onTrack={state.pat&&state.pal?io.handleOpenInTracker:null}
         onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData):null}
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
-        setModal={state.setModal} />
-      {state.pat&&state.pal&&<ContextBar
-        name={state.projectName||(state.sW+'×'+state.sH+' pattern')}
-        dimensions={{width:state.sW,height:state.sH}}
-        palette={state.pal}
-        pct={null}
-        page="creator"
-        onTrack={io.handleOpenInTracker}
-        onSave={io.saveProject}
-        onNameChange={n=>state.setProjectName(n)}
-      />}
+        setModal={state.setModal}
+        projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):undefined}
+        onNameChange={state.pat&&state.pal?n=>state.setProjectName(n):undefined} />
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
         onConfirm={name=>{state.setProjectName(name);state.setNamePromptOpen(false);io.doSaveProject(name);}}
@@ -852,6 +853,18 @@ function UnifiedApp(){
   const switchToDesign=React.useCallback(()=>{
     window.history.replaceState({},'',window.location.pathname);
     setMode('design');
+    // When coming from tracker, default to edit mode
+    if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');
+  },[]);
+  const switchToCreate=React.useCallback(()=>{
+    window.history.replaceState({},'',window.location.pathname);
+    setMode('design');
+    if(window.__setCreatorAppMode) window.__setCreatorAppMode('create');
+  },[]);
+  const switchToEdit=React.useCallback(()=>{
+    window.history.replaceState({},'',window.location.pathname);
+    setMode('design');
+    if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');
   },[]);
   const switchToStats=React.useCallback(()=>{
     if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
@@ -868,10 +881,12 @@ function UnifiedApp(){
   React.useEffect(()=>{
     window.__switchToTrack=switchToTrack;
     window.__switchToDesign=switchToDesign;
+    window.__switchToCreate=switchToCreate;
+    window.__switchToEdit=switchToEdit;
     window.__switchToStats=switchToStats;
     window.__goHome=goHome;
-    return()=>{delete window.__switchToTrack;delete window.__switchToDesign;delete window.__switchToStats;delete window.__goHome;};
-  },[switchToTrack,switchToDesign,switchToStats,goHome]);
+    return()=>{delete window.__switchToTrack;delete window.__switchToDesign;delete window.__switchToCreate;delete window.__switchToEdit;delete window.__switchToStats;delete window.__goHome;};
+  },[switchToTrack,switchToDesign,switchToCreate,switchToEdit,switchToStats,goHome]);
 
   const handleHomeOpenCreatorWithImage=React.useCallback((file)=>{
     window.__pendingCreatorFile=file;
@@ -887,6 +902,8 @@ function UnifiedApp(){
     setCreatorResetKey(k=>k+1);
     window.history.replaceState({},'',window.location.pathname);
     setMode('design');
+    // Scratch mode → Edit, not Create
+    setTimeout(()=>{if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');},0);
   },[]);
 
   const handleHomeOpenFile=React.useCallback((file)=>{

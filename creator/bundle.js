@@ -3507,6 +3507,12 @@ window.useCreatorState = function useCreatorState() {
   var skeinPrice = _skeinPrice[0], setSkeinPrice = _skeinPrice[1];
   var _stitchSpeed = useState(40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
 
+  // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
+  var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
+
+  // Sidebar tab within current mode (mode-specific)
+  var _sidebarTab = useState("settings"); var sidebarTab = _sidebarTab[0], setSidebarTab = _sidebarTab[1];
+
   // UI state
   var _tab        = useState("pattern"); var tab        = _tab[0],        setTab        = _tab[1];
   var _sidOpen    = useState(true);      var sidebarOpen = _sidOpen[0],   setSidebarOpen = _sidOpen[1];
@@ -3558,7 +3564,18 @@ window.useCreatorState = function useCreatorState() {
   // Tools / editing
   var _actTool  = useState(null);    var activeTool     = _actTool[0];
   var activeToolRef = useRef(null);
-  function setActiveTool(v) { activeToolRef.current = v; _actTool[1](v); }
+  var previousToolRef = useRef(null);
+  function setActiveTool(v) {
+    // Track previous tool for eyedropper auto-return
+    var prev = activeToolRef.current;
+    if (v === "eyedropper" && prev && prev !== "eyedropper") {
+      previousToolRef.current = prev;
+    } else if (v !== "eyedropper") {
+      // Switching away from pick manually — clear stale ref
+      previousToolRef.current = null;
+    }
+    activeToolRef.current = v; _actTool[1](v);
+  }
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
@@ -3784,11 +3801,12 @@ window.useCreatorState = function useCreatorState() {
   }, [dmcSearch]);
 
   var displayPal = useMemo(function() {
-    if (!isScratchMode || !pal) return pal;
+    if (!pal) return pal;
+    if (!scratchPalette.length) return pal;
     var ids = new Set(pal.map(function(p) { return p.id; }));
     var extras = scratchPalette.filter(function(p) { return !ids.has(p.id); });
     return pal.concat(extras);
-  }, [isScratchMode, pal, scratchPalette]);
+  }, [pal, scratchPalette]);
 
   var progressPct = totalStitchable > 0 ? Math.round(doneCount / totalStitchable * 1000) / 10 : 0;
 
@@ -3826,7 +3844,7 @@ window.useCreatorState = function useCreatorState() {
 
   function buildPaletteWithScratch(np) {
     var result = buildPalette(np);
-    if (!isScratchMode || !scratchPalette.length) return result;
+    if (!scratchPalette.length) return result;
     var ids = new Set(result.pal.map(function(x) { return x.id; }));
     var extras = scratchPalette.filter(function(x) { return !ids.has(x.id); });
     var ec = {};
@@ -3955,17 +3973,31 @@ window.useCreatorState = function useCreatorState() {
     setImg({ src: null, w: sW, h: sH });
     prevSW.current = sW; prevSH.current = sH;
     initBlankGrid(sW, sH);
+    // Scratch mode bypasses Create → go straight to Edit
+    setAppMode("edit");
+    setSidebarTab("palette");
   }
 
   function addScratchColour(d) {
     if (cmap && cmap[d.id]) return;
     var usedSyms = new Set(pal ? pal.map(function(p) { return p.symbol; }) : []);
     var sym = SYMS.find(function(s) { return !usedSyms.has(s); }) || SYMS[(pal ? pal.length : 0) % SYMS.length];
-    var entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym };
+    var entry;
+    if (d.type === "blend" && d.threads && d.threads.length === 2) {
+      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, count: 0, symbol: sym };
+    } else {
+      entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym };
+    }
     setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== d.id; }).concat([entry]); });
     setPal(function(prev) { return prev ? prev.concat([entry]) : [entry]; });
     setCmap(function(prev) { return prev ? Object.assign({}, prev, { [d.id]: entry }) : { [d.id]: entry }; });
     setSelectedColorId(d.id);
+    setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "add_colour", changes: [], addedEntry: entry }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    setRedoHistory([]);
     if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
   }
 
@@ -4023,6 +4055,9 @@ window.useCreatorState = function useCreatorState() {
     var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
     setTimeout(function() { setZoom(z); }, 0);
     setBusy(false);
+    // Toast on successful generation
+    var colCount = result.pal ? result.pal.length : 0;
+    addToast("Pattern generated \u2014 " + sW + "\u00D7" + sH + ", " + colCount + " colours", {type:"success", duration:3000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
@@ -4359,6 +4394,7 @@ window.useCreatorState = function useCreatorState() {
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
+    appMode, setAppMode, sidebarTab, setSidebarTab,
     tab, setTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
@@ -4377,7 +4413,7 @@ window.useCreatorState = function useCreatorState() {
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef,
-    activeTool, setActiveTool, activeToolRef,
+    activeTool, setActiveTool, activeToolRef, previousToolRef,
     bsLines, setBsLines, bsStart, setBsStart,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
@@ -4546,6 +4582,32 @@ window.useEditHistory = function useEditHistory(state) {
 
     if (!editHistory.length) return;
     var last = editHistory[editHistory.length - 1];
+
+    // Handle add_colour undo: remove the added colour from scratchPalette, pal, cmap
+    if (last.type === "add_colour" && last.addedEntry) {
+      var aid = last.addedEntry.id;
+      var removedWasSelected = state.selectedColorId === aid;
+      var nextScratchPalette = Array.isArray(state.scratchPalette) ? state.scratchPalette.filter(function(p) { return p.id !== aid; }) : null;
+      var nextPal = Array.isArray(state.pal) ? state.pal.filter(function(p) { return p.id !== aid; }) : null;
+      var fallbackSelectedColorId = null;
+      if (removedWasSelected) {
+        if (nextScratchPalette && nextScratchPalette.length) fallbackSelectedColorId = nextScratchPalette[nextScratchPalette.length - 1].id;
+        else if (nextPal && nextPal.length) fallbackSelectedColorId = nextPal[0].id;
+      }
+      state.setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== aid; }); });
+      state.setPal(function(prev) { return prev ? prev.filter(function(p) { return p.id !== aid; }) : prev; });
+      state.setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); delete n[aid]; return n; });
+      if (removedWasSelected && state.setSelectedColorId) state.setSelectedColorId(fallbackSelectedColorId);
+      state.setEditHistory(function(prev) { return prev.slice(0, -1); });
+      state.setRedoHistory(function(prev) {
+        var n = prev.concat([{ type: "add_colour", changes: [], addedEntry: last.addedEntry }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Undo: removed added colour " + aid, {type:"info", duration:1500});
+      return;
+    }
+
     var np = pat.slice();
     var redoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
@@ -4586,6 +4648,23 @@ window.useEditHistory = function useEditHistory(state) {
 
     if (!redoHistory.length) return;
     var last = redoHistory[redoHistory.length - 1];
+
+    // Handle add_colour redo: re-add the colour
+    if (last.type === "add_colour" && last.addedEntry) {
+      var entry = last.addedEntry;
+      state.setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== entry.id; }).concat([entry]); });
+      state.setPal(function(prev) { return prev ? prev.concat([entry]) : [entry]; });
+      state.setCmap(function(prev) { return prev ? Object.assign({}, prev, { [entry.id]: entry }) : { [entry.id]: entry }; });
+      state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
+      state.setEditHistory(function(prev) {
+        var n = prev.concat([{ type: "add_colour", changes: [], addedEntry: entry }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Redo: re-added colour " + entry.id, {type:"info", duration:1500});
+      return;
+    }
+
     var np = pat.slice();
     var undoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
@@ -4854,13 +4933,26 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var cell = pat[idx];
     if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
       state.setSelectedColorId(cell.id);
+      // Auto-return to the previous tool after a successful pick
+      if (state.previousToolRef && state.previousToolRef.current) {
+        state.setActiveTool(state.previousToolRef.current);
+        state.previousToolRef.current = null;
+      }
     } else {
       var ps = partialStitches.get(idx);
       if (ps) {
         var qKeys = ["TL", "TR", "BL", "BR"];
         for (var qi = 0; qi < qKeys.length; qi++) {
           var qe = ps[qKeys[qi]];
-          if (qe && cmap[qe.id]) { state.setSelectedColorId(qe.id); return; }
+          if (qe && cmap[qe.id]) {
+            state.setSelectedColorId(qe.id);
+            // Auto-return to the previous tool after a successful pick
+            if (state.previousToolRef && state.previousToolRef.current) {
+              state.setActiveTool(state.previousToolRef.current);
+              state.previousToolRef.current = null;
+            }
+            return;
+          }
         }
       }
       state.setEyedropperEmpty(true);
@@ -5005,7 +5097,14 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var pt = { x: gx, y: gy };
       if (!bsStart) { state.setBsStart(pt); }
       else {
+        var prevBsForHistory = bsLines.slice();
         state.setBsLines(function(prev) { return prev.concat([{ x1: bsStart.x, y1: bsStart.y, x2: pt.x, y2: pt.y }]); });
+        state.setEditHistory(function(prev) {
+          var n = prev.concat([{ type: "backstitch", changes: [], bsLines: prevBsForHistory }]);
+          if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+          return n;
+        });
+        state.setRedoHistory([]);
         state.setBsStart(bsContinuous ? pt : null);
       }
     }
@@ -5024,7 +5123,17 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         var dx = gx - xx, dy = gy - yy, d = Math.sqrt(dx * dx + dy * dy);
         if (d < mmd) { mmd = d; mci = i; }
       });
-      if (mmd <= 0.7 && mci >= 0) { var nBs2 = bsLines.slice(); nBs2.splice(mci, 1); state.setBsLines(nBs2); }
+      if (mmd <= 0.7 && mci >= 0) {
+        var prevBsForErase = bsLines.slice();
+        var nBs2 = bsLines.slice(); nBs2.splice(mci, 1);
+        state.setBsLines(nBs2);
+        state.setEditHistory(function(prev) {
+          var n = prev.concat([{ type: "eraseBs", changes: [], bsLines: prevBsForErase }]);
+          if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+          return n;
+        });
+        state.setRedoHistory([]);
+      }
     }
   }
 
@@ -5696,6 +5805,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (onSwitchToTrack) {
       saveProjectToDB(project).catch(function() {});
       ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function() {});
+      if (state.addToast) state.addToast("Opening in Stitch Tracker\u2026", {type:"info", duration:2000});
       onSwitchToTrack({ project: project, key: Date.now() });
       return;
     }
@@ -5792,6 +5902,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setProjectName(project.name || "");
     state.projectIdRef.current = project.id || null;
     state.createdAtRef.current = project.createdAt || null;
+
+    // Loaded projects have a pattern already — default to Edit mode
+    state.setAppMode("edit");
+    state.setSidebarTab("palette");
 
     var scrollRef = state.scrollRef;
     if (project.savedZoom != null) {
@@ -6892,6 +7006,48 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
 
+  // ─── Create Mode: minimal toolbar ────────────────────────────────────────────
+  if (app.appMode === "create") {
+    var createZoomGrp = [
+      h("div", {key:"sdiv-cz", className:"tb-sdiv"}),
+      h("div", {key:"zoom-grp", className:"tb-grp"},
+        h("input", {
+          type:"range", min:0.05, max:3, step:0.05, value:cv.zoom,
+          onChange:function(e){ cv.setZoom(parseFloat(e.target.value)); },
+          style:{width:80}, title:"Zoom"
+        }),
+        h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}, Math.round(cv.zoom*100)+"%"),
+        h("button", {className:"tb-btn", onClick:function(){ cv.setZoom(cv.fitZ||1); }, title:"Fit (Home)"}, "Fit")
+      )
+    ];
+    return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},
+      h("div", {className:"pill-row"},
+        h("div", {ref:app.stripRef, className:"pill"},
+          // Overlay toggle
+          gen.img && h("button", {
+            className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
+            onClick:function(){ cv.setShowOverlay(!cv.showOverlay); },
+            title:"Toggle source image overlay", "aria-label":"Toggle source image overlay"
+          }, "\uD83D\uDDBC\uFE0F Overlay"),
+          h("div", {className:"tb-sdiv"}),
+          // Zoom
+          createZoomGrp,
+          h("div", {className:"tb-sdiv"}),
+          // Generate / Regenerate
+          h("button", {
+            className:"tb-btn tb-btn--green",
+            onClick:function(){ gen.generate(); },
+            disabled:gen.busy,
+            "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
+            title:gen.hasGenerated?"Regenerate pattern":"Generate pattern"
+          }, gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate")
+        )
+      )
+    );
+  }
+
+  // ─── Edit Mode: full editing toolbar (current behaviour) ──────────────────────
+
   var sc = app.stripCollapsed || {};
 
   // Palette data sorted by usage — needed early for auto-select
@@ -6974,6 +7130,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // Stitch type dropdown — shown only when paint or fill is the active brush mode
   var showStitchGrp = (cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase";
+
+  // Show the colour pill for paint/fill modes AND when the eyedropper is active
+  var showSwatchRow = (showStitchGrp || cv.activeTool==="eyedropper") && palData.length > 0;
   var stitchMeta = {
     "cross":         {icon:svgX,         label:"Cross",       cls:"tb-btn--green"},
     "quarter":       {icon:svgQtr,       label:"\u00BC Stitch",  cls:"tb-btn--blue"},
@@ -7006,7 +7165,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Colour swatch strip — second toolbar row, sorted by usage, with expand
   var SWATCH_INIT = 20;
   var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
-  var swatchRow = showStitchGrp && palData.length > 0 ? h("div", {className:"swatch-strip-row"},
+  var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
       style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0}
@@ -7213,7 +7372,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   );
 
   // Undo/Redo
-  var undoRedo = (cv.editHistory.length > 0 || cv.redoHistory.length > 0) ? [
+  var undoRedo = [
     h("div", {key:"sdiv-ur", className:"tb-sdiv"}),
     h("button", {
       key:"undo", className:"tb-btn",
@@ -7227,7 +7386,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       title:"Redo (Ctrl+Y)",
       style:{opacity:cv.redoHistory.length?1:0.3}
     }, "\u21AA")
-  ] : null;
+  ];
 
   // Overflow menu items
   var overlayItems = (gen.img && gen.img.src) ? [
@@ -7425,7 +7584,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   }, svgSplit, !sc.bs ? " Split" : null);
 
   return h(React.Fragment, null,
-    h("div", {className:"toolbar-row"},
+    h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
           brushGrp,
@@ -9013,12 +9172,39 @@ window.CreatorSidebar = function CreatorSidebar() {
   var coloursBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#0d9488",background:"#f0fdfa",padding:"1px 8px",borderRadius:10}},
     (ctx.displayPal ? ctx.displayPal.filter(function(p){return p.count>0;}).length : 0)+" used"
   );
-  var coloursSection = ctx.isScratchMode ? h(Section, {
+  // ── Blend picker local state ──────────────────────────────────────────────
+  var _bl1 = React.useState(null); var blendThread1 = _bl1[0], setBlendThread1 = _bl1[1];
+  var _bl2 = React.useState(null); var blendThread2 = _bl2[0], setBlendThread2 = _bl2[1];
+  var _blSearch = React.useState(""); var blendSearch = _blSearch[0], setBlendSearch = _blSearch[1];
+  var _blMode = React.useState(false); var blendMode = _blMode[0], setBlendMode = _blMode[1];
+
+  var blendFiltered = React.useMemo(function() {
+    if (!blendSearch.trim()) return DMC;
+    var q = blendSearch.toLowerCase();
+    return DMC.filter(function(d) { return d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q); });
+  }, [blendSearch]);
+
+  function addBlend() {
+    if (!blendThread1 || !blendThread2 || blendThread1.id === blendThread2.id) return;
+    var blendId = blendThread1.id + "+" + blendThread2.id;
+    var blendEntry = {
+      type: "blend",
+      id: blendId,
+      name: blendId,
+      rgb: [Math.round((blendThread1.rgb[0] + blendThread2.rgb[0]) / 2), Math.round((blendThread1.rgb[1] + blendThread2.rgb[1]) / 2), Math.round((blendThread1.rgb[2] + blendThread2.rgb[2]) / 2)],
+      lab: [(blendThread1.lab[0] + blendThread2.lab[0]) / 2, (blendThread1.lab[1] + blendThread2.lab[1]) / 2, (blendThread1.lab[2] + blendThread2.lab[2]) / 2],
+      threads: [blendThread1, blendThread2]
+    };
+    ctx.addScratchColour(blendEntry);
+    setBlendThread1(null); setBlendThread2(null); setBlendSearch(""); setBlendMode(false);
+  }
+
+  var coloursSection = ctx.pat ? h(Section, {
     title:"Colours", isOpen:ctx.colPickerOpen, onToggle:ctx.setColPickerOpen, badge:coloursBadge
   },
     h("div", {style:{marginTop:8}},
-      h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#f1f5f9",borderRadius:8}},
-        [["1","Add colour","→"],["2","Select chip","→"],["3","Paint!",""]].map(function(item,i) {
+      ctx.isScratchMode && h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#f1f5f9",borderRadius:8}},
+        [["1","Add colour","\u2192"],["2","Select chip","\u2192"],["3","Paint!",""]].map(function(item,i) {
           return h(React.Fragment, {key:i},
             h("div", {style:{display:"flex",alignItems:"center",gap:4}},
               h("span", {style:{width:16,height:16,borderRadius:"50%",background:"#0d9488",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
@@ -9028,30 +9214,100 @@ window.CreatorSidebar = function CreatorSidebar() {
           );
         })
       ),
-      h("input", {
-        type:"text", placeholder:"Search by DMC # or name\u2026",
-        value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);},
-        style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e2e8f0",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
-      }),
-      h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
-        ctx.dmcFiltered.slice(0,60).map(function(d) {
-          var inPal = ctx.cmap && ctx.cmap[d.id];
-          return h(Tooltip, {key:d.id, text:inPal?"Already in your palette":"Click to add to your palette", width:160},
-            h("div", {
-              onClick:function(){ctx.addScratchColour(d);},
+      // Toggle between single thread and blend mode
+      h("div", {style:{display:"flex",gap:4,marginBottom:8}},
+        h("button", {
+          onClick:function(){ setBlendMode(false); },
+          style:{flex:1,padding:"4px 8px",fontSize:11,fontWeight:blendMode?500:700,cursor:"pointer",
+            border:blendMode?"1px solid #e2e8f0":"1px solid #0d9488",borderRadius:6,
+            background:blendMode?"#fff":"#f0fdfa",color:blendMode?"#475569":"#0d9488"}
+        }, "Single thread"),
+        h("button", {
+          onClick:function(){ setBlendMode(true); },
+          style:{flex:1,padding:"4px 8px",fontSize:11,fontWeight:blendMode?700:500,cursor:"pointer",
+            border:blendMode?"1px solid #0d9488":"1px solid #e2e8f0",borderRadius:6,
+            background:blendMode?"#f0fdfa":"#fff",color:blendMode?"#0d9488":"#475569"}
+        }, "Blend (2 threads)")
+      ),
+      !blendMode ? h(React.Fragment, null,
+        h("input", {
+          type:"text", placeholder:"Search by DMC # or name\u2026",
+          value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);},
+          style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e2e8f0",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
+        }),
+        h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
+          ctx.dmcFiltered.slice(0,60).map(function(d) {
+            var inPal = ctx.cmap && ctx.cmap[d.id];
+            return h(Tooltip, {key:d.id, text:inPal?"Already in your palette":"Click to add to your palette", width:160},
+              h("div", {
+                onClick:function(){ctx.addScratchColour(d);},
+                style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,cursor:"pointer",
+                  background:inPal?"#f0fdfa":"#fff",
+                  border:inPal?"1px solid #99f6e4":"1px solid transparent",
+                  opacity:inPal?0.7:1,width:"100%"}
+              },
+                h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1"}}),
+                h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1e293b"}}, d.id),
+                h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+                inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#94a3b8"}}, "+")
+              )
+            );
+          }),
+          ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#94a3b8",padding:"8px 0",textAlign:"center"}}, "No colours found")
+        )
+      ) : h(React.Fragment, null,
+        // Blend mode UI: pick two threads
+        h("div", {style:{display:"flex",gap:4,marginBottom:6,alignItems:"center"}},
+          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:11,minHeight:24,display:"flex",alignItems:"center",gap:4,background:blendThread1?"#f0fdfa":"#fff"}},
+            blendThread1 ? h(React.Fragment, null,
+              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread1.rgb+")",border:"1px solid #cbd5e1",flexShrink:0}}),
+              h("span", {style:{fontWeight:600}}, blendThread1.id),
+              h("span", {onClick:function(){setBlendThread1(null);},style:{cursor:"pointer",color:"#94a3b8",marginLeft:2}}, "\u2715")
+            ) : h("span", {style:{color:"#94a3b8"}}, "Thread 1\u2026")
+          ),
+          h("span", {style:{fontSize:11,color:"#94a3b8",fontWeight:600}}, "+"),
+          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:11,minHeight:24,display:"flex",alignItems:"center",gap:4,background:blendThread2?"#f0fdfa":"#fff"}},
+            blendThread2 ? h(React.Fragment, null,
+              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread2.rgb+")",border:"1px solid #cbd5e1",flexShrink:0}}),
+              h("span", {style:{fontWeight:600}}, blendThread2.id),
+              h("span", {onClick:function(){setBlendThread2(null);},style:{cursor:"pointer",color:"#94a3b8",marginLeft:2}}, "\u2715")
+            ) : h("span", {style:{color:"#94a3b8"}}, "Thread 2\u2026")
+          )
+        ),
+        blendThread1 && blendThread2 && blendThread1.id !== blendThread2.id && h("button", {
+          onClick:addBlend,
+          style:{width:"100%",padding:"6px 0",fontSize:12,fontWeight:600,cursor:"pointer",
+            border:"1px solid #0d9488",borderRadius:6,background:"#f0fdfa",color:"#0d9488",marginBottom:8}
+        }, "Add blend " + blendThread1.id + "+" + blendThread2.id),
+        blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:11,color:"#dc2626",marginBottom:8}}, "Pick two different threads"),
+        h("input", {
+          type:"text", placeholder:"Search DMC threads\u2026",
+          value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);},
+          style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e2e8f0",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
+        }),
+        h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
+          blendFiltered.slice(0,60).map(function(d) {
+            var isSel1 = blendThread1 && blendThread1.id === d.id;
+            var isSel2 = blendThread2 && blendThread2.id === d.id;
+            return h("div", {
+              key:d.id,
+              onClick:function(){
+                if (!blendThread1) setBlendThread1(d);
+                else if (!blendThread2 && d.id !== blendThread1.id) setBlendThread2(d);
+              },
               style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,cursor:"pointer",
-                background:inPal?"#f0fdfa":"#fff",
-                border:inPal?"1px solid #99f6e4":"1px solid transparent",
-                opacity:inPal?0.7:1,width:"100%"}
+                background:(isSel1||isSel2)?"#f0fdfa":"#fff",
+                border:(isSel1||isSel2)?"1px solid #99f6e4":"1px solid transparent",
+                opacity:(isSel1||isSel2)?0.7:1,width:"100%"}
             },
               h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1"}}),
               h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1e293b"}}, d.id),
               h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#94a3b8"}}, "+")
-            )
-          );
-        }),
-        ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#94a3b8",padding:"8px 0",textAlign:"center"}}, "No colours found")
+              (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"#0d9488"}}, isSel1?"\u27981":"\u27982") : h("span", {style:{fontSize:10,color:"#94a3b8"}}, "+")
+            );
+          }),
+          blendFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#94a3b8",padding:"8px 0",textAlign:"center"}}, "No colours found")
+        )
       )
     )
   ) : null;
@@ -9513,41 +9769,304 @@ window.CreatorSidebar = function CreatorSidebar() {
           border:"none",borderRadius:8,cursor:gen.busy?"wait":"pointer"}
       }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
-  return h(React.Fragment, null,
-    palChipsSection,
-    // ── View toggle (Colour / Symbol / Both) ───────────────────────────────────
-    (ctx.pat && ctx.pal) ? h("div", {
-      style:{borderBottom:"0.5px solid var(--border)",padding:"8px 12px",display:"flex",alignItems:"center",gap:8}
-    },
-      h("span", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginRight:4}}, "View"),
-      h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:8,padding:2,flex:1}},
-        [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
+  // ─── Mode-aware sidebar tab bar ────────────────────────────────────────────
+  var mode = app.appMode || "edit";
+  var sTab = app.sidebarTab || "settings";
+
+  var createTabs = [["settings","Settings"],["preview","Preview"]];
+  var editTabs = [["palette","Palette"],["view","View"],["preview","Preview"],["more","More"]];
+  var tabs = mode === "create" ? createTabs : editTabs;
+
+  // Ensure sidebarTab is valid for current mode
+  var validIds = tabs.map(function(t) { return t[0]; });
+  if (validIds.indexOf(sTab) === -1) sTab = validIds[0];
+
+  var tabBar = h("div", {
+    role:"tablist", "aria-label":mode === "create" ? "Create mode panels" : "Edit mode panels",
+    style:{display:"flex",borderBottom:"1px solid var(--border)",background:"var(--surface)"}
+  }, tabs.map(function(kl) {
+    return h("button", {
+      key:kl[0],
+      role:"tab",
+      "aria-selected":sTab===kl[0],
+      "aria-controls":"sidebar-panel-"+kl[0],
+      onClick:function(){ app.setSidebarTab(kl[0]); },
+      style:{
+        flex:1,padding:"8px 2px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
+        border:"none",borderBottom:sTab===kl[0]?"2px solid var(--accent)":"2px solid transparent",
+        cursor:"pointer",fontFamily:"inherit",
+        background:"transparent",
+        color:sTab===kl[0]?"var(--accent)":"var(--text-secondary)",
+      }
+    }, kl[1]);
+  }));
+
+  // ─── View toggle (shared between View tab content in both modes) ─────────
+  var viewToggle = (ctx.pat && ctx.pal) ? h("div", {
+    style:{padding:"8px 12px",display:"flex",alignItems:"center",gap:8}
+  },
+    h("span", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginRight:4}}, "View"),
+    h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:8,padding:2,flex:1}},
+      [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
+        return h("button", {
+          key:kl[0],
+          onClick:function(){cv.setView(kl[0]);},
+          title:"Cycle view (V)",
+          style:{
+            flex:1,padding:"4px 6px",fontSize:11,fontWeight:cv.view===kl[0]?600:400,
+            border:"none",cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+            background:cv.view===kl[0]?"var(--surface)":"transparent",
+            color:cv.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
+            boxShadow:cv.view===kl[0]?"var(--shadow-sm)":"none"
+          }
+        }, kl[1]);
+      })
+    )
+  ) : null;
+
+  // ─── Highlight mode controls (shared between Edit and Track View tabs) ──
+  var highlightControls = cv.hiId ? h("div", {style:{padding:"8px 12px",borderTop:"0.5px solid var(--border)"}},
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:6}}, "Highlight Mode"),
+    h("div", {style:{display:"flex",gap:3,flexWrap:"wrap"}},
+      [["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(function(kl) {
+        return h("button", {
+          key:kl[0],
+          onClick:function(){ cv.setHighlightMode(kl[0]); },
+          style:{
+            flex:1,padding:"4px 6px",fontSize:10,fontWeight:cv.highlightMode===kl[0]?600:400,
+            border:"1px solid "+(cv.highlightMode===kl[0]?"var(--accent)":"var(--border)"),
+            cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+            background:cv.highlightMode===kl[0]?"var(--accent-light)":"transparent",
+            color:cv.highlightMode===kl[0]?"var(--accent)":"var(--text-secondary)",
+          }
+        }, kl[1]);
+      })
+    ),
+    cv.highlightMode === "isolate" && h("div", {style:{marginTop:6}},
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
+        "Dim strength",
+        h("input", {type:"range",min:0,max:1,step:0.05,value:cv.bgDimOpacity,
+          onChange:function(e){cv.setBgDimOpacity(parseFloat(e.target.value));}})
+      )
+    ),
+    cv.highlightMode === "tint" && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6}},
+      h("label", {style:{fontSize:11,color:"var(--text-secondary)"}}, "Tint"),
+      h("input", {type:"color",value:cv.tintColor,onChange:function(e){cv.setTintColor(e.target.value);},style:{width:24,height:20,border:"none",padding:0,cursor:"pointer"}}),
+      h("input", {type:"range",min:0,max:1,step:0.05,value:cv.tintOpacity,
+        onChange:function(e){cv.setTintOpacity(parseFloat(e.target.value));}})
+    ),
+    cv.highlightMode === "spotlight" && h("div", {style:{marginTop:6}},
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
+        "Dim strength",
+        h("input", {type:"range",min:0,max:1,step:0.05,value:cv.spotDimOpacity,
+          onChange:function(e){cv.setSpotDimOpacity(parseFloat(e.target.value));}})
+      )
+    )
+  ) : null;
+
+  // ─── Preview panel (shared between Create and Edit) ──────────────────────
+  var isRealistic = app.previewMode === "realistic";
+  var previewPanel = h("div", {style:{padding:"12px"}},
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:8}}, "Chart Mode"),
+    h("div", {style:{display:"flex",gap:3,marginBottom:12}},
+      [["chart","Chart"],["pixel","Pixel"],["realistic","Realistic"]].map(function(kl) {
+        var active = (!app.previewActive && kl[0]==="chart") || (app.previewActive && app.previewMode===kl[0]);
+        return h("button", {
+          key:kl[0],
+          onClick:function(){
+            if(kl[0]==="chart"){app.setPreviewActive(false);}
+            else{app.setPreviewActive(true);app.setPreviewMode(kl[0]);}
+          },
+          style:{
+            flex:1,padding:"6px 4px",fontSize:11,fontWeight:active?600:400,
+            border:"1px solid "+(active?"var(--accent)":"var(--border)"),
+            cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+            background:active?"var(--accent-light)":"transparent",
+            color:active?"var(--accent)":"var(--text-secondary)",
+          }
+        }, kl[1]);
+      })
+    ),
+    isRealistic && app.previewActive && h(React.Fragment, null,
+      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:4}}, "Quality Level"),
+      h("div", {style:{display:"flex",gap:3,marginBottom:12}},
+        [1,2,3,4].map(function(lv) {
           return h("button", {
-            key:kl[0],
-            onClick:function(){cv.setView(kl[0]);},
-            title:"Cycle view (V)",
+            key:lv,
+            onClick:function(){app.setRealisticLevel(lv);},
             style:{
-              flex:1,padding:"4px 6px",fontSize:11,fontWeight:cv.view===kl[0]?600:400,
-              border:"none",cursor:"pointer",borderRadius:6,fontFamily:"inherit",
-              background:cv.view===kl[0]?"var(--surface)":"transparent",
-              color:cv.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
-              boxShadow:cv.view===kl[0]?"var(--shadow-sm)":"none"
+              flex:1,padding:"5px 4px",fontSize:11,fontWeight:app.realisticLevel===lv?600:400,
+              border:"1px solid "+(app.realisticLevel===lv?"var(--accent)":"var(--border)"),
+              cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+              background:app.realisticLevel===lv?"var(--accent-light)":"transparent",
+              color:app.realisticLevel===lv?"var(--accent)":"var(--text-secondary)",
             }
-          }, kl[1]);
+          }, "Level "+lv);
         })
       )
-    ) : null,
-    imageCard,
-    coloursSection,
-    dimSection,
-    palSection,
-    cleanupSection,
-    fabSection,
-    adjSection,
-    bgSection,
-    ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
-    ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
-    actionBtn
+    ),
+    h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
+      h("label", {style:{fontSize:11,color:"var(--text-secondary)",flexShrink:0}}, "Coverage"),
+      h("input", {type:"range",min:0,max:1,step:0.05,
+        value:app.coverageOverride!=null?app.coverageOverride:0.5,
+        onChange:function(e){app.setCoverageOverride(parseFloat(e.target.value));},
+        style:{flex:1}
+      }),
+      app.coverageOverride!=null && h("button", {
+        onClick:function(){app.setCoverageOverride(null);},
+        style:{fontSize:10,padding:"2px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--surface)",cursor:"pointer",color:"var(--text-secondary)"}
+      }, "\u21BA Auto")
+    ),
+    h("div", {style:{display:"flex",gap:3,marginBottom:12}},
+      [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
+        var active = app.coverageOverride!=null && Math.abs(app.coverageOverride - preset[1]) < 0.03;
+        return h("button", {
+          key:preset[0],
+          onClick:function(){app.setCoverageOverride(preset[1]);},
+          style:{
+            flex:1,fontSize:9,padding:"3px 0",
+            border:"1px solid "+(active?"var(--accent)":"var(--border)"),
+            borderRadius:4,background:active?"var(--accent)":"transparent",
+            color:active?"#fff":"var(--text-secondary)",cursor:"pointer"
+          }
+        }, preset[0]);
+      })
+    ),
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)",marginBottom:4}},
+      h("input", {type:"checkbox",checked:app.previewShowGrid,onChange:function(){app.setPreviewShowGrid(!app.previewShowGrid);}}),
+      "Grid overlay"
+    ),
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
+      h("input", {type:"checkbox",checked:app.previewFabricBg,onChange:function(){app.setPreviewFabricBg(!app.previewFabricBg);}}),
+      "Fabric background"
+    )
+  );
+
+  // ─── Create Mode Sidebar ─────────────────────────────────────────────────
+  if (mode === "create") {
+    var settingsContent = h(React.Fragment, null,
+      imageCard,
+      dimSection,
+      palSection,
+      cleanupSection,
+      fabSection,
+      adjSection,
+      bgSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection
+    );
+    // ── Create mode bottom action bar ─────────────────────────────────────
+    var createActions = h("div", {style:{
+      flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
+      background:"var(--surface)", display:"flex", flexDirection:"column", gap:8
+    }},
+      // Generate / Regenerate button
+      gen.img && h("button", {
+        onClick:function(){ gen.generate(); },
+        disabled:gen.busy,
+        "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
+        style:{width:"100%",padding:"10px",fontSize:13,fontWeight:600,cursor:gen.busy?"wait":"pointer",
+          border:"none",borderRadius:8,
+          background:gen.busy?"#94a3b8":gen.hasGenerated?"var(--surface-tertiary)":"#0d9488",
+          color:gen.hasGenerated?"var(--text-primary)":"#fff"}
+      }, gen.busy ? "Generating\u2026" : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
+      // Continue to Edit → (only after generation)
+      gen.hasGenerated && h("button", {
+        "aria-label":"Continue to Edit mode",
+        onClick:function(){
+          app.setAppMode("edit");
+          app.setSidebarTab("palette");
+          if(window.__switchToEdit) window.__switchToEdit();
+          app.addToast("Switched to Edit mode", {type:"info", duration:2000});
+        },
+        style:{width:"100%",padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",
+          border:"none",borderRadius:8,background:"#0d9488",color:"#fff",
+          display:"flex",alignItems:"center",justifyContent:"center",gap:6}
+      }, "Edit Pattern \u2192"),
+      // Hint text
+      !gen.img && h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
+        "Upload an image to get started")
+    );
+    return h(React.Fragment, null,
+      tabBar,
+      h("div", {style:{overflowY:"auto",flex:1}},
+        sTab === "settings" && settingsContent,
+        sTab === "preview" && previewPanel
+      ),
+      createActions
+    );
+  }
+
+  // ─── Edit Mode Sidebar ────────────────────────────────────────────────────
+  var moreContent = h(React.Fragment, null,
+    h(Section, {title:"Generation Settings",defaultOpen:false},
+      imageCard,
+      dimSection,
+      palSection,
+      cleanupSection,
+      fabSection,
+      adjSection,
+      bgSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      h("button", {
+        onClick:function(){
+          if(cv.editHistory.length > 0 && !confirm("Regenerating will replace your current edits. Continue?")) return;
+          gen.generate();
+        },
+        disabled:gen.busy,
+        style:{width:"100%",padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer",border:"none",borderRadius:8,background:"var(--accent)",color:"#fff",marginTop:8}
+      }, "\u21BB Regenerate")
+    ),
+    h(Section, {title:"Project Info",defaultOpen:false},
+      h("div", {style:{fontSize:11,color:"var(--text-secondary)",padding:"4px 0"}},
+        ctx.sW + " \xD7 " + ctx.sH + " stitches \u00B7 " + (ctx.displayPal||ctx.pal||[]).length + " colours"
+      )
+    )
+  );
+
+  // ── Edit mode bottom action bar ──────────────────────────────────────────
+  var editActions = (ctx.pat && ctx.pal) ? h("div", {style:{
+    flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
+    background:"var(--surface)", display:"flex", gap:8
+  }},
+    h("button", {
+      "aria-label":"Switch to Create mode",
+      onClick:function(){
+        if(cv.editHistory.length > 0 && !confirm("Switch to Create mode? Your edits are auto-saved.")) return;
+        app.setAppMode("create");
+        app.setSidebarTab("settings");
+        if(window.__switchToCreate) window.__switchToCreate();
+        app.addToast("Switched to Create mode", {type:"info", duration:2000});
+      },
+      style:{flex:1,padding:"10px",fontSize:12,fontWeight:500,cursor:"pointer",
+        border:"1px solid var(--border)",borderRadius:8,background:"var(--surface)",
+        color:"var(--text-secondary)"}
+    }, "\u2190 Create"),
+    h("button", {
+      "aria-label":"Open pattern in Stitch Tracker",
+      onClick:function(){ app.handleOpenInTracker(); },
+      style:{flex:2,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",
+        border:"none",borderRadius:8,background:"#0d9488",color:"#fff",
+        display:"flex",alignItems:"center",justifyContent:"center",gap:6}
+    }, "Start Tracking \u2192")
+  ) : null;
+
+  return h(React.Fragment, null,
+    tabBar,
+    h("div", {style:{overflowY:"auto",flex:1}},
+      sTab === "palette" && h(React.Fragment, null,
+        palChipsSection,
+        coloursSection
+      ),
+      sTab === "view" && h(React.Fragment, null,
+        viewToggle,
+        highlightControls
+      ),
+      sTab === "preview" && previewPanel,
+      sTab === "more" && moreContent
+    ),
+    editActions
   );
 };
 

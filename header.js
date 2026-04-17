@@ -142,13 +142,13 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   const creatorPages = [['pattern','Pattern'],['project','Project'],['legend','Threads'],['export','Export']];
   const activeLabel = creatorPages.find(p => p[0] === tab)?.[1] || 'Pattern';
 
-  // App-section nav tabs
+  // App-section nav tabs — include Edit between Create and Track
   const appSections = [
     { id: 'creator', label: 'Create', href: 'index.html' },
+    { id: 'editor', label: 'Edit', href: 'index.html' },
     { id: 'tracker', label: 'Track',  href: 'stitch.html' },
     { id: 'manager', label: 'Stash',  href: 'manager.html' },
     { id: 'stats', label: 'Stats', href: 'index.html?mode=stats' },
-    { id: 'embroidery', label: 'Embroidery (BETA)', href: 'embroidery.html' },
   ];
 
   // Active project summary for the badge (consumed from prop or read from ProjectStorage if available)
@@ -203,33 +203,30 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
         // App-section navigation tabs
         React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
-          appSections.map(({ id, label, href }) =>
-            React.createElement('a', {
+          appSections.map(({ id, label, href }) => {
+            const switchMap = { tracker: '__switchToTrack', creator: '__switchToCreate', editor: '__switchToEdit', stats: '__switchToStats' };
+            const fn = window[switchMap[id]];
+            return React.createElement('a', {
               key: id,
               href,
               className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
-              onClick: id === 'tracker' && window.__switchToTrack
-                ? (e) => { e.preventDefault(); window.__switchToTrack(); }
-                : id === 'creator' && window.__switchToDesign
-                  ? (e) => { e.preventDefault(); window.__switchToDesign(); }
-                  : id === 'stats' && window.__switchToStats
-                    ? (e) => { e.preventDefault(); window.__switchToStats(); }
-                    : undefined,
+              onClick: fn ? (e) => { e.preventDefault(); fn(); } : undefined,
               ...(page === id ? { 'aria-current': 'page' } : {}),
-            }, label)
-          )
+            }, label);
+          })
         ),
 
-        // Creator sub-page dropdown (only on creator)
-        page === 'creator' && React.createElement('div', { ref: dropRef, style: { position: 'relative', flexShrink: 0, marginLeft: 6 } },
-          React.createElement('button', { className: 'tb-page-btn', onClick: () => setPageDrop(o => !o) },
+        // Sub-page dropdown (creator and editor modes)
+        (page === 'creator' || page === 'editor') && React.createElement('div', { ref: dropRef, style: { position: 'relative', flexShrink: 0, marginLeft: 6 } },
+          React.createElement('button', { className: 'tb-page-btn', onClick: () => setPageDrop(o => !o), 'aria-haspopup': 'true', 'aria-expanded': pageDrop },
             activeLabel,
             React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 1 } }, '▾')
           ),
-          pageDrop && React.createElement('div', { className: 'tb-page-dropdown' },
+          pageDrop && React.createElement('div', { className: 'tb-page-dropdown', role: 'menu' },
             creatorPages.map(([id, label]) =>
               React.createElement('button', {
                 key: id,
+                role: 'menuitem',
                 className: 'tb-page-dropdown-item' + (tab === id ? ' tb-page-dropdown-item--on' : ''),
                 onClick: () => { onPageChange(id); setPageDrop(false); }
               }, label)
@@ -299,7 +296,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               className: 'tb-page-dropdown-item',
               onClick: () => { onSave(); setFileMenuOpen(false); }
             }, 'Save (.json)'),
-            page === 'creator' && onTrack && React.createElement('button', {
+            (page === 'creator' || page === 'editor') && onTrack && React.createElement('button', {
               className: 'tb-page-dropdown-item',
               onClick: () => { onTrack(); setFileMenuOpen(false); }
             }, 'Open in Stitch Tracker'),
@@ -308,7 +305,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               onClick: () => { onExportPDF(); setFileMenuOpen(false); }
             }, 'Export PDF…'),
             // Separator before backup/restore
-            !!(onNewProject || onOpen || onSave || onTrack || onExportPDF) &&
+            !!(onNewProject || onOpen || onSave || ((page === 'creator' || page === 'editor') && onTrack) || onExportPDF) &&
               React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),
             // Backup — use prop handler if provided (e.g. manager shows status feedback), else inline
             React.createElement('button', {

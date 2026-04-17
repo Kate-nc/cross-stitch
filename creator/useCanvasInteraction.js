@@ -231,13 +231,26 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var cell = pat[idx];
     if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
       state.setSelectedColorId(cell.id);
+      // Auto-return to the previous tool after a successful pick
+      if (state.previousToolRef && state.previousToolRef.current) {
+        state.setActiveTool(state.previousToolRef.current);
+        state.previousToolRef.current = null;
+      }
     } else {
       var ps = partialStitches.get(idx);
       if (ps) {
         var qKeys = ["TL", "TR", "BL", "BR"];
         for (var qi = 0; qi < qKeys.length; qi++) {
           var qe = ps[qKeys[qi]];
-          if (qe && cmap[qe.id]) { state.setSelectedColorId(qe.id); return; }
+          if (qe && cmap[qe.id]) {
+            state.setSelectedColorId(qe.id);
+            // Auto-return to the previous tool after a successful pick
+            if (state.previousToolRef && state.previousToolRef.current) {
+              state.setActiveTool(state.previousToolRef.current);
+              state.previousToolRef.current = null;
+            }
+            return;
+          }
         }
       }
       state.setEyedropperEmpty(true);
@@ -382,7 +395,14 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var pt = { x: gx, y: gy };
       if (!bsStart) { state.setBsStart(pt); }
       else {
+        var prevBsForHistory = bsLines.slice();
         state.setBsLines(function(prev) { return prev.concat([{ x1: bsStart.x, y1: bsStart.y, x2: pt.x, y2: pt.y }]); });
+        state.setEditHistory(function(prev) {
+          var n = prev.concat([{ type: "backstitch", changes: [], bsLines: prevBsForHistory }]);
+          if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+          return n;
+        });
+        state.setRedoHistory([]);
         state.setBsStart(bsContinuous ? pt : null);
       }
     }
@@ -401,7 +421,17 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         var dx = gx - xx, dy = gy - yy, d = Math.sqrt(dx * dx + dy * dy);
         if (d < mmd) { mmd = d; mci = i; }
       });
-      if (mmd <= 0.7 && mci >= 0) { var nBs2 = bsLines.slice(); nBs2.splice(mci, 1); state.setBsLines(nBs2); }
+      if (mmd <= 0.7 && mci >= 0) {
+        var prevBsForErase = bsLines.slice();
+        var nBs2 = bsLines.slice(); nBs2.splice(mci, 1);
+        state.setBsLines(nBs2);
+        state.setEditHistory(function(prev) {
+          var n = prev.concat([{ type: "eraseBs", changes: [], bsLines: prevBsForErase }]);
+          if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+          return n;
+        });
+        state.setRedoHistory([]);
+      }
     }
   }
 

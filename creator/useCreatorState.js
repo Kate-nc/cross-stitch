@@ -51,6 +51,12 @@ window.useCreatorState = function useCreatorState() {
   var skeinPrice = _skeinPrice[0], setSkeinPrice = _skeinPrice[1];
   var _stitchSpeed = useState(40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
 
+  // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
+  var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
+
+  // Sidebar tab within current mode (mode-specific)
+  var _sidebarTab = useState("settings"); var sidebarTab = _sidebarTab[0], setSidebarTab = _sidebarTab[1];
+
   // UI state
   var _tab        = useState("pattern"); var tab        = _tab[0],        setTab        = _tab[1];
   var _sidOpen    = useState(true);      var sidebarOpen = _sidOpen[0],   setSidebarOpen = _sidOpen[1];
@@ -102,7 +108,18 @@ window.useCreatorState = function useCreatorState() {
   // Tools / editing
   var _actTool  = useState(null);    var activeTool     = _actTool[0];
   var activeToolRef = useRef(null);
-  function setActiveTool(v) { activeToolRef.current = v; _actTool[1](v); }
+  var previousToolRef = useRef(null);
+  function setActiveTool(v) {
+    // Track previous tool for eyedropper auto-return
+    var prev = activeToolRef.current;
+    if (v === "eyedropper" && prev && prev !== "eyedropper") {
+      previousToolRef.current = prev;
+    } else if (v !== "eyedropper") {
+      // Switching away from pick manually — clear stale ref
+      previousToolRef.current = null;
+    }
+    activeToolRef.current = v; _actTool[1](v);
+  }
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
@@ -328,11 +345,12 @@ window.useCreatorState = function useCreatorState() {
   }, [dmcSearch]);
 
   var displayPal = useMemo(function() {
-    if (!isScratchMode || !pal) return pal;
+    if (!pal) return pal;
+    if (!scratchPalette.length) return pal;
     var ids = new Set(pal.map(function(p) { return p.id; }));
     var extras = scratchPalette.filter(function(p) { return !ids.has(p.id); });
     return pal.concat(extras);
-  }, [isScratchMode, pal, scratchPalette]);
+  }, [pal, scratchPalette]);
 
   var progressPct = totalStitchable > 0 ? Math.round(doneCount / totalStitchable * 1000) / 10 : 0;
 
@@ -370,7 +388,7 @@ window.useCreatorState = function useCreatorState() {
 
   function buildPaletteWithScratch(np) {
     var result = buildPalette(np);
-    if (!isScratchMode || !scratchPalette.length) return result;
+    if (!scratchPalette.length) return result;
     var ids = new Set(result.pal.map(function(x) { return x.id; }));
     var extras = scratchPalette.filter(function(x) { return !ids.has(x.id); });
     var ec = {};
@@ -499,17 +517,31 @@ window.useCreatorState = function useCreatorState() {
     setImg({ src: null, w: sW, h: sH });
     prevSW.current = sW; prevSH.current = sH;
     initBlankGrid(sW, sH);
+    // Scratch mode bypasses Create → go straight to Edit
+    setAppMode("edit");
+    setSidebarTab("palette");
   }
 
   function addScratchColour(d) {
     if (cmap && cmap[d.id]) return;
     var usedSyms = new Set(pal ? pal.map(function(p) { return p.symbol; }) : []);
     var sym = SYMS.find(function(s) { return !usedSyms.has(s); }) || SYMS[(pal ? pal.length : 0) % SYMS.length];
-    var entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym };
+    var entry;
+    if (d.type === "blend" && d.threads && d.threads.length === 2) {
+      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, count: 0, symbol: sym };
+    } else {
+      entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym };
+    }
     setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== d.id; }).concat([entry]); });
     setPal(function(prev) { return prev ? prev.concat([entry]) : [entry]; });
     setCmap(function(prev) { return prev ? Object.assign({}, prev, { [d.id]: entry }) : { [d.id]: entry }; });
     setSelectedColorId(d.id);
+    setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "add_colour", changes: [], addedEntry: entry }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    setRedoHistory([]);
     if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
   }
 
@@ -567,6 +599,9 @@ window.useCreatorState = function useCreatorState() {
     var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
     setTimeout(function() { setZoom(z); }, 0);
     setBusy(false);
+    // Toast on successful generation
+    var colCount = result.pal ? result.pal.length : 0;
+    addToast("Pattern generated \u2014 " + sW + "\u00D7" + sH + ", " + colCount + " colours", {type:"success", duration:3000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
@@ -903,6 +938,7 @@ window.useCreatorState = function useCreatorState() {
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
+    appMode, setAppMode, sidebarTab, setSidebarTab,
     tab, setTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
@@ -921,7 +957,7 @@ window.useCreatorState = function useCreatorState() {
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef,
-    activeTool, setActiveTool, activeToolRef,
+    activeTool, setActiveTool, activeToolRef, previousToolRef,
     bsLines, setBsLines, bsStart, setBsStart,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,

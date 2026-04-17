@@ -14,6 +14,32 @@ window.useEditHistory = function useEditHistory(state) {
 
     if (!editHistory.length) return;
     var last = editHistory[editHistory.length - 1];
+
+    // Handle add_colour undo: remove the added colour from scratchPalette, pal, cmap
+    if (last.type === "add_colour" && last.addedEntry) {
+      var aid = last.addedEntry.id;
+      var removedWasSelected = state.selectedColorId === aid;
+      var nextScratchPalette = Array.isArray(state.scratchPalette) ? state.scratchPalette.filter(function(p) { return p.id !== aid; }) : null;
+      var nextPal = Array.isArray(state.pal) ? state.pal.filter(function(p) { return p.id !== aid; }) : null;
+      var fallbackSelectedColorId = null;
+      if (removedWasSelected) {
+        if (nextScratchPalette && nextScratchPalette.length) fallbackSelectedColorId = nextScratchPalette[nextScratchPalette.length - 1].id;
+        else if (nextPal && nextPal.length) fallbackSelectedColorId = nextPal[0].id;
+      }
+      state.setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== aid; }); });
+      state.setPal(function(prev) { return prev ? prev.filter(function(p) { return p.id !== aid; }) : prev; });
+      state.setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); delete n[aid]; return n; });
+      if (removedWasSelected && state.setSelectedColorId) state.setSelectedColorId(fallbackSelectedColorId);
+      state.setEditHistory(function(prev) { return prev.slice(0, -1); });
+      state.setRedoHistory(function(prev) {
+        var n = prev.concat([{ type: "add_colour", changes: [], addedEntry: last.addedEntry }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Undo: removed added colour " + aid, {type:"info", duration:1500});
+      return;
+    }
+
     var np = pat.slice();
     var redoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
@@ -54,6 +80,23 @@ window.useEditHistory = function useEditHistory(state) {
 
     if (!redoHistory.length) return;
     var last = redoHistory[redoHistory.length - 1];
+
+    // Handle add_colour redo: re-add the colour
+    if (last.type === "add_colour" && last.addedEntry) {
+      var entry = last.addedEntry;
+      state.setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== entry.id; }).concat([entry]); });
+      state.setPal(function(prev) { return prev ? prev.concat([entry]) : [entry]; });
+      state.setCmap(function(prev) { return prev ? Object.assign({}, prev, { [entry.id]: entry }) : { [entry.id]: entry }; });
+      state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
+      state.setEditHistory(function(prev) {
+        var n = prev.concat([{ type: "add_colour", changes: [], addedEntry: entry }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Redo: re-added colour " + entry.id, {type:"info", duration:1500});
+      return;
+    }
+
     var np = pat.slice();
     var undoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });

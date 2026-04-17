@@ -53,6 +53,48 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
 
+  // ─── Create Mode: minimal toolbar ────────────────────────────────────────────
+  if (app.appMode === "create") {
+    var createZoomGrp = [
+      h("div", {key:"sdiv-cz", className:"tb-sdiv"}),
+      h("div", {key:"zoom-grp", className:"tb-grp"},
+        h("input", {
+          type:"range", min:0.05, max:3, step:0.05, value:cv.zoom,
+          onChange:function(e){ cv.setZoom(parseFloat(e.target.value)); },
+          style:{width:80}, title:"Zoom"
+        }),
+        h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}, Math.round(cv.zoom*100)+"%"),
+        h("button", {className:"tb-btn", onClick:function(){ cv.setZoom(cv.fitZ||1); }, title:"Fit (Home)"}, "Fit")
+      )
+    ];
+    return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},
+      h("div", {className:"pill-row"},
+        h("div", {ref:app.stripRef, className:"pill"},
+          // Overlay toggle
+          gen.img && h("button", {
+            className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
+            onClick:function(){ cv.setShowOverlay(!cv.showOverlay); },
+            title:"Toggle source image overlay", "aria-label":"Toggle source image overlay"
+          }, "\uD83D\uDDBC\uFE0F Overlay"),
+          h("div", {className:"tb-sdiv"}),
+          // Zoom
+          createZoomGrp,
+          h("div", {className:"tb-sdiv"}),
+          // Generate / Regenerate
+          h("button", {
+            className:"tb-btn tb-btn--green",
+            onClick:function(){ gen.generate(); },
+            disabled:gen.busy,
+            "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
+            title:gen.hasGenerated?"Regenerate pattern":"Generate pattern"
+          }, gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate")
+        )
+      )
+    );
+  }
+
+  // ─── Edit Mode: full editing toolbar (current behaviour) ──────────────────────
+
   var sc = app.stripCollapsed || {};
 
   // Palette data sorted by usage — needed early for auto-select
@@ -135,6 +177,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // Stitch type dropdown — shown only when paint or fill is the active brush mode
   var showStitchGrp = (cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase";
+
+  // Show the colour pill for paint/fill modes AND when the eyedropper is active
+  var showSwatchRow = (showStitchGrp || cv.activeTool==="eyedropper") && palData.length > 0;
   var stitchMeta = {
     "cross":         {icon:svgX,         label:"Cross",       cls:"tb-btn--green"},
     "quarter":       {icon:svgQtr,       label:"\u00BC Stitch",  cls:"tb-btn--blue"},
@@ -167,7 +212,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Colour swatch strip — second toolbar row, sorted by usage, with expand
   var SWATCH_INIT = 20;
   var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
-  var swatchRow = showStitchGrp && palData.length > 0 ? h("div", {className:"swatch-strip-row"},
+  var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
       style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0}
@@ -374,7 +419,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   );
 
   // Undo/Redo
-  var undoRedo = (cv.editHistory.length > 0 || cv.redoHistory.length > 0) ? [
+  var undoRedo = [
     h("div", {key:"sdiv-ur", className:"tb-sdiv"}),
     h("button", {
       key:"undo", className:"tb-btn",
@@ -388,7 +433,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       title:"Redo (Ctrl+Y)",
       style:{opacity:cv.redoHistory.length?1:0.3}
     }, "\u21AA")
-  ] : null;
+  ];
 
   // Overflow menu items
   var overlayItems = (gen.img && gen.img.src) ? [
@@ -586,7 +631,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   }, svgSplit, !sc.bs ? " Split" : null);
 
   return h(React.Fragment, null,
-    h("div", {className:"toolbar-row"},
+    h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
           brushGrp,
