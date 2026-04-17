@@ -178,6 +178,20 @@ function ManagerApp() {
     setLowStockAlerts(alerts);
   }, [threads, patterns]);
 
+  // Split low-stock alerts into those needed by active projects vs. not
+  const { lowStockNeeded, lowStockNotNeeded } = useMemo(() => {
+    if (!lowStockAlerts) return { lowStockNeeded: null, lowStockNotNeeded: null };
+    const activeIds = new Set();
+    patterns.forEach(pat => {
+      if (pat.status === 'completed') return;
+      if (pat.threads) pat.threads.forEach(t => activeIds.add(t.id));
+    });
+    return {
+      lowStockNeeded: lowStockAlerts.filter(a => activeIds.has(a.id)),
+      lowStockNotNeeded: lowStockAlerts.filter(a => !activeIds.has(a.id)),
+    };
+  }, [lowStockAlerts, patterns]);
+
   function openManagerDB() {
     return new Promise((resolve, reject) => {
       ensurePersistence();
@@ -422,7 +436,7 @@ function ManagerApp() {
         <div className="mgr-stats-strip">
           <div className="stat">{Icons.check()} <span className="val">{totalOwnedCount}</span> skeins owned</div>
           <div className="stat">{Icons.cart()} <span className="val">{toBuyCount}</span> to buy</div>
-          {lowStockAlerts && lowStockAlerts.length > 0 && <div className="stat">{Icons.warning()} <span className="val">{lowStockAlerts.length}</span> low stock</div>}
+          {lowStockNeeded && lowStockNeeded.length > 0 && <div className="stat">{Icons.warning()} <span className="val">{lowStockNeeded.length}</span> low stock (needed)</div>}
         </div>
       )}
 
@@ -448,19 +462,37 @@ function ManagerApp() {
               </div>
             )}
 
-            {/* Smart Hub: Low-Stock Alerts */}
-            {lowStockAlerts && lowStockAlerts.length > 0 && (
+            {/* Smart Hub: Low-Stock Alerts — needed by active projects */}
+            {lowStockNeeded && lowStockNeeded.length > 0 && (
               <div className="alert-card warn" style={{ marginBottom: 16 }}>
-                <div className="at">{Icons.box()} Low Stock ({lowStockAlerts.length})</div>
-                <div style={{ fontSize: 12, color: "#475569", marginBottom: 10 }}>Threads below your minimum stock level.</div>
+                <div className="at">{Icons.box()} Low Stock — Needed ({lowStockNeeded.length})</div>
+                <div style={{ fontSize: 12, color: "#475569", marginBottom: 10 }}>Threads below your minimum stock level that are used by active projects.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
-                  {lowStockAlerts.map(a => (
+                  {lowStockNeeded.map(a => (
                     <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fde68a" }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 }} />
                       <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {a.id}</span>
                       <span style={{ fontSize: 11, color: "#475569", flex: 1 }}>{a.name}</span>
                       <span style={{ fontSize: 11, color: "#b45309", fontWeight: 600 }}>have {a.owned}, min {a.min_stock}</span>
                       <button onClick={() => { updateThread(a.id, "tobuy", true); }} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, border: "1px solid #fed7aa", background: "#fff7ed", color: "#ea580c", cursor: "pointer", fontWeight: 600 }}>Add to buy</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Smart Hub: Low-Stock — not currently needed */}
+            {lowStockNotNeeded && lowStockNotNeeded.length > 0 && (
+              <div className="alert-card" style={{ marginBottom: 16, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                <div className="at" style={{ color: "#64748b" }}>{Icons.box()} Low stash — not currently needed ({lowStockNotNeeded.length})</div>
+                <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 10 }}>These threads are below minimum stock but aren't used by any active project.</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
+                  {lowStockNotNeeded.map(a => (
+                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #e2e8f0" }}>
+                      <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 }} />
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {a.id}</span>
+                      <span style={{ fontSize: 11, color: "#475569", flex: 1 }}>{a.name}</span>
+                      <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>have {a.owned}, min {a.min_stock}</span>
                     </div>
                   ))}
                 </div>
