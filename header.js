@@ -142,13 +142,13 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   const creatorPages = [['pattern','Pattern'],['project','Project'],['legend','Threads'],['export','Export']];
   const activeLabel = creatorPages.find(p => p[0] === tab)?.[1] || 'Pattern';
 
-  // App-section nav tabs
+  // App-section nav tabs — include Edit between Create and Track
   const appSections = [
     { id: 'creator', label: 'Create', href: 'index.html' },
+    { id: 'editor', label: 'Edit', href: 'index.html' },
     { id: 'tracker', label: 'Track',  href: 'stitch.html' },
     { id: 'manager', label: 'Stash',  href: 'manager.html' },
     { id: 'stats', label: 'Stats', href: 'index.html?mode=stats' },
-    { id: 'embroidery', label: 'Embroidery (BETA)', href: 'embroidery.html' },
   ];
 
   // Active project summary for the badge (consumed from prop or read from ProjectStorage if available)
@@ -210,11 +210,15 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
               onClick: id === 'tracker' && window.__switchToTrack
                 ? (e) => { e.preventDefault(); window.__switchToTrack(); }
-                : id === 'creator' && window.__switchToDesign
-                  ? (e) => { e.preventDefault(); window.__switchToDesign(); }
-                  : id === 'stats' && window.__switchToStats
-                    ? (e) => { e.preventDefault(); window.__switchToStats(); }
-                    : undefined,
+                : id === 'creator' && window.__switchToCreate
+                  ? (e) => { e.preventDefault(); window.__switchToCreate(); }
+                  : id === 'editor' && window.__switchToEdit
+                    ? (e) => { e.preventDefault(); window.__switchToEdit(); }
+                    : id === 'creator' && window.__switchToDesign
+                      ? (e) => { e.preventDefault(); window.__switchToDesign(); }
+                      : id === 'stats' && window.__switchToStats
+                        ? (e) => { e.preventDefault(); window.__switchToStats(); }
+                        : undefined,
               ...(page === id ? { 'aria-current': 'page' } : {}),
             }, label)
           )

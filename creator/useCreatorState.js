@@ -51,6 +51,12 @@ window.useCreatorState = function useCreatorState() {
   var skeinPrice = _skeinPrice[0], setSkeinPrice = _skeinPrice[1];
   var _stitchSpeed = useState(40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
 
+  // App mode: 'create' | 'edit' | 'track'
+  var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
+
+  // Sidebar tab within current mode (mode-specific)
+  var _sidebarTab = useState("settings"); var sidebarTab = _sidebarTab[0], setSidebarTab = _sidebarTab[1];
+
   // UI state
   var _tab        = useState("pattern"); var tab        = _tab[0],        setTab        = _tab[1];
   var _sidOpen    = useState(true);      var sidebarOpen = _sidOpen[0],   setSidebarOpen = _sidOpen[1];
@@ -499,6 +505,9 @@ window.useCreatorState = function useCreatorState() {
     setImg({ src: null, w: sW, h: sH });
     prevSW.current = sW; prevSH.current = sH;
     initBlankGrid(sW, sH);
+    // Scratch mode bypasses Create → go straight to Edit
+    setAppMode("edit");
+    setSidebarTab("palette");
   }
 
   function addScratchColour(d) {
@@ -903,6 +912,7 @@ window.useCreatorState = function useCreatorState() {
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
+    appMode, setAppMode, sidebarTab, setSidebarTab,
     tab, setTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,

@@ -728,40 +728,239 @@ window.CreatorSidebar = function CreatorSidebar() {
           border:"none",borderRadius:8,cursor:gen.busy?"wait":"pointer"}
       }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
-  return h(React.Fragment, null,
-    palChipsSection,
-    // ── View toggle (Colour / Symbol / Both) ───────────────────────────────────
-    (ctx.pat && ctx.pal) ? h("div", {
-      style:{borderBottom:"0.5px solid var(--border)",padding:"8px 12px",display:"flex",alignItems:"center",gap:8}
-    },
-      h("span", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginRight:4}}, "View"),
-      h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:8,padding:2,flex:1}},
-        [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
+  // ─── Mode-aware sidebar tab bar ────────────────────────────────────────────
+  var mode = app.appMode || "edit";
+  var sTab = app.sidebarTab || "settings";
+
+  var createTabs = [["settings","Settings"],["preview","Preview"],["project","Project"]];
+  var editTabs = [["palette","Palette"],["view","View"],["preview","Preview"],["more","More"]];
+  var tabs = mode === "create" ? createTabs : editTabs;
+
+  // Ensure sidebarTab is valid for current mode
+  var validIds = tabs.map(function(t) { return t[0]; });
+  if (validIds.indexOf(sTab) === -1) sTab = validIds[0];
+
+  var tabBar = h("div", {
+    style:{display:"flex",borderBottom:"1px solid var(--border)",background:"var(--surface)"}
+  }, tabs.map(function(kl) {
+    return h("button", {
+      key:kl[0],
+      onClick:function(){ app.setSidebarTab(kl[0]); },
+      style:{
+        flex:1,padding:"8px 2px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
+        border:"none",borderBottom:sTab===kl[0]?"2px solid var(--accent)":"2px solid transparent",
+        cursor:"pointer",fontFamily:"inherit",
+        background:"transparent",
+        color:sTab===kl[0]?"var(--accent)":"var(--text-secondary)",
+      }
+    }, kl[1]);
+  }));
+
+  // ─── View toggle (shared between View tab content in both modes) ─────────
+  var viewToggle = (ctx.pat && ctx.pal) ? h("div", {
+    style:{padding:"8px 12px",display:"flex",alignItems:"center",gap:8}
+  },
+    h("span", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginRight:4}}, "View"),
+    h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:8,padding:2,flex:1}},
+      [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
+        return h("button", {
+          key:kl[0],
+          onClick:function(){cv.setView(kl[0]);},
+          title:"Cycle view (V)",
+          style:{
+            flex:1,padding:"4px 6px",fontSize:11,fontWeight:cv.view===kl[0]?600:400,
+            border:"none",cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+            background:cv.view===kl[0]?"var(--surface)":"transparent",
+            color:cv.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
+            boxShadow:cv.view===kl[0]?"var(--shadow-sm)":"none"
+          }
+        }, kl[1]);
+      })
+    )
+  ) : null;
+
+  // ─── Highlight mode controls (shared between Edit and Track View tabs) ──
+  var highlightControls = cv.hiId ? h("div", {style:{padding:"8px 12px",borderTop:"0.5px solid var(--border)"}},
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:6}}, "Highlight Mode"),
+    h("div", {style:{display:"flex",gap:3,flexWrap:"wrap"}},
+      [["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(function(kl) {
+        return h("button", {
+          key:kl[0],
+          onClick:function(){ cv.setHighlightMode(kl[0]); },
+          style:{
+            flex:1,padding:"4px 6px",fontSize:10,fontWeight:cv.highlightMode===kl[0]?600:400,
+            border:"1px solid "+(cv.highlightMode===kl[0]?"var(--accent)":"var(--border)"),
+            cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+            background:cv.highlightMode===kl[0]?"var(--accent-light)":"transparent",
+            color:cv.highlightMode===kl[0]?"var(--accent)":"var(--text-secondary)",
+          }
+        }, kl[1]);
+      })
+    ),
+    cv.highlightMode === "isolate" && h("div", {style:{marginTop:6}},
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
+        "Dim strength",
+        h("input", {type:"range",min:0,max:1,step:0.05,value:cv.bgDimOpacity,
+          onChange:function(e){cv.setBgDimOpacity(parseFloat(e.target.value));}})
+      )
+    ),
+    cv.highlightMode === "tint" && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6}},
+      h("label", {style:{fontSize:11,color:"var(--text-secondary)"}}, "Tint"),
+      h("input", {type:"color",value:cv.tintColor,onChange:function(e){cv.setTintColor(e.target.value);},style:{width:24,height:20,border:"none",padding:0,cursor:"pointer"}}),
+      h("input", {type:"range",min:0,max:1,step:0.05,value:cv.tintOpacity,
+        onChange:function(e){cv.setTintOpacity(parseFloat(e.target.value));}})
+    ),
+    cv.highlightMode === "spotlight" && h("div", {style:{marginTop:6}},
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
+        "Dim strength",
+        h("input", {type:"range",min:0,max:1,step:0.05,value:cv.spotDimOpacity,
+          onChange:function(e){cv.setSpotDimOpacity(parseFloat(e.target.value));}})
+      )
+    )
+  ) : null;
+
+  // ─── Preview panel (shared between Create and Edit) ──────────────────────
+  var isRealistic = app.previewMode === "realistic";
+  var previewPanel = h("div", {style:{padding:"12px"}},
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:8}}, "Chart Mode"),
+    h("div", {style:{display:"flex",gap:3,marginBottom:12}},
+      [["chart","Chart"],["pixel","Pixel"],["realistic","Realistic"]].map(function(kl) {
+        var active = (!app.previewActive && kl[0]==="chart") || (app.previewActive && app.previewMode===kl[0]);
+        return h("button", {
+          key:kl[0],
+          onClick:function(){
+            if(kl[0]==="chart"){app.setPreviewActive(false);}
+            else{app.setPreviewActive(true);app.setPreviewMode(kl[0]);}
+          },
+          style:{
+            flex:1,padding:"6px 4px",fontSize:11,fontWeight:active?600:400,
+            border:"1px solid "+(active?"var(--accent)":"var(--border)"),
+            cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+            background:active?"var(--accent-light)":"transparent",
+            color:active?"var(--accent)":"var(--text-secondary)",
+          }
+        }, kl[1]);
+      })
+    ),
+    isRealistic && app.previewActive && h(React.Fragment, null,
+      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:4}}, "Quality Level"),
+      h("div", {style:{display:"flex",gap:3,marginBottom:12}},
+        [1,2,3,4].map(function(lv) {
           return h("button", {
-            key:kl[0],
-            onClick:function(){cv.setView(kl[0]);},
-            title:"Cycle view (V)",
+            key:lv,
+            onClick:function(){app.setRealisticLevel(lv);},
             style:{
-              flex:1,padding:"4px 6px",fontSize:11,fontWeight:cv.view===kl[0]?600:400,
-              border:"none",cursor:"pointer",borderRadius:6,fontFamily:"inherit",
-              background:cv.view===kl[0]?"var(--surface)":"transparent",
-              color:cv.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
-              boxShadow:cv.view===kl[0]?"var(--shadow-sm)":"none"
+              flex:1,padding:"5px 4px",fontSize:11,fontWeight:app.realisticLevel===lv?600:400,
+              border:"1px solid "+(app.realisticLevel===lv?"var(--accent)":"var(--border)"),
+              cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+              background:app.realisticLevel===lv?"var(--accent-light)":"transparent",
+              color:app.realisticLevel===lv?"var(--accent)":"var(--text-secondary)",
             }
-          }, kl[1]);
+          }, "Level "+lv);
         })
       )
-    ) : null,
-    imageCard,
-    coloursSection,
-    dimSection,
-    palSection,
-    cleanupSection,
-    fabSection,
-    adjSection,
-    bgSection,
-    ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
-    ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
-    actionBtn
+    ),
+    h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
+      h("label", {style:{fontSize:11,color:"var(--text-secondary)",flexShrink:0}}, "Coverage"),
+      h("input", {type:"range",min:0,max:1,step:0.05,
+        value:app.coverageOverride!=null?app.coverageOverride:0.5,
+        onChange:function(e){app.setCoverageOverride(parseFloat(e.target.value));},
+        style:{flex:1}
+      }),
+      app.coverageOverride!=null && h("button", {
+        onClick:function(){app.setCoverageOverride(null);},
+        style:{fontSize:10,padding:"2px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--surface)",cursor:"pointer",color:"var(--text-secondary)"}
+      }, "\u21BA Auto")
+    ),
+    h("div", {style:{display:"flex",gap:3,marginBottom:12}},
+      [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
+        var active = app.coverageOverride!=null && Math.abs(app.coverageOverride - preset[1]) < 0.03;
+        return h("button", {
+          key:preset[0],
+          onClick:function(){app.setCoverageOverride(preset[1]);},
+          style:{
+            flex:1,fontSize:9,padding:"3px 0",
+            border:"1px solid "+(active?"var(--accent)":"var(--border)"),
+            borderRadius:4,background:active?"var(--accent)":"transparent",
+            color:active?"#fff":"var(--text-secondary)",cursor:"pointer"
+          }
+        }, preset[0]);
+      })
+    ),
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)",marginBottom:4}},
+      h("input", {type:"checkbox",checked:app.previewShowGrid,onChange:function(){app.setPreviewShowGrid(!app.previewShowGrid);}}),
+      "Grid overlay"
+    ),
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
+      h("input", {type:"checkbox",checked:app.previewFabricBg,onChange:function(){app.setPreviewFabricBg(!app.previewFabricBg);}}),
+      "Fabric background"
+    )
+  );
+
+  // ─── Create Mode Sidebar ─────────────────────────────────────────────────
+  if (mode === "create") {
+    var settingsContent = h(React.Fragment, null,
+      imageCard,
+      dimSection,
+      palSection,
+      cleanupSection,
+      fabSection,
+      adjSection,
+      bgSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection
+    );
+    return h(React.Fragment, null,
+      tabBar,
+      h("div", {style:{overflowY:"auto",flex:1}},
+        sTab === "settings" && settingsContent,
+        sTab === "preview" && previewPanel,
+        sTab === "project" && h("div", null, /* ProjectTab renders separately */)
+      )
+    );
+  }
+
+  // ─── Edit Mode Sidebar ────────────────────────────────────────────────────
+  var moreContent = h(React.Fragment, null,
+    h(Section, {title:"Generation Settings",defaultOpen:false},
+      imageCard,
+      dimSection,
+      palSection,
+      cleanupSection,
+      fabSection,
+      adjSection,
+      bgSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      h("button", {
+        onClick:function(){
+          if(cv.editHistory.length > 0 && !confirm("Regenerating will replace your current edits. Continue?")) return;
+          gen.generate();
+        },
+        disabled:gen.busy,
+        style:{width:"100%",padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer",border:"none",borderRadius:8,background:"var(--accent)",color:"#fff",marginTop:8}
+      }, "\u21BB Regenerate")
+    ),
+    h(Section, {title:"Project Info",defaultOpen:false},
+      h("div", {style:{fontSize:11,color:"var(--text-secondary)",padding:"4px 0"}},
+        ctx.sW + " \xD7 " + ctx.sH + " stitches \u00B7 " + (ctx.displayPal||ctx.pal||[]).length + " colours"
+      )
+    )
+  );
+
+  return h(React.Fragment, null,
+    tabBar,
+    h("div", {style:{overflowY:"auto",flex:1}},
+      sTab === "palette" && h(React.Fragment, null,
+        palChipsSection,
+        coloursSection
+      ),
+      sTab === "view" && h(React.Fragment, null,
+        viewToggle,
+        highlightControls
+      ),
+      sTab === "preview" && previewPanel,
+      sTab === "more" && moreContent
+    )
   );
 };

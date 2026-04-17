@@ -195,6 +195,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.projectIdRef.current = project.id || null;
     state.createdAtRef.current = project.createdAt || null;
 
+    // Loaded projects have a pattern already — default to Edit mode
+    state.setAppMode("edit");
+    state.setSidebarTab("palette");
+
     var scrollRef = state.scrollRef;
     if (project.savedZoom != null) {
       setTimeout(function() {

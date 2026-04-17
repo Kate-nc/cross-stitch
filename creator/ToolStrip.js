@@ -53,6 +53,58 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
 
+  // ─── Create Mode: minimal toolbar ────────────────────────────────────────────
+  if (app.appMode === "create") {
+    var createZoomGrp = [
+      h("div", {key:"sdiv-cz", className:"tb-sdiv"}),
+      h("div", {key:"zoom-grp", className:"tb-grp"},
+        h("input", {
+          type:"range", min:0.05, max:3, step:0.05, value:cv.zoom,
+          onChange:function(e){ cv.setZoom(parseFloat(e.target.value)); },
+          style:{width:80}, title:"Zoom"
+        }),
+        h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}, Math.round(cv.zoom*100)+"%"),
+        h("button", {className:"tb-btn", onClick:function(){ cv.setZoom(cv.fitZ||1); }, title:"Fit (Home)"}, "Fit")
+      )
+    ];
+    return h("div", {className:"toolbar-row"},
+      h("div", {className:"pill-row"},
+        h("div", {ref:app.stripRef, className:"pill"},
+          // Overlay toggle
+          gen.img && h("button", {
+            className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
+            onClick:function(){ cv.setShowOverlay(!cv.showOverlay); },
+            title:"Toggle source image overlay", "aria-label":"Toggle source image overlay"
+          }, "\uD83D\uDDBC\uFE0F Overlay"),
+          h("div", {className:"tb-sdiv"}),
+          // Zoom
+          createZoomGrp,
+          h("div", {className:"tb-sdiv"}),
+          // Generate / Regenerate
+          h("button", {
+            className:"tb-btn tb-btn--green",
+            onClick:function(){ gen.generate(); },
+            disabled:gen.busy,
+            title:gen.hasGenerated?"Regenerate pattern":"Generate pattern"
+          }, gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate"),
+          h("div", {className:"tb-sdiv"}),
+          // Edit Pattern → (only after generation)
+          gen.hasGenerated && h("button", {
+            className:"tb-btn tb-btn--on",
+            onClick:function(){
+              app.setAppMode("edit");
+              app.setSidebarTab("palette");
+              if(window.__switchToEdit) window.__switchToEdit();
+            },
+            title:"Edit the generated pattern"
+          }, "Edit Pattern \u2192")
+        )
+      )
+    );
+  }
+
+  // ─── Edit Mode: full editing toolbar (current behaviour) ──────────────────────
+
   var sc = app.stripCollapsed || {};
 
   // Palette data sorted by usage — needed early for auto-select
