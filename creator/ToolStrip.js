@@ -177,6 +177,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // Stitch type dropdown — shown only when paint or fill is the active brush mode
   var showStitchGrp = (cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase";
+
+  // Show the colour pill for paint/fill modes AND when the eyedropper is active
+  var showSwatchRow = (showStitchGrp || cv.activeTool==="eyedropper") && palData.length > 0;
   var stitchMeta = {
     "cross":         {icon:svgX,         label:"Cross",       cls:"tb-btn--green"},
     "quarter":       {icon:svgQtr,       label:"\u00BC Stitch",  cls:"tb-btn--blue"},
@@ -209,7 +212,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Colour swatch strip — second toolbar row, sorted by usage, with expand
   var SWATCH_INIT = 20;
   var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
-  var swatchRow = showStitchGrp && palData.length > 0 ? h("div", {className:"swatch-strip-row"},
+  var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
       style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0}

@@ -108,7 +108,18 @@ window.useCreatorState = function useCreatorState() {
   // Tools / editing
   var _actTool  = useState(null);    var activeTool     = _actTool[0];
   var activeToolRef = useRef(null);
-  function setActiveTool(v) { activeToolRef.current = v; _actTool[1](v); }
+  var previousToolRef = useRef(null);
+  function setActiveTool(v) {
+    // Track previous tool for eyedropper auto-return
+    var prev = activeToolRef.current;
+    if (v === "eyedropper" && prev && prev !== "eyedropper") {
+      previousToolRef.current = prev;
+    } else if (v !== "eyedropper") {
+      // Switching away from pick manually — clear stale ref
+      previousToolRef.current = null;
+    }
+    activeToolRef.current = v; _actTool[1](v);
+  }
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
@@ -334,11 +345,12 @@ window.useCreatorState = function useCreatorState() {
   }, [dmcSearch]);
 
   var displayPal = useMemo(function() {
-    if (!isScratchMode || !pal) return pal;
+    if (!pal) return pal;
+    if (!scratchPalette.length) return pal;
     var ids = new Set(pal.map(function(p) { return p.id; }));
     var extras = scratchPalette.filter(function(p) { return !ids.has(p.id); });
     return pal.concat(extras);
-  }, [isScratchMode, pal, scratchPalette]);
+  }, [pal, scratchPalette]);
 
   var progressPct = totalStitchable > 0 ? Math.round(doneCount / totalStitchable * 1000) / 10 : 0;
 
@@ -376,7 +388,7 @@ window.useCreatorState = function useCreatorState() {
 
   function buildPaletteWithScratch(np) {
     var result = buildPalette(np);
-    if (!isScratchMode || !scratchPalette.length) return result;
+    if (!scratchPalette.length) return result;
     var ids = new Set(result.pal.map(function(x) { return x.id; }));
     var extras = scratchPalette.filter(function(x) { return !ids.has(x.id); });
     var ec = {};
@@ -514,11 +526,22 @@ window.useCreatorState = function useCreatorState() {
     if (cmap && cmap[d.id]) return;
     var usedSyms = new Set(pal ? pal.map(function(p) { return p.symbol; }) : []);
     var sym = SYMS.find(function(s) { return !usedSyms.has(s); }) || SYMS[(pal ? pal.length : 0) % SYMS.length];
-    var entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym };
+    var entry;
+    if (d.type === "blend" && d.threads && d.threads.length === 2) {
+      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, count: 0, symbol: sym };
+    } else {
+      entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym };
+    }
     setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== d.id; }).concat([entry]); });
     setPal(function(prev) { return prev ? prev.concat([entry]) : [entry]; });
     setCmap(function(prev) { return prev ? Object.assign({}, prev, { [d.id]: entry }) : { [d.id]: entry }; });
     setSelectedColorId(d.id);
+    setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "add_colour", changes: [], addedEntry: entry }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    setRedoHistory([]);
     if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
   }
 
@@ -934,7 +957,7 @@ window.useCreatorState = function useCreatorState() {
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef,
-    activeTool, setActiveTool, activeToolRef,
+    activeTool, setActiveTool, activeToolRef, previousToolRef,
     bsLines, setBsLines, bsStart, setBsStart,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
