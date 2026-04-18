@@ -516,7 +516,11 @@ describe('prepareImport', () => {
         return Object.values(this._store).map(p => ({ id: p.id, name: p.name, updatedAt: p.updatedAt }));
       },
       get: async function(id) { return this._store[id] || null; },
-      save: async function(p) { this._store[p.id] = p; return p.id; }
+      save: async function(p) {
+        if (!p.id) p.id = 'proj_test_' + (Object.keys(this._store).length + 1);
+        this._store[p.id] = p;
+        return p.id;
+      }
     };
   });
 
@@ -655,7 +659,11 @@ describe('executeImport', () => {
         return Object.values(this._store).map(p => ({ id: p.id }));
       },
       get: async function(id) { return this._store[id] || null; },
-      save: async function(p) { this._store[p.id] = p; return p.id; }
+      save: async function(p) {
+        if (!p.id) p.id = 'proj_test_' + (Object.keys(this._store).length + 1);
+        this._store[p.id] = p;
+        return p.id;
+      }
     };
   });
 

@@ -56,6 +56,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var editingDeviceName = _editingDeviceName[0], setEditingDeviceName = _editingDeviceName[1];
   var _deviceNameDraft = useState('');
   var deviceNameDraft = _deviceNameDraft[0], setDeviceNameDraft = _deviceNameDraft[1];
+  var cancelDeviceNameBlurSaveRef = React.useRef(false);
   var syncFileRef = React.useRef(null);
 
   // Folder watch state
@@ -586,10 +587,20 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
                 maxLength: 60,
                 placeholder: 'e.g. Katie\u2019s laptop',
                 onChange: function(e) { setDeviceNameDraft(e.target.value); },
-                onBlur: handleSaveDeviceName,
+                onBlur: function() {
+                  if (cancelDeviceNameBlurSaveRef.current) {
+                    cancelDeviceNameBlurSaveRef.current = false;
+                    return;
+                  }
+                  handleSaveDeviceName();
+                },
                 onKeyDown: function(e) {
                   if (e.key === 'Enter') e.target.blur();
-                  if (e.key === 'Escape') { setDeviceNameDraft(syncStatus ? syncStatus.deviceName || '' : ''); setEditingDeviceName(false); }
+                  if (e.key === 'Escape') {
+                    cancelDeviceNameBlurSaveRef.current = true;
+                    setDeviceNameDraft(syncStatus ? syncStatus.deviceName || '' : '');
+                    setEditingDeviceName(false);
+                  }
                 },
                 autoFocus: true
               })

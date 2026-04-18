@@ -150,11 +150,8 @@ const ProjectStorage = (() => {
       }
       project.updatedAt = new Date().toISOString();
 
-      // Maintain sync fingerprint for change detection during sync
-      if (typeof SyncEngine !== "undefined" && SyncEngine.computeFingerprint) {
-        if (!project.syncMeta) project.syncMeta = {};
-        project.syncMeta.fingerprint = SyncEngine.computeFingerprint(project);
-      }
+      // Fingerprints are computed by sync-specific export/classification flows.
+      // Avoid doing expensive whole-project fingerprinting on every normal save.
       try {
         const db = await getDB();
         return new Promise((resolve, reject) => {

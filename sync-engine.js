@@ -609,11 +609,11 @@ const SyncEngine = (() => {
       if (resolution === "keep-remote") {
         await ProjectStorage.save(cEntry.remote.data);
       } else if (resolution === "keep-both") {
-        // Keep local as-is; import remote with a new ID
+        // Keep local as-is; import remote as a new project via normal save logic
         var remoteCopy = JSON.parse(JSON.stringify(cEntry.remote.data));
-        remoteCopy.id = "proj_" + Date.now();
+        delete remoteCopy.id;
+        delete remoteCopy.createdAt;
         remoteCopy.name = (remoteCopy.name || "Untitled") + " (synced)";
-        remoteCopy.createdAt = new Date().toISOString();
         await ProjectStorage.save(remoteCopy);
       }
       // "keep-local" → do nothing
@@ -824,21 +824,29 @@ const SyncEngine = (() => {
   var AUTO_EXPORT_DELAY = 30000; // 30 seconds
 
   function triggerAutoExport() {
-    if (!isAutoSyncEnabled() || !_watchDirHandle) return;
-    if (_autoExportTimer) clearTimeout(_autoExportTimer);
-    _autoExportTimer = setTimeout(function () {
-      _autoExportTimer = null;
-      // Pre-check permission without user gesture — skip if not granted
-      _watchDirHandle.queryPermission({ mode: "readwrite" }).then(function (perm) {
-        if (perm !== "granted") {
-          console.warn("SyncEngine: auto-export skipped — permission not granted (re-open sync panel to re-authorise)");
-          return;
-        }
-        return exportToFolder();
-      }).catch(function (e) {
-        console.warn("SyncEngine: auto-export failed:", e);
-      });
-    }, AUTO_EXPORT_DELAY);
+    if (!isAutoSyncEnabled()) return;
+    Promise.resolve(_watchDirHandle || getWatchDirectory()).then(function (dirHandle) {
+      if (!dirHandle) return;
+      _watchDirHandle = dirHandle;
+      if (_autoExportTimer) clearTimeout(_autoExportTimer);
+      _autoExportTimer = setTimeout(function () {
+        var watchDirHandle = _watchDirHandle;
+        _autoExportTimer = null;
+        if (!watchDirHandle) return;
+        // Pre-check permission without user gesture — skip if not granted
+        watchDirHandle.queryPermission({ mode: "readwrite" }).then(function (perm) {
+          if (perm !== "granted") {
+            console.warn("SyncEngine: auto-export skipped — permission not granted (re-open sync panel to re-authorise)");
+            return;
+          }
+          return exportToFolder();
+        }).catch(function (e) {
+          console.warn("SyncEngine: auto-export failed:", e);
+        });
+      }, AUTO_EXPORT_DELAY);
+    }).catch(function (e) {
+      console.warn("SyncEngine: auto-export failed:", e);
+    });
   }
 
   // ── Sync status helpers ──────────────────────────────────────────────────

@@ -105,12 +105,25 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
   const [fileMenuOpen, setFileMenuOpen] = React.useState(false);
   const fileMenuRef = React.useRef(null);
+  const [syncStatus, setSyncStatus] = React.useState(function() {
+    try { return typeof SyncEngine !== 'undefined' ? SyncEngine.getSyncStatus() : null; }
+    catch (e) { return null; }
+  });
   React.useEffect(() => {
     if (!fileMenuOpen) return;
     function close(e) { if (fileMenuRef.current && !fileMenuRef.current.contains(e.target)) setFileMenuOpen(false); }
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [fileMenuOpen]);
+  React.useEffect(() => {
+    if (typeof SyncEngine === 'undefined' || !SyncEngine.getWatchDirectory) return;
+    var cancelled = false;
+    SyncEngine.getWatchDirectory().then(function() {
+      if (cancelled) return;
+      try { setSyncStatus(SyncEngine.getSyncStatus()); } catch (e) {}
+    }).catch(function() {});
+    return function() { cancelled = true; };
+  }, []);
 
   // Inline backup/restore used by the File dropdown on pages without custom restore handlers
   function handleInlineRestore(e) {
@@ -268,38 +281,27 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
         // Sync status indicator
         typeof SyncEngine !== 'undefined' && React.createElement('button', {
-          className: 'tb-nav-link tb-sync-indicator' + (function() {
-            try {
-              var st = SyncEngine.getSyncStatus();
-              if (st.hasWatchDir && st.autoSync) return ' tb-sync-indicator--active';
-              if (st.hasWatchDir) return ' tb-sync-indicator--folder';
-              return '';
-            } catch(e) { return ''; }
-          })(),
+          className: 'tb-nav-link tb-sync-indicator' + (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync
+            ? ' tb-sync-indicator--active'
+            : (syncStatus && syncStatus.hasWatchDir ? ' tb-sync-indicator--folder' : '')),
           onClick: () => {
             if (typeof window.__goHome === 'function') window.__goHome();
             else window.location.href = 'index.html';
           },
           'aria-label': 'Sync status',
           title: (function() {
-            try {
-              var st = SyncEngine.getSyncStatus();
-              var parts = [];
-              if (st.hasWatchDir) parts.push('Sync folder connected' + (st.autoSync ? ' (auto-sync on)' : ''));
-              if (st.lastExportAt) parts.push('Last export: ' + new Date(st.lastExportAt).toLocaleString());
-              if (st.lastImportAt) parts.push('Last import: ' + new Date(st.lastImportAt).toLocaleString());
-              return parts.length ? parts.join('\n') : 'Sync \u2014 not yet configured';
-            } catch(e) { return 'Sync'; }
+            var parts = [];
+            if (syncStatus && syncStatus.hasWatchDir) parts.push('Sync folder connected' + (syncStatus.autoSync ? ' (auto-sync on)' : ''));
+            if (syncStatus && syncStatus.lastExportAt) parts.push('Last export: ' + new Date(syncStatus.lastExportAt).toLocaleString());
+            if (syncStatus && syncStatus.lastImportAt) parts.push('Last import: ' + new Date(syncStatus.lastImportAt).toLocaleString());
+            return parts.length ? parts.join('\n') : 'Sync \u2014 not yet configured';
           })()
         },
           (function() {
-            try {
-              var st = SyncEngine.getSyncStatus();
-              if (st.hasWatchDir && st.autoSync) return Icons.cloudCheck();
-              if (st.hasWatchDir) return Icons.cloudSync();
-              if (st.lastExportAt || st.lastImportAt) return Icons.cloudCheck();
-              return Icons.cloudOff();
-            } catch(e) { return Icons.cloudOff(); }
+            if (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync) return Icons.cloudCheck();
+            if (syncStatus && syncStatus.hasWatchDir) return Icons.cloudSync();
+            if (syncStatus && (syncStatus.lastExportAt || syncStatus.lastImportAt)) return Icons.cloudCheck();
+            return Icons.cloudOff();
           })()
         ),
 
