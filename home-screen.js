@@ -600,10 +600,17 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
               }, syncStatus && syncStatus.deviceName ? syncStatus.deviceName : 'Set device name\u2026')
         ),
 
-        // Folder watch section
+        // Folder watch section with help
         syncStatus && syncStatus.hasFolderWatch && h('div', { className: 'sync-folder-section' },
           h('div', { className: 'sync-folder-row' },
             h('span', { className: 'sync-device-label' }, 'Sync folder:'),
+            h('button', {
+              className: 'sync-help-icon',
+              title: 'Choose a folder in your cloud drive (OneDrive, Google Drive, Dropbox, etc). The app will automatically export .csync files here after each save, and notify you when updates are available from other devices.',
+              'aria-label': 'Help: Setting up folder sync'
+            }, 'ⓘ')
+          ),
+          h('div', { className: 'sync-folder-row' },
             watchDirName
               ? h('span', { className: 'sync-folder-name' },
                   Icons.cloudCheck(), ' ', watchDirName,

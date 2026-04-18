@@ -2542,6 +2542,8 @@ kbd {
 .sync-folder-name svg { width: 14px; height: 14px; }
 .sync-folder-disconnect { background: none; border: none; cursor: pointer; font-size: 16px; color: #94a3b8; padding: 0 2px; line-height: 1; }
 .sync-folder-disconnect:hover { color: #ef4444; }
+.sync-help-icon { background: none; border: none; cursor: help; font-size: 14px; font-weight: 700; color: #0d9488; padding: 0 4px; line-height: 1; min-width: 18px; text-align: center; border-radius: 50%; transition: background 0.2s; }
+.sync-help-icon:hover { background: rgba(13, 148, 136, 0.1); }
 .sync-folder-btn { font-size: 12px; padding: 4px 10px; }
 .sync-autosync-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 .sync-autosync-label { display: flex; align-items: center; gap: 4px; font-size: 13px; color: #475569; cursor: pointer; }
