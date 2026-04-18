@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v4';
+var CACHE_NAME = 'cross-stitch-cache-v5';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -16,6 +16,7 @@ var PRECACHE_URLS = [
   './dmc-data.js',
   './colour-utils.js',
   './helpers.js',
+  './icons.js',
   './import-formats.js',
   './components.js',
   './header.js',
@@ -27,6 +28,7 @@ var PRECACHE_URLS = [
   // Page-specific local scripts
   './home-screen.js',
   './palette-swap.js',
+  './user-prefs.js',
 
   // Creator app bundle (compiled from creator/ sub-components)
   './creator/bundle.js',
