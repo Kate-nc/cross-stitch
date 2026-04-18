@@ -105,12 +105,25 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
   const [fileMenuOpen, setFileMenuOpen] = React.useState(false);
   const fileMenuRef = React.useRef(null);
+  const [syncStatus, setSyncStatus] = React.useState(function() {
+    try { return typeof SyncEngine !== 'undefined' ? SyncEngine.getSyncStatus() : null; }
+    catch (e) { return null; }
+  });
   React.useEffect(() => {
     if (!fileMenuOpen) return;
     function close(e) { if (fileMenuRef.current && !fileMenuRef.current.contains(e.target)) setFileMenuOpen(false); }
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [fileMenuOpen]);
+  React.useEffect(() => {
+    if (typeof SyncEngine === 'undefined' || !SyncEngine.getWatchDirectory) return;
+    var cancelled = false;
+    SyncEngine.getWatchDirectory().then(function() {
+      if (cancelled) return;
+      try { setSyncStatus(SyncEngine.getSyncStatus()); } catch (e) {}
+    }).catch(function() {});
+    return function() { cancelled = true; };
+  }, []);
 
   // Inline backup/restore used by the File dropdown on pages without custom restore handlers
   function handleInlineRestore(e) {
@@ -266,6 +279,32 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
         React.createElement('div', { className: 'tb-sep' }),
 
+        // Sync status indicator
+        typeof SyncEngine !== 'undefined' && React.createElement('button', {
+          className: 'tb-nav-link tb-sync-indicator' + (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync
+            ? ' tb-sync-indicator--active'
+            : (syncStatus && syncStatus.hasWatchDir ? ' tb-sync-indicator--folder' : '')),
+          onClick: () => {
+            if (typeof window.__goHome === 'function') window.__goHome();
+            else window.location.href = 'index.html';
+          },
+          'aria-label': 'Sync status',
+          title: (function() {
+            var parts = [];
+            if (syncStatus && syncStatus.hasWatchDir) parts.push('Sync folder connected' + (syncStatus.autoSync ? ' (auto-sync on)' : ''));
+            if (syncStatus && syncStatus.lastExportAt) parts.push('Last export: ' + new Date(syncStatus.lastExportAt).toLocaleString());
+            if (syncStatus && syncStatus.lastImportAt) parts.push('Last import: ' + new Date(syncStatus.lastImportAt).toLocaleString());
+            return parts.length ? parts.join('\n') : 'Sync \u2014 not yet configured';
+          })()
+        },
+          (function() {
+            if (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync) return Icons.cloudCheck();
+            if (syncStatus && syncStatus.hasWatchDir) return Icons.cloudSync();
+            if (syncStatus && (syncStatus.lastExportAt || syncStatus.lastImportAt)) return Icons.cloudCheck();
+            return Icons.cloudOff();
+          })()
+        ),
+
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('shortcuts'), 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, '⌨'),
         React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('help') }, 'Help'),
 
@@ -329,6 +368,63 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 onChange: function(e) {
                   setFileMenuOpen(false);
                   if (onRestoreFile) { onRestoreFile(e); } else { handleInlineRestore(e); }
+                }
+              })
+            ),
+            // Sync separator and options
+            typeof SyncEngine !== 'undefined' && React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),
+            typeof SyncEngine !== 'undefined' && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => {
+                setFileMenuOpen(false);
+                SyncEngine.downloadSync().catch(function(e) { alert('Sync export failed: ' + e.message); });
+              }
+            }, Icons.cloudSync(), ' Export Sync (.csync)'),
+            typeof SyncEngine !== 'undefined' && React.createElement('label', {
+              className: 'tb-page-dropdown-item',
+              style: { display: 'block', cursor: 'pointer' }
+            },
+              Icons.cloudSync(), ' Import Sync (.csync)\u2026',
+              React.createElement('input', {
+                type: 'file',
+                accept: '.csync',
+                style: { display: 'none' },
+                onChange: function(e) {
+                  setFileMenuOpen(false);
+                  var file = e.target.files && e.target.files[0];
+                  if (!file) return;
+                  e.target.value = '';
+                  SyncEngine.readSyncFile(file).then(function(syncObj) {
+                    return SyncEngine.prepareImport(syncObj);
+                  }).then(function(plan) {
+                    // If home screen is mounted it listens for this event
+                    var evt = new CustomEvent('sync-plan-ready', { detail: plan, cancelable: true });
+                    var handled = !window.dispatchEvent(evt);
+                    // Fallback for tracker/manager pages: if no listener handled it,
+                    // show a simple confirm dialog
+                    if (!handled && page !== 'home') {
+                      var n = plan.newRemote.length;
+                      var m = plan.mergeTracking.length;
+                      var c = plan.conflicts.length;
+                      var parts = [];
+                      if (n) parts.push(n + ' new');
+                      if (m) parts.push(m + ' to merge');
+                      if (c) parts.push(c + ' conflict' + (c !== 1 ? 's' : ''));
+                      if (plan.stashMerge) parts.push('stash update');
+                      if (parts.length === 0) { alert('Nothing to sync — all projects are identical.'); return; }
+                      var msg = 'Import sync file?\n\n' + parts.join(', ');
+                      if (c > 0) msg += '\n\nConflicts will keep local versions. For detailed control, import from the home screen.';
+                      if (!window.confirm(msg)) return;
+                      var resolutions = {};
+                      plan.conflicts.forEach(function(entry) { resolutions[entry.id] = 'keep-local'; });
+                      SyncEngine.executeImport(plan, resolutions).then(function(result) {
+                        alert('Sync complete: ' + result.imported + ' imported, ' + result.merged + ' merged.');
+                        window.location.reload();
+                      }).catch(function(err) { alert('Sync failed: ' + err.message); });
+                    }
+                  }).catch(function(err) {
+                    alert('Sync import failed: ' + err.message);
+                  });
                 }
               })
             )

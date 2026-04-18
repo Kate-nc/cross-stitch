@@ -245,6 +245,37 @@ window.Icons = (function() {
     // X / Close — replaces ❌ (error/delete)
     x: function() {
       return svg(p('M18 6L6 18M6 6l12 12'));
+    },
+    // Cloud Sync — cloud with circular arrows
+    cloudSync: function() {
+      return svg(
+        p('M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242'),
+        p('M12 12v9'),
+        p('m8 17 4 4 4-4')
+      );
+    },
+    // Cloud Check — cloud with tick
+    cloudCheck: function() {
+      return svg(
+        p('M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242'),
+        pl('8 16 12 20 20 12')
+      );
+    },
+    // Cloud Alert — cloud with exclamation
+    cloudAlert: function() {
+      return svg(
+        p('M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242'),
+        l(12, 12, 12, 16),
+        l(12, 20, 12.01, 20)
+      );
+    },
+    // Cloud Off — cloud with diagonal line through
+    cloudOff: function() {
+      return svg(
+        p('M2 2l20 20'),
+        p('M17.5 21H9a7 7 0 0 1-5.21-11.64'),
+        p('M22 15.5A4.5 4.5 0 0 0 17.5 11h-1.79A7 7 0 0 0 7.8 5.56')
+      );
     }
   };
 })();

@@ -316,3 +316,246 @@ function NamePromptModal({ defaultName, onConfirm, onCancel }) {
     )
   );
 }
+
+// ═══ Sync Summary Modal ═══
+// Shows a preview of what will be imported from a .csync file, with conflict
+// resolution controls, before committing the sync.
+// Props:
+//   plan         — object returned by SyncEngine.prepareImport()
+//   onApply      — callback(conflictResolutions) when user clicks Apply
+//   onCancel     — callback to dismiss
+function SyncSummaryModal({ plan, onApply, onCancel }) {
+  var h = React.createElement;
+  var _res = React.useState({});
+  var resolutions = _res[0], setResolutions = _res[1];
+  var _applying = React.useState(false);
+  var applying = _applying[0], setApplying = _applying[1];
+
+  React.useEffect(function() {
+    var handler = function(e) { if (e.key === 'Escape' && !applying) onCancel(); };
+    document.addEventListener('keydown', handler);
+    return function() { document.removeEventListener('keydown', handler); };
+  }, [onCancel, applying]);
+
+  function setResolution(id, val) {
+    setResolutions(function(prev) {
+      var next = Object.assign({}, prev);
+      next[id] = val;
+      return next;
+    });
+  }
+
+  var allConflictsResolved = plan.conflicts.every(function(c) {
+    return !!resolutions[c.id];
+  });
+
+  var canApply = plan.conflicts.length === 0 || allConflictsResolved;
+  var hasChanges = plan.newRemote.length > 0 || plan.mergeTracking.length > 0 || plan.conflicts.length > 0 || !!plan.stashMerge;
+
+  function handleApply() {
+    if (!canApply || applying) return;
+    setApplying(true);
+    onApply(resolutions);
+  }
+
+  // Summary stat row
+  function statBadge(count, label, cls) {
+    if (count === 0) return null;
+    return h('span', { className: 'sync-stat-badge' + (cls ? ' ' + cls : '') }, count + ' ' + label);
+  }
+
+  return h('div', { className: 'modal-overlay', onClick: onCancel },
+    h('div', { className: 'modal-content sync-summary-modal', onClick: function(e) { e.stopPropagation(); } },
+      h('button', { className: 'modal-close', onClick: onCancel, 'aria-label': 'Close' }, '\u00d7'),
+      h('h3', { className: 'sync-summary-title' },
+        Icons.cloudSync(), ' Import Sync File'
+      ),
+
+      // Source info
+      plan.summary && h('div', { className: 'sync-summary-source' },
+        'From ',
+        h('strong', null, plan.summary.deviceName || 'Unknown device'),
+        plan.summary.createdAt && plan.summary.createdAt !== 'unknown' ? ' \u00b7 ' + new Date(plan.summary.createdAt).toLocaleString() : ''
+      ),
+
+      // Stats row
+      h('div', { className: 'sync-stats-row' },
+        statBadge(plan.newRemote.length, 'new', 'sync-stat-badge--new'),
+        statBadge(plan.identical.length, 'identical', 'sync-stat-badge--identical'),
+        statBadge(plan.mergeTracking.length, 'merge', 'sync-stat-badge--merge'),
+        statBadge(plan.conflicts.length, 'conflict' + (plan.conflicts.length !== 1 ? 's' : ''), 'sync-stat-badge--conflict'),
+        plan.stashMerge && h('span', { className: 'sync-stat-badge sync-stat-badge--merge' }, 'stash update')
+      ),
+
+      // New projects
+      plan.newRemote.length > 0 && h('div', { className: 'sync-section' },
+        h('div', { className: 'sync-section-header' }, 'New projects to add'),
+        plan.newRemote.map(function(entry) {
+          var p = entry.remote.data;
+          return h('div', { key: p.id, className: 'sync-project-row' },
+            h('span', { className: 'sync-project-name' }, p.name || 'Untitled'),
+            h('span', { className: 'sync-project-meta' },
+              (p.w || 0) + '\u00d7' + (p.h || 0)
+            )
+          );
+        })
+      ),
+
+      // Merge tracking
+      plan.mergeTracking.length > 0 && h('div', { className: 'sync-section' },
+        h('div', { className: 'sync-section-header' }, 'Progress to merge'),
+        plan.mergeTracking.map(function(entry) {
+          var p = entry.remote.data;
+          return h('div', { key: entry.id, className: 'sync-project-row' },
+            h('span', { className: 'sync-project-name' }, p.name || entry.id),
+            h('span', { className: 'sync-project-meta' }, 'tracking \u2192 merge')
+          );
+        })
+      ),
+
+      // Conflicts
+      plan.conflicts.length > 0 && h('div', { className: 'sync-section' },
+        h('div', { className: 'sync-section-header sync-section-header--conflict' },
+          Icons.cloudAlert(), ' Conflicts \u2014 choose how to resolve'
+        ),
+        plan.conflicts.map(function(entry) {
+          return h(SyncConflictCard, {
+            key: entry.id,
+            entry: entry,
+            resolution: resolutions[entry.id] || null,
+            onResolve: function(val) { if (!applying) setResolution(entry.id, val); }
+          });
+        })
+      ),
+
+      // Local-only info (projects on this device not in the sync file)
+      plan.localOnly && plan.localOnly.length > 0 && h('div', { className: 'sync-section' },
+        h('div', { className: 'sync-section-header' }, 'Local only (not in sync file)'),
+        plan.localOnly.map(function(entry) {
+          var p = entry.local;
+          return h('div', { key: entry.id, className: 'sync-project-row sync-project-row--muted' },
+            h('span', { className: 'sync-project-name' }, p.name || entry.id),
+            h('span', { className: 'sync-project-meta' }, 'kept as-is')
+          );
+        })
+      ),
+
+      // Stash merge preview
+      plan.stashMerge && h('div', { className: 'sync-section' },
+        h('div', { className: 'sync-section-header' }, 'Stash update'),
+        h('div', { className: 'sync-stash-preview' },
+          plan.stashMerge.threads && h('span', null, Object.keys(plan.stashMerge.threads).length + ' threads'),
+          plan.stashMerge.threads && plan.stashMerge.patterns && ' \u00b7 ',
+          plan.stashMerge.patterns && h('span', null, plan.stashMerge.patterns.length + ' patterns')
+        )
+      ),
+
+      // Actions
+      h('div', { className: 'sync-summary-actions' },
+        h('button', {
+          className: 'sync-btn sync-btn--secondary',
+          onClick: onCancel,
+          disabled: applying
+        }, 'Cancel'),
+        h('button', {
+          className: 'sync-btn sync-btn--primary',
+          onClick: handleApply,
+          disabled: !canApply || !hasChanges || applying
+        },
+          applying ? 'Applying\u2026' : hasChanges ? 'Apply Sync' : 'Nothing to sync'
+        )
+      )
+    )
+  );
+}
+
+// ═══ Sync Conflict Card ═══
+// Shows a side-by-side comparison with resolution buttons.
+// Props:
+//   entry      — classified conflict entry { id, local, remote: { data }, classification }
+//   resolution — current choice or null
+//   onResolve  — callback(choice)
+function SyncConflictCard({ entry, resolution, onResolve }) {
+  var h = React.createElement;
+  var local = entry.local;
+  var remote = entry.remote.data;
+
+  function countDone(proj) {
+    if (!proj || !proj.done) return 0;
+    var n = 0;
+    for (var i = 0; i < proj.done.length; i++) {
+      if (proj.done[i] === 1) n++;
+    }
+    return n;
+  }
+
+  function totalStitches(proj) {
+    if (!proj || !proj.pattern) return 0;
+    var n = 0;
+    for (var i = 0; i < proj.pattern.length; i++) {
+      var c = proj.pattern[i];
+      if (c && c.id !== '__skip__' && c.id !== '__empty__') n++;
+    }
+    return n;
+  }
+
+  function paletteCount(proj) {
+    if (!proj || !proj.pattern) return 0;
+    var ids = {};
+    for (var i = 0; i < proj.pattern.length; i++) {
+      var c = proj.pattern[i];
+      if (c && c.id && c.id !== '__skip__' && c.id !== '__empty__') ids[c.id] = true;
+    }
+    return Object.keys(ids).length;
+  }
+
+  var localDone = countDone(local);
+  var remoteDone = countDone(remote);
+  var localTotal = totalStitches(local);
+  var remoteTotal = totalStitches(remote);
+  var localPct = localTotal > 0 ? Math.round(localDone / localTotal * 100) : 0;
+  var remotePct = remoteTotal > 0 ? Math.round(remoteDone / remoteTotal * 100) : 0;
+  var localPalette = paletteCount(local);
+  var remotePalette = paletteCount(remote);
+
+  function side(label, proj, done, total, pct, palCount) {
+    return h('div', { className: 'sync-conflict-side' },
+      h('div', { className: 'sync-conflict-side-label' }, label),
+      h('div', { className: 'sync-conflict-side-name' }, proj.name || 'Untitled'),
+      h('div', { className: 'sync-conflict-side-meta' },
+        (proj.w || 0) + '\u00d7' + (proj.h || 0) + ' \u00b7 ' + palCount + ' colour' + (palCount !== 1 ? 's' : '') + ' \u00b7 ' + pct + '% done'
+      ),
+      h('div', { className: 'sync-conflict-side-date' },
+        'Edited: ' + (proj.updatedAt ? new Date(proj.updatedAt).toLocaleString() : 'unknown')
+      )
+    );
+  }
+
+  var choices = [
+    { val: 'keep-local', label: 'Keep Local', desc: 'Discard remote changes' },
+    { val: 'keep-remote', label: 'Keep Remote', desc: 'Overwrite local with remote' },
+    { val: 'keep-both', label: 'Keep Both', desc: 'Import remote as a copy' }
+  ];
+
+  return h('div', { className: 'sync-conflict-card' + (resolution ? ' sync-conflict-card--resolved' : '') },
+    h('div', { className: 'sync-conflict-name' }, local.name || remote.name || entry.id),
+    h('div', { className: 'sync-conflict-sides' },
+      side('This device', local, localDone, localTotal, localPct, localPalette),
+      h('div', { className: 'sync-conflict-vs' }, 'vs'),
+      side('Sync file', remote, remoteDone, remoteTotal, remotePct, remotePalette)
+    ),
+    h('div', { className: 'sync-conflict-choices' },
+      choices.map(function(ch) {
+        return h('button', {
+          key: ch.val,
+          className: 'sync-choice-btn' + (resolution === ch.val ? ' sync-choice-btn--active' : ''),
+          onClick: function() { onResolve(ch.val); },
+          title: ch.desc
+        }, ch.label);
+      })
+    ),
+    resolution && h('div', { className: 'sync-conflict-resolved-label' },
+      Icons.check(), ' ' + choices.find(function(c) { return c.val === resolution; }).label
+    )
+  );
+}

@@ -114,6 +114,33 @@ const ProjectStorage = (() => {
   }
 
   return {
+    // Mark projects as synced (sets lastSyncedAt on each).
+    async markSynced(projectIds, timestamp) {
+      const ts = timestamp || new Date().toISOString();
+      for (const id of projectIds) {
+        try {
+          const p = await this.get(id);
+          if (p) {
+            if (!p.syncMeta) p.syncMeta = {};
+            p.syncMeta.lastSyncedAt = ts;
+            p.syncMeta.syncVersion = (p.syncMeta.syncVersion || 0) + 1;
+            // Save without bumping updatedAt — only sync metadata changed
+            const db = await getDB();
+            await new Promise((resolve, reject) => {
+              const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
+              tx.objectStore(STORE_NAME).put(p, p.id);
+              tx.objectStore(META_STORE).put(buildMeta(p), p.id);
+              if (p.id && p.id.startsWith("proj_")) {
+                tx.objectStore(STATS_STORE).put(buildStatsSummary(p), p.id);
+              }
+              tx.oncomplete = () => resolve();
+              tx.onerror = () => reject(tx.error);
+            });
+          }
+        } catch (e) { console.warn("markSynced failed for", id, e); }
+      }
+    },
+
     // Save a project. Assigns a new ID and createdAt if the project has none.
     // Returns a Promise<string> of the saved project ID.
     async save(project) {
@@ -122,6 +149,9 @@ const ProjectStorage = (() => {
         project.createdAt = new Date().toISOString();
       }
       project.updatedAt = new Date().toISOString();
+
+      // Fingerprints are computed by sync-specific export/classification flows.
+      // Avoid doing expensive whole-project fingerprinting on every normal save.
       try {
         const db = await getDB();
         return new Promise((resolve, reject) => {
@@ -134,7 +164,13 @@ const ProjectStorage = (() => {
           if (project.id && project.id.startsWith("proj_")) {
             statsStore.put(buildStatsSummary(project), project.id);
           }
-          tx.oncomplete = () => resolve(project.id);
+          tx.oncomplete = () => {
+            // Trigger auto-export to sync folder if enabled
+            if (typeof SyncEngine !== "undefined" && SyncEngine.triggerAutoExport) {
+              try { SyncEngine.triggerAutoExport(); } catch (e) {}
+            }
+            resolve(project.id);
+          };
           tx.onerror = () => reject(tx.error);
         });
       } catch (err) {
