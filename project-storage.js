@@ -127,8 +127,12 @@ const ProjectStorage = (() => {
             // Save without bumping updatedAt — only sync metadata changed
             const db = await getDB();
             await new Promise((resolve, reject) => {
-              const tx = db.transaction(STORE_NAME, "readwrite");
+              const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
               tx.objectStore(STORE_NAME).put(p, p.id);
+              tx.objectStore(META_STORE).put(buildMeta(p), p.id);
+              if (p.id && p.id.startsWith("proj_")) {
+                tx.objectStore(STATS_STORE).put(buildStatsSummary(p), p.id);
+              }
               tx.oncomplete = () => resolve();
               tx.onerror = () => reject(tx.error);
             });
@@ -163,7 +167,13 @@ const ProjectStorage = (() => {
           if (project.id && project.id.startsWith("proj_")) {
             statsStore.put(buildStatsSummary(project), project.id);
           }
-          tx.oncomplete = () => resolve(project.id);
+          tx.oncomplete = () => {
+            // Trigger auto-export to sync folder if enabled
+            if (typeof SyncEngine !== "undefined" && SyncEngine.triggerAutoExport) {
+              try { SyncEngine.triggerAutoExport(); } catch (e) {}
+            }
+            resolve(project.id);
+          };
           tx.onerror = () => reject(tx.error);
         });
       } catch (err) {

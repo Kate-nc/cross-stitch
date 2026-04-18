@@ -268,7 +268,14 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
         // Sync status indicator
         typeof SyncEngine !== 'undefined' && React.createElement('button', {
-          className: 'tb-nav-link tb-sync-indicator',
+          className: 'tb-nav-link tb-sync-indicator' + (function() {
+            try {
+              var st = SyncEngine.getSyncStatus();
+              if (st.hasWatchDir && st.autoSync) return ' tb-sync-indicator--active';
+              if (st.hasWatchDir) return ' tb-sync-indicator--folder';
+              return '';
+            } catch(e) { return ''; }
+          })(),
           onClick: () => {
             if (typeof window.__goHome === 'function') window.__goHome();
             else window.location.href = 'index.html';
@@ -277,19 +284,19 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           title: (function() {
             try {
               var st = SyncEngine.getSyncStatus();
-              if (st.lastExportAt || st.lastImportAt) {
-                var parts = [];
-                if (st.lastExportAt) parts.push('Last export: ' + new Date(st.lastExportAt).toLocaleString());
-                if (st.lastImportAt) parts.push('Last import: ' + new Date(st.lastImportAt).toLocaleString());
-                return parts.join('\n');
-              }
-              return 'Sync — not yet configured';
+              var parts = [];
+              if (st.hasWatchDir) parts.push('Sync folder connected' + (st.autoSync ? ' (auto-sync on)' : ''));
+              if (st.lastExportAt) parts.push('Last export: ' + new Date(st.lastExportAt).toLocaleString());
+              if (st.lastImportAt) parts.push('Last import: ' + new Date(st.lastImportAt).toLocaleString());
+              return parts.length ? parts.join('\n') : 'Sync \u2014 not yet configured';
             } catch(e) { return 'Sync'; }
           })()
         },
           (function() {
             try {
               var st = SyncEngine.getSyncStatus();
+              if (st.hasWatchDir && st.autoSync) return Icons.cloudCheck();
+              if (st.hasWatchDir) return Icons.cloudSync();
               if (st.lastExportAt || st.lastImportAt) return Icons.cloudCheck();
               return Icons.cloudOff();
             } catch(e) { return Icons.cloudOff(); }

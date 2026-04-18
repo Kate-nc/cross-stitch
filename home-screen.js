@@ -58,6 +58,14 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var deviceNameDraft = _deviceNameDraft[0], setDeviceNameDraft = _deviceNameDraft[1];
   var syncFileRef = React.useRef(null);
 
+  // Folder watch state
+  var _watchDirName = useState(null);
+  var watchDirName = _watchDirName[0], setWatchDirName = _watchDirName[1];
+  var _folderUpdates = useState(null);
+  var folderUpdates = _folderUpdates[0], setFolderUpdates = _folderUpdates[1];
+  var _autoSync = useState(false);
+  var autoSync = _autoSync[0], setAutoSync = _autoSync[1];
+
   // Hidden file inputs
   var imageInputRef = React.useRef(null);
   var openFileInputRef = React.useRef(null);
@@ -96,12 +104,25 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     return function() { cancelled = true; };
   }, []);
 
-  // Load sync status
+  // Load sync status + folder watch state
   useEffect(function() {
     if (typeof SyncEngine !== 'undefined') {
       var st = SyncEngine.getSyncStatus();
       setSyncStatus(st);
       setDeviceNameDraft(st.deviceName || '');
+      setAutoSync(st.autoSync || false);
+      // Restore folder watch handle and check for updates
+      SyncEngine.getWatchDirectory().then(function(handle) {
+        if (handle) {
+          setWatchDirName(handle.name || 'Sync folder');
+          // Update the status since hasWatchDir may have changed
+          setSyncStatus(SyncEngine.getSyncStatus());
+          // Auto-check for updates on page load
+          SyncEngine.checkForUpdates(handle).then(function(updates) {
+            if (updates && updates.length > 0) setFolderUpdates(updates);
+          }).catch(function() {});
+        }
+      }).catch(function() {});
     }
   }, []);
 
@@ -175,6 +196,87 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       SyncEngine.setDeviceName(trimmed);
       setSyncStatus(SyncEngine.getSyncStatus());
     }
+  }
+
+  // Folder watch handlers
+  function handleChooseSyncFolder() {
+    if (typeof window.showDirectoryPicker !== 'function') return;
+    window.showDirectoryPicker({ mode: 'readwrite' }).then(function(dirHandle) {
+      return SyncEngine.setWatchDirectory(dirHandle).then(function() {
+        setWatchDirName(dirHandle.name || 'Sync folder');
+        setSyncStatus(SyncEngine.getSyncStatus());
+        setSyncResult({ type: 'success', message: 'Sync folder set: ' + (dirHandle.name || 'folder') });
+        // Check for updates immediately
+        return SyncEngine.checkForUpdates(dirHandle).then(function(updates) {
+          if (updates && updates.length > 0) setFolderUpdates(updates);
+          else setFolderUpdates(null);
+        });
+      });
+    }).catch(function(err) {
+      if (err.name !== 'AbortError') {
+        setSyncResult({ type: 'error', message: 'Could not set sync folder: ' + err.message });
+      }
+    });
+  }
+
+  function handleDisconnectFolder() {
+    if (typeof SyncEngine === 'undefined') return;
+    SyncEngine.clearWatchDirectory().then(function() {
+      setWatchDirName(null);
+      setFolderUpdates(null);
+      setAutoSync(false);
+      setSyncStatus(SyncEngine.getSyncStatus());
+      setSyncResult({ type: 'success', message: 'Sync folder disconnected.' });
+    });
+  }
+
+  function handleExportToFolder() {
+    if (typeof SyncEngine === 'undefined') return;
+    setSyncBusy(true);
+    setSyncResult(null);
+    SyncEngine.exportToFolder().then(function(result) {
+      setSyncResult({ type: 'success', message: 'Exported to folder: ' + result.fileName });
+      setSyncStatus(SyncEngine.getSyncStatus());
+    }).catch(function(err) {
+      setSyncResult({ type: 'error', message: 'Folder export failed: ' + err.message });
+    }).finally(function() { setSyncBusy(false); });
+  }
+
+  function handleCheckForUpdates() {
+    if (typeof SyncEngine === 'undefined') return;
+    setSyncBusy(true);
+    setSyncResult(null);
+    SyncEngine.checkForUpdates().then(function(updates) {
+      if (updates && updates.length > 0) {
+        setFolderUpdates(updates);
+        setSyncResult({ type: 'success', message: updates.length + ' update' + (updates.length !== 1 ? 's' : '') + ' found from other devices.' });
+      } else {
+        setFolderUpdates(null);
+        setSyncResult({ type: 'success', message: 'No updates \u2014 everything is up to date.' });
+      }
+    }).catch(function(err) {
+      setSyncResult({ type: 'error', message: 'Check failed: ' + err.message });
+    }).finally(function() { setSyncBusy(false); });
+  }
+
+  function handleImportFromFolder(update) {
+    setSyncBusy(true);
+    setSyncResult(null);
+    SyncEngine.prepareImport(update.syncObj).then(function(plan) {
+      setSyncBusy(false);
+      setSyncPlan(plan);
+    }).catch(function(err) {
+      setSyncBusy(false);
+      setSyncResult({ type: 'error', message: 'Import failed: ' + err.message });
+    });
+  }
+
+  function handleToggleAutoSync() {
+    if (typeof SyncEngine === 'undefined') return;
+    var newVal = !autoSync;
+    setAutoSync(newVal);
+    SyncEngine.setAutoSyncEnabled(newVal);
+    setSyncStatus(SyncEngine.getSyncStatus());
   }
 
   // Computed data
@@ -498,6 +600,62 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
               }, syncStatus && syncStatus.deviceName ? syncStatus.deviceName : 'Set device name\u2026')
         ),
 
+        // Folder watch section
+        syncStatus && syncStatus.hasFolderWatch && h('div', { className: 'sync-folder-section' },
+          h('div', { className: 'sync-folder-row' },
+            h('span', { className: 'sync-device-label' }, 'Sync folder:'),
+            watchDirName
+              ? h('span', { className: 'sync-folder-name' },
+                  Icons.cloudCheck(), ' ', watchDirName,
+                  h('button', {
+                    className: 'sync-folder-disconnect',
+                    onClick: handleDisconnectFolder,
+                    title: 'Disconnect sync folder',
+                    'aria-label': 'Disconnect sync folder'
+                  }, '\u00D7')
+                )
+              : h('button', {
+                  className: 'home-btn home-btn--secondary sync-folder-btn',
+                  onClick: handleChooseSyncFolder,
+                  disabled: syncBusy
+                }, 'Choose folder\u2026')
+          ),
+          // Auto-sync toggle (only shown when folder is set)
+          watchDirName && h('div', { className: 'sync-autosync-row' },
+            h('label', { className: 'sync-autosync-label' },
+              h('input', {
+                type: 'checkbox',
+                checked: autoSync,
+                onChange: handleToggleAutoSync
+              }),
+              ' Auto-sync on save'
+            ),
+            h('span', { className: 'sync-autosync-hint' }, 'Automatically exports to this folder when you save a project')
+          )
+        ),
+
+        // Folder updates banner
+        folderUpdates && folderUpdates.length > 0 && h('div', { className: 'sync-folder-updates' },
+          h('div', { className: 'sync-folder-updates-title' },
+            Icons.cloudAlert(), ' ',
+            folderUpdates.length + ' update' + (folderUpdates.length !== 1 ? 's' : '') + ' available'
+          ),
+          folderUpdates.map(function(update, idx) {
+            return h('div', { key: idx, className: 'sync-folder-update-row' },
+              h('span', { className: 'sync-folder-update-info' },
+                (update.deviceName || 'Unknown device') + ' \u00B7 ' +
+                update.projectCount + ' project' + (update.projectCount !== 1 ? 's' : '') +
+                (update.createdAt ? ' \u00B7 ' + timeAgo(update.createdAt) : '')
+              ),
+              h('button', {
+                className: 'home-btn home-btn--primary sync-folder-update-btn',
+                onClick: function() { handleImportFromFolder(update); },
+                disabled: syncBusy
+              }, 'Review & import')
+            );
+          })
+        ),
+
         // Last sync times
         syncStatus && (syncStatus.lastExportAt || syncStatus.lastImportAt) && h('div', { className: 'sync-timestamps' },
           syncStatus.lastExportAt && h('div', { className: 'sync-timestamp' },
@@ -513,11 +671,21 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
 
         // Action buttons
         h('div', { className: 'sync-actions' },
-          h('button', {
+          watchDirName && h('button', {
             className: 'home-btn home-btn--primary sync-action-btn',
+            onClick: handleExportToFolder,
+            disabled: syncBusy
+          }, syncBusy ? 'Working\u2026' : 'Export to folder'),
+          watchDirName && h('button', {
+            className: 'home-btn home-btn--secondary sync-action-btn',
+            onClick: handleCheckForUpdates,
+            disabled: syncBusy
+          }, 'Check for updates'),
+          h('button', {
+            className: 'home-btn' + (watchDirName ? ' home-btn--secondary' : ' home-btn--primary') + ' sync-action-btn',
             onClick: handleExportSync,
             disabled: syncBusy
-          }, syncBusy ? 'Working\u2026' : 'Export .csync'),
+          }, syncBusy && !watchDirName ? 'Working\u2026' : 'Download .csync'),
           h('label', {
             className: 'home-btn home-btn--secondary sync-action-btn',
             style: { cursor: syncBusy ? 'not-allowed' : 'pointer' }
@@ -535,7 +703,11 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         ),
 
         h('p', { className: 'sync-hint' },
-          'Export a .csync file and place it in a shared folder (OneDrive, Google Drive, Dropbox) to sync between devices.'
+          watchDirName
+            ? 'Your sync folder is connected. Files are synced via your cloud drive automatically.'
+            : SyncEngine.hasFolderWatchSupport()
+              ? 'Choose a sync folder for automatic syncing, or manually export/import .csync files.'
+              : 'Export a .csync file and place it in a shared folder (OneDrive, Google Drive, Dropbox) to sync between devices.'
         )
       )
     ),

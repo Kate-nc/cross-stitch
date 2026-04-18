@@ -391,8 +391,13 @@ const SyncEngine = (() => {
 
   function mergeTrackingProgress(local, remote) {
     // Merge a project where the chart structure is identical but tracking differs.
-    // Take the LOCAL project as base, merge in remote tracking data.
+    // Take the LOCAL project as base, deep-clone mutable sub-objects to avoid
+    // mutating the original local data.
     var merged = Object.assign({}, local);
+    merged.halfDone = local.halfDone ? JSON.parse(JSON.stringify(local.halfDone)) : {};
+    merged.threadOwned = local.threadOwned ? JSON.parse(JSON.stringify(local.threadOwned)) : {};
+    merged.parkMarkers = local.parkMarkers ? JSON.parse(JSON.stringify(local.parkMarkers)) : [];
+    merged.achievedMilestones = local.achievedMilestones ? JSON.parse(JSON.stringify(local.achievedMilestones)) : [];
 
     // Merge done arrays (union — stitches completed on either device stay done)
     var patLen = (merged.pattern && merged.pattern.length) || 0;
@@ -481,7 +486,7 @@ const SyncEngine = (() => {
     // Merge threads: per-thread max owned, OR for tobuy
     var localThreads = (localStash && localStash.threads) || {};
     var remoteThreads = (remoteStash && remoteStash.threads) || {};
-    var allIds = {};
+    var allIds = Object.create(null);
     Object.keys(localThreads).forEach(function (id) { allIds[id] = true; });
     Object.keys(remoteThreads).forEach(function (id) { allIds[id] = true; });
 
@@ -499,7 +504,7 @@ const SyncEngine = (() => {
     // Merge pattern library: upsert by id, newer updatedAt wins
     var localPatterns = (localStash && localStash.patterns) || [];
     var remotePatterns = (remoteStash && remoteStash.patterns) || [];
-    var patternMap = {};
+    var patternMap = Object.create(null);
     localPatterns.forEach(function (p) { if (p && p.id) patternMap[p.id] = p; });
     remotePatterns.forEach(function (p) {
       if (!p || !p.id) return;
@@ -589,10 +594,11 @@ const SyncEngine = (() => {
       await ProjectStorage.save(entry.remote.data);
     }
 
-    // 2. Merge tracking progress
+    // 2. Merge tracking progress (re-read local from IDB to avoid stale data)
     for (var j = 0; j < plan.mergeTracking.length; j++) {
       var mEntry = plan.mergeTracking[j];
-      var merged = mergeTrackingProgress(mEntry.local, mEntry.remote.data);
+      var freshLocal = await ProjectStorage.get(mEntry.id || mEntry.local.id);
+      var merged = mergeTrackingProgress(freshLocal || mEntry.local, mEntry.remote.data);
       await ProjectStorage.save(merged);
     }
 
@@ -604,7 +610,7 @@ const SyncEngine = (() => {
         await ProjectStorage.save(cEntry.remote.data);
       } else if (resolution === "keep-both") {
         // Keep local as-is; import remote with a new ID
-        var remoteCopy = Object.assign({}, cEntry.remote.data);
+        var remoteCopy = JSON.parse(JSON.stringify(cEntry.remote.data));
         remoteCopy.id = "proj_" + Date.now();
         remoteCopy.name = (remoteCopy.name || "Untitled") + " (synced)";
         remoteCopy.createdAt = new Date().toISOString();
@@ -631,8 +637,17 @@ const SyncEngine = (() => {
       }
     }
 
-    // 5. Record import timestamp
-    try { localStorage.setItem(LS_LAST_IMPORT, new Date().toISOString()); } catch (e) {}
+    // 5. Record import timestamp and mark synced projects
+    var importTs = new Date().toISOString();
+    try { localStorage.setItem(LS_LAST_IMPORT, importTs); } catch (e) {}
+    // Mark all affected project IDs as synced
+    var syncedIds = [];
+    plan.newRemote.forEach(function (e) { if (e.remote && e.remote.data && e.remote.data.id) syncedIds.push(e.remote.data.id); });
+    plan.mergeTracking.forEach(function (e) { if (e.id) syncedIds.push(e.id); });
+    plan.conflicts.forEach(function (e) { if (e.id) syncedIds.push(e.id); });
+    if (syncedIds.length > 0 && typeof ProjectStorage !== "undefined" && ProjectStorage.markSynced) {
+      try { await ProjectStorage.markSynced(syncedIds, importTs); } catch (e) {}
+    }
 
     return {
       imported: plan.newRemote.length,
@@ -695,6 +710,137 @@ const SyncEngine = (() => {
     return typeof window.showDirectoryPicker === "function";
   }
 
+  async function clearWatchDirectory() {
+    _watchDirHandle = null;
+    try {
+      var db = await openSyncMetaDB();
+      await new Promise(function (resolve, reject) {
+        var tx = db.transaction("sync_state", "readwrite");
+        tx.objectStore("sync_state").delete("watchDirHandle");
+        tx.oncomplete = function () { db.close(); resolve(); };
+        tx.onerror = function () { db.close(); reject(tx.error); };
+      });
+    } catch (e) { console.warn("SyncEngine: could not clear watch dir handle:", e); }
+    try { localStorage.removeItem("cs_sync_folderAutoSync"); } catch (e) {}
+  }
+
+  // Write current state to the sync folder as a .csync file
+  async function exportToFolder(dirHandleArg) {
+    var dirHandle = dirHandleArg || _watchDirHandle;
+    if (!dirHandle) throw new Error("No sync folder configured.");
+    // Verify permission
+    var perm = await dirHandle.queryPermission({ mode: "readwrite" });
+    if (perm !== "granted") {
+      perm = await dirHandle.requestPermission({ mode: "readwrite" });
+      if (perm !== "granted") throw new Error("Write permission denied for sync folder.");
+    }
+    var syncObj = await exportSync();
+    var compressed = compress(syncObj);
+    // Use a fixed filename per device so each device has one file
+    var deviceName = getDeviceName();
+    var namePart = deviceName ? "-" + deviceName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 20) : "";
+    var deviceId = getDeviceId();
+    var idPart = deviceId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 30);
+    var fileName = "cross-stitch-sync" + namePart + "-" + idPart + ".csync";
+    var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+    var writable = await fileHandle.createWritable();
+    await writable.write(compressed);
+    await writable.close();
+    return { fileName: fileName, syncObj: syncObj };
+  }
+
+  // Scan the sync folder for .csync files and return metadata for each
+  async function scanFolder(dirHandleArg) {
+    var dirHandle = dirHandleArg || _watchDirHandle;
+    if (!dirHandle) return [];
+    // Verify permission
+    var perm = await dirHandle.queryPermission({ mode: "read" });
+    if (perm !== "granted") {
+      perm = await dirHandle.requestPermission({ mode: "read" });
+      if (perm !== "granted") return [];
+    }
+    var results = [];
+    for await (var entry of dirHandle.values()) {
+      if (entry.kind !== "file" || !entry.name.endsWith(".csync")) continue;
+      try {
+        var file = await entry.getFile();
+        var arrayBuffer = await file.arrayBuffer();
+        var syncObj = decompress(arrayBuffer);
+        var valid = validate(syncObj);
+        if (!valid.valid) continue;
+        results.push({
+          fileName: entry.name,
+          fileHandle: entry,
+          deviceId: syncObj._deviceId || null,
+          deviceName: syncObj._deviceName || null,
+          createdAt: syncObj._createdAt || null,
+          projectCount: syncObj.projects ? syncObj.projects.length : 0,
+          hasStash: !!syncObj.stash,
+          syncObj: syncObj,
+          size: file.size,
+          lastModified: file.lastModified
+        });
+      } catch (e) {
+        console.warn("SyncEngine: skipping unreadable file:", entry.name, e);
+      }
+    }
+    return results;
+  }
+
+  // Check the sync folder for files from other devices that are newer than our last import
+  async function checkForUpdates(dirHandleArg) {
+    var files = await scanFolder(dirHandleArg);
+    var myDeviceId = getDeviceId();
+    var lastImport = null;
+    try { lastImport = localStorage.getItem(LS_LAST_IMPORT); } catch (e) {}
+    var lastImportMs = lastImport ? new Date(lastImport).getTime() : 0;
+    var updates = [];
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      // Skip our own file
+      if (f.deviceId === myDeviceId) continue;
+      // Check if this file is newer than our last import
+      var fileTime = f.createdAt ? new Date(f.createdAt).getTime() : (f.lastModified || 0);
+      if (fileTime > lastImportMs) {
+        updates.push(f);
+      }
+    }
+    return updates;
+  }
+
+  function isAutoSyncEnabled() {
+    try { return localStorage.getItem("cs_sync_folderAutoSync") === "1"; } catch (e) { return false; }
+  }
+
+  function setAutoSyncEnabled(enabled) {
+    try {
+      if (enabled) localStorage.setItem("cs_sync_folderAutoSync", "1");
+      else localStorage.removeItem("cs_sync_folderAutoSync");
+    } catch (e) {}
+  }
+
+  // Debounced auto-export: writes to the sync folder after a save, at most once per 30s
+  var _autoExportTimer = null;
+  var AUTO_EXPORT_DELAY = 30000; // 30 seconds
+
+  function triggerAutoExport() {
+    if (!isAutoSyncEnabled() || !_watchDirHandle) return;
+    if (_autoExportTimer) clearTimeout(_autoExportTimer);
+    _autoExportTimer = setTimeout(function () {
+      _autoExportTimer = null;
+      // Pre-check permission without user gesture — skip if not granted
+      _watchDirHandle.queryPermission({ mode: "readwrite" }).then(function (perm) {
+        if (perm !== "granted") {
+          console.warn("SyncEngine: auto-export skipped — permission not granted (re-open sync panel to re-authorise)");
+          return;
+        }
+        return exportToFolder();
+      }).catch(function (e) {
+        console.warn("SyncEngine: auto-export failed:", e);
+      });
+    }, AUTO_EXPORT_DELAY);
+  }
+
   // ── Sync status helpers ──────────────────────────────────────────────────
 
   function getSyncStatus() {
@@ -706,7 +852,9 @@ const SyncEngine = (() => {
       deviceName: getDeviceName(),
       lastExportAt: lastExport,
       lastImportAt: lastImport,
-      hasFolderWatch: hasFolderWatchSupport()
+      hasFolderWatch: hasFolderWatchSupport(),
+      hasWatchDir: !!_watchDirHandle,
+      autoSync: isAutoSyncEnabled()
     };
   }
 
@@ -743,6 +891,13 @@ const SyncEngine = (() => {
     hasFolderWatchSupport: hasFolderWatchSupport,
     setWatchDirectory: setWatchDirectory,
     getWatchDirectory: getWatchDirectory,
+    clearWatchDirectory: clearWatchDirectory,
+    exportToFolder: exportToFolder,
+    scanFolder: scanFolder,
+    checkForUpdates: checkForUpdates,
+    isAutoSyncEnabled: isAutoSyncEnabled,
+    setAutoSyncEnabled: setAutoSyncEnabled,
+    triggerAutoExport: triggerAutoExport,
 
     // Constants (for testing)
     SYNC_FORMAT: SYNC_FORMAT,

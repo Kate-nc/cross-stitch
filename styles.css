@@ -2532,6 +2532,29 @@ kbd {
 
 /* Header sync indicator */
 .tb-sync-indicator { position: relative; display: inline-flex; align-items: center; }
+.tb-sync-indicator--active svg { color: #10b981; }
+.tb-sync-indicator--folder svg { color: #0d9488; }
+
+/* Folder watch section */
+.sync-folder-section { margin-bottom: 8px; }
+.sync-folder-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.sync-folder-name { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 500; color: #0d9488; }
+.sync-folder-name svg { width: 14px; height: 14px; }
+.sync-folder-disconnect { background: none; border: none; cursor: pointer; font-size: 16px; color: #94a3b8; padding: 0 2px; line-height: 1; }
+.sync-folder-disconnect:hover { color: #ef4444; }
+.sync-folder-btn { font-size: 12px; padding: 4px 10px; }
+.sync-autosync-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.sync-autosync-label { display: flex; align-items: center; gap: 4px; font-size: 13px; color: #475569; cursor: pointer; }
+.sync-autosync-label input[type="checkbox"] { accent-color: #0d9488; }
+.sync-autosync-hint { font-size: 11px; color: #94a3b8; }
+
+/* Folder updates banner */
+.sync-folder-updates { padding: 8px 12px; border-radius: 6px; background: #eff6ff; border: 1px solid #93c5fd; margin-bottom: 8px; }
+.sync-folder-updates-title { font-size: 13px; font-weight: 600; color: #1e40af; display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+.sync-folder-updates-title svg { width: 16px; height: 16px; }
+.sync-folder-update-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-top: 0.5px solid #bfdbfe; }
+.sync-folder-update-info { font-size: 12px; color: #475569; }
+.sync-folder-update-btn { font-size: 11px; padding: 3px 10px; white-space: nowrap; }
 
 /* ── Sync Summary Modal ──────────────────────────────────────────── */
 .sync-summary-modal { max-width: 560px; max-height: 80vh; overflow-y: auto; }

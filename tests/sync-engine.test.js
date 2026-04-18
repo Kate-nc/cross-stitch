@@ -860,3 +860,179 @@ describe('edge cases', () => {
     expect(back.projects).toEqual([]);
   });
 });
+// ---------------------------------------------------------------------------
+// Folder watch helpers
+// ---------------------------------------------------------------------------
+
+describe('hasFolderWatchSupport', () => {
+  test('returns false when showDirectoryPicker is not available', () => {
+    delete global.window.showDirectoryPicker;
+    expect(SE.hasFolderWatchSupport()).toBe(false);
+  });
+
+  test('returns true when showDirectoryPicker is a function', () => {
+    global.window.showDirectoryPicker = function() {};
+    expect(SE.hasFolderWatchSupport()).toBe(true);
+    delete global.window.showDirectoryPicker;
+  });
+});
+
+describe('isAutoSyncEnabled / setAutoSyncEnabled', () => {
+  beforeEach(() => { global.localStorage.clear(); });
+
+  test('defaults to false', () => {
+    expect(SE.isAutoSyncEnabled()).toBe(false);
+  });
+
+  test('can be enabled and disabled', () => {
+    SE.setAutoSyncEnabled(true);
+    expect(SE.isAutoSyncEnabled()).toBe(true);
+    SE.setAutoSyncEnabled(false);
+    expect(SE.isAutoSyncEnabled()).toBe(false);
+  });
+});
+
+describe('getSyncStatus includes folder watch fields', () => {
+  beforeEach(() => { global.localStorage.clear(); });
+
+  test('includes hasFolderWatch and autoSync fields', () => {
+    const st = SE.getSyncStatus();
+    expect(st).toHaveProperty('hasFolderWatch');
+    expect(st).toHaveProperty('hasWatchDir');
+    expect(st).toHaveProperty('autoSync');
+    expect(typeof st.autoSync).toBe('boolean');
+  });
+
+  test('autoSync reflects localStorage setting', () => {
+    SE.setAutoSyncEnabled(true);
+    expect(SE.getSyncStatus().autoSync).toBe(true);
+    SE.setAutoSyncEnabled(false);
+    expect(SE.getSyncStatus().autoSync).toBe(false);
+  });
+});
+
+describe('triggerAutoExport', () => {
+  beforeEach(() => { global.localStorage.clear(); });
+
+  test('does not throw when auto-sync is disabled', () => {
+    expect(() => SE.triggerAutoExport()).not.toThrow();
+  });
+
+  test('does not throw when auto-sync is enabled but no folder handle', () => {
+    SE.setAutoSyncEnabled(true);
+    expect(() => SE.triggerAutoExport()).not.toThrow();
+    SE.setAutoSyncEnabled(false);
+  });
+});
+
+describe('exportToFolder', () => {
+  test('throws when no directory handle is configured', async () => {
+    await expect(SE.exportToFolder(null)).rejects.toThrow('No sync folder configured');
+  });
+});
+
+describe('scanFolder', () => {
+  test('returns empty array when no directory handle', async () => {
+    const result = await SE.scanFolder(null);
+    expect(result).toEqual([]);
+  });
+
+  test('scans a mock directory with .csync files', async () => {
+    // Create a valid compressed sync file
+    const syncObj = {
+      _format: 'cross-stitch-sync',
+      _version: 1,
+      _createdAt: '2024-06-01T00:00:00Z',
+      _deviceId: 'dev_other',
+      _deviceName: 'Other PC',
+      projects: [{ id: 'proj_1', data: { id: 'proj_1', pattern: [] } }]
+    };
+    const compressed = SE.compress(syncObj);
+
+    // Mock FileSystemDirectoryHandle
+    const mockFile = {
+      arrayBuffer: async () => compressed.buffer,
+      size: compressed.length,
+      lastModified: Date.now()
+    };
+    const mockEntries = [
+      { kind: 'file', name: 'test.csync', getFile: async () => mockFile },
+      { kind: 'file', name: 'readme.txt', getFile: async () => ({}) },
+      { kind: 'directory', name: 'subdir' }
+    ];
+    const mockDirHandle = {
+      queryPermission: async () => 'granted',
+      requestPermission: async () => 'granted',
+      values: async function*() { for (const e of mockEntries) yield e; }
+    };
+
+    const results = await SE.scanFolder(mockDirHandle);
+    expect(results.length).toBe(1);
+    expect(results[0].fileName).toBe('test.csync');
+    expect(results[0].deviceId).toBe('dev_other');
+    expect(results[0].deviceName).toBe('Other PC');
+    expect(results[0].projectCount).toBe(1);
+  });
+});
+
+describe('checkForUpdates', () => {
+  beforeEach(() => { global.localStorage.clear(); });
+
+  test('returns only files from other devices newer than last import', async () => {
+    const myDeviceId = SE.getDeviceId();
+    const syncObj1 = {
+      _format: 'cross-stitch-sync', _version: 1,
+      _createdAt: '2099-01-01T00:00:00Z',
+      _deviceId: 'dev_other', _deviceName: 'Other',
+      projects: []
+    };
+    const syncObj2 = {
+      _format: 'cross-stitch-sync', _version: 1,
+      _createdAt: '2099-01-02T00:00:00Z',
+      _deviceId: myDeviceId, _deviceName: 'Me',
+      projects: []
+    };
+    const c1 = SE.compress(syncObj1);
+    const c2 = SE.compress(syncObj2);
+
+    const mkFile = (buf) => ({
+      arrayBuffer: async () => buf.buffer,
+      size: buf.length, lastModified: Date.now()
+    });
+    const entries = [
+      { kind: 'file', name: 'other.csync', getFile: async () => mkFile(c1) },
+      { kind: 'file', name: 'mine.csync', getFile: async () => mkFile(c2) }
+    ];
+    const dirHandle = {
+      queryPermission: async () => 'granted',
+      requestPermission: async () => 'granted',
+      values: async function*() { for (const e of entries) yield e; }
+    };
+
+    const updates = await SE.checkForUpdates(dirHandle);
+    // Should only return the file from 'dev_other', not our own
+    expect(updates.length).toBe(1);
+    expect(updates[0].deviceId).toBe('dev_other');
+  });
+
+  test('returns empty when all files are older than last import', async () => {
+    global.localStorage.setItem('cs_sync_lastImportAt', '2100-01-01T00:00:00Z');
+    const syncObj = {
+      _format: 'cross-stitch-sync', _version: 1,
+      _createdAt: '2024-01-01T00:00:00Z',
+      _deviceId: 'dev_other', projects: []
+    };
+    const c = SE.compress(syncObj);
+    const entries = [
+      { kind: 'file', name: 'old.csync', getFile: async () => ({ arrayBuffer: async () => c.buffer, size: c.length, lastModified: 0 }) }
+    ];
+    const dirHandle = {
+      queryPermission: async () => 'granted',
+      requestPermission: async () => 'granted',
+      values: async function*() { for (const e of entries) yield e; }
+    };
+
+    const updates = await SE.checkForUpdates(dirHandle);
+    expect(updates.length).toBe(0);
+  });
+});
