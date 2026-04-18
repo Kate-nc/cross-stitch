@@ -866,12 +866,23 @@ function UnifiedApp(){
     setMode('design');
     if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');
   },[]);
+  const prevModeRef=React.useRef(null);
+  const modeRef=React.useRef(mode);
+  modeRef.current=mode;
+  const closeStats=React.useCallback(()=>{
+    const prev=prevModeRef.current;
+    if(prev==='track'){window.history.replaceState({},'','?mode=track');setMode('track');}
+    else if(prev==='design'){window.history.replaceState({},'',window.location.pathname);setMode('design');}
+    else{window.history.replaceState({},'',window.location.pathname);setHomeKey(k=>k+1);setMode('home');}
+  },[]);
   const switchToStats=React.useCallback(()=>{
+    if(modeRef.current==='stats'){closeStats();return;}
+    prevModeRef.current=modeRef.current;
     if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
     setTrackerMounted(true);
     window.history.replaceState({},'','?mode=stats');
     setMode('stats');
-  },[]);
+  },[closeStats]);
   const goHome=React.useCallback(()=>{
     window.history.replaceState({},'',window.location.pathname);
     setHomeKey(k=>k+1);
@@ -957,7 +968,6 @@ function UnifiedApp(){
   },[]);
 
   const[homeModal,setHomeModal]=React.useState(null);
-  const[showGlobalStats,setShowGlobalStats]=React.useState(false);
 
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
   return <>
@@ -971,11 +981,8 @@ function UnifiedApp(){
         onImportPattern={handleHomeImportPattern}
         onOpenProject={handleHomeOpenProject}
         onNavigateToStash={handleHomeNavigateToStash}
-        onOpenGlobalStats={()=>setShowGlobalStats(true)}
+        onOpenGlobalStats={switchToStats}
       />
-      {showGlobalStats&&<div style={{position:'fixed',inset:0,background:'var(--surface)',zIndex:200,overflowY:'auto'}}>
-        <GlobalStatsDashboard onClose={()=>setShowGlobalStats(false)} />
-      </div>}
       {homeModal==='help'&&<SharedModals.Help onClose={()=>setHomeModal(null)} />}
     </div>}
     <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
@@ -997,7 +1004,7 @@ function UnifiedApp(){
     </div>
     {mode==='stats'&&<div style={{position:'fixed',inset:0,background:'var(--surface)',zIndex:100,overflowY:'auto'}}>
       <Header page="stats" tab="" onPageChange={()=>{}} setModal={()=>{}} />
-      <GlobalStatsDashboard onClose={goHome} />
+      <GlobalStatsDashboard onClose={closeStats} />
     </div>}
   </>;
 }

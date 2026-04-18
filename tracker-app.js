@@ -3435,7 +3435,7 @@ return(
 </div>}
 {!sessionOnboardingShown&&liveAutoStitches>0&&statsSessions.length===0&&(
   <div className="session-onboarding-toast">
-    <span>ℹ Sessions are tracked automatically as you stitch. View stats with the 📊 button.</span>
+    <span>ℹ Sessions are tracked automatically as you stitch. View stats via the 📊 button in the Session panel.</span>
     <button onClick={()=>{setSessionOnboardingShown(true);try{localStorage.setItem("cs_sessionOnboardingDone","1");}catch(_){}}}>Got it</button>
   </div>
 )}
@@ -3748,6 +3748,7 @@ return(
           {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
           <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
         </div>
+        <button style={{marginTop:8,width:'100%',padding:"6px 0",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#475569",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>setStatsView(v=>!v)}>📊 {statsView?"Hide":"View"} full stats</button>
       </div>}
 
       {/* View Mode */}
