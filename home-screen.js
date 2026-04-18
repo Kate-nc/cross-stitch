@@ -28,7 +28,7 @@ function getGreeting() {
   return 'Good evening';
 }
 
-function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, onImportPattern, onOpenProject, onNavigateToStash }) {
+function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, onImportPattern, onOpenProject, onNavigateToStash, onOpenGlobalStats }) {
   var h = React.createElement;
   var useState = React.useState;
   var useEffect = React.useEffect;
@@ -406,7 +406,10 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     !isEmptyState && projectCount > 0 && h('div', {
       className: 'home-stats-row' + (statsCards.length <= 2 ? ' home-stats-row--narrow' : ''),
       role: 'group',
-      'aria-label': 'Project statistics'
+      'aria-label': 'Project statistics',
+      onClick: onOpenGlobalStats || undefined,
+      style: onOpenGlobalStats ? { cursor: 'pointer' } : undefined,
+      title: onOpenGlobalStats ? 'View detailed stats' : undefined
     },
       statsCards.map(function(card) {
         return h('div', {

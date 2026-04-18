@@ -64,6 +64,7 @@ self.onmessage = function(e) {
     var bgCol        = settings.bgCol;
     var bgTh         = settings.bgTh;
     var stitchCleanup = settings.stitchCleanup;
+    var orphansOpt = settings.orphans != null ? settings.orphans : null;
 
     var allowedPalette = settings.allowedPalette || null;
     var p = quantize(raw, width, height, maxC, allowedPalette, {seed: settings.seed});
@@ -92,16 +93,26 @@ self.onmessage = function(e) {
     var confettiClean = null;
     var preCleanupIds = null;
 
-    if (stitchCleanup && stitchCleanup.enabled) {
-      var strengthKey = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
-        ? stitchCleanup.strength : 'balanced';
-      var sp = STRENGTH_MAP[strengthKey];
-      var edgeMap = stitchCleanup.protectDetails ? generateEdgeMap(raw, width, height) : null;
+    var runCleanup = orphansOpt != null ? (orphansOpt > 0) : (stitchCleanup && stitchCleanup.enabled);
+    if (runCleanup) {
+      var maxOrphanSize, saliencyMult;
+      if (orphansOpt != null) {
+        maxOrphanSize = orphansOpt;
+        var _csMap = stitchCleanup && STRENGTH_MAP[stitchCleanup.strength] ? STRENGTH_MAP[stitchCleanup.strength] : STRENGTH_MAP.balanced;
+        saliencyMult = _csMap.saliencyMultiplier;
+      } else {
+        var strengthKey = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
+          ? stitchCleanup.strength : 'balanced';
+        var sp = STRENGTH_MAP[strengthKey];
+        maxOrphanSize = sp.maxOrphanSize;
+        saliencyMult = sp.saliencyMultiplier;
+      }
+      var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
       preCleanupIds = mapped.map(function(m) { return m.id; });
       mapped = removeOrphanStitches(
-        mapped, width, height, sp.maxOrphanSize,
+        mapped, width, height, maxOrphanSize,
         edgeMap, saliencyMap,
-        { saliencyMultiplier: sp.saliencyMultiplier },
+        { saliencyMultiplier: saliencyMult },
         preLabels
       );
       var postLabels = labelConnectedComponents(mapped, width, height);
