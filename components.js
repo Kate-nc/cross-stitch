@@ -750,21 +750,53 @@ function SectionGrid({sections, statsSettings, onUpdateSettings}){
   var complete=sections?sections.filter(function(s){return s.isDone;}).length:0;
   var secCols=(statsSettings&&statsSettings.sectionCols)||50;
   var secRows=(statsSettings&&statsSettings.sectionRows)||50;
+  var sectionLabels=(statsSettings&&statsSettings.sectionLabels)||{};
+  // editing: key "sx,sy" of the section currently being labelled, or null
+  var _editing=React.useState(null);var editingKey=_editing[0],setEditingKey=_editing[1];
+  var _editVal=React.useState('');var editVal=_editVal[0],setEditVal=_editVal[1];
+
+  function commitLabel(key){
+    var trimmed=editVal.trim();
+    var updated=Object.assign({},sectionLabels);
+    if(trimmed){updated[key]=trimmed;}else{delete updated[key];}
+    onUpdateSettings(Object.assign({},statsSettings,{sectionLabels:updated}));
+    setEditingKey(null);
+  }
+
   return React.createElement("div",{style:{background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,padding:16}},
-    React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}},
+    React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}},
       React.createElement("h4",{style:{fontSize:14,fontWeight:600,color:'#1e293b',margin:0}},"Sections"),
       numX>0&&React.createElement("span",{style:{fontSize:12,color:'#64748b'}},complete+" / "+(sections?sections.length:0)+" complete")
     ),
+    React.createElement("p",{style:{fontSize:11,color:'#94a3b8',margin:'0 0 8px',lineHeight:1.4}},"Click a section to name it"),
     sections&&sections.length>0&&React.createElement("div",{className:"section-grid",style:{display:'grid',gridTemplateColumns:'repeat('+numX+', 1fr)',gap:3,marginBottom:12}},
       sections.map(function(sec){
+        var cellKey=sec.sx+','+sec.sy;
+        var customLabel=sectionLabels[cellKey]||null;
+        var isEditing=editingKey===cellKey;
+        var fs=Math.max(8,Math.min(11,Math.floor(60/numX)));
         return React.createElement("div",{
           key:sec.label,
           className:"section-cell",
-          style:{background:sec.isDone?'#16a34a':sectionColor(sec.pct),aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderRadius:4,fontSize:Math.max(8,Math.min(11,Math.floor(60/numX))),color:sec.pct>50?'#fff':'#1e293b',fontWeight:sec.isDone?700:400,cursor:'default',padding:1},
-          title:'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)'
+          style:{background:sec.isDone?'#16a34a':sectionColor(sec.pct),aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderRadius:4,fontSize:fs,color:sec.pct>50?'#fff':'#1e293b',fontWeight:sec.isDone?700:400,cursor:'pointer',padding:1,overflow:'hidden',position:'relative'},
+          title:customLabel?customLabel+' ('+sec.pct+'%)':'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)',
+          onClick:function(){if(!isEditing){setEditVal(customLabel||'');setEditingKey(cellKey);}}
         },
-          React.createElement("span",null,sec.pct+"%"),
-          sec.isDone&&React.createElement("span",{style:{fontSize:Math.max(7,Math.min(10,Math.floor(55/numX)))}},"\u2713")
+          isEditing
+            ? React.createElement("input",{
+                autoFocus:true,
+                value:editVal,
+                onChange:function(e){setEditVal(e.target.value);},
+                onBlur:function(){commitLabel(cellKey);},
+                onKeyDown:function(e){if(e.key==='Enter'){e.preventDefault();commitLabel(cellKey);}if(e.key==='Escape'){setEditingKey(null);}},
+                style:{width:'90%',fontSize:Math.max(7,fs-1),padding:'1px 2px',border:'1px solid #fff',borderRadius:2,textAlign:'center',background:'rgba(255,255,255,0.9)',color:'#1e293b'},
+                onClick:function(e){e.stopPropagation();}
+              })
+            : [
+                React.createElement("span",{key:'pct'},sec.pct+"%"),
+                customLabel&&React.createElement("span",{key:'lbl',style:{fontSize:Math.max(6,fs-2),overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'100%',textAlign:'center',padding:'0 1px',opacity:0.9}},customLabel),
+                sec.isDone&&!customLabel&&React.createElement("span",{key:'done',style:{fontSize:Math.max(7,Math.min(10,Math.floor(55/numX)))}},"\u2713")
+              ]
         );
       })
     ),
@@ -1294,13 +1326,32 @@ function InsightIcon({type}) {
   return React.createElement('span', {style: {display: 'inline-flex', alignItems: 'center', fontSize: 16}}, icon);
 }
 
+var CS_GLOBAL_GOALS_KEY = 'cs_global_goals';
+function readGlobalGoals() {
+  try { var raw = localStorage.getItem(CS_GLOBAL_GOALS_KEY); return raw ? JSON.parse(raw) : {}; } catch(e) { return {}; }
+}
+function writeGlobalGoals(goals) {
+  try { localStorage.setItem(CS_GLOBAL_GOALS_KEY, JSON.stringify(goals)); } catch(e) {}
+}
+
 function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSettings, onUpdateSettings}) {
   var _summaries = React.useState([]);
   var projectSummaries = _summaries[0], setProjectSummaries = _summaries[1];
   var _loading = React.useState(true);
+  // Global goals are stored in localStorage, independent of any single project's statsSettings
+  var _globalGoals = React.useState(readGlobalGoals);
+  var globalGoals = _globalGoals[0], setGlobalGoals = _globalGoals[1];
+  function updateGlobalGoals(newSettings) {
+    var goals = {dailyGoal: newSettings.dailyGoal != null ? newSettings.dailyGoal : null,
+      weeklyGoal: newSettings.weeklyGoal != null ? newSettings.weeklyGoal : null,
+      monthlyGoal: newSettings.monthlyGoal != null ? newSettings.monthlyGoal : null,
+      targetDate: newSettings.targetDate != null ? newSettings.targetDate : null};
+    setGlobalGoals(goals);
+    writeGlobalGoals(goals);
+  }
+  // Effective settings for GoalTracker: combine global goals with any per-project timing settings
+  var effectiveGoalSettings = Object.assign({dayEndHour: 0, useActiveDays: true}, statsSettings || {}, globalGoals);
   var loading = _loading[0], setLoading = _loading[1];
-  var _building = React.useState(false);
-  var building = _building[0], setBuilding = _building[1];
   var _timeRange = React.useState('14');
   var timeRange = _timeRange[0], setTimeRange = _timeRange[1];
   var _tlLimit = React.useState(20);
@@ -1308,18 +1359,18 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
 
   React.useEffect(function() {
     if (typeof ProjectStorage === 'undefined') { setLoading(false); return; }
-    ProjectStorage.getAllStatsSummaries().then(function(data) {
-      if (data.length === 0) {
-        setBuilding(true);
-        return ProjectStorage.buildAllStatsSummaries().then(function(built) {
-          setProjectSummaries(built);
-          setBuilding(false);
-          setLoading(false);
-        });
-      }
-      setProjectSummaries(data);
-      setLoading(false);
-    }).catch(function() { setLoading(false); });
+    // Flush the active project to IDB first so the summary includes the latest session data
+    var doLoad = function() {
+      ProjectStorage.buildAllStatsSummaries().then(function(built) {
+        setProjectSummaries(built);
+        setLoading(false);
+      }).catch(function() { setLoading(false); });
+    };
+    if (typeof window.__flushProjectToIDB === 'function') {
+      window.__flushProjectToIDB().then(doLoad).catch(doLoad);
+    } else {
+      doLoad();
+    }
   }, []);
 
   var allSessions = React.useMemo(function() {
@@ -1504,7 +1555,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
 
   if (loading) {
     return React.createElement('div', {className: 'gsd', style: {padding: '40px', textAlign: 'center', color: 'var(--text-secondary)'}},
-      building ? 'Building your stats overview\u2026' : 'Loading\u2026');
+      'Loading\u2026');
   }
 
   if (projectSummaries.length === 0) {
@@ -1516,7 +1567,20 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
   return React.createElement('div', {className: 'stats-dashboard'},
     React.createElement('div', {style: {display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8, flexWrap: 'wrap'}},
       React.createElement('h2', {style: {fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px'}}, Icons.barChart(), 'All projects'),
-      React.createElement('button', {onClick: onClose, style: {fontSize: 13, padding: '4px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '\u2190 Back to grid')
+      React.createElement('div', {style: {display: 'flex', gap: 8}},
+        React.createElement('button', {onClick: function() {
+          setLoading(true);
+          var doRefresh = function() {
+            ProjectStorage.buildAllStatsSummaries().then(function(built) {
+              setProjectSummaries(built); setLoading(false);
+            }).catch(function() { setLoading(false); });
+          };
+          if (typeof window.__flushProjectToIDB === 'function') {
+            window.__flushProjectToIDB().then(doRefresh).catch(doRefresh);
+          } else { doRefresh(); }
+        }, style: {fontSize: 13, padding: '4px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '↻ Refresh'),
+        React.createElement('button', {onClick: onClose, style: {fontSize: 13, padding: '4px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '\u2190 Back to grid')
+      )
     ),
 
     // Section 1: Lifetime totals
@@ -1567,16 +1631,16 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
       )
     ),
 
-    // Section 5: Goals (from active project settings)
-    statsSettings && React.createElement('div', {style: {marginBottom: '1.5rem'}},
+    // Section 5: Goals (stored globally in localStorage, not tied to any single project)
+    React.createElement('div', {style: {marginBottom: '1.5rem'}},
       React.createElement('h3', {className: 'gsd-section-label'}, 'Goals'),
       React.createElement(GoalTracker, {
-        statsSettings: statsSettings,
+        statsSettings: effectiveGoalSettings,
         statsSessions: allSessions,
         totalCompleted: allSessions.reduce(function(s, x) { return s + (x.netStitches || 0); }, 0),
         totalStitches: projectSummaries.reduce(function(s, p) { return s + p.totalStitches; }, 0),
         overviewStats: computeOverviewStats(allSessions, lifetimeTotals.totalStitches, lifetimeTotals.totalStitches, true),
-        onUpdateSettings: onUpdateSettings || function() {}
+        onUpdateSettings: updateGlobalGoals
       })
     ),
 

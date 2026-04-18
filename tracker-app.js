@@ -850,6 +850,8 @@ useEffect(()=>{
 // Edit session note
 function editSessionNote(sessionId,noteText){
   try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){}
+  // Flush immediately so a tab close before the next auto-save doesn't lose the edit
+  setTimeout(function(){if(typeof window.__flushProjectToIDB==='function')window.__flushProjectToIDB();},0);
 }
 
 // ═══ Analysis worker lifecycle ═══
@@ -1863,6 +1865,14 @@ function processLoadedProject(project){
   }
   // Patch legacy sessions that only have durationMinutes
   rawStatsSessions.forEach(function(s){if(s.durationSeconds==null&&s.durationMinutes!=null){s.durationSeconds=s.durationMinutes*60;}});
+  // Backfill totalAtEnd for pre-v9 sessions that were saved without it.
+  // Reconstruct as a running cumulative sum of netStitches sorted chronologically.
+  if(rawStatsSessions.some(function(s){return s.totalAtEnd==null;})){
+    var totalStitchCount=(project.pattern||[]).filter(function(c){return c&&c.id!=='__skip__'&&c.id!=='__empty__';}).length;
+    var sorted=rawStatsSessions.slice().sort(function(a,b){return(a.startTime||a.date||'')<(b.startTime||b.date||'')?-1:1;});
+    var running=0;
+    sorted.forEach(function(s){running+=(s.netStitches||0);if(s.totalAtEnd==null)s.totalAtEnd=Math.min(Math.max(0,running),totalStitchCount);});
+  }
   setStatsSessions(rawStatsSessions);
   setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true,sectionCols:50,sectionRows:50},project.statsSettings||{}));
   setStatsView(false);
