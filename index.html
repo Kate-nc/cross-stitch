@@ -73,6 +73,8 @@ window.loadTrackerApp = function() {
   window.__trackerLoading = true;
   // Clear stale cache from previous versions
   try { localStorage.removeItem('babel_tracker_v2'); localStorage.removeItem('babel_tracker_v3'); localStorage.removeItem('babel_tracker_v4'); localStorage.removeItem('babel_tracker_v5'); } catch(e) {}
+  // Clear stale creator cache
+  try { localStorage.removeItem('babel_creator_v4'); localStorage.removeItem('babel_creator_v5'); } catch(e) {}
   var cached = null;
   try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch(e) {}
   // Wrap in IIFE so const/let declarations don't collide with the inline Babel script
@@ -95,7 +97,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_v5';
+var CREATOR_CACHE_KEY = 'babel_creator_v6';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

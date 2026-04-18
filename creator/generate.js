@@ -52,13 +52,24 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var confettiClean = null;
   var preCleanupIds = null;
 
-  if (stitchCleanup && stitchCleanup.enabled) {
-    var cleanupStrength = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
-      ? stitchCleanup.strength : "balanced";
-    var sp = STRENGTH_MAP[cleanupStrength];
-    var edgeMap = stitchCleanup.protectDetails ? generateEdgeMap(raw, width, height) : null;
+  var orphansOpt = opts.orphans != null ? opts.orphans : null;
+  var runCleanup = orphansOpt != null ? (orphansOpt > 0) : (stitchCleanup && stitchCleanup.enabled);
+  if (runCleanup) {
+    var maxOrphanSize, saliencyMult;
+    if (orphansOpt != null) {
+      maxOrphanSize = orphansOpt;
+      var _csMap = stitchCleanup && STRENGTH_MAP[stitchCleanup.strength] ? STRENGTH_MAP[stitchCleanup.strength] : STRENGTH_MAP.balanced;
+      saliencyMult = _csMap.saliencyMultiplier;
+    } else {
+      var cleanupStrength = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
+        ? stitchCleanup.strength : "balanced";
+      var sp = STRENGTH_MAP[cleanupStrength];
+      maxOrphanSize = sp.maxOrphanSize;
+      saliencyMult = sp.saliencyMultiplier;
+    }
+    var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
     preCleanupIds = mapped.map(function(m) { return m.id; });
-    mapped = removeOrphanStitches(mapped, width, height, sp.maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: sp.saliencyMultiplier }, preLabels);
+    mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult }, preLabels);
     var postLabels = labelConnectedComponents(mapped, width, height);
     confettiClean = analyzeConfetti(mapped, width, height, postLabels);
   }
@@ -93,7 +104,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 
-  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, allowedPalette: opts.allowedPalette || null, seed: opts.seed });
+  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: opts.orphans, allowedPalette: opts.allowedPalette || null, seed: opts.seed });
   if (!pipelineResult) return null;
 
   var mapped = pipelineResult.mapped;
