@@ -7,7 +7,9 @@
 window.CreatorProjectTab = function CreatorProjectTab() {
   var ctx = window.usePatternData();
   var app = window.useApp();
+  var cv  = window.useCanvas();
   var h = React.createElement;
+  var _cvtOpen = React.useState(false); var convertOpen = _cvtOpen[0], setConvertOpen = _cvtOpen[1];
 
   if (!(ctx.pat && ctx.pal)) return null;
   if (app.tab !== "project") return null;
@@ -333,7 +335,16 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             });
           },
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}
-        }, "Kit This Project")
+        }, "Kit This Project"),
+        typeof window.ConvertPaletteModal !== "undefined"
+          ? h("button", {
+              onClick: function() { setConvertOpen(true); },
+              disabled: !ctx.pat || !ctx.pal || ctx.pal.length === 0,
+              title: "Convert this pattern's palette between DMC and Anchor thread brands",
+              style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontWeight:600,
+                opacity:(!ctx.pat || !ctx.pal || ctx.pal.length === 0) ? 0.5 : 1}
+            }, "Convert Palette")
+          : null
       ),
       ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8f9fa",fontSize:12}},
         h("div", {style:{fontWeight:700,marginBottom:4}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
@@ -398,6 +409,57 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     renderThreadOrganiser(),
     typeof window.SubstituteFromStashModal !== "undefined"
       ? h(window.SubstituteFromStashModal, null)
+      : null,
+    convertOpen && typeof window.ConvertPaletteModal !== "undefined"
+      ? h(window.ConvertPaletteModal, {
+          onClose: function() { setConvertOpen(false); },
+          onApply: function(remap) {
+            var np = ctx.pat.slice();
+            var changes = [];
+            for (var i = 0; i < np.length; i++) {
+              var cell = np[i];
+              if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+              if (cell.type === "blend" && cell.threads) {
+                var needsChange = false;
+                var newThreads = cell.threads.map(function(t) {
+                  if (remap[t.id]) { needsChange = true; return {id:remap[t.id].id,type:"solid",name:remap[t.id].name,rgb:remap[t.id].rgb}; }
+                  return t;
+                });
+                if (needsChange) {
+                  changes.push({idx:i, old:Object.assign({},cell)});
+                  var newBlendId = newThreads.map(function(t){return t.id;}).sort().join("+");
+                  np[i] = Object.assign({},cell,{id:newBlendId,threads:newThreads,rgb:[
+                    Math.round((newThreads[0].rgb[0]+newThreads[1].rgb[0])/2),
+                    Math.round((newThreads[0].rgb[1]+newThreads[1].rgb[1])/2),
+                    Math.round((newThreads[0].rgb[2]+newThreads[1].rgb[2])/2)]});
+                }
+                continue;
+              }
+              if (remap[cell.id]) {
+                changes.push({idx:i, old:Object.assign({},cell)});
+                np[i] = {id:remap[cell.id].id, type:"solid", name:remap[cell.id].name, rgb:remap[cell.id].rgb};
+              }
+            }
+            if (changes.length === 0) {
+              app.addToast("No cells were changed.", {type:"info", duration:2000});
+              setConvertOpen(false);
+              return;
+            }
+            cv.setEditHistory(function(prev) {
+              var entry = {type:"paletteConversion", changes:changes};
+              var n = prev.concat([entry]);
+              if (n.length > (cv.EDIT_HISTORY_MAX || 100)) n = n.slice(n.length - (cv.EDIT_HISTORY_MAX || 100));
+              return n;
+            });
+            cv.setRedoHistory([]);
+            ctx.setPat(np);
+            var result = ctx.buildPaletteWithScratch(np);
+            ctx.setPal(result.pal);
+            ctx.setCmap(result.cmap);
+            setConvertOpen(false);
+            app.addToast(changes.length + " stitches converted. Ctrl+Z to undo.", {type:"success", duration:4000});
+          }
+        })
       : null
   );
 };

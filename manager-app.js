@@ -59,6 +59,7 @@ function ManagerApp() {
     waste_factor: 0.20
   });
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null); // { type: 'success'|'error'|'confirm', message, summary?, onConfirm? }
   const lowStockThreshold = 1;
 
@@ -463,6 +464,13 @@ function ManagerApp() {
           ].map(f => (
             <button key={'brand-' + f.id} className={"mgr-chip" + (brandFilter === f.id ? " on" : "")} onClick={() => setBrandFilter(f.id)}>{f.label}</button>
           ))}
+          {typeof window.BulkAddModal !== 'undefined' && (
+            <button
+              onClick={() => setBulkAddOpen(true)}
+              style={{marginLeft:'auto',padding:'5px 12px',fontSize:12,fontWeight:600,background:'#eff6ff',color:'#1d4ed8',border:'1px solid #bfdbfe',borderRadius:6,cursor:'pointer',whiteSpace:'nowrap'}}
+              title="Bulk-add threads to your stash by pasting a list or choosing a starter kit"
+            >+ Bulk Add</button>
+          )}
         </div>
       )}
 
@@ -918,6 +926,7 @@ function ManagerApp() {
           onClose={() => setProfileModalOpen(false)}
         />
       )}
+      {bulkAddOpen && window.BulkAddModal && React.createElement(window.BulkAddModal, {onClose: () => setBulkAddOpen(false)})}
       {modal === "help" && <SharedModals.Help onClose={() => setModal(null)} />}
       {modal === "about" && <SharedModals.About onClose={() => setModal(null)} />}
 
