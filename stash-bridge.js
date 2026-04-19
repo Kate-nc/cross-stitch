@@ -10,6 +10,23 @@ const StashBridge = (() => {
     return keyOrId.indexOf(':') < 0 ? 'dmc:' + keyOrId : keyOrId;
   }
 
+  function _getOwnedCount(threadsData, key, fallbackId) {
+    const byKey = (threadsData[key] || {}).owned || 0;
+    if (byKey > 0) return byKey;
+    return (threadsData[fallbackId] || {}).owned || 0;
+  }
+
+  function _getThreadInfoByKey(key) {
+    if (typeof getThreadByKey === "function") return getThreadByKey(key);
+    const parsed = key.indexOf(':') >= 0 ? key.split(':') : ['dmc', key];
+    const brand = parsed[0];
+    const id = parsed[1];
+    if (brand === "anchor") {
+      return typeof ANCHOR !== "undefined" ? ANCHOR.find(x => x.id === id) : null;
+    }
+    return typeof DMC !== "undefined" ? DMC.find(x => x.id === id) : null;
+  }
+
   let _migrationDone = false;
 
   // One-time migration: converts legacy bare DMC keys (e.g. "310") in the
@@ -236,13 +253,9 @@ const StashBridge = (() => {
           const parsed = key.indexOf(':') >= 0 ? key.split(':') : ['dmc', key];
           const brand = parsed[0];
           const id = parsed[1];
-          const owned = ((threadsData[key] || {}).owned || (threadsData[id] || {}).owned || 0);
+          const owned = _getOwnedCount(threadsData, key, id);
           if (d.total > owned) {
-            const info = typeof getThreadByKey === "function"
-              ? getThreadByKey(key)
-              : (brand === "anchor"
-                ? (typeof ANCHOR !== "undefined" ? ANCHOR.find(x => x.id === id) : null)
-                : (typeof DMC !== "undefined" ? DMC.find(x => x.id === id) : null));
+            const info = _getThreadInfoByKey(key);
             conflicts.push({ key, brand, id, name: info ? info.name : id, rgb: info ? info.rgb : [128,128,128], owned, totalNeeded: d.total, deficit: d.total - owned, patterns: d.patterns });
           }
         }
@@ -273,7 +286,7 @@ const StashBridge = (() => {
           for (const t of pat.threads) {
             const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, 14) : Math.ceil(t.qty / 200)) : t.qty;
             const key = _normaliseKey(t.id);
-            const owned = ((threadsData[key] || {}).owned || (threadsData[t.id] || {}).owned || 0);
+            const owned = _getOwnedCount(threadsData, key, t.id);
             if (owned >= skeins) covered++;
             else missing.push({ id: t.id, name: t.name, need: skeins, have: owned });
           }
