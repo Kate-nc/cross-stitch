@@ -249,8 +249,10 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
       : Math.ceil(thread.stitches / 200);
 
     var candidates = [];
+    // Build the composite key for the source thread so we can exclude it from candidates.
+    var sourceCompositeKey = typeof threadKey === 'function' ? threadKey('dmc', thread.id) : ('dmc:' + thread.id);
     stashEntries.forEach(function(stash) {
-      if (stash.id === thread.id) return;
+      if (stash.id === sourceCompositeKey) return;
       var de = _calcDE(targetLab, stash.lab);
       candidates.push({ id: stash.id, name: stash.name, rgb: stash.rgb, brand: stash.brand || 'dmc', deltaE: Math.round(de * 10) / 10, ownedSkeins: stash.ownedSkeins, neededSkeins: neededSkeins, hasSufficient: stash.ownedSkeins >= neededSkeins });
     });

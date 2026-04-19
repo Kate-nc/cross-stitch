@@ -31,7 +31,8 @@ window.BulkAddModal = (function () {
           .replace(/^dmc\.?\s*/i, '')
           .replace(/^#/, '');
         return { raw: token, normalised: clean };
-      });
+      })
+      .filter(function (r) { return r.normalised.length > 0; });
   }
 
   window.parseBulkThreadList = parseBulkThreadList;

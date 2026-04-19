@@ -1094,7 +1094,7 @@ function formatDateReadable(dateStr){return new Date(dateStr+'T12:00:00').toLoca
 // ═══ Thread composite-key helpers ═══
 // threadKey('dmc','310') → 'dmc:310'
 function threadKey(brand,id){return brand+':'+id;}
-window.threadKey=threadKey;
+if(typeof window!=='undefined')window.threadKey=threadKey;
 
 // parseThreadKey('dmc:310') → {brand:'dmc',id:'310'}
 // parseThreadKey('310')     → {brand:'dmc',id:'310'}  ← legacy bare key falls back to DMC
@@ -1104,7 +1104,7 @@ function parseThreadKey(key){
   if(i<0)return{brand:'dmc',id:key};
   return{brand:key.slice(0,i),id:key.slice(i+1)};
 }
-window.parseThreadKey=parseThreadKey;
+if(typeof window!=='undefined')window.parseThreadKey=parseThreadKey;
 
 // Looks up the thread object by composite key; returns null if not found.
 function getThreadByKey(key){
@@ -1120,7 +1120,7 @@ function getThreadByKey(key){
   }
   return null;
 }
-window.getThreadByKey=getThreadByKey;
+if(typeof window!=='undefined')window.getThreadByKey=getThreadByKey;
 
 // classifyMatch(deltaE, isOfficial)
 // Returns {kind, deltaE, label} where kind is 'exact'|'near'|'different'|'distant'.
@@ -1135,4 +1135,4 @@ function classifyMatch(deltaE,isOfficial){
   else{kind='distant';label='Distant match';}
   return{kind:kind,deltaE:deltaE,label:label};
 }
-window.classifyMatch=classifyMatch;
+if(typeof window!=='undefined')window.classifyMatch=classifyMatch;

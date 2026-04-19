@@ -1271,7 +1271,9 @@ function analyzeConfetti(mapped, w, h, precomputedLabels = null) {
   return { singles, smallClusters, total, pct, colorConfetti };
 }
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE }; }
+// module.exports is placed at the end of the file so that dE2000 and
+// UNIQUE_THRESHOLD_DE (declared below) are in scope before being exported.
+// DO NOT move this block above the dE2000 / UNIQUE_THRESHOLD_DE declarations.
 
 // ─── CIEDE2000 colour difference ────────────────────────────────────────────
 // Implements the full CIEDE2000 formula (Sharma, Wu & Dalal, 2005).
@@ -1364,9 +1366,14 @@ function dE2000(lab1, lab2) {
   _de2000Cache[k] = result;
   return result;
 }
-window.dE2000 = dE2000;
+// Assign to the global scope. globalThis works in browser, Web Worker, and Node.js.
+// Fallback chain covers environments where globalThis may not exist (very old).
+var _colourUtilsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : self;
+_colourUtilsGlobal.dE2000 = dE2000;
 
 // Threads with best cross-brand ΔE2000 ≥ this value are flagged 'Unique'
 // (no good equivalent in the other brand). Tunable without hunting through code.
 const UNIQUE_THRESHOLD_DE = 5;
-window.UNIQUE_THRESHOLD_DE = UNIQUE_THRESHOLD_DE;
+_colourUtilsGlobal.UNIQUE_THRESHOLD_DE = UNIQUE_THRESHOLD_DE;
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE }; }

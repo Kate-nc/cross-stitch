@@ -917,7 +917,7 @@ function getOfficialMatch(sourceBrand, sourceId, targetBrand) {
   if (!entry || !entry[targetBrand]) return null;
   return entry[targetBrand]; // { id, confidence }
 }
-window.getOfficialMatch = getOfficialMatch;
+if (typeof window !== 'undefined') window.getOfficialMatch = getOfficialMatch;
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { CONVERSIONS, getOfficialMatch };
