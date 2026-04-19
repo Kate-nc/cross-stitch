@@ -16,11 +16,16 @@ const StashBridge = (() => {
     return (threadsData[fallbackId] || {}).owned || 0;
   }
 
+  function _parseThreadKey(key) {
+    const parts = key.indexOf(':') >= 0 ? key.split(':') : ['dmc', key];
+    return { brand: parts[0], id: parts[1] };
+  }
+
   function _getThreadInfoByKey(key) {
     if (typeof getThreadByKey === "function") return getThreadByKey(key);
-    const parsed = key.indexOf(':') >= 0 ? key.split(':') : ['dmc', key];
-    const brand = parsed[0];
-    const id = parsed[1];
+    const parsed = _parseThreadKey(key);
+    const brand = parsed.brand;
+    const id = parsed.id;
     if (brand === "anchor") {
       return typeof ANCHOR !== "undefined" ? ANCHOR.find(x => x.id === id) : null;
     }
@@ -250,9 +255,9 @@ const StashBridge = (() => {
         }
         const conflicts = [];
         for (const [key, d] of Object.entries(demand)) {
-          const parsed = key.indexOf(':') >= 0 ? key.split(':') : ['dmc', key];
-          const brand = parsed[0];
-          const id = parsed[1];
+          const parsed = _parseThreadKey(key);
+          const brand = parsed.brand;
+          const id = parsed.id;
           const owned = _getOwnedCount(threadsData, key, id);
           if (d.total > owned) {
             const info = _getThreadInfoByKey(key);
