@@ -245,8 +245,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // Expose setAppMode so UnifiedApp can switch modes
   React.useEffect(()=>{
     window.__setCreatorAppMode=state.setAppMode;
-    return()=>{delete window.__setCreatorAppMode;};
-  },[state.setAppMode]);
+    window.__setCreatorProjectName=state.setProjectName;
+    return()=>{delete window.__setCreatorAppMode;delete window.__setCreatorProjectName;};
+  },[state.setAppMode,state.setProjectName]);
 
   // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
   // Handler identity is stabilised via a ref; the ref is updated synchronously on
