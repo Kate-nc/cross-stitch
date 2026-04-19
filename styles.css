@@ -752,6 +752,12 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   display: block;
   margin-top: 2px;
 }
+.stats-sublabel {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: block;
+  margin-top: 2px;
+}
 .stats-overview-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr;

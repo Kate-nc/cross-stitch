@@ -850,6 +850,13 @@ useEffect(()=>{
 // Edit session note
 function editSessionNote(sessionId,noteText){
   try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){}
+  // Flush immediately so a tab close before the next auto-save doesn't lose the edit
+  setTimeout(function(){
+    if(typeof window.__flushProjectToIDB==='function'){
+      var flushPromise=window.__flushProjectToIDB();
+      if(flushPromise&&typeof flushPromise.catch==='function')flushPromise.catch(function(){});
+    }
+  },0);
 }
 
 // ═══ Analysis worker lifecycle ═══
@@ -1863,6 +1870,27 @@ function processLoadedProject(project){
   }
   // Patch legacy sessions that only have durationMinutes
   rawStatsSessions.forEach(function(s){if(s.durationSeconds==null&&s.durationMinutes!=null){s.durationSeconds=s.durationMinutes*60;}});
+  // Backfill totalAtEnd for pre-v9 sessions that were saved without it.
+  // Reconstruct as a running cumulative sum of netStitches sorted chronologically.
+  if(rawStatsSessions.some(function(s){return s.totalAtEnd==null;})){
+    var totalStitchCount=(project.pattern||[]).filter(function(c){return c&&c.id!=='__skip__'&&c.id!=='__empty__';}).length;
+    var sorted=rawStatsSessions.slice().sort(function(a,b){
+      var aKey=a.startTime||a.date||'';
+      var bKey=b.startTime||b.date||'';
+      var aTime=new Date(aKey).getTime();
+      var bTime=new Date(bKey).getTime();
+      if(!Number.isNaN(aTime)&&!Number.isNaN(bTime)){
+        if(aTime<bTime)return-1;
+        if(aTime>bTime)return 1;
+        return 0;
+      }
+      if(aKey<bKey)return-1;
+      if(aKey>bKey)return 1;
+      return 0;
+    });
+    var running=0;
+    sorted.forEach(function(s){running+=(s.netStitches||0);if(s.totalAtEnd==null)s.totalAtEnd=Math.min(Math.max(0,running),totalStitchCount);});
+  }
   setStatsSessions(rawStatsSessions);
   setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true,sectionCols:50,sectionRows:50},project.statsSettings||{}));
   setStatsView(false);
@@ -2192,6 +2220,16 @@ useEffect(() => {
   window.addEventListener("beforeunload", handleBeforeUnload);
   return () => window.removeEventListener("beforeunload", handleBeforeUnload);
 }, []); // empty: handler reads only from refs (always fresh)
+
+// Expose __openTrackerStats so the header Stats link can open per-project stats
+// directly from the track page without navigating away.
+useEffect(() => {
+  window.__openTrackerStats = function() {
+    setStatsTab(projectIdRef.current || 'all');
+    setStatsView(true);
+  };
+  return () => { delete window.__openTrackerStats; };
+}, []);
 
 // Expose flush for BackupRestore to call before reading IndexedDB.
 // Re-registered whenever relevant state changes so the function always builds
@@ -3387,6 +3425,7 @@ return(
       <button className={"tb-ovf-item"+(trackerPreviewOpen?" tb-ovf-item--on":"")} onClick={()=>{setTrackerPreviewOpen(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Realistic preview{trackerPreviewOpen?" ✓":""}</button>
       <button className={"tb-ovf-item"+(threadUsageMode?" tb-ovf-item--on":"")} onClick={()=>{setThreadUsageMode(m=>m?null:"cluster");setTOverflowOpen(false);}}>Thread usage{threadUsageMode?" ✓":""}</button>
       <button className={"tb-ovf-item"} onClick={()=>{setRpanelTab("more");setMobileDrawerOpen(true);setTOverflowOpen(false);}}>Layers{!Object.values(layerVis).every(Boolean)?" (filtered)":""}</button>
+      <button className={"tb-ovf-item"+(statsView?" tb-ovf-item--on":"")} onClick={()=>{setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);setTOverflowOpen(false);}}>📊 Stats{statsView?" ✓":""}</button>
       {(liveAutoStitches>0||totalTime>0)&&<>
         <div className="tb-ovf-sep"/>
         <span className="tb-ovf-lbl">Time Tracked</span>
@@ -3475,7 +3514,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&project.pattern&&project.settings){processLoadedProject(project);ProjectStorage.setActiveProject(project.id).catch(()=>{});setStatsView(false);}}).catch(()=>{});}}/>}
+  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&project.pattern&&project.settings){processLoadedProject(project);ProjectStorage.setActiveProject(project.id).catch(()=>{});setStatsView(false);}}).catch(()=>{});}}/>}
 
   {trackerPreviewOpen&&pat&&<TrackerPreviewModal pat={pat} cmap={cmap} sW={sW} sH={sH} fabricCt={fabricCt} level={trackerPreviewLevel} onLevelChange={setTrackerPreviewLevel} onClose={()=>setTrackerPreviewOpen(false)}/>}
 
@@ -3748,7 +3787,7 @@ return(
           {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
           <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
         </div>
-        <button style={{marginTop:8,width:'100%',padding:"6px 0",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#475569",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>setStatsView(v=>!v)}>📊 {statsView?"Hide":"View"} full stats</button>
+        <button style={{marginTop:8,width:'100%',padding:"6px 0",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#475569",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>{if(!statsView){setStatsTab(projectIdRef.current||'all');}setStatsView(v=>!v);}}>📊 {statsView?"Hide":"View"} full stats</button>
       </div>}
 
       {/* View Mode */}

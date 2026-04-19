@@ -877,6 +877,12 @@ function UnifiedApp(){
   },[]);
   const switchToStats=React.useCallback(()=>{
     if(modeRef.current==='stats'){closeStats();return;}
+    // When switching from track mode, open per-project stats inline inside the tracker
+    // rather than navigating to the global all-projects dashboard.
+    if(modeRef.current==='track'&&typeof window.__openTrackerStats==='function'){
+      window.__openTrackerStats();
+      return;
+    }
     prevModeRef.current=modeRef.current;
     if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
     setTrackerMounted(true);

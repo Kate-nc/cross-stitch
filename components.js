@@ -151,20 +151,22 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
   } catch(e) { console.warn('Stats: MiniStatsBar render error', e); return null; }
 });
 
-var OverviewCards=React.memo(function OverviewCards({statsSessions, totalCompleted, totalStitches}){
+var OverviewCards=React.memo(function OverviewCards({statsSessions, totalCompleted, totalStitches, halfStitchCounts}){
   var stats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches);
+  var hasHalf = halfStitchCounts && halfStitchCounts.total > 0;
   return React.createElement("div", {className:"stats-overview"},
     React.createElement("div", {className:"stats-overview-main"},
       React.createElement(ProgressRing, {percent:stats.percent, size:56}),
       React.createElement("div", null,
         React.createElement("span", {className:"stats-big-number"}, totalCompleted.toLocaleString()),
-        React.createElement("span", {className:"stats-label"}, " of " + totalStitches.toLocaleString() + " stitches")
+        React.createElement("span", {className:"stats-label"}, " of " + totalStitches.toLocaleString() + " stitches"),
+        hasHalf && React.createElement("span", {className:"stats-sublabel"}, halfStitchCounts.done.toLocaleString() + " / " + halfStitchCounts.total.toLocaleString() + " half stitches (\xbd\xd7)")
       )
     ),
     React.createElement("div", {className:"stats-overview-grid"},
       React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Speed"), React.createElement("span", {className:"stats-value"}, stats.stitchesPerHour + "/hr")),
       React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Time stitched"), React.createElement("span", {className:"stats-value"}, stats.totalTimeFormatted)),
-      React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Est. finish"), React.createElement("span", {className:"stats-value"}, stats.estimatedCompletion)),
+      React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Est. finish"), React.createElement("span", {className:"stats-value"}, stats.estimatedCompletion), stats.hoursRemaining != null && React.createElement("span", {className:"stats-sublabel"}, (stats.hoursRemaining < 1 ? '< 1' : '~' + Math.ceil(stats.hoursRemaining)) + (Math.ceil(stats.hoursRemaining) === 1 ? ' hr' : ' hrs') + ' stitching')),
       React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Sessions"), React.createElement("span", {className:"stats-value"}, (statsSessions||[]).length))
     )
   );
@@ -186,12 +188,14 @@ function NoteEditor({sessionId, currentNote, onSave}){
   );
 }
 
-function SessionTimeline({sessions, statsSettings, onEditNote}){
+function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
   var showSt = React.useState(false);
   var showAll = showSt[0], setShowAll = showSt[1];
   var editSt = React.useState(null);
   var editingId = editSt[0], setEditingId = editSt[1];
   try {
+  var colourMap = {};
+  if (palette) { for (var pi = 0; pi < palette.length; pi++) { var pc = palette[pi]; if (pc.id && pc.rgb) colourMap[pc.id] = pc; } }
   var grouped = groupSessionsByDate(sessions || []);
   var sortedDates = Object.keys(grouped).sort().reverse();
   var displayDates = showAll ? sortedDates : sortedDates.slice(0, 10);
@@ -210,9 +214,17 @@ function SessionTimeline({sessions, statsSettings, onEditNote}){
         React.createElement("span", {key:"date", className:"timeline-date"}, formatRelativeDate(session.date, dayEndHour) + ", " + formatTimeRange(session.startTime, session.endTime)),
         React.createElement("div", {key:"stats", className:"timeline-stats"},
           React.createElement("span", {className:"timeline-stitches"}, session.netStitches + " stitches"),
-          React.createElement("span", {className:"timeline-duration"}, formatStatsDuration(session.durationMinutes))
+          React.createElement("span", {className:"timeline-duration"}, formatStatsDuration(getSessionSeconds(session)))
         )
       ];
+      if (session.coloursWorked && session.coloursWorked.length > 0) {
+        var chips = session.coloursWorked.slice(0, 14).map(function(cid) {
+          var cm = colourMap[cid];
+          var rgb = cm ? cm.rgb : [128, 128, 128];
+          return React.createElement("span", {key:cid, title:"DMC " + cid, style:{display:'inline-block',width:10,height:10,borderRadius:2,background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')',border:'1px solid rgba(0,0,0,0.15)',flexShrink:0}});
+        });
+        contentChildren.push(React.createElement("div", {key:"chips", style:{display:'flex',gap:3,flexWrap:'wrap',marginTop:4}}, chips));
+      }
       if (editingId === session.id) {
         contentChildren.push(React.createElement(NoteEditor, {key:"note-edit", sessionId:session.id, currentNote:session.note, onSave:function(id, text){ onEditNote(id, text); setEditingId(null); }}));
       } else {
@@ -240,7 +252,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote}){
 
 // ═══ Phase B: Charts & Milestones ═══
 
-var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches, targetDate}){
+var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches, targetDate, whatIfPace}){
   try {
   var data = getCumulativeProgressData(sessions);
   if (data.length < 2) return React.createElement("p", {className:"stats-empty"}, "Start stitching to see your progress chart");
@@ -248,47 +260,53 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
   var pl = 36, pr = 8, pt = 8, pb = 4;
   var cW = width - pl - pr, cH = height - pt - pb;
   var maxY = Math.max(totalStitches, 1);
-  var xS = function(i){ return pl + (i / (data.length - 1)) * cW; };
   var yS = function(v){ return pt + cH - (v / maxY) * cH; };
-  var pts = [];
-  for (var i = 0; i < data.length; i++) pts.push(xS(i) + ',' + yS(data[i].total));
-  var points = pts.join(' ');
-  var fillPoints = points + ' ' + xS(data.length - 1) + ',' + yS(0) + ' ' + xS(0) + ',' + yS(0);
   var last = data[data.length - 1];
   var mid = data[Math.floor(data.length / 2)];
-  // On-pace line: use targetDate if set, otherwise linear from 0 to totalStitches
-  var paceEndX = xS(data.length - 1);
-  var paceEndY = yS(totalStitches);
-  if (targetDate && data.length > 1) {
-    var firstD = new Date(data[0].date + 'T12:00:00');
-    var lastD = new Date(data[data.length - 1].date + 'T12:00:00');
-    var targetD = new Date(targetDate + 'T12:00:00');
-    var totalSpan = lastD - firstD;
-    if (totalSpan > 0 && targetD > firstD) {
-      var targetRatio = (targetD - firstD) / totalSpan;
-      if (targetRatio >= 1) {
-        paceEndX = xS((data.length - 1) * Math.min(targetRatio, 2));
-      }
-      // For on-pace: daily rate to hit totalStitches by targetDate
-      var daysToTarget = (targetD - firstD) / 86400000;
-      if (daysToTarget > 0) {
-        var lastDayIndex = data.length - 1;
-        var paceAtEnd = (lastDayIndex / daysToTarget) * totalStitches;
-        paceEndY = yS(Math.min(paceAtEnd, totalStitches));
-      }
-    }
+  var firstDate = new Date(data[0].date + 'T12:00:00');
+  var lastDate = new Date(last.date + 'T12:00:00');
+  // Compute what-if end date so we can extend the time axis to fit the projection
+  var wiRemaining = totalStitches - last.total;
+  var wiDays = (whatIfPace > 0 && wiRemaining > 0) ? wiRemaining / whatIfPace : 0;
+  var wiEndDate = wiDays > 0 ? new Date(lastDate.getTime() + wiDays * 86400000) : null;
+  // Extend x-axis to include what-if endpoint and/or target date
+  var extendedEnd = lastDate;
+  if (wiEndDate && wiEndDate > extendedEnd) extendedEnd = wiEndDate;
+  var targetD = targetDate ? new Date(targetDate + 'T12:00:00') : null;
+  if (targetD && Number.isNaN(targetD.getTime())) targetD = null;
+  if (targetD && targetD < firstDate) targetD = firstDate;
+  if (targetD && targetD > extendedEnd) extendedEnd = targetD;
+  var totalMs = Math.max(1, extendedEnd - firstDate);
+  var xDate = function(d){ return pl + ((d - firstDate) / totalMs) * cW; };
+  // Build polyline using date-based x positions
+  var pts = [];
+  for (var i = 0; i < data.length; i++) {
+    var di = new Date(data[i].date + 'T12:00:00');
+    pts.push(xDate(di) + ',' + yS(data[i].total));
   }
-  var paceLabel = targetDate ? 'Target pace' : 'On pace';
+  var points = pts.join(' ');
+  var lastX = xDate(lastDate);
+  var fillPoints = points + ' ' + lastX + ',' + yS(0) + ' ' + xDate(firstDate) + ',' + yS(0);
+  // On-pace / target-pace line
+  var paceEndX = targetD ? xDate(targetD) : lastX;
+  var paceEndY = yS(totalStitches);
+  var paceLabel = targetD ? 'Target pace' : 'On pace';
+  // What-if projection line (now drawn within the extended chart area)
+  var wiLine = null;
+  if (wiDays > 0 && wiEndDate) {
+    wiLine = React.createElement("line", {x1:lastX, y1:yS(last.total), x2:xDate(wiEndDate), y2:yS(totalStitches), stroke:"#f59e0b", strokeWidth:"1.5", strokeDasharray:"5 3"});
+  }
   return React.createElement("div", {className:"chart-container"},
     React.createElement("svg", {viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
       React.createElement("text", {x:pl - 4, y:pt + 6, textAnchor:"end", fontSize:"9", fill:"#94a3b8"}, formatCompact(totalStitches)),
       React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"#94a3b8"}, formatCompact(totalStitches / 2)),
       React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"#94a3b8"}, "0"),
       React.createElement("line", {x1:pl, y1:pt + cH / 2, x2:width - pr, y2:pt + cH / 2, stroke:"#e2e8f0", strokeWidth:"0.5", strokeDasharray:"4 4"}),
-      React.createElement("line", {x1:xS(0), y1:yS(0), x2:paceEndX, y2:paceEndY, stroke:"#cbd5e1", strokeWidth:"1", strokeDasharray:"4 4"}),
+      React.createElement("line", {x1:xDate(firstDate), y1:yS(0), x2:paceEndX, y2:paceEndY, stroke:"#cbd5e1", strokeWidth:"1", strokeDasharray:"4 4"}),
+      wiLine,
       React.createElement("polygon", {points:fillPoints, fill:"#534AB7", opacity:"0.08"}),
       React.createElement("polyline", {points:points, fill:"none", stroke:"#534AB7", strokeWidth:"2.5", strokeLinecap:"round", strokeLinejoin:"round"}),
-      React.createElement("circle", {cx:xS(data.length - 1), cy:yS(last.total), r:"4", fill:"#534AB7"}),
+      React.createElement("circle", {cx:lastX, cy:yS(last.total), r:"4", fill:"#534AB7"}),
       React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"#e2e8f0", strokeWidth:"0.5"})
     ),
     React.createElement("div", {className:"chart-x-labels"},
@@ -298,7 +316,8 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
     ),
     React.createElement("div", {className:"chart-legend"},
       React.createElement("span", null, React.createElement("span", {className:"legend-line solid"}), "Actual"),
-      React.createElement("span", null, React.createElement("span", {className:"legend-line dashed"}), paceLabel)
+      React.createElement("span", null, React.createElement("span", {className:"legend-line dashed"}), paceLabel),
+      wiLine ? React.createElement("span", null, React.createElement("span", {className:"legend-line dashed", style:{borderColor:'#f59e0b'}}), "What-if") : null
     )
   );
   } catch(e) { console.warn('Stats: CumulativeChart render error', e); return null; }
@@ -449,25 +468,101 @@ var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colour
   } catch(e) { console.warn('Stats: ColourTimeline render error', e); return null; }
 });
 
-function StatsChartSection({statsSessions, statsSettings, totalStitches, chartView, setChartView}){
+// ═══ Phase E: Monthly Calendar view ═══
+
+var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
+  var _mo = React.useState(0); var monthOffset = _mo[0], setMonthOffset = _mo[1];
+  var now = new Date();
+  var targetMonth = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  var year = targetMonth.getFullYear();
+  var month = targetMonth.getMonth();
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+  var firstDayOfWeek = new Date(year, month, 1).getDay();
+  var startOffset = (firstDayOfWeek + 6) % 7; // Mon-start: Mon=0, Sun=6
+  var prefix = year + '-' + String(month + 1).padStart(2, '0');
+  var dailyMap = {};
+  if (sessions) {
+    for (var i = 0; i < sessions.length; i++) {
+      var s = sessions[i];
+      if (s.date && s.date.slice(0, 7) === prefix) {
+        dailyMap[s.date] = (dailyMap[s.date] || 0) + s.netStitches;
+      }
+    }
+  }
+  var maxVal = 1;
+  for (var dk in dailyMap) { if (dailyMap[dk] > maxVal) maxVal = dailyMap[dk]; }
+  var todayStr = new Date().toISOString().slice(0, 10);
+  var dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  var cells = [];
+  for (var h = 0; h < 7; h++) {
+    cells.push(React.createElement("div", {key:'hd'+h, style:{textAlign:'center',fontSize:10,color:'#94a3b8',fontWeight:600,padding:'2px 0'}}, dayLabels[h]));
+  }
+  for (var e = 0; e < startOffset; e++) cells.push(React.createElement("div", {key:'e'+e}));
+  for (var day = 1; day <= daysInMonth; day++) {
+    var dateStr = prefix + '-' + String(day).padStart(2, '0');
+    var stitches = dailyMap[dateStr] || 0;
+    var isToday = dateStr === todayStr;
+    cells.push(React.createElement("div", {key:dateStr, title:dateStr + ': ' + stitches + ' stitches',
+      style:{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'3px 2px',
+        borderRadius:4,fontSize:11,fontWeight:isToday?700:400,color:isToday?'#0d9488':'#475569',
+        background:isToday?'#f0fdfa':'transparent',border:isToday?'1px solid #99f6e4':'1px solid transparent',minWidth:0}},
+      React.createElement("span", null, day),
+      stitches > 0 ? React.createElement("div", {style:{width:6,height:6,borderRadius:'50%',background:heatmapColor(stitches,maxVal),marginTop:1}}) : null
+    ));
+  }
+  var monthName = targetMonth.toLocaleDateString('en-GB', {month:'long', year:'numeric'});
+  return React.createElement("div", {style:{padding:'0 8px'}},
+    React.createElement("div", {style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}},
+      React.createElement("button", {onClick:function(){ setMonthOffset(monthOffset - 1); },
+        style:{background:'none',border:'1px solid #e2e8f0',borderRadius:6,cursor:'pointer',padding:'2px 8px',fontSize:13,color:'#475569'}}, "\u2039"),
+      React.createElement("span", {style:{fontSize:13,fontWeight:600,color:'#1e293b'}}, monthName),
+      React.createElement("button", {onClick:function(){ setMonthOffset(Math.min(0, monthOffset + 1)); },
+        style:{background:'none',border:'1px solid #e2e8f0',borderRadius:6,cursor:'pointer',padding:'2px 8px',fontSize:13,color:monthOffset < 0?'#475569':'#cbd5e1'}}, "\u203a"),
+      monthOffset !== 0 ? React.createElement("button", {onClick:function(){ setMonthOffset(0); },
+        style:{fontSize:11,padding:'2px 6px',borderRadius:4,border:'1px solid #e2e8f0',background:'#f8f9fa',cursor:'pointer',color:'#94a3b8',marginLeft:4}}, "Today") : null
+    ),
+    React.createElement("div", {style:{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:2}}, cells)
+  );
+});
+
+function StatsChartSection({statsSessions, statsSettings, totalStitches, chartView, setChartView, overviewStats, totalCompleted}){
   var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
   var dailyGoal = statsSettings && statsSettings.dailyGoal;
   var targetDate = statsSettings && statsSettings.targetDate;
-  var chartTitles = {cumulative: 'Progress over time', daily: 'Stitches per day', speed: 'Speed trend'};
+  var _whatIf = React.useState(null);
+  var whatIfPace = _whatIf[0], setWhatIfPace = _whatIf[1];
+  var defaultPace = (overviewStats && overviewStats.avgPerDay) || 50;
+  var paceVal = whatIfPace != null ? whatIfPace : defaultPace;
+  var remaining = Math.max(0, totalStitches - (totalCompleted || 0));
+  var chartTitles = {cumulative: 'Progress over time', daily: 'Stitches per day', speed: 'Speed trend', calendar: 'Monthly calendar'};
   return React.createElement("div", {className:"chart-section"},
     React.createElement("div", {className:"chart-header"},
       React.createElement("span", {className:"chart-title"}, chartTitles[chartView] || ''),
       React.createElement("div", {className:"chart-toggle"},
         React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'daily' ? ' active' : ''), onClick:function(){ setChartView('daily'); }}, "Daily"),
         React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'cumulative' ? ' active' : ''), onClick:function(){ setChartView('cumulative'); }}, "Cumulative"),
-        React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'speed' ? ' active' : ''), onClick:function(){ setChartView('speed'); }}, "Speed")
+        React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'speed' ? ' active' : ''), onClick:function(){ setChartView('speed'); }}, "Speed"),
+        React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'calendar' ? ' active' : ''), onClick:function(){ setChartView('calendar'); }}, "Calendar")
       )
     ),
     chartView === 'cumulative'
-      ? React.createElement(CumulativeChart, {sessions:statsSessions, totalStitches:totalStitches, targetDate:targetDate})
+      ? React.createElement(CumulativeChart, {sessions:statsSessions, totalStitches:totalStitches, targetDate:targetDate, whatIfPace:paceVal})
       : chartView === 'speed'
         ? React.createElement(SpeedTrendChart, {sessions:statsSessions})
-        : React.createElement(DailyBarChart, {sessions:statsSessions, dailyGoal:dailyGoal, dayEndHour:dayEndHour})
+        : chartView === 'calendar'
+          ? React.createElement(MonthCalendar, {sessions:statsSessions})
+          : React.createElement(DailyBarChart, {sessions:statsSessions, dailyGoal:dailyGoal, dayEndHour:dayEndHour}),
+    chartView === 'cumulative' && overviewStats && remaining > 0
+      ? React.createElement("div", {style:{display:'flex', alignItems:'center', gap:8, padding:'6px 0 0', flexWrap:'wrap'}},
+          React.createElement("span", {style:{fontSize:12, color:'#64748b'}}, "What-if pace:"),
+          React.createElement("input", {type:"range", min:1, max:Math.max(defaultPace * 5, 500), value:paceVal, step:1,
+            onChange:function(e){ setWhatIfPace(parseInt(e.target.value)); }, style:{width:110, cursor:'pointer'}}),
+          React.createElement("span", {style:{fontSize:12, fontWeight:600, color:'#f59e0b', minWidth:120}},
+            paceVal + " st/day \u2192 ~" + Math.ceil(remaining / paceVal) + " days"),
+          whatIfPace != null ? React.createElement("button", {onClick:function(){ setWhatIfPace(null); },
+            style:{fontSize:11, padding:'1px 6px', borderRadius:4, border:'1px solid #e2e8f0', background:'#f8f9fa', cursor:'pointer', color:'#94a3b8'}}, "Reset") : null
+        )
+      : null
   );
 }
 
@@ -654,7 +749,7 @@ function StreaksPanel({sessions, dayEndHour}){
   var streaks = computeStreaks(sessions, dayEndHour);
   var bestDay = findBestDay(sessions);
   var avgSession = sessions && sessions.length > 0
-    ? Math.round(sessions.reduce(function(sum, s){ return sum + s.durationMinutes; }, 0) / sessions.length)
+    ? Math.round(sessions.reduce(function(sum, s){ return sum + getSessionSeconds(s); }, 0) / sessions.length)
     : 0;
 
   return React.createElement("div", {className:"streaks-panel"},
@@ -694,7 +789,7 @@ function MilestoneCelebration({milestone, onDismiss}){
   );
 }
 
-function ColourProgress({palette, colourDoneCounts}){
+function ColourProgress({palette, colourDoneCounts, sessions}){
   try {
     if (!palette || palette.length === 0) return null;
     var colourStats = [];
@@ -706,9 +801,15 @@ function ColourProgress({palette, colourDoneCounts}){
       var remaining = Math.max(0, dc.total - dc.done);
       var pct = dc.total > 0 ? Math.round(dc.done / dc.total * 100) : 0;
       if (remaining === 0 && dc.total > 0) coloursComplete++;
-      colourStats.push({id:p.id, name:p.name, type:p.type, threads:p.threads, rgb:p.rgb, remaining:remaining, pct:pct, total:dc.total});
+      colourStats.push({id:p.id, name:p.name, type:p.type, threads:p.threads, rgb:p.rgb, remaining:remaining, pct:pct, total:dc.total, halfTotal:dc.halfTotal||0, halfDone:dc.halfDone||0});
     }
     colourStats.sort(function(a,b){ return b.remaining - a.remaining; });
+    var avgSessionStitches = 0;
+    if (sessions && sessions.length > 0) {
+      var recentSess = sessions.slice(-10);
+      var totalSt = recentSess.reduce(function(sum, r) { return sum + r.netStitches; }, 0);
+      avgSessionStitches = totalSt / recentSess.length;
+    }
     var totalColours = colourStats.length;
     var inProgress = colourStats.filter(function(c){ return c.remaining > 0; });
     var mostRemaining = inProgress[0];
@@ -733,7 +834,8 @@ function ColourProgress({palette, colourDoneCounts}){
             React.createElement("div", {className:"colour-bar"},
               React.createElement("div", {className:"colour-bar-fill", style:{width:c.pct+'%'}})
             ),
-            React.createElement("span", {className:"colour-remaining"}, c.remaining === 0 ? "\u2713" : c.remaining.toLocaleString() + " left")
+            React.createElement("span", {className:"colour-remaining"}, c.remaining === 0 ? (c.halfTotal > 0 && c.halfDone < c.halfTotal ? c.halfTotal - c.halfDone + " half left" : "\u2713") : c.remaining.toLocaleString() + " left" + (c.halfTotal > 0 && c.halfDone < c.halfTotal ? " + " + (c.halfTotal - c.halfDone) + " half" : "")),
+            avgSessionStitches > 0 && c.remaining > 0 ? React.createElement("span", {style:{fontSize:11,color:'#94a3b8',whiteSpace:'nowrap'}}, "~" + Math.ceil(c.remaining / avgSessionStitches) + " sessions") : null
           );
         })
       )
@@ -742,7 +844,8 @@ function ColourProgress({palette, colourDoneCounts}){
 }
 
 // ═══ Visual Progress: Section completion grid ═══
-function SectionGrid({sections, statsSettings, onUpdateSettings}){
+function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, palette, canEdit}){
+  if(canEdit==null)canEdit=true;
   var numX=0,numY=0;
   if(sections&&sections.length>0){
     sections.forEach(function(s){if(s.sx>=numX)numX=s.sx+1;if(s.sy>=numY)numY=s.sy+1;});
@@ -750,32 +853,127 @@ function SectionGrid({sections, statsSettings, onUpdateSettings}){
   var complete=sections?sections.filter(function(s){return s.isDone;}).length:0;
   var secCols=(statsSettings&&statsSettings.sectionCols)||50;
   var secRows=(statsSettings&&statsSettings.sectionRows)||50;
+  var sectionLabels=(statsSettings&&statsSettings.sectionLabels)||{};
+  var _editing=React.useState(null);var editingKey=_editing[0],setEditingKey=_editing[1];
+  var _editVal=React.useState('');var editVal=_editVal[0],setEditVal=_editVal[1];
+  var _selected=React.useState(null);var selectedKey=_selected[0],setSelectedKey=_selected[1];
+
+  function commitLabel(key){
+    if(!canEdit){setEditingKey(null);return;}
+    var trimmed=editVal.trim();
+    var updated=Object.assign({},sectionLabels);
+    if(trimmed){updated[key]=trimmed;}else{delete updated[key];}
+    onUpdateSettings(Object.assign({},statsSettings,{sectionLabels:updated}));
+    setEditingKey(null);
+  }
+
+  // Build a colour lookup from palette
+  var colourMap={};
+  if(palette){palette.forEach(function(c){if(c.id)colourMap[c.id]=c;});}
+
+  // Compute thread breakdown for the selected section
+  var selectedSection=selectedKey?sections.find(function(s){return s.sx+','+s.sy===selectedKey;}):null;
+  var sectionThreads=React.useMemo(function(){
+    if(!selectedSection||!pat||!done||!sW)return null;
+    var counts={};
+    for(var y=selectedSection.y0;y<selectedSection.y1;y++){
+      for(var x=selectedSection.x0;x<selectedSection.x1;x++){
+        var idx=y*sW+x;
+        var cell=pat[idx];
+        if(!cell||cell.id==='__skip__'||cell.id==='__empty__')continue;
+        var ids=cell.type==='blend'?cell.id.split('+'):[cell.id];
+        ids.forEach(function(cid){
+          if(!counts[cid])counts[cid]={total:0,doneCount:0};
+          counts[cid].total++;
+          if(done[idx])counts[cid].doneCount++;
+        });
+      }
+    }
+    return Object.keys(counts).sort(function(a,b){return counts[b].total-counts[a].total;}).map(function(cid){
+      return Object.assign({id:cid},counts[cid]);
+    });
+  },[selectedSection,pat,done,sW]);
+
+  var selectedLabel=selectedSection?(sectionLabels[selectedKey]||('Section '+selectedSection.label)):null;
+
   return React.createElement("div",{style:{background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,padding:16}},
-    React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}},
+    React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}},
       React.createElement("h4",{style:{fontSize:14,fontWeight:600,color:'#1e293b',margin:0}},"Sections"),
       numX>0&&React.createElement("span",{style:{fontSize:12,color:'#64748b'}},complete+" / "+(sections?sections.length:0)+" complete")
     ),
+    React.createElement("p",{style:{fontSize:11,color:'#94a3b8',margin:'0 0 8px',lineHeight:1.4}},canEdit?"Click a section to see its threads · click again to rename":"Click a section to see its threads"),
     sections&&sections.length>0&&React.createElement("div",{className:"section-grid",style:{display:'grid',gridTemplateColumns:'repeat('+numX+', 1fr)',gap:3,marginBottom:12}},
       sections.map(function(sec){
+        var cellKey=sec.sx+','+sec.sy;
+        var customLabel=sectionLabels[cellKey]||null;
+        var isEditing=editingKey===cellKey;
+        var isSelected=selectedKey===cellKey;
+        var fs=Math.max(8,Math.min(11,Math.floor(60/numX)));
         return React.createElement("div",{
           key:sec.label,
           className:"section-cell",
-          style:{background:sec.isDone?'#16a34a':sectionColor(sec.pct),aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderRadius:4,fontSize:Math.max(8,Math.min(11,Math.floor(60/numX))),color:sec.pct>50?'#fff':'#1e293b',fontWeight:sec.isDone?700:400,cursor:'default',padding:1},
-          title:'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)'
+          style:{background:sec.isDone?'#16a34a':sectionColor(sec.pct),aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderRadius:4,fontSize:fs,color:sec.pct>50?'#fff':'#1e293b',fontWeight:sec.isDone?700:400,cursor:'pointer',padding:1,overflow:'hidden',position:'relative',outline:isSelected?'2px solid #0d9488':'none',outlineOffset:1},
+          title:customLabel?customLabel+' ('+sec.pct+'%)':'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)',
+          onClick:function(){
+            if(isEditing)return;
+            if(isSelected&&canEdit){setEditVal(customLabel||'');setEditingKey(cellKey);}
+            else if(isSelected){setSelectedKey(null);setEditingKey(null);}
+            else{setSelectedKey(cellKey);setEditingKey(null);}
+          }
         },
-          React.createElement("span",null,sec.pct+"%"),
-          sec.isDone&&React.createElement("span",{style:{fontSize:Math.max(7,Math.min(10,Math.floor(55/numX)))}},"\u2713")
+          isEditing
+            ? React.createElement("input",{
+                autoFocus:true,
+                value:editVal,
+                onChange:function(e){setEditVal(e.target.value);},
+                onBlur:function(){commitLabel(cellKey);},
+                onKeyDown:function(e){if(!canEdit)return;if(e.key==='Enter'){e.preventDefault();commitLabel(cellKey);}if(e.key==='Escape'){setEditingKey(null);}},
+                style:{width:'90%',fontSize:Math.max(7,fs-1),padding:'1px 2px',border:'1px solid #fff',borderRadius:2,textAlign:'center',background:'rgba(255,255,255,0.9)',color:'#1e293b'},
+                onClick:function(e){e.stopPropagation();}
+              })
+            : [
+                React.createElement("span",{key:'pct'},sec.pct+"%"),
+                customLabel&&React.createElement("span",{key:'lbl',style:{fontSize:Math.max(6,fs-2),overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'100%',textAlign:'center',padding:'0 1px',opacity:0.9}},customLabel),
+                sec.isDone&&!customLabel&&React.createElement("span",{key:'done',style:{fontSize:Math.max(7,Math.min(10,Math.floor(55/numX)))}},"\u2713")
+              ]
         );
       })
+    ),
+    sectionThreads&&React.createElement("div",{style:{marginBottom:12,padding:10,background:'#f8faff',borderRadius:8,border:'1px solid #dbeafe'}},
+      React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}},
+        React.createElement("span",{style:{fontSize:12,fontWeight:600,color:'#1e293b'}},selectedLabel+' — threads'),
+        React.createElement("button",{onClick:function(){setSelectedKey(null);},style:{fontSize:11,padding:'1px 8px',borderRadius:6,border:'1px solid #dbeafe',background:'#eff6ff',cursor:'pointer',color:'#3b82f6',lineHeight:'18px'}},"\u2715")
+      ),
+      sectionThreads.length===0
+        ? React.createElement("p",{style:{fontSize:12,color:'#94a3b8',margin:0}},"No stitches in this section")
+        : React.createElement("div",{style:{display:'flex',flexDirection:'column',gap:4}},
+            sectionThreads.map(function(t){
+              var cm=colourMap[t.id];
+              var rgb=cm?cm.rgb:[128,128,128];
+              var name=cm?cm.name:('DMC '+t.id);
+              var remaining=t.total-t.doneCount;
+              var pct=t.total>0?Math.round(t.doneCount/t.total*100):100;
+              return React.createElement("div",{key:t.id,style:{display:'flex',alignItems:'center',gap:6}},
+                React.createElement("span",{style:{width:12,height:12,borderRadius:2,background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')',border:'1px solid rgba(0,0,0,0.15)',flexShrink:0,display:'inline-block'}}),
+                React.createElement("span",{style:{fontSize:11,color:'#475569',minWidth:32,flexShrink:0}},"#"+t.id),
+                React.createElement("div",{style:{flex:1,height:6,background:'#e2e8f0',borderRadius:3,overflow:'hidden'}},
+                  React.createElement("div",{style:{width:pct+'%',height:'100%',background:t.doneCount===t.total?'#16a34a':'#0d9488',borderRadius:3}})
+                ),
+                React.createElement("span",{style:{fontSize:11,color:'#64748b',flexShrink:0,minWidth:70,textAlign:'right'}},
+                  remaining>0?(remaining.toLocaleString()+' left'):'\u2713 done'
+                )
+              );
+            })
+          )
     ),
     sections&&sections.length===0&&React.createElement("p",{style:{fontSize:13,color:'#94a3b8',margin:0}},"No pattern loaded"),
     React.createElement("div",{style:{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#64748b',marginTop:4}},
       "Section size:",
-      React.createElement("input",{type:"number",min:5,max:200,value:secCols,onChange:function(e){var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionCols:v}));},style:{width:52,padding:'2px 6px',fontSize:12,border:'1px solid #e2e8f0',borderRadius:6}}),
+      React.createElement("input",{type:"number",min:5,max:200,value:secCols,disabled:!canEdit,onChange:function(e){if(!canEdit)return;var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionCols:v}));},style:{width:52,padding:'2px 6px',fontSize:12,border:'1px solid #e2e8f0',borderRadius:6}}),
       "\u00d7",
-      React.createElement("input",{type:"number",min:5,max:200,value:secRows,onChange:function(e){var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionRows:v}));},style:{width:52,padding:'2px 6px',fontSize:12,border:'1px solid #e2e8f0',borderRadius:6}}),
+      React.createElement("input",{type:"number",min:5,max:200,value:secRows,disabled:!canEdit,onChange:function(e){if(!canEdit)return;var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionRows:v}));},style:{width:52,padding:'2px 6px',fontSize:12,border:'1px solid #e2e8f0',borderRadius:6}}),
       "stitches",
-      React.createElement("button",{onClick:function(){onUpdateSettings(Object.assign({},statsSettings,{sectionCols:50,sectionRows:50}));},style:{fontSize:11,padding:'2px 8px',borderRadius:6,border:'1px solid #e2e8f0',background:'#f8f9fa',cursor:'pointer',color:'#64748b'}},"Reset")
+      React.createElement("button",{disabled:!canEdit,onClick:function(){if(!canEdit)return;onUpdateSettings(Object.assign({},statsSettings,{sectionCols:50,sectionRows:50}));},style:{fontSize:11,padding:'2px 8px',borderRadius:6,border:'1px solid #e2e8f0',background:'#f8f9fa',cursor:canEdit?'pointer':'default',color:'#64748b',opacity:canEdit?1:0.6}},"Reset")
     )
   );
 }
@@ -1084,7 +1282,92 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
   );
 }
 
-function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, currentProjectId, onOpenProject}){
+// ═══ PNG Progress Card drawing ═══
+function drawProgressCard(canvas, opts) {
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, H - 24, W, 24);
+  // Header
+  ctx.fillStyle = '#0f766e';
+  ctx.fillRect(0, 0, W, 62);
+  // Project name
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  var name = String(opts.projectName || 'My Pattern');
+  ctx.font = 'bold 18px system-ui, sans-serif';
+  while (name.length > 4 && ctx.measureText(name).width > W - 130) name = name.slice(0, -1);
+  if (name !== String(opts.projectName || 'My Pattern')) name += '\u2026';
+  ctx.fillText(name, 18, 26);
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 20px system-ui, sans-serif';
+  ctx.fillText(String(opts.percent || 0) + '%', W - 18, 26);
+  // Progress bar
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.fillRect(18, 46, W - 36, 9);
+  ctx.fillStyle = '#5eead4';
+  var barW = Math.round((W - 36) * Math.min(1, (opts.percent || 0) / 100));
+  if (barW > 0) ctx.fillRect(18, 46, barW, 9);
+  // Stats grid
+  var stats = [
+    {label: 'Time stitched', value: opts.totalTimeFormatted || '\u2014'},
+    {label: 'Sessions', value: String((opts.sessions || []).length)},
+    {label: 'Stitches/day', value: String(opts.avgPerDay || 0)},
+    {label: 'Day streak', value: String(opts.streak || 0)}
+  ];
+  var colW = (W - 36) / stats.length;
+  for (var i = 0; i < stats.length; i++) {
+    var sx = 18 + colW * i + colW / 2;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#0f766e';
+    ctx.font = 'bold 21px system-ui, sans-serif';
+    ctx.fillText(stats[i].value, sx, 108);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillText(stats[i].label, sx, 124);
+  }
+  // Separator
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(18, 136);
+  ctx.lineTo(W - 18, 136);
+  ctx.stroke();
+  // Colour swatches
+  ctx.fillStyle = '#64748b';
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Colours:', 18, 161);
+  if (opts.palette) {
+    var cols = opts.palette.filter(function(p){ return p.id !== '__skip__' && p.id !== '__empty__'; }).slice(0, 14);
+    for (var ci = 0; ci < cols.length; ci++) {
+      var rgb = cols[ci].rgb || [128, 128, 128];
+      ctx.beginPath();
+      ctx.arc(80 + ci * 21, 161, 7, 0, 2 * Math.PI);
+      ctx.fillStyle = 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+  }
+  // Footer
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px system-ui, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('Made with Cross Stitch Pattern Generator', W - 18, H - 7);
+}
+
+function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, currentProjectId, onOpenProject, canEdit}){
+  if(canEdit==null)canEdit=true;
   var chartSt = React.useState('cumulative');
   var chartView = chartSt[0], setChartView = chartSt[1];
   var copiedSt = React.useState(false);
@@ -1093,6 +1376,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
   var showComparison = showCompSt[0], setShowComparison = showCompSt[1];
   var hasMultiSt = React.useState(false);
   var hasMultiProjects = hasMultiSt[0], setHasMultiProjects = hasMultiSt[1];
+  var cardCanvasRef = React.useRef(null);
   React.useEffect(function() {
     if (typeof ProjectStorage !== 'undefined') {
       ProjectStorage.listProjects().then(function(list) { setHasMultiProjects(list.length >= 2); }).catch(function(){});
@@ -1141,7 +1425,34 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     downloadCSV(statsSessions || [], projectName);
   }
 
+  function handleExportCard() {
+    var canvas = cardCanvasRef.current;
+    if (!canvas) return;
+    var streakInfo = computeStreaks(statsSessions || [], dayEndHour);
+    drawProgressCard(canvas, {
+      projectName: projectName,
+      percent: overviewStats.percent,
+      totalTimeFormatted: overviewStats.totalTimeFormatted,
+      sessions: statsSessions || [],
+      avgPerDay: overviewStats.avgPerDay,
+      streak: streakInfo.currentStreak,
+      palette: palette
+    });
+    canvas.toBlob(function(blob) {
+      if(!blob)return;
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = ((projectName || 'pattern').replace(/[^a-z0-9]/gi, '_') || 'pattern') + '-progress.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },'image/png');
+  }
+
   return React.createElement("div", {className:"stats-dashboard"},
+    React.createElement("canvas", {ref:cardCanvasRef, width:600, height:185, style:{display:'none'}}),
     React.createElement("div", {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, gap:8, flexWrap:'wrap'}},
       React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'#1e293b', margin:0, display:'flex', alignItems:'center', gap:'8px'}}, Icons.barChart(), "Stats"),
       React.createElement("div", {style:{display:'flex', gap:8, flexWrap:'wrap'}},
@@ -1149,15 +1460,17 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         React.createElement("button", {onClick:onClose, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #e2e8f0', background:'#f8f9fa', cursor:'pointer', color:'#475569'}}, "\u2190 Back to grid")
       )
     ),
-    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches}),
+    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts}),
     React.createElement("div", {className:"stats-export-bar"},
       React.createElement("button", {className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}},
         copied ? [Icons.check(), ' Copied!'] : [Icons.clipboard(), ' Copy progress summary']),
       React.createElement("button", {className:"stats-export-btn", onClick:handleCSV, style:{display:'flex', alignItems:'center', gap:'6px'}},
-        Icons.document(), ' Export sessions (CSV)')
+        Icons.document(), ' Export sessions (CSV)'),
+      React.createElement("button", {className:"stats-export-btn", onClick:handleExportCard, style:{display:'flex', alignItems:'center', gap:'6px'}},
+        Icons.camera(), ' Save as image')
     ),
     React.createElement("div", {style:{marginTop:20}},
-      React.createElement(StatsChartSection, {statsSessions:statsSessions, statsSettings:statsSettings, totalStitches:totalStitches, chartView:chartView, setChartView:setChartView})
+      React.createElement(StatsChartSection, {statsSessions:statsSessions, statsSettings:statsSettings, totalStitches:totalStitches, chartView:chartView, setChartView:setChartView, overviewStats:overviewStats, totalCompleted:totalCompleted})
     ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(MilestoneTracker, {milestones:milestones, achievedMilestones:achievedMilestones})
@@ -1170,14 +1483,14 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       React.createElement(ColourTimeline, {sessions:statsSessions, palette:palette, colourDoneCounts:colourDoneCounts})
     ),
     React.createElement("div", {style:{marginTop:20}},
-      React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts})
+      React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts, sessions:statsSessions})
     ),
     React.createElement("div", {className:"stats-two-col", style:{marginTop:20}},
-      React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings}),
+      React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings, pat:pat, done:done, sW:sW, palette:palette, canEdit:canEdit}),
       React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH})
     ),
     React.createElement("div", {style:{marginTop:20}},
-      React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote})
+      React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote, palette:palette})
     ),
     React.createElement("div", {style:{marginTop:20, padding:16, background:'#f8f9fa', borderRadius:10, border:'1px solid #e2e8f0'}},
       React.createElement("h4", {style:{fontSize:14, fontWeight:600, color:'#1e293b', marginTop:0, marginBottom:8}}, "Settings"),
@@ -1294,13 +1607,52 @@ function InsightIcon({type}) {
   return React.createElement('span', {style: {display: 'inline-flex', alignItems: 'center', fontSize: 16}}, icon);
 }
 
+var CS_GLOBAL_GOALS_KEY = 'cs_global_goals';
+var CS_GLOBAL_GOALS_COMPAT_KEY = 'cs_stats_settings';
+function normaliseGlobalGoals(goals) {
+  goals = goals && typeof goals === 'object' ? goals : {};
+  return {
+    dailyGoal: goals.dailyGoal != null ? goals.dailyGoal : null,
+    weeklyGoal: goals.weeklyGoal != null ? goals.weeklyGoal : null,
+    monthlyGoal: goals.monthlyGoal != null ? goals.monthlyGoal : null,
+    targetDate: goals.targetDate != null ? goals.targetDate : null
+  };
+}
+function readGlobalGoals() {
+  try {
+    var raw = localStorage.getItem(CS_GLOBAL_GOALS_KEY);
+    if(raw) return normaliseGlobalGoals(JSON.parse(raw));
+    var compatRaw = localStorage.getItem(CS_GLOBAL_GOALS_COMPAT_KEY);
+    return compatRaw ? normaliseGlobalGoals(JSON.parse(compatRaw)) : {};
+  } catch(e) { return {}; }
+}
+function writeGlobalGoals(goals) {
+  try {
+    var normalised = normaliseGlobalGoals(goals);
+    var serialised = JSON.stringify(normalised);
+    localStorage.setItem(CS_GLOBAL_GOALS_KEY, serialised);
+    localStorage.setItem(CS_GLOBAL_GOALS_COMPAT_KEY, serialised);
+  } catch(e) {}
+}
+
 function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSettings, onUpdateSettings}) {
   var _summaries = React.useState([]);
   var projectSummaries = _summaries[0], setProjectSummaries = _summaries[1];
   var _loading = React.useState(true);
+  // Global goals are stored in localStorage, independent of any single project's statsSettings
+  var _globalGoals = React.useState(readGlobalGoals);
+  var globalGoals = _globalGoals[0], setGlobalGoals = _globalGoals[1];
+  function updateGlobalGoals(newSettings) {
+    var goals = {dailyGoal: newSettings.dailyGoal != null ? newSettings.dailyGoal : null,
+      weeklyGoal: newSettings.weeklyGoal != null ? newSettings.weeklyGoal : null,
+      monthlyGoal: newSettings.monthlyGoal != null ? newSettings.monthlyGoal : null,
+      targetDate: newSettings.targetDate != null ? newSettings.targetDate : null};
+    setGlobalGoals(goals);
+    writeGlobalGoals(goals);
+  }
+  // Effective settings for GoalTracker: combine global goals with any per-project timing settings
+  var effectiveGoalSettings = Object.assign({dayEndHour: 0, useActiveDays: true}, statsSettings || {}, globalGoals);
   var loading = _loading[0], setLoading = _loading[1];
-  var _building = React.useState(false);
-  var building = _building[0], setBuilding = _building[1];
   var _timeRange = React.useState('14');
   var timeRange = _timeRange[0], setTimeRange = _timeRange[1];
   var _tlLimit = React.useState(20);
@@ -1308,18 +1660,40 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
 
   React.useEffect(function() {
     if (typeof ProjectStorage === 'undefined') { setLoading(false); return; }
-    ProjectStorage.getAllStatsSummaries().then(function(data) {
-      if (data.length === 0) {
-        setBuilding(true);
-        return ProjectStorage.buildAllStatsSummaries().then(function(built) {
-          setProjectSummaries(built);
-          setBuilding(false);
+    // Flush the active project to IDB first so the summary includes the latest session data
+    var doLoad = function() {
+      var rebuild = function() {
+        if (typeof ProjectStorage.buildAllStatsSummaries !== 'function') {
+          setProjectSummaries([]);
+          setLoading(false);
+          return;
+        }
+        ProjectStorage.buildAllStatsSummaries().then(function(built) {
+          setProjectSummaries(Array.isArray(built) ? built : []);
+          setLoading(false);
+        }).catch(function() {
+          setProjectSummaries([]);
           setLoading(false);
         });
+      };
+      if (typeof ProjectStorage.getAllStatsSummaries === 'function') {
+        ProjectStorage.getAllStatsSummaries().then(function(summaries) {
+          if (Array.isArray(summaries) && summaries.length) {
+            setProjectSummaries(summaries);
+            setLoading(false);
+            return;
+          }
+          rebuild();
+        }).catch(rebuild);
+        return;
       }
-      setProjectSummaries(data);
-      setLoading(false);
-    }).catch(function() { setLoading(false); });
+      rebuild();
+    };
+    if (typeof window.__flushProjectToIDB === 'function') {
+      window.__flushProjectToIDB().then(doLoad).catch(doLoad);
+    } else {
+      doLoad();
+    }
   }, []);
 
   var allSessions = React.useMemo(function() {
@@ -1504,7 +1878,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
 
   if (loading) {
     return React.createElement('div', {className: 'gsd', style: {padding: '40px', textAlign: 'center', color: 'var(--text-secondary)'}},
-      building ? 'Building your stats overview\u2026' : 'Loading\u2026');
+      'Loading\u2026');
   }
 
   if (projectSummaries.length === 0) {
@@ -1516,7 +1890,20 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
   return React.createElement('div', {className: 'stats-dashboard'},
     React.createElement('div', {style: {display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8, flexWrap: 'wrap'}},
       React.createElement('h2', {style: {fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px'}}, Icons.barChart(), 'All projects'),
-      React.createElement('button', {onClick: onClose, style: {fontSize: 13, padding: '4px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '\u2190 Back to grid')
+      React.createElement('div', {style: {display: 'flex', gap: 8}},
+        React.createElement('button', {onClick: function() {
+          setLoading(true);
+          var doRefresh = function() {
+            ProjectStorage.buildAllStatsSummaries().then(function(built) {
+              setProjectSummaries(built); setLoading(false);
+            }).catch(function() { setLoading(false); });
+          };
+          if (typeof window.__flushProjectToIDB === 'function') {
+            window.__flushProjectToIDB().then(doRefresh).catch(doRefresh);
+          } else { doRefresh(); }
+        }, style: {fontSize: 13, padding: '4px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '↻ Refresh'),
+        React.createElement('button', {onClick: onClose, style: {fontSize: 13, padding: '4px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '\u2190 Back to grid')
+      )
     ),
 
     // Section 1: Lifetime totals
@@ -1567,16 +1954,16 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
       )
     ),
 
-    // Section 5: Goals (from active project settings)
-    statsSettings && React.createElement('div', {style: {marginBottom: '1.5rem'}},
+    // Section 5: Goals (stored globally in localStorage, not tied to any single project)
+    React.createElement('div', {style: {marginBottom: '1.5rem'}},
       React.createElement('h3', {className: 'gsd-section-label'}, 'Goals'),
       React.createElement(GoalTracker, {
-        statsSettings: statsSettings,
+        statsSettings: effectiveGoalSettings,
         statsSessions: allSessions,
         totalCompleted: allSessions.reduce(function(s, x) { return s + (x.netStitches || 0); }, 0),
         totalStitches: projectSummaries.reduce(function(s, p) { return s + p.totalStitches; }, 0),
         overviewStats: computeOverviewStats(allSessions, lifetimeTotals.totalStitches, lifetimeTotals.totalStitches, true),
-        onUpdateSettings: onUpdateSettings || function() {}
+        onUpdateSettings: updateGlobalGoals
       })
     ),
 
@@ -1691,7 +2078,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
 }
 
 // StatsContainer: tab bar wrapping GlobalStatsDashboard or per-project StatsDashboard
-function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, statsSessions, statsSettings, onUpdateSettings, totalCompleted, totalStitches, onEditNote, projectName, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, onOpenProject}) {
+function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, statsSessions, statsSettings, onUpdateSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, projectName, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, onOpenProject}) {
   var _projects = React.useState([]);
   var projects = _projects[0], setProjects = _projects[1];
   var _loaded = React.useState(null);
@@ -1730,7 +2117,7 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
   if (statsTab === 'all') {
     content = React.createElement(GlobalStatsDashboard, {onClose: onClose, onViewProject: function(id) { setStatsTab(id); }, currentProjectId: currentProjectId, statsSettings: statsSettings, onUpdateSettings: onUpdateSettings});
   } else if (statsTab === currentProjectId && pat) {
-    content = React.createElement(StatsDashboard, {statsSessions: statsSessions, statsSettings: statsSettings, totalCompleted: totalCompleted, totalStitches: totalStitches, onEditNote: onEditNote, onUpdateSettings: onUpdateSettings, onClose: onClose, projectName: projectName, palette: palette, colourDoneCounts: colourDoneCounts, achievedMilestones: achievedMilestones, done: done, pat: pat, sW: sW, sH: sH, doneSnapshots: doneSnapshots, setDoneSnapshots: setDoneSnapshots, sections: sections, currentProjectId: currentProjectId, onOpenProject: onOpenProject});
+    content = React.createElement(StatsDashboard, {statsSessions: statsSessions, statsSettings: statsSettings, totalCompleted: totalCompleted, totalStitches: totalStitches, halfStitchCounts: halfStitchCounts, onEditNote: onEditNote, onUpdateSettings: onUpdateSettings, onClose: onClose, projectName: projectName, palette: palette, colourDoneCounts: colourDoneCounts, achievedMilestones: achievedMilestones, done: done, pat: pat, sW: sW, sH: sH, doneSnapshots: doneSnapshots, setDoneSnapshots: setDoneSnapshots, sections: sections, currentProjectId: currentProjectId, onOpenProject: onOpenProject, canEdit: true});
   } else if (loadedProject) {
     var lp = loadedProject;
     var lpS = lp.settings || {};
@@ -1742,7 +2129,7 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
     var lpPal = lpPat ? (function() { var seen = {}, out = []; lpPat.forEach(function(c) { if (c && c.id && c.id !== '__skip__' && c.id !== '__empty__' && !c.id.includes('+') && !seen[c.id]) { seen[c.id] = true; out.push(c); } }); return out; })() : [];
     var lpCDone = {};
     if (lpPat && lpDone) { for (var ci = 0; ci < lpPat.length; ci++) { if (lpDone[ci] === 1 && lpPat[ci] && lpPat[ci].id) lpCDone[lpPat[ci].id] = (lpCDone[lpPat[ci].id] || 0) + 1; } }
-    content = React.createElement(StatsDashboard, {statsSessions: lpSessions, statsSettings: lp.statsSettings || {dayEndHour: 0, useActiveDays: true}, totalCompleted: lpCompleted, totalStitches: lpTotal, onEditNote: function() {}, onUpdateSettings: function() {}, onClose: onClose, projectName: lp.name || 'Untitled', palette: lpPal, colourDoneCounts: lpCDone, achievedMilestones: lp.achievedMilestones || [], done: lpDone, pat: lpPat, sW: lpS.sW || 0, sH: lpS.sH || 0, doneSnapshots: lp.doneSnapshots || [], setDoneSnapshots: function() {}, sections: lp.sections || [], currentProjectId: lp.id, onOpenProject: onOpenProject});
+    content = React.createElement(StatsDashboard, {statsSessions: lpSessions, statsSettings: lp.statsSettings || {dayEndHour: 0, useActiveDays: true}, totalCompleted: lpCompleted, totalStitches: lpTotal, onEditNote: function() {}, onUpdateSettings: function() {}, onClose: onClose, projectName: lp.name || 'Untitled', palette: lpPal, colourDoneCounts: lpCDone, achievedMilestones: lp.achievedMilestones || [], done: lpDone, pat: lpPat, sW: lpS.sW || 0, sH: lpS.sH || 0, doneSnapshots: lp.doneSnapshots || [], setDoneSnapshots: function() {}, sections: lp.sections || [], currentProjectId: lp.id, onOpenProject: onOpenProject, canEdit: false});
   } else {
     content = React.createElement('div', {style: {padding: '40px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14}},
       lLoading ? 'Loading\u2026' : 'Load a project in the tracker to see its stats here.');

@@ -42,7 +42,9 @@ const BackupRestore = (() => {
   const LS_KEYS = [
     "crossstitch_active_project",
     "crossstitch_custom_palettes",
-    "shortcuts_hint_dismissed"
+    "shortcuts_hint_dismissed",
+    "cs_global_goals",
+    "cs_stats_settings"
   ];
 
   return {
