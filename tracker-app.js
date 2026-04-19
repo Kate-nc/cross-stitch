@@ -459,13 +459,6 @@ const[tintOpacity,setTintOpacity]=useState(()=>{try{return parseFloat(localStora
 const[spotDimOpacity,setSpotDimOpacity]=useState(()=>{try{return parseFloat(localStorage.getItem("cs_spotDimOp")||"0.15");}catch(_){return 0.15;}});
 const[antsOffset,setAntsOffset]=useState(0);
 useEffect(()=>{try{localStorage.setItem("cs_hlMode",highlightMode);}catch(_){}},[highlightMode]);
-useEffect(()=>{try{localStorage.setItem("cs_stitchStyle",stitchingStyle);}catch(_){}},[stitchingStyle]);
-useEffect(()=>{try{localStorage.setItem("cs_blockW",String(blockW));}catch(_){}},[blockW]);
-useEffect(()=>{try{localStorage.setItem("cs_blockH",String(blockH));}catch(_){}},[blockH]);
-useEffect(()=>{try{localStorage.setItem("cs_focusEnabled",focusEnabled?"1":"0");}catch(_){}},[focusEnabled]);
-useEffect(()=>{try{localStorage.setItem("cs_colourSeq",colourSequence);}catch(_){}},[colourSequence]);
-useEffect(()=>{try{localStorage.setItem("cs_startCorner",startCorner);}catch(_){}},[startCorner]);
-useEffect(()=>{try{localStorage.setItem("cs_bcVisible",breadcrumbVisible?"1":"0");}catch(_){}},[breadcrumbVisible]);
 useEffect(()=>{manuallyPausedRef.current=manuallyPaused;},[manuallyPaused]);
 const[advanceToast,setAdvanceToast]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
@@ -480,6 +473,13 @@ const[startCorner,setStartCorner]=useState(()=>{try{return localStorage.getItem(
 const[styleOnboardingOpen,setStyleOnboardingOpen]=useState(()=>{try{return!localStorage.getItem("cs_styleOnboardingDone")&&!localStorage.getItem("cs_stitchStyle");}catch(_){return false;}});
 const[breadcrumbs,setBreadcrumbs]=useState([]);
 const[breadcrumbVisible,setBreadcrumbVisible]=useState(()=>{try{return localStorage.getItem("cs_bcVisible")!=="0";}catch(_){return true;}});
+useEffect(()=>{try{localStorage.setItem("cs_stitchStyle",stitchingStyle);}catch(_){}},[stitchingStyle]);
+useEffect(()=>{try{localStorage.setItem("cs_blockW",String(blockW));}catch(_){}},[blockW]);
+useEffect(()=>{try{localStorage.setItem("cs_blockH",String(blockH));}catch(_){}},[blockH]);
+useEffect(()=>{try{localStorage.setItem("cs_focusEnabled",focusEnabled?"1":"0");}catch(_){}},[focusEnabled]);
+useEffect(()=>{try{localStorage.setItem("cs_colourSeq",colourSequence);}catch(_){}},[colourSequence]);
+useEffect(()=>{try{localStorage.setItem("cs_startCorner",startCorner);}catch(_){}},[startCorner]);
+useEffect(()=>{try{localStorage.setItem("cs_bcVisible",breadcrumbVisible?"1":"0");}catch(_){}},[breadcrumbVisible]);
 const[blockAdvanceToast,setBlockAdvanceToast]=useState(null);
 const prevFocusBlockDoneRef=useRef(false);
 const blockAdvanceTimerRef=useRef(null);
