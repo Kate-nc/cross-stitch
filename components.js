@@ -151,20 +151,22 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
   } catch(e) { console.warn('Stats: MiniStatsBar render error', e); return null; }
 });
 
-var OverviewCards=React.memo(function OverviewCards({statsSessions, totalCompleted, totalStitches}){
+var OverviewCards=React.memo(function OverviewCards({statsSessions, totalCompleted, totalStitches, halfStitchCounts}){
   var stats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches);
+  var hasHalf = halfStitchCounts && halfStitchCounts.total > 0;
   return React.createElement("div", {className:"stats-overview"},
     React.createElement("div", {className:"stats-overview-main"},
       React.createElement(ProgressRing, {percent:stats.percent, size:56}),
       React.createElement("div", null,
         React.createElement("span", {className:"stats-big-number"}, totalCompleted.toLocaleString()),
-        React.createElement("span", {className:"stats-label"}, " of " + totalStitches.toLocaleString() + " stitches")
+        React.createElement("span", {className:"stats-label"}, " of " + totalStitches.toLocaleString() + " stitches"),
+        hasHalf && React.createElement("span", {className:"stats-sublabel"}, halfStitchCounts.done.toLocaleString() + " / " + halfStitchCounts.total.toLocaleString() + " half stitches (\xbd\xd7)")
       )
     ),
     React.createElement("div", {className:"stats-overview-grid"},
       React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Speed"), React.createElement("span", {className:"stats-value"}, stats.stitchesPerHour + "/hr")),
       React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Time stitched"), React.createElement("span", {className:"stats-value"}, stats.totalTimeFormatted)),
-      React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Est. finish"), React.createElement("span", {className:"stats-value"}, stats.estimatedCompletion)),
+      React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Est. finish"), React.createElement("span", {className:"stats-value"}, stats.estimatedCompletion), stats.hoursRemaining != null && React.createElement("span", {className:"stats-sublabel"}, (stats.hoursRemaining < 1 ? '< 1' : '~' + Math.ceil(stats.hoursRemaining)) + (Math.ceil(stats.hoursRemaining) === 1 ? ' hr' : ' hrs') + ' stitching')),
       React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Sessions"), React.createElement("span", {className:"stats-value"}, (statsSessions||[]).length))
     )
   );
@@ -807,7 +809,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
       var remaining = Math.max(0, dc.total - dc.done);
       var pct = dc.total > 0 ? Math.round(dc.done / dc.total * 100) : 0;
       if (remaining === 0 && dc.total > 0) coloursComplete++;
-      colourStats.push({id:p.id, name:p.name, type:p.type, threads:p.threads, rgb:p.rgb, remaining:remaining, pct:pct, total:dc.total});
+      colourStats.push({id:p.id, name:p.name, type:p.type, threads:p.threads, rgb:p.rgb, remaining:remaining, pct:pct, total:dc.total, halfTotal:dc.halfTotal||0, halfDone:dc.halfDone||0});
     }
     colourStats.sort(function(a,b){ return b.remaining - a.remaining; });
     var avgSessionStitches = 0;
@@ -840,7 +842,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
             React.createElement("div", {className:"colour-bar"},
               React.createElement("div", {className:"colour-bar-fill", style:{width:c.pct+'%'}})
             ),
-            React.createElement("span", {className:"colour-remaining"}, c.remaining === 0 ? "\u2713" : c.remaining.toLocaleString() + " left"),
+            React.createElement("span", {className:"colour-remaining"}, c.remaining === 0 ? (c.halfTotal > 0 && c.halfDone < c.halfTotal ? c.halfTotal - c.halfDone + " half left" : "\u2713") : c.remaining.toLocaleString() + " left" + (c.halfTotal > 0 && c.halfDone < c.halfTotal ? " + " + (c.halfTotal - c.halfDone) + " half" : "")),
             avgSessionStitches > 0 && c.remaining > 0 ? React.createElement("span", {style:{fontSize:11,color:'#94a3b8',whiteSpace:'nowrap'}}, "~" + Math.ceil(c.remaining / avgSessionStitches) + " sessions") : null
           );
         })
@@ -850,7 +852,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
 }
 
 // ═══ Visual Progress: Section completion grid ═══
-function SectionGrid({sections, statsSettings, onUpdateSettings}){
+function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, palette}){
   var numX=0,numY=0;
   if(sections&&sections.length>0){
     sections.forEach(function(s){if(s.sx>=numX)numX=s.sx+1;if(s.sy>=numY)numY=s.sy+1;});
@@ -859,9 +861,9 @@ function SectionGrid({sections, statsSettings, onUpdateSettings}){
   var secCols=(statsSettings&&statsSettings.sectionCols)||50;
   var secRows=(statsSettings&&statsSettings.sectionRows)||50;
   var sectionLabels=(statsSettings&&statsSettings.sectionLabels)||{};
-  // editing: key "sx,sy" of the section currently being labelled, or null
   var _editing=React.useState(null);var editingKey=_editing[0],setEditingKey=_editing[1];
   var _editVal=React.useState('');var editVal=_editVal[0],setEditVal=_editVal[1];
+  var _selected=React.useState(null);var selectedKey=_selected[0],setSelectedKey=_selected[1];
 
   function commitLabel(key){
     var trimmed=editVal.trim();
@@ -871,24 +873,58 @@ function SectionGrid({sections, statsSettings, onUpdateSettings}){
     setEditingKey(null);
   }
 
+  // Build a colour lookup from palette
+  var colourMap={};
+  if(palette){palette.forEach(function(c){if(c.id)colourMap[c.id]=c;});}
+
+  // Compute thread breakdown for the selected section
+  var selectedSection=selectedKey?sections.find(function(s){return s.sx+','+s.sy===selectedKey;}):null;
+  var sectionThreads=null;
+  if(selectedSection&&pat&&done&&sW){
+    var counts={};
+    for(var y=selectedSection.y0;y<selectedSection.y1;y++){
+      for(var x=selectedSection.x0;x<selectedSection.x1;x++){
+        var idx=y*sW+x;
+        var cell=pat[idx];
+        if(!cell||cell.id==='__skip__'||cell.id==='__empty__')continue;
+        var ids=cell.type==='blend'?cell.id.split('+'):[cell.id];
+        ids.forEach(function(cid){
+          if(!counts[cid])counts[cid]={total:0,doneCount:0};
+          counts[cid].total++;
+          if(done[idx])counts[cid].doneCount++;
+        });
+      }
+    }
+    sectionThreads=Object.keys(counts).sort(function(a,b){return counts[b].total-counts[a].total;}).map(function(cid){
+      return Object.assign({id:cid},counts[cid]);
+    });
+  }
+
+  var selectedLabel=selectedSection?(sectionLabels[selectedKey]||('Section '+selectedSection.label)):null;
+
   return React.createElement("div",{style:{background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,padding:16}},
     React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}},
       React.createElement("h4",{style:{fontSize:14,fontWeight:600,color:'#1e293b',margin:0}},"Sections"),
       numX>0&&React.createElement("span",{style:{fontSize:12,color:'#64748b'}},complete+" / "+(sections?sections.length:0)+" complete")
     ),
-    React.createElement("p",{style:{fontSize:11,color:'#94a3b8',margin:'0 0 8px',lineHeight:1.4}},"Click a section to name it"),
+    React.createElement("p",{style:{fontSize:11,color:'#94a3b8',margin:'0 0 8px',lineHeight:1.4}},"Click a section to see its threads · click again to rename"),
     sections&&sections.length>0&&React.createElement("div",{className:"section-grid",style:{display:'grid',gridTemplateColumns:'repeat('+numX+', 1fr)',gap:3,marginBottom:12}},
       sections.map(function(sec){
         var cellKey=sec.sx+','+sec.sy;
         var customLabel=sectionLabels[cellKey]||null;
         var isEditing=editingKey===cellKey;
+        var isSelected=selectedKey===cellKey;
         var fs=Math.max(8,Math.min(11,Math.floor(60/numX)));
         return React.createElement("div",{
           key:sec.label,
           className:"section-cell",
-          style:{background:sec.isDone?'#16a34a':sectionColor(sec.pct),aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderRadius:4,fontSize:fs,color:sec.pct>50?'#fff':'#1e293b',fontWeight:sec.isDone?700:400,cursor:'pointer',padding:1,overflow:'hidden',position:'relative'},
+          style:{background:sec.isDone?'#16a34a':sectionColor(sec.pct),aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderRadius:4,fontSize:fs,color:sec.pct>50?'#fff':'#1e293b',fontWeight:sec.isDone?700:400,cursor:'pointer',padding:1,overflow:'hidden',position:'relative',outline:isSelected?'2px solid #0d9488':'none',outlineOffset:1},
           title:customLabel?customLabel+' ('+sec.pct+'%)':'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)',
-          onClick:function(){if(!isEditing){setEditVal(customLabel||'');setEditingKey(cellKey);}}
+          onClick:function(){
+            if(isEditing)return;
+            if(isSelected){setEditVal(customLabel||'');setEditingKey(cellKey);}
+            else{setSelectedKey(cellKey);setEditingKey(null);}
+          }
         },
           isEditing
             ? React.createElement("input",{
@@ -907,6 +943,33 @@ function SectionGrid({sections, statsSettings, onUpdateSettings}){
               ]
         );
       })
+    ),
+    sectionThreads&&React.createElement("div",{style:{marginBottom:12,padding:10,background:'#f8faff',borderRadius:8,border:'1px solid #dbeafe'}},
+      React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}},
+        React.createElement("span",{style:{fontSize:12,fontWeight:600,color:'#1e293b'}},selectedLabel+' — threads'),
+        React.createElement("button",{onClick:function(){setSelectedKey(null);},style:{fontSize:11,padding:'1px 8px',borderRadius:6,border:'1px solid #dbeafe',background:'#eff6ff',cursor:'pointer',color:'#3b82f6',lineHeight:'18px'}},"\u2715")
+      ),
+      sectionThreads.length===0
+        ? React.createElement("p",{style:{fontSize:12,color:'#94a3b8',margin:0}},"No stitches in this section")
+        : React.createElement("div",{style:{display:'flex',flexDirection:'column',gap:4}},
+            sectionThreads.map(function(t){
+              var cm=colourMap[t.id];
+              var rgb=cm?cm.rgb:[128,128,128];
+              var name=cm?cm.name:('DMC '+t.id);
+              var remaining=t.total-t.doneCount;
+              var pct=t.total>0?Math.round(t.doneCount/t.total*100):100;
+              return React.createElement("div",{key:t.id,style:{display:'flex',alignItems:'center',gap:6}},
+                React.createElement("span",{style:{width:12,height:12,borderRadius:2,background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')',border:'1px solid rgba(0,0,0,0.15)',flexShrink:0,display:'inline-block'}}),
+                React.createElement("span",{style:{fontSize:11,color:'#475569',minWidth:32,flexShrink:0}},"#"+t.id),
+                React.createElement("div",{style:{flex:1,height:6,background:'#e2e8f0',borderRadius:3,overflow:'hidden'}},
+                  React.createElement("div",{style:{width:pct+'%',height:'100%',background:t.doneCount===t.total?'#16a34a':'#0d9488',borderRadius:3}})
+                ),
+                React.createElement("span",{style:{fontSize:11,color:'#64748b',flexShrink:0,minWidth:70,textAlign:'right'}},
+                  remaining>0?(remaining.toLocaleString()+' left'):'\u2713 done'
+                )
+              );
+            })
+          )
     ),
     sections&&sections.length===0&&React.createElement("p",{style:{fontSize:13,color:'#94a3b8',margin:0}},"No pattern loaded"),
     React.createElement("div",{style:{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#64748b',marginTop:4}},
@@ -1308,7 +1371,7 @@ function drawProgressCard(canvas, opts) {
   ctx.fillText('Made with Cross Stitch Pattern Generator', W - 18, H - 7);
 }
 
-function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, currentProjectId, onOpenProject}){
+function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, currentProjectId, onOpenProject}){
   var chartSt = React.useState('cumulative');
   var chartView = chartSt[0], setChartView = chartSt[1];
   var copiedSt = React.useState(false);
@@ -1400,7 +1463,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         React.createElement("button", {onClick:onClose, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #e2e8f0', background:'#f8f9fa', cursor:'pointer', color:'#475569'}}, "\u2190 Back to grid")
       )
     ),
-    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches}),
+    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts}),
     React.createElement("div", {className:"stats-export-bar"},
       React.createElement("button", {className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}},
         copied ? [Icons.check(), ' Copied!'] : [Icons.clipboard(), ' Copy progress summary']),
@@ -1426,7 +1489,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts, sessions:statsSessions})
     ),
     React.createElement("div", {className:"stats-two-col", style:{marginTop:20}},
-      React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings}),
+      React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings, pat:pat, done:done, sW:sW, palette:palette}),
       React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH})
     ),
     React.createElement("div", {style:{marginTop:20}},
@@ -1976,7 +2039,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
 }
 
 // StatsContainer: tab bar wrapping GlobalStatsDashboard or per-project StatsDashboard
-function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, statsSessions, statsSettings, onUpdateSettings, totalCompleted, totalStitches, onEditNote, projectName, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, onOpenProject}) {
+function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, statsSessions, statsSettings, onUpdateSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, projectName, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, onOpenProject}) {
   var _projects = React.useState([]);
   var projects = _projects[0], setProjects = _projects[1];
   var _loaded = React.useState(null);
@@ -2015,7 +2078,7 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
   if (statsTab === 'all') {
     content = React.createElement(GlobalStatsDashboard, {onClose: onClose, onViewProject: function(id) { setStatsTab(id); }, currentProjectId: currentProjectId, statsSettings: statsSettings, onUpdateSettings: onUpdateSettings});
   } else if (statsTab === currentProjectId && pat) {
-    content = React.createElement(StatsDashboard, {statsSessions: statsSessions, statsSettings: statsSettings, totalCompleted: totalCompleted, totalStitches: totalStitches, onEditNote: onEditNote, onUpdateSettings: onUpdateSettings, onClose: onClose, projectName: projectName, palette: palette, colourDoneCounts: colourDoneCounts, achievedMilestones: achievedMilestones, done: done, pat: pat, sW: sW, sH: sH, doneSnapshots: doneSnapshots, setDoneSnapshots: setDoneSnapshots, sections: sections, currentProjectId: currentProjectId, onOpenProject: onOpenProject});
+    content = React.createElement(StatsDashboard, {statsSessions: statsSessions, statsSettings: statsSettings, totalCompleted: totalCompleted, totalStitches: totalStitches, halfStitchCounts: halfStitchCounts, onEditNote: onEditNote, onUpdateSettings: onUpdateSettings, onClose: onClose, projectName: projectName, palette: palette, colourDoneCounts: colourDoneCounts, achievedMilestones: achievedMilestones, done: done, pat: pat, sW: sW, sH: sH, doneSnapshots: doneSnapshots, setDoneSnapshots: setDoneSnapshots, sections: sections, currentProjectId: currentProjectId, onOpenProject: onOpenProject});
   } else if (loadedProject) {
     var lp = loadedProject;
     var lpS = lp.settings || {};

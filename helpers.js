@@ -526,6 +526,7 @@ function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useA
   var paceForEstimate = recentPace || avgPerDay;
   var daysRemaining = paceForEstimate > 0 ? Math.ceil(remaining / paceForEstimate) : null;
   var estimatedDate = daysRemaining ? new Date(Date.now() + daysRemaining * 86400000) : null;
+  var hoursRemaining = (stitchesPerHour > 0 && remaining > 0) ? remaining / stitchesPerHour : null;
   return {
     percent: totalStitches > 0 ? Math.round((totalCompleted / totalStitches) * 1000) / 10 : 0,
     stitchesPerHour: stitchesPerHour,
@@ -534,6 +535,8 @@ function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useA
       ? estimatedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
       : '—',
     daysRemaining: daysRemaining,
+    hoursRemaining: hoursRemaining,
+    remaining: remaining,
     avgPerDay: avgPerDay,
     avgPerActiveDay: avgPerActiveDay,
     avgPerCalendarDay: avgPerCalendarDay,
@@ -839,7 +842,13 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
   }
 
   if (stats.estimatedCompletion && stats.estimatedCompletion !== '\u2014') {
-    lines.push('Est. completion: ' + stats.estimatedCompletion);
+    var etaLine = 'Est. completion: ' + stats.estimatedCompletion;
+    if (stats.hoursRemaining != null) {
+      var hr = stats.hoursRemaining;
+      var hrStr = hr < 1 ? '< 1' : '~' + Math.ceil(hr);
+      etaLine += ' (' + hrStr + (Math.ceil(hr) === 1 ? ' hr' : ' hrs') + ' stitching remaining)';
+    }
+    lines.push(etaLine);
   }
 
   lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
