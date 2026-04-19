@@ -1859,6 +1859,12 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .session-chip--idle{background:#f1f5f9;border-color:#cbd5e1;color:#475569;}
 @keyframes sess-pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
 @keyframes range-anchor-pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,0.5);}100%{box-shadow:0 0 0 4px rgba(59,130,246,0);}}
+/* ── Modal choice buttons (onboarding etc.) ── */
+.modal-choice-btn{padding:12px 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text-primary);cursor:pointer;font-size:14px;font-weight:600;text-align:left;width:100%;}
+.modal-choice-btn:hover{border-color:var(--accent);background:var(--accent-light);color:var(--accent);}
+.modal-choice-btn--on{border-color:var(--accent);background:var(--accent-light);color:var(--accent);}
+/* ── Focus block pulse animation ── */
+@keyframes focus-block-pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.025);}}
 /* ═══ Progress bar: today accent segment ═══ */
 .tb-progress-today{background:#34d399;border-radius:0 2px 2px 0;animation:todayGlow 2s ease-in-out infinite alternate;}
 

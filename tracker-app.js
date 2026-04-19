@@ -222,6 +222,119 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
   );
 }
 
+// ── Stitching Style Onboarding Modal ──
+function StitchingStyleOnboarding({onDone,startCorner:initCorner}){
+  const[screen,setScreen]=useState(1);
+  const[style,setStyle]=useState(null);
+  const[bw,setBw]=useState(10),[bh,setBh]=useState(10);
+  const[customW,setCustomW]=useState(10),[customH,setCustomH]=useState(10);
+  const[showCustom,setShowCustom]=useState(false);
+  const[corner,setCorner]=useState(initCorner||"TL");
+  const commit=(s,w,h,c)=>{try{localStorage.setItem("cs_styleOnboardingDone","1");}catch(_){}onDone({style:s,blockW:w,blockH:h,startCorner:c});};
+  if(screen===1)return(
+    <div className="modal-overlay">
+      <div className="modal-content" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{marginTop:0,fontSize:17}}>How do you usually work through a pattern?</h3>
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
+          <button className="modal-choice-btn" onClick={()=>{setStyle("block");setScreen(2);}}>One section at a time</button>
+          <button className="modal-choice-btn" onClick={()=>{setStyle("crosscountry");setScreen(3);}}>One colour at a time</button>
+          <button className="modal-choice-btn" onClick={()=>{setStyle("freestyle");setScreen(3);}}>I don't have a fixed method</button>
+        </div>
+        <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>{try{localStorage.setItem("cs_styleOnboardingDone","1");}catch(_){}onDone(null);}}>Skip for now</button>
+      </div>
+    </div>
+  );
+  if(screen===2)return(
+    <div className="modal-overlay">
+      <div className="modal-content" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{marginTop:0,fontSize:17}}>What shape are your sections?</h3>
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
+          <button className="modal-choice-btn" onClick={()=>{setStyle("block");setBw(10);setBh(10);setScreen(3);}}>10×10 blocks</button>
+          <button className="modal-choice-btn" onClick={()=>{setStyle("royal");setBw(10);setBh(20);setScreen(3);}}>Tall towers (10 wide × 20 tall)</button>
+          <button className="modal-choice-btn" onClick={()=>{setStyle("block");setBw(20);setBh(20);setScreen(3);}}>Larger blocks (20×20)</button>
+          <button className="modal-choice-btn" onClick={()=>setShowCustom(v=>!v)}>Other size…</button>
+          {showCustom&&<div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 12px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
+            <label style={{fontSize:12,fontWeight:600}}>W:</label>
+            <input type="number" value={customW} onChange={e=>setCustomW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
+            <label style={{fontSize:12,fontWeight:600}}>H:</label>
+            <input type="number" value={customH} onChange={e=>setCustomH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
+            <button onClick={()=>{setStyle("block");setBw(customW);setBh(customH);setScreen(3);}} style={{padding:"4px 10px",borderRadius:4,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}>OK</button>
+          </div>}
+          {showCustom&&(customW%10!==0||customH%10!==0)&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>Custom sizes may not align with the 10-stitch grid lines.</div>}
+        </div>
+        <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>setScreen(1)}>← Back</button>
+      </div>
+    </div>
+  );
+  const CORNERS=[["TL","Top-left"],["TR","Top-right"],["C","Centre"],["BL","Bottom-left"],["BR","Bottom-right"]];
+  return(
+    <div className="modal-overlay">
+      <div className="modal-content" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{marginTop:0,fontSize:17}}>Where do you usually start?</h3>
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
+          {CORNERS.map(([k,l])=><button key={k} className={"modal-choice-btn"+(corner===k?" modal-choice-btn--on":"")} onClick={()=>commit(style||"block",bw,bh,k)}>{l}</button>)}
+        </div>
+        <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>setScreen(style==="block"||style==="royal"?2:1)}>← Back</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Session Config Modal ──
+function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
+  const[timeChoice,setTimeChoice]=useState(null);
+  const[goalStitches,setGoalStitches]=useState("");
+  return(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>×</button>
+        <h3 style={{marginTop:0,fontSize:17}}>Start Session</h3>
+        <div style={{marginBottom:16}}>
+          <div style={{fontWeight:600,fontSize:12,color:"#475569",marginBottom:8}}>Time available</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {[[900,"15 min"],[1800,"30 min"],[3600,"1 hr"],[7200,"2 hr"],[null,"Open-ended"]].map(([v,l])=>(
+              <button key={String(v)} onClick={()=>setTimeChoice(v)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid "+(timeChoice===v?"#0d9488":"#e2e8f0"),background:timeChoice===v?"#f0fdfa":"#fff",color:timeChoice===v?"#0d9488":"#475569",cursor:"pointer",fontWeight:600,fontSize:12}}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontWeight:600,fontSize:12,color:"#475569",marginBottom:8}}>Stitch goal (optional)</div>
+          <input type="number" value={goalStitches} onChange={e=>setGoalStitches(e.target.value)} placeholder="e.g. 200" min={1} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #e2e8f0",fontSize:13,width:"100%",boxSizing:"border-box"}}/>
+        </div>
+        <button onClick={()=>onStart({timeAvail:timeChoice,stitchGoal:goalStitches?parseInt(goalStitches)||null:null})} style={{width:"100%",padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer",fontSize:14}}>Start</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Session Summary Modal ──
+function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,onClose}){
+  if(!data)return null;
+  const{durationSeconds,stitchesCompleted,blocksCompleted,coloursCompleted}=data;
+  const mins=Math.floor(durationSeconds/60),secs=durationSeconds%60;
+  const speed=durationSeconds>0?Math.round(stitchesCompleted/(durationSeconds/3600)):0;
+  const pctDiff=prevAvgSpeed>0?Math.round(((speed-prevAvgSpeed)/prevAvgSpeed)*100):null;
+  return(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>×</button>
+        <h3 style={{marginTop:0,fontSize:18,color:"#1e293b"}}>Session complete</h3>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:14}}><span style={{color:"#475569"}}>Time</span><span style={{fontWeight:700}}>{mins}m {secs}s</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:14}}><span style={{color:"#475569"}}>Stitches</span><span style={{fontWeight:700}}>{stitchesCompleted}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:14}}><span style={{color:"#475569"}}>Speed</span><span style={{fontWeight:700}}>{speed} st/hr{pctDiff!=null?<span style={{fontSize:11,fontWeight:400,color:pctDiff>=0?"#16a34a":"#dc2626",marginLeft:6}}>{pctDiff>=0?"+":""}{pctDiff}% vs avg</span>:null}</span></div>
+          {blocksCompleted>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14}}><span style={{color:"#475569"}}>Blocks</span><span style={{fontWeight:700}}>{blocksCompleted}</span></div>}
+          {coloursCompleted&&coloursCompleted.length>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14}}><span style={{color:"#475569"}}>Colours finished</span><span style={{fontWeight:700}}>{coloursCompleted.length}</span></div>}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onViewBreadcrumbs} style={{flex:1,padding:"8px",borderRadius:8,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:13,fontWeight:600,color:"#475569"}}>View breadcrumb trail</button>
+          <button onClick={onClose} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:600}}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80),[sH,setSH]=useState(80);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null);
@@ -346,9 +459,38 @@ const[tintOpacity,setTintOpacity]=useState(()=>{try{return parseFloat(localStora
 const[spotDimOpacity,setSpotDimOpacity]=useState(()=>{try{return parseFloat(localStorage.getItem("cs_spotDimOp")||"0.15");}catch(_){return 0.15;}});
 const[antsOffset,setAntsOffset]=useState(0);
 useEffect(()=>{try{localStorage.setItem("cs_hlMode",highlightMode);}catch(_){}},[highlightMode]);
+useEffect(()=>{try{localStorage.setItem("cs_stitchStyle",stitchingStyle);}catch(_){}},[stitchingStyle]);
+useEffect(()=>{try{localStorage.setItem("cs_blockW",String(blockW));}catch(_){}},[blockW]);
+useEffect(()=>{try{localStorage.setItem("cs_blockH",String(blockH));}catch(_){}},[blockH]);
+useEffect(()=>{try{localStorage.setItem("cs_focusEnabled",focusEnabled?"1":"0");}catch(_){}},[focusEnabled]);
+useEffect(()=>{try{localStorage.setItem("cs_colourSeq",colourSequence);}catch(_){}},[colourSequence]);
+useEffect(()=>{try{localStorage.setItem("cs_startCorner",startCorner);}catch(_){}},[startCorner]);
+useEffect(()=>{try{localStorage.setItem("cs_bcVisible",breadcrumbVisible?"1":"0");}catch(_){}},[breadcrumbVisible]);
 useEffect(()=>{manuallyPausedRef.current=manuallyPaused;},[manuallyPaused]);
 const[advanceToast,setAdvanceToast]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
+// ── Stitching Style & Spatial Focus Area ──
+const[stitchingStyle,setStitchingStyle]=useState(()=>{try{return localStorage.getItem("cs_stitchStyle")||"block";}catch(_){return"block";}});
+const[blockW,setBlockW]=useState(()=>{try{return Math.max(5,Math.min(100,parseInt(localStorage.getItem("cs_blockW")||"10")));}catch(_){return 10;}});
+const[blockH,setBlockH]=useState(()=>{try{return Math.max(5,Math.min(100,parseInt(localStorage.getItem("cs_blockH")||"10")));}catch(_){return 10;}});
+const[focusBlock,setFocusBlock]=useState(null); // {bx,by} | null
+const[focusEnabled,setFocusEnabled]=useState(()=>{try{return localStorage.getItem("cs_focusEnabled")==="1";}catch(_){return false;}});
+const[colourSequence,setColourSequence]=useState(()=>{try{return localStorage.getItem("cs_colourSeq")||"fewest";}catch(_){return"fewest";}});
+const[startCorner,setStartCorner]=useState(()=>{try{return localStorage.getItem("cs_startCorner")||"TL";}catch(_){return"TL";}});
+const[styleOnboardingOpen,setStyleOnboardingOpen]=useState(()=>{try{return!localStorage.getItem("cs_styleOnboardingDone")&&!localStorage.getItem("cs_stitchStyle");}catch(_){return false;}});
+const[breadcrumbs,setBreadcrumbs]=useState([]);
+const[breadcrumbVisible,setBreadcrumbVisible]=useState(()=>{try{return localStorage.getItem("cs_bcVisible")!=="0";}catch(_){return true;}});
+const[blockAdvanceToast,setBlockAdvanceToast]=useState(null);
+const prevFocusBlockDoneRef=useRef(false);
+const blockAdvanceTimerRef=useRef(null);
+// ── Explicit session mode ──
+const[explicitSession,setExplicitSession]=useState(null);
+const[sessionConfigOpen,setSessionConfigOpen]=useState(false);
+const[sessionTimeChoice,setSessionTimeChoice]=useState(null);
+const[sessionGoalInput,setSessionGoalInput]=useState("");
+const[sessionSummaryData,setSessionSummaryData]=useState(null);
+const focusOverlayCanvasRef=useRef(null);
+const breadcrumbCanvasRef=useRef(null);
 const[hlRow,setHlRow]=useState(-1),[hlCol,setHlCol]=useState(-1);
 const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
@@ -886,10 +1028,10 @@ useEffect(()=>{
     // Send minimal-size pat objects — only need the id field
     const minPat=new Array(pat.length);
     for(let i=0;i<pat.length;i++)minPat[i]={id:pat[i].id};
-    analysisWorkerRef.current.postMessage({type:"analyse",pat:minPat,done:done?Array.from(done):null,sW,sH,requestId:reqId});
+    analysisWorkerRef.current.postMessage({type:"analyse",pat:minPat,done:done?Array.from(done):null,sW,sH,requestId:reqId,blockSize:blockW});
   },500);
   return()=>clearTimeout(analysisThrottleRef.current);
-},[pat,done,sW,sH]);
+},[pat,done,sW,sH,blockW]);
 
 // Derived recommendations from analysis result
 const recommendations=useMemo(()=>{
@@ -907,6 +1049,73 @@ const recommendations=useMemo(()=>{
   const quickWins=pc?Object.values(pc).filter(c=>c.totalStitches>0&&c.completedStitches<c.totalStitches).map(c=>({...c,remaining:c.totalStitches-c.completedStitches})).sort((a,b)=>a.remaining-b.remaining).slice(0,3):[];
   return{top:scored.slice(0,3),quickWins};
 },[analysisResult,pat,recDismissed]);
+
+// ── Focus block helper functions ──
+function _isFocusBlockComplete(bx,by){
+  if(!pat||!done)return false;
+  const x0=bx*blockW,y0=by*blockH,x1=Math.min(x0+blockW,sW),y1=Math.min(y0+blockH,sH);
+  for(let y=y0;y<y1;y++){for(let x=x0;x<x1;x++){
+    const idx=y*sW+x;const m=pat[idx];
+    if(!m||m.id==="__skip__"||m.id==="__empty__")continue;
+    if(done[idx])continue;
+    if(parkMarkers.some(pm=>pm.x===x&&pm.y===y))continue;
+    return false;
+  }}return true;
+}
+function _getBlockStitchCount(bx,by){
+  if(!pat)return 0;
+  const x0=bx*blockW,y0=by*blockH,x1=Math.min(x0+blockW,sW),y1=Math.min(y0+blockH,sH);
+  let c=0;for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){const m=pat[y*sW+x];if(m&&m.id!=="__skip__"&&m.id!=="__empty__")c++;}return c;
+}
+function _getStartBlock(){
+  if(!sW||!sH)return{bx:0,by:0};
+  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
+  if(startCorner==="TR")return{bx:bCols-1,by:0};
+  if(startCorner==="BL")return{bx:0,by:bRows-1};
+  if(startCorner==="BR")return{bx:bCols-1,by:bRows-1};
+  if(startCorner==="C")return{bx:Math.floor(bCols/2),by:Math.floor(bRows/2)};
+  return{bx:0,by:0};
+}
+function _getRoyalRowsNext(bx,by){
+  if(!sW||!sH)return null;
+  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
+  if(bx+1<bCols)return{bx:bx+1,by};
+  if(by+1<bRows)return{bx:0,by:by+1};
+  return null;
+}
+
+// ── Block auto-advance effect ──
+useEffect(()=>{
+  if(!focusBlock||!focusEnabled||!pat||!done||stitchingStyle==="crosscountry")return;
+  const complete=_isFocusBlockComplete(focusBlock.bx,focusBlock.by);
+  if(!prevFocusBlockDoneRef.current&&complete){
+    if(blockAdvanceTimerRef.current)clearTimeout(blockAdvanceTimerRef.current);
+    blockAdvanceTimerRef.current=setTimeout(()=>{
+      const stitches=_getBlockStitchCount(focusBlock.bx,focusBlock.by);
+      const curSessIdx=statsSessions?statsSessions.length:0;
+      const seqN=breadcrumbs.filter(b=>b.sessionIdx===curSessIdx).length+1;
+      setBreadcrumbs(prev=>[...prev,{sessionIdx:curSessIdx,bx:focusBlock.bx,by:focusBlock.by,seqN,completedAt:Date.now()}]);
+      let next=null;
+      if(stitchingStyle==="royal"){
+        next=_getRoyalRowsNext(focusBlock.bx,focusBlock.by);
+      }else if(recommendations&&recommendations.top.length>0&&analysisResult){
+        const RS=analysisResult.regionSize||blockW;const RC=analysisResult.regionCols||1;
+        const top=recommendations.top.find(r=>{const rC=r.idx%RC,rR=Math.floor(r.idx/RC);return!(rC===focusBlock.bx&&rR===focusBlock.by);});
+        if(top){const rC=top.idx%RC,rR=Math.floor(top.idx/RC);next={bx:rC,by:rR};}
+      }
+      prevFocusBlockDoneRef.current=true;
+      setBlockAdvanceToast({bx:focusBlock.bx,by:focusBlock.by,label:`Block ${focusBlock.by+1},${focusBlock.bx+1}`,stitches,next});
+      setTimeout(()=>{
+        setBlockAdvanceToast(null);
+        if(next)setFocusBlock(next);
+      },1500);
+    },500);
+  }else if(!complete){
+    prevFocusBlockDoneRef.current=false;
+    if(blockAdvanceTimerRef.current){clearTimeout(blockAdvanceTimerRef.current);blockAdvanceTimerRef.current=null;}
+  }
+  return()=>{if(blockAdvanceTimerRef.current)clearTimeout(blockAdvanceTimerRef.current);};
+},[countsVer,focusBlock,focusEnabled,pat,done,parkMarkers,stitchingStyle,blockW,blockH,sW,sH,recommendations,analysisResult,statsSessions,breadcrumbs]);
 
 // Thread usage summary stats derived from analysis
 const threadUsageSummary=useMemo(()=>{
@@ -1817,6 +2026,13 @@ function processLoadedProject(project){
   else setDone(new Uint8Array(restored.length));
 
   setParkMarkers(project.parkMarkers||[]);
+  setBreadcrumbs(project.breadcrumbs||[]);
+  if(project.stitchingStyle)setStitchingStyle(project.stitchingStyle);
+  if(project.blockW)setBlockW(Math.max(5,Math.min(100,project.blockW)));
+  if(project.blockH)setBlockH(Math.max(5,Math.min(100,project.blockH)));
+  if(project.focusBlock)setFocusBlock(project.focusBlock);else setFocusBlock(null);
+  if(project.startCorner)setStartCorner(project.startCorner);
+  if(project.colourSequence)setColourSequence(project.colourSequence);
   setSessions(project.sessions||[]);
   // Legacy migration: if no sessions but totalTime exists, create a synthetic session
   var rawStatsSessions=project.statsSessions||[];
@@ -2141,7 +2357,8 @@ const buildSnapshot = () => {
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
     statsSessions, statsSettings, achievedMilestones, doneSnapshots,
     savedZoom: stitchZoom,
-    savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
+    savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null,
+    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence
   };
 };
 buildSnapshotRef.current = buildSnapshot;
@@ -2539,7 +2756,20 @@ function drawStitch(ctx,cSz,viewportRect){
     bsLines.forEach(ln=>{ctx.strokeStyle=ln.color||"#333";ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();});
     ctx.restore();
   }
-  if(parkMarkers.length>0){parkMarkers.forEach(pm=>{let cx2=gut+pm.x*cSz,cy2=gut+pm.y*cSz,r=Math.max(4,cSz*0.35);ctx.fillStyle=`rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;ctx.strokeStyle="#000";ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx2,cy2,r,0,Math.PI*2);ctx.fill();ctx.stroke();});}
+  if(parkMarkers.length>0){parkMarkers.forEach(pm=>{
+    const corner=pm.corner||"BL";
+    const px2=gut+pm.x*cSz,py2=gut+pm.y*cSz;
+    const ts=Math.max(3,Math.min(cSz*0.4,10));
+    let pts;
+    if(corner==="TL")pts=[[px2,py2],[px2+ts,py2],[px2,py2+ts]];
+    else if(corner==="TR")pts=[[px2+cSz,py2],[px2+cSz-ts,py2],[px2+cSz,py2+ts]];
+    else if(corner==="BR")pts=[[px2+cSz,py2+cSz],[px2+cSz-ts,py2+cSz],[px2+cSz,py2+cSz-ts]];
+    else pts=[[px2,py2+cSz],[px2+ts,py2+cSz],[px2,py2+cSz-ts]];
+    ctx.fillStyle=`rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;
+    ctx.strokeStyle="rgba(0,0,0,0.7)";ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);ctx.lineTo(pts[1][0],pts[1][1]);ctx.lineTo(pts[2][0],pts[2][1]);ctx.closePath();
+    ctx.fill();ctx.stroke();
+  });}
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
 }
 
@@ -2665,6 +2895,85 @@ useEffect(()=>{
   loop();
   return()=>cancelAnimationFrame(recPulseRef.current);
 },[recommendations,recEnabled,analysisResult,scs,sW,sH]);
+
+// ═══ Focus area three-zone dimming overlay ═══
+useEffect(()=>{
+  const canvas=focusOverlayCanvasRef.current;
+  if(!canvas)return;
+  if(!focusBlock||!focusEnabled||stitchingStyle==="crosscountry"){
+    const ctx=canvas.getContext("2d");if(canvas.width>0)ctx.clearRect(0,0,canvas.width,canvas.height);
+    return;
+  }
+  const needW=sW*scs+G+2,needH=sH*scs+G+2;
+  if(canvas.width!==needW||canvas.height!==needH){canvas.width=needW;canvas.height=needH;}
+  const ctx=canvas.getContext("2d");
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Full-canvas dim (94% opacity → pattern shows at 6% brightness)
+  ctx.fillStyle="rgba(241,245,249,0.94)";ctx.fillRect(0,0,canvas.width,canvas.height);
+  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
+  const{bx,by}=focusBlock;
+  // Cut out neighbour blocks (raise to ~40% brightness)
+  ctx.save();ctx.globalCompositeOperation="destination-out";
+  for(let dy=-1;dy<=1;dy++){for(let dx=-1;dx<=1;dx++){
+    if(dx===0&&dy===0)continue;
+    const nbx=bx+dx,nby=by+dy;
+    if(nbx<0||nbx>=bCols||nby<0||nby>=bRows)continue;
+    let op=0.54; // default: raises from 6% to ~40%
+    if(stitchingStyle==="royal"){if(dx===0&&dy===1)op=0.88;else if(dx===1&&dy===0)op=0.81;else op=0.31;}
+    ctx.globalAlpha=op;ctx.fillStyle="black";
+    const nx=G+nbx*blockW*scs,ny=G+nby*blockH*scs;
+    const nw=Math.min(blockW,sW-nbx*blockW)*scs,nh=Math.min(blockH,sH-nby*blockH)*scs;
+    ctx.fillRect(nx,ny,nw,nh);
+  }}
+  // Fully clear focus block (100% brightness)
+  ctx.globalAlpha=1;
+  const fx=G+bx*blockW*scs,fy=G+by*blockH*scs;
+  const fw=Math.min(blockW,sW-bx*blockW)*scs,fh=Math.min(blockH,sH-by*blockH)*scs;
+  ctx.fillRect(fx,fy,fw,fh);
+  ctx.restore();
+  // Focus block border
+  ctx.strokeStyle="rgba(13,148,136,0.9)";ctx.lineWidth=2;ctx.strokeRect(fx+1,fy+1,fw-2,fh-2);
+  // Neighbour dashed borders
+  for(let dy=-1;dy<=1;dy++){for(let dx=-1;dx<=1;dx++){
+    if(dx===0&&dy===0)continue;
+    const nbx=bx+dx,nby=by+dy;
+    if(nbx<0||nbx>=bCols||nby<0||nby>=bRows)continue;
+    const nx=G+nbx*blockW*scs,ny=G+nby*blockH*scs;
+    const nw=Math.min(blockW,sW-nbx*blockW)*scs,nh=Math.min(blockH,sH-nby*blockH)*scs;
+    ctx.strokeStyle="rgba(13,148,136,0.25)";ctx.lineWidth=1;
+    ctx.setLineDash([3,3]);ctx.strokeRect(nx+0.5,ny+0.5,nw-1,nh-1);ctx.setLineDash([]);
+  }}
+},[focusBlock,focusEnabled,stitchingStyle,scs,sW,sH,blockW,blockH]);
+
+// ═══ Breadcrumb trail overlay ═══
+useEffect(()=>{
+  const canvas=breadcrumbCanvasRef.current;
+  if(!canvas)return;
+  if(!breadcrumbVisible||!breadcrumbs||breadcrumbs.length===0){
+    const ctx=canvas.getContext("2d");if(canvas.width>0)ctx.clearRect(0,0,canvas.width,canvas.height);
+    return;
+  }
+  const needW=sW*scs+G+2,needH=sH*scs+G+2;
+  if(canvas.width!==needW||canvas.height!==needH){canvas.width=needW;canvas.height=needH;}
+  const ctx=canvas.getContext("2d");
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const TINTS=["59,130,246","20,184,166","139,92,246","234,88,12","22,163,74","225,29,72"];
+  const curSessIdx=statsSessions?statsSessions.length:0;
+  breadcrumbs.forEach(b=>{
+    const fx=G+b.bx*blockW*scs,fy=G+b.by*blockH*scs;
+    const fw=Math.min(blockW,sW-b.bx*blockW)*scs,fh=Math.min(blockH,sH-b.by*blockH)*scs;
+    const tint=TINTS[b.sessionIdx%TINTS.length];
+    const isCur=b.sessionIdx===curSessIdx;
+    ctx.fillStyle=`rgba(${tint},${isCur?0.08:0.03})`;ctx.fillRect(fx,fy,fw,fh);
+    ctx.strokeStyle=`rgba(${tint},${isCur?0.30:0.15})`;ctx.lineWidth=1;ctx.strokeRect(fx+0.5,fy+0.5,fw-1,fh-1);
+    if(isCur&&scs>=8&&fw>=8&&fh>=8){
+      ctx.fillStyle=`rgba(${tint},0.4)`;
+      const fnt=Math.max(8,Math.min(12,Math.floor(Math.min(fw,fh)*0.5)));
+      ctx.font=`${fnt}px sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.fillText(String(b.seqN),fx+fw/2,fy+fh/2);
+    }
+  });
+},[breadcrumbs,breadcrumbVisible,scs,sW,sH,blockW,blockH,statsSessions]);
 
 
 const hlAntsIntervalRef=useRef(null);
@@ -2845,7 +3154,7 @@ function handleStitchMouseDown(e){
     if(e.shiftKey||!selectedColorId||!cmap||!cmap[selectedColorId]){
       let gc2=gridCoord(stitchRef,e,scs,G,false);if(gc2&&gc2.gx>=0&&gc2.gx<sW&&gc2.gy>=0&&gc2.gy<sH){setHlRow(gc2.gy);setHlCol(gc2.gx);}
     }else{
-      if(gx>=0&&gx<=sW&&gy>=0&&gy<=sH){let existing=parkMarkers.findIndex(m=>m.x===gx&&m.y===gy);if(existing>=0)setParkMarkers(prev=>prev.filter((_,i)=>i!==existing));else setParkMarkers(prev=>[...prev,{x:gx,y:gy,colorId:selectedColorId,rgb:cmap[selectedColorId].rgb}]);}
+      if(gx>=0&&gx<=sW&&gy>=0&&gy<=sH){let existing=parkMarkers.findIndex(m=>m.x===gx&&m.y===gy&&m.colorId===selectedColorId);if(existing>=0)setParkMarkers(prev=>prev.filter((_,i)=>i!==existing));else setParkMarkers(prev=>[...prev,{x:gx,y:gy,colorId:selectedColorId,rgb:cmap[selectedColorId].rgb,corner:"BL"}]);}
     }
     return;
   }
@@ -3426,6 +3735,22 @@ return(
       <button className={"tb-ovf-item"+(threadUsageMode?" tb-ovf-item--on":"")} onClick={()=>{setThreadUsageMode(m=>m?null:"cluster");setTOverflowOpen(false);}}>Thread usage{threadUsageMode?" ✓":""}</button>
       <button className={"tb-ovf-item"} onClick={()=>{setRpanelTab("more");setMobileDrawerOpen(true);setTOverflowOpen(false);}}>Layers{!Object.values(layerVis).every(Boolean)?" (filtered)":""}</button>
       <button className={"tb-ovf-item"+(statsView?" tb-ovf-item--on":"")} onClick={()=>{setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);setTOverflowOpen(false);}}>📊 Stats{statsView?" ✓":""}</button>
+      <div className="tb-ovf-sep"/>
+      <span className="tb-ovf-lbl">Focus Area</span>
+      <button className={"tb-ovf-item"+(focusEnabled?" tb-ovf-item--on":"")} onClick={()=>{setFocusEnabled(v=>!v);setTOverflowOpen(false);}}>🔦 Spotlight{focusEnabled?" ✓":""}</button>
+      {focusEnabled&&!focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(_getStartBlock());setTOverflowOpen(false);}}>Set focus to start block</button>}
+      {focusEnabled&&focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(null);setTOverflowOpen(false);}}>Clear focus block</button>}
+      <button className={"tb-ovf-item"+(breadcrumbVisible?" tb-ovf-item--on":"")} onClick={()=>{setBreadcrumbVisible(v=>!v);setTOverflowOpen(false);}}>Breadcrumbs{breadcrumbVisible?" ✓":""}</button>
+      <button className="tb-ovf-item" onClick={()=>{setStyleOnboardingOpen(true);setTOverflowOpen(false);}}>Stitching style: {({block:"Block",royal:"Royal Rows",crosscountry:"Cross Country",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle}</button>
+      {stitchingStyle!=="crosscountry"&&stitchingStyle!=="freestyle"&&<div style={{padding:"4px 14px 6px",fontSize:11,color:"#475569"}}>Block size: {blockW}×{blockH}
+        <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}>
+          {[[10,10,"10×10"],[20,20,"20×20"]].map(([w,h,l])=><button key={l} onClick={()=>{setBlockW(w);setBlockH(h);}} style={{padding:"2px 7px",borderRadius:5,border:"1px solid "+(blockW===w&&blockH===h?"#0d9488":"#e2e8f0"),background:blockW===w&&blockH===h?"#f0fdfa":"#fff",fontSize:10,cursor:"pointer"}}>{l}</button>)}
+          <input type="number" title="Custom width" placeholder="W" value={blockW} onChange={e=>setBlockW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:10}} min={5} max={100}/>
+          <span style={{fontSize:10,lineHeight:"22px"}}>×</span>
+          <input type="number" title="Custom height" placeholder="H" value={blockH} onChange={e=>setBlockH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:10}} min={5} max={100}/>
+        </div>
+        {(blockW%10!==0||blockH%10!==0)&&<div style={{fontSize:10,color:"#92400e",marginTop:3}}>May not align with 10-stitch grid lines.</div>}
+      </div>}
       {(liveAutoStitches>0||totalTime>0)&&<>
         <div className="tb-ovf-sep"/>
         <span className="tb-ovf-lbl">Time Tracked</span>
@@ -3476,6 +3801,11 @@ return(
   <div className="session-onboarding-toast">
     <span>ℹ Sessions are tracked automatically as you stitch. View stats via the 📊 button in the Session panel.</span>
     <button onClick={()=>{setSessionOnboardingShown(true);try{localStorage.setItem("cs_sessionOnboardingDone","1");}catch(_){}}}>Got it</button>
+  </div>
+)}
+{focusEnabled&&focusBlock&&stitchingStyle!=="crosscountry"&&(
+  <div style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px 3px 8px",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:20,fontSize:11,fontWeight:600,color:"#0d9488",cursor:"pointer",userSelect:"none",width:"fit-content",marginBottom:4}} onClick={()=>setStyleOnboardingOpen(true)} title="Tap to change stitching style">
+    🔦 {({block:"Block",royal:"Royal Rows",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle} · {focusBlock.by+1},{focusBlock.bx+1}
   </div>
 )}
 {sessionSavedToast&&(
@@ -3597,6 +3927,13 @@ return(
     {(()=>{
       if(isEditMode) return <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>;
       if(advanceToast) return <div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #bbf7d0",fontWeight:600}}>✓ Complete! Next: {advanceToast}</div>;
+      if(blockAdvanceToast) return <div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #99f6e4",fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span>✓ {blockAdvanceToast.label} complete — {blockAdvanceToast.stitches} stitches</span>
+        <div style={{display:"flex",gap:8}}>
+          {blockAdvanceToast.next&&<button onClick={()=>{setFocusBlock(blockAdvanceToast.next);setBlockAdvanceToast(null);}} style={{fontSize:11,padding:"2px 8px",borderRadius:4,border:"1px solid #99f6e4",background:"#fff",cursor:"pointer",fontWeight:600,color:"#0d9488"}}>Next block</button>}
+          <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:11,padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"#94a3b8"}}>Stay</button>
+        </div>
+      </div>;
       if(stitchMode==="track") return <div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{rangeModeActive?(rangeAnchor?(hasTouchRef.current?"Anchor set — tap second corner to fill rectangle":"Anchor set — click second corner to fill the rectangle · Esc to cancel"):(hasTouchRef.current?"Range mode — tap first corner of the rectangle":"Range mode — click first corner, then click second corner to mark a rectangle · Esc to cancel")):(hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag to pan · Ctrl+scroll to zoom · Shift+click for rectangle fill · Ctrl+Z undo")}{!rangeModeActive&&trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
       if(stitchMode==="navigate") return <div style={{fontSize:12,color:"#1e293b",background:"#f1f5f9",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>;
       if(!shortcutsHintDismissed&&pat) return <div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>;
@@ -3639,6 +3976,10 @@ return(
           {threadUsageMode&&<canvas ref={threadUsageCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:3,pointerEvents:"none"}}/>}
           {/* Recommendation border overlay */}
           {recEnabled&&<canvas ref={recOverlayCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:4,pointerEvents:"none"}}/>}
+          {/* Breadcrumb trail overlay (below focus overlay) */}
+          {breadcrumbVisible&&<canvas ref={breadcrumbCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:5,pointerEvents:"none"}}/>}
+          {/* Focus area spotlight overlay */}
+          {focusEnabled&&focusBlock&&<canvas ref={focusOverlayCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:6,pointerEvents:"none"}}/>}
 
           {rangeModeActive&&rangeAnchor&&<div style={{
             position:'absolute',
@@ -3781,12 +4122,36 @@ return(
       </div>}
       {rpanelTab==="session"&&<div className="rp-section">
         <div className="rp-heading">Session {liveAutoStitches>0&&<span className="badge">Live</span>}</div>
-        <div className="sess-card">
-          <div className="row"><span className="lbl">Time</span><span className="val">{fmtTime(liveAutoElapsed)}</span></div>
-          <div className="row"><span className="lbl">Stitches</span><span className="val">{liveAutoStitches}</span></div>
-          {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
-          <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
-        </div>
+        {explicitSession?(()=>{
+          const elapsed=Math.floor((Date.now()-explicitSession.startTime)/1000);
+          const stitchesDone=liveAutoStitches;
+          const timeRemaining=explicitSession.timeAvail?Math.max(0,explicitSession.timeAvail-elapsed):null;
+          const bksDone=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
+          const goalReached=(explicitSession.stitchGoal&&stitchesDone>=explicitSession.stitchGoal)||(explicitSession.timeAvail&&elapsed>=explicitSession.timeAvail);
+          return(<>
+            <div className="sess-card" style={{borderColor:"#99f6e4",background:"#f0fdfa"}}>
+              <div className="row"><span className="lbl">{timeRemaining!==null?"Remaining":"Elapsed"}</span><span className="val" style={{fontWeight:700,color:"#0d9488"}}>{fmtTime(timeRemaining!==null?timeRemaining:elapsed)}</span></div>
+              <div className="row"><span className="lbl">Stitches</span><span className="val">{stitchesDone}{explicitSession.stitchGoal?` / ${explicitSession.stitchGoal}`:""}</span></div>
+              {stitchesDone>0&&elapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(stitchesDone/(elapsed/3600)).toFixed(0)} st/hr</span></div>}
+              {bksDone>0&&<div className="row"><span className="lbl">Blocks</span><span className="val">{bksDone}</span></div>}
+            </div>
+            {goalReached&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 10px",borderRadius:6,marginTop:6,textAlign:"center",fontWeight:600}}>Goal reached!</div>}
+            <button style={{marginTop:8,width:"100%",padding:"6px 0",borderRadius:6,border:"none",background:"#dc2626",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>{
+              const dur=Math.floor((Date.now()-explicitSession.startTime)/1000);
+              const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
+              setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[]});
+              setExplicitSession(null);
+            }}>End session</button>
+          </>);
+        })():<>
+          <div className="sess-card">
+            <div className="row"><span className="lbl">Time</span><span className="val">{fmtTime(liveAutoElapsed)}</span></div>
+            <div className="row"><span className="lbl">Stitches</span><span className="val">{liveAutoStitches}</span></div>
+            {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
+            <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
+          </div>
+          <button style={{marginTop:8,width:"100%",padding:"6px 0",borderRadius:6,border:"1px solid #0d9488",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>setSessionConfigOpen(true)}>▶ Start session</button>
+        </>}
         <button style={{marginTop:8,width:'100%',padding:"6px 0",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#475569",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>{if(!statsView){setStatsTab(projectIdRef.current||'all');}setStatsView(v=>!v);}}>📊 {statsView?"Hide":"View"} full stats</button>
       </div>}
 
@@ -4010,6 +4375,21 @@ return(
   </div>}
 
   {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
+  {styleOnboardingOpen&&<StitchingStyleOnboarding startCorner={startCorner} onDone={result=>{
+    setStyleOnboardingOpen(false);
+    if(result){
+      setStitchingStyle(result.style);
+      setBlockW(result.blockW);setBlockH(result.blockH);
+      setStartCorner(result.startCorner);
+      if(!focusBlock){setFocusBlock(_getStartBlock());}
+      if(result.style!=="crosscountry")setFocusEnabled(true);
+    }
+  }}/>}
+  {sessionConfigOpen&&<SessionConfigModal liveAutoElapsed={liveAutoElapsed} liveAutoStitches={liveAutoStitches} onClose={()=>setSessionConfigOpen(false)} onStart={cfg=>{
+    setExplicitSession({startTime:Date.now(),timeAvail:cfg.timeAvail,stitchGoal:cfg.stitchGoal,startStitches:doneCount,blocks:[]});
+    setSessionConfigOpen(false);
+  }}/>}
+  {sessionSummaryData&&<SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.stitchesCompleted||0),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);}} onClose={()=>setSessionSummaryData(null)}/>}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
   {modal==="pdf_export"&&<div className="modal-overlay" onClick={()=>setModal(null)}>
     <div className="modal-content" style={{maxWidth:400}} onClick={e=>e.stopPropagation()}>

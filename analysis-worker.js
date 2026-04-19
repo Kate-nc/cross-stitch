@@ -275,7 +275,8 @@ self.onmessage = function(e) {
   var msg = e.data;
   if (msg.type === "analyse" || msg.type === "analyse_incremental") {
     try {
-      var result = runAnalysis(msg.pat, msg.done, msg.sW, msg.sH, REGION_SIZE);
+      var bs = (msg.blockSize >= 5 && msg.blockSize <= 100) ? msg.blockSize : REGION_SIZE;
+      var result = runAnalysis(msg.pat, msg.done, msg.sW, msg.sH, bs);
       self.postMessage({ type: "result", result: result, requestId: msg.requestId });
     } catch (err) {
       self.postMessage({ type: "error", message: err.message, requestId: msg.requestId });
