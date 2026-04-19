@@ -422,7 +422,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               if (cell.type === "blend" && cell.threads) {
                 var needsChange = false;
                 var newThreads = cell.threads.map(function(t) {
-                  if (remap[t.id]) { needsChange = true; return {id:remap[t.id].compositeKey || remap[t.id].id,type:"solid",name:remap[t.id].name,rgb:remap[t.id].rgb,brand:remap[t.id].brand}; }
+                  if (remap[t.id]) { needsChange = true; return {id:remap[t.id].compositeKey,type:"solid",name:remap[t.id].name,rgb:remap[t.id].rgb,brand:remap[t.id].brand}; }
                   return t;
                 });
                 if (needsChange) {
@@ -437,7 +437,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               }
               if (remap[cell.id]) {
                 changes.push({idx:i, old:Object.assign({},cell)});
-                np[i] = {id:remap[cell.id].compositeKey || remap[cell.id].id, type:"solid", name:remap[cell.id].name, rgb:remap[cell.id].rgb, brand:remap[cell.id].brand};
+                np[i] = {id:remap[cell.id].compositeKey, type:"solid", name:remap[cell.id].name, rgb:remap[cell.id].rgb, brand:remap[cell.id].brand};
               }
             }
             if (changes.length === 0) {

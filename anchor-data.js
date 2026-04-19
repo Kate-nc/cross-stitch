@@ -470,8 +470,8 @@ if (_ANCHOR_CONTESTED_IDS.length > 0) {
   );
 }
 
-var _anchorDataGlobal = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : (typeof self !== "undefined" ? self : null));
-if (_anchorDataGlobal) _anchorDataGlobal.ANCHOR = ANCHOR;
+var _global = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : (typeof self !== "undefined" ? self : null));
+if (_global) _global.ANCHOR = ANCHOR;
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { ANCHOR };

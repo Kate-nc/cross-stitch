@@ -17,19 +17,21 @@ const StashBridge = (() => {
   }
 
   function _parseThreadKey(key) {
-    const parts = key.indexOf(':') >= 0 ? key.split(':') : ['dmc', key];
-    return { brand: parts[0], id: parts[1] };
+    if (key.indexOf(':') < 0) return { brand: 'dmc', id: key };
+    const parts = key.split(':');
+    const brand = parts[0];
+    const id = parts.slice(1).join(':');
+    if (!id) return { brand: 'dmc', id: key };
+    return { brand: brand, id: id };
   }
 
   function _getThreadInfoByKey(key) {
     if (typeof getThreadByKey === "function") return getThreadByKey(key);
     const parsed = _parseThreadKey(key);
-    const brand = parsed.brand;
-    const id = parsed.id;
-    if (brand === "anchor") {
-      return typeof ANCHOR !== "undefined" ? ANCHOR.find(x => x.id === id) : null;
+    if (parsed.brand === "anchor") {
+      return typeof ANCHOR !== "undefined" ? ANCHOR.find(x => x.id === parsed.id) : null;
     }
-    return typeof DMC !== "undefined" ? DMC.find(x => x.id === id) : null;
+    return typeof DMC !== "undefined" ? DMC.find(x => x.id === parsed.id) : null;
   }
 
   let _migrationDone = false;
@@ -364,8 +366,8 @@ const StashBridge = (() => {
 
     // Updates a single thread's tobuy flag in the global stash.
     // Accepts composite keys ('dmc:310') or bare legacy IDs ('310').
-    async updateThreadToBuy(dmcId, toBuy) {
-      const key = _normaliseKey(dmcId);
+    async updateThreadToBuy(keyOrId, toBuy) {
+      const key = _normaliseKey(keyOrId);
       try {
         const db = await openManagerDB();
         return new Promise((resolve, reject) => {
