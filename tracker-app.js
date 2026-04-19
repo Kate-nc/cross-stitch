@@ -1869,6 +1869,8 @@ function handleEditInCreator(){
       saveProjectToDB(project).catch(()=>{});
       ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(()=>{});
     }
+    // Sync the current project name to the Creator so it doesn't overwrite with stale name
+    if(projectName&&typeof window.__setCreatorProjectName==='function') window.__setCreatorProjectName(projectName);
     onSwitchToDesign();
     return;
   }
@@ -2384,7 +2386,7 @@ useEffect(() => {
   }, 5000);
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
-    halfStitches, halfDone, singleStitchEdits, liveAutoElapsed,
+    halfStitches, halfDone, singleStitchEdits,
     sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots, achievedMilestones]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).

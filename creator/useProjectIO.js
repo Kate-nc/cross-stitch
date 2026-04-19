@@ -33,7 +33,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
       psArr.push([k, e]);
     });
-    var project = {
+    var project = Object.assign({}, state.trackerFieldsRef.current, {
       version: 10, id: state.projectIdRef.current, page: "creator", name: finalName,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
@@ -44,7 +44,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       imgData: img ? img.src : null, partialStitches: psArr,
       savedZoom: zoom,
       savedScroll: scrollRef.current ? { left: scrollRef.current.scrollLeft, top: scrollRef.current.scrollTop } : null,
-    };
+    });
     var blob = new Blob([JSON.stringify(project)], { type: "application/json" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
@@ -86,7 +86,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
       psArr.push([k, e]);
     });
-    var project = {
+    var project = Object.assign({}, state.trackerFieldsRef.current, {
       version: 10, id: projectIdRef.current, page: "creator", name: projectName,
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
@@ -94,7 +94,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
       imgData: img ? img.src : null, partialStitches: psArr,
-    };
+    });
     if (onSwitchToTrack) {
       saveProjectToDB(project).catch(function() {});
       ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function() {});
@@ -195,6 +195,28 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setProjectName(project.name || "");
     state.projectIdRef.current = project.id || null;
     state.createdAtRef.current = project.createdAt || null;
+
+    // Preserve Tracker-only fields so Creator auto-saves don't strip them from IDB
+    state.trackerFieldsRef.current = {};
+    var _tf = state.trackerFieldsRef.current;
+    if (project.statsSessions)       _tf.statsSessions       = project.statsSessions;
+    if (project.statsSettings)       _tf.statsSettings        = project.statsSettings;
+    if (project.achievedMilestones)  _tf.achievedMilestones   = project.achievedMilestones;
+    if (project.doneSnapshots)       _tf.doneSnapshots        = project.doneSnapshots;
+    if (project.breadcrumbs)         _tf.breadcrumbs          = project.breadcrumbs;
+    if (project.stitchingStyle)      _tf.stitchingStyle       = project.stitchingStyle;
+    if (project.blockW)              _tf.blockW               = project.blockW;
+    if (project.blockH)              _tf.blockH               = project.blockH;
+    if (project.focusBlock)          _tf.focusBlock           = project.focusBlock;
+    if (project.startCorner)         _tf.startCorner          = project.startCorner;
+    if (project.colourSequence)      _tf.colourSequence       = project.colourSequence;
+    if (project.originalPaletteState) _tf.originalPaletteState = project.originalPaletteState;
+    if (project.singleStitchEdits && project.singleStitchEdits.length > 0)
+      _tf.singleStitchEdits = project.singleStitchEdits;
+    if (project.halfStitches && project.halfStitches.length > 0)
+      _tf.halfStitches = project.halfStitches;
+    if (project.halfDone && project.halfDone.length > 0)
+      _tf.halfDone = project.halfDone;
 
     // Loaded projects have a pattern already — default to Edit mode
     state.setAppMode("edit");
@@ -392,7 +414,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     });
     if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
-    var project5 = {
+    var project5 = Object.assign({}, state.trackerFieldsRef.current, {
       version: 10, id: state.projectIdRef.current, page: "creator", name: state.projectName,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
@@ -403,7 +425,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       imgData: state.img ? state.img.src : null, partialStitches: psArr,
       savedZoom: state.zoom,
       savedScroll: state.scrollRef.current ? { left: state.scrollRef.current.scrollLeft, top: state.scrollRef.current.scrollTop } : null,
-    };
+    });
     // Update the snapshot ref synchronously — flush will always have the latest state
     creatorSnapshotRef.current = project5;
     var saveTimer = setTimeout(function() {
