@@ -2408,12 +2408,11 @@ useEffect(() => {
   const handleBeforeUnload = () => {
     try {
     isUnloadingRef.current = true;
-    // Build a fresh snapshot if dirty (deferred save may not have fired yet)
-    let project = lastSnapshotRef.current;
-    if (autoSaveDirtyRef.current || !project) {
-      const fresh = buildSnapshotRef.current();
-      if (fresh) { project = fresh; lastSnapshotRef.current = fresh; }
-    }
+    // Always build a fresh snapshot so we never use stale data
+    let project = null;
+    const fresh = buildSnapshotRef.current();
+    if (fresh) { project = fresh; lastSnapshotRef.current = fresh; }
+    if (!project) project = lastSnapshotRef.current;
     if (!project) return;
     let projectToSave = project;
     // If a drag is in progress, apply the pending in-place mutations to a fresh done copy
@@ -4153,7 +4152,7 @@ return(
             </div>
             {goalReached&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 10px",borderRadius:6,marginTop:6,textAlign:"center",fontWeight:600}}>Goal reached!</div>}
             <button style={{marginTop:8,width:"100%",padding:"6px 0",borderRadius:6,border:"none",background:"#dc2626",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>{
-              const dur=Math.floor((Date.now()-explicitSession.startTime)/1000);
+              const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
               const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
               setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[]});
               setExplicitSession(null);

@@ -657,7 +657,7 @@ function getDailyStitchData(sessions, daysToShow, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
   var data = [];
   for (var i = daysToShow - 1; i >= 0; i--) {
-    var d = new Date();
+    var d = new Date(today + 'T12:00:00');
     d.setDate(d.getDate() - i);
     var y = d.getFullYear();
     var m = ('0' + (d.getMonth() + 1)).slice(-2);
@@ -744,6 +744,9 @@ function computeStreaks(sessions, dayEndHour) {
 
   var today = getStitchingDate(new Date(), dayEndHour || 0);
   var yesterdayD = new Date();
+  if ((dayEndHour || 0) > 0 && yesterdayD.getHours() < (dayEndHour || 0)) {
+    yesterdayD.setDate(yesterdayD.getDate() - 1);
+  }
   yesterdayD.setDate(yesterdayD.getDate() - 1);
   var ey = yesterdayD.getFullYear();
   var em = ('0' + (yesterdayD.getMonth() + 1)).slice(-2);
