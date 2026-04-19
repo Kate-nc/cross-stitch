@@ -149,9 +149,9 @@ window.BulkAddModal = (function () {
           var key = typeof threadKey === 'function'
             ? threadKey(activeBrand, item.normalised)
             : (activeBrand + ':' + item.normalised);
-          var existing = stash[key] || { owned: 0, toBuy: 0 };
+          var existing = stash[key] || { owned: 0, tobuy: 0 };
           // Only set to 1 if not already tracked — don't overwrite existing counts
-          if (!existing.owned && !existing.toBuy) {
+          if (!existing.owned && !existing.tobuy) {
             await StashBridge.updateThreadOwned(key, 1);
           }
         }

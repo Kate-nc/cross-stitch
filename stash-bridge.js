@@ -220,22 +220,30 @@ const StashBridge = (() => {
         ]);
         // Only consider active patterns (owned, inprogress, wishlist — exclude completed)
         const active = patternsData.filter(p => p.status !== "completed");
-        const demand = {}; // { dmcId: { total, patterns: [{title, qty}] } }
+        const demand = {}; // { threadKey: { total, patterns: [{title, qty}] } }
         for (const pat of active) {
           if (!pat.threads) continue;
           for (const t of pat.threads) {
-            if (!demand[t.id]) demand[t.id] = { total: 0, patterns: [] };
+            const key = _normaliseKey(t.id);
+            if (!demand[key]) demand[key] = { total: 0, patterns: [] };
             const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, 14) : Math.ceil(t.qty / 200)) : t.qty;
-            demand[t.id].total += skeins;
-            demand[t.id].patterns.push({ title: pat.title, qty: skeins });
+            demand[key].total += skeins;
+            demand[key].patterns.push({ title: pat.title, qty: skeins });
           }
         }
         const conflicts = [];
-        for (const [id, d] of Object.entries(demand)) {
-          const owned = (threadsData[id] || {}).owned || 0;
+        for (const [key, d] of Object.entries(demand)) {
+          const parsed = key.indexOf(':') >= 0 ? key.split(':') : ['dmc', key];
+          const brand = parsed[0];
+          const id = parsed[1];
+          const owned = ((threadsData[key] || {}).owned || (threadsData[id] || {}).owned || 0);
           if (d.total > owned) {
-            const info = typeof DMC !== "undefined" ? DMC.find(x => x.id === id) : null;
-            conflicts.push({ id, name: info ? info.name : id, rgb: info ? info.rgb : [128,128,128], owned, totalNeeded: d.total, deficit: d.total - owned, patterns: d.patterns });
+            const info = typeof getThreadByKey === "function"
+              ? getThreadByKey(key)
+              : (brand === "anchor"
+                ? (typeof ANCHOR !== "undefined" ? ANCHOR.find(x => x.id === id) : null)
+                : (typeof DMC !== "undefined" ? DMC.find(x => x.id === id) : null));
+            conflicts.push({ key, brand, id, name: info ? info.name : id, rgb: info ? info.rgb : [128,128,128], owned, totalNeeded: d.total, deficit: d.total - owned, patterns: d.patterns });
           }
         }
         conflicts.sort((a, b) => b.deficit - a.deficit);
@@ -264,7 +272,8 @@ const StashBridge = (() => {
           let covered = 0, missing = [];
           for (const t of pat.threads) {
             const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, 14) : Math.ceil(t.qty / 200)) : t.qty;
-            const owned = (threadsData[t.id] || {}).owned || 0;
+            const key = _normaliseKey(t.id);
+            const owned = ((threadsData[key] || {}).owned || (threadsData[t.id] || {}).owned || 0);
             if (owned >= skeins) covered++;
             else missing.push({ id: t.id, name: t.name, need: skeins, have: owned });
           }
@@ -338,7 +347,6 @@ const StashBridge = (() => {
     // Updates a single thread's tobuy flag in the global stash.
     // Accepts composite keys ('dmc:310') or bare legacy IDs ('310').
     async updateThreadToBuy(dmcId, toBuy) {
-      const key = _normaliseKey(dmcId);
       const key = _normaliseKey(dmcId);
       try {
         const db = await openManagerDB();

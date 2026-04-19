@@ -9452,9 +9452,9 @@ window.BulkAddModal = (function () {
           var key = typeof threadKey === 'function'
             ? threadKey(activeBrand, item.normalised)
             : (activeBrand + ':' + item.normalised);
-          var existing = stash[key] || { owned: 0, toBuy: 0 };
+          var existing = stash[key] || { owned: 0, tobuy: 0 };
           // Only set to 1 if not already tracked — don't overwrite existing counts
-          if (!existing.owned && !existing.toBuy) {
+          if (!existing.owned && !existing.tobuy) {
             await StashBridge.updateThreadOwned(key, 1);
           }
         }
@@ -11635,7 +11635,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               if (cell.type === "blend" && cell.threads) {
                 var needsChange = false;
                 var newThreads = cell.threads.map(function(t) {
-                  if (remap[t.id]) { needsChange = true; return {id:remap[t.id].id,type:"solid",name:remap[t.id].name,rgb:remap[t.id].rgb}; }
+                  if (remap[t.id]) { needsChange = true; return {id:remap[t.id].compositeKey || remap[t.id].id,type:"solid",name:remap[t.id].name,rgb:remap[t.id].rgb,brand:remap[t.id].brand}; }
                   return t;
                 });
                 if (needsChange) {
@@ -11650,7 +11650,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               }
               if (remap[cell.id]) {
                 changes.push({idx:i, old:Object.assign({},cell)});
-                np[i] = {id:remap[cell.id].id, type:"solid", name:remap[cell.id].name, rgb:remap[cell.id].rgb};
+                np[i] = {id:remap[cell.id].compositeKey || remap[cell.id].id, type:"solid", name:remap[cell.id].name, rgb:remap[cell.id].rgb, brand:remap[cell.id].brand};
               }
             }
             if (changes.length === 0) {
