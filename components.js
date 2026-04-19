@@ -214,7 +214,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
         React.createElement("span", {key:"date", className:"timeline-date"}, formatRelativeDate(session.date, dayEndHour) + ", " + formatTimeRange(session.startTime, session.endTime)),
         React.createElement("div", {key:"stats", className:"timeline-stats"},
           React.createElement("span", {className:"timeline-stitches"}, session.netStitches + " stitches"),
-          React.createElement("span", {className:"timeline-duration"}, formatStatsDuration(session.durationMinutes))
+          React.createElement("span", {className:"timeline-duration"}, formatStatsDuration(getSessionSeconds(session)))
         )
       ];
       if (session.coloursWorked && session.coloursWorked.length > 0) {
@@ -260,49 +260,39 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
   var pl = 36, pr = 8, pt = 8, pb = 4;
   var cW = width - pl - pr, cH = height - pt - pb;
   var maxY = Math.max(totalStitches, 1);
-  var xS = function(i){ return pl + (i / (data.length - 1)) * cW; };
   var yS = function(v){ return pt + cH - (v / maxY) * cH; };
-  var pts = [];
-  for (var i = 0; i < data.length; i++) pts.push(xS(i) + ',' + yS(data[i].total));
-  var points = pts.join(' ');
-  var fillPoints = points + ' ' + xS(data.length - 1) + ',' + yS(0) + ' ' + xS(0) + ',' + yS(0);
   var last = data[data.length - 1];
   var mid = data[Math.floor(data.length / 2)];
-  // On-pace line: use targetDate if set, otherwise linear from 0 to totalStitches
-  var paceEndX = xS(data.length - 1);
-  var paceEndY = yS(totalStitches);
-  if (targetDate && data.length > 1) {
-    var firstD = new Date(data[0].date + 'T12:00:00');
-    var lastD = new Date(data[data.length - 1].date + 'T12:00:00');
-    var targetD = new Date(targetDate + 'T12:00:00');
-    var totalSpan = lastD - firstD;
-    if (totalSpan > 0 && targetD > firstD) {
-      var targetRatio = (targetD - firstD) / totalSpan;
-      if (targetRatio >= 1) {
-        paceEndX = xS((data.length - 1) * Math.min(targetRatio, 2));
-      }
-      // For on-pace: daily rate to hit totalStitches by targetDate
-      var daysToTarget = (targetD - firstD) / 86400000;
-      if (daysToTarget > 0) {
-        var lastDayIndex = data.length - 1;
-        var paceAtEnd = (lastDayIndex / daysToTarget) * totalStitches;
-        paceEndY = yS(Math.min(paceAtEnd, totalStitches));
-      }
-    }
+  var firstDate = new Date(data[0].date + 'T12:00:00');
+  var lastDate = new Date(last.date + 'T12:00:00');
+  // Compute what-if end date so we can extend the time axis to fit the projection
+  var wiRemaining = totalStitches - last.total;
+  var wiDays = (whatIfPace > 0 && wiRemaining > 0) ? wiRemaining / whatIfPace : 0;
+  var wiEndDate = wiDays > 0 ? new Date(lastDate.getTime() + wiDays * 86400000) : null;
+  // Extend x-axis to include what-if endpoint and/or target date
+  var extendedEnd = lastDate;
+  if (wiEndDate && wiEndDate > extendedEnd) extendedEnd = wiEndDate;
+  var targetD = targetDate ? new Date(targetDate + 'T12:00:00') : null;
+  if (targetD && targetD > extendedEnd) extendedEnd = targetD;
+  var totalMs = Math.max(1, extendedEnd - firstDate);
+  var xDate = function(d){ return pl + ((d - firstDate) / totalMs) * cW; };
+  // Build polyline using date-based x positions
+  var pts = [];
+  for (var i = 0; i < data.length; i++) {
+    var di = new Date(data[i].date + 'T12:00:00');
+    pts.push(xDate(di) + ',' + yS(data[i].total));
   }
-  var paceLabel = targetDate ? 'Target pace' : 'On pace';
-  // What-if projection: extends from last data point forward at custom pace
+  var points = pts.join(' ');
+  var lastX = xDate(lastDate);
+  var fillPoints = points + ' ' + lastX + ',' + yS(0) + ' ' + xDate(firstDate) + ',' + yS(0);
+  // On-pace / target-pace line
+  var paceEndX = targetD ? xDate(targetD) : lastX;
+  var paceEndY = yS(totalStitches);
+  var paceLabel = targetD ? 'Target pace' : 'On pace';
+  // What-if projection line (now drawn within the extended chart area)
   var wiLine = null;
-  if (whatIfPace > 0 && last.total < totalStitches && data.length > 1) {
-    var wiFirstD = new Date(data[0].date + 'T12:00:00');
-    var wiLastD = new Date(last.date + 'T12:00:00');
-    var wiSpanDays = Math.max(1, (wiLastD - wiFirstD) / 86400000);
-    var wiPxPerDay = cW / wiSpanDays;
-    var wiRemaining = totalStitches - last.total;
-    var wiDays = wiRemaining / whatIfPace;
-    var wiEndX = xS(data.length - 1) + wiDays * wiPxPerDay;
-    var wiEndY = yS(totalStitches);
-    wiLine = React.createElement("line", {x1:xS(data.length - 1), y1:yS(last.total), x2:wiEndX, y2:wiEndY, stroke:"#f59e0b", strokeWidth:"1.5", strokeDasharray:"5 3"});
+  if (wiDays > 0 && wiEndDate) {
+    wiLine = React.createElement("line", {x1:lastX, y1:yS(last.total), x2:xDate(wiEndDate), y2:yS(totalStitches), stroke:"#f59e0b", strokeWidth:"1.5", strokeDasharray:"5 3"});
   }
   return React.createElement("div", {className:"chart-container"},
     React.createElement("svg", {viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
@@ -310,11 +300,11 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
       React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"#94a3b8"}, formatCompact(totalStitches / 2)),
       React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"#94a3b8"}, "0"),
       React.createElement("line", {x1:pl, y1:pt + cH / 2, x2:width - pr, y2:pt + cH / 2, stroke:"#e2e8f0", strokeWidth:"0.5", strokeDasharray:"4 4"}),
-      React.createElement("line", {x1:xS(0), y1:yS(0), x2:paceEndX, y2:paceEndY, stroke:"#cbd5e1", strokeWidth:"1", strokeDasharray:"4 4"}),
+      React.createElement("line", {x1:xDate(firstDate), y1:yS(0), x2:paceEndX, y2:paceEndY, stroke:"#cbd5e1", strokeWidth:"1", strokeDasharray:"4 4"}),
       wiLine,
       React.createElement("polygon", {points:fillPoints, fill:"#534AB7", opacity:"0.08"}),
       React.createElement("polyline", {points:points, fill:"none", stroke:"#534AB7", strokeWidth:"2.5", strokeLinecap:"round", strokeLinejoin:"round"}),
-      React.createElement("circle", {cx:xS(data.length - 1), cy:yS(last.total), r:"4", fill:"#534AB7"}),
+      React.createElement("circle", {cx:lastX, cy:yS(last.total), r:"4", fill:"#534AB7"}),
       React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"#e2e8f0", strokeWidth:"0.5"})
     ),
     React.createElement("div", {className:"chart-x-labels"},
@@ -757,7 +747,7 @@ function StreaksPanel({sessions, dayEndHour}){
   var streaks = computeStreaks(sessions, dayEndHour);
   var bestDay = findBestDay(sessions);
   var avgSession = sessions && sessions.length > 0
-    ? Math.round(sessions.reduce(function(sum, s){ return sum + s.durationMinutes; }, 0) / sessions.length)
+    ? Math.round(sessions.reduce(function(sum, s){ return sum + getSessionSeconds(s); }, 0) / sessions.length)
     : 0;
 
   return React.createElement("div", {className:"streaks-panel"},
