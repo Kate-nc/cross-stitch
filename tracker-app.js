@@ -851,7 +851,12 @@ useEffect(()=>{
 function editSessionNote(sessionId,noteText){
   try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){}
   // Flush immediately so a tab close before the next auto-save doesn't lose the edit
-  setTimeout(function(){if(typeof window.__flushProjectToIDB==='function')window.__flushProjectToIDB();},0);
+  setTimeout(function(){
+    if(typeof window.__flushProjectToIDB==='function'){
+      var flushPromise=window.__flushProjectToIDB();
+      if(flushPromise&&typeof flushPromise.catch==='function')flushPromise.catch(function(){});
+    }
+  },0);
 }
 
 // ═══ Analysis worker lifecycle ═══
@@ -1869,7 +1874,20 @@ function processLoadedProject(project){
   // Reconstruct as a running cumulative sum of netStitches sorted chronologically.
   if(rawStatsSessions.some(function(s){return s.totalAtEnd==null;})){
     var totalStitchCount=(project.pattern||[]).filter(function(c){return c&&c.id!=='__skip__'&&c.id!=='__empty__';}).length;
-    var sorted=rawStatsSessions.slice().sort(function(a,b){return(a.startTime||a.date||'')<(b.startTime||b.date||'')?-1:1;});
+    var sorted=rawStatsSessions.slice().sort(function(a,b){
+      var aKey=a.startTime||a.date||'';
+      var bKey=b.startTime||b.date||'';
+      var aTime=new Date(aKey).getTime();
+      var bTime=new Date(bKey).getTime();
+      if(!Number.isNaN(aTime)&&!Number.isNaN(bTime)){
+        if(aTime<bTime)return-1;
+        if(aTime>bTime)return 1;
+        return 0;
+      }
+      if(aKey<bKey)return-1;
+      if(aKey>bKey)return 1;
+      return 0;
+    });
     var running=0;
     sorted.forEach(function(s){running+=(s.netStitches||0);if(s.totalAtEnd==null)s.totalAtEnd=Math.min(Math.max(0,running),totalStitchCount);});
   }

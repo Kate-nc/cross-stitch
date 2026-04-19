@@ -273,6 +273,8 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
   var extendedEnd = lastDate;
   if (wiEndDate && wiEndDate > extendedEnd) extendedEnd = wiEndDate;
   var targetD = targetDate ? new Date(targetDate + 'T12:00:00') : null;
+  if (targetD && Number.isNaN(targetD.getTime())) targetD = null;
+  if (targetD && targetD < firstDate) targetD = firstDate;
   if (targetD && targetD > extendedEnd) extendedEnd = targetD;
   var totalMs = Math.max(1, extendedEnd - firstDate);
   var xDate = function(d){ return pl + ((d - firstDate) / totalMs) * cW; };
@@ -468,7 +470,7 @@ var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colour
 
 // ═══ Phase E: Monthly Calendar view ═══
 
-var MonthCalendar = React.memo(function MonthCalendar({sessions, dayEndHour}) {
+var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
   var _mo = React.useState(0); var monthOffset = _mo[0], setMonthOffset = _mo[1];
   var now = new Date();
   var targetMonth = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
@@ -548,7 +550,7 @@ function StatsChartSection({statsSessions, statsSettings, totalStitches, chartVi
       : chartView === 'speed'
         ? React.createElement(SpeedTrendChart, {sessions:statsSessions})
         : chartView === 'calendar'
-          ? React.createElement(MonthCalendar, {sessions:statsSessions, dayEndHour:dayEndHour})
+          ? React.createElement(MonthCalendar, {sessions:statsSessions})
           : React.createElement(DailyBarChart, {sessions:statsSessions, dailyGoal:dailyGoal, dayEndHour:dayEndHour}),
     chartView === 'cumulative' && overviewStats && remaining > 0
       ? React.createElement("div", {style:{display:'flex', alignItems:'center', gap:8, padding:'6px 0 0', flexWrap:'wrap'}},
@@ -842,7 +844,8 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
 }
 
 // ═══ Visual Progress: Section completion grid ═══
-function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, palette}){
+function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, palette, canEdit}){
+  if(canEdit==null)canEdit=true;
   var numX=0,numY=0;
   if(sections&&sections.length>0){
     sections.forEach(function(s){if(s.sx>=numX)numX=s.sx+1;if(s.sy>=numY)numY=s.sy+1;});
@@ -856,6 +859,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
   var _selected=React.useState(null);var selectedKey=_selected[0],setSelectedKey=_selected[1];
 
   function commitLabel(key){
+    if(!canEdit){setEditingKey(null);return;}
     var trimmed=editVal.trim();
     var updated=Object.assign({},sectionLabels);
     if(trimmed){updated[key]=trimmed;}else{delete updated[key];}
@@ -869,8 +873,8 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
 
   // Compute thread breakdown for the selected section
   var selectedSection=selectedKey?sections.find(function(s){return s.sx+','+s.sy===selectedKey;}):null;
-  var sectionThreads=null;
-  if(selectedSection&&pat&&done&&sW){
+  var sectionThreads=React.useMemo(function(){
+    if(!selectedSection||!pat||!done||!sW)return null;
     var counts={};
     for(var y=selectedSection.y0;y<selectedSection.y1;y++){
       for(var x=selectedSection.x0;x<selectedSection.x1;x++){
@@ -885,10 +889,10 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
         });
       }
     }
-    sectionThreads=Object.keys(counts).sort(function(a,b){return counts[b].total-counts[a].total;}).map(function(cid){
+    return Object.keys(counts).sort(function(a,b){return counts[b].total-counts[a].total;}).map(function(cid){
       return Object.assign({id:cid},counts[cid]);
     });
-  }
+  },[selectedSection,pat,done,sW]);
 
   var selectedLabel=selectedSection?(sectionLabels[selectedKey]||('Section '+selectedSection.label)):null;
 
@@ -897,7 +901,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
       React.createElement("h4",{style:{fontSize:14,fontWeight:600,color:'#1e293b',margin:0}},"Sections"),
       numX>0&&React.createElement("span",{style:{fontSize:12,color:'#64748b'}},complete+" / "+(sections?sections.length:0)+" complete")
     ),
-    React.createElement("p",{style:{fontSize:11,color:'#94a3b8',margin:'0 0 8px',lineHeight:1.4}},"Click a section to see its threads · click again to rename"),
+    React.createElement("p",{style:{fontSize:11,color:'#94a3b8',margin:'0 0 8px',lineHeight:1.4}},canEdit?"Click a section to see its threads · click again to rename":"Click a section to see its threads"),
     sections&&sections.length>0&&React.createElement("div",{className:"section-grid",style:{display:'grid',gridTemplateColumns:'repeat('+numX+', 1fr)',gap:3,marginBottom:12}},
       sections.map(function(sec){
         var cellKey=sec.sx+','+sec.sy;
@@ -912,7 +916,8 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
           title:customLabel?customLabel+' ('+sec.pct+'%)':'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)',
           onClick:function(){
             if(isEditing)return;
-            if(isSelected){setEditVal(customLabel||'');setEditingKey(cellKey);}
+            if(isSelected&&canEdit){setEditVal(customLabel||'');setEditingKey(cellKey);}
+            else if(isSelected){setSelectedKey(null);setEditingKey(null);}
             else{setSelectedKey(cellKey);setEditingKey(null);}
           }
         },
@@ -922,7 +927,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
                 value:editVal,
                 onChange:function(e){setEditVal(e.target.value);},
                 onBlur:function(){commitLabel(cellKey);},
-                onKeyDown:function(e){if(e.key==='Enter'){e.preventDefault();commitLabel(cellKey);}if(e.key==='Escape'){setEditingKey(null);}},
+                onKeyDown:function(e){if(!canEdit)return;if(e.key==='Enter'){e.preventDefault();commitLabel(cellKey);}if(e.key==='Escape'){setEditingKey(null);}},
                 style:{width:'90%',fontSize:Math.max(7,fs-1),padding:'1px 2px',border:'1px solid #fff',borderRadius:2,textAlign:'center',background:'rgba(255,255,255,0.9)',color:'#1e293b'},
                 onClick:function(e){e.stopPropagation();}
               })
@@ -964,11 +969,11 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
     sections&&sections.length===0&&React.createElement("p",{style:{fontSize:13,color:'#94a3b8',margin:0}},"No pattern loaded"),
     React.createElement("div",{style:{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#64748b',marginTop:4}},
       "Section size:",
-      React.createElement("input",{type:"number",min:5,max:200,value:secCols,onChange:function(e){var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionCols:v}));},style:{width:52,padding:'2px 6px',fontSize:12,border:'1px solid #e2e8f0',borderRadius:6}}),
+      React.createElement("input",{type:"number",min:5,max:200,value:secCols,disabled:!canEdit,onChange:function(e){if(!canEdit)return;var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionCols:v}));},style:{width:52,padding:'2px 6px',fontSize:12,border:'1px solid #e2e8f0',borderRadius:6}}),
       "\u00d7",
-      React.createElement("input",{type:"number",min:5,max:200,value:secRows,onChange:function(e){var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionRows:v}));},style:{width:52,padding:'2px 6px',fontSize:12,border:'1px solid #e2e8f0',borderRadius:6}}),
+      React.createElement("input",{type:"number",min:5,max:200,value:secRows,disabled:!canEdit,onChange:function(e){if(!canEdit)return;var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionRows:v}));},style:{width:52,padding:'2px 6px',fontSize:12,border:'1px solid #e2e8f0',borderRadius:6}}),
       "stitches",
-      React.createElement("button",{onClick:function(){onUpdateSettings(Object.assign({},statsSettings,{sectionCols:50,sectionRows:50}));},style:{fontSize:11,padding:'2px 8px',borderRadius:6,border:'1px solid #e2e8f0',background:'#f8f9fa',cursor:'pointer',color:'#64748b'}},"Reset")
+      React.createElement("button",{disabled:!canEdit,onClick:function(){if(!canEdit)return;onUpdateSettings(Object.assign({},statsSettings,{sectionCols:50,sectionRows:50}));},style:{fontSize:11,padding:'2px 8px',borderRadius:6,border:'1px solid #e2e8f0',background:'#f8f9fa',cursor:canEdit?'pointer':'default',color:'#64748b',opacity:canEdit?1:0.6}},"Reset")
     )
   );
 }
@@ -1361,7 +1366,8 @@ function drawProgressCard(canvas, opts) {
   ctx.fillText('Made with Cross Stitch Pattern Generator', W - 18, H - 7);
 }
 
-function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, currentProjectId, onOpenProject}){
+function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, currentProjectId, onOpenProject, canEdit}){
+  if(canEdit==null)canEdit=true;
   var chartSt = React.useState('cumulative');
   var chartView = chartSt[0], setChartView = chartSt[1];
   var copiedSt = React.useState(false);
@@ -1433,6 +1439,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       palette: palette
     });
     canvas.toBlob(function(blob) {
+      if(!blob)return;
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
       a.href = url;
@@ -1441,7 +1448,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    });
+    },'image/png');
   }
 
   return React.createElement("div", {className:"stats-dashboard"},
@@ -1479,7 +1486,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts, sessions:statsSessions})
     ),
     React.createElement("div", {className:"stats-two-col", style:{marginTop:20}},
-      React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings, pat:pat, done:done, sW:sW, palette:palette}),
+      React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings, pat:pat, done:done, sW:sW, palette:palette, canEdit:canEdit}),
       React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH})
     ),
     React.createElement("div", {style:{marginTop:20}},
@@ -1601,11 +1608,31 @@ function InsightIcon({type}) {
 }
 
 var CS_GLOBAL_GOALS_KEY = 'cs_global_goals';
+var CS_GLOBAL_GOALS_COMPAT_KEY = 'cs_stats_settings';
+function normaliseGlobalGoals(goals) {
+  goals = goals && typeof goals === 'object' ? goals : {};
+  return {
+    dailyGoal: goals.dailyGoal != null ? goals.dailyGoal : null,
+    weeklyGoal: goals.weeklyGoal != null ? goals.weeklyGoal : null,
+    monthlyGoal: goals.monthlyGoal != null ? goals.monthlyGoal : null,
+    targetDate: goals.targetDate != null ? goals.targetDate : null
+  };
+}
 function readGlobalGoals() {
-  try { var raw = localStorage.getItem(CS_GLOBAL_GOALS_KEY); return raw ? JSON.parse(raw) : {}; } catch(e) { return {}; }
+  try {
+    var raw = localStorage.getItem(CS_GLOBAL_GOALS_KEY);
+    if(raw) return normaliseGlobalGoals(JSON.parse(raw));
+    var compatRaw = localStorage.getItem(CS_GLOBAL_GOALS_COMPAT_KEY);
+    return compatRaw ? normaliseGlobalGoals(JSON.parse(compatRaw)) : {};
+  } catch(e) { return {}; }
 }
 function writeGlobalGoals(goals) {
-  try { localStorage.setItem(CS_GLOBAL_GOALS_KEY, JSON.stringify(goals)); } catch(e) {}
+  try {
+    var normalised = normaliseGlobalGoals(goals);
+    var serialised = JSON.stringify(normalised);
+    localStorage.setItem(CS_GLOBAL_GOALS_KEY, serialised);
+    localStorage.setItem(CS_GLOBAL_GOALS_COMPAT_KEY, serialised);
+  } catch(e) {}
 }
 
 function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSettings, onUpdateSettings}) {
@@ -1635,10 +1662,32 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     if (typeof ProjectStorage === 'undefined') { setLoading(false); return; }
     // Flush the active project to IDB first so the summary includes the latest session data
     var doLoad = function() {
-      ProjectStorage.buildAllStatsSummaries().then(function(built) {
-        setProjectSummaries(built);
-        setLoading(false);
-      }).catch(function() { setLoading(false); });
+      var rebuild = function() {
+        if (typeof ProjectStorage.buildAllStatsSummaries !== 'function') {
+          setProjectSummaries([]);
+          setLoading(false);
+          return;
+        }
+        ProjectStorage.buildAllStatsSummaries().then(function(built) {
+          setProjectSummaries(Array.isArray(built) ? built : []);
+          setLoading(false);
+        }).catch(function() {
+          setProjectSummaries([]);
+          setLoading(false);
+        });
+      };
+      if (typeof ProjectStorage.getAllStatsSummaries === 'function') {
+        ProjectStorage.getAllStatsSummaries().then(function(summaries) {
+          if (Array.isArray(summaries) && summaries.length) {
+            setProjectSummaries(summaries);
+            setLoading(false);
+            return;
+          }
+          rebuild();
+        }).catch(rebuild);
+        return;
+      }
+      rebuild();
     };
     if (typeof window.__flushProjectToIDB === 'function') {
       window.__flushProjectToIDB().then(doLoad).catch(doLoad);
@@ -2068,7 +2117,7 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
   if (statsTab === 'all') {
     content = React.createElement(GlobalStatsDashboard, {onClose: onClose, onViewProject: function(id) { setStatsTab(id); }, currentProjectId: currentProjectId, statsSettings: statsSettings, onUpdateSettings: onUpdateSettings});
   } else if (statsTab === currentProjectId && pat) {
-    content = React.createElement(StatsDashboard, {statsSessions: statsSessions, statsSettings: statsSettings, totalCompleted: totalCompleted, totalStitches: totalStitches, halfStitchCounts: halfStitchCounts, onEditNote: onEditNote, onUpdateSettings: onUpdateSettings, onClose: onClose, projectName: projectName, palette: palette, colourDoneCounts: colourDoneCounts, achievedMilestones: achievedMilestones, done: done, pat: pat, sW: sW, sH: sH, doneSnapshots: doneSnapshots, setDoneSnapshots: setDoneSnapshots, sections: sections, currentProjectId: currentProjectId, onOpenProject: onOpenProject});
+    content = React.createElement(StatsDashboard, {statsSessions: statsSessions, statsSettings: statsSettings, totalCompleted: totalCompleted, totalStitches: totalStitches, halfStitchCounts: halfStitchCounts, onEditNote: onEditNote, onUpdateSettings: onUpdateSettings, onClose: onClose, projectName: projectName, palette: palette, colourDoneCounts: colourDoneCounts, achievedMilestones: achievedMilestones, done: done, pat: pat, sW: sW, sH: sH, doneSnapshots: doneSnapshots, setDoneSnapshots: setDoneSnapshots, sections: sections, currentProjectId: currentProjectId, onOpenProject: onOpenProject, canEdit: true});
   } else if (loadedProject) {
     var lp = loadedProject;
     var lpS = lp.settings || {};
@@ -2080,7 +2129,7 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
     var lpPal = lpPat ? (function() { var seen = {}, out = []; lpPat.forEach(function(c) { if (c && c.id && c.id !== '__skip__' && c.id !== '__empty__' && !c.id.includes('+') && !seen[c.id]) { seen[c.id] = true; out.push(c); } }); return out; })() : [];
     var lpCDone = {};
     if (lpPat && lpDone) { for (var ci = 0; ci < lpPat.length; ci++) { if (lpDone[ci] === 1 && lpPat[ci] && lpPat[ci].id) lpCDone[lpPat[ci].id] = (lpCDone[lpPat[ci].id] || 0) + 1; } }
-    content = React.createElement(StatsDashboard, {statsSessions: lpSessions, statsSettings: lp.statsSettings || {dayEndHour: 0, useActiveDays: true}, totalCompleted: lpCompleted, totalStitches: lpTotal, onEditNote: function() {}, onUpdateSettings: function() {}, onClose: onClose, projectName: lp.name || 'Untitled', palette: lpPal, colourDoneCounts: lpCDone, achievedMilestones: lp.achievedMilestones || [], done: lpDone, pat: lpPat, sW: lpS.sW || 0, sH: lpS.sH || 0, doneSnapshots: lp.doneSnapshots || [], setDoneSnapshots: function() {}, sections: lp.sections || [], currentProjectId: lp.id, onOpenProject: onOpenProject});
+    content = React.createElement(StatsDashboard, {statsSessions: lpSessions, statsSettings: lp.statsSettings || {dayEndHour: 0, useActiveDays: true}, totalCompleted: lpCompleted, totalStitches: lpTotal, onEditNote: function() {}, onUpdateSettings: function() {}, onClose: onClose, projectName: lp.name || 'Untitled', palette: lpPal, colourDoneCounts: lpCDone, achievedMilestones: lp.achievedMilestones || [], done: lpDone, pat: lpPat, sW: lpS.sW || 0, sH: lpS.sH || 0, doneSnapshots: lp.doneSnapshots || [], setDoneSnapshots: function() {}, sections: lp.sections || [], currentProjectId: lp.id, onOpenProject: onOpenProject, canEdit: false});
   } else {
     content = React.createElement('div', {style: {padding: '40px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14}},
       lLoading ? 'Loading\u2026' : 'Load a project in the tracker to see its stats here.');
