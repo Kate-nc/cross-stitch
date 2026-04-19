@@ -1,9 +1,10 @@
-/* creator/SubstituteFromStashModal.js — v2
+/* creator/SubstituteFromStashModal.js — v3
    Feature 2: Canvas substitution preview (ComparisonSlider)
    Feature 3: Near-miss suggestions for skipped threads
    Feature 4: Preserve contrast constraint
-   Depends on globals: React, DMC, skeinEst (helpers.js),
-   rgbToLab, dE (colour-utils.js), generatePatternThumbnail (exportPdf.js),
+   Depends on globals: React, DMC, ANCHOR (optional), skeinEst (helpers.js),
+   parseThreadKey, getThreadByKey (helpers.js),
+   rgbToLab, dE, dE2000 (colour-utils.js), generatePatternThumbnail (exportPdf.js),
    CreatorContext (context.js), StashBridge (stash-bridge.js, optional) */
 
 // ─── Module-level preference (survives modal remounts within a session) ────────
@@ -18,20 +19,34 @@ function _statusFromTarget(t) {
   return "poor";
 }
 
-function _getDmcLab(dmcMap, id) {
-  var d = dmcMap[id];
-  if (!d) return null;
-  if (d.lab) {
-    var l = d.lab;
-    if (Array.isArray(l)) return l;
-    if (l && typeof l === "object") return [l.L || 0, l.a || 0, l.b || 0];
+// Returns Lab array for a thread identified by composite key ('dmc:310', 'anchor:403') or bare DMC id.
+function _getThreadLab(key) {
+  var thread = null;
+  if (typeof getThreadByKey === 'function') {
+    thread = getThreadByKey(key);
+  } else {
+    // Fallback: bare DMC id only
+    var dmcArr = typeof DMC !== 'undefined' ? DMC : [];
+    thread = dmcArr.find(function(d) { return d.id === key; }) || null;
   }
-  if (d.rgb && typeof rgbToLab === "function") return rgbToLab(d.rgb[0], d.rgb[1], d.rgb[2]);
+  if (!thread) return null;
+  if (thread.lab) {
+    var l = thread.lab;
+    if (Array.isArray(l)) return l;
+    if (l && typeof l === 'object') return [l.L || 0, l.a || 0, l.b || 0];
+  }
+  if (thread.rgb && typeof rgbToLab === 'function') return rgbToLab(thread.rgb[0], thread.rgb[1], thread.rgb[2]);
   return null;
+}
+
+// Legacy shim for internal callers that pass (dmcMap, id).
+function _getDmcLab(dmcMap, id) {
+  return _getThreadLab(id);
 }
 
 function _calcDE(labA, labB) {
   if (!labA || !labB) return 999;
+  if (typeof dE2000 === 'function') return dE2000(labA, labB);
   if (typeof dE === "function") return dE(labA, labB);
   var dL = labA[0] - labB[0], da = labA[1] - labB[1], db = labA[2] - labB[2];
   return Math.sqrt(dL * dL + da * da + db * db);
@@ -93,9 +108,9 @@ function _enforceContrastConstraints(substitutions, skeinData, minPairDeltaE, dm
   function getAfterLab(threadId) {
     if (subBySource[threadId] !== undefined) {
       var s = substitutions[subBySource[threadId]];
-      return _getDmcLab(dmcMap, s.selectedTarget.id);
+      return _getThreadLab(s.selectedTarget.id);
     }
-    return _getDmcLab(dmcMap, threadId);
+    return _getThreadLab(threadId);
   }
 
   var allThreadIds = skeinData.map(function(t) { return t.id; });
@@ -103,7 +118,7 @@ function _enforceContrastConstraints(substitutions, skeinData, minPairDeltaE, dm
   substitutions.forEach(function(sub, subIdx) {
     if (sub.status === "conflict") { sub.contrastWarning = null; return; }
     sub.contrastWarning = null;
-    var targetLab = _getDmcLab(dmcMap, sub.selectedTarget.id);
+    var targetLab = _getThreadLab(sub.selectedTarget.id);
     if (!targetLab) return;
 
     var worstConflict = null, worstDE = Infinity;
@@ -119,7 +134,7 @@ function _enforceContrastConstraints(substitutions, skeinData, minPairDeltaE, dm
     var pool = sub._cands || [sub.selectedTarget].concat(sub.alternativeTargets || []);
     for (var ci = 0; ci < pool.length; ci++) {
       if (pool[ci].id === sub.selectedTarget.id) continue;
-      var altLab = _getDmcLab(dmcMap, pool[ci].id);
+      var altLab = _getThreadLab(pool[ci].id);
       if (!altLab) continue;
       var hasConflict = false;
       for (var oi = 0; oi < allThreadIds.length; oi++) {
@@ -200,14 +215,21 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
   var dmcMap = {};
   dmcData.forEach(function(d) { dmcMap[d.id] = d; });
 
-  // Build list of stash candidates (threads with owned > 0)
+  // Build list of stash candidates (threads with owned > 0, from any brand)
   var stashEntries = [];
-  Object.keys(globalStash).forEach(function(id) {
-    var entry = globalStash[id];
+  Object.keys(globalStash).forEach(function(compositeKey) {
+    var entry = globalStash[compositeKey];
     if (!entry || !(entry.owned > 0)) return;
-    var dmc = dmcMap[id];
-    if (!dmc) return;
-    stashEntries.push({ id: id, name: dmc.name, rgb: dmc.rgb, lab: _getDmcLab(dmcMap, id), ownedSkeins: entry.owned });
+    // Resolve thread object: handle composite ('dmc:310', 'anchor:403') or legacy bare id.
+    var thread = null;
+    if (typeof getThreadByKey === 'function') {
+      thread = getThreadByKey(compositeKey);
+    } else {
+      thread = dmcMap[compositeKey] || dmcMap[(compositeKey.indexOf(':') >= 0 ? compositeKey.split(':')[1] : compositeKey)] || null;
+    }
+    if (!thread) return;
+    var brand = compositeKey.indexOf(':') >= 0 ? compositeKey.split(':')[0] : 'dmc';
+    stashEntries.push({ id: compositeKey, name: thread.name, rgb: thread.rgb, brand: brand, lab: _getThreadLab(compositeKey), ownedSkeins: entry.owned });
   });
 
   var substitutions = [];
@@ -216,7 +238,7 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
   skeinData.forEach(function(thread) {
     if ((threadOwned[thread.id] || "") === "owned") return;
 
-    var targetLab = _getDmcLab(dmcMap, thread.id);
+    var targetLab = _getThreadLab(thread.id);
     if (!targetLab) {
       skipped.push({ sourceId: thread.id, sourceName: thread.name || thread.id, sourceRgb: thread.rgb || [128, 128, 128], sourceStitches: thread.stitches, reason: "no_stash_match", nearMisses: [], isBlendComponent: false, blendId: null });
       return;
@@ -230,7 +252,7 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
     stashEntries.forEach(function(stash) {
       if (stash.id === thread.id) return;
       var de = _calcDE(targetLab, stash.lab);
-      candidates.push({ id: stash.id, name: stash.name, rgb: stash.rgb, deltaE: Math.round(de * 10) / 10, ownedSkeins: stash.ownedSkeins, neededSkeins: neededSkeins, hasSufficient: stash.ownedSkeins >= neededSkeins });
+      candidates.push({ id: stash.id, name: stash.name, rgb: stash.rgb, brand: stash.brand || 'dmc', deltaE: Math.round(de * 10) / 10, ownedSkeins: stash.ownedSkeins, neededSkeins: neededSkeins, hasSufficient: stash.ownedSkeins >= neededSkeins });
     });
 
     if (candidates.length === 0) {

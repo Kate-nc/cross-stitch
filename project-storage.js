@@ -180,16 +180,27 @@ const ProjectStorage = (() => {
     },
 
     // Load a single project by ID. Returns null if not found.
+    // Migrates threadOwned keys from bare DMC IDs to composite keys on the way out.
     async get(id) {
       try {
         const db = await getDB();
-        return new Promise((resolve, reject) => {
+        const project = await new Promise((resolve, reject) => {
           let tx = db.transaction(STORE_NAME, "readonly");
           let store = tx.objectStore(STORE_NAME);
           let request = store.get(id);
           request.onsuccess = () => resolve(request.result || null);
           request.onerror = () => reject(request.error);
         });
+        if (project && project.threadOwned) {
+          let changed = false;
+          const migrated = {};
+          for (const [key, val] of Object.entries(project.threadOwned)) {
+            if (key.indexOf(':') < 0) { migrated['dmc:' + key] = val; changed = true; }
+            else migrated[key] = val;
+          }
+          if (changed) project.threadOwned = migrated;
+        }
+        return project;
       } catch (err) {
         console.error("ProjectStorage.get failed:", err);
         return null;

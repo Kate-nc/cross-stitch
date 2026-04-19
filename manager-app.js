@@ -40,6 +40,7 @@ function ManagerApp() {
   const [storageUsage, setStorageUsage] = useState(null); // { used, quota, persistent } bytes
   const [searchQuery, setSearchQuery] = useState("");
   const [threadFilter, setThreadFilter] = useState("all"); // 'all', 'owned', 'tobuy', 'lowstock'
+  const [brandFilter, setBrandFilter] = useState("all"); // 'all', 'dmc', 'anchor'
   const [patternFilter, setPatternFilter] = useState("all"); // 'all', 'wishlist', 'owned', 'inprogress', 'completed'
   const [patternSort, setPatternSort] = useState("date_desc"); // 'date_desc', 'date_asc', 'title_asc', 'designer_asc', 'status'
   const [editingPattern, setEditingPattern] = useState(null); // Pattern object currently being added/edited
@@ -109,10 +110,32 @@ function ManagerApp() {
         } else if (!threadsData) {
           finalThreads = {};
           DMC.forEach(d => {
-              finalThreads[d.id] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
+              finalThreads['dmc:' + d.id] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
           });
+          if (typeof ANCHOR !== 'undefined') {
+            ANCHOR.forEach(a => {
+              finalThreads['anchor:' + a.id] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
+            });
+          }
           store.put(finalThreads, "threads");
-          store.put(3, "stashDataVersion");
+          store.put(4, "stashDataVersion");
+        }
+
+        // v3 → v4: convert bare DMC keys to composite keys and add Anchor threads
+        if (threadsData && versionData === 3) {
+          const migrated = {};
+          for (const [key, val] of Object.entries(finalThreads)) {
+            migrated[key.indexOf(':') < 0 ? 'dmc:' + key : key] = val;
+          }
+          if (typeof ANCHOR !== 'undefined') {
+            ANCHOR.forEach(a => {
+              const aKey = 'anchor:' + a.id;
+              if (!migrated[aKey]) migrated[aKey] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
+            });
+          }
+          finalThreads = migrated;
+          store.put(finalThreads, "threads");
+          store.put(4, "stashDataVersion");
         }
 
         setThreads(finalThreads);
@@ -277,23 +300,27 @@ function ManagerApp() {
   };
 
   const filteredThreads = useMemo(() => {
-    let list = DMC.filter(d => {
-      const q = searchQuery.toLowerCase();
-      return d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q);
-    });
+    const dmcItems = DMC.map(d => ({ ...d, brand: 'dmc', compositeKey: 'dmc:' + d.id }));
+    const anchorItems = typeof ANCHOR !== 'undefined' ? ANCHOR.map(a => ({ ...a, brand: 'anchor', compositeKey: 'anchor:' + a.id })) : [];
+    const allItems = brandFilter === 'dmc' ? dmcItems
+      : brandFilter === 'anchor' ? anchorItems
+      : [...dmcItems, ...anchorItems];
 
-    return list.filter(d => {
-      if (d.id === expandedThread) return true; // Keep expanded thread visible until closed
+    const q = searchQuery.toLowerCase();
+    const searched = q ? allItems.filter(d => d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q)) : allItems;
 
-      const t = threads[d.id] || { owned: 0, tobuy: false, partialStatus: null };
+    return searched.filter(d => {
+      if (d.compositeKey === expandedThread) return true;
+
+      const t = threads[d.compositeKey] || { owned: 0, tobuy: false, partialStatus: null };
       if (threadFilter === 'owned') return t.owned > 0 || ["mostly-full", "about-half", "remnant"].includes(t.partialStatus);
       if (threadFilter === 'tobuy') return t.tobuy;
       if (threadFilter === 'lowstock') return (t.owned > 0 && t.owned <= lowStockThreshold) || (t.owned === 0 && ["about-half", "remnant"].includes(t.partialStatus));
       if (threadFilter === 'remnants') return t.partialStatus === "remnant";
       if (threadFilter === 'usedup') return t.partialStatus === "used-up" && t.owned === 0;
-      return true; // "all" filter
+      return true;
     });
-  }, [searchQuery, threads, threadFilter, expandedThread]);
+  }, [searchQuery, threads, threadFilter, brandFilter, expandedThread]);
 
   const totalOwnedCount = useMemo(() => {
     return Object.values(threads).reduce((sum, t) => sum + (t.owned || 0), 0);
@@ -414,7 +441,7 @@ function ManagerApp() {
         <div className="mgr-filter-bar">
           <input
             type="text"
-            placeholder="Search DMC number or name..."
+            placeholder="Search thread number or name..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
@@ -427,6 +454,14 @@ function ManagerApp() {
             {id: "usedup", label: "Used Up"}
           ].map(f => (
             <button key={f.id} className={"mgr-chip" + (threadFilter === f.id ? " on" : "")} onClick={() => setThreadFilter(f.id)}>{f.label}</button>
+          ))}
+          <span style={{marginLeft:4,marginRight:2,color:'#94a3b8',fontSize:11}}>Brand:</span>
+          {[
+            {id: "all", label: "All"},
+            {id: "dmc", label: "DMC"},
+            {id: "anchor", label: "Anchor"}
+          ].map(f => (
+            <button key={'brand-' + f.id} className={"mgr-chip" + (brandFilter === f.id ? " on" : "")} onClick={() => setBrandFilter(f.id)}>{f.label}</button>
           ))}
         </div>
       )}
@@ -501,17 +536,17 @@ function ManagerApp() {
 
             <div className="thread-grid">
               {filteredThreads.map(d => {
-                const state = threads[d.id] || { owned: 0, tobuy: false, partialStatus: null };
-                const isSelected = selectedThread === d.id;
+                const state = threads[d.compositeKey] || { owned: 0, tobuy: false, partialStatus: null };
+                const isSelected = selectedThread === d.compositeKey;
                 const isLowStock = state.owned > 0 && state.owned <= lowStockThreshold;
 
                 const gaugeLevel = !state.partialStatus ? 0 : state.partialStatus === "mostly-full" ? 3 : state.partialStatus === "about-half" ? 2 : state.partialStatus === "remnant" ? 1 : state.partialStatus === "used-up" ? 4 : 0;
 
                 return (
-                  <div key={d.id} className={"tcard" + (isSelected ? " on" : "")} onClick={() => setSelectedThread(isSelected ? null : d.id)}>
+                  <div key={d.compositeKey} className={"tcard" + (isSelected ? " on" : "")} onClick={() => setSelectedThread(isSelected ? null : d.compositeKey)}>
                     <div className="sw" style={{ background: `rgb(${d.rgb})` }} />
                     <div className="info">
-                      <div className="tid">{d.id}</div>
+                      <div className="tid">{d.id}{d.brand === 'anchor' && <span style={{fontSize:9,fontWeight:700,background:'#e0f2fe',color:'#0369a1',borderRadius:3,padding:'0 3px',marginLeft:4,verticalAlign:'middle'}}>A</span>}</div>
                       <div className="tnm">{d.name}</div>
                     </div>
                     {isLowStock && <span className="badge-low">Low</span>}
@@ -537,14 +572,16 @@ function ManagerApp() {
           {/* Right Panel — Thread Detail */}
           <div className="mgr-rpanel">
             {selectedThread ? (() => {
-              const d = DMC.find(x => x.id === selectedThread);
+              const d = typeof getThreadByKey === 'function' ? getThreadByKey(selectedThread) : DMC.find(x => x.id === selectedThread);
               if (!d) return <div className="rp-s" style={{ color: "#94a3b8", textAlign: "center", padding: 20 }}>Thread not found</div>;
-              const state = threads[d.id] || { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
+              const selBrand = selectedThread.indexOf(':') < 0 ? 'dmc' : selectedThread.split(':')[0];
+              const brandLabel = selBrand === 'anchor' ? 'Anchor' : 'DMC';
+              const state = threads[selectedThread] || { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
               return <>
                 <div className="rp-s" style={{ textAlign: "center" }}>
                   <div className="td-swatch" style={{ background: `rgb(${d.rgb})` }} />
                   <div className="td-title">
-                    <div className="dmc">DMC {d.id}</div>
+                    <div className="dmc">{brandLabel} {d.id}{selBrand === 'anchor' && <span style={{fontSize:9,fontWeight:700,background:'#e0f2fe',color:'#0369a1',borderRadius:3,padding:'0 3px',marginLeft:4}}>A</span>}</div>
                     <div className="tnm">{d.name}</div>
                   </div>
                 </div>
@@ -553,17 +590,17 @@ function ManagerApp() {
                   <div className="td-row">
                     <span className="lbl">Full skeins</span>
                     <div className="qty-ctrl">
-                      <button onClick={() => updateThread(d.id, "owned", Math.max(0, state.owned - 1))}>−</button>
+                      <button onClick={() => updateThread(selectedThread, "owned", Math.max(0, state.owned - 1))}>−</button>
                       <span className="num">{state.owned}</span>
-                      <button onClick={() => updateThread(d.id, "owned", state.owned + 1)}>+</button>
+                      <button onClick={() => updateThread(selectedThread, "owned", state.owned + 1)}>+</button>
                     </div>
                   </div>
                   <div className="td-row">
                     <span className="lbl">Min stock</span>
                     <div className="qty-ctrl">
-                      <button onClick={() => updateThread(d.id, "min_stock", Math.max(0, (state.min_stock || 0) - 1))}>−</button>
+                      <button onClick={() => updateThread(selectedThread, "min_stock", Math.max(0, (state.min_stock || 0) - 1))}>−</button>
                       <span className="num">{state.min_stock || 0}</span>
-                      <button onClick={() => updateThread(d.id, "min_stock", (state.min_stock || 0) + 1)}>+</button>
+                      <button onClick={() => updateThread(selectedThread, "min_stock", (state.min_stock || 0) + 1)}>+</button>
                     </div>
                   </div>
                   <div className="td-row">
@@ -582,7 +619,7 @@ function ManagerApp() {
                         { val: "remnant", label: "¼" }
                       ].map(opt => {
                         const isActive = state.partialStatus === opt.val || (opt.val === null && !state.partialStatus);
-                        return <div key={opt.val || "none"} className={"seg" + (isActive ? " full" : "")} title={opt.val || "None"} onClick={() => updateThread(d.id, "partialStatus", opt.val)}>{opt.label}</div>;
+                        return <div key={opt.val || "none"} className={"seg" + (isActive ? " full" : "")} title={opt.val || "None"} onClick={() => updateThread(selectedThread, "partialStatus", opt.val)}>{opt.label}</div>;
                       })}
                     </div>
                   </div>
@@ -601,10 +638,10 @@ function ManagerApp() {
                 <div className="rp-s">
                   <div className="rp-h">Actions</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => updateThread(d.id, "tobuy", !state.tobuy)}>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => updateThread(selectedThread, "tobuy", !state.tobuy)}>
                       {state.tobuy ? <>{Icons.check()} On shopping list</> : <>{Icons.cart()} Add to shopping list</>}
                     </button>
-                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { if(confirm(`Remove DMC ${d.id} from inventory?`)) { updateThread(d.id, "owned", 0); updateThread(d.id, "partialStatus", null); updateThread(d.id, "tobuy", false); } }}>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { if(confirm(`Remove ${brandLabel} ${d.id} from inventory?`)) { updateThread(selectedThread, "owned", 0); updateThread(selectedThread, "partialStatus", null); updateThread(selectedThread, "tobuy", false); } }}>
                       {Icons.trash()} Remove from inventory
                     </button>
                   </div>
