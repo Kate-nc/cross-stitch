@@ -8006,12 +8006,13 @@ window.MagicWandPanel = function MagicWandPanel() {
 
 
 /* ─── SubstituteFromStashModal.js ─── */
-/* creator/SubstituteFromStashModal.js — v2
+/* creator/SubstituteFromStashModal.js — v3
    Feature 2: Canvas substitution preview (ComparisonSlider)
    Feature 3: Near-miss suggestions for skipped threads
    Feature 4: Preserve contrast constraint
-   Depends on globals: React, DMC, skeinEst (helpers.js),
-   rgbToLab, dE (colour-utils.js), generatePatternThumbnail (exportPdf.js),
+   Depends on globals: React, DMC, ANCHOR (optional), skeinEst (helpers.js),
+   parseThreadKey, getThreadByKey (helpers.js),
+   rgbToLab, dE, dE2000 (colour-utils.js), generatePatternThumbnail (exportPdf.js),
    CreatorContext (context.js), StashBridge (stash-bridge.js, optional) */
 
 // ─── Module-level preference (survives modal remounts within a session) ────────
@@ -8026,20 +8027,34 @@ function _statusFromTarget(t) {
   return "poor";
 }
 
-function _getDmcLab(dmcMap, id) {
-  var d = dmcMap[id];
-  if (!d) return null;
-  if (d.lab) {
-    var l = d.lab;
-    if (Array.isArray(l)) return l;
-    if (l && typeof l === "object") return [l.L || 0, l.a || 0, l.b || 0];
+// Returns Lab array for a thread identified by composite key ('dmc:310', 'anchor:403') or bare DMC id.
+function _getThreadLab(key) {
+  var thread = null;
+  if (typeof getThreadByKey === 'function') {
+    thread = getThreadByKey(key);
+  } else {
+    // Fallback: bare DMC id only
+    var dmcArr = typeof DMC !== 'undefined' ? DMC : [];
+    thread = dmcArr.find(function(d) { return d.id === key; }) || null;
   }
-  if (d.rgb && typeof rgbToLab === "function") return rgbToLab(d.rgb[0], d.rgb[1], d.rgb[2]);
+  if (!thread) return null;
+  if (thread.lab) {
+    var l = thread.lab;
+    if (Array.isArray(l)) return l;
+    if (l && typeof l === 'object') return [l.L || 0, l.a || 0, l.b || 0];
+  }
+  if (thread.rgb && typeof rgbToLab === 'function') return rgbToLab(thread.rgb[0], thread.rgb[1], thread.rgb[2]);
   return null;
+}
+
+// Legacy shim for internal callers that pass (dmcMap, id).
+function _getDmcLab(dmcMap, id) {
+  return _getThreadLab(id);
 }
 
 function _calcDE(labA, labB) {
   if (!labA || !labB) return 999;
+  if (typeof dE2000 === 'function') return dE2000(labA, labB);
   if (typeof dE === "function") return dE(labA, labB);
   var dL = labA[0] - labB[0], da = labA[1] - labB[1], db = labA[2] - labB[2];
   return Math.sqrt(dL * dL + da * da + db * db);
@@ -8101,9 +8116,9 @@ function _enforceContrastConstraints(substitutions, skeinData, minPairDeltaE, dm
   function getAfterLab(threadId) {
     if (subBySource[threadId] !== undefined) {
       var s = substitutions[subBySource[threadId]];
-      return _getDmcLab(dmcMap, s.selectedTarget.id);
+      return _getThreadLab(s.selectedTarget.id);
     }
-    return _getDmcLab(dmcMap, threadId);
+    return _getThreadLab(threadId);
   }
 
   var allThreadIds = skeinData.map(function(t) { return t.id; });
@@ -8111,7 +8126,7 @@ function _enforceContrastConstraints(substitutions, skeinData, minPairDeltaE, dm
   substitutions.forEach(function(sub, subIdx) {
     if (sub.status === "conflict") { sub.contrastWarning = null; return; }
     sub.contrastWarning = null;
-    var targetLab = _getDmcLab(dmcMap, sub.selectedTarget.id);
+    var targetLab = _getThreadLab(sub.selectedTarget.id);
     if (!targetLab) return;
 
     var worstConflict = null, worstDE = Infinity;
@@ -8127,7 +8142,7 @@ function _enforceContrastConstraints(substitutions, skeinData, minPairDeltaE, dm
     var pool = sub._cands || [sub.selectedTarget].concat(sub.alternativeTargets || []);
     for (var ci = 0; ci < pool.length; ci++) {
       if (pool[ci].id === sub.selectedTarget.id) continue;
-      var altLab = _getDmcLab(dmcMap, pool[ci].id);
+      var altLab = _getThreadLab(pool[ci].id);
       if (!altLab) continue;
       var hasConflict = false;
       for (var oi = 0; oi < allThreadIds.length; oi++) {
@@ -8208,14 +8223,21 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
   var dmcMap = {};
   dmcData.forEach(function(d) { dmcMap[d.id] = d; });
 
-  // Build list of stash candidates (threads with owned > 0)
+  // Build list of stash candidates (threads with owned > 0, from any brand)
   var stashEntries = [];
-  Object.keys(globalStash).forEach(function(id) {
-    var entry = globalStash[id];
+  Object.keys(globalStash).forEach(function(compositeKey) {
+    var entry = globalStash[compositeKey];
     if (!entry || !(entry.owned > 0)) return;
-    var dmc = dmcMap[id];
-    if (!dmc) return;
-    stashEntries.push({ id: id, name: dmc.name, rgb: dmc.rgb, lab: _getDmcLab(dmcMap, id), ownedSkeins: entry.owned });
+    // Resolve thread object: handle composite ('dmc:310', 'anchor:403') or legacy bare id.
+    var thread = null;
+    if (typeof getThreadByKey === 'function') {
+      thread = getThreadByKey(compositeKey);
+    } else {
+      thread = dmcMap[compositeKey] || dmcMap[(compositeKey.indexOf(':') >= 0 ? compositeKey.split(':')[1] : compositeKey)] || null;
+    }
+    if (!thread) return;
+    var brand = compositeKey.indexOf(':') >= 0 ? compositeKey.split(':')[0] : 'dmc';
+    stashEntries.push({ id: compositeKey, name: thread.name, rgb: thread.rgb, brand: brand, lab: _getThreadLab(compositeKey), ownedSkeins: entry.owned });
   });
 
   var substitutions = [];
@@ -8224,7 +8246,7 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
   skeinData.forEach(function(thread) {
     if ((threadOwned[thread.id] || "") === "owned") return;
 
-    var targetLab = _getDmcLab(dmcMap, thread.id);
+    var targetLab = _getThreadLab(thread.id);
     if (!targetLab) {
       skipped.push({ sourceId: thread.id, sourceName: thread.name || thread.id, sourceRgb: thread.rgb || [128, 128, 128], sourceStitches: thread.stitches, reason: "no_stash_match", nearMisses: [], isBlendComponent: false, blendId: null });
       return;
@@ -8235,10 +8257,12 @@ window.analyseSubstitutions = function analyseSubstitutions(skeinData, threadOwn
       : Math.ceil(thread.stitches / 200);
 
     var candidates = [];
+    // Build the composite key for the source thread so we can exclude it from candidates.
+    var sourceCompositeKey = typeof threadKey === 'function' ? threadKey('dmc', thread.id) : ('dmc:' + thread.id);
     stashEntries.forEach(function(stash) {
-      if (stash.id === thread.id) return;
+      if (stash.id === sourceCompositeKey) return;
       var de = _calcDE(targetLab, stash.lab);
-      candidates.push({ id: stash.id, name: stash.name, rgb: stash.rgb, deltaE: Math.round(de * 10) / 10, ownedSkeins: stash.ownedSkeins, neededSkeins: neededSkeins, hasSufficient: stash.ownedSkeins >= neededSkeins });
+      candidates.push({ id: stash.id, name: stash.name, rgb: stash.rgb, brand: stash.brand || 'dmc', deltaE: Math.round(de * 10) / 10, ownedSkeins: stash.ownedSkeins, neededSkeins: neededSkeins, hasSufficient: stash.ownedSkeins >= neededSkeins });
     });
 
     if (candidates.length === 0) {
@@ -8973,6 +8997,594 @@ function SubstituteFromStashModalInner(props) {
     )
   );
 }
+
+
+/* ─── ConvertPaletteModal.js ─── */
+/* creator/ConvertPaletteModal.js — Phase 1 cross-brand palette conversion
+   Allows converting the current pattern's DMC palette to Anchor equivalents
+   (or vice-versa) using the CONVERSIONS table from thread-conversions.js.
+
+   Depends on globals:
+     React (CDN), DMC, ANCHOR, CONVERSIONS, getOfficialMatch (thread-conversions.js),
+     dE2000 (colour-utils.js), getThreadByKey, classifyMatch (helpers.js),
+     PatternDataContext / usePatternData (context.js) */
+
+window.ConvertPaletteModal = (function () {
+  const { useState, useMemo } = React;
+
+  // ─── Core proposal engine ──────────────────────────────────────────────────
+
+  /**
+   * For each unique source thread ID in `palette` (bare DMC IDs), produce a
+   * conversion proposal to `targetBrand` using:
+   *   1. Official mapping from CONVERSIONS table (if available)
+   *   2. Nearest-colour fallback via CIEDE2000 ΔE search
+   *
+   * Returns an array of proposal objects:
+   * {
+   *   sourceId:    string (bare DMC id, e.g. "310"),
+   *   sourceName:  string,
+   *   sourceRgb:   [R,G,B],
+   *   target: {
+   *     id:         string (bare target brand id),
+   *     name:       string,
+   *     rgb:        [R,G,B],
+   *     brand:      'dmc' | 'anchor',
+   *     compositeKey: string,
+   *     confidence: 'official' | 'reconciled' | 'single-source' | 'nearest',
+   *     deltaE:     number,
+   *   } | null,
+   *   isUnique:    bool (true if no target-brand equivalent exists and ΔE ≥ UNIQUE_THRESHOLD_DE)
+   * }
+   */
+  function proposeConversion(palette, sourceBrand, targetBrand) {
+    var srcArr = sourceBrand === 'anchor'
+      ? (typeof ANCHOR !== 'undefined' ? ANCHOR : [])
+      : (typeof DMC !== 'undefined' ? DMC : []);
+    var tgtArr = targetBrand === 'anchor'
+      ? (typeof ANCHOR !== 'undefined' ? ANCHOR : [])
+      : (typeof DMC !== 'undefined' ? DMC : []);
+
+    var tgtMap = {};
+    tgtArr.forEach(function (t) { tgtMap[t.id] = t; });
+
+    var uniqueThresh = typeof UNIQUE_THRESHOLD_DE !== 'undefined' ? UNIQUE_THRESHOLD_DE : 5;
+    var distFn = typeof dE2000 === 'function' ? dE2000 : null;
+
+    var proposals = [];
+
+    // Deduplicate source IDs
+    var seenIds = {};
+    var sourceIds = [];
+    palette.forEach(function (cell) {
+      if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') return;
+      // Strip blend IDs (e.g. "310+550") — take first component
+      var id = cell.id.indexOf('+') >= 0 ? cell.id.split('+')[0] : cell.id;
+      if (!seenIds[id]) { seenIds[id] = true; sourceIds.push(id); }
+    });
+
+    sourceIds.forEach(function (srcId) {
+      var srcThread = srcArr.find(function (d) { return d.id === srcId; });
+      if (!srcThread) return; // unknown ID — skip
+
+      var proposal = {
+        sourceId: srcId,
+        sourceName: srcThread.name,
+        sourceRgb: srcThread.rgb,
+        target: null,
+        isUnique: false,
+      };
+
+      // 1. Try official mapping
+      var officialMatch = typeof getOfficialMatch === 'function'
+        ? getOfficialMatch(sourceBrand, srcId, targetBrand)
+        : null;
+
+      if (officialMatch && tgtMap[officialMatch.id]) {
+        var tgt = tgtMap[officialMatch.id];
+        var labSrc = srcThread.lab || (typeof rgbToLab === 'function' ? rgbToLab(srcThread.rgb[0], srcThread.rgb[1], srcThread.rgb[2]) : null);
+        var labTgt = tgt.lab || (typeof rgbToLab === 'function' ? rgbToLab(tgt.rgb[0], tgt.rgb[1], tgt.rgb[2]) : null);
+        var de = distFn && labSrc && labTgt ? distFn(labSrc, labTgt) : 0;
+        proposal.target = {
+          id: officialMatch.id,
+          name: tgt.name,
+          rgb: tgt.rgb,
+          brand: targetBrand,
+          compositeKey: targetBrand + ':' + officialMatch.id,
+          confidence: officialMatch.confidence,
+          deltaE: Math.round(de * 10) / 10,
+        };
+        proposals.push(proposal);
+        return;
+      }
+
+      // 2. Nearest-colour fallback
+      if (!distFn || tgtArr.length === 0) {
+        proposal.isUnique = true;
+        proposals.push(proposal);
+        return;
+      }
+
+      var labSrc = srcThread.lab || (typeof rgbToLab === 'function' ? rgbToLab(srcThread.rgb[0], srcThread.rgb[1], srcThread.rgb[2]) : null);
+      if (!labSrc) { proposal.isUnique = true; proposals.push(proposal); return; }
+
+      var bestDe = Infinity, bestTgt = null;
+      tgtArr.forEach(function (t) {
+        var labT = t.lab || (typeof rgbToLab === 'function' ? rgbToLab(t.rgb[0], t.rgb[1], t.rgb[2]) : null);
+        if (!labT) return;
+        var de = distFn(labSrc, labT);
+        if (de < bestDe) { bestDe = de; bestTgt = t; }
+      });
+
+      if (bestTgt && bestDe < uniqueThresh * 4) {
+        proposal.target = {
+          id: bestTgt.id,
+          name: bestTgt.name,
+          rgb: bestTgt.rgb,
+          brand: targetBrand,
+          compositeKey: targetBrand + ':' + bestTgt.id,
+          confidence: 'nearest',
+          deltaE: Math.round(bestDe * 10) / 10,
+        };
+        proposal.isUnique = bestDe >= uniqueThresh;
+      } else {
+        proposal.isUnique = true;
+      }
+
+      proposals.push(proposal);
+    });
+
+    return proposals;
+  }
+
+  window.proposeConversion = proposeConversion;
+
+  // ─── React UI Component ─────────────────────────────────────────────────────
+
+  function ConfidenceBadge({ confidence }) {
+    var colours = {
+      official: { bg: '#dcfce7', text: '#166534', label: 'Official' },
+      reconciled: { bg: '#fef9c3', text: '#854d0e', label: 'Reconciled' },
+      'single-source': { bg: '#fef3c7', text: '#92400e', label: 'Single source' },
+      nearest: { bg: '#f1f5f9', text: '#475569', label: 'Nearest colour' },
+    };
+    var c = colours[confidence] || colours.nearest;
+    return React.createElement('span', {
+      style: { fontSize: 10, fontWeight: 700, background: c.bg, color: c.text, borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap' }
+    }, c.label);
+  }
+
+  function ConvertPaletteModal({ onClose, onApply }) {
+    var pd = typeof usePatternData === 'function' ? usePatternData() : null;
+    var pattern = pd ? pd.pattern : [];
+    var [targetBrand, setTargetBrand] = useState('anchor');
+    var [userOverrides, setUserOverrides] = useState({}); // sourceId → target id (bare brand id)
+    var [searchQuery, setSearchQuery] = useState('');
+
+    var proposals = useMemo(function () {
+      if (!pattern || pattern.length === 0) return [];
+      return proposeConversion(pattern, 'dmc', targetBrand);
+    }, [pattern, targetBrand]);
+
+    var tgtArr = targetBrand === 'anchor'
+      ? (typeof ANCHOR !== 'undefined' ? ANCHOR : [])
+      : (typeof DMC !== 'undefined' ? DMC : []);
+
+    var uniqueCount = proposals.filter(function (p) { return p.isUnique && !userOverrides[p.sourceId]; }).length;
+
+    function handleOverrideChange(sourceId, newTargetId) {
+      setUserOverrides(function (prev) {
+        if (!newTargetId) {
+          var next = Object.assign({}, prev);
+          delete next[sourceId];
+          return next;
+        }
+        return Object.assign({}, prev, { [sourceId]: newTargetId });
+      });
+    }
+
+    function handleApply() {
+      // Build remap: { [sourceBareId]: { id: targetBareId, brand: targetBrand, rgb, name } }
+      var remap = {};
+      proposals.forEach(function (p) {
+        var overrideId = userOverrides[p.sourceId];
+        var effectiveTarget = overrideId
+          ? tgtArr.find(function (t) { return t.id === overrideId; })
+          : (p.target && tgtArr.find(function (t) { return t.id === p.target.id; }));
+        if (effectiveTarget) {
+          remap[p.sourceId] = {
+            id: effectiveTarget.id,
+            brand: targetBrand,
+            compositeKey: targetBrand + ':' + effectiveTarget.id,
+            name: effectiveTarget.name,
+            rgb: effectiveTarget.rgb,
+          };
+        }
+      });
+      if (typeof onApply === 'function') onApply(remap);
+    }
+
+    var filtered = searchQuery
+      ? proposals.filter(function (p) {
+          var q = searchQuery.toLowerCase();
+          return p.sourceId.includes(q) || p.sourceName.toLowerCase().includes(q)
+            || (p.target && (p.target.id.includes(q) || p.target.name.toLowerCase().includes(q)));
+        })
+      : proposals;
+
+    return React.createElement('div', { className: 'modal-overlay', onClick: function (e) { if (e.target === e.currentTarget) onClose(); } },
+      React.createElement('div', { className: 'modal-box', style: { maxWidth: 640, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' } },
+        React.createElement('div', { className: 'modal-header' },
+          React.createElement('div', { className: 'modal-title' }, 'Convert Palette'),
+          React.createElement('button', { className: 'modal-close', onClick: onClose }, '×')
+        ),
+        React.createElement('div', { style: { padding: '12px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
+          React.createElement('span', { style: { fontSize: 13, color: '#475569', fontWeight: 600 } }, 'Convert to:'),
+          ['anchor', 'dmc'].map(function (brand) {
+            return React.createElement('button', {
+              key: brand,
+              className: 'mgr-chip' + (targetBrand === brand ? ' on' : ''),
+              onClick: function () { setTargetBrand(brand); setUserOverrides({}); }
+            }, brand === 'anchor' ? 'Anchor' : 'DMC');
+          }),
+          React.createElement('input', {
+            type: 'text',
+            placeholder: 'Search…',
+            value: searchQuery,
+            onChange: function (e) { setSearchQuery(e.target.value); },
+            style: { marginLeft: 'auto', padding: '4px 8px', fontSize: 12, border: '1px solid #e2e8f0', borderRadius: 6, width: 140 }
+          })
+        ),
+        uniqueCount > 0 && React.createElement('div', {
+          style: { padding: '8px 20px', background: '#fef3c7', borderBottom: '1px solid #fde68a', fontSize: 12, color: '#92400e' }
+        }, uniqueCount + ' thread' + (uniqueCount === 1 ? '' : 's') + ' ha' + (uniqueCount === 1 ? 's' : 've') + ' no close equivalent in ' + (targetBrand === 'anchor' ? 'Anchor' : 'DMC') + '. Review and choose substitutes manually.'),
+        React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '8px 12px' } },
+          filtered.length === 0
+            ? React.createElement('div', { style: { textAlign: 'center', padding: '32px 16px', color: '#94a3b8', fontSize: 13 } }, 'No threads in the current pattern.')
+            : filtered.map(function (p) {
+                var overrideId = userOverrides[p.sourceId];
+                var effectiveTgt = overrideId
+                  ? tgtArr.find(function (t) { return t.id === overrideId; })
+                  : p.target && tgtArr.find(function (t) { return t.id === p.target.id; });
+                var de = (overrideId && effectiveTgt && p.target) ? null : (p.target ? p.target.deltaE : null);
+                var noMatch = !effectiveTgt;
+
+                return React.createElement('div', {
+                  key: p.sourceId,
+                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 6, marginBottom: 4, background: noMatch ? '#fff7ed' : '#f8fafc', border: '1px solid ' + (noMatch ? '#fed7aa' : '#e2e8f0') }
+                },
+                  // Source swatch + label
+                  React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + p.sourceRgb + ')', border: '1px solid #cbd5e1', flexShrink: 0 } }),
+                  React.createElement('span', { style: { fontSize: 12, fontWeight: 600, width: 80, flexShrink: 0 } }, 'DMC ', p.sourceId),
+                  React.createElement('span', { style: { fontSize: 11, color: '#64748b', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.sourceName),
+                  React.createElement('span', { style: { color: '#94a3b8', fontSize: 13 } }, '→'),
+                  // Target swatch + label (or dropdown)
+                  effectiveTgt
+                    ? React.createElement(React.Fragment, null,
+                        React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + effectiveTgt.rgb + ')', border: '1px solid #cbd5e1', flexShrink: 0 } }),
+                        React.createElement('span', { style: { fontSize: 12, fontWeight: 600, width: 80, flexShrink: 0, color: targetBrand === 'anchor' ? '#0369a1' : '#333' } },
+                          (targetBrand === 'anchor' ? 'Anch ' : 'DMC '), effectiveTgt.id
+                        )
+                      )
+                    : React.createElement('span', { style: { fontSize: 11, color: '#f59e0b', fontWeight: 600 } }, 'No match'),
+                  // Confidence badge (only for official proposals, not overrides)
+                  !overrideId && p.target && React.createElement(ConfidenceBadge, { confidence: p.target.confidence }),
+                  // ΔE
+                  de != null && React.createElement('span', { style: { fontSize: 10, color: '#94a3b8', flexShrink: 0 } }, 'ΔE ' + de),
+                  // Override select
+                  React.createElement('select', {
+                    style: { fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid #e2e8f0', background: '#fff', maxWidth: 90 },
+                    value: overrideId || (effectiveTgt ? effectiveTgt.id : ''),
+                    onChange: function (e) { handleOverrideChange(p.sourceId, e.target.value || null); }
+                  },
+                    !effectiveTgt && React.createElement('option', { value: '' }, '— choose —'),
+                    tgtArr.slice(0, 500).map(function (t) {
+                      return React.createElement('option', { key: t.id, value: t.id }, (targetBrand === 'anchor' ? 'A ' : 'DMC ') + t.id + ' ' + t.name.slice(0, 18));
+                    })
+                  )
+                );
+              })
+        ),
+        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 10, justifyContent: 'flex-end' } },
+          React.createElement('button', { className: 'g-btn', onClick: onClose }, 'Cancel'),
+          React.createElement('button', { className: 'g-btn primary', onClick: handleApply, disabled: proposals.length === 0 },
+            'Apply Conversion (' + proposals.length + ' threads)'
+          )
+        )
+      )
+    );
+  }
+
+  window.ConvertPaletteModal = ConvertPaletteModal;
+  return ConvertPaletteModal;
+})();
+
+
+/* ─── BulkAddModal.js ─── */
+/* creator/BulkAddModal.js — Bulk-add threads to the stash
+   Two tabs: "Paste list" and "From a kit".
+   Unrecognised thread IDs are shown in red with a × button to remove.
+
+   Depends on globals:
+     React (CDN), DMC, ANCHOR (optional), STARTER_KITS (starter-kits.js),
+     StashBridge (stash-bridge.js), threadKey (helpers.js) */
+
+window.BulkAddModal = (function () {
+  const { useState, useMemo, useCallback } = React;
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  /**
+   * Parse a free-text list of thread IDs.
+   * Accepts comma, space, newline, semicolon delimiters.
+   * Strips 'DMC', 'Anch', 'Anchor' prefixes (case-insensitive).
+   * Returns array of { raw: string, normalised: string } entries.
+   */
+  function parseBulkThreadList(text, brand) {
+    brand = brand || 'dmc';
+    return text
+      .split(/[\s,;\n]+/)
+      .map(function (token) { return token.trim(); })
+      .filter(function (token) { return token.length > 0; })
+      .map(function (token) {
+        // Strip brand prefix
+        var clean = token
+          .replace(/^anchor\s*/i, '')
+          .replace(/^anch\.?\s*/i, '')
+          .replace(/^dmc\.?\s*/i, '')
+          .replace(/^#/, '');
+        return { raw: token, normalised: clean };
+      })
+      .filter(function (r) { return r.normalised.length > 0; });
+  }
+
+  window.parseBulkThreadList = parseBulkThreadList;
+
+  function resolveIds(entries, brand) {
+    var arr = brand === 'anchor'
+      ? (typeof ANCHOR !== 'undefined' ? ANCHOR : [])
+      : (typeof DMC !== 'undefined' ? DMC : []);
+    var byId = {};
+    arr.forEach(function (t) { byId[t.id] = t; });
+
+    return entries.map(function (e) {
+      var thread = byId[e.normalised] || byId[e.normalised.toUpperCase()] || null;
+      return { raw: e.raw, normalised: e.normalised, thread: thread, valid: !!thread };
+    });
+  }
+
+  // ─── Sub-components ─────────────────────────────────────────────────────────
+
+  function ThreadChip({ item, brand, onRemove }) {
+    if (!item.valid) {
+      return React.createElement('span', {
+        style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', margin: '2px 3px' }
+      },
+        React.createElement('span', null, brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised, '\u00a0\u2014 not found'),
+        React.createElement('button', {
+          onClick: function () { onRemove(item.raw); },
+          style: { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 13, fontWeight: 700, marginLeft: 2 }
+        }, '×')
+      );
+    }
+    var swatch = React.createElement('span', {
+      style: { width: 12, height: 12, borderRadius: 2, background: 'rgb(' + item.thread.rgb + ')', border: '1px solid rgba(0,0,0,0.12)', flexShrink: 0 }
+    });
+    return React.createElement('span', {
+      style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#f0fdf4', color: '#166534', border: '1px solid #86efac', margin: '2px 3px' }
+    },
+      swatch,
+      brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised,
+      React.createElement('button', {
+        onClick: function () { onRemove(item.raw); },
+        style: { background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 13, fontWeight: 700, marginLeft: 2 }
+      }, '×')
+    );
+  }
+
+  // ─── Main modal ─────────────────────────────────────────────────────────────
+
+  function BulkAddModal({ onClose }) {
+    var [activeTab, setActiveTab] = useState('paste');  // 'paste' | 'kit'
+    var [brand, setBrand] = useState('dmc');
+    var [pasteText, setPasteText] = useState('');
+    var [removedRaws, setRemovedRaws] = useState([]);   // raw tokens removed by user
+    var [kitBrand, setKitBrand] = useState('dmc');
+    var [selectedKit, setSelectedKit] = useState('essentials');
+    var [kitRemovedIds, setKitRemovedIds] = useState({}); // { normalised: true }
+    var [saving, setSaving] = useState(false);
+    var [done, setDone] = useState(false);
+
+    // ── Paste tab logic ──────────────────────────────────────────────────────
+    var pasteResolved = useMemo(function () {
+      var raw = parseBulkThreadList(pasteText, brand);
+      var resolved = resolveIds(raw, brand);
+      // Remove duplicates by normalised id
+      var seen = {};
+      return resolved.filter(function (r) {
+        if (seen[r.normalised]) return false;
+        seen[r.normalised] = true;
+        return true;
+      }).filter(function (r) { return removedRaws.indexOf(r.raw) === -1; });
+    }, [pasteText, brand, removedRaws]);
+
+    function removePasteEntry(rawToken) {
+      setRemovedRaws(function (prev) { return prev.concat(rawToken); });
+    }
+
+    // ── Kit tab logic ────────────────────────────────────────────────────────
+    var kits = typeof STARTER_KITS !== 'undefined' ? (STARTER_KITS[kitBrand] || {}) : {};
+    var kitKeys = Object.keys(kits);
+
+    var kitResolved = useMemo(function () {
+      var kit = kits[selectedKit];
+      if (!kit) return [];
+      var arr = kitBrand === 'anchor'
+        ? (typeof ANCHOR !== 'undefined' ? ANCHOR : [])
+        : (typeof DMC !== 'undefined' ? DMC : []);
+      var byId = {};
+      arr.forEach(function (t) { byId[t.id] = t; });
+      return kit.ids
+        .filter(function (id) { return !kitRemovedIds[id]; })
+        .map(function (id) {
+          var thread = byId[id] || null;
+          return { raw: id, normalised: id, thread: thread, valid: !!thread };
+        });
+    }, [kitBrand, selectedKit, kitRemovedIds]);
+
+    function removeKitEntry(id) {
+      setKitRemovedIds(function (prev) { return Object.assign({}, prev, { [id]: true }); });
+    }
+
+    // ── Save action ──────────────────────────────────────────────────────────
+    async function handleAdd() {
+      var items = activeTab === 'paste' ? pasteResolved : kitResolved;
+      var validItems = items.filter(function (i) { return i.valid; });
+      if (validItems.length === 0) return;
+      if (!window.StashBridge) { alert('StashBridge is not available. Make sure stash-bridge.js is loaded.'); return; }
+
+      setSaving(true);
+      try {
+        var stash = await StashBridge.getGlobalStash();
+        var activeBrand = activeTab === 'paste' ? brand : kitBrand;
+        for (var i = 0; i < validItems.length; i++) {
+          var item = validItems[i];
+          var key = typeof threadKey === 'function'
+            ? threadKey(activeBrand, item.normalised)
+            : (activeBrand + ':' + item.normalised);
+          var existing = stash[key] || { owned: 0, tobuy: 0 };
+          // Only set to 1 if not already tracked — don't overwrite existing counts
+          if (!existing.owned && !existing.tobuy) {
+            await StashBridge.updateThreadOwned(key, 1);
+          }
+        }
+        setDone(true);
+      } catch (e) {
+        console.error('BulkAddModal: save failed', e);
+        alert('Failed to save: ' + e.message);
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    var activeItems = activeTab === 'paste' ? pasteResolved : kitResolved;
+    var validCount = activeItems.filter(function (i) { return i.valid; }).length;
+    var invalidCount = activeItems.filter(function (i) { return !i.valid; }).length;
+
+    if (done) {
+      return React.createElement('div', { className: 'modal-overlay', onClick: function (e) { if (e.target === e.currentTarget) onClose(); } },
+        React.createElement('div', { className: 'modal-box', style: { maxWidth: 440, width: '90vw', padding: '32px 24px', textAlign: 'center' } },
+          React.createElement('div', { style: { fontSize: 36, marginBottom: 12 } }, '✓'),
+          React.createElement('div', { style: { fontSize: 16, fontWeight: 700, marginBottom: 8 } }, validCount + ' thread' + (validCount === 1 ? '' : 's') + ' added to your stash'),
+          React.createElement('button', { className: 'g-btn primary', onClick: onClose }, 'Done')
+        )
+      );
+    }
+
+    return React.createElement('div', { className: 'modal-overlay', onClick: function (e) { if (e.target === e.currentTarget) onClose(); } },
+      React.createElement('div', { className: 'modal-box', style: { maxWidth: 560, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' } },
+        // Header
+        React.createElement('div', { className: 'modal-header' },
+          React.createElement('div', { className: 'modal-title' }, 'Bulk Add to Stash'),
+          React.createElement('button', { className: 'modal-close', onClick: onClose }, '×')
+        ),
+        // Tabs
+        React.createElement('div', { style: { display: 'flex', borderBottom: '1px solid #e2e8f0', padding: '0 20px' } },
+          ['paste', 'kit'].map(function (tab) {
+            return React.createElement('button', {
+              key: tab,
+              onClick: function () { setActiveTab(tab); },
+              style: {
+                padding: '10px 16px', fontSize: 13, fontWeight: 600, border: 'none', background: 'none', cursor: 'pointer',
+                borderBottom: activeTab === tab ? '2px solid #6366f1' : '2px solid transparent',
+                color: activeTab === tab ? '#6366f1' : '#64748b'
+              }
+            }, tab === 'paste' ? 'Paste list' : 'From a kit');
+          })
+        ),
+        // Tab content
+        React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: 20 } },
+          activeTab === 'paste' && React.createElement(React.Fragment, null,
+            // Brand selector
+            React.createElement('div', { style: { display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' } },
+              React.createElement('span', { style: { fontSize: 12, fontWeight: 600, color: '#475569' } }, 'Brand:'),
+              ['dmc', 'anchor'].map(function (b) {
+                return React.createElement('button', {
+                  key: b,
+                  className: 'mgr-chip' + (brand === b ? ' on' : ''),
+                  onClick: function () { setBrand(b); setPasteText(''); setRemovedRaws([]); }
+                }, b === 'anchor' ? 'Anchor' : 'DMC');
+              })
+            ),
+            React.createElement('textarea', {
+              placeholder: 'Paste ' + (brand === 'anchor' ? 'Anchor' : 'DMC') + ' thread IDs here, separated by commas, spaces, or new lines.\nExample: 310, 321, blanc, 3865',
+              value: pasteText,
+              onChange: function (e) { setPasteText(e.target.value); setRemovedRaws([]); },
+              rows: 5,
+              style: { width: '100%', fontSize: 13, padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'monospace' }
+            }),
+            pasteResolved.length > 0 && React.createElement('div', { style: { marginTop: 12 } },
+              React.createElement('div', { style: { fontSize: 11, color: '#64748b', marginBottom: 6 } },
+                validCount + ' valid' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised (click × to remove)' : '')
+              ),
+              pasteResolved.map(function (item) {
+                return React.createElement(ThreadChip, { key: item.raw, item: item, brand: brand, onRemove: removePasteEntry });
+              })
+            )
+          ),
+          activeTab === 'kit' && React.createElement(React.Fragment, null,
+            React.createElement('div', { style: { display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' } },
+              React.createElement('span', { style: { fontSize: 12, fontWeight: 600, color: '#475569' } }, 'Brand:'),
+              ['dmc', 'anchor'].map(function (b) {
+                return React.createElement('button', {
+                  key: b,
+                  className: 'mgr-chip' + (kitBrand === b ? ' on' : ''),
+                  onClick: function () { setKitBrand(b); setSelectedKit(Object.keys(typeof STARTER_KITS !== 'undefined' ? (STARTER_KITS[b] || {}) : {})[0] || 'essentials'); setKitRemovedIds({}); }
+                }, b === 'anchor' ? 'Anchor' : 'DMC');
+              })
+            ),
+            kitKeys.length > 0 && React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 } },
+              kitKeys.map(function (key) {
+                var kit = kits[key];
+                return React.createElement('button', {
+                  key: key,
+                  className: 'mgr-chip' + (selectedKit === key ? ' on' : ''),
+                  onClick: function () { setSelectedKit(key); setKitRemovedIds({}); }
+                }, kit.label);
+              })
+            ),
+            kitResolved.length > 0 && React.createElement(React.Fragment, null,
+              React.createElement('div', { style: { fontSize: 11, color: '#64748b', marginBottom: 6 } },
+                validCount + ' threads in this kit' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised' : '')
+              ),
+              React.createElement('div', { style: { lineHeight: 2 } },
+                kitResolved.map(function (item) {
+                  return React.createElement(ThreadChip, { key: item.raw, item: item, brand: kitBrand, onRemove: removeKitEntry });
+                })
+              )
+            ),
+            kitKeys.length === 0 && React.createElement('div', { style: { fontSize: 13, color: '#94a3b8', padding: '24px 0' } }, 'No starter kits available for this brand.')
+          )
+        ),
+        // Footer
+        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' } },
+          invalidCount > 0 && React.createElement('span', { style: { fontSize: 12, color: '#f59e0b', marginRight: 'auto' } },
+            invalidCount + ' unrecognised thread' + (invalidCount === 1 ? '' : 's') + ' will be skipped'
+          ),
+          React.createElement('button', { className: 'g-btn', onClick: onClose }, 'Cancel'),
+          React.createElement('button', {
+            className: 'g-btn primary',
+            onClick: handleAdd,
+            disabled: saving || validCount === 0
+          }, saving ? 'Saving…' : 'Add ' + validCount + ' thread' + (validCount === 1 ? '' : 's'))
+        )
+      )
+    );
+  }
+
+  window.BulkAddModal = BulkAddModal;
+  return BulkAddModal;
+})();
 
 
 /* ─── Sidebar.js ─── */
@@ -10608,7 +11220,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 window.CreatorProjectTab = function CreatorProjectTab() {
   var ctx = window.usePatternData();
   var app = window.useApp();
+  var cv  = window.useCanvas();
   var h = React.createElement;
+  var _cvtOpen = React.useState(false); var convertOpen = _cvtOpen[0], setConvertOpen = _cvtOpen[1];
 
   if (!(ctx.pat && ctx.pal)) return null;
   if (app.tab !== "project") return null;
@@ -10934,7 +11548,16 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             });
           },
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}
-        }, "Kit This Project")
+        }, "Kit This Project"),
+        typeof window.ConvertPaletteModal !== "undefined"
+          ? h("button", {
+              onClick: function() { setConvertOpen(true); },
+              disabled: !ctx.pat || !ctx.pal || ctx.pal.length === 0,
+              title: "Convert this pattern's palette between DMC and Anchor thread brands",
+              style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontWeight:600,
+                opacity:(!ctx.pat || !ctx.pal || ctx.pal.length === 0) ? 0.5 : 1}
+            }, "Convert Palette")
+          : null
       ),
       ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8f9fa",fontSize:12}},
         h("div", {style:{fontWeight:700,marginBottom:4}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
@@ -10999,6 +11622,57 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     renderThreadOrganiser(),
     typeof window.SubstituteFromStashModal !== "undefined"
       ? h(window.SubstituteFromStashModal, null)
+      : null,
+    convertOpen && typeof window.ConvertPaletteModal !== "undefined"
+      ? h(window.ConvertPaletteModal, {
+          onClose: function() { setConvertOpen(false); },
+          onApply: function(remap) {
+            var np = ctx.pat.slice();
+            var changes = [];
+            for (var i = 0; i < np.length; i++) {
+              var cell = np[i];
+              if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+              if (cell.type === "blend" && cell.threads) {
+                var needsChange = false;
+                var newThreads = cell.threads.map(function(t) {
+                  if (remap[t.id]) { needsChange = true; return {id:remap[t.id].compositeKey,type:"solid",name:remap[t.id].name,rgb:remap[t.id].rgb,brand:remap[t.id].brand}; }
+                  return t;
+                });
+                if (needsChange) {
+                  changes.push({idx:i, old:Object.assign({},cell)});
+                  var newBlendId = newThreads.map(function(t){return t.id;}).sort().join("+");
+                  np[i] = Object.assign({},cell,{id:newBlendId,threads:newThreads,rgb:[
+                    Math.round((newThreads[0].rgb[0]+newThreads[1].rgb[0])/2),
+                    Math.round((newThreads[0].rgb[1]+newThreads[1].rgb[1])/2),
+                    Math.round((newThreads[0].rgb[2]+newThreads[1].rgb[2])/2)]});
+                }
+                continue;
+              }
+              if (remap[cell.id]) {
+                changes.push({idx:i, old:Object.assign({},cell)});
+                np[i] = {id:remap[cell.id].compositeKey, type:"solid", name:remap[cell.id].name, rgb:remap[cell.id].rgb, brand:remap[cell.id].brand};
+              }
+            }
+            if (changes.length === 0) {
+              app.addToast("No cells were changed.", {type:"info", duration:2000});
+              setConvertOpen(false);
+              return;
+            }
+            cv.setEditHistory(function(prev) {
+              var entry = {type:"paletteConversion", changes:changes};
+              var n = prev.concat([entry]);
+              if (n.length > (cv.EDIT_HISTORY_MAX || 100)) n = n.slice(n.length - (cv.EDIT_HISTORY_MAX || 100));
+              return n;
+            });
+            cv.setRedoHistory([]);
+            ctx.setPat(np);
+            var result = ctx.buildPaletteWithScratch(np);
+            ctx.setPal(result.pal);
+            ctx.setCmap(result.cmap);
+            setConvertOpen(false);
+            app.addToast(changes.length + " stitches converted. Ctrl+Z to undo.", {type:"success", duration:4000});
+          }
+        })
       : null
   );
 };

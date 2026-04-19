@@ -29,6 +29,8 @@ const ORDER = [
   'ToolStrip.js',
   'MagicWandPanel.js',
   'SubstituteFromStashModal.js',
+  'ConvertPaletteModal.js',
+  'BulkAddModal.js',
   'Sidebar.js',
   'Toast.js',
   'ContextMenu.js',

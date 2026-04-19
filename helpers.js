@@ -657,7 +657,7 @@ function getDailyStitchData(sessions, daysToShow, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
   var data = [];
   for (var i = daysToShow - 1; i >= 0; i--) {
-    var d = new Date();
+    var d = new Date(today + 'T12:00:00');
     d.setDate(d.getDate() - i);
     var y = d.getFullYear();
     var m = ('0' + (d.getMonth() + 1)).slice(-2);
@@ -744,6 +744,9 @@ function computeStreaks(sessions, dayEndHour) {
 
   var today = getStitchingDate(new Date(), dayEndHour || 0);
   var yesterdayD = new Date();
+  if ((dayEndHour || 0) > 0 && yesterdayD.getHours() < (dayEndHour || 0)) {
+    yesterdayD.setDate(yesterdayD.getDate() - 1);
+  }
   yesterdayD.setDate(yesterdayD.getDate() - 1);
   var ey = yesterdayD.getFullYear();
   var em = ('0' + (yesterdayD.getMonth() + 1)).slice(-2);
@@ -1090,3 +1093,49 @@ function subtractOneDay(dateStr){var d=new Date(dateStr+'T12:00:00');d.setDate(d
 function dayDiff(a,b){return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);}
 function formatHour(h){if(h===0)return'12am';if(h<12)return h+'am';if(h===12)return'12pm';return(h-12)+'pm';}
 function formatDateReadable(dateStr){return new Date(dateStr+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}
+
+// ═══ Thread composite-key helpers ═══
+// threadKey('dmc','310') → 'dmc:310'
+function threadKey(brand,id){return brand+':'+id;}
+if(typeof window!=='undefined')window.threadKey=threadKey;
+
+// parseThreadKey('dmc:310') → {brand:'dmc',id:'310'}
+// parseThreadKey('310')     → {brand:'dmc',id:'310'}  ← legacy bare key falls back to DMC
+function parseThreadKey(key){
+  if(typeof key!=='string')return{brand:'dmc',id:String(key)};
+  var i=key.indexOf(':');
+  if(i<0)return{brand:'dmc',id:key};
+  return{brand:key.slice(0,i),id:key.slice(i+1)};
+}
+if(typeof window!=='undefined')window.parseThreadKey=parseThreadKey;
+
+// Looks up the thread object by composite key; returns null if not found.
+function getThreadByKey(key){
+  var p=parseThreadKey(key);
+  if(p.brand==='anchor'){
+    if(typeof ANCHOR!=='undefined'){
+      return ANCHOR.find(function(t){return t.id===p.id;})||null;
+    }
+    return null;
+  }
+  if(typeof DMC!=='undefined'){
+    return DMC.find(function(t){return t.id===p.id;})||null;
+  }
+  return null;
+}
+if(typeof window!=='undefined')window.getThreadByKey=getThreadByKey;
+
+// classifyMatch(deltaE, isOfficial)
+// Returns {kind, deltaE, label} where kind is 'exact'|'near'|'different'|'distant'.
+// Thresholds: exact ≤2, near ≤5 (UNIQUE_THRESHOLD_DE), different ≤10, else distant.
+function classifyMatch(deltaE,isOfficial){
+  var thresh=typeof UNIQUE_THRESHOLD_DE!=='undefined'?UNIQUE_THRESHOLD_DE:5;
+  var kind,label;
+  if(isOfficial&&deltaE<=thresh){kind='exact';label='Official match';}
+  else if(deltaE<=2){kind='exact';label='Near-identical';}
+  else if(deltaE<=thresh){kind='near';label='Close match';}
+  else if(deltaE<=10){kind='different';label='Approximate match';}
+  else{kind='distant';label='Distant match';}
+  return{kind:kind,deltaE:deltaE,label:label};
+}
+if(typeof window!=='undefined')window.classifyMatch=classifyMatch;

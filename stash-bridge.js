@@ -3,6 +3,77 @@
 // Shared read layer used by Creator, Tracker, and Stash Manager pages.
 
 const StashBridge = (() => {
+  // Normalise a bare DMC id like '310' to the composite key 'dmc:310'.
+  // Composite keys already containing ':' are returned unchanged.
+  function _normaliseKey(keyOrId) {
+    if (typeof keyOrId !== 'string') keyOrId = String(keyOrId);
+    return keyOrId.indexOf(':') < 0 ? 'dmc:' + keyOrId : keyOrId;
+  }
+
+  function _getOwnedCount(threadsData, key, fallbackId) {
+    const byKey = (threadsData[key] || {}).owned || 0;
+    if (byKey > 0) return byKey;
+    return (threadsData[fallbackId] || {}).owned || 0;
+  }
+
+  function _parseThreadKey(key) {
+    if (key.indexOf(':') < 0) return { brand: 'dmc', id: key };
+    const parts = key.split(':');
+    const brand = parts[0];
+    const id = parts.slice(1).join(':');
+    if (!id) return { brand: 'dmc', id: key };
+    return { brand: brand, id: id };
+  }
+
+  function _getThreadInfoByKey(key) {
+    if (typeof getThreadByKey === "function") return getThreadByKey(key);
+    const parsed = _parseThreadKey(key);
+    if (parsed.brand === "anchor") {
+      return typeof ANCHOR !== "undefined" ? ANCHOR.find(x => x.id === parsed.id) : null;
+    }
+    return typeof DMC !== "undefined" ? DMC.find(x => x.id === parsed.id) : null;
+  }
+
+  let _migrationDone = false;
+
+  // One-time migration: converts legacy bare DMC keys (e.g. "310") in the
+  // "threads" store to composite keys (e.g. "dmc:310").
+  async function migrateSchemaToV2() {
+    if (_migrationDone) return;
+    try {
+      const db = await openManagerDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction("manager_state", "readwrite");
+        const store = tx.objectStore("manager_state");
+        const req = store.get("threads");
+        req.onsuccess = () => {
+          const threads = req.result || {};
+          let changed = false;
+          const migrated = {};
+          for (const [key, val] of Object.entries(threads)) {
+            if (key.indexOf(':') < 0) {
+              migrated['dmc:' + key] = val;
+              changed = true;
+            } else {
+              migrated[key] = val;
+            }
+          }
+          if (changed) {
+            store.put(migrated, "threads");
+            tx.oncomplete = () => { _migrationDone = true; resolve(); };
+            tx.onerror = () => reject(tx.error);
+          } else {
+            _migrationDone = true;
+            resolve();
+          }
+        };
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn('StashBridge: schema migration failed', e);
+    }
+  }
+
   function openManagerDB() {
     return new Promise((resolve, reject) => {
       if (typeof ensurePersistence === 'function') ensurePersistence();
@@ -19,8 +90,11 @@ const StashBridge = (() => {
   }
 
   return {
-    // Returns { [dmcId]: { owned: number, tobuy: bool, partialStatus: string|null } }
+    migrateSchemaToV2,
+
+    // Returns { [compositeKey]: { owned: number, tobuy: bool, partialStatus: string|null } }
     async getGlobalStash() {
+      await migrateSchemaToV2();
       try {
         const db = await openManagerDB();
         return new Promise((resolve, reject) => {
@@ -36,8 +110,24 @@ const StashBridge = (() => {
       }
     },
 
-    // Updates a single thread's owned count in the global stash
+    // Returns threads filtered by brand from the composite-keyed stash.
+    // brand: 'dmc' | 'anchor' | undefined (all)
+    async getStashByBrand(brand) {
+      const all = await StashBridge.getGlobalStash();
+      if (!brand) return all;
+      const result = {};
+      for (const [key, val] of Object.entries(all)) {
+        const colon = key.indexOf(':');
+        const keyBrand = colon < 0 ? 'dmc' : key.slice(0, colon);
+        if (keyBrand === brand) result[key] = val;
+      }
+      return result;
+    },
+
+    // Updates a single thread's owned count in the global stash.
+    // Accepts composite keys ('dmc:310') or bare legacy IDs ('310').
     async updateThreadOwned(dmcId, newCount) {
+      const key = _normaliseKey(dmcId);
       try {
         const db = await openManagerDB();
         return new Promise((resolve, reject) => {
@@ -46,8 +136,8 @@ const StashBridge = (() => {
           const req = store.get("threads");
           req.onsuccess = () => {
             const threads = req.result || {};
-            if (!threads[dmcId]) threads[dmcId] = { owned: 0, tobuy: false, partialStatus: null };
-            threads[dmcId].owned = newCount;
+            if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
+            threads[key].owned = newCount;
             store.put(threads, "threads");
             tx.oncomplete = () => resolve();
           };
@@ -154,22 +244,26 @@ const StashBridge = (() => {
         ]);
         // Only consider active patterns (owned, inprogress, wishlist — exclude completed)
         const active = patternsData.filter(p => p.status !== "completed");
-        const demand = {}; // { dmcId: { total, patterns: [{title, qty}] } }
+        const demand = {}; // { threadKey: { total, patterns: [{title, qty}] } }
         for (const pat of active) {
           if (!pat.threads) continue;
           for (const t of pat.threads) {
-            if (!demand[t.id]) demand[t.id] = { total: 0, patterns: [] };
+            const key = _normaliseKey(t.id);
+            if (!demand[key]) demand[key] = { total: 0, patterns: [] };
             const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, 14) : Math.ceil(t.qty / 200)) : t.qty;
-            demand[t.id].total += skeins;
-            demand[t.id].patterns.push({ title: pat.title, qty: skeins });
+            demand[key].total += skeins;
+            demand[key].patterns.push({ title: pat.title, qty: skeins });
           }
         }
         const conflicts = [];
-        for (const [id, d] of Object.entries(demand)) {
-          const owned = (threadsData[id] || {}).owned || 0;
+        for (const [key, d] of Object.entries(demand)) {
+          const parsed = _parseThreadKey(key);
+          const brand = parsed.brand;
+          const id = parsed.id;
+          const owned = _getOwnedCount(threadsData, key, id);
           if (d.total > owned) {
-            const info = typeof DMC !== "undefined" ? DMC.find(x => x.id === id) : null;
-            conflicts.push({ id, name: info ? info.name : id, rgb: info ? info.rgb : [128,128,128], owned, totalNeeded: d.total, deficit: d.total - owned, patterns: d.patterns });
+            const info = _getThreadInfoByKey(key);
+            conflicts.push({ key, brand, id, name: info ? info.name : id, rgb: info ? info.rgb : [128,128,128], owned, totalNeeded: d.total, deficit: d.total - owned, patterns: d.patterns });
           }
         }
         conflicts.sort((a, b) => b.deficit - a.deficit);
@@ -198,7 +292,8 @@ const StashBridge = (() => {
           let covered = 0, missing = [];
           for (const t of pat.threads) {
             const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, 14) : Math.ceil(t.qty / 200)) : t.qty;
-            const owned = (threadsData[t.id] || {}).owned || 0;
+            const key = _normaliseKey(t.id);
+            const owned = _getOwnedCount(threadsData, key, t.id);
             if (owned >= skeins) covered++;
             else missing.push({ id: t.id, name: t.name, need: skeins, have: owned });
           }
@@ -213,41 +308,66 @@ const StashBridge = (() => {
     },
 
     // Add a thread to the stash (increment owned count, default +1).
+    // Accepts composite keys ('dmc:310') or bare legacy IDs ('310').
     // Returns a Promise resolving to the new owned count.
     async addToStash(id, count) {
+      const key = _normaliseKey(id);
       const increment = count == null ? 1 : Number(count);
       if (!Number.isFinite(increment) || !Number.isInteger(increment) || increment < 1) {
         throw new Error("addToStash count must be a finite integer greater than or equal to 1");
       }
       const stash = await StashBridge.getGlobalStash();
-      const current = (stash[id] && stash[id].owned) || 0;
+      const current = (stash[key] && stash[key].owned) || 0;
       const next = current + increment;
-      await StashBridge.updateThreadOwned(id, next);
+      await StashBridge.updateThreadOwned(key, next);
       return next;
     },
 
-    // Finds similar DMC colours to a given DMC ID from your owned stash.
-    // Returns top N alternatives sorted by colour distance (deltaE).
-    suggestAlternatives(dmcId, maxResults = 5, ownedThreads = {}) {
-      if (typeof DMC === 'undefined' || !Array.isArray(DMC) || typeof rgbToLab !== 'function' || typeof dE !== 'function') return [];
-      const target = DMC.find(d => d.id === dmcId);
-      if (!target) return [];
-      const targetLab = rgbToLab(target.rgb[0], target.rgb[1], target.rgb[2]);
+    // Finds similar threads to a given thread key from your owned stash.
+    // threadKeyOrId: composite key ('dmc:310') or bare DMC id ('310').
+    // Compares using CIEDE2000 (dE2000) when available, falls back to dE.
+    // Searches across all owned brands (DMC + Anchor).
+    suggestAlternatives(threadKeyOrId, maxResults = 5, ownedThreads = {}) {
+      const normKey = _normaliseKey(threadKeyOrId);
+      const colon = normKey.indexOf(':');
+      const srcBrand = colon < 0 ? 'dmc' : normKey.slice(0, colon);
+      const srcId = colon < 0 ? normKey : normKey.slice(colon + 1);
+      // Resolve source thread
+      let target = null;
+      if (srcBrand === 'anchor' && typeof ANCHOR !== 'undefined') {
+        target = ANCHOR.find(d => d.id === srcId);
+      } else if (typeof DMC !== 'undefined') {
+        target = DMC.find(d => d.id === srcId);
+      }
+      if (!target || typeof rgbToLab !== 'function') return [];
+      const targetLab = target.lab || rgbToLab(target.rgb[0], target.rgb[1], target.rgb[2]);
+      const distFn = typeof dE2000 === 'function' ? dE2000 : (typeof dE === 'function' ? dE : null);
+      if (!distFn) return [];
       const candidates = [];
-      for (const [id, state] of Object.entries(ownedThreads)) {
-        if (id === dmcId || !state.owned || state.owned <= 0) continue;
-        const info = DMC.find(d => d.id === id);
+      for (const [key, state] of Object.entries(ownedThreads)) {
+        if (key === normKey || !state.owned || state.owned <= 0) continue;
+        const c2 = key.indexOf(':');
+        const brand = c2 < 0 ? 'dmc' : key.slice(0, c2);
+        const id = c2 < 0 ? key : key.slice(c2 + 1);
+        let info = null;
+        if (brand === 'anchor' && typeof ANCHOR !== 'undefined') {
+          info = ANCHOR.find(d => d.id === id);
+        } else if (typeof DMC !== 'undefined') {
+          info = DMC.find(d => d.id === id);
+        }
         if (!info) continue;
-        const lab = rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]);
-        const dist = dE(targetLab, lab);
-        candidates.push({ id, name: info.name, rgb: info.rgb, owned: state.owned, deltaE: Math.round(dist * 10) / 10 });
+        const lab = info.lab || rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]);
+        const dist = distFn(targetLab, lab);
+        candidates.push({ key, brand, id, name: info.name, rgb: info.rgb, owned: state.owned, deltaE: Math.round(dist * 10) / 10 });
       }
       candidates.sort((a, b) => a.deltaE - b.deltaE);
       return candidates.slice(0, maxResults);
     },
 
-    // Updates a single thread's tobuy flag in the global stash
-    async updateThreadToBuy(dmcId, toBuy) {
+    // Updates a single thread's tobuy flag in the global stash.
+    // Accepts composite keys ('dmc:310') or bare legacy IDs ('310').
+    async updateThreadToBuy(keyOrId, toBuy) {
+      const key = _normaliseKey(keyOrId);
       try {
         const db = await openManagerDB();
         return new Promise((resolve, reject) => {
@@ -256,8 +376,8 @@ const StashBridge = (() => {
           const req = store.get("threads");
           req.onsuccess = () => {
             const threads = req.result || {};
-            if (!threads[dmcId]) threads[dmcId] = { owned: 0, tobuy: false, partialStatus: null };
-            threads[dmcId].tobuy = toBuy;
+            if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
+            threads[key].tobuy = toBuy;
             store.put(threads, "threads");
             tx.oncomplete = () => resolve();
           };
@@ -269,3 +389,6 @@ const StashBridge = (() => {
     }
   };
 })();
+
+// Auto-run migration on script load (best-effort; errors are swallowed internally).
+StashBridge.migrateSchemaToV2();

@@ -1160,7 +1160,7 @@ function copyProgressSummary(){
   lines.push("Progress: "+doneCount+"/"+totalStitchable+" stitches ("+progressPct.toFixed(1)+"%)");
   if(halfStitchCounts.total>0)lines.push("Half stitches: "+halfStitchCounts.done+"/"+halfStitchCounts.total);
   lines.push("Colours: "+coloursComplete+"/"+totalColours+" colours complete");
-  if(t>=60)lines.push("Time stitched: "+fmtTime(t)+" ("+sessions.length+" sessions)");
+  if(t>=60)lines.push("Time stitched: "+fmtTime(t)+" ("+(statsSessions?statsSessions.length:0)+" sessions)");
   else lines.push("Time stitched: Not tracked yet");
   if(stPerHr)lines.push("Speed: "+stPerHr+" stitches/hour");
   if(estRem)lines.push("Est. remaining: "+fmtTime(estRem));
@@ -1395,6 +1395,10 @@ function doSaveProject(finalName){
     halfDone: hdArr,
     statsSessions,
     statsSettings,
+    achievedMilestones,
+    doneSnapshots,
+    breadcrumbs,
+    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence,
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
   };
@@ -1495,7 +1499,7 @@ async function exportPDF(options={}){
       let localDoneCount=0;for(let i=0;i<done.length;i++)if(done[i])localDoneCount++;
       if(localDoneCount>0){
         let localProgressPct=Math.round(localDoneCount/totalStitchable*1000)/10;
-        pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("PROGRESS",mg,y);y+=7;pdf.setFontSize(10);pdf.setTextColor(40);pdf.text(`${localProgressPct}% complete — ${localDoneCount.toLocaleString()} of ${totalStitchable.toLocaleString()} stitches`,mg,y);y+=8;if(totalTime>0){pdf.text(`Time stitched: ${fmtTimeL(totalTime)} (${sessions.length} session${sessions.length!==1?"s":""})`,mg,y);y+=5.5;let actualSpeed=Math.round(localDoneCount/(totalTime/3600));pdf.text(`Actual speed: ${actualSpeed} stitches/hr`,mg,y);y+=5.5;}y+=4;
+        pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("PROGRESS",mg,y);y+=7;pdf.setFontSize(10);pdf.setTextColor(40);pdf.text(`${localProgressPct}% complete — ${localDoneCount.toLocaleString()} of ${totalStitchable.toLocaleString()} stitches`,mg,y);y+=8;if(totalTime>0){pdf.text(`Time stitched: ${fmtTimeL(totalTime)} (${(statsSessions?statsSessions.length:0)} session${(statsSessions?statsSessions.length:0)!==1?"s":""})`,mg,y);y+=5.5;let actualSpeed=Math.round(localDoneCount/(totalTime/3600));pdf.text(`Actual speed: ${actualSpeed} stitches/hr`,mg,y);y+=5.5;}y+=4;
       }
     }
 
@@ -1864,8 +1868,10 @@ function saveProject(){
 function handleEditInCreator(){
   if(!pat||!pal)return;
   if(onSwitchToDesign){
-    const project=lastSnapshotRef.current;
+    // Build a fresh snapshot so name/session changes that haven't auto-saved yet are included
+    const project=buildSnapshot();
     if(project){
+      lastSnapshotRef.current=project;
       saveProjectToDB(project).catch(()=>{});
       ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(()=>{});
     }
@@ -1874,7 +1880,10 @@ function handleEditInCreator(){
     onSwitchToDesign();
     return;
   }
-  let project={version:8,page:"tracker",name:projectName,settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice:1.2,stitchSpeed:40,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>m.id==="__skip__"?{id:"__skip__"}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:Array.from(done),parkMarkers,totalTime,sessions,hlRow,hlCol,threadOwned,imgData:null,statsSessions,statsSettings};
+  const sseArrH=[...singleStitchEdits.entries()];
+  const hsArrH=[...halfStitches.entries()].map(([idx,hs])=>[idx,{fwd:hs.fwd?{id:hs.fwd.id,rgb:hs.fwd.rgb}:undefined,bck:hs.bck?{id:hs.bck.id,rgb:hs.bck.rgb}:undefined}]);
+  const hdArrH=[...halfDone.entries()];
+  let project={version:9,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime:totalTime+liveAutoElapsed,sessions,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
   try{
     localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(project));
     window.location.href = "index.html?source=tracker";
@@ -2186,7 +2195,10 @@ function loadProject(e){
       try{
         let project=JSON.parse(ev.target.result);
         if(!project.pattern && !project.p)throw new Error("Invalid format");
+        if(!project.id) project.id = "proj_" + Date.now();
+        if(!project.createdAt) project.createdAt = new Date().toISOString();
         processLoadedProject(project);
+        ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("JSON import save failed:", err));
       }catch(err){
         console.error(err);
         setLoadError("Could not load: "+err.message);
@@ -2202,7 +2214,7 @@ function loadProject(e){
         let project = importResultToProject(result, 14, baseName);
         const importedAt = Date.now();
         project.id = "proj_" + importedAt;
-        if(!project.createdAt) project.createdAt = importedAt;
+        if(!project.createdAt) project.createdAt = new Date(importedAt).toISOString();
         processLoadedProject(project);
         ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Import save failed:", err));
         setImportSuccess(`Imported "${baseName || 'pattern'}" \u2014 ${result.width}\u00d7${result.height}, ${result.paletteSize} colours, ${result.stitchCount} stitches`);
@@ -2396,12 +2408,11 @@ useEffect(() => {
   const handleBeforeUnload = () => {
     try {
     isUnloadingRef.current = true;
-    // Build a fresh snapshot if dirty (deferred save may not have fired yet)
-    let project = lastSnapshotRef.current;
-    if (autoSaveDirtyRef.current || !project) {
-      const fresh = buildSnapshotRef.current();
-      if (fresh) { project = fresh; lastSnapshotRef.current = fresh; }
-    }
+    // Always build a fresh snapshot so we never use stale data
+    let project = null;
+    const fresh = buildSnapshotRef.current();
+    if (fresh) { project = fresh; lastSnapshotRef.current = fresh; }
+    if (!project) project = lastSnapshotRef.current;
     if (!project) return;
     let projectToSave = project;
     // If a drag is in progress, apply the pending in-place mutations to a fresh done copy
@@ -2482,7 +2493,8 @@ useEffect(() => {
       singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
       statsSessions, statsSettings, achievedMilestones, doneSnapshots,
       savedZoom: stitchZoom,
-      savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
+      savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null,
+      breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence
     };
     lastSnapshotRef.current = project;
     await ProjectStorage.save(project);
@@ -2491,7 +2503,8 @@ useEffect(() => {
   return () => { delete window.__flushProjectToIDB; };
 }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done,
     halfStitches, halfDone, parkMarkers, totalTime, liveAutoElapsed, sessions, hlRow, hlCol,
-    threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots]);
+    threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots,
+    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence]);
 
 // ── Zoom-adaptive tier helpers ──
 // Compute rendering tier (1–4) from cell size with hysteresis.
@@ -4139,7 +4152,7 @@ return(
             </div>
             {goalReached&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 10px",borderRadius:6,marginTop:6,textAlign:"center",fontWeight:600}}>Goal reached!</div>}
             <button style={{marginTop:8,width:"100%",padding:"6px 0",borderRadius:6,border:"none",background:"#dc2626",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>{
-              const dur=Math.floor((Date.now()-explicitSession.startTime)/1000);
+              const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
               const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
               setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[]});
               setExplicitSession(null);

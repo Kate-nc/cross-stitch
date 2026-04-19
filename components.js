@@ -151,8 +151,8 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
   } catch(e) { console.warn('Stats: MiniStatsBar render error', e); return null; }
 });
 
-var OverviewCards=React.memo(function OverviewCards({statsSessions, totalCompleted, totalStitches, halfStitchCounts}){
-  var stats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches);
+var OverviewCards=React.memo(function OverviewCards({statsSessions, totalCompleted, totalStitches, halfStitchCounts, useActiveDays}){
+  var stats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches, useActiveDays);
   var hasHalf = halfStitchCounts && halfStitchCounts.total > 0;
   return React.createElement("div", {className:"stats-overview"},
     React.createElement("div", {className:"stats-overview-main"},
@@ -1460,7 +1460,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         React.createElement("button", {onClick:onClose, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #e2e8f0', background:'#f8f9fa', cursor:'pointer', color:'#475569'}}, "\u2190 Back to grid")
       )
     ),
-    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts}),
+    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts, useActiveDays:useActiveDays}),
     React.createElement("div", {className:"stats-export-bar"},
       React.createElement("button", {className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}},
         copied ? [Icons.check(), ' Copied!'] : [Icons.clipboard(), ' Copy progress summary']),
@@ -2128,7 +2128,17 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
     var lpCompleted = lpDone ? (Array.isArray(lpDone) ? lpDone.reduce(function(n, v) { return n + (v === 1 ? 1 : 0); }, 0) : 0) : 0;
     var lpPal = lpPat ? (function() { var seen = {}, out = []; lpPat.forEach(function(c) { if (c && c.id && c.id !== '__skip__' && c.id !== '__empty__' && !c.id.includes('+') && !seen[c.id]) { seen[c.id] = true; out.push(c); } }); return out; })() : [];
     var lpCDone = {};
-    if (lpPat && lpDone) { for (var ci = 0; ci < lpPat.length; ci++) { if (lpDone[ci] === 1 && lpPat[ci] && lpPat[ci].id) lpCDone[lpPat[ci].id] = (lpCDone[lpPat[ci].id] || 0) + 1; } }
+    if (lpPat && lpDone) {
+      var lpTotals = {};
+      for (var ci = 0; ci < lpPat.length; ci++) {
+        var cid = lpPat[ci] && lpPat[ci].id;
+        if (!cid || cid === '__skip__' || cid === '__empty__') continue;
+        if (!lpTotals[cid]) lpTotals[cid] = {total: 0, done: 0, halfTotal: 0, halfDone: 0};
+        lpTotals[cid].total++;
+        if (lpDone[ci] === 1) lpTotals[cid].done++;
+      }
+      lpCDone = lpTotals;
+    }
     content = React.createElement(StatsDashboard, {statsSessions: lpSessions, statsSettings: lp.statsSettings || {dayEndHour: 0, useActiveDays: true}, totalCompleted: lpCompleted, totalStitches: lpTotal, onEditNote: function() {}, onUpdateSettings: function() {}, onClose: onClose, projectName: lp.name || 'Untitled', palette: lpPal, colourDoneCounts: lpCDone, achievedMilestones: lp.achievedMilestones || [], done: lpDone, pat: lpPat, sW: lpS.sW || 0, sH: lpS.sH || 0, doneSnapshots: lp.doneSnapshots || [], setDoneSnapshots: function() {}, sections: lp.sections || [], currentProjectId: lp.id, onOpenProject: onOpenProject, canEdit: false});
   } else {
     content = React.createElement('div', {style: {padding: '40px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14}},
