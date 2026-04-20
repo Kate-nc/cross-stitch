@@ -217,6 +217,12 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       _tf.halfStitches = project.halfStitches;
     if (project.halfDone && project.halfDone.length > 0)
       _tf.halfDone = project.halfDone;
+    // Preserve v3 stats fields (stitchLog, finishStatus, etc.)
+    if (project.finishStatus != null) _tf.finishStatus = project.finishStatus;
+    if (project.startedAt)            _tf.startedAt = project.startedAt;
+    if (project.lastTouchedAt)        _tf.lastTouchedAt = project.lastTouchedAt;
+    if (project.completedAt)          _tf.completedAt = project.completedAt;
+    if (project.stitchLog)            _tf.stitchLog = project.stitchLog;
 
     // Loaded projects have a pattern already — default to Edit mode
     state.setAppMode("edit");
@@ -401,6 +407,60 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // When Creator becomes active again (e.g. switching back from Tracker), refresh
+  // trackerFieldsRef from IndexedDB so we never save stale sessions/stats.
+  var wasActiveRef = React.useRef(state.isActive);
+  React.useEffect(function() {
+    var becameActive = state.isActive && !wasActiveRef.current;
+    wasActiveRef.current = state.isActive;
+    if (!becameActive) return;
+    var pid = state.projectIdRef.current;
+    if (!pid || typeof ProjectStorage === "undefined") return;
+    ProjectStorage.get(pid).then(function(freshProject) {
+      if (!freshProject) return;
+      var tf = state.trackerFieldsRef.current || {};
+      if (freshProject.statsSessions) tf.statsSessions = freshProject.statsSessions;
+      if (freshProject.statsSettings) tf.statsSettings = freshProject.statsSettings;
+      if (freshProject.achievedMilestones) tf.achievedMilestones = freshProject.achievedMilestones;
+      if (freshProject.doneSnapshots) tf.doneSnapshots = freshProject.doneSnapshots;
+      if (freshProject.breadcrumbs) tf.breadcrumbs = freshProject.breadcrumbs;
+      if (freshProject.stitchingStyle) tf.stitchingStyle = freshProject.stitchingStyle;
+      if (freshProject.blockW) tf.blockW = freshProject.blockW;
+      if (freshProject.blockH) tf.blockH = freshProject.blockH;
+      if (freshProject.focusBlock) tf.focusBlock = freshProject.focusBlock;
+      if (freshProject.startCorner) tf.startCorner = freshProject.startCorner;
+      if (freshProject.colourSequence) tf.colourSequence = freshProject.colourSequence;
+      if (freshProject.originalPaletteState) tf.originalPaletteState = freshProject.originalPaletteState;
+      if (freshProject.singleStitchEdits && freshProject.singleStitchEdits.length > 0)
+        tf.singleStitchEdits = freshProject.singleStitchEdits;
+      if (freshProject.halfStitches && freshProject.halfStitches.length > 0)
+        tf.halfStitches = freshProject.halfStitches;
+      if (freshProject.halfDone && freshProject.halfDone.length > 0)
+        tf.halfDone = freshProject.halfDone;
+      // Refresh v3 stats fields
+      if (freshProject.finishStatus != null) tf.finishStatus = freshProject.finishStatus;
+      if (freshProject.startedAt)            tf.startedAt = freshProject.startedAt;
+      if (freshProject.lastTouchedAt)        tf.lastTouchedAt = freshProject.lastTouchedAt;
+      if (freshProject.completedAt)          tf.completedAt = freshProject.completedAt;
+      if (freshProject.stitchLog)            tf.stitchLog = freshProject.stitchLog;
+      state.trackerFieldsRef.current = tf;
+      // Also refresh the name if the Tracker changed it
+      if (freshProject.name && freshProject.name !== state.projectName) {
+        state.setProjectName(freshProject.name);
+      }
+      // Refresh done, totalTime, sessions, threadOwned from Tracker changes
+      if (freshProject.done && freshProject.done.length > 0) {
+        state.setDone(new Uint8Array(freshProject.done));
+      }
+      if (freshProject.totalTime != null) state.setTotalTime(freshProject.totalTime);
+      if (freshProject.sessions) state.setSessions(freshProject.sessions);
+      if (freshProject.threadOwned) state.setThreadOwned(freshProject.threadOwned);
+      if (freshProject.parkMarkers) state.setParkMarkers(freshProject.parkMarkers);
+      if (freshProject.hlRow >= 0) state.setHlRow(freshProject.hlRow);
+      if (freshProject.hlCol >= 0) state.setHlCol(freshProject.hlCol);
+    }).catch(function() {});
+  }, [state.isActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-save (debounced 1 s)
   // The snapshot is built synchronously so creatorSnapshotRef is always up-to-date
   // for the flush path, even if the debounced DB write hasn't fired yet.
@@ -428,6 +488,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     });
     // Update the snapshot ref synchronously — flush will always have the latest state
     creatorSnapshotRef.current = project5;
+    // Skip IDB writes when Creator is not the active view — the Tracker's auto-save
+    // owns persistence while it is active and has fresher tracker-specific fields.
+    if (!state.isActive) return;
     var saveTimer = setTimeout(function() {
       saveProjectToDB(project5).catch(function(err) { console.error("Auto-save failed:", err); });
       ProjectStorage.save(project5)
@@ -450,6 +513,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
+    state.isActive,
   ]);
 
   // Per-pattern view state periodic save

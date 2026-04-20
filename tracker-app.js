@@ -1892,9 +1892,28 @@ function handleEditInCreator(){
       lastSnapshotRef.current=project;
       saveProjectToDB(project).catch(()=>{});
       ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(()=>{});
+      // Push ALL tracker-specific fields to Creator so its auto-save doesn't overwrite them
+      try{
+        if(typeof window.__updateCreatorTrackerFields==='function'){
+          var _v3h=v3FieldsRef.current||{};
+          window.__updateCreatorTrackerFields({
+            statsSessions:project.statsSessions, statsSettings:project.statsSettings,
+            achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
+            breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
+            blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock,
+            startCorner:project.startCorner, colourSequence:project.colourSequence,
+            originalPaletteState:project.originalPaletteState,
+            singleStitchEdits:project.singleStitchEdits,
+            halfStitches:project.halfStitches, halfDone:project.halfDone,
+            finishStatus:_v3h.finishStatus, startedAt:_v3h.startedAt,
+            lastTouchedAt:_v3h.lastTouchedAt, completedAt:_v3h.completedAt,
+            stitchLog:_v3h.stitchLog
+          });
+        }
+      }catch(e){}
     }
     // Sync the current project name to the Creator so it doesn't overwrite with stale name
-    if(projectName&&typeof window.__setCreatorProjectName==='function') window.__setCreatorProjectName(projectName);
+    if(typeof window.__setCreatorProjectName==='function') window.__setCreatorProjectName(projectName||'');
     onSwitchToDesign();
     return;
   }
@@ -2408,6 +2427,28 @@ useEffect(() => {
     lastSnapshotRef.current = project;
     ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Tracker auto-save failed:", err));
     saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err));
+    // Keep the Creator's tracker-field preservation container in sync so that if
+    // the user switches to Creator mode, the next Creator auto-save won't overwrite
+    // sessions, stats settings, milestones, etc. with stale data.
+    try{
+      if(typeof window.__updateCreatorTrackerFields==='function'){
+        var _v3=v3FieldsRef.current||{};
+        window.__updateCreatorTrackerFields({
+          statsSessions:project.statsSessions, statsSettings:project.statsSettings,
+          achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
+          breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
+          blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock,
+          startCorner:project.startCorner, colourSequence:project.colourSequence,
+          originalPaletteState:project.originalPaletteState,
+          singleStitchEdits:project.singleStitchEdits,
+          halfStitches:project.halfStitches, halfDone:project.halfDone,
+          finishStatus:_v3.finishStatus, startedAt:_v3.startedAt,
+          lastTouchedAt:_v3.lastTouchedAt, completedAt:_v3.completedAt,
+          stitchLog:_v3.stitchLog
+        });
+      }
+      if(typeof window.__setCreatorProjectName==='function') window.__setCreatorProjectName(projectName||'');
+    }catch(e){}
     if (typeof StashBridge !== "undefined" && skeinData.length > 0) {
       StashBridge.syncProjectToLibrary(
         projectIdRef.current,

@@ -246,7 +246,16 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   React.useEffect(()=>{
     window.__setCreatorAppMode=state.setAppMode;
     window.__setCreatorProjectName=state.setProjectName;
-    return()=>{delete window.__setCreatorAppMode;delete window.__setCreatorProjectName;};
+    // Allow the Tracker to push fresh tracker-specific fields into the Creator's
+    // preservation container so the next Creator auto-save doesn't overwrite them
+    // with stale data.
+    window.__updateCreatorTrackerFields=function(fields){
+      if(!fields||typeof fields!=='object')return;
+      var tf=state.trackerFieldsRef.current||{};
+      Object.assign(tf,fields);
+      state.trackerFieldsRef.current=tf;
+    };
+    return()=>{delete window.__setCreatorAppMode;delete window.__setCreatorProjectName;delete window.__updateCreatorTrackerFields;};
   },[state.setAppMode,state.setProjectName]);
 
   // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
