@@ -35,6 +35,13 @@ const StashBridge = (() => {
   }
 
   let _migrationDone = false;
+  // Schema version tracked in stash data. V2 = composite keys, V3 = addedAt/history fields.
+  let _schemaVersion = 0;
+
+  // Legacy epoch: used for stash entries that existed before tracking was added.
+  // Deliberately set to a fixed past date so the UI can show 'before tracking'
+  // rather than misleadingly showing 'added today' on the migration date.
+  const LEGACY_EPOCH = '2020-01-01T00:00:00Z';
 
   // One-time migration: converts legacy bare DMC keys (e.g. "310") in the
   // "threads" store to composite keys (e.g. "dmc:310").
@@ -71,6 +78,49 @@ const StashBridge = (() => {
       });
     } catch (e) {
       console.warn('StashBridge: schema migration failed', e);
+    }
+  }
+
+  // V3 migration: adds addedAt, lastAdjustedAt, acquisitionSource, history to every stash entry.
+  // Must run after V2 migration completes.
+  async function migrateSchemaToV3() {
+    try {
+      const db = await openManagerDB();
+      const sv = await new Promise((resolve, reject) => {
+        const tx = db.transaction("manager_state", "readonly");
+        const req = tx.objectStore("manager_state").get("schema_version");
+        req.onsuccess = () => resolve(req.result || 0);
+        req.onerror = () => resolve(0);
+      });
+      if (sv >= 3) { _schemaVersion = sv; return; }
+
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction("manager_state", "readwrite");
+        const store = tx.objectStore("manager_state");
+        const req = store.get("threads");
+        req.onsuccess = () => {
+          const threads = req.result || {};
+          for (const [key, entry] of Object.entries(threads)) {
+            if (!entry.addedAt) {
+              entry.addedAt = LEGACY_EPOCH;
+              entry.lastAdjustedAt = LEGACY_EPOCH;
+              entry.acquisitionSource = 'legacy';
+              entry.history = [];
+            }
+          }
+          store.put(threads, "threads");
+          store.put(3, "schema_version");
+          tx.oncomplete = () => {
+            _schemaVersion = 3;
+            console.log('Schema migrated to v3');
+            resolve();
+          };
+          tx.onerror = () => reject(tx.error);
+        };
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn('StashBridge: v3 migration failed', e);
     }
   }
 
@@ -126,6 +176,7 @@ const StashBridge = (() => {
 
     // Updates a single thread's owned count in the global stash.
     // Accepts composite keys ('dmc:310') or bare legacy IDs ('310').
+    // Tracks history of owned-count changes for stats.
     async updateThreadOwned(dmcId, newCount) {
       const key = _normaliseKey(dmcId);
       try {
@@ -137,9 +188,25 @@ const StashBridge = (() => {
           req.onsuccess = () => {
             const threads = req.result || {};
             if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
+            const oldCount = threads[key].owned || 0;
+            const delta = newCount - oldCount;
             threads[key].owned = newCount;
+            // V3 history tracking
+            if (delta !== 0 && threads[key].history !== undefined) {
+              const now = new Date().toISOString();
+              threads[key].lastAdjustedAt = now;
+              if (!Array.isArray(threads[key].history)) threads[key].history = [];
+              threads[key].history.push({ date: now, delta: delta });
+              // Cap history at 500 entries per thread
+              if (threads[key].history.length > 500) {
+                threads[key].history = threads[key].history.slice(threads[key].history.length - 500);
+              }
+            }
             store.put(threads, "threads");
-            tx.oncomplete = () => resolve();
+            tx.oncomplete = () => {
+              if (typeof invalidateStatsCache === 'function') invalidateStatsCache();
+              resolve();
+            };
           };
           req.onerror = () => reject(req.error);
         });
@@ -309,15 +376,46 @@ const StashBridge = (() => {
 
     // Add a thread to the stash (increment owned count, default +1).
     // Accepts composite keys ('dmc:310') or bare legacy IDs ('310').
+    // options.acquisitionSource: 'purchased' | 'inherited' | 'gifted' | 'swapped' | 'unknown'
     // Returns a Promise resolving to the new owned count.
-    async addToStash(id, count) {
+    async addToStash(id, count, options) {
       const key = _normaliseKey(id);
       const increment = count == null ? 1 : Number(count);
       if (!Number.isFinite(increment) || !Number.isInteger(increment) || increment < 1) {
         throw new Error("addToStash count must be a finite integer greater than or equal to 1");
       }
+      // Ensure new entries get V3 fields before updateThreadOwned runs
       const stash = await StashBridge.getGlobalStash();
       const current = (stash[key] && stash[key].owned) || 0;
+      const isNew = !stash[key] || current === 0;
+      if (isNew && _schemaVersion >= 3) {
+        // Pre-create with V3 fields so updateThreadOwned's history append works
+        try {
+          const db = await openManagerDB();
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction("manager_state", "readwrite");
+            const store = tx.objectStore("manager_state");
+            const req = store.get("threads");
+            req.onsuccess = () => {
+              const threads = req.result || {};
+              const now = new Date().toISOString();
+              const src = (options && options.acquisitionSource) || 'purchased';
+              if (!threads[key]) {
+                threads[key] = { owned: 0, tobuy: false, partialStatus: null,
+                  addedAt: now, lastAdjustedAt: now, acquisitionSource: src, history: [] };
+              } else if (!threads[key].addedAt) {
+                threads[key].addedAt = now;
+                threads[key].lastAdjustedAt = now;
+                threads[key].acquisitionSource = src;
+                threads[key].history = threads[key].history || [];
+              }
+              store.put(threads, "threads");
+              tx.oncomplete = () => resolve();
+            };
+            req.onerror = () => reject(req.error);
+          });
+        } catch (e) { /* best effort */ }
+      }
       const next = current + increment;
       await StashBridge.updateThreadOwned(key, next);
       return next;
@@ -386,9 +484,101 @@ const StashBridge = (() => {
       } catch (e) {
         console.error("StashBridge.updateThreadToBuy failed:", e);
       }
-    }
+    },
+
+    // Returns stash age distribution for the age chart.
+    // Buckets: under1Yr, 1to3Yr, 3to5Yr, over5Yr, legacy (before tracking).
+    async getStashAgeDistribution() {
+      const stash = await StashBridge.getGlobalStash();
+      const now = Date.now();
+      const DAY = 86400000;
+      const result = { bucketUnder1Yr: 0, bucket1to3Yr: 0, bucket3to5Yr: 0, bucketOver5Yr: 0, legacy: 0, oldest: null };
+      for (const [key, entry] of Object.entries(stash)) {
+        if (!entry.owned || entry.owned <= 0) continue;
+        if (!entry.addedAt || entry.acquisitionSource === 'legacy') {
+          result.legacy++;
+          continue;
+        }
+        const ageDays = (now - new Date(entry.addedAt).getTime()) / DAY;
+        if (ageDays < 365) result.bucketUnder1Yr++;
+        else if (ageDays < 1095) result.bucket1to3Yr++;
+        else if (ageDays < 1825) result.bucket3to5Yr++;
+        else result.bucketOver5Yr++;
+        // Track oldest non-legacy thread
+        if (!result.oldest || entry.addedAt < result.oldest.addedAt) {
+          const info = _getThreadInfoByKey(key);
+          result.oldest = { key: key, addedAt: entry.addedAt, name: info ? info.name : key, id: key };
+        }
+      }
+      return result;
+    },
+
+    // Returns monthly acquisition vs. usage timeseries for the SABLE chart.
+    // months: number of months to include (default 12).
+    async getAcquisitionTimeseries(months) {
+      months = months || 12;
+      const stash = await StashBridge.getGlobalStash();
+      const now = new Date();
+      const points = [];
+      for (let i = months - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        points.push({ month: monthStr, added: 0, used: 0 });
+      }
+      const monthSet = new Set(points.map(p => p.month));
+      const monthMap = {};
+      points.forEach(p => { monthMap[p.month] = p; });
+
+      // Count stash additions per month from history arrays
+      for (const [, entry] of Object.entries(stash)) {
+        if (!entry.history || entry.acquisitionSource === 'legacy') continue;
+        for (const evt of entry.history) {
+          if (evt.delta > 0) {
+            const m = evt.date.slice(0, 7); // 'YYYY-MM'
+            if (monthMap[m]) monthMap[m].added += evt.delta;
+          }
+        }
+        // Also count the initial addedAt if it's a non-legacy entry
+        if (entry.addedAt && entry.addedAt !== LEGACY_EPOCH) {
+          const m = entry.addedAt.slice(0, 7);
+          // Only count if not already captured in history
+          if (monthMap[m] && (!entry.history || entry.history.length === 0 || entry.history[0].date !== entry.addedAt)) {
+            // The addedAt thread was created — its first history entry should already capture this
+          }
+        }
+      }
+
+      // Count stitchLog usage per month (converted to skeins)
+      // ~1800 stitches per skein at 14-count Aida
+      const STITCHES_PER_SKEIN = 1800;
+      if (typeof ProjectStorage !== 'undefined' && ProjectStorage.listProjects) {
+        try {
+          const projects = await ProjectStorage.listProjects();
+          for (const meta of projects) {
+            const proj = await ProjectStorage.get(meta.id);
+            if (!proj || !proj.stitchLog) continue;
+            for (const log of proj.stitchLog) {
+              const m = log.date.slice(0, 7);
+              if (monthMap[m]) monthMap[m].used += log.count / STITCHES_PER_SKEIN;
+            }
+          }
+        } catch (e) { /* ProjectStorage may not be loaded */ }
+      }
+
+      // Round 'used' to 1 decimal
+      points.forEach(p => { p.used = Math.round(p.used * 10) / 10; });
+      return points;
+    },
+
+    // Returns the legacy epoch constant for external use
+    get LEGACY_EPOCH() { return LEGACY_EPOCH; },
+
+    // Expose migration functions
+    migrateSchemaToV3,
   };
 })();
 
-// Auto-run migration on script load (best-effort; errors are swallowed internally).
-StashBridge.migrateSchemaToV2();
+// Auto-run migrations on script load (best-effort; errors are swallowed internally).
+StashBridge.migrateSchemaToV2().then(function() {
+  StashBridge.migrateSchemaToV3();
+});

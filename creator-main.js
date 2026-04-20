@@ -840,6 +840,7 @@ function UnifiedApp(){
   React.useEffect(()=>{
     if(trackerReady)return;
     if((mode==='track'||mode==='stats')&&typeof window.loadTrackerApp==='function') window.loadTrackerApp();
+    if(mode==='stats'&&typeof window.loadStatsPage==='function') window.loadStatsPage();
     const poll=setInterval(()=>{if(typeof window.TrackerApp!=='undefined'){setTrackerReady(true);clearInterval(poll);}},50);
     return()=>clearInterval(poll);
   },[trackerReady, mode]);
@@ -876,18 +877,20 @@ function UnifiedApp(){
     else if(prev==='design'){window.history.replaceState({},'',window.location.pathname);setMode('design');}
     else{window.history.replaceState({},'',window.location.pathname);setHomeKey(k=>k+1);setMode('home');}
   },[]);
-  const switchToStats=React.useCallback(()=>{
-    if(modeRef.current==='stats'){closeStats();return;}
+  const switchToStats=React.useCallback((params)=>{
+    if(modeRef.current==='stats'&&!params){closeStats();return;}
     // When switching from track mode, open per-project stats inline inside the tracker
     // rather than navigating to the global all-projects dashboard.
-    if(modeRef.current==='track'&&typeof window.__openTrackerStats==='function'){
+    if(modeRef.current==='track'&&!params&&typeof window.__openTrackerStats==='function'){
       window.__openTrackerStats();
       return;
     }
     prevModeRef.current=modeRef.current;
     if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
+    if(typeof window.loadStatsPage==='function') window.loadStatsPage();
     setTrackerMounted(true);
-    window.history.replaceState({},'','?mode=stats');
+    const qs=params?'?mode=stats&'+new URLSearchParams(params).toString():'?mode=stats';
+    window.history.replaceState({},'',qs);
     setMode('stats');
   },[closeStats]);
   const goHome=React.useCallback(()=>{
@@ -1011,7 +1014,9 @@ function UnifiedApp(){
     </div>
     {mode==='stats'&&<div style={{position:'fixed',inset:0,background:'var(--surface)',zIndex:100,overflowY:'auto'}}>
       <Header page="stats" tab="" onPageChange={()=>{}} setModal={()=>{}} />
-      <GlobalStatsDashboard onClose={closeStats} />
+      {typeof window.StatsPage==='function'
+        ?<window.StatsPage onClose={closeStats} onNavigateToProject={(id)=>{switchToTrack({id})}} onNavigateToStash={()=>{window.location.href='manager.html';}} />
+        :<GlobalStatsDashboard onClose={closeStats} />}
     </div>}
   </>;
 }

@@ -10,6 +10,9 @@ const ProjectStorage = (() => {
   const STATS_STORE = "stats_summaries";
   const ACTIVE_KEY = "crossstitch_active_project";
 
+  // Legacy epoch: same constant as stash-bridge.js for consistent 'before tracking' display
+  const LEGACY_EPOCH = '2020-01-01T00:00:00Z';
+
   // Build a lightweight stats summary for the global dashboard.
   function buildStatsSummary(p) {
     const totalSt = p.pattern
@@ -343,6 +346,220 @@ const ProjectStorage = (() => {
         } catch (e) {}
       }
       return null;
+    },
+
+    // V3 migration: adds stitchLog, finishStatus, startedAt, lastTouchedAt to projects.
+    // Should be called once after the stash-bridge v3 migration.
+    async migrateProjectsToV3() {
+      try {
+        const migrated = localStorage.getItem('cs_projects_v3_migrated');
+        if (migrated === '1') return;
+        const db = await getDB();
+        const projects = await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE_NAME, "readonly");
+          const req = tx.objectStore(STORE_NAME).getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => reject(req.error);
+        });
+        const toUpdate = projects.filter(p => p && p.id && p.id.startsWith("proj_") && !p.finishStatus);
+        if (toUpdate.length > 0) {
+          const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
+          const store = tx.objectStore(STORE_NAME);
+          const metaStore = tx.objectStore(META_STORE);
+          const statsStore = tx.objectStore(STATS_STORE);
+          for (const p of toUpdate) {
+            const hasDone = p.done && (Array.isArray(p.done) || ArrayBuffer.isView(p.done));
+            const hasStitches = hasDone && Array.prototype.some.call(p.done, v => v === 1);
+            p.startedAt = p.createdAt || LEGACY_EPOCH;
+            p.lastTouchedAt = p.updatedAt || LEGACY_EPOCH;
+            p.finishStatus = hasStitches ? 'active' : 'planned';
+            p.stitchLog = [];
+            store.put(p, p.id);
+            metaStore.put(buildMeta(p), p.id);
+            statsStore.put(buildStatsSummary(p), p.id);
+          }
+          await new Promise((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+          });
+          console.log('Projects migrated to v3 (' + toUpdate.length + ' projects)');
+        }
+        localStorage.setItem('cs_projects_v3_migrated', '1');
+      } catch (e) {
+        console.warn('ProjectStorage: v3 project migration failed', e);
+      }
+    },
+
+    // Append a stitch count to a project's stitchLog for today.
+    // Uses local device date (not UTC) so 11pm stitching counts for today.
+    // If an entry for today exists, increments its count.
+    async appendStitchLog(projectId, count) {
+      if (!count || !projectId) return;
+      try {
+        const project = await this.get(projectId);
+        if (!project) return;
+        // Use local date, not UTC
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        if (!project.stitchLog) project.stitchLog = [];
+        const existing = project.stitchLog.find(e => e.date === today);
+        if (existing) {
+          existing.count += count;
+        } else {
+          project.stitchLog.push({ date: today, count: count });
+        }
+        project.lastTouchedAt = now.toISOString();
+        // Auto-transition planned → active on first stitch
+        if (project.finishStatus === 'planned' && count > 0) {
+          project.finishStatus = 'active';
+        }
+        await this.save(project);
+        if (typeof invalidateStatsCache === 'function') invalidateStatsCache();
+      } catch (e) {
+        console.error('ProjectStorage.appendStitchLog failed:', e);
+      }
+    },
+
+    // Mark a project as finished (completed).
+    async markProjectFinished(projectId) {
+      try {
+        const project = await this.get(projectId);
+        if (!project) return;
+        project.finishStatus = 'completed';
+        project.completedAt = new Date().toISOString();
+        project.lastTouchedAt = project.completedAt;
+        await this.save(project);
+        if (typeof invalidateStatsCache === 'function') invalidateStatsCache();
+      } catch (e) {
+        console.error('ProjectStorage.markProjectFinished failed:', e);
+      }
+    },
+
+    // Mark a project as UFO (unfinished object / abandoned).
+    async markProjectUFO(projectId) {
+      try {
+        const project = await this.get(projectId);
+        if (!project) return;
+        project.finishStatus = 'UFO';
+        project.lastTouchedAt = new Date().toISOString();
+        await this.save(project);
+        if (typeof invalidateStatsCache === 'function') invalidateStatsCache();
+      } catch (e) {
+        console.error('ProjectStorage.markProjectUFO failed:', e);
+      }
+    },
+
+    // Return lifetime stitch count across all projects from stitchLog.
+    async getLifetimeStitches() {
+      try {
+        const projects = await this.listProjects();
+        let total = 0;
+        for (const meta of projects) {
+          const proj = await this.get(meta.id);
+          if (!proj || !proj.stitchLog) continue;
+          for (const entry of proj.stitchLog) total += entry.count;
+        }
+        return total;
+      } catch (e) { return 0; }
+    },
+
+    // Return aggregated daily stitch totals for charts.
+    async getStitchLogByDay(days) {
+      days = days || 365;
+      try {
+        const projects = await this.listProjects();
+        const daily = {};
+        for (const meta of projects) {
+          const proj = await this.get(meta.id);
+          if (!proj || !proj.stitchLog) continue;
+          for (const entry of proj.stitchLog) {
+            daily[entry.date] = (daily[entry.date] || 0) + entry.count;
+          }
+        }
+        // Filter to last N days
+        const now = new Date();
+        const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+        const cutoffStr = cutoff.toISOString().slice(0, 10);
+        const result = [];
+        for (const [date, count] of Object.entries(daily)) {
+          if (date >= cutoffStr) result.push({ date, count });
+        }
+        result.sort((a, b) => a.date.localeCompare(b.date));
+        return result;
+      } catch (e) { return []; }
+    },
+
+    // Return the oldest WIP (active project with longest time since lastTouchedAt).
+    async getOldestWIP() {
+      try {
+        const projects = await this.listProjects();
+        let oldest = null;
+        for (const meta of projects) {
+          const proj = await this.get(meta.id);
+          if (!proj || proj.finishStatus !== 'active') continue;
+          if (!oldest || (proj.lastTouchedAt && proj.lastTouchedAt < oldest.lastTouchedAt)) {
+            const totalSt = proj.pattern ? proj.pattern.filter(c => c && c.id !== '__skip__' && c.id !== '__empty__').length : 0;
+            const completedSt = proj.done ? Array.prototype.reduce.call(proj.done, (n, v) => n + (v === 1 ? 1 : 0), 0) : 0;
+            oldest = {
+              id: proj.id, name: proj.name || 'Untitled',
+              lastTouchedAt: proj.lastTouchedAt || proj.updatedAt || LEGACY_EPOCH,
+              totalStitches: totalSt, completedStitches: completedSt,
+              pct: totalSt > 0 ? Math.round(completedSt / totalSt * 100) : 0
+            };
+          }
+        }
+        return oldest;
+      } catch (e) { return null; }
+    },
+
+    // Return most-used colours approximated from stitchLog + pattern palette ratios.
+    async getMostUsedColours(limit) {
+      limit = limit || 10;
+      try {
+        const projects = await this.listProjects();
+        const colourTotals = {}; // { threadKey: { count, name, rgb, id } }
+        for (const meta of projects) {
+          const proj = await this.get(meta.id);
+          if (!proj || !proj.stitchLog || !proj.pattern) continue;
+          // Calculate per-thread ratios from the pattern
+          const threadCounts = {};
+          let totalStitchable = 0;
+          for (const cell of proj.pattern) {
+            if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+            threadCounts[cell.id] = (threadCounts[cell.id] || 0) + 1;
+            totalStitchable++;
+          }
+          if (totalStitchable === 0) continue;
+          // Distribute stitchLog counts across threads proportionally
+          const logTotal = proj.stitchLog.reduce((s, e) => s + e.count, 0);
+          if (logTotal <= 0) continue;
+          for (const [tid, tcount] of Object.entries(threadCounts)) {
+            const ratio = tcount / totalStitchable;
+            const attributed = logTotal * ratio;
+            if (!colourTotals[tid]) {
+              const pal = (proj.palette || []).find(p => p.id === tid);
+              colourTotals[tid] = { count: 0, name: pal ? pal.name : tid, rgb: pal ? pal.rgb : [128,128,128], id: tid };
+            }
+            colourTotals[tid].count += attributed;
+          }
+        }
+        const sorted = Object.values(colourTotals).sort((a, b) => b.count - a.count);
+        const totalAll = sorted.reduce((s, c) => s + c.count, 0);
+        return sorted.slice(0, limit).map(c => ({
+          id: c.id, name: c.name, rgb: c.rgb,
+          count: Math.round(c.count),
+          pct: totalAll > 0 ? Math.round(c.count / totalAll * 1000) / 10 : 0
+        }));
+      } catch (e) { return []; }
+    },
+
+    // Return projects ready to start (wraps StashBridge.whatCanIStart).
+    async getProjectsReadyToStart() {
+      if (typeof StashBridge === 'undefined' || !StashBridge.whatCanIStart) return [];
+      try {
+        const results = await StashBridge.whatCanIStart();
+        return results;
+      } catch (e) { return []; }
     },
   };
 })();

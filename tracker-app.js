@@ -570,6 +570,7 @@ const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
 const projectIdRef=useRef(null);    // current project's storage ID
 const createdAtRef=useRef(null);    // stable createdAt ISO string for the active project
 const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunload
+const v3FieldsRef=useRef({});       // preserve v3 stats fields across save round-trips
 const[projectName,setProjectName]=useState("");
 const[namePromptOpen,setNamePromptOpen]=useState(false);
 const G=28;
@@ -820,6 +821,17 @@ function finaliseAutoSession(){
       pendingMilestonesRef.current=[];
     }
     setStatsSessions(prev=>[...(prev||[]),finalised]);
+    // Append to stitchLog for stats page (net stitches for today)
+    if(finalised.netStitches!==0&&projectIdRef.current&&typeof ProjectStorage!=='undefined'&&ProjectStorage.appendStitchLog){
+      try{
+        ProjectStorage.appendStitchLog(projectIdRef.current,finalised.netStitches).then(function(){
+          // Refresh v3 fields from IDB so next auto-save preserves stitchLog
+          ProjectStorage.get(projectIdRef.current).then(function(p){
+            if(p)v3FieldsRef.current={finishStatus:p.finishStatus,startedAt:p.startedAt,lastTouchedAt:p.lastTouchedAt,completedAt:p.completedAt,stitchLog:p.stitchLog};
+          });
+        });
+      }catch(e){}
+    }
     currentAutoSessionRef.current=null;
     clearTimeout(autoIdleTimerRef.current);
     clearTimeout(inactivityTimerRef.current);
@@ -2038,6 +2050,8 @@ function processLoadedProject(project){
 
   setParkMarkers(project.parkMarkers||[]);
   setBreadcrumbs(project.breadcrumbs||[]);
+  // Preserve v3 stats fields through auto-save round-trips
+  v3FieldsRef.current={finishStatus:project.finishStatus,startedAt:project.startedAt,lastTouchedAt:project.lastTouchedAt,completedAt:project.completedAt,stitchLog:project.stitchLog};
   if(project.stitchingStyle)setStitchingStyle(project.stitchingStyle);
   if(project.blockW)setBlockW(Math.max(5,Math.min(100,project.blockW)));
   if(project.blockH)setBlockH(Math.max(5,Math.min(100,project.blockH)));
@@ -2372,7 +2386,8 @@ const buildSnapshot = () => {
     statsSessions, statsSettings, achievedMilestones, doneSnapshots,
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null,
-    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence
+    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence,
+    ...v3FieldsRef.current
   };
 };
 buildSnapshotRef.current = buildSnapshot;
@@ -4455,6 +4470,10 @@ return(
               await StashBridge.updateThreadOwned(d.id,newOwned);
             }
             setGlobalStash(await StashBridge.getGlobalStash());
+            if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
+              await ProjectStorage.markProjectFinished(projectIdRef.current);
+              v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
+            }
           })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
         }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#7c3aed",color:"#fff",cursor:"pointer",fontWeight:600}}>Deduct Full Skeins</button>
         <button onClick={()=>{
@@ -4467,9 +4486,22 @@ return(
               await StashBridge.updateThreadOwned(d.id,newOwned);
             }
             setGlobalStash(await StashBridge.getGlobalStash());
+            if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
+              await ProjectStorage.markProjectFinished(projectIdRef.current);
+              v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
+            }
           })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
         }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1px solid #d8b4fe",background:"#faf5ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Deduct Partial (keep 1 per colour)</button>
-        <button onClick={()=>{setStashDeducted(true);setModal(null);}} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontWeight:500}}>Skip</button>
+        <button onClick={()=>{
+          if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
+            ProjectStorage.markProjectFinished(projectIdRef.current);
+            v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
+          }
+          setStashDeducted(true);setModal(null);
+        }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontWeight:500}}>Skip</button>
+      </div>
+      <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid #e2e8f0",display:"flex",justifyContent:"center"}}>
+        <button onClick={()=>{window.location.search='?mode=stats';}} style={{fontSize:12,color:"#0d9488",background:"none",border:"none",cursor:"pointer",fontWeight:600}}>See your updated stats →</button>
       </div>
     </div>
   </div>}
