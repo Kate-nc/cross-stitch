@@ -835,16 +835,26 @@ function UnifiedApp(){
     return p.get('mode')==='track'||p.get('mode')==='stats';
   });
   const[trackerReady,setTrackerReady]=React.useState(typeof window.TrackerApp!=='undefined');
+  const[statsPageReady,setStatsPageReady]=React.useState(typeof window.StatsPage==='function');
   const pendingTrackerProject=React.useRef(null);
   const[homeKey,setHomeKey]=React.useState(0);
 
   React.useEffect(()=>{
     if(trackerReady)return;
     if((mode==='track'||mode==='stats')&&typeof window.loadTrackerApp==='function') window.loadTrackerApp();
-    if(mode==='stats'&&typeof window.loadStatsPage==='function') window.loadStatsPage();
     const poll=setInterval(()=>{if(typeof window.TrackerApp!=='undefined'){setTrackerReady(true);clearInterval(poll);}},50);
     return()=>clearInterval(poll);
   },[trackerReady, mode]);
+
+  // Poll for StatsPage readiness whenever we enter stats mode.
+  // Without this, the first click shows GlobalStatsDashboard (old view) because
+  // Babel compiles stats-page.js asynchronously after mode is already set to 'stats'.
+  React.useEffect(()=>{
+    if(mode!=='stats'||statsPageReady)return;
+    if(typeof window.loadStatsPage==='function') window.loadStatsPage();
+    const poll=setInterval(()=>{if(typeof window.StatsPage==='function'){setStatsPageReady(true);clearInterval(poll);}},50);
+    return()=>clearInterval(poll);
+  },[mode,statsPageReady]);
 
   const switchToTrack=React.useCallback((incomingProject)=>{
     if(incomingProject) pendingTrackerProject.current=incomingProject;
@@ -1017,9 +1027,9 @@ function UnifiedApp(){
     </div>
     {mode==='stats'&&<div style={{position:'fixed',inset:0,background:'var(--surface)',zIndex:100,overflowY:'auto'}}>
       <Header page="stats" tab="" onPageChange={()=>{}} setModal={()=>{}} />
-      {typeof window.StatsPage==='function'
+      {statsPageReady
         ?<window.StatsPage onClose={closeStats} onNavigateToProject={(id)=>{switchToTrack({id})}} onNavigateToStash={()=>{window.location.href='manager.html';}} />
-        :<GlobalStatsDashboard onClose={closeStats} />}
+        :<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh'}}><span style={{opacity:0.5}}>Loading stats…</span></div>}
     </div>}
   </>;
 }
