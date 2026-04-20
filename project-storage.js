@@ -151,6 +151,10 @@ const ProjectStorage = (() => {
         project.id = "proj_" + Date.now();
         project.createdAt = new Date().toISOString();
       }
+      // Refuse to save a project that was deleted during this page session.
+      if (this._deletedIds.has(project.id)) {
+        return project.id;
+      }
       project.updatedAt = new Date().toISOString();
 
       // Fingerprints are computed by sync-specific export/classification flows.
@@ -234,6 +238,9 @@ const ProjectStorage = (() => {
     // Delete a project by ID.
     async delete(id) {
       try {
+        // Record the deletion so in-flight auto-saves from Tracker/Creator
+        // don't resurrect the project before the page fully reloads.
+        this._deletedIds.add(id);
         const db = await getDB();
         return new Promise((resolve, reject) => {
           let tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
@@ -243,6 +250,8 @@ const ProjectStorage = (() => {
           store.delete(id);
           metaStore.delete(id);
           statsStore.delete(id);
+          // Also remove the legacy "auto_save" key if it matches this project
+          store.delete("auto_save");
           tx.oncomplete = () => resolve();
           tx.onerror = () => reject(tx.error);
         });
@@ -251,6 +260,14 @@ const ProjectStorage = (() => {
         throw err;
       }
     },
+
+    // Check whether a project ID was deleted during this page session.
+    isDeleted(id) {
+      return this._deletedIds.has(id);
+    },
+
+    // Internal set of project IDs deleted during this page session.
+    _deletedIds: new Set(),
 
     // Mark a project as the currently active one (stored in localStorage as a pointer).
     setActiveProject(id) {

@@ -190,6 +190,32 @@ function ManagerApp() {
     return () => clearTimeout(saveTimer);
   }, [threads, patterns, userProfile]);
 
+  // Flush pending state to IDB on page unload so navigation doesn't lose recent changes
+  useEffect(() => {
+    const threadsRef = { current: threads };
+    const patternsRef = { current: patterns };
+    const profileRef = { current: userProfile };
+    // Keep refs up to date
+    threadsRef.current = threads;
+    patternsRef.current = patterns;
+    profileRef.current = userProfile;
+    const handleBeforeUnload = () => {
+      try {
+        const req = indexedDB.open("stitch_manager_db", 1);
+        req.onsuccess = (e) => {
+          const db = e.target.result;
+          const tx = db.transaction(["manager_state"], "readwrite");
+          const store = tx.objectStore("manager_state");
+          store.put(threadsRef.current, "threads");
+          store.put(patternsRef.current, "patterns");
+          store.put(profileRef.current, "userProfile");
+        };
+      } catch (err) {}
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [threads, patterns, userProfile]);
+
   // Smart Stash Hub: refresh conflicts, ready-to-start, and low-stock alerts
   useEffect(() => {
     if (typeof StashBridge === "undefined") return;
@@ -390,7 +416,15 @@ function ManagerApp() {
 
   const deletePattern = (id) => {
     if (confirm("Are you sure you want to delete this pattern?")) {
-      setPatterns(prev => prev.filter(p => p.id !== id));
+      setPatterns(prev => {
+        const updated = prev.filter(p => p.id !== id);
+        // Write immediately so navigation before the debounced auto-save cannot lose the deletion
+        openManagerDB().then(db => {
+          const tx = db.transaction(["manager_state"], "readwrite");
+          tx.objectStore("manager_state").put(updated, "patterns");
+        }).catch(err => console.error("Immediate pattern delete save failed:", err));
+        return updated;
+      });
       if (viewingPattern && viewingPattern.id === id) {
           setViewingPattern(null);
       }
@@ -787,6 +821,18 @@ function ManagerApp() {
                                     ProjectStorage.clearActiveProject();
                                   }
                                   setStoredProjects(prev => prev.filter(x => x.id !== p.id));
+                                  // Remove any linked pattern library entry so the deleted project
+                                  // doesn't leave an orphan in the pattern library
+                                  setPatterns(prev => {
+                                    const updated = prev.filter(pat => pat.linkedProjectId !== p.id);
+                                    if (updated.length !== prev.length) {
+                                      openManagerDB().then(db => {
+                                        const tx = db.transaction(["manager_state"], "readwrite");
+                                        tx.objectStore("manager_state").put(updated, "patterns");
+                                      }).catch(err => console.error("Cascade pattern library cleanup failed:", err));
+                                    }
+                                    return updated;
+                                  });
                                 });
                               }
                             }}

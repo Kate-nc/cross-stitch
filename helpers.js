@@ -99,6 +99,8 @@ function getDB() {
 }
 
 async function saveProjectToDB(project) {
+  // Skip saving if the project was deleted during this page session
+  if (project && project.id && typeof ProjectStorage !== 'undefined' && ProjectStorage.isDeleted(project.id)) return;
   try {
     const db = await getDB();
     return new Promise((resolve, reject) => {
