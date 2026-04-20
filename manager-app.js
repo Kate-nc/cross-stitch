@@ -428,12 +428,22 @@ function ManagerApp() {
       )}
 
       {/* Sub-tab bar */}
-      <div className="mgr-tab-bar">
-        <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); }}>
-          <span className="icon">{Icons.thread()}</span> Thread Inventory <span className="cnt">{totalOwnedCount}</span>
-        </button>
-        <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); }}>
-          <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
+      <div className="mgr-tab-bar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex" }}>
+          <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); }}>
+            <span className="icon">{Icons.thread()}</span> Thread Inventory <span className="cnt">{totalOwnedCount}</span>
+          </button>
+          <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); }}>
+            <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
+          </button>
+        </div>
+        <button
+          onClick={() => { window.location.href = "index.html?mode=showcase"; }}
+          title="See your stitching journey"
+          style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: "0 14px", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap" }}
+          aria-label="Open Showcase view"
+        >
+          ✦ Showcase
         </button>
       </div>
 

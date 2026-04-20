@@ -601,10 +601,25 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const show = key => vis[key] !== false;
 
   // ── Shared tab bar (built after all hooks) ────────────────────
+  const openShowcase = () => {
+    if (typeof window.__switchToShowcase === 'function') {
+      window.__switchToShowcase();
+    } else {
+      window.history.replaceState({}, '', '?mode=showcase');
+      window.location.reload();
+    }
+  };
   const tabBar = h('div', { className: 'gsd-tabs', style: { paddingTop: 8 } },
-    h('div', { className: 'gsd-tabs-inner' },
-      h('button', { className: 'gsd-tab' + (tab === 'stitching' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stitching') }, 'Stitching'),
-      h('button', { className: 'gsd-tab' + (tab === 'stash' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stash') }, 'Stash')
+    h('div', { className: 'gsd-tabs-inner', style: { justifyContent: 'space-between', width: '100%' } },
+      h('div', { style: { display: 'flex' } },
+        h('button', { className: 'gsd-tab' + (tab === 'stitching' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stitching') }, 'Stitching'),
+        h('button', { className: 'gsd-tab' + (tab === 'stash' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stash') }, 'Stash')
+      ),
+      h('button', {
+        onClick: openShowcase,
+        style: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 12px', fontFamily: 'inherit', alignSelf: 'center' },
+        title: 'See your stitching journey'
+      }, 'Showcase view →')
     )
   );
 

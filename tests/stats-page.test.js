@@ -1,5 +1,5 @@
 /**
- * Tests for stats-page.js structural correctness.
+ * Tests for stats-page.js and stats-showcase.js structural correctness.
  *
  * React's Rules of Hooks require that hooks are always called in the same order
  * and never conditionally. In particular, no hook call may appear after an early
@@ -12,6 +12,9 @@ const fs = require('fs');
 const path = require('path');
 
 const source = fs.readFileSync(path.resolve(__dirname, '..', 'stats-page.js'), 'utf8');
+const showcaseSource = fs.readFileSync(path.resolve(__dirname, '..', 'stats-showcase.js'), 'utf8');
+
+// ── stats-page.js tests ──────────────────────────────────────────
 
 // Extract the StatsPage function body (from function declaration to the
 // `window.StatsPage = StatsPage` assignment that immediately follows it).
@@ -68,3 +71,72 @@ describe('StatsPage — Rules of Hooks', () => {
     }
   });
 });
+
+// ── stats-showcase.js structural tests ───────────────────────────
+
+describe('StatsShowcase — exported and structured correctly', () => {
+  test('window.StatsShowcase is assigned at end of file', () => {
+    expect(showcaseSource).toContain('window.StatsShowcase = StatsShowcase');
+  });
+
+  test('StatsShowcase function is declared', () => {
+    expect(showcaseSource).toContain('function StatsShowcase(');
+  });
+
+  test('StatsShowcase accepts onNavigateToDashboard prop', () => {
+    const fnStart = showcaseSource.indexOf('function StatsShowcase(');
+    const fnSig = showcaseSource.slice(fnStart, fnStart + 120);
+    expect(fnSig).toContain('onNavigateToDashboard');
+  });
+
+  test('all hooks in StatsShowcase are declared before any early return', () => {
+    const fnStart = showcaseSource.indexOf('function StatsShowcase(');
+    const fnEnd = showcaseSource.indexOf('window.StatsShowcase = StatsShowcase');
+    const body = showcaseSource.slice(fnStart, fnEnd);
+
+    // First early return after the loading guard
+    const firstReturn = body.indexOf('\n  if (loading)');
+    expect(firstReturn).toBeGreaterThan(-1);
+
+    // All hook calls must appear before the loading guard
+    const hookRe = /\b(useState|useEffect|useMemo|useCallback|useRef)\s*\(/g;
+    let m;
+    while ((m = hookRe.exec(body)) !== null) {
+      expect(m.index).toBeLessThan(firstReturn);
+    }
+  });
+
+  test('SABLE empty-state hides chart when data < 3 months (logic check)', () => {
+    // The sableSentence helper should return null for < 3 data points
+    expect(showcaseSource).toContain('sableData.length < 3');
+  });
+
+  test('showcase does not reference statsVisibility (curation is hard-coded)', () => {
+    // Per B.5 known pitfalls: Showcase must NOT apply statsVisibility
+    expect(showcaseSource).not.toContain('statsVisibility');
+    expect(showcaseSource).not.toContain('loadStatsVisibility');
+  });
+});
+
+// ── index.html cache key tests ────────────────────────────────────
+
+describe('index.html — Babel cache keys', () => {
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
+
+  test('SHOWCASE_CACHE_KEY is defined', () => {
+    expect(html).toContain("SHOWCASE_CACHE_KEY = 'babel_showcase_v1'");
+  });
+
+  test('loadStatsShowcase function is defined', () => {
+    expect(html).toContain('window.loadStatsShowcase = function()');
+  });
+
+  test('STATS_CACHE_KEY and SHOWCASE_CACHE_KEY are distinct strings', () => {
+    const statsMatch = html.match(/STATS_CACHE_KEY\s*=\s*'([^']+)'/);
+    const showcaseMatch = html.match(/SHOWCASE_CACHE_KEY\s*=\s*'([^']+)'/);
+    expect(statsMatch).not.toBeNull();
+    expect(showcaseMatch).not.toBeNull();
+    expect(statsMatch[1]).not.toBe(showcaseMatch[1]);
+  });
+});
+

@@ -4501,7 +4501,7 @@ return(
         }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontWeight:500}}>Skip</button>
       </div>
       <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid #e2e8f0",display:"flex",justifyContent:"center"}}>
-        <button onClick={()=>{window.location.search='?mode=stats&tab=stitching';}} style={{fontSize:12,color:"#0d9488",background:"none",border:"none",cursor:"pointer",fontWeight:600}}>See your updated stats →</button>
+        <button onClick={()=>{window.location.search='?mode=showcase';}} style={{fontSize:12,color:"#0d9488",background:"none",border:"none",cursor:"pointer",fontWeight:600}}>See your updated stats →</button>
       </div>
     </div>
   </div>}
