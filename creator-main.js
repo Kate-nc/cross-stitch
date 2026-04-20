@@ -826,7 +826,7 @@ function UnifiedApp(){
     const p=new URLSearchParams(window.location.search);
     if(p.get('mode')==='track') return 'track';
     if(p.get('mode')==='stats') return 'stats';
-    if(p.get('mode')==='showcase') return 'showcase';
+    if(p.get('mode')==='showcase'){window.history.replaceState({},'','?mode=stats&tab=showcase');return 'stats';}
     return 'home';
   });
   const[creatorResetKey,setCreatorResetKey]=React.useState(0);
@@ -835,7 +835,6 @@ function UnifiedApp(){
     return p.get('mode')==='track'||p.get('mode')==='stats';
   });
   const[trackerReady,setTrackerReady]=React.useState(typeof window.TrackerApp!=='undefined');
-  const[showcaseReady,setShowcaseReady]=React.useState(typeof window.StatsShowcase==='function');
   const pendingTrackerProject=React.useRef(null);
   const[homeKey,setHomeKey]=React.useState(0);
 
@@ -846,13 +845,6 @@ function UnifiedApp(){
     const poll=setInterval(()=>{if(typeof window.TrackerApp!=='undefined'){setTrackerReady(true);clearInterval(poll);}},50);
     return()=>clearInterval(poll);
   },[trackerReady, mode]);
-
-  React.useEffect(()=>{
-    if(showcaseReady)return;
-    if(mode==='showcase'&&typeof window.loadStatsShowcase==='function') window.loadStatsShowcase();
-    const poll=setInterval(()=>{if(typeof window.StatsShowcase==='function'){setShowcaseReady(true);clearInterval(poll);}},50);
-    return()=>clearInterval(poll);
-  },[showcaseReady, mode]);
 
   const switchToTrack=React.useCallback((incomingProject)=>{
     if(incomingProject) pendingTrackerProject.current=incomingProject;
@@ -886,18 +878,7 @@ function UnifiedApp(){
     else if(prev==='design'){window.history.replaceState({},'',window.location.pathname);setMode('design');}
     else{window.history.replaceState({},'',window.location.pathname);setHomeKey(k=>k+1);setMode('home');}
   },[]);
-  const closeShowcase=React.useCallback(()=>{
-    const prev=prevModeRef.current;
-    if(prev==='track'){window.history.replaceState({},'','?mode=track');setMode('track');}
-    else if(prev==='design'){window.history.replaceState({},'',window.location.pathname);setMode('design');}
-    else{window.history.replaceState({},'',window.location.pathname);setHomeKey(k=>k+1);setMode('home');}
-  },[]);
-  const switchToShowcase=React.useCallback(()=>{
-    prevModeRef.current=modeRef.current;
-    if(typeof window.loadStatsShowcase==='function') window.loadStatsShowcase();
-    window.history.replaceState({},'','?mode=showcase');
-    setMode('showcase');
-  },[]);
+  const switchToShowcase=React.useCallback(()=>switchToStats({tab:'showcase'}),[]);
   const switchToStats=React.useCallback((params)=>{
     if(modeRef.current==='stats'&&!params){closeStats();return;}
     // When switching from track mode, open per-project stats inline inside the tracker
@@ -926,10 +907,9 @@ function UnifiedApp(){
     window.__switchToCreate=switchToCreate;
     window.__switchToEdit=switchToEdit;
     window.__switchToStats=switchToStats;
-    window.__switchToShowcase=switchToShowcase;
     window.__goHome=goHome;
-    return()=>{delete window.__switchToTrack;delete window.__switchToDesign;delete window.__switchToCreate;delete window.__switchToEdit;delete window.__switchToStats;delete window.__switchToShowcase;delete window.__goHome;};
-  },[switchToTrack,switchToDesign,switchToCreate,switchToEdit,switchToStats,switchToShowcase,goHome]);
+    return()=>{delete window.__switchToTrack;delete window.__switchToDesign;delete window.__switchToCreate;delete window.__switchToEdit;delete window.__switchToStats;delete window.__goHome;};
+  },[switchToTrack,switchToDesign,switchToCreate,switchToEdit,switchToStats,goHome]);
 
   const handleHomeOpenCreatorWithImage=React.useCallback((file)=>{
     window.__pendingCreatorFile=file;
@@ -1040,15 +1020,6 @@ function UnifiedApp(){
       {typeof window.StatsPage==='function'
         ?<window.StatsPage onClose={closeStats} onNavigateToProject={(id)=>{switchToTrack({id})}} onNavigateToStash={()=>{window.location.href='manager.html';}} />
         :<GlobalStatsDashboard onClose={closeStats} />}
-    </div>}
-    {mode==='showcase'&&<div style={{position:'fixed',inset:0,background:'var(--surface)',zIndex:100,overflowY:'auto'}}>
-      <Header page="stats" tab="" onPageChange={()=>{}} setModal={()=>{}} />
-      {showcaseReady&&typeof window.StatsShowcase==='function'
-        ?<window.StatsShowcase onClose={closeShowcase} onNavigateToDashboard={switchToStats} onNavigateToProject={(id)=>{switchToTrack({id})}} />
-        :<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'80vh',flexDirection:'column',gap:12,color:'#475569',fontSize:14}}>
-          <div style={{width:28,height:28,border:'2.5px solid #e2e8f0',borderTopColor:'#0d9488',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
-          Loading Showcase…
-        </div>}
     </div>}
   </>;
 }

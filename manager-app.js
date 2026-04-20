@@ -438,7 +438,7 @@ function ManagerApp() {
           </button>
         </div>
         <button
-          onClick={() => { window.location.href = "index.html?mode=showcase"; }}
+          onClick={() => { window.location.href = "index.html?mode=stats&tab=showcase"; }}
           title="See your stitching journey"
           style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: "0 14px", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap" }}
           aria-label="Open Showcase view"
