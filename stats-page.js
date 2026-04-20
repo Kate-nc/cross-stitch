@@ -321,20 +321,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     window.history.replaceState({}, '', '?' + p.toString());
   }, []);
 
-  // ── Stitching tab: delegate entirely to GlobalStatsDashboard ───
-  if (tab === 'stitching') {
-    return h('div', null,
-      h('div', { className: 'gsd-tabs', style: { paddingTop: 8 } },
-        h('div', { className: 'gsd-tabs-inner' },
-          h('button', { className: 'gsd-tab gsd-tab--on', onClick: () => switchTab('stitching') }, 'Stitching'),
-          h('button', { className: 'gsd-tab', onClick: () => switchTab('stash') }, 'Stash')
-        )
-      ),
-      h(GlobalStatsDashboard, { onClose })
-    );
-  }
-
-  // ── Stash tab state ────────────────────────────────────────────
+  // ── All hooks below are unconditional (Rules of Hooks) ────────
   const [loading, setLoading] = useState(true);
   const [visibility, setVisibility] = useState(loadStatsVisibility);
   const [showCustomise, setShowCustomise] = useState(false);
@@ -613,14 +600,22 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const vis = visibility;
   const show = key => vis[key] !== false;
 
+  // ── Shared tab bar (built after all hooks) ────────────────────
+  const tabBar = h('div', { className: 'gsd-tabs', style: { paddingTop: 8 } },
+    h('div', { className: 'gsd-tabs-inner' },
+      h('button', { className: 'gsd-tab' + (tab === 'stitching' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stitching') }, 'Stitching'),
+      h('button', { className: 'gsd-tab' + (tab === 'stash' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stash') }, 'Stash')
+    )
+  );
+
+  // ── Stitching tab: delegate to GlobalStatsDashboard ──────────
+  if (tab === 'stitching') {
+    return h('div', null, tabBar, h(GlobalStatsDashboard, { onClose }));
+  }
+
   if (loading) {
     return h('div', { className: 'gsd', style: { padding: 40, textAlign: 'center', color: 'var(--text-secondary)' } },
-      h('div', { className: 'gsd-tabs', style: { paddingTop: 8 } },
-        h('div', { className: 'gsd-tabs-inner' },
-          h('button', { className: 'gsd-tab', onClick: () => switchTab('stitching') }, 'Stitching'),
-          h('button', { className: 'gsd-tab gsd-tab--on', onClick: () => switchTab('stash') }, 'Stash')
-        )
-      ),
+      tabBar,
       h('div', { style: { padding: 40, textAlign: 'center', color: 'var(--text-secondary)' } },
         h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
         'Loading stats…'
@@ -630,13 +625,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
 
   // ── Render ──────────────────────────────────────────────────────
   return h('div', { className: 'gsd', style: { paddingBottom: 40 } },
-    // Tab bar
-    h('div', { className: 'gsd-tabs', style: { paddingTop: 8 } },
-      h('div', { className: 'gsd-tabs-inner' },
-        h('button', { className: 'gsd-tab', onClick: () => switchTab('stitching') }, 'Stitching'),
-        h('button', { className: 'gsd-tab gsd-tab--on', onClick: () => switchTab('stash') }, 'Stash')
-      )
-    ),
+    tabBar,
     h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 0 4px' } },
       h('button', { onClick: () => setShowCustomise(true), style: { padding: '6px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer' } }, 'Customise')
     ),
