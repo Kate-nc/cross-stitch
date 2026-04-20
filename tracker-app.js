@@ -821,16 +821,22 @@ function finaliseAutoSession(){
       pendingMilestonesRef.current=[];
     }
     setStatsSessions(prev=>[...(prev||[]),finalised]);
-    // Append to stitchLog for stats page (net stitches for today)
-    if(finalised.netStitches!==0&&projectIdRef.current&&typeof ProjectStorage!=='undefined'&&ProjectStorage.appendStitchLog){
-      try{
-        ProjectStorage.appendStitchLog(projectIdRef.current,finalised.netStitches).then(function(){
-          // Refresh v3 fields from IDB so next auto-save preserves stitchLog
-          ProjectStorage.get(projectIdRef.current).then(function(p){
-            if(p)v3FieldsRef.current={finishStatus:p.finishStatus,startedAt:p.startedAt,lastTouchedAt:p.lastTouchedAt,completedAt:p.completedAt,stitchLog:p.stitchLog};
-          });
-        });
-      }catch(e){}
+    // Update stitchLog directly in v3FieldsRef so the next auto-save picks it up.
+    // Avoids a race where a separate IDB read-modify-write (appendStitchLog) could
+    // be overwritten by the tracker's own auto-save using stale v3FieldsRef data.
+    if(finalised.netStitches!==0&&projectIdRef.current){
+      const _now=new Date();
+      const _today=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0')+'-'+String(_now.getDate()).padStart(2,'0');
+      const _prev=v3FieldsRef.current||{};
+      const _log=(_prev.stitchLog||[]).slice();
+      const _idx=_log.findIndex(function(e){return e.date===_today;});
+      if(_idx>=0){_log[_idx]={date:_today,count:_log[_idx].count+finalised.netStitches};}
+      else{_log.push({date:_today,count:finalised.netStitches});}
+      const _newV3=Object.assign({},_prev,{stitchLog:_log,lastTouchedAt:_now.toISOString()});
+      if(_prev.finishStatus==='planned'&&finalised.netStitches>0){_newV3.finishStatus='active';}
+      v3FieldsRef.current=_newV3;
+      autoSaveDirtyRef.current=true;
+      if(typeof invalidateStatsCache==='function')invalidateStatsCache();
     }
     currentAutoSessionRef.current=null;
     clearTimeout(autoIdleTimerRef.current);
@@ -2515,7 +2521,18 @@ useEffect(() => {
     await ProjectStorage.save(project);
     await saveProjectToDB(project).catch(() => {});
   };
-  return () => { delete window.__flushProjectToIDB; };
+  return () => {
+    // Replace with a snapshot-based fallback rather than deleting outright.
+    // If a backup or sync flush is requested during the mode-switch gap before
+    // the Creator registers its own handler, this ensures IDB is still written.
+    var last = lastSnapshotRef.current;
+    window.__flushProjectToIDB = async function() {
+      if (last) {
+        await ProjectStorage.save(last);
+        await saveProjectToDB(last).catch(() => {});
+      }
+    };
+  };
 }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done,
     halfStitches, halfDone, parkMarkers, totalTime, liveAutoElapsed, sessions, hlRow, hlCol,
     threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots,

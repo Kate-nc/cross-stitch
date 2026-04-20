@@ -108,7 +108,10 @@ describe('Persistence field coverage', () => {
   });
 
   test('__flushProjectToIDB includes breadcrumbs and stitching style fields', () => {
-    const flushMatch = trackerSrc.match(/window\.__flushProjectToIDB\s*=\s*async\s*function\(\)\s*\{([\s\S]*?)\};\s*return\s*\(\)\s*=>\s*\{\s*delete window\.__flushProjectToIDB/);
+    // The main flush handler (registered in the useEffect body) must contain these fields.
+    // The cleanup now replaces with a snapshot fallback instead of deleting, so we match
+    // up to the return statement rather than to 'delete window.__flushProjectToIDB'.
+    const flushMatch = trackerSrc.match(/window\.__flushProjectToIDB\s*=\s*async\s*function\(\)\s*\{([\s\S]*?)\};\s*return\s*\(\)\s*=>/);
     expect(flushMatch).not.toBeNull();
     const flushBody = flushMatch[1];
 

@@ -146,10 +146,16 @@ function ManagerApp() {
       }
     };
 
-    // Load Active Tracker Project (using helpers.js loadProjectFromDB which targets CrossStitchDB -> projects -> auto_save)
+    // Load the currently active project. Prefers the canonical ProjectStorage active
+    // pointer (proj_* key) over the legacy "auto_save" key, which may be stale if
+    // the user only uses the Tracker without navigating through the Creator.
     const loadActiveProject = async () => {
       try {
-        const proj = await loadProjectFromDB();
+        let proj = null;
+        if (typeof ProjectStorage !== 'undefined') {
+          proj = await ProjectStorage.getActiveProject();
+        }
+        if (!proj) proj = await loadProjectFromDB(); // fallback to legacy auto_save
         if (proj) {
             setActiveProject(proj);
         }

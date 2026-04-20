@@ -6201,7 +6201,16 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       }
       return Promise.resolve();
     };
-    return function() { delete window.__flushProjectToIDB; };
+    return function() {
+      // Replace with a snapshot-based fallback rather than deleting outright.
+      // If a backup or sync flush is requested during the mode-switch gap before
+      // the Tracker registers its own handler, this ensures IDB is still written.
+      var last = creatorSnapshotRef.current;
+      window.__flushProjectToIDB = function() {
+        if (last) return ProjectStorage.save(last).then(function() { return saveProjectToDB(last); }).catch(function() {});
+        return Promise.resolve();
+      };
+    };
   }, []);
 
   // Paste image handler
