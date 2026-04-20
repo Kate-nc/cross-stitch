@@ -868,7 +868,8 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         if (typeof rgbToLab === 'function') {
           for (const [sKey, sEntry] of Object.entries(stashData || {})) {
             if (!sEntry || !sEntry.owned || sEntry.owned <= 0) continue;
-            const parsed = sKey.indexOf(':') >= 0 ? { brand: sKey.split(':')[0], id: sKey.split(':').slice(1).join(':') } : { brand: 'dmc', id: sKey };
+            const colonIdx = sKey.indexOf(':');
+            const parsed = colonIdx >= 0 ? { brand: sKey.substring(0, colonIdx), id: sKey.substring(colonIdx + 1) } : { brand: 'dmc', id: sKey };
             const info = parsed.brand === 'anchor' ? anchorById.get(parsed.id) : dmcById.get(parsed.id);
             if (!info) continue;
             ownedLabEntries.push({

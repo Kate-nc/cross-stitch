@@ -826,7 +826,8 @@ function finaliseAutoSession(){
     // be overwritten by the tracker's own auto-save using stale v3FieldsRef data.
     if(finalised.netStitches!==0&&projectIdRef.current){
       const _now=new Date();
-      const _today=(session&&session.date)||((typeof getStitchingDateLocal==='function')?getStitchingDateLocal(_now,dayEndHour):(_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0')+'-'+String(_now.getDate()).padStart(2,'0')));
+      const _fallbackDate=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0')+'-'+String(_now.getDate()).padStart(2,'0');
+      const _today=(session&&session.date)||((typeof getStitchingDateLocal==='function')?getStitchingDateLocal(_now,dayEndHour):_fallbackDate);
       const _prev=v3FieldsRef.current||{};
       const _log=(_prev.stitchLog||[]).slice();
       const _idx=_log.findIndex(function(e){return e.date===_today;});

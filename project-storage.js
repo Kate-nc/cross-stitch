@@ -247,13 +247,13 @@ const ProjectStorage = (() => {
           let store = tx.objectStore(STORE_NAME);
           let metaStore = tx.objectStore(META_STORE);
           let statsStore = tx.objectStore(STATS_STORE);
-          store.delete(id);
-          metaStore.delete(id);
-          statsStore.delete(id);
-          // Also remove the legacy "auto_save" key if it matches this project
+          // Read legacy auto_save first, then perform deletes in one sequence.
           let autoSaveReq = store.get("auto_save");
           autoSaveReq.onsuccess = () => {
             let autoSave = autoSaveReq.result;
+            store.delete(id);
+            metaStore.delete(id);
+            statsStore.delete(id);
             if (autoSave && autoSave.id === id) store.delete("auto_save");
           };
           autoSaveReq.onerror = () => reject(autoSaveReq.error);
