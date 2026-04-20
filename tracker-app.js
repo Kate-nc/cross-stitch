@@ -826,7 +826,7 @@ function finaliseAutoSession(){
     // be overwritten by the tracker's own auto-save using stale v3FieldsRef data.
     if(finalised.netStitches!==0&&projectIdRef.current){
       const _now=new Date();
-      const _today=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0')+'-'+String(_now.getDate()).padStart(2,'0');
+      const _today=(session&&session.date)||((typeof getStitchingDateLocal==='function')?getStitchingDateLocal(_now,dayEndHour):(_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0')+'-'+String(_now.getDate()).padStart(2,'0')));
       const _prev=v3FieldsRef.current||{};
       const _log=(_prev.stitchLog||[]).slice();
       const _idx=_log.findIndex(function(e){return e.date===_today;});
@@ -4551,11 +4551,12 @@ return(
           })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
         }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1px solid #d8b4fe",background:"#faf5ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Deduct Partial (keep 1 per colour)</button>
         <button onClick={()=>{
-          if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
-            ProjectStorage.markProjectFinished(projectIdRef.current);
-            v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
-          }
-          setStashDeducted(true);setModal(null);
+          (async()=>{
+            if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
+              await ProjectStorage.markProjectFinished(projectIdRef.current);
+              v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
+            }
+          })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
         }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontWeight:500}}>Skip</button>
       </div>
       <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid #e2e8f0",display:"flex",justifyContent:"center"}}>

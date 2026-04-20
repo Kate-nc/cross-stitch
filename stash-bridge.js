@@ -187,12 +187,26 @@ const StashBridge = (() => {
           const req = store.get("threads");
           req.onsuccess = () => {
             const threads = req.result || {};
-            if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
+            const isV3 = (threads._schemaVersion || 0) >= 3;
+            if (!threads[key]) {
+              threads[key] = { owned: 0, tobuy: false, partialStatus: null };
+              if (isV3) {
+                threads[key].addedAt = new Date().toISOString();
+                threads[key].lastAdjustedAt = null;
+                threads[key].acquisitionSource = null;
+                threads[key].history = [];
+              }
+            } else if (isV3) {
+              if (threads[key].addedAt === undefined) threads[key].addedAt = new Date().toISOString();
+              if (threads[key].lastAdjustedAt === undefined) threads[key].lastAdjustedAt = null;
+              if (threads[key].acquisitionSource === undefined) threads[key].acquisitionSource = null;
+              if (!Array.isArray(threads[key].history)) threads[key].history = [];
+            }
             const oldCount = threads[key].owned || 0;
             const delta = newCount - oldCount;
             threads[key].owned = newCount;
             // V3 history tracking
-            if (delta !== 0 && threads[key].history !== undefined) {
+            if (delta !== 0 && isV3) {
               const now = new Date().toISOString();
               threads[key].lastAdjustedAt = now;
               if (!Array.isArray(threads[key].history)) threads[key].history = [];

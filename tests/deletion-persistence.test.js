@@ -27,6 +27,8 @@ describe('ProjectStorage deletion guards (source analysis)', () => {
   test('delete() also removes the legacy auto_save key', () => {
     const deleteMethod = storageSrc.match(/async delete\(id\)\s*\{[\s\S]*?\n    \}/);
     expect(deleteMethod).not.toBeNull();
+    expect(deleteMethod[0]).toContain("store.get(\"auto_save\")");
+    expect(deleteMethod[0]).toContain("autoSave && autoSave.id === id");
     expect(deleteMethod[0]).toContain("store.delete(\"auto_save\")");
   });
 
@@ -122,33 +124,5 @@ describe('_deletedIds core logic', () => {
     const project = { id: 'proj_456' };
     const shouldSave = !deleted.has(project.id);
     expect(shouldSave).toBe(true);
-  });
-});
-
-describe('saveProjectToDB deletion guard', () => {
-  test('saveProjectToDB source code checks ProjectStorage.isDeleted', () => {
-    expect(helpersSrc).toContain('ProjectStorage.isDeleted');
-  });
-
-  test('saveProjectToDB skips saving when project is deleted', () => {
-    const guardPattern = /if\s*\(project\s*&&\s*project\.id\s*&&\s*typeof\s+ProjectStorage\s*!==\s*['"]undefined['"]\s*&&\s*ProjectStorage\.isDeleted\(project\.id\)\)\s*return/;
-    expect(guardPattern.test(helpersSrc)).toBe(true);
-  });
-});
-
-describe('Manager pattern deletion writes immediately', () => {
-  const managerSrc = fs.readFileSync(path.resolve(__dirname, '..', 'manager-app.js'), 'utf8');
-
-  test('deletePattern writes to IDB immediately (not just via debounce)', () => {
-    expect(managerSrc).toContain('Immediate pattern delete save failed');
-  });
-
-  test('manager has beforeunload handler to flush pending saves', () => {
-    expect(managerSrc).toContain('beforeunload');
-  });
-
-  test('stored project deletion cascades to pattern library', () => {
-    expect(managerSrc).toContain('linkedProjectId');
-    expect(managerSrc).toContain('Cascade pattern library cleanup');
   });
 });

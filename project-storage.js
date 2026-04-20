@@ -251,7 +251,12 @@ const ProjectStorage = (() => {
           metaStore.delete(id);
           statsStore.delete(id);
           // Also remove the legacy "auto_save" key if it matches this project
-          store.delete("auto_save");
+          let autoSaveReq = store.get("auto_save");
+          autoSaveReq.onsuccess = () => {
+            let autoSave = autoSaveReq.result;
+            if (autoSave && autoSave.id === id) store.delete("auto_save");
+          };
+          autoSaveReq.onerror = () => reject(autoSaveReq.error);
           tx.oncomplete = () => resolve();
           tx.onerror = () => reject(tx.error);
         });

@@ -93,11 +93,19 @@ describe('serve.js', () => {
     }
 
     server = captured;
-    server.listen(0, '127.0.0.1', () => {
-      port = server.address().port;
+    const finish = () => {
+      const address = server.address();
+      port = address && address.port;
       process.argv = originalArgv;
       delete process.env.PORT;
       done();
+    };
+    if (server.listening) { finish(); return; }
+    server.once('listening', finish);
+    server.once('error', err => {
+      process.argv = originalArgv;
+      delete process.env.PORT;
+      done(err);
     });
   });
 

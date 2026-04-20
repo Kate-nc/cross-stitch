@@ -4,7 +4,9 @@ const http = require('http');
 const fs   = require('fs');
 const path = require('path');
 
-const PORT = parseInt(process.argv[2], 10) || parseInt(process.env.PORT, 10) || 8000;
+const argvPort = parseInt(process.argv[2], 10);
+const envPort = parseInt(process.env.PORT, 10);
+const PORT = !Number.isNaN(argvPort) ? argvPort : !Number.isNaN(envPort) ? envPort : 8000;
 const ROOT = __dirname;
 
 const MIME = {

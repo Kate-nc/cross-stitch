@@ -860,9 +860,24 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       if (typeof ProjectStorage === 'undefined') return;
       try {
         const metas = await ProjectStorage.listProjects();
+        const projects = await Promise.all(metas.map(m => ProjectStorage.get(m.id)));
         let totalThreads = 0, coveredThreads = 0;
-        for (const meta of metas) {
-          const proj = await ProjectStorage.get(meta.id);
+        const dmcById = new Map(typeof DMC !== 'undefined' ? DMC.map(d => [d.id, d]) : []);
+        const anchorById = new Map(typeof ANCHOR !== 'undefined' ? ANCHOR.map(d => [d.id, d]) : []);
+        const ownedLabEntries = [];
+        if (typeof rgbToLab === 'function') {
+          for (const [sKey, sEntry] of Object.entries(stashData || {})) {
+            if (!sEntry || !sEntry.owned || sEntry.owned <= 0) continue;
+            const parsed = sKey.indexOf(':') >= 0 ? { brand: sKey.split(':')[0], id: sKey.split(':').slice(1).join(':') } : { brand: 'dmc', id: sKey };
+            const info = parsed.brand === 'anchor' ? anchorById.get(parsed.id) : dmcById.get(parsed.id);
+            if (!info) continue;
+            ownedLabEntries.push({
+              key: sKey,
+              lab: info.lab || rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]),
+            });
+          }
+        }
+        for (const proj of projects) {
           if (!proj || !proj.pattern) continue;
           if (proj.finishStatus && proj.finishStatus !== 'active' && proj.finishStatus !== 'planned') continue;
           // Get unique thread IDs used in this pattern
@@ -878,19 +893,15 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
             if (entry && entry.owned > 0) { coveredThreads++; continue; }
             // Check cross-brand substitutes
             let found = false;
-            if (typeof rgbToLab === 'function' && typeof dE2000 === 'function') {
-              const threadInfo = typeof DMC !== 'undefined' ? DMC.find(d => d.id === tid) : null;
+            if (typeof dE2000 === 'function' && ownedLabEntries.length > 0) {
+              const threadInfo = dmcById.get(tid);
               if (threadInfo) {
-                const targetLab = threadInfo.lab || rgbToLab(threadInfo.rgb[0], threadInfo.rgb[1], threadInfo.rgb[2]);
-                for (const [sKey, sEntry] of Object.entries(stashData)) {
-                  if (!sEntry.owned || sEntry.owned <= 0 || sKey === compositeKey) continue;
-                  const parsed = sKey.indexOf(':') >= 0 ? { brand: sKey.split(':')[0], id: sKey.split(':').slice(1).join(':') } : { brand: 'dmc', id: sKey };
-                  let info = null;
-                  if (parsed.brand === 'anchor' && typeof ANCHOR !== 'undefined') info = ANCHOR.find(d => d.id === parsed.id);
-                  else if (typeof DMC !== 'undefined') info = DMC.find(d => d.id === parsed.id);
-                  if (!info) continue;
-                  const lab = info.lab || rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]);
-                  if (dE2000(targetLab, lab) < 6) { found = true; break; }
+                const targetLab = threadInfo.lab || (typeof rgbToLab === 'function' ? rgbToLab(threadInfo.rgb[0], threadInfo.rgb[1], threadInfo.rgb[2]) : null);
+                if (targetLab) {
+                  for (const owned of ownedLabEntries) {
+                    if (owned.key === compositeKey) continue;
+                    if (dE2000(targetLab, owned.lab) < 6) { found = true; break; }
+                  }
                 }
               }
             }
@@ -917,14 +928,6 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
     }
   }, [loading, highlightSection]);
-
-  // Derived stats
-  const activeCount = useMemo(() => {
-    return projects.filter(p => {
-      // Without finishStatus, count anything that has stitches
-      return true; // We count from the full project list — real filtering happens below
-    }).length;
-  }, [projects]);
 
   // We need to load full projects for finishStatus - use a secondary load
   const [projectDetails, setProjectDetails] = useState([]);
@@ -1119,8 +1122,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               h('div', { className: 'gsd-metric-sub' }, '≈ ' + threadKm(lifetimeStitches) + ' km of thread'),
               h('div', { style: { marginTop: 6, display: 'flex', gap: 6 } },
                 h('button', { onClick: e => { e.stopPropagation(); setShowShareCard(true); }, style: { fontSize: 11, padding: '3px 8px', background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600 } }, 'Share card')
-              ),
-              h('div', { style: { fontSize: 10, color: 'var(--text-tertiary)', marginTop: 4 } }, 'Tracked since April 2026')
+              )
             )
           : h('div', null,
               h('div', { className: 'gsd-metric-value' }, '0'),
@@ -1158,7 +1160,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               h('div', { style: { fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 } }, 'SABLE = Stash Accumulated Beyond Life Expectancy')
             )
           : h('div', { style: { fontSize: 13, color: 'var(--text-secondary)', padding: '20px 0' } },
-              'Tracking since April 2026 — check back in a few months for a trend'
+              'Check back after a few months of tracking to see a trend'
             )
       ),
       show('stashComposition') && h(StatCard, { title: 'Stash Composition', id: 'stats-stashComposition', style: { minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' } },
