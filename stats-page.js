@@ -307,6 +307,34 @@ function ShareCardModal({ lifetimeStitches, onClose }) {
 
 // ── Main StatsPage component ─────────────────────────────────────
 function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
+  // Tab: 'stitching' (original GlobalStatsDashboard) | 'stash' (new stash analytics)
+  const initialTab = useMemo(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get('tab') === 'stash' ? 'stash' : 'stitching';
+  }, []);
+  const [tab, setTab] = useState(initialTab);
+
+  const switchTab = useCallback(t => {
+    setTab(t);
+    const p = new URLSearchParams(window.location.search);
+    p.set('tab', t);
+    window.history.replaceState({}, '', '?' + p.toString());
+  }, []);
+
+  // ── Stitching tab: delegate entirely to GlobalStatsDashboard ───
+  if (tab === 'stitching') {
+    return h('div', null,
+      h('div', { className: 'gsd-tabs', style: { paddingTop: 8 } },
+        h('div', { className: 'gsd-tabs-inner' },
+          h('button', { className: 'gsd-tab gsd-tab--on', onClick: () => switchTab('stitching') }, 'Stitching'),
+          h('button', { className: 'gsd-tab', onClick: () => switchTab('stash') }, 'Stash')
+        )
+      ),
+      h(GlobalStatsDashboard, { onClose })
+    );
+  }
+
+  // ── Stash tab state ────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
   const [visibility, setVisibility] = useState(loadStatsVisibility);
   const [showCustomise, setShowCustomise] = useState(false);
@@ -587,19 +615,29 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
 
   if (loading) {
     return h('div', { className: 'gsd', style: { padding: 40, textAlign: 'center', color: 'var(--text-secondary)' } },
-      h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
-      'Loading stats…'
+      h('div', { className: 'gsd-tabs', style: { paddingTop: 8 } },
+        h('div', { className: 'gsd-tabs-inner' },
+          h('button', { className: 'gsd-tab', onClick: () => switchTab('stitching') }, 'Stitching'),
+          h('button', { className: 'gsd-tab gsd-tab--on', onClick: () => switchTab('stash') }, 'Stash')
+        )
+      ),
+      h('div', { style: { padding: 40, textAlign: 'center', color: 'var(--text-secondary)' } },
+        h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
+        'Loading stats…'
+      )
     );
   }
 
   // ── Render ──────────────────────────────────────────────────────
   return h('div', { className: 'gsd', style: { paddingBottom: 40 } },
-    // Page header
-    h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0 8px', flexWrap: 'wrap', gap: 8 } },
-      h('div', null,
-        h('h2', { style: { fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text-primary)' } }, 'Stats'),
-        h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 } }, 'Updated just now')
-      ),
+    // Tab bar
+    h('div', { className: 'gsd-tabs', style: { paddingTop: 8 } },
+      h('div', { className: 'gsd-tabs-inner' },
+        h('button', { className: 'gsd-tab', onClick: () => switchTab('stitching') }, 'Stitching'),
+        h('button', { className: 'gsd-tab gsd-tab--on', onClick: () => switchTab('stash') }, 'Stash')
+      )
+    ),
+    h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 0 4px' } },
       h('button', { onClick: () => setShowCustomise(true), style: { padding: '6px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer' } }, 'Customise')
     ),
 
