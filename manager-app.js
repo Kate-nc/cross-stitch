@@ -223,11 +223,12 @@ function ManagerApp() {
     StashBridge.whatCanIStart().then(setReadyToStart).catch(() => {});
     // Low-stock: threads where owned > 0 but below min_stock
     const alerts = [];
-    for (const [id, t] of Object.entries(threads)) {
+    for (const [compositeKey, t] of Object.entries(threads)) {
       const minStock = t.min_stock || 0;
       if (minStock > 0 && t.owned < minStock) {
-        const info = DMC.find(d => d.id === id);
-        alerts.push({ id, name: info ? info.name : id, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: minStock });
+        const bareId = compositeKey.indexOf(':') < 0 ? compositeKey : compositeKey.split(':').slice(1).join(':');
+        const info = typeof getThreadByKey === 'function' ? getThreadByKey(compositeKey) : DMC.find(d => d.id === bareId);
+        alerts.push({ id: compositeKey, bareId, name: info ? info.name : bareId, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: minStock });
       }
     }
     alerts.sort((a, b) => (a.min_stock - a.owned) - (b.min_stock - b.owned));
@@ -243,8 +244,8 @@ function ManagerApp() {
       if (pat.threads) pat.threads.forEach(t => activeIds.add(t.id));
     });
     return {
-      lowStockNeeded: lowStockAlerts.filter(a => activeIds.has(a.id)),
-      lowStockNotNeeded: lowStockAlerts.filter(a => !activeIds.has(a.id)),
+      lowStockNeeded: lowStockAlerts.filter(a => activeIds.has(a.bareId || a.id)),
+      lowStockNotNeeded: lowStockAlerts.filter(a => !activeIds.has(a.bareId || a.id)),
     };
   }, [lowStockAlerts, patterns]);
 
@@ -565,10 +566,10 @@ function ManagerApp() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockNeeded.map(a => (
                     <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fde68a", cursor: "pointer" }}
-                      title={"Open thread card for " + a.id}
-                      onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(a.id.indexOf(':') < 0 ? 'dmc:' + a.id : a.id); }}>
+                      title={"Open thread card for " + (a.bareId || a.id)}
+                      onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(a.id); }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {a.id}</span>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {a.bareId || a.id}</span>
                       <span style={{ fontSize: 11, color: "#475569", flex: 1 }}>{a.name}</span>
                       <span style={{ fontSize: 11, color: "#b45309", fontWeight: 600 }}>have {a.owned}, min {a.min_stock}</span>
                       <button onClick={(e) => { e.stopPropagation(); updateThread(a.id, "tobuy", true); }} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, border: "1px solid #fed7aa", background: "#fff7ed", color: "#ea580c", cursor: "pointer", fontWeight: 600 }}>Add to buy</button>
@@ -587,7 +588,7 @@ function ManagerApp() {
                   {lowStockNotNeeded.map(a => (
                     <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #e2e8f0" }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {a.id}</span>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {a.bareId || a.id}</span>
                       <span style={{ fontSize: 11, color: "#475569", flex: 1 }}>{a.name}</span>
                       <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>have {a.owned}, min {a.min_stock}</span>
                     </div>
@@ -910,9 +911,9 @@ function ManagerApp() {
             {viewingPattern ? (() => {
               const p = viewingPattern;
               const coverage = p.threads && p.threads.length > 0
-                ? Math.round(p.threads.filter(t => (threads[t.id] || {}).owned > 0).length / p.threads.length * 100)
+                ? Math.round(p.threads.filter(t => { const k = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id; return (threads[k] || {}).owned > 0; }).length / p.threads.length * 100)
                 : 0;
-              const missingThreads = p.threads ? p.threads.filter(t => !(threads[t.id] || {}).owned) : [];
+              const missingThreads = p.threads ? p.threads.filter(t => { const k = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id; return !(threads[k] || {}).owned; }) : [];
               return <>
                 <div className="rp-s">
                   <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 2 }}>{p.title || "Untitled"}</div>
@@ -933,7 +934,7 @@ function ManagerApp() {
                   <div style={{ height: 6, background: "#f1f5f9", borderRadius: 3, overflow: "hidden", border: "1px solid #e2e8f0", marginBottom: 8 }}>
                     <div style={{ height: "100%", width: coverage + "%", background: "#0d9488", borderRadius: 3 }} />
                   </div>
-                  <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.threads ? p.threads.filter(t => (threads[t.id] || {}).owned > 0).length : 0} of {p.threads ? p.threads.length : 0} threads in your stash. {missingThreads.length} missing.</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.threads ? p.threads.filter(t => { const k = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id; return (threads[k] || {}).owned > 0; }).length : 0} of {p.threads ? p.threads.length : 0} threads in your stash. {missingThreads.length} missing.</div>
                 </div>
                 {missingThreads.length > 0 && (
                   <div className="rp-s">
