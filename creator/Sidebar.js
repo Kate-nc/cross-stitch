@@ -839,12 +839,12 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   var tabBar = h("div", {
     role:"tablist", "aria-label":mode === "create" ? "Create mode panels" : "Edit mode panels",
-    style:{display:"flex",borderBottom:"1px solid var(--border)",background:"var(--surface)",flexDirection:"column"}
+    style:{display:"flex",background:"var(--surface)",flexDirection:"column"}
   },
-    h("div", {"aria-hidden":"true", style:{paddingTop:6,paddingBottom:2,display:"flex",justifyContent:"center"}},
+    h("div", {"aria-hidden":"true", className:"rpanel-handle-wrap", style:{paddingTop:6,paddingBottom:2,display:"flex",justifyContent:"center"}},
       h("div", {className:"rpanel-handle-bar"})
     ),
-    h("div", {style:{display:"flex"}},
+    h("div", {style:{display:"flex",borderBottom:"1px solid var(--border)"}},
       tabs.map(function(kl) {
         return h("button", {
           key:kl[0],
@@ -852,11 +852,16 @@ window.CreatorSidebar = function CreatorSidebar() {
           "aria-selected":sTab===kl[0],
           "aria-controls":"sidebar-panel-"+kl[0],
           onClick:function(){
-            if (app.sidebarTab === kl[0] && app.panelOpen) {
-              app.setPanelOpen(false);
+            var isMobile = window.matchMedia && window.matchMedia("(max-width: 899px)").matches;
+            if (isMobile) {
+              if (app.sidebarTab === kl[0] && app.panelOpen) {
+                app.setPanelOpen(false);
+              } else {
+                app.setSidebarTab(kl[0]);
+                app.setPanelOpen(true);
+              }
             } else {
               app.setSidebarTab(kl[0]);
-              app.setPanelOpen(true);
             }
           },
           style:{

@@ -4348,7 +4348,7 @@ return(
     <div className={"rpanel"+(mobileDrawerOpen?" rpanel--drawer-open":"")}>
       <div className="rp-tabs">
         {[["colours","Colours"],["session","Session"],["more","More"]].map(([k,l])=>
-          <button key={k} className={"rp-tab"+(rpanelTab===k?" rp-tab--on":"")} onClick={()=>{if(rpanelTab===k&&mobileDrawerOpen){setMobileDrawerOpen(false);}else{setRpanelTab(k);setMobileDrawerOpen(true);}}}>{l}</button>
+          <button key={k} className={"rp-tab"+(rpanelTab===k?" rp-tab--on":"")} onClick={()=>{const isMobile=window.matchMedia&&window.matchMedia("(max-width: 899px)").matches;if(isMobile){if(rpanelTab===k&&mobileDrawerOpen){setMobileDrawerOpen(false);}else{setRpanelTab(k);setMobileDrawerOpen(true);}}else{setRpanelTab(k);}}}>{l}</button>
         )}
       </div>
       <div className="rp-tab-content">

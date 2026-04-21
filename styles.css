@@ -200,8 +200,8 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .pill .tb-btn.tb-btn--red{background:#fee2e2;color:#dc2626;font-weight:600;}
 .pill .tb-flex{display:none;}
 /* ── Canvas + right-panel layout ── */
-.cs-main{display:flex;align-items:flex-start;flex:1;min-height:0;}
-.canvas-area{flex:1;min-width:0;overflow-y:auto;}
+.cs-main{display:flex;align-items:flex-start;flex:1;min-height:0;overflow:hidden;}
+.canvas-area{flex:1;min-width:0;min-height:0;overflow:auto;}
 .rpanel{width:280px;background:var(--surface);border-left:1px solid var(--border);flex-shrink:0;position:sticky;top:128px;max-height:calc(100vh - 128px);overflow-y:auto;align-self:flex-start;}
 .rp-tabs{display:flex;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:10;}
 .rp-tab{flex:1;padding:8px 0;font-size:11px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--text-tertiary);border-bottom:2px solid transparent;font-family:inherit;}
@@ -1699,6 +1699,48 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   /* Bottom padding so content isn't hidden behind peek handle */
   .canvas-area{padding-bottom:56px;}
   .mgr-content{padding-bottom:56px;}
+}
+/* ═════════════════════════════════════════════════════════
+   DESKTOP LAYOUT — Full viewport, no page scroll
+   All scrolling happens inside canvas-area or rpanel.
+   ═════════════════════════════════════════════════════════ */
+@media (min-width: 900px) {
+  html, body { overflow: hidden; }
+  /* cs-main children stretch to fill remaining viewport height */
+  .cs-main { align-items: stretch; }
+  /* Canvas area scrolls within its own box, not the page */
+  .canvas-area { overflow: auto; padding-bottom: 0; }
+  /* rpanel: restore permanent side-panel, override mobile drawer */
+  .rpanel {
+    position: relative;
+    top: auto;
+    max-height: none;
+    transition: none;
+    border-radius: 0;
+    border-top: none;
+    border-left: 1px solid var(--border);
+    box-shadow: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  /* Manager right panel: restore desktop side-panel */
+  .mgr-rpanel {
+    position: relative;
+    max-height: none;
+    width: 280px;
+    border-left: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0;
+    box-shadow: none;
+    overflow-y: auto;
+    transition: none;
+  }
+  /* Manager content area: scrolls within its own box */
+  .mgr-content { padding-bottom: 0; min-height: 0; }
+  /* Hide mobile-only affordances */
+  .rpanel-handle-wrap { display: none !important; }
+  .mgr-panel-handle { display: none !important; }
+  .rpanel-backdrop { display: none !important; }
 }
 .emb-legend-title {
   font-size: 12px;
