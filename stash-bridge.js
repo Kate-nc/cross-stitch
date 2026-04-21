@@ -275,7 +275,10 @@ const StashBridge = (() => {
 
     // Syncs a generated project's thread requirements into the manager's pattern library.
     // Called after pattern generation and on project save.
-    async syncProjectToLibrary(projectId, projectName, skeinData, status) {
+    // skeinData: array of { id, name, stitches, skeins, rgb }
+    // fabricCt: the project's fabric count (e.g. 14, 18, 28) — stored so conflict
+    //           detection can convert stitches to skeins using the correct count.
+    async syncProjectToLibrary(projectId, projectName, skeinData, status, fabricCt) {
       try {
         const db = await openManagerDB();
         return new Promise((resolve, reject) => {
@@ -294,6 +297,7 @@ const StashBridge = (() => {
               designer: existing ? existing.designer : "",
               status: status || (existing ? existing.status : "inprogress"),
               tags: existing ? existing.tags : ["auto-synced"],
+              fabricCt: fabricCt || 14,
               threads: skeinData.map(d => ({
                 id: d.id,
                 name: d.name,
@@ -330,10 +334,11 @@ const StashBridge = (() => {
         const demand = {}; // { threadKey: { total, patterns: [{title, qty}] } }
         for (const pat of active) {
           if (!pat.threads) continue;
+          const fc = pat.fabricCt || 14;
           for (const t of pat.threads) {
             const key = _normaliseKey(t.id);
             if (!demand[key]) demand[key] = { total: 0, patterns: [] };
-            const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, 14) : Math.ceil(t.qty / 200)) : t.qty;
+            const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, fc) : Math.ceil(t.qty / 200)) : t.qty;
             demand[key].total += skeins;
             demand[key].patterns.push({ title: pat.title, qty: skeins });
           }
@@ -372,9 +377,10 @@ const StashBridge = (() => {
         const results = [];
         for (const pat of notStarted) {
           if (!pat.threads || pat.threads.length === 0) continue;
+          const fc = pat.fabricCt || 14;
           let covered = 0, missing = [];
           for (const t of pat.threads) {
-            const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, 14) : Math.ceil(t.qty / 200)) : t.qty;
+            const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, fc) : Math.ceil(t.qty / 200)) : t.qty;
             const key = _normaliseKey(t.id);
             const owned = _getOwnedCount(threadsData, key, t.id);
             if (owned >= skeins) covered++;

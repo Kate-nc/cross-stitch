@@ -2492,7 +2492,8 @@ useEffect(() => {
         projectIdRef.current,
         projectName || `${sW}×${sH} pattern`,
         skeinData,
-        combinedDone >= combinedTotal && combinedTotal > 0 ? "completed" : "inprogress"
+        combinedDone >= combinedTotal && combinedTotal > 0 ? "completed" : "inprogress",
+        fabricCt
       ).catch(err => console.error("Library sync failed:", err));
     }
   }, 5000);

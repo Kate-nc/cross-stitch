@@ -501,7 +501,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.projectIdRef.current,
           state.projectName || (state.sW + "\xD7" + state.sH + " pattern"),
           state.skeinData,
-          "inprogress"
+          "inprogress",
+          state.fabricCt
         );
       }
     }, 1000);

@@ -98,10 +98,30 @@ function ManagerApp() {
     };
   };
   const reconcileAutoSyncedPatterns = useCallback(async (basePatterns, allMeta) => {
-    const existingLinkedIds = new Set(basePatterns.map(p => p.linkedProjectId).filter(Boolean));
-    const unlinked = allMeta.filter(m => !existingLinkedIds.has(m.id));
-    if (unlinked.length === 0) return basePatterns;
+    // Build a map of linkedProjectId → index for fast lookup.
+    const linkedIdxMap = new Map(
+      basePatterns.map((p, i) => p.linkedProjectId ? [p.linkedProjectId, i] : null).filter(Boolean)
+    );
+    const unlinked = allMeta.filter(m => !linkedIdxMap.has(m.id));
+
+    // For each project that already has a library entry, check whether its name has
+    // changed (e.g. renamed on another device via sync). If so, update title only —
+    // leave user-set fields (designer, tags, status) untouched. Threads are managed
+    // exclusively by syncProjectToLibrary (auto-save) so we don't re-compute them here.
     let reconciled = basePatterns;
+    for (const meta of allMeta) {
+      const idx = linkedIdxMap.get(meta.id);
+      if (idx === undefined) continue;
+      const existing = reconciled[idx];
+      const expectedTitle = getPatternTitleFromProject(meta, null);
+      if (existing.title !== expectedTitle && existing.tags && existing.tags.includes('auto-synced')) {
+        if (reconciled === basePatterns) reconciled = [...basePatterns];
+        reconciled[idx] = { ...reconciled[idx], title: expectedTitle };
+      }
+    }
+
+    if (unlinked.length === 0) return reconciled;
+
     for (const meta of unlinked) {
       try {
         const full = await ProjectStorage.get(meta.id);
