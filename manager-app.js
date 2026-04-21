@@ -146,10 +146,16 @@ function ManagerApp() {
       }
     };
 
-    // Load Active Tracker Project (using helpers.js loadProjectFromDB which targets CrossStitchDB -> projects -> auto_save)
+    // Load the currently active project. Prefers the canonical ProjectStorage active
+    // pointer (proj_* key) over the legacy "auto_save" key, which may be stale if
+    // the user only uses the Tracker without navigating through the Creator.
     const loadActiveProject = async () => {
       try {
-        const proj = await loadProjectFromDB();
+        let proj = null;
+        if (typeof ProjectStorage !== 'undefined') {
+          proj = await ProjectStorage.getActiveProject();
+        }
+        if (!proj) proj = await loadProjectFromDB(); // fallback to legacy auto_save
         if (proj) {
             setActiveProject(proj);
         }
@@ -182,6 +188,32 @@ function ManagerApp() {
       }
     }, 1000);
     return () => clearTimeout(saveTimer);
+  }, [threads, patterns, userProfile]);
+
+  // Flush pending state to IDB on page unload so navigation doesn't lose recent changes
+  useEffect(() => {
+    const threadsRef = { current: threads };
+    const patternsRef = { current: patterns };
+    const profileRef = { current: userProfile };
+    // Keep refs up to date
+    threadsRef.current = threads;
+    patternsRef.current = patterns;
+    profileRef.current = userProfile;
+    const handleBeforeUnload = () => {
+      try {
+        const req = indexedDB.open("stitch_manager_db", 1);
+        req.onsuccess = (e) => {
+          const db = e.target.result;
+          const tx = db.transaction(["manager_state"], "readwrite");
+          const store = tx.objectStore("manager_state");
+          store.put(threadsRef.current, "threads");
+          store.put(patternsRef.current, "patterns");
+          store.put(profileRef.current, "userProfile");
+        };
+      } catch (err) {}
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [threads, patterns, userProfile]);
 
   // Smart Stash Hub: refresh conflicts, ready-to-start, and low-stock alerts
@@ -384,7 +416,15 @@ function ManagerApp() {
 
   const deletePattern = (id) => {
     if (confirm("Are you sure you want to delete this pattern?")) {
-      setPatterns(prev => prev.filter(p => p.id !== id));
+      setPatterns(prev => {
+        const updated = prev.filter(p => p.id !== id);
+        // Write immediately so navigation before the debounced auto-save cannot lose the deletion
+        openManagerDB().then(db => {
+          const tx = db.transaction(["manager_state"], "readwrite");
+          tx.objectStore("manager_state").put(updated, "patterns");
+        }).catch(err => console.error("Immediate pattern delete save failed:", err));
+        return updated;
+      });
       if (viewingPattern && viewingPattern.id === id) {
           setViewingPattern(null);
       }
@@ -428,12 +468,22 @@ function ManagerApp() {
       )}
 
       {/* Sub-tab bar */}
-      <div className="mgr-tab-bar">
-        <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); }}>
-          <span className="icon">{Icons.thread()}</span> Thread Inventory <span className="cnt">{totalOwnedCount}</span>
-        </button>
-        <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); }}>
-          <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
+      <div className="mgr-tab-bar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex" }}>
+          <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); }}>
+            <span className="icon">{Icons.thread()}</span> Thread Inventory <span className="cnt">{totalOwnedCount}</span>
+          </button>
+          <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); }}>
+            <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
+          </button>
+        </div>
+        <button
+          onClick={() => { window.location.href = "index.html?mode=stats&tab=showcase"; }}
+          title="See your stitching journey"
+          style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: "0 14px", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap" }}
+          aria-label="Open Showcase view"
+        >
+          ✦ Showcase
         </button>
       </div>
 
@@ -771,6 +821,18 @@ function ManagerApp() {
                                     ProjectStorage.clearActiveProject();
                                   }
                                   setStoredProjects(prev => prev.filter(x => x.id !== p.id));
+                                  // Remove any linked pattern library entry so the deleted project
+                                  // doesn't leave an orphan in the pattern library
+                                  setPatterns(prev => {
+                                    const updated = prev.filter(pat => pat.linkedProjectId !== p.id);
+                                    if (updated.length !== prev.length) {
+                                      openManagerDB().then(db => {
+                                        const tx = db.transaction(["manager_state"], "readwrite");
+                                        tx.objectStore("manager_state").put(updated, "patterns");
+                                      }).catch(err => console.error("Cascade pattern library cleanup failed:", err));
+                                    }
+                                    return updated;
+                                  });
                                 });
                               }
                             }}

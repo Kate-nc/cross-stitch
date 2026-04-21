@@ -570,6 +570,7 @@ const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
 const projectIdRef=useRef(null);    // current project's storage ID
 const createdAtRef=useRef(null);    // stable createdAt ISO string for the active project
 const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunload
+const v3FieldsRef=useRef({});       // preserve v3 stats fields across save round-trips
 const[projectName,setProjectName]=useState("");
 const[namePromptOpen,setNamePromptOpen]=useState(false);
 const G=28;
@@ -820,6 +821,24 @@ function finaliseAutoSession(){
       pendingMilestonesRef.current=[];
     }
     setStatsSessions(prev=>[...(prev||[]),finalised]);
+    // Update stitchLog directly in v3FieldsRef so the next auto-save picks it up.
+    // Avoids a race where a separate IDB read-modify-write (appendStitchLog) could
+    // be overwritten by the tracker's own auto-save using stale v3FieldsRef data.
+    if(finalised.netStitches!==0&&projectIdRef.current){
+      const _now=new Date();
+      const _fallbackDate=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0')+'-'+String(_now.getDate()).padStart(2,'0');
+      const _today=(session&&session.date)||((typeof getStitchingDateLocal==='function')?getStitchingDateLocal(_now,dayEndHour):_fallbackDate);
+      const _prev=v3FieldsRef.current||{};
+      const _log=(_prev.stitchLog||[]).slice();
+      const _idx=_log.findIndex(function(e){return e.date===_today;});
+      if(_idx>=0){_log[_idx]={date:_today,count:_log[_idx].count+finalised.netStitches};}
+      else{_log.push({date:_today,count:finalised.netStitches});}
+      const _newV3=Object.assign({},_prev,{stitchLog:_log,lastTouchedAt:_now.toISOString()});
+      if(_prev.finishStatus==='planned'&&finalised.netStitches>0){_newV3.finishStatus='active';}
+      v3FieldsRef.current=_newV3;
+      autoSaveDirtyRef.current=true;
+      if(typeof invalidateStatsCache==='function')invalidateStatsCache();
+    }
     currentAutoSessionRef.current=null;
     clearTimeout(autoIdleTimerRef.current);
     clearTimeout(inactivityTimerRef.current);
@@ -1874,9 +1893,28 @@ function handleEditInCreator(){
       lastSnapshotRef.current=project;
       saveProjectToDB(project).catch(()=>{});
       ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(()=>{});
+      // Push ALL tracker-specific fields to Creator so its auto-save doesn't overwrite them
+      try{
+        if(typeof window.__updateCreatorTrackerFields==='function'){
+          var _v3h=v3FieldsRef.current||{};
+          window.__updateCreatorTrackerFields({
+            statsSessions:project.statsSessions, statsSettings:project.statsSettings,
+            achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
+            breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
+            blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock,
+            startCorner:project.startCorner, colourSequence:project.colourSequence,
+            originalPaletteState:project.originalPaletteState,
+            singleStitchEdits:project.singleStitchEdits,
+            halfStitches:project.halfStitches, halfDone:project.halfDone,
+            finishStatus:_v3h.finishStatus, startedAt:_v3h.startedAt,
+            lastTouchedAt:_v3h.lastTouchedAt, completedAt:_v3h.completedAt,
+            stitchLog:_v3h.stitchLog
+          });
+        }
+      }catch(e){}
     }
     // Sync the current project name to the Creator so it doesn't overwrite with stale name
-    if(projectName&&typeof window.__setCreatorProjectName==='function') window.__setCreatorProjectName(projectName);
+    if(typeof window.__setCreatorProjectName==='function') window.__setCreatorProjectName(projectName||'');
     onSwitchToDesign();
     return;
   }
@@ -2038,6 +2076,8 @@ function processLoadedProject(project){
 
   setParkMarkers(project.parkMarkers||[]);
   setBreadcrumbs(project.breadcrumbs||[]);
+  // Preserve v3 stats fields through auto-save round-trips
+  v3FieldsRef.current={finishStatus:project.finishStatus,startedAt:project.startedAt,lastTouchedAt:project.lastTouchedAt,completedAt:project.completedAt,stitchLog:project.stitchLog};
   if(project.stitchingStyle)setStitchingStyle(project.stitchingStyle);
   if(project.blockW)setBlockW(Math.max(5,Math.min(100,project.blockW)));
   if(project.blockH)setBlockH(Math.max(5,Math.min(100,project.blockH)));
@@ -2372,7 +2412,8 @@ const buildSnapshot = () => {
     statsSessions, statsSettings, achievedMilestones, doneSnapshots,
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null,
-    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence
+    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence,
+    ...v3FieldsRef.current
   };
 };
 buildSnapshotRef.current = buildSnapshot;
@@ -2387,6 +2428,28 @@ useEffect(() => {
     lastSnapshotRef.current = project;
     ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Tracker auto-save failed:", err));
     saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err));
+    // Keep the Creator's tracker-field preservation container in sync so that if
+    // the user switches to Creator mode, the next Creator auto-save won't overwrite
+    // sessions, stats settings, milestones, etc. with stale data.
+    try{
+      if(typeof window.__updateCreatorTrackerFields==='function'){
+        var _v3=v3FieldsRef.current||{};
+        window.__updateCreatorTrackerFields({
+          statsSessions:project.statsSessions, statsSettings:project.statsSettings,
+          achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
+          breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
+          blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock,
+          startCorner:project.startCorner, colourSequence:project.colourSequence,
+          originalPaletteState:project.originalPaletteState,
+          singleStitchEdits:project.singleStitchEdits,
+          halfStitches:project.halfStitches, halfDone:project.halfDone,
+          finishStatus:_v3.finishStatus, startedAt:_v3.startedAt,
+          lastTouchedAt:_v3.lastTouchedAt, completedAt:_v3.completedAt,
+          stitchLog:_v3.stitchLog
+        });
+      }
+      if(typeof window.__setCreatorProjectName==='function') window.__setCreatorProjectName(projectName||'');
+    }catch(e){}
     if (typeof StashBridge !== "undefined" && skeinData.length > 0) {
       StashBridge.syncProjectToLibrary(
         projectIdRef.current,
@@ -2500,7 +2563,18 @@ useEffect(() => {
     await ProjectStorage.save(project);
     await saveProjectToDB(project).catch(() => {});
   };
-  return () => { delete window.__flushProjectToIDB; };
+  return () => {
+    // Replace with a snapshot-based fallback rather than deleting outright.
+    // If a backup or sync flush is requested during the mode-switch gap before
+    // the Creator registers its own handler, this ensures IDB is still written.
+    var last = lastSnapshotRef.current;
+    window.__flushProjectToIDB = async function() {
+      if (last) {
+        await ProjectStorage.save(last);
+        await saveProjectToDB(last).catch(() => {});
+      }
+    };
+  };
 }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done,
     halfStitches, halfDone, parkMarkers, totalTime, liveAutoElapsed, sessions, hlRow, hlCol,
     threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots,
@@ -4455,6 +4529,10 @@ return(
               await StashBridge.updateThreadOwned(d.id,newOwned);
             }
             setGlobalStash(await StashBridge.getGlobalStash());
+            if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
+              await ProjectStorage.markProjectFinished(projectIdRef.current);
+              v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
+            }
           })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
         }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#7c3aed",color:"#fff",cursor:"pointer",fontWeight:600}}>Deduct Full Skeins</button>
         <button onClick={()=>{
@@ -4467,9 +4545,23 @@ return(
               await StashBridge.updateThreadOwned(d.id,newOwned);
             }
             setGlobalStash(await StashBridge.getGlobalStash());
+            if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
+              await ProjectStorage.markProjectFinished(projectIdRef.current);
+              v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
+            }
           })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
         }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1px solid #d8b4fe",background:"#faf5ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Deduct Partial (keep 1 per colour)</button>
-        <button onClick={()=>{setStashDeducted(true);setModal(null);}} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontWeight:500}}>Skip</button>
+        <button onClick={()=>{
+          (async()=>{
+            if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
+              await ProjectStorage.markProjectFinished(projectIdRef.current);
+              v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
+            }
+          })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
+        }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontWeight:500}}>Skip</button>
+      </div>
+      <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid #e2e8f0",display:"flex",justifyContent:"center"}}>
+        <button onClick={()=>{window.location.search='?mode=stats&tab=showcase';}} style={{fontSize:12,color:"#0d9488",background:"none",border:"none",cursor:"pointer",fontWeight:600}}>See your updated stats →</button>
       </div>
     </div>
   </div>}

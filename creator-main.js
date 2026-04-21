@@ -246,7 +246,16 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   React.useEffect(()=>{
     window.__setCreatorAppMode=state.setAppMode;
     window.__setCreatorProjectName=state.setProjectName;
-    return()=>{delete window.__setCreatorAppMode;delete window.__setCreatorProjectName;};
+    // Allow the Tracker to push fresh tracker-specific fields into the Creator's
+    // preservation container so the next Creator auto-save doesn't overwrite them
+    // with stale data.
+    window.__updateCreatorTrackerFields=function(fields){
+      if(!fields||typeof fields!=='object')return;
+      var tf=state.trackerFieldsRef.current||{};
+      Object.assign(tf,fields);
+      state.trackerFieldsRef.current=tf;
+    };
+    return()=>{delete window.__setCreatorAppMode;delete window.__setCreatorProjectName;delete window.__updateCreatorTrackerFields;};
   },[state.setAppMode,state.setProjectName]);
 
   // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
@@ -826,14 +835,16 @@ function UnifiedApp(){
     const p=new URLSearchParams(window.location.search);
     if(p.get('mode')==='track') return 'track';
     if(p.get('mode')==='stats') return 'stats';
+    if(p.get('mode')==='showcase'){window.history.replaceState({},'','?mode=stats&tab=showcase');return 'stats';}
     return 'home';
   });
   const[creatorResetKey,setCreatorResetKey]=React.useState(0);
   const[trackerMounted,setTrackerMounted]=React.useState(()=>{
     const p=new URLSearchParams(window.location.search);
-    return p.get('mode')==='track';
+    return p.get('mode')==='track'||p.get('mode')==='stats';
   });
   const[trackerReady,setTrackerReady]=React.useState(typeof window.TrackerApp!=='undefined');
+  const[statsPageReady,setStatsPageReady]=React.useState(typeof window.StatsPage==='function');
   const pendingTrackerProject=React.useRef(null);
   const[homeKey,setHomeKey]=React.useState(0);
 
@@ -843,6 +854,16 @@ function UnifiedApp(){
     const poll=setInterval(()=>{if(typeof window.TrackerApp!=='undefined'){setTrackerReady(true);clearInterval(poll);}},50);
     return()=>clearInterval(poll);
   },[trackerReady, mode]);
+
+  // Poll for StatsPage readiness whenever we enter stats mode.
+  // Without this, the first click shows GlobalStatsDashboard (old view) because
+  // Babel compiles stats-page.js asynchronously after mode is already set to 'stats'.
+  React.useEffect(()=>{
+    if(mode!=='stats'||statsPageReady)return;
+    if(typeof window.loadStatsPage==='function') window.loadStatsPage();
+    const poll=setInterval(()=>{if(typeof window.StatsPage==='function'){setStatsPageReady(true);clearInterval(poll);}},50);
+    return()=>clearInterval(poll);
+  },[mode,statsPageReady]);
 
   const switchToTrack=React.useCallback((incomingProject)=>{
     if(incomingProject) pendingTrackerProject.current=incomingProject;
@@ -876,18 +897,21 @@ function UnifiedApp(){
     else if(prev==='design'){window.history.replaceState({},'',window.location.pathname);setMode('design');}
     else{window.history.replaceState({},'',window.location.pathname);setHomeKey(k=>k+1);setMode('home');}
   },[]);
-  const switchToStats=React.useCallback(()=>{
-    if(modeRef.current==='stats'){closeStats();return;}
+  const switchToShowcase=React.useCallback(()=>switchToStats({tab:'showcase'}),[]);
+  const switchToStats=React.useCallback((params)=>{
+    if(modeRef.current==='stats'&&!params){closeStats();return;}
     // When switching from track mode, open per-project stats inline inside the tracker
     // rather than navigating to the global all-projects dashboard.
-    if(modeRef.current==='track'&&typeof window.__openTrackerStats==='function'){
+    if(modeRef.current==='track'&&!params&&typeof window.__openTrackerStats==='function'){
       window.__openTrackerStats();
       return;
     }
     prevModeRef.current=modeRef.current;
     if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
+    if(typeof window.loadStatsPage==='function') window.loadStatsPage();
     setTrackerMounted(true);
-    window.history.replaceState({},'','?mode=stats');
+    const qs=params?'?mode=stats&'+new URLSearchParams(params).toString():'?mode=stats';
+    window.history.replaceState({},'',qs);
     setMode('stats');
   },[closeStats]);
   const goHome=React.useCallback(()=>{
@@ -989,6 +1013,7 @@ function UnifiedApp(){
         onOpenProject={handleHomeOpenProject}
         onNavigateToStash={handleHomeNavigateToStash}
         onOpenGlobalStats={switchToStats}
+        onOpenShowcase={switchToShowcase}
       />
       {homeModal==='help'&&<SharedModals.Help onClose={()=>setHomeModal(null)} />}
     </div>}
@@ -1011,7 +1036,9 @@ function UnifiedApp(){
     </div>
     {mode==='stats'&&<div style={{position:'fixed',inset:0,background:'var(--surface)',zIndex:100,overflowY:'auto'}}>
       <Header page="stats" tab="" onPageChange={()=>{}} setModal={()=>{}} />
-      <GlobalStatsDashboard onClose={closeStats} />
+      {statsPageReady
+        ?<window.StatsPage onClose={closeStats} onNavigateToProject={(id)=>{switchToTrack({id})}} onNavigateToStash={()=>{window.location.href='manager.html';}} />
+        :<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh'}}><span style={{opacity:0.5}}>Loading stats…</span></div>}
     </div>}
   </>;
 }

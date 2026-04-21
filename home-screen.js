@@ -28,7 +28,7 @@ function getGreeting() {
   return 'Good evening';
 }
 
-function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, onImportPattern, onOpenProject, onNavigateToStash, onOpenGlobalStats }) {
+function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, onImportPattern, onOpenProject, onNavigateToStash, onOpenGlobalStats, onOpenShowcase }) {
   var h = React.createElement;
   var useState = React.useState;
   var useEffect = React.useEffect;
@@ -421,6 +421,18 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           h('div', { className: 'home-stat-label' }, card.label)
         );
       })
+    ),
+
+    // Showcase entry tile (shown alongside stats row when projects exist)
+    !isEmptyState && projectCount > 0 && onOpenShowcase && h('div', {
+      style: { display: 'flex', justifyContent: 'flex-end', marginTop: -8, marginBottom: 4, paddingRight: 2 }
+    },
+      h('button', {
+        onClick: onOpenShowcase,
+        title: 'See your stitching journey',
+        'aria-label': 'Open Showcase view',
+        style: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', fontFamily: 'inherit' }
+      }, '✦ See your Showcase →')
     ),
 
     // Hero card (only if projects exist)
