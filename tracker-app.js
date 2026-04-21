@@ -308,7 +308,7 @@ function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
 }
 
 // ── Session Summary Modal ──
-function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,onClose}){
+function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,hasBreadcrumbs,onClose}){
   if(!data)return null;
   const{durationSeconds,stitchesCompleted,blocksCompleted,coloursCompleted}=data;
   const mins=Math.floor(durationSeconds/60),secs=durationSeconds%60;
@@ -327,7 +327,7 @@ function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,onClose}){
           {coloursCompleted&&coloursCompleted.length>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14}}><span style={{color:"#475569"}}>Colours finished</span><span style={{fontWeight:700}}>{coloursCompleted.length}</span></div>}
         </div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={onViewBreadcrumbs} style={{flex:1,padding:"8px",borderRadius:8,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:13,fontWeight:600,color:"#475569"}}>View breadcrumb trail</button>
+          {hasBreadcrumbs&&<button onClick={onViewBreadcrumbs} style={{flex:1,padding:"8px",borderRadius:8,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:13,fontWeight:600,color:"#475569"}}>View breadcrumb trail</button>}
           <button onClick={onClose} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:600}}>Close</button>
         </div>
       </div>
@@ -4747,7 +4747,7 @@ return(
     setExplicitSession({startTime:Date.now(),timeAvail:cfg.timeAvail,stitchGoal:cfg.stitchGoal,startStitches:doneCount,blocks:[]});
     setSessionConfigOpen(false);
   }}/>}
-  {sessionSummaryData&&<SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.stitchesCompleted||0),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);}} onClose={()=>setSessionSummaryData(null)}/>}
+  {sessionSummaryData&&<SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.stitchesCompleted||0),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={breadcrumbs&&breadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(breadcrumbs&&breadcrumbs.length>0&&stitchScrollRef.current){const b=breadcrumbs[0];const cx=G+b.bx*blockW*scs+blockW*scs/2;const cy=G+b.by*blockH*scs+blockH*scs/2;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
   {modal==="pdf_export"&&<div className="modal-overlay" onClick={()=>setModal(null)}>
     <div className="modal-content" style={{maxWidth:400}} onClick={e=>e.stopPropagation()}>
