@@ -69,8 +69,12 @@ function ManagerApp() {
   };
   const getPatternTitleFromProject = (meta, full) => {
     if (meta && meta.name) return meta.name;
-    if (full && full.settings && Number.isFinite(full.settings.sW) && Number.isFinite(full.settings.sH)) return `${full.settings.sW}×${full.settings.sH} pattern`;
+    if (full && full.settings && Number.isFinite(full.settings.sW) && Number.isFinite(full.settings.sH)) return `${full.settings.sW}\u00D7${full.settings.sH} pattern`;
     return 'Pattern';
+  };
+  const makeAutoSyncedPatternId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    return Date.now().toString() + Math.random().toString(36).slice(2);
   };
   const buildAutoSyncedPattern = (meta, full) => {
     if (!full || !full.pattern) return null;
@@ -84,7 +88,7 @@ function ManagerApp() {
       return { id, name: dmcEntry ? dmcEntry.name : id, qty: stitches, unit: 'stitches', brand: 'DMC' };
     });
     return {
-      id: Date.now().toString() + Math.random().toString(36).slice(2),
+      id: makeAutoSyncedPatternId(),
       linkedProjectId: meta.id,
       title: getPatternTitleFromProject(meta, full),
       designer: '',
@@ -97,13 +101,18 @@ function ManagerApp() {
     const existingLinkedIds = new Set(basePatterns.map(p => p.linkedProjectId).filter(Boolean));
     const unlinked = allMeta.filter(m => !existingLinkedIds.has(m.id));
     if (unlinked.length === 0) return basePatterns;
-    const reconciled = [...basePatterns];
+    let reconciled = basePatterns;
     for (const meta of unlinked) {
       try {
         const full = await ProjectStorage.get(meta.id);
         const autoPattern = buildAutoSyncedPattern(meta, full);
-        if (autoPattern) reconciled.push(autoPattern);
-      } catch (e) {}
+        if (autoPattern) {
+          if (reconciled === basePatterns) reconciled = [...basePatterns];
+          reconciled.push(autoPattern);
+        }
+      } catch (e) {
+        console.warn('Manager: failed to reconcile project', meta && meta.id, e);
+      }
     }
     return reconciled;
   }, []);

@@ -4749,8 +4749,8 @@ return(
     setSessionConfigOpen(false);
   }}/>}
   {sessionSummaryData&&(()=>{
-    const currentSessionIdx=statsSessions?statsSessions.length:0;
-    const sessionBreadcrumbs=(breadcrumbs||[]).filter(b=>b&&b.sessionIdx===currentSessionIdx);
+    const activeSessionIdx=statsSessions?statsSessions.length:0;
+    const sessionBreadcrumbs=(breadcrumbs||[]).filter(b=>b&&b.sessionIdx===activeSessionIdx);
     const firstSessionBreadcrumb=sessionBreadcrumbs.length>0?sessionBreadcrumbs[0]:null;
     return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.stitchesCompleted||0),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const cx=G+b.bx*blockW*scs+blockW*scs/2;const cy=G+b.by*blockH*scs+blockH*scs/2;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
   })()}
