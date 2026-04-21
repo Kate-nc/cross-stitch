@@ -140,7 +140,48 @@ function ManagerApp() {
         }
 
         setThreads(finalThreads);
-        if (patternsData) setPatterns(patternsData);
+
+        // Reconcile pattern library against CrossStitchDB.
+        // Projects added via backup restore or JSON import never go through
+        // syncProjectToLibrary, so they won't appear in the Patterns tab unless
+        // we explicitly check here.
+        let finalPatterns = patternsData || [];
+        if (typeof ProjectStorage !== 'undefined') {
+          try {
+            const allMeta = await ProjectStorage.listProjects();
+            const existingLinkedIds = new Set(finalPatterns.map(p => p.linkedProjectId).filter(Boolean));
+            const unlinked = allMeta.filter(m => !existingLinkedIds.has(m.id));
+            if (unlinked.length > 0) {
+              const reconciled = [...finalPatterns];
+              for (const meta of unlinked) {
+                const full = await ProjectStorage.get(meta.id);
+                if (!full || !full.pattern) continue;
+                const counts = {};
+                for (const cell of full.pattern) {
+                  if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
+                  counts[cell.id] = (counts[cell.id] || 0) + 1;
+                }
+                const threadList = Object.entries(counts).map(([id, stitches]) => {
+                  const dmcEntry = typeof DMC !== 'undefined' ? DMC.find(d => d.id === id) : null;
+                  return { id, name: dmcEntry ? dmcEntry.name : id, qty: stitches, unit: 'stitches', brand: 'DMC' };
+                });
+                reconciled.push({
+                  id: Date.now().toString() + Math.random().toString(36).slice(2),
+                  linkedProjectId: meta.id,
+                  title: meta.name || (full.settings ? `${full.settings.sW}\u00D7${full.settings.sH} pattern` : 'Pattern'),
+                  designer: '',
+                  status: 'inprogress',
+                  tags: ['auto-synced'],
+                  threads: threadList
+                });
+              }
+              finalPatterns = reconciled;
+            }
+          } catch (e) {
+            console.warn('Manager: pattern reconciliation failed', e);
+          }
+        }
+        setPatterns(finalPatterns);
       } catch (err) {
         console.error("Failed to load manager data:", err);
       }
@@ -171,6 +212,53 @@ function ManagerApp() {
     });
     loadActiveProject();
     ProjectStorage.listProjects().then(setStoredProjects).catch(err => console.error("Failed to list projects:", err));
+
+    // Re-reconcile when the user switches back to this tab, so projects synced
+    // by the Creator or Tracker while the Manager was in the background appear
+    // without requiring a page reload.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      ProjectStorage.listProjects().then(meta => {
+        setStoredProjects(meta);
+        setPatterns(prev => {
+          const existingLinkedIds = new Set(prev.map(p => p.linkedProjectId).filter(Boolean));
+          const unlinked = meta.filter(m => !existingLinkedIds.has(m.id));
+          if (unlinked.length === 0) return prev;
+          // Load full projects async and merge; until resolved, return existing state
+          (async () => {
+            const reconciled = [...prev];
+            for (const m of unlinked) {
+              try {
+                const full = await ProjectStorage.get(m.id);
+                if (!full || !full.pattern) continue;
+                const counts = {};
+                for (const cell of full.pattern) {
+                  if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
+                  counts[cell.id] = (counts[cell.id] || 0) + 1;
+                }
+                const threadList = Object.entries(counts).map(([id, stitches]) => {
+                  const dmcEntry = typeof DMC !== 'undefined' ? DMC.find(d => d.id === id) : null;
+                  return { id, name: dmcEntry ? dmcEntry.name : id, qty: stitches, unit: 'stitches', brand: 'DMC' };
+                });
+                reconciled.push({
+                  id: Date.now().toString() + Math.random().toString(36).slice(2),
+                  linkedProjectId: m.id,
+                  title: m.name || 'Pattern',
+                  designer: '',
+                  status: 'inprogress',
+                  tags: ['auto-synced'],
+                  threads: threadList
+                });
+              } catch (e) { /* skip individual project errors */ }
+            }
+            setPatterns(reconciled);
+          })();
+          return prev; // optimistic: no change until async resolves
+        });
+      }).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   // Auto-save Manager Data
