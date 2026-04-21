@@ -15,7 +15,7 @@ const trackerSrc = fs.readFileSync(path.resolve(__dirname, '..', 'tracker-app.js
 const SNAPSHOT_FIELDS = [
   'version', 'id', 'page', 'name', 'createdAt', 'updatedAt',
   'settings', 'pattern', 'bsLines', 'done', 'parkMarkers',
-  'totalTime', 'sessions', 'hlRow', 'hlCol', 'threadOwned',
+  'hlRow', 'hlCol', 'threadOwned',
   'originalPaletteState', 'singleStitchEdits', 'halfStitches', 'halfDone',
   'statsSessions', 'statsSettings', 'achievedMilestones', 'doneSnapshots',
   'savedZoom', 'savedScroll',
@@ -27,7 +27,7 @@ const SNAPSHOT_FIELDS = [
 const JSON_EXPORT_FIELDS = [
   'version', 'id', 'page', 'name', 'createdAt', 'updatedAt',
   'settings', 'pattern', 'bsLines', 'done', 'parkMarkers',
-  'totalTime', 'sessions', 'hlRow', 'hlCol', 'threadOwned',
+  'hlRow', 'hlCol', 'threadOwned',
   'originalPaletteState', 'singleStitchEdits', 'halfStitches', 'halfDone',
   'statsSessions', 'statsSettings',
   'achievedMilestones', 'doneSnapshots',
@@ -40,7 +40,7 @@ const JSON_EXPORT_FIELDS = [
 const HANDOFF_FIELDS = [
   'version', 'id', 'page', 'name', 'createdAt', 'updatedAt',
   'settings', 'pattern', 'bsLines', 'done', 'parkMarkers',
-  'totalTime', 'sessions', 'hlRow', 'hlCol', 'threadOwned',
+  'hlRow', 'hlCol', 'threadOwned',
   'originalPaletteState', 'singleStitchEdits', 'halfStitches', 'halfDone',
   'statsSessions', 'statsSettings',
   'achievedMilestones', 'doneSnapshots',
