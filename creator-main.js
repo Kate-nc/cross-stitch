@@ -654,7 +654,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onCancel={()=>state.setNamePromptOpen(false)}
       />}
       <window.CreatorToolStrip/>
-      <div className="cs-page-content" style={{padding:"20px 16px"}}>
+      <div className="cs-page-content" style={{padding:(state.img||state.pat)?0:"20px 16px"}}>
         {state.loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{state.loadError}</div>}
         {!state.img&&!state.pat&&<div
             style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #0d9488":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#f0fdfa":"transparent",transition:"all 0.2s"}}

@@ -624,7 +624,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 /* Page fade-in */
 @keyframes cs-fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
 @keyframes toast-in{from{opacity:0;transform:translateY(10px) scale(0.95);}to{opacity:1;transform:translateY(0) scale(1);}}
-.cs-page-content{animation:cs-fadein 0.18s ease-out both;}
+.cs-page-content{animation:cs-fadein 0.18s ease-out both;flex:1;display:flex;flex-direction:column;min-height:0;}
 @media (prefers-reduced-motion: reduce){
   .cs-page-content{animation:none;}
   *{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important;}
