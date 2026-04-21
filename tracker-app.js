@@ -2024,6 +2024,7 @@ function processLoadedProject(project){
   if(s.stitchSpeed)setStitchSpeed(s.stitchSpeed);
 
   let p = project.pattern || project.p;
+  if(!p){console.error("processLoadedProject: missing pattern data");return;}
   let restored;
 
   setIsEditMode(false);
@@ -2220,6 +2221,7 @@ function processLoadedProject(project){
       setStitchZoom(project.savedZoom);
       if(project.savedScroll&&stitchScrollRef.current){
         requestAnimationFrame(()=>{
+          if(!stitchScrollRef.current)return;
           stitchScrollRef.current.scrollLeft=project.savedScroll.left;
           stitchScrollRef.current.scrollTop=project.savedScroll.top;
         });
@@ -2965,6 +2967,7 @@ useEffect(()=>{
       if(a>0){ctx.fillStyle=`rgba(${r},${g},${b},${a})`;ctx.fillRect(px,py,scs,scs);}
     }
   });
+  return()=>cancelAnimationFrame(threadUsageRafRef.current);
 },[analysisResult,threadUsageMode,scs,pat,sW,sH]);
 
 // ═══ Recommendation pulsing border animation ═══
