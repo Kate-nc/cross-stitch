@@ -61,6 +61,7 @@ function ManagerApp() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null); // { type: 'success'|'error'|'confirm', message, summary?, onConfirm? }
+  const [panelOpen, setPanelOpen] = useState(false);
   const lowStockThreshold = 1;
 
   // Storage initialization
@@ -562,10 +563,10 @@ function ManagerApp() {
       {/* Sub-tab bar */}
       <div className="mgr-tab-bar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex" }}>
-          <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); }}>
+          <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
             <span className="icon">{Icons.thread()}</span> Thread Inventory <span className="cnt">{totalOwnedCount}</span>
           </button>
-          <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); }}>
+          <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
             <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
           </button>
         </div>
@@ -697,7 +698,7 @@ function ManagerApp() {
                 const gaugeLevel = !state.partialStatus ? 0 : state.partialStatus === "mostly-full" ? 3 : state.partialStatus === "about-half" ? 2 : state.partialStatus === "remnant" ? 1 : state.partialStatus === "used-up" ? 4 : 0;
 
                 return (
-                  <div key={d.compositeKey} className={"tcard" + (isSelected ? " on" : "")} onClick={() => setSelectedThread(isSelected ? null : d.compositeKey)}>
+                  <div key={d.compositeKey} className={"tcard" + (isSelected ? " on" : "")} onClick={() => { const next = isSelected ? null : d.compositeKey; setSelectedThread(next); if (next) setPanelOpen(true); }}>
                     <div className="sw" style={{ background: `rgb(${d.rgb})` }} />
                     <div className="info">
                       <div className="tid">{d.id}{d.brand === 'anchor' && <span style={{fontSize:9,fontWeight:700,background:'#e0f2fe',color:'#0369a1',borderRadius:3,padding:'0 3px',marginLeft:4,verticalAlign:'middle'}}>A</span>}</div>
@@ -724,7 +725,12 @@ function ManagerApp() {
           </div>
 
           {/* Right Panel — Thread Detail */}
-          <div className="mgr-rpanel">
+          {panelOpen && <div className="rpanel-backdrop" onClick={() => setPanelOpen(false)} />}
+          <div className={"mgr-rpanel" + (panelOpen ? " mgr-rpanel--open" : "")}>
+            <div className="mgr-panel-handle" onClick={() => setPanelOpen(o => !o)}>
+              <div className="rpanel-handle-bar" />
+              <span style={{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}>{selectedThread ? "Thread Detail" : "Thread Detail"}</span>
+            </div>
             {selectedThread ? (() => {
               const d = typeof getThreadByKey === 'function' ? getThreadByKey(selectedThread) : DMC.find(x => x.id === selectedThread);
               if (!d) return <div className="rp-s" style={{ color: "#94a3b8", textAlign: "center", padding: 20 }}>Thread not found</div>;
@@ -958,7 +964,7 @@ function ManagerApp() {
               {filteredPatterns.map(p => {
                 const isSelected = selectedPatternsForList.has(p.id);
                 return (
-                  <div key={p.id} className={"pcard" + (viewingPattern && viewingPattern.id === p.id ? " on" : "")} onClick={() => setViewingPattern(viewingPattern && viewingPattern.id === p.id ? null : p)}>
+                  <div key={p.id} className={"pcard" + (viewingPattern && viewingPattern.id === p.id ? " on" : "")} onClick={() => { const next = viewingPattern && viewingPattern.id === p.id ? null : p; setViewingPattern(next); if (next) setPanelOpen(true); }}>
                     <div className="ptitle">
                       <input
                         type="checkbox"
@@ -998,7 +1004,12 @@ function ManagerApp() {
           </div>
 
           {/* Right Panel — Pattern Detail */}
-          <div className="mgr-rpanel">
+          {panelOpen && <div className="rpanel-backdrop" onClick={() => setPanelOpen(false)} />}
+          <div className={"mgr-rpanel" + (panelOpen ? " mgr-rpanel--open" : "")}>
+            <div className="mgr-panel-handle" onClick={() => setPanelOpen(o => !o)}>
+              <div className="rpanel-handle-bar" />
+              <span style={{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}>{viewingPattern ? "Pattern Detail" : "Pattern Detail"}</span>
+            </div>
             {viewingPattern ? (() => {
               const p = viewingPattern;
               const coverage = p.threads && p.threads.length > 0

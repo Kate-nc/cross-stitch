@@ -780,7 +780,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               </div>}
             </div>}
           </div>
-          {state.tab!=="stitch"&&<div className="rpanel">
+          {state.tab!=="stitch"&&<>
+            {state.panelOpen&&<div className="rpanel-backdrop" onClick={()=>state.setPanelOpen(false)}/>}
+            <div className={"rpanel"+(state.panelOpen?" rpanel--open":"")}>
             <window.CreatorSidebar/>
             {!state.pat&&state.img&&<div className="card" style={{overflow:"hidden"}}>
               <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#475569"}}>Original Image</div>
@@ -804,6 +806,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               {state.pickBg&&<div style={{padding:"5px 10px",fontSize:10,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}
             </div>}
           </div>}
+          </>}
         </div>}
         {state.modal==="help"&&<SharedModals.Help onClose={()=>state.setModal(null)} />}
         {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}

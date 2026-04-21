@@ -135,6 +135,7 @@ window.useCreatorState = function useCreatorState() {
   function setBrushMode(v) { brushModeRef.current = v; _brushM[1](v); }
   var _brushSz  = useState(1);       var brushSize = _brushSz[0], setBrushSize = _brushSz[1];
   var _ovfOpen  = useState(false);   var overflowOpen = _ovfOpen[0], setOverflowOpen = _ovfOpen[1];
+  var _panOpen  = useState(false);   var panelOpen = _panOpen[0], setPanelOpen = _panOpen[1];
   var _stripCol = useState({view:false,brush:false,bs:false});
   var stripCollapsed = _stripCol[0], setStripCollapsed = _stripCol[1];
 
@@ -965,7 +966,7 @@ window.useCreatorState = function useCreatorState() {
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,
     shortcutsHintDismissed, setShortcutsHintDismissed,
     brushMode, setBrushMode, brushModeRef, brushSize, setBrushSize,
-    overflowOpen, setOverflowOpen, stripCollapsed, setStripCollapsed,
+    overflowOpen, setOverflowOpen, panelOpen, setPanelOpen, stripCollapsed, setStripCollapsed,
     exportPage, setExportPage, pageMode, setPageMode,
     pdfDisplayMode, setPdfDisplayMode, pdfCellSize, setPdfCellSize,
     pdfSinglePage, setPdfSinglePage,
