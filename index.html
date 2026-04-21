@@ -72,12 +72,12 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_v14';
+var TRACKER_CACHE_KEY = 'babel_tracker_v15';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
   // Clear stale cache from previous versions
-  try { localStorage.removeItem('babel_tracker_v2'); localStorage.removeItem('babel_tracker_v3'); localStorage.removeItem('babel_tracker_v4'); localStorage.removeItem('babel_tracker_v5'); localStorage.removeItem('babel_tracker_v6'); localStorage.removeItem('babel_tracker_v7'); localStorage.removeItem('babel_tracker_v8'); localStorage.removeItem('babel_tracker_v9'); localStorage.removeItem('babel_tracker_v10'); localStorage.removeItem('babel_tracker_v11'); localStorage.removeItem('babel_tracker_v12'); localStorage.removeItem('babel_tracker_v13'); } catch(e) {}
+  try { localStorage.removeItem('babel_tracker_v2'); localStorage.removeItem('babel_tracker_v3'); localStorage.removeItem('babel_tracker_v4'); localStorage.removeItem('babel_tracker_v5'); localStorage.removeItem('babel_tracker_v6'); localStorage.removeItem('babel_tracker_v7'); localStorage.removeItem('babel_tracker_v8'); localStorage.removeItem('babel_tracker_v9'); localStorage.removeItem('babel_tracker_v10'); localStorage.removeItem('babel_tracker_v11'); localStorage.removeItem('babel_tracker_v12'); localStorage.removeItem('babel_tracker_v13'); localStorage.removeItem('babel_tracker_v14'); } catch(e) {}
   // Clear stale creator cache
   try { localStorage.removeItem('babel_creator_v4'); localStorage.removeItem('babel_creator_v5'); localStorage.removeItem('babel_creator_v6'); localStorage.removeItem('babel_creator_v7'); localStorage.removeItem('babel_creator_v8'); localStorage.removeItem('babel_creator_v9'); } catch(e) {}
   // Clear stale stats cache on tracker version bump

@@ -415,6 +415,10 @@ const[achievedMilestones,setAchievedMilestones]=useState([]);
 const[sessionOnboardingShown,setSessionOnboardingShown]=useState(()=>{try{return !!localStorage.getItem("cs_sessionOnboardingDone");}catch(_){return false;}});
 const[sessionSavedToast,setSessionSavedToast]=useState(null);
 const isUnloadingRef=useRef(false);
+// Highlight mode intro hint (Option 4)
+const[hlIntroSeen,setHlIntroSeen]=useState(()=>{try{return !!localStorage.getItem("cs_hlIntroSeen");}catch(_){return false;}});
+const[hlIntroBannerVisible,setHlIntroBannerVisible]=useState(false);
+const hlIntroTimerRef=useRef(null);
 
 // Variables for auto-session visibility auto-pause
 const [liveAutoElapsed, setLiveAutoElapsed] = useState(0);
@@ -459,6 +463,18 @@ const[tintOpacity,setTintOpacity]=useState(()=>{try{return parseFloat(localStora
 const[spotDimOpacity,setSpotDimOpacity]=useState(()=>{try{return parseFloat(localStorage.getItem("cs_spotDimOp")||"0.15");}catch(_){return 0.15;}});
 const[antsOffset,setAntsOffset]=useState(0);
 useEffect(()=>{try{localStorage.setItem("cs_hlMode",highlightMode);}catch(_){}},[highlightMode]);
+// Show one-time intro hint on first entry to Highlight mode (Option 4)
+useEffect(()=>{
+  if(stitchView==="highlight"&&!hlIntroSeen){
+    setHlIntroBannerVisible(true);
+    setHlIntroSeen(true);
+    try{localStorage.setItem("cs_hlIntroSeen","1");}catch(_){}
+    clearTimeout(hlIntroTimerRef.current);
+    hlIntroTimerRef.current=setTimeout(()=>setHlIntroBannerVisible(false),8000);
+  }
+  if(stitchView!=="highlight")clearTimeout(hlIntroTimerRef.current);
+  return()=>clearTimeout(hlIntroTimerRef.current);
+},[stitchView]);
 useEffect(()=>{manuallyPausedRef.current=manuallyPaused;},[manuallyPaused]);
 const[advanceToast,setAdvanceToast]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
@@ -3961,6 +3977,7 @@ return(
   {stitchView==="highlight"&&<>
     <button className="tb-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} title="Previous colour (])">◀</button>
     <button className="tb-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} title="Next colour ([)">▶</button>
+    <button className={"tb-btn"+(countingAidsEnabled?" tb-btn--on":"")} onClick={()=>setCountingAidsEnabled(v=>!v)} title="Toggle counting aids (C)" style={{fontSize:12,padding:"0 6px"}}>⊞</button>
   </>}
   <div className="tb-flex"/>
   <div className="tb-zoom-grp tb-desktop-only">
@@ -4076,7 +4093,23 @@ return(
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
     {todayStitchesForBar>0&&<span className="info-strip-today-count">Today: {todayStitchesForBar}</span>}
     {liveAutoStitches>0&&<span className="info-strip-timer">{liveAutoIsPaused?"⏸":"⏱"} {fmtTime(liveAutoElapsed)}</span>}
+    {!isEditMode&&<button onClick={()=>{
+      if(explicitSession){
+        const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
+        const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
+        setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[]});
+        setExplicitSession(null);
+      }else{
+        setExplicitSession({startTime:Date.now(),timeAvail:null,stitchGoal:null});
+        setRpanelTab("session");
+        setMobileDrawerOpen(true);
+      }
+    }} title={explicitSession?"End session":"Start session"} style={{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",fontSize:14,color:explicitSession?"#dc2626":"#0d9488",padding:"0 4px",lineHeight:1,flexShrink:0,fontWeight:700}}>{explicitSession?"⏹":"▶"}</button>}
   </div>
+</div>}
+{hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:6,padding:"6px 10px",fontSize:11,color:"#1d4ed8",marginBottom:4,gap:8}}>
+  <span>Highlight mode — press <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #bfdbfe",borderRadius:3,background:"#fff"}}>1</kbd>–<kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #bfdbfe",borderRadius:3,background:"#fff"}}>4</kbd> to change style, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #bfdbfe",borderRadius:3,background:"#fff"}}>C</kbd> for counting aids, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #bfdbfe",borderRadius:3,background:"#fff"}}>[</kbd> <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #bfdbfe",borderRadius:3,background:"#fff"}}>]</kbd> to cycle colours</span>
+  <button onClick={()=>{setHlIntroBannerVisible(false);clearTimeout(hlIntroTimerRef.current);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#93c5fd",flexShrink:0,padding:0,lineHeight:1}}>✕</button>
 </div>}
 {!sessionOnboardingShown&&liveAutoStitches>0&&statsSessions.length===0&&(
   <div className="session-onboarding-toast">
@@ -4523,6 +4556,19 @@ return(
       {/* Colours List */}
       {rpanelTab==="colours"&&<div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
         <div className="rp-heading">Colours <span className="badge">{pal.length}</span></div>
+        {stitchView==="highlight"&&focusColour&&<div style={{paddingBottom:8,borderBottom:"0.5px solid #f1f5f9",marginBottom:6}}>
+          <div style={{display:"flex",gap:0,borderRadius:6,overflow:"hidden",border:"1px solid #e2e8f0",marginBottom:5}}>
+            {[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spot"]].map(([m,l])=>(
+              <button key={m} onClick={()=>setHighlightMode(m)} style={{flex:1,padding:"4px 0",fontSize:10,fontWeight:highlightMode===m?700:500,border:"none",borderRight:"1px solid #e2e8f0",background:highlightMode===m?"#0d9488":"#f8fafc",color:highlightMode===m?"#fff":"#475569",cursor:"pointer"}}>{l}</button>
+            ))}
+          </div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:10,color:"#64748b"}}>
+            <span>Counting aids</span>
+            <label style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none"}}>
+              <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>Show
+            </label>
+          </div>
+        </div>}
         <div className="col-list">
           {pal.map(p=>{let dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
             let totalWithHalf=dc.total+dc.halfTotal*0.5;
