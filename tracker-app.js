@@ -480,6 +480,13 @@ useEffect(()=>{try{localStorage.setItem("cs_focusEnabled",focusEnabled?"1":"0");
 useEffect(()=>{try{localStorage.setItem("cs_colourSeq",colourSequence);}catch(_){}},[colourSequence]);
 useEffect(()=>{try{localStorage.setItem("cs_startCorner",startCorner);}catch(_){}},[startCorner]);
 useEffect(()=>{try{localStorage.setItem("cs_bcVisible",breadcrumbVisible?"1":"0");}catch(_){}},[breadcrumbVisible]);
+// ── Counting aids ──
+const[countingAidsEnabled,setCountingAidsEnabled]=useState(()=>{try{return localStorage.getItem("cs_countAids")!=="0";}catch(_){return true;}});
+const[countRunMin,setCountRunMin]=useState(()=>{try{return parseInt(localStorage.getItem("cs_countRunMin")||"3");}catch(_){return 3;}});
+const[countRunDir,setCountRunDir]=useState(()=>{try{return localStorage.getItem("cs_countRunDir")||"h";}catch(_){return"h";}});
+const[countNinjaEnabled,setCountNinjaEnabled]=useState(()=>{try{return localStorage.getItem("cs_countNinja")!=="0";}catch(_){return true;}});
+const countingAidsCanvasRef=useRef(null);
+const countingAidsRafRef=useRef(null);
 useEffect(()=>{try{localStorage.setItem("cs_countAids",countingAidsEnabled?"1":"0");}catch(_){}},[countingAidsEnabled]);
 useEffect(()=>{try{localStorage.setItem("cs_countRunMin",String(countRunMin));}catch(_){}},[countRunMin]);
 useEffect(()=>{try{localStorage.setItem("cs_countRunDir",countRunDir);}catch(_){}},[countRunDir]);
@@ -495,13 +502,6 @@ const[sessionGoalInput,setSessionGoalInput]=useState("");
 const[sessionSummaryData,setSessionSummaryData]=useState(null);
 const focusOverlayCanvasRef=useRef(null);
 const breadcrumbCanvasRef=useRef(null);
-// ── Counting aids ──
-const[countingAidsEnabled,setCountingAidsEnabled]=useState(()=>{try{return localStorage.getItem("cs_countAids")!=="0";}catch(_){return true;}});
-const[countRunMin,setCountRunMin]=useState(()=>{try{return parseInt(localStorage.getItem("cs_countRunMin")||"3");}catch(_){return 3;}});
-const[countRunDir,setCountRunDir]=useState(()=>{try{return localStorage.getItem("cs_countRunDir")||"h";}catch(_){return"h";}});
-const[countNinjaEnabled,setCountNinjaEnabled]=useState(()=>{try{return localStorage.getItem("cs_countNinja")!=="0";}catch(_){return true;}});
-const countingAidsCanvasRef=useRef(null);
-const countingAidsRafRef=useRef(null);
 const[hlRow,setHlRow]=useState(-1),[hlCol,setHlCol]=useState(-1);
 const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
