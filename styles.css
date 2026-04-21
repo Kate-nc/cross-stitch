@@ -1730,7 +1730,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   /* Creator sidebar tab list stays pinned */
   .rpanel [role="tablist"] { flex-shrink: 0; }
   /* Creator sidebar scrollable content area: fill remaining space */
-  .rpanel [role="tablist"] ~ div { flex: 1; min-height: 0; overflow-y: auto; }
+  .rpanel [role="tablist"] + div { flex: 1; min-height: 0; overflow-y: auto; }
   /* Tracker tab content fills remaining space */
   .rp-tab-content { flex: 1; min-height: 0; overflow-y: auto; }
   /* Manager right panel: restore desktop side-panel */
