@@ -1706,13 +1706,11 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
    ═════════════════════════════════════════════════════════ */
 @media (min-width: 900px) {
   html, body { overflow: hidden; }
-  /* cs-page-content fills remaining height and clips overflow */
-  .cs-page-content { overflow: hidden; }
   /* cs-main children stretch to fill remaining viewport height */
   .cs-main { align-items: stretch; }
   /* Canvas area scrolls within its own box, not the page */
   .canvas-area { overflow: auto; padding-bottom: 0; }
-  /* rpanel: permanent side-panel — flex column so tabBar + content + actions stack correctly */
+  /* rpanel: permanent flex-column side-panel */
   .rpanel {
     position: relative;
     top: auto;
@@ -1727,12 +1725,14 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
     box-shadow: none;
     overflow: hidden;
   }
-  /* Tracker tab bar: stays pinned, doesn't scroll away */
-  .rp-tabs { flex-shrink: 0; position: relative; }
-  /* Creator sidebar tabBar: stays pinned at top */
+  /* Tab bar rows stay pinned — not sticky (sticky doesn't work in overflow:hidden parent) */
+  .rp-tabs { flex-shrink: 0; position: relative; top: auto; }
+  /* Creator sidebar tab list stays pinned */
   .rpanel [role="tablist"] { flex-shrink: 0; }
-  /* Constrain the crop-image card so it doesn't consume all the panel height */
-  .rpanel > .card { max-height: 220px; overflow-y: auto; flex-shrink: 0; }
+  /* Creator sidebar scrollable content area: fill remaining space */
+  .rpanel [role="tablist"] ~ div { flex: 1; min-height: 0; overflow-y: auto; }
+  /* Tracker tab content fills remaining space */
+  .rp-tab-content { flex: 1; min-height: 0; overflow-y: auto; }
   /* Manager right panel: restore desktop side-panel */
   .mgr-rpanel {
     position: relative;
