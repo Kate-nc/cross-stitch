@@ -309,14 +309,17 @@ function ManagerApp() {
     if (typeof StashBridge === "undefined") return;
     StashBridge.detectConflicts().then(setConflicts).catch(() => {});
     StashBridge.whatCanIStart().then(setReadyToStart).catch(() => {});
-    // Low-stock: threads where owned > 0 but below min_stock
+    // Low-stock: threads where owned > 0 but below min_stock (explicit), or below the
+    // global lowStockThreshold (1 skein) when no per-thread minimum has been set.
     const alerts = [];
     for (const [compositeKey, t] of Object.entries(threads)) {
+      if (!t.owned || t.owned <= 0) continue; // completely missing threads handled by pattern detail
       const minStock = t.min_stock || 0;
-      if (minStock > 0 && t.owned < minStock) {
+      const effectiveMin = minStock > 0 ? minStock : lowStockThreshold;
+      if (t.owned <= effectiveMin) {
         const bareId = compositeKey.indexOf(':') < 0 ? compositeKey : compositeKey.split(':').slice(1).join(':');
         const info = typeof getThreadByKey === 'function' ? getThreadByKey(compositeKey) : DMC.find(d => d.id === bareId);
-        alerts.push({ id: compositeKey, bareId, name: info ? info.name : bareId, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: minStock });
+        alerts.push({ id: compositeKey, bareId, name: info ? info.name : bareId, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: effectiveMin });
       }
     }
     alerts.sort((a, b) => (a.min_stock - a.owned) - (b.min_stock - b.owned));
@@ -1716,7 +1719,8 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
 
     const missing = [];
     Object.entries(required).forEach(([id, totalQtyReq]) => {
-      const invState = inventoryThreads[id] || { owned: 0 };
+      const k = id.indexOf(':') < 0 ? 'dmc:' + id : id;
+      const invState = inventoryThreads[k] || inventoryThreads[id] || { owned: 0 };
       const missingQty = totalQtyReq - invState.owned;
       if (missingQty > 0) {
         const info = DMC.find(d => d.id === id);
