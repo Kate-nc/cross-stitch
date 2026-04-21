@@ -341,12 +341,14 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     if (patterns && patterns.length > 0) {
       patterns.forEach(function(pat) {
         if (!pat.threads || pat.status === 'completed' || pat.status === 'wishlist') return;
+        var patFabricCt = Number(pat.fabricCt);
+        if (!(patFabricCt > 0)) patFabricCt = 14;
         var needsThread = pat.threads.some(function(t) {
           var s = stash[normKey(t.id)];
           if (!s) return true;
           // Pattern threads from auto-sync store qty as raw stitches; convert to skeins.
           var neededSkeins = (t.unit === 'stitches' && typeof skeinEst === 'function')
-            ? skeinEst(t.qty, 14)
+            ? skeinEst(t.qty, patFabricCt)
             : (t.qty || 1);
           return s.owned < neededSkeins;
         });

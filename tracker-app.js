@@ -855,10 +855,8 @@ function finaliseAutoSession(){
       const _newV3=Object.assign({},_prev,{lastTouchedAt:_now.toISOString()});
       if(_prev.finishStatus==='planned'&&finalised.netStitches>0){_newV3.finishStatus='active';}
       v3FieldsRef.current=_newV3;
-      if(finalised.netStitches!==0){
-        autoSaveDirtyRef.current=true;
-        if(typeof invalidateStatsCache==='function')invalidateStatsCache();
-      }
+      autoSaveDirtyRef.current=true;
+      if(typeof invalidateStatsCache==='function')invalidateStatsCache();
     }
     currentAutoSessionRef.current=null;
     clearTimeout(autoIdleTimerRef.current);
