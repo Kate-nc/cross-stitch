@@ -187,7 +187,6 @@ const ProjectStorage = (() => {
     },
 
     // Load a single project by ID. Returns null if not found.
-    // Migrates threadOwned keys from bare DMC IDs to composite keys on the way out.
     async get(id) {
       try {
         const db = await getDB();
@@ -198,14 +197,23 @@ const ProjectStorage = (() => {
           request.onsuccess = () => resolve(request.result || null);
           request.onerror = () => reject(request.error);
         });
+        // Normalise threadOwned keys to bare DMC IDs ("310" not "dmc:310").
+        // Creator and Tracker both key threadOwned by palette entry id, which is
+        // always a bare id like "310". Any composite keys written by an older
+        // migration are stripped back to bare so lookups work correctly.
         if (project && project.threadOwned) {
           let changed = false;
-          const migrated = {};
+          const normalised = {};
           for (const [key, val] of Object.entries(project.threadOwned)) {
-            if (key.indexOf(':') < 0) { migrated['dmc:' + key] = val; changed = true; }
-            else migrated[key] = val;
+            const bareKey = key.indexOf(':') >= 0 ? key.slice(key.indexOf(':') + 1) : key;
+            if (bareKey !== key) changed = true;
+            // If we already have a value for this bare key (composite + bare both exist),
+            // prefer the non-empty value so we don't lose owned state.
+            if (normalised[bareKey] === undefined || !normalised[bareKey]) {
+              normalised[bareKey] = val;
+            }
           }
-          if (changed) project.threadOwned = migrated;
+          if (changed) project.threadOwned = normalised;
         }
         return project;
       } catch (err) {
@@ -241,6 +249,9 @@ const ProjectStorage = (() => {
         // Record the deletion so in-flight auto-saves from Tracker/Creator
         // don't resurrect the project before the page fully reloads.
         this._deletedIds.add(id);
+        // Clear the active project pointer if it points to this project, so the
+        // Creator/Tracker don't try to load a now-deleted project on next open.
+        if (this.getActiveProjectId() === id) this.clearActiveProject();
         const db = await getDB();
         return new Promise((resolve, reject) => {
           let tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");

@@ -187,7 +187,7 @@ const StashBridge = (() => {
           const req = store.get("threads");
           req.onsuccess = () => {
             const threads = req.result || {};
-            const isV3 = (threads._schemaVersion || 0) >= 3;
+            const isV3 = _schemaVersion >= 3;
             if (!threads[key]) {
               threads[key] = { owned: 0, tobuy: false, partialStatus: null };
               if (isV3) {

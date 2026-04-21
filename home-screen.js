@@ -283,8 +283,10 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   // Computed data
   var projectCount = projects.length;
   var stashEntries = stash ? Object.keys(stash) : [];
-  var hasStash = stash && stashEntries.length > 0;
-  var skeinCount = hasStash ? stashEntries.length : 0;
+  // Only count threads the user actually owns (owned > 0); the stash is pre-populated
+  // with all DMC/Anchor threads at owned:0, so counting all entries is misleading.
+  var skeinCount = stashEntries.filter(function(k) { return stash[k].owned > 0; }).length;
+  var hasStash = skeinCount > 0;
 
   // Average progress across all projects
   var avgProgress = useMemo(function() {
@@ -328,9 +330,11 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     var lowCount = 0;
     stashEntries.forEach(function(id) {
       var thread = stash[id];
-      var threshold = thread.min_stock != null ? thread.min_stock : 1;
+      // Match Manager's low-stock logic: use min_stock when explicitly set above 0,
+      // otherwise fall back to 1 (warn when only 1 skein remains).
+      var threshold = (thread.min_stock != null && thread.min_stock > 0) ? thread.min_stock : 1;
       // Only warn if the thread is actually needed by an active project
-      if (thread.owned <= threshold && activeIds.has(id)) lowCount++;
+      if (thread.owned > 0 && thread.owned <= threshold && activeIds.has(id)) lowCount++;
     });
     // Projects needing thread — check patterns that have thread requirements unmet by stash
     var projectsNeedThread = 0;
@@ -340,7 +344,11 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         var needsThread = pat.threads.some(function(t) {
           var s = stash[normKey(t.id)];
           if (!s) return true;
-          return s.owned < (t.qty || 1);
+          // Pattern threads from auto-sync store qty as raw stitches; convert to skeins.
+          var neededSkeins = (t.unit === 'stitches' && typeof skeinEst === 'function')
+            ? skeinEst(t.qty, 14)
+            : (t.qty || 1);
+          return s.owned < neededSkeins;
         });
         if (needsThread) projectsNeedThread++;
       });

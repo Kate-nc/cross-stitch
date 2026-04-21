@@ -4834,7 +4834,8 @@ return(
           (async()=>{
             const stash=await StashBridge.getGlobalStash();
             for(const d of skeinData){
-              const gs=stash[d.id]||{owned:0};
+              // Stash is keyed by composite keys ("dmc:310"); d.id is a bare id ("310").
+              const gs=stash['dmc:'+d.id]||stash[d.id]||{owned:0};
               const newOwned=Math.max(0,gs.owned-d.skeins);
               await StashBridge.updateThreadOwned(d.id,newOwned);
             }
@@ -4849,7 +4850,8 @@ return(
           (async()=>{
             const stash=await StashBridge.getGlobalStash();
             for(const d of skeinData){
-              const gs=stash[d.id]||{owned:0};
+              // Stash is keyed by composite keys ("dmc:310"); d.id is a bare id ("310").
+              const gs=stash['dmc:'+d.id]||stash[d.id]||{owned:0};
               const deduct=Math.max(0,d.skeins-1);
               const newOwned=Math.max(0,gs.owned-deduct);
               await StashBridge.updateThreadOwned(d.id,newOwned);
