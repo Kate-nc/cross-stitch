@@ -285,13 +285,15 @@ const StashBridge = (() => {
           req.onsuccess = () => {
             const patterns = req.result || [];
             const existingIdx = patterns.findIndex(p => p.linkedProjectId === projectId);
+            const existing = existingIdx >= 0 ? patterns[existingIdx] : null;
             const entry = {
-              id: existingIdx >= 0 ? patterns[existingIdx].id : Date.now().toString(),
+              id: existing ? existing.id : Date.now().toString(),
               linkedProjectId: projectId,
               title: projectName,
-              designer: "",
-              status: status || "inprogress",
-              tags: ["auto-synced"],
+              // Preserve user-edited designer and tags; only set defaults for new entries.
+              designer: existing ? existing.designer : "",
+              status: status || (existing ? existing.status : "inprogress"),
+              tags: existing ? existing.tags : ["auto-synced"],
               threads: skeinData.map(d => ({
                 id: d.id,
                 name: d.name,

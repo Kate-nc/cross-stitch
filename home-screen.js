@@ -314,12 +314,15 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   // Stash alerts
   var stashAlerts = useMemo(function() {
     if (!hasStash) return null;
+    // Normalise a bare DMC id like '310' to the composite stash key 'dmc:310'.
+    // Pattern threads are stored with bare ids; stash keys are always composite.
+    function normKey(id) { return id && id.indexOf(':') < 0 ? 'dmc:' + id : id; }
     // Build set of thread IDs required by any non-completed pattern
     var activeIds = new Set();
     if (patterns && patterns.length > 0) {
       patterns.forEach(function(pat) {
         if (pat.status === 'completed') return;
-        if (pat.threads) pat.threads.forEach(function(t) { activeIds.add(t.id); });
+        if (pat.threads) pat.threads.forEach(function(t) { activeIds.add(normKey(t.id)); });
       });
     }
     var lowCount = 0;
@@ -335,7 +338,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       patterns.forEach(function(pat) {
         if (!pat.threads || pat.status === 'completed' || pat.status === 'wishlist') return;
         var needsThread = pat.threads.some(function(t) {
-          var s = stash[t.id];
+          var s = stash[normKey(t.id)];
           if (!s) return true;
           return s.owned < (t.qty || 1);
         });

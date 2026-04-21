@@ -242,19 +242,33 @@ function ManagerApp() {
 
     // Re-reconcile when the user switches back to this tab, so projects synced
     // by the Creator or Tracker while the Manager was in the background appear
-    // without requiring a page reload.
+    // without requiring a page reload. Patterns are reloaded from DB so that
+    // name changes made in the Creator (via syncProjectToLibrary) are reflected
+    // immediately rather than showing stale cached titles.
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
-      ProjectStorage.listProjects().then(meta => {
+      ProjectStorage.listProjects().then(async meta => {
         setStoredProjects(meta);
-        setPatterns(prev => {
-          // Load full projects async and merge; until resolved, return existing state
-          (async () => {
-            const reconciled = await reconcileAutoSyncedPatterns(prev, meta);
-            if (reconciled !== prev) setPatterns(reconciled);
-          })();
-          return prev; // optimistic: no change until async resolves
-        });
+        try {
+          const db = await openManagerDB();
+          const freshPatterns = await new Promise((resolve, reject) => {
+            const tx = db.transaction("manager_state", "readonly");
+            const req = tx.objectStore("manager_state").get("patterns");
+            req.onsuccess = () => resolve(req.result || []);
+            req.onerror = () => reject(req.error);
+          });
+          const reconciled = await reconcileAutoSyncedPatterns(freshPatterns, meta);
+          setPatterns(reconciled);
+        } catch (e) {
+          // Fallback: reconcile with current state only
+          setPatterns(prev => {
+            (async () => {
+              const reconciled = await reconcileAutoSyncedPatterns(prev, meta);
+              if (reconciled !== prev) setPatterns(reconciled);
+            })();
+            return prev;
+          });
+        }
       }).catch(() => {});
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -865,7 +879,7 @@ function ManagerApp() {
               <div className="alert-card success" style={{ marginBottom: 12 }}>
                 <div className="at">{Icons.dot()} Currently Tracking</div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>{activeProject.pattern && activeProject.pattern.length > 0 ? "Active Project" : "Unnamed Project"}</span>
+                  <span>{activeProject.name || (activeProject.pattern && activeProject.pattern.length > 0 ? "Active Project" : "Unnamed Project")}</span>
                   <a href="stitch.html" style={{ color: "#065f46", fontWeight: 600, fontSize: 11 }}>Go to Tracker →</a>
                 </div>
               </div>
