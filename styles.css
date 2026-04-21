@@ -1715,6 +1715,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
     position: relative;
     top: auto;
     max-height: none;
+    align-self: stretch;
     transition: none;
     border-radius: 0;
     border-top: none;
@@ -1723,6 +1724,8 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
     overflow-x: hidden;
     overflow-y: auto;
   }
+  /* Keep actions bar pinned at bottom of panel on desktop too */
+  .rpanel .sidebar-actions { position: sticky; bottom: 0; z-index: 11; box-shadow: 0 -2px 8px rgba(0,0,0,0.06); }
   /* Manager right panel: restore desktop side-panel */
   .mgr-rpanel {
     position: relative;
