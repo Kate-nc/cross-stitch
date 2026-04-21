@@ -3425,8 +3425,24 @@ function _toggleHalfDone(idx, dir) {
 }
 
 function _markHalfDoneFromDisambig(idx, dir) {
+  if (isColourLocked() && !halfStitchMatchesFocus(idx, dir)) {
+    setHalfDisambig(null);
+    return;
+  }
   _toggleHalfDone(idx, dir);
   setHalfDisambig(null);
+}
+
+// ── Highlight colour lock helpers ──
+function isColourLocked() {
+  return stitchView === "highlight" && !!focusColour && stitchMode === "track";
+}
+function fullStitchMatchesFocus(idx) {
+  return pat[idx] && pat[idx].id === focusColour;
+}
+function halfStitchMatchesFocus(idx, dir) {
+  const hs = halfStitches.get(idx);
+  return hs && hs[dir] && hs[dir].id === focusColour;
 }
 
 function handleStitchMouseDown(e){
@@ -3474,14 +3490,24 @@ function handleStitchMouseDown(e){
       const hitDir=hitTestHalfStitch(localX,localY,scs,8);
       if(hitDir==="ambiguous"){
         // Show disambiguation popup
+        if (isColourLocked()) {
+          const fwdMatch = halfStitchMatchesFocus(idx, "fwd");
+          const bckMatch = halfStitchMatchesFocus(idx, "bck");
+          if (!fwdMatch && !bckMatch) { e.preventDefault(); return; }
+          if (fwdMatch && !bckMatch) { _toggleHalfDone(idx, "fwd"); e.preventDefault(); return; }
+          if (!fwdMatch && bckMatch) { _toggleHalfDone(idx, "bck"); e.preventDefault(); return; }
+          // Both match — fall through to normal disambiguation popup
+        }
         setHalfDisambig({idx,x:e.clientX,y:e.clientY});
         e.preventDefault();
         return;
       }
+      if (isColourLocked() && !halfStitchMatchesFocus(idx, hitDir)) { e.preventDefault(); return; }
       _toggleHalfDone(idx,hitDir);
     } else {
       // Single half: toggle it
       const dir=hs.fwd?"fwd":"bck";
+      if (isColourLocked() && !halfStitchMatchesFocus(idx, dir)) { e.preventDefault(); return; }
       _toggleHalfDone(idx,dir);
     }
     e.preventDefault();
@@ -3494,6 +3520,7 @@ function handleStitchMouseDown(e){
   if(rangeModeActive&&stitchMode==="track"&&!e.shiftKey){
     if(!rangeAnchor){
       // First click: toggle this cell and set it as the anchor; do NOT start drag
+      if (isColourLocked() && !fullStitchMatchesFocus(idx)) return;
       let nv=done[idx]?0:1;
       const oldVal=done[idx];
       done[idx]=nv;
@@ -3513,6 +3540,7 @@ function handleStitchMouseDown(e){
       for(let r=minR;r<=maxR;r++){for(let c=minC;c<=maxC;c++){
         const ci=r*sW+c;const cell=pat[ci];
         if(cell.id==="__skip__"||cell.id==="__empty__")continue;
+        if (isColourLocked() && pat[ci].id !== focusColour) continue;
         if(done[ci]!==targetVal){changes.push({idx:ci,oldVal:done[ci]});done[ci]=targetVal;}
       }}
       if(changes.length){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,done);setDone(new Uint8Array(done));renderStitch();}
@@ -3536,6 +3564,7 @@ function handleStitchMouseDown(e){
         const ci=r*sW+c;
         const cell=pat[ci];
         if(cell.id==="__skip__"||cell.id==="__empty__")continue;
+        if (isColourLocked() && pat[ci].id !== focusColour) continue;
         if(done[ci]!==targetVal){
           changes.push({idx:ci,oldVal:done[ci]});
           done[ci]=targetVal;
@@ -3553,6 +3582,7 @@ function handleStitchMouseDown(e){
     return;
   }
 
+  if (isColourLocked() && !fullStitchMatchesFocus(idx)) return;
   let nv=done[idx]?0:1;
   lastClickedRef.current={idx,row:gy,col:gx,val:nv};
   dragStateRef.current = { isDragging: true, dragVal: nv };
@@ -3601,7 +3631,9 @@ function handleStitchMouseMove(e){
   if(gx<0||gx>=sW||gy<0||gy>=sH)return;
   let idx=gy*sW+gx;if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
   const dVal = dragStateRef.current.dragVal;
-  if(done[idx]!==dVal){
+  if (isColourLocked() && !fullStitchMatchesFocus(idx)) {
+    // skip — don't mark this cell during drag
+  } else if(done[idx]!==dVal){
     dragChangesRef.current.push({idx,oldVal:done[idx]});
     done[idx] = dVal; // Optimistic update
     drawCellDirectly(idx, dVal);
@@ -3765,6 +3797,7 @@ function handleTouchEnd(e){
         const gx=idx%sW,gy=Math.floor(idx/sW);
         if(!rangeAnchor){
           // First tap: toggle the anchor cell AND record it as the anchor
+          if (isColourLocked() && !fullStitchMatchesFocus(idx)) return;
           const nv=ts.tapVal;
           const nd=new Uint8Array(done);
           nd[idx]=nv;
@@ -3785,6 +3818,7 @@ function handleTouchEnd(e){
               const ci=r*sW+c;
               const cell=pat[ci];
               if(cell.id==="__skip__"||cell.id==="__empty__")continue;
+              if (isColourLocked() && pat[ci].id !== focusColour) continue;
               if(done[ci]!==targetVal){
                 changes.push({idx:ci,oldVal:done[ci]});
                 done[ci]=targetVal;
@@ -3800,6 +3834,7 @@ function handleTouchEnd(e){
           setRangeAnchor(null);
         }
       }else{
+        if (isColourLocked() && !fullStitchMatchesFocus(idx)) return;
         const nv=ts.tapVal;
         const nd=new Uint8Array(done);
         nd[idx]=nv;
