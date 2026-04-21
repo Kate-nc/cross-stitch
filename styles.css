@@ -1706,26 +1706,33 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
    ═════════════════════════════════════════════════════════ */
 @media (min-width: 900px) {
   html, body { overflow: hidden; }
+  /* cs-page-content fills remaining height and clips overflow */
+  .cs-page-content { overflow: hidden; }
   /* cs-main children stretch to fill remaining viewport height */
   .cs-main { align-items: stretch; }
   /* Canvas area scrolls within its own box, not the page */
   .canvas-area { overflow: auto; padding-bottom: 0; }
-  /* rpanel: restore permanent side-panel, override mobile drawer */
+  /* rpanel: permanent side-panel — flex column so tabBar + content + actions stack correctly */
   .rpanel {
     position: relative;
     top: auto;
     max-height: none;
     align-self: stretch;
+    display: flex;
+    flex-direction: column;
     transition: none;
     border-radius: 0;
     border-top: none;
     border-left: 1px solid var(--border);
     box-shadow: none;
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
   }
-  /* Keep actions bar pinned at bottom of panel on desktop too */
-  .rpanel .sidebar-actions { position: sticky; bottom: 0; z-index: 11; box-shadow: 0 -2px 8px rgba(0,0,0,0.06); }
+  /* Tracker tab bar: stays pinned, doesn't scroll away */
+  .rp-tabs { flex-shrink: 0; position: relative; }
+  /* Creator sidebar tabBar: stays pinned at top */
+  .rpanel [role="tablist"] { flex-shrink: 0; }
+  /* Constrain the crop-image card so it doesn't consume all the panel height */
+  .rpanel > .card { max-height: 220px; overflow-y: auto; flex-shrink: 0; }
   /* Manager right panel: restore desktop side-panel */
   .mgr-rpanel {
     position: relative;
