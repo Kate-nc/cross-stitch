@@ -30,7 +30,9 @@ const DEFAULT_STATS_VISIBILITY = {
   duplicateRisk: true,
   oldestWip: true,
   stashAge: true,
-  mostUsedColours: true
+  mostUsedColours: true,
+  threadsNeverUsed: true,
+  patternSource: true
 };
 
 const SECTION_LABELS = {
@@ -44,7 +46,9 @@ const SECTION_LABELS = {
   duplicateRisk: 'Duplicate Alerts',
   oldestWip: 'Oldest WIP',
   stashAge: 'Stash Age',
-  mostUsedColours: 'Most-Used Colours'
+  mostUsedColours: 'Most-Used Colours',
+  threadsNeverUsed: 'Threads Never Used',
+  patternSource: 'Pattern Source'
 };
 
 // ── Pref persistence ─────────────────────────────────────────────
@@ -624,7 +628,7 @@ function makeFullPageCanvas(canvas, data) {
 }
 
 // ── Stats Showcase component (rendered as the third stats tab) ────
-function StatsShowcase({ onNavigateToDashboard }) {
+function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
   const [loading, setLoading] = useState(true);
   const [lifetimeStitches, setLifetimeStitches] = useState(0);
   const [sableData, setSableData] = useState([]);
@@ -687,6 +691,7 @@ function StatsShowcase({ onNavigateToDashboard }) {
   return h('div', { style: wrap },
     h('div', { style: { display: 'flex', justifyContent: 'flex-end', paddingTop: 12, paddingBottom: 8, gap: 16 } },
       h('button', { onClick: () => openShare('page'), style: lnk }, 'Share page \u2191'),
+      onNavigateToActivity && h('button', { onClick: onNavigateToActivity, style: lnk }, 'Activity \u2192'),
       onNavigateToDashboard && h('button', { onClick: onNavigateToDashboard, style: lnk }, 'Full dashboard \u2192')
     ),
     showBanner && h('div', { role: 'status', style: { background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, padding: '10px 14px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 13, color: '#0f766e' } },
@@ -778,12 +783,13 @@ function StatsShowcase({ onNavigateToDashboard }) {
 
 // ── Main StatsPage component ─────────────────────────────────────
 function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
-  // Tab: 'stitching' | 'stash' | 'showcase'
+  // Tab: 'stitching' | 'stash' | 'showcase' | 'activity'
   const initialTab = useMemo(() => {
     const p = new URLSearchParams(window.location.search);
     const t = p.get('tab');
     if (t === 'stash') return 'stash';
     if (t === 'showcase') return 'showcase';
+    if (t === 'activity') return 'activity';
     return 'stitching';
   }, []);
   const [tab, setTab] = useState(initialTab);
@@ -801,6 +807,9 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const [showCustomise, setShowCustomise] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
   const [dismissedDupes, setDismissedDupes] = useState(loadDismissedDuplicates);
+  const [activityLoaded, setActivityLoaded] = useState(() => typeof window.StatsActivity === 'function');
+  const [neverUsedData, setNeverUsedData] = useState(null);
+  const [patternSourceData, setPatternSourceData] = useState(null);
 
   // Data state
   const [lifetimeStitches, setLifetimeStitches] = useState(0);
@@ -916,6 +925,97 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     load();
     return () => { cancelled = true; };
   }, []);
+
+  // Load threads-never-used data (depends on stash + projects)
+  useEffect(() => {
+    if (typeof ProjectStorage === 'undefined') return;
+    if (Object.keys(stash).length === 0 && !loading) { setNeverUsedData({ count: 0, legacyCount: 0, samples: [] }); return; }
+    if (loading) return;
+    let cancelled = false;
+    async function compute() {
+      try {
+        const metas = await ProjectStorage.listProjects();
+        const usedKeys = new Set();
+        for (const meta of metas) {
+          const proj = await ProjectStorage.get(meta.id);
+          if (!proj || !proj.pattern) continue;
+          if (proj.finishStatus === 'planned') continue;
+          for (const cell of proj.pattern) {
+            if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
+            const normalized = cell.id.indexOf(':') >= 0 ? cell.id : 'dmc:' + cell.id;
+            usedKeys.add(normalized);
+            usedKeys.add(cell.id.indexOf(':') >= 0 ? cell.id.split(':').slice(1).join(':') : cell.id);
+          }
+        }
+        const LEGACY_EP = typeof StashBridge !== 'undefined' ? StashBridge.LEGACY_EPOCH : '2020-01-01T00:00:00Z';
+        const neverUsed = [];
+        let legacyCount = 0;
+        for (const [key, entry] of Object.entries(stash)) {
+          if (!entry || !entry.owned || entry.owned <= 0) continue;
+          const colon = key.indexOf(':');
+          const bareId = colon >= 0 ? key.slice(colon + 1) : key;
+          if (usedKeys.has(key) || usedKeys.has(bareId)) continue;
+          const isLegacy = !entry.addedAt || entry.addedAt === LEGACY_EP;
+          if (isLegacy) { legacyCount++; continue; }
+          neverUsed.push({ key, entry });
+        }
+        neverUsed.sort((a, b) => (a.entry.addedAt || '').localeCompare(b.entry.addedAt || ''));
+        const samples = neverUsed.slice(0, 6).map(({ key, entry }) => {
+          const colon = key.indexOf(':');
+          const brand = colon >= 0 ? key.slice(0, colon) : 'dmc';
+          const id = colon >= 0 ? key.slice(colon + 1) : key;
+          let info = null;
+          if (brand === 'anchor' && typeof ANCHOR !== 'undefined') info = ANCHOR.find(d => d.id === id);
+          else if (typeof DMC !== 'undefined') info = DMC.find(d => d.id === id);
+          return { key, brand, id, name: info ? info.name : id, rgb: info ? info.rgb : [128, 128, 128] };
+        });
+        if (!cancelled) setNeverUsedData({ count: neverUsed.length + legacyCount, trackedCount: neverUsed.length, legacyCount, samples });
+      } catch (e) { if (!cancelled) setNeverUsedData({ count: 0, legacyCount: 0, samples: [] }); }
+    }
+    compute();
+    return () => { cancelled = true; };
+  }, [stash, loading]);
+
+  // Load pattern source data (size buckets from project w×h)
+  useEffect(() => {
+    if (typeof ProjectStorage === 'undefined') return;
+    let cancelled = false;
+    async function compute() {
+      try {
+        const metas = await ProjectStorage.listProjects();
+        const buckets = { small: 0, medium: 0, large: 0 }; // <5k, 5k-25k, >25k stitches
+        const designerMap = {};
+        const genreMap = {};
+        let hasAny = false;
+        for (const meta of metas) {
+          const proj = await ProjectStorage.get(meta.id);
+          if (!proj) continue;
+          const stitches = (proj.w || 0) * (proj.h || 0);
+          if (stitches > 0) {
+            hasAny = true;
+            if (stitches < 5000) buckets.small++;
+            else if (stitches < 25000) buckets.medium++;
+            else buckets.large++;
+          }
+          if (proj.designerName) designerMap[proj.designerName] = (designerMap[proj.designerName] || 0) + 1;
+          if (proj.tags && proj.tags.length) proj.tags.forEach(t => { genreMap[t] = (genreMap[t] || 0) + 1; });
+        }
+        if (!cancelled) setPatternSourceData({ buckets, designerMap, genreMap, hasAny });
+      } catch (e) { if (!cancelled) setPatternSourceData(null); }
+    }
+    compute();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Lazy-load StatsActivity when activity tab is first selected
+  useEffect(() => {
+    if (tab !== 'activity' || activityLoaded) return;
+    if (typeof window.loadStatsActivity === 'function') window.loadStatsActivity();
+    const timer = setInterval(() => {
+      if (typeof window.StatsActivity === 'function') { clearInterval(timer); setActivityLoaded(true); }
+    }, 50);
+    return () => clearInterval(timer);
+  }, [tab, activityLoaded]);
 
   // Parse URL params for highlighting
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -1083,13 +1183,29 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     h('div', { className: 'gsd-tabs-inner' },
       h('button', { className: 'gsd-tab' + (tab === 'stitching' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stitching') }, 'Stitching'),
       h('button', { className: 'gsd-tab' + (tab === 'stash' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stash') }, 'Stash'),
-      h('button', { className: 'gsd-tab' + (tab === 'showcase' ? ' gsd-tab--on' : ''), onClick: () => switchTab('showcase') }, '❖ Showcase')
+      h('button', { className: 'gsd-tab' + (tab === 'showcase' ? ' gsd-tab--on' : ''), onClick: () => switchTab('showcase') }, '\u2736 Showcase'),
+      h('button', { className: 'gsd-tab' + (tab === 'activity' ? ' gsd-tab--on' : ''), onClick: () => switchTab('activity') }, '\u25ce Activity')
     )
   );
 
-  // ── Showcase tab ──────────────────────────────────────────
+  // ── Activity tab ──────────────────────────────────────────────
+  if (tab === 'activity') {
+    if (!activityLoaded) {
+      return h('div', null, tabBar,
+        h('div', { style: { padding: '60px 0', textAlign: 'center', color: 'var(--text-tertiary)' } },
+          h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
+          'Loading activity…'
+        )
+      );
+    }
+    return h('div', null, tabBar,
+      h(window.StatsActivity, { onNavigateToDashboard: () => switchTab('stitching'), onNavigateToShowcase: () => switchTab('showcase') })
+    );
+  }
+
+  // ── Showcase tab ──────────────────────────────────────────────
   if (tab === 'showcase') {
-    return h('div', null, tabBar, h(StatsShowcase, { onNavigateToDashboard: () => switchTab('stitching') }));
+    return h('div', null, tabBar, h(StatsShowcase, { onNavigateToDashboard: () => switchTab('stitching'), onNavigateToActivity: () => switchTab('activity') }));
   }
 
   // ── Stitching tab: delegate to GlobalStatsDashboard ──────────
@@ -1221,7 +1337,8 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
                   return days + ' day' + (days !== 1 ? 's' : '') + ' since last touched';
                 })()
               ),
-              h('div', { style: { fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 } }, oldestWip.pct + '% complete (' + fmtNum(oldestWip.completedStitches) + ' / ' + fmtNum(oldestWip.totalStitches) + ')')
+              h('div', { style: { fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 } }, oldestWip.pct + '% complete (' + fmtNum(oldestWip.completedStitches) + ' / ' + fmtNum(oldestWip.totalStitches) + ')'),
+              h('button', { onClick: e => { e.stopPropagation(); switchTab('activity'); const p = new URLSearchParams(window.location.search); p.set('tab', 'activity'); p.set('project', oldestWip.id); window.history.replaceState({}, '', '?' + p.toString()); }, style: { marginTop: 6, fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' } }, 'See stitching pattern \u2192')
             )
           : h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } }, 'No active projects right now')
       )
@@ -1263,6 +1380,59 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               ))
             )
           : h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } }, 'Start stitching in the tracker to see your most-used colours build up')
+      )
+    ),
+
+    // ── Threads Never Used ────────────────────────────────────────
+    show('threadsNeverUsed') && neverUsedData !== null && neverUsedData.count > 0 && h('div', { style: { margin: '10px 0' } },
+      h(StatCard, { title: 'Threads Never Used', id: 'stats-threadsNeverUsed' },
+        h('div', null,
+          h('div', { className: 'gsd-metric-value' }, fmtNum(neverUsedData.count)),
+          h('div', { className: 'gsd-metric-sub', style: { marginBottom: 10 } },
+            'thread' + (neverUsedData.count === 1 ? '' : 's') + ' in your stash that\u2019ve never appeared in a project' +
+            (neverUsedData.legacyCount > 0 ? ' (' + fmtNum(neverUsedData.legacyCount) + ' pre-tracking)' : '')
+          ),
+          neverUsedData.samples.length > 0 && h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 } },
+            neverUsedData.samples.map(s =>
+              h('div', { key: s.key, title: s.brand.toUpperCase() + ' ' + s.id + ' ' + s.name, style: { width: 24, height: 24, borderRadius: 4, background: 'rgb(' + s.rgb[0] + ',' + s.rgb[1] + ',' + s.rgb[2] + ')', border: '1px solid rgba(0,0,0,0.1)', flexShrink: 0 } })
+            )
+          ),
+          onNavigateToStash && h('button', { onClick: () => onNavigateToStash(), style: { fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' } }, 'View in stash \u2192')
+        )
+      )
+    ),
+
+    // ── Pattern Source Analysis ───────────────────────────────────
+    show('patternSource') && patternSourceData && patternSourceData.hasAny && h('div', { style: { margin: '10px 0' } },
+      h(StatCard, { title: 'Pattern Source', id: 'stats-patternSource' },
+        h('div', null,
+          h('div', { className: 'gsd-metric-sub', style: { marginBottom: 10 } }, 'Size breakdown of your ' + (patternSourceData.buckets.small + patternSourceData.buckets.medium + patternSourceData.buckets.large) + ' patterns'),
+          h('div', { style: { display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 8 } },
+            (() => {
+              const total = patternSourceData.buckets.small + patternSourceData.buckets.medium + patternSourceData.buckets.large;
+              if (total === 0) return null;
+              const bars = [
+                { label: 'Small\n<5k', count: patternSourceData.buckets.small, color: '#34d399' },
+                { label: 'Medium\n5k\u201325k', count: patternSourceData.buckets.medium, color: '#38bdf8' },
+                { label: 'Large\n25k+', count: patternSourceData.buckets.large, color: '#818cf8' },
+              ];
+              const maxCount = Math.max(...bars.map(b => b.count), 1);
+              return bars.map(bar => h('div', { key: bar.label, style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1 } },
+                h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' } }, bar.count),
+                h('div', { style: { width: '100%', height: Math.max(4, Math.round((bar.count / maxCount) * 60)), background: bar.color, borderRadius: '3px 3px 0 0' } }),
+                h('div', { style: { fontSize: 9, color: 'var(--text-tertiary)', textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.3 } }, bar.label)
+              ));
+            })()
+          ),
+          Object.keys(patternSourceData.designerMap).length >= 3 && h('div', { style: { marginTop: 8 } },
+            h('div', { className: 'gsd-metric-sub', style: { marginBottom: 4 } }, 'Top designers'),
+            Object.entries(patternSourceData.designerMap).sort(([,a],[,b]) => b - a).slice(0, 3).map(([name, count]) =>
+              h('div', { key: name, style: { fontSize: 12, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '2px 0' } },
+                h('span', null, name), h('span', { style: { color: 'var(--text-tertiary)' } }, count)
+              )
+            )
+          )
+        )
       )
     ),
 

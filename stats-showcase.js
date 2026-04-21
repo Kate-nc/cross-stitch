@@ -563,8 +563,140 @@ function makeFullPageCanvas(canvas, data) {
   drawWatermark(ctx, W, H);
 }
 
+// ── Brand colour map ─────────────────────────────────────────────
+const BRAND_COLORS = {
+  dmc: '#c41230',
+  anchor: '#1b4996',
+  cosmo: '#2e7d32',
+  other: '#78909c'
+};
+
+// Compute brand mix from stash
+function computeBrandMix(stash) {
+  const brandCounts = {};
+  for (const [key, entry] of Object.entries(stash)) {
+    if (!entry || !entry.owned || entry.owned <= 0) continue;
+    const colon = key.indexOf(':');
+    const brand = colon >= 0 ? key.slice(0, colon) : 'dmc';
+    brandCounts[brand] = (brandCounts[brand] || 0) + entry.owned;
+  }
+  const total = Object.values(brandCounts).reduce((s, v) => s + v, 0);
+  if (total === 0) return null;
+  // Sort by count desc, put 'other' last
+  const entries = Object.entries(brandCounts).sort(([ka, a], [kb, b]) => {
+    if (ka === 'other') return 1; if (kb === 'other') return -1;
+    return b - a;
+  });
+  return { entries, total };
+}
+
+// Brand mix headline sentence
+function brandMixSentence(mix) {
+  if (!mix) return null;
+  const { entries, total } = mix;
+  if (entries.length === 1) {
+    const [brand, count] = entries[0];
+    return 'Your ' + fmtNum(count) + ' threads come entirely from ' + brand.toUpperCase() + '.';
+  }
+  const topTwo = entries.slice(0, 2);
+  const [b1, c1] = topTwo[0];
+  const [b2, c2] = topTwo[1];
+  const pct1 = Math.round(c1 / total * 100);
+  const pct2 = Math.round(c2 / total * 100);
+  if (entries.length === 2) {
+    return pct1 >= 60
+      ? 'Mostly ' + b1.toUpperCase() + ' (' + pct1 + '%), with a dash of ' + b2.toUpperCase() + '.'
+      : 'A near-equal split: ' + pct1 + '% ' + b1.toUpperCase() + ', ' + pct2 + '% ' + b2.toUpperCase() + '.';
+  }
+  return 'Your stash spans ' + entries.length + ' brands \u2014 led by ' + b1.toUpperCase() + ' (' + pct1 + '%) and ' + b2.toUpperCase() + ' (' + pct2 + '%).';
+}
+
+// Brand mix donut SVG
+function BrandDonut({ mix }) {
+  if (!mix) return null;
+  const { entries, total } = mix;
+  const R = 56, IR = 32, CX = 70, CY = 70;
+  const paths = [];
+  let angle = -Math.PI / 2;
+  for (const [brand, count] of entries) {
+    const sweep = (count / total) * 2 * Math.PI;
+    if (sweep < 0.01) { angle += sweep; continue; }
+    const x1 = CX + R * Math.cos(angle);
+    const y1 = CY + R * Math.sin(angle);
+    const x2 = CX + R * Math.cos(angle + sweep);
+    const y2 = CY + R * Math.sin(angle + sweep);
+    const ix1 = CX + IR * Math.cos(angle);
+    const iy1 = CY + IR * Math.sin(angle);
+    const ix2 = CX + IR * Math.cos(angle + sweep);
+    const iy2 = CY + IR * Math.sin(angle + sweep);
+    const large = sweep > Math.PI ? 1 : 0;
+    const color = BRAND_COLORS[brand] || BRAND_COLORS.other;
+    const d = 'M ' + ix1 + ' ' + iy1 + ' L ' + x1 + ' ' + y1 + ' A ' + R + ' ' + R + ' 0 ' + large + ' 1 ' + x2 + ' ' + y2 + ' L ' + ix2 + ' ' + iy2 + ' A ' + IR + ' ' + IR + ' 0 ' + large + ' 0 ' + ix1 + ' ' + iy1 + ' Z';
+    paths.push(h('path', { key: brand, d, fill: color }));
+    angle += sweep;
+  }
+  // Brand legend
+  const legend = entries.slice(0, 4).map(([brand, count]) => {
+    const color = BRAND_COLORS[brand] || BRAND_COLORS.other;
+    const pct = Math.round(count / total * 100);
+    return h('div', { key: brand, style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-primary)', marginBottom: 4 } },
+      h('span', { style: { width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 } }),
+      h('span', null, brand.toUpperCase()),
+      h('span', { style: { color: 'var(--text-tertiary)', marginLeft: 'auto', paddingLeft: 8 } }, pct + '%')
+    );
+  });
+  return h('div', { style: { display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' } },
+    h('svg', { viewBox: '0 0 140 140', width: 120, height: 120, 'aria-label': 'Brand mix donut chart' }, ...paths),
+    h('div', { style: { flex: 1, minWidth: 120 } }, ...legend)
+  );
+}
+
+// Brand mix share canvas
+function makeBrandMixCanvas(canvas, mix, sentence) {
+  const W = 1080, H = 1080;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  drawCardBase(ctx, W, H);
+  drawLabel(ctx, 'brand mix', W / 2, 200, 22, CARD_TEXT_SEC);
+  if (sentence) {
+    ctx.fillStyle = CARD_TEXT_PRI;
+    ctx.font = '600 40px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    const words = sentence.split(' ');
+    let line = '', lines = [], lineH = 54;
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w;
+      if (ctx.measureText(test).width > 900) { lines.push(line); line = w; } else line = test;
+    }
+    if (line) lines.push(line);
+    let ty = 300;
+    lines.forEach(l => { ctx.fillText(l, W / 2, ty); ty += lineH; });
+  }
+  if (mix) {
+    const { entries, total } = mix;
+    const R = 220, IR = 130, CX = W / 2, CY = 700;
+    let angle = -Math.PI / 2;
+    for (const [brand, count] of entries) {
+      const sweep = (count / total) * 2 * Math.PI;
+      if (sweep < 0.01) { angle += sweep; continue; }
+      const color = BRAND_COLORS[brand] || BRAND_COLORS.other;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(CX + IR * Math.cos(angle), CY + IR * Math.sin(angle));
+      ctx.lineTo(CX + R * Math.cos(angle), CY + R * Math.sin(angle));
+      ctx.arc(CX, CY, R, angle, angle + sweep);
+      ctx.lineTo(CX + IR * Math.cos(angle + sweep), CY + IR * Math.sin(angle + sweep));
+      ctx.arc(CX, CY, IR, angle + sweep, angle, true);
+      ctx.closePath();
+      ctx.fill();
+      angle += sweep;
+    }
+  }
+  drawWatermark(ctx, W, H);
+}
+
 // ── Main StatsShowcase component ─────────────────────────────────
-function StatsShowcase({ onClose, onNavigateToDashboard }) {
+function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity }) {
   // All hooks unconditional
   const [loading, setLoading] = useState(true);
   const [lifetimeStitches, setLifetimeStitches] = useState(0);
@@ -625,6 +757,12 @@ function StatsShowcase({ onClose, onNavigateToDashboard }) {
   const openShare = useCallback(section => setShareSection(section), []);
   const closeShare = useCallback(() => setShareSection(null), []);
 
+  // Brand mix (derived from stash)
+  const brandMix = useMemo(() => computeBrandMix(stash), [stash]);
+  const brandSentence = useMemo(() => brandMixSentence(brandMix), [brandMix]);
+  const showBrandMix = brandMix !== null;
+  const drawBrandMix = useCallback(canvas => makeBrandMixCanvas(canvas, brandMix, brandSentence), [brandMix, brandSentence]);
+
   // Share draw functions (stable refs via useCallback)
   const drawLifetime = useCallback(canvas => makeLifetimeCanvas(canvas, lifetimeStitches), [lifetimeStitches]);
   const drawSable = useCallback(canvas => makeSableCanvas(canvas, sableData, headline), [sableData, headline]);
@@ -672,6 +810,7 @@ function StatsShowcase({ onClose, onNavigateToDashboard }) {
         h('button', { onClick: () => openShare('page'), style: Object.assign({}, linkStyle, { fontSize: 13 }), 'aria-label': 'Share this page as an image' },
           'Share page ↑'
         ),
+        onNavigateToActivity && h('button', { onClick: onNavigateToActivity, style: linkStyle }, 'Activity \u2192'),
         h('button', { onClick: onNavigateToDashboard, style: linkStyle },
           'Full dashboard →'
         )
@@ -741,6 +880,20 @@ function StatsShowcase({ onClose, onNavigateToDashboard }) {
       )
     ),
 
+    // ── Section 2b: Brand Mix ────────────────────────────────────
+    showBrandMix && h('div', null,
+      h(Divider),
+      h('section', { id: 'showcase-brandmix', 'aria-labelledby': 'showcase-brandmix-heading' },
+        h('div', { style: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' } },
+          h(SectionLabel, null, 'Brand Mix'),
+          h(ShareBtn, { onClick: () => openShare('brandmix') })
+        ),
+        brandSentence && h('h3', { id: 'showcase-brandmix-heading', style: { fontSize: 18, fontWeight: 600, margin: '0 0 14px', color: 'var(--text-primary)', lineHeight: 1.4 } }, brandSentence),
+        h(BrandDonut, { mix: brandMix }),
+        h('div', { style: { marginTop: 8 } }, h('button', { onClick: () => openShare('brandmix'), style: Object.assign({}, linkStyle, { fontSize: 12 }) }, 'Share card \u2192'))
+      )
+    ),
+
     // ── Section 3: Ready to start ────────────────────────────────
     showReady && h('div', null,
       h(Divider),
@@ -799,8 +952,7 @@ function StatsShowcase({ onClose, onNavigateToDashboard }) {
 
     // ── Share modals ─────────────────────────────────────────────
     shareSection === 'lifetime' && h(ShareModal, { key: 'share-lifetime', title: 'Share — Lifetime Stitches', drawFn: drawLifetime, onClose: closeShare }),
-    shareSection === 'sable' && showSable && h(ShareModal, { key: 'share-sable', title: 'Share — Stash vs. Use', drawFn: drawSable, onClose: closeShare }),
-    shareSection === 'age' && showAge && h(ShareModal, { key: 'share-age', title: 'Share — Stash Age', drawFn: drawAge, onClose: closeShare }),
+    shareSection === 'sable' && showSable && h(ShareModal, { key: 'share-sable', title: 'Share — Stash vs. Use', drawFn: drawSable, onClose: closeShare }),    shareSection === 'brandmix' && showBrandMix && h(ShareModal, { key: 'share-brandmix', title: 'Share \u2014 Brand Mix', drawFn: drawBrandMix, onClose: closeShare }),    shareSection === 'age' && showAge && h(ShareModal, { key: 'share-age', title: 'Share — Stash Age', drawFn: drawAge, onClose: closeShare }),
     shareSection === 'oldest' && showOldest && h(ShareModal, { key: 'share-oldest', title: 'Share — Longest Companion', drawFn: drawOldest, onClose: closeShare }),
     shareSection === 'page' && h(ShareModal, { key: 'share-page', title: 'Share — Your Showcase', drawFn: drawFullPage, onClose: closeShare })
   );
