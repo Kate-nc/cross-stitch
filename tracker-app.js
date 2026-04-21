@@ -2013,6 +2013,7 @@ function handleSymbolReassignment(oldColorId, newThread) {
 }
 
 function processLoadedProject(project){
+  if(!project){console.error("processLoadedProject called with null/undefined");return;}
   let s=project.settings||{};
   setSW(project.w||s.sW||project.settings?.w||80);
   setSH(project.h||s.sH||project.settings?.h||80);
@@ -2332,7 +2333,12 @@ function loadProject(e){
 useEffect(()=>{
   if(!incomingProject||incomingProject===incomingProjectRef.current)return;
   incomingProjectRef.current=incomingProject;
-  processLoadedProject(incomingProject.project);
+  if(incomingProject.project){
+    processLoadedProject(incomingProject.project);
+  }else if(incomingProject.id){
+    // Called with {id} only (e.g. stats "Navigate to project") — load from storage.
+    ProjectStorage.get(incomingProject.id).then(p=>{if(p)processLoadedProject(p);}).catch(err=>console.error("Failed to load project by id:",err));
+  }
 },[incomingProject]);
 
 useEffect(() => {
@@ -2347,7 +2353,9 @@ useEffect(() => {
   }
   // If a project was passed directly on first mount, use it (no DB read needed).
   if(incomingProjectRef.current){
-    processLoadedProject(incomingProjectRef.current.project);
+    const ip=incomingProjectRef.current;
+    if(ip.project){processLoadedProject(ip.project);}
+    else if(ip.id){ProjectStorage.get(ip.id).then(p=>{if(p)processLoadedProject(p);}).catch(err=>console.error("Failed to load project by id:",err));}
     return;
   }
   const handoff = localStorage.getItem('crossstitch_handoff');
