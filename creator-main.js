@@ -654,7 +654,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onCancel={()=>state.setNamePromptOpen(false)}
       />}
       <window.CreatorToolStrip/>
-      <div className="cs-page-content" style={{padding:"20px 16px"}}>
+      <div className="cs-page-content">
         {state.loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{state.loadError}</div>}
         {!state.img&&!state.pat&&<div
             style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #0d9488":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#f0fdfa":"transparent",transition:"all 0.2s"}}
@@ -780,7 +780,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               </div>}
             </div>}
           </div>
-          {state.tab!=="stitch"&&<div className="rpanel">
+          {state.tab!=="stitch"&&<>
+            {state.panelOpen&&<div className="rpanel-backdrop" onClick={()=>state.setPanelOpen(false)}/>}
+            <div className={"rpanel"+(state.panelOpen?" rpanel--open":"")}>
             <window.CreatorSidebar/>
             {!state.pat&&state.img&&<div className="card" style={{overflow:"hidden"}}>
               <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#475569"}}>Original Image</div>
@@ -804,6 +806,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               {state.pickBg&&<div style={{padding:"5px 10px",fontSize:10,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}
             </div>}
           </div>}
+          </>}
         </div>}
         {state.modal==="help"&&<SharedModals.Help onClose={()=>state.setModal(null)} />}
         {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}

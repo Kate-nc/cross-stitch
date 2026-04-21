@@ -61,7 +61,61 @@ function ManagerApp() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null); // { type: 'success'|'error'|'confirm', message, summary?, onConfirm? }
+  const [panelOpen, setPanelOpen] = useState(false);
   const lowStockThreshold = 1;
+  const formatBrandLabel = (brand) => {
+    const b = (brand || "dmc").toString().toLowerCase();
+    return b === "anchor" ? "Anchor" : b === "dmc" ? "DMC" : (brand || "DMC");
+  };
+  const getPatternTitleFromProject = (meta, full) => {
+    if (meta && meta.name) return meta.name;
+    if (full && full.settings && Number.isFinite(full.settings.sW) && Number.isFinite(full.settings.sH)) return `${full.settings.sW}\u00D7${full.settings.sH} pattern`;
+    return 'Pattern';
+  };
+  const makeAutoSyncedPatternId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    return Date.now().toString() + Math.random().toString(36).slice(2);
+  };
+  const buildAutoSyncedPattern = (meta, full) => {
+    if (!full || !full.pattern) return null;
+    const counts = {};
+    for (const cell of full.pattern) {
+      if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
+      counts[cell.id] = (counts[cell.id] || 0) + 1;
+    }
+    const threadList = Object.entries(counts).map(([id, stitches]) => {
+      const dmcEntry = typeof DMC !== 'undefined' ? DMC.find(d => d.id === id) : null;
+      return { id, name: dmcEntry ? dmcEntry.name : id, qty: stitches, unit: 'stitches', brand: 'DMC' };
+    });
+    return {
+      id: makeAutoSyncedPatternId(),
+      linkedProjectId: meta.id,
+      title: getPatternTitleFromProject(meta, full),
+      designer: '',
+      status: 'inprogress',
+      tags: ['auto-synced'],
+      threads: threadList
+    };
+  };
+  const reconcileAutoSyncedPatterns = useCallback(async (basePatterns, allMeta) => {
+    const existingLinkedIds = new Set(basePatterns.map(p => p.linkedProjectId).filter(Boolean));
+    const unlinked = allMeta.filter(m => !existingLinkedIds.has(m.id));
+    if (unlinked.length === 0) return basePatterns;
+    let reconciled = basePatterns;
+    for (const meta of unlinked) {
+      try {
+        const full = await ProjectStorage.get(meta.id);
+        const autoPattern = buildAutoSyncedPattern(meta, full);
+        if (autoPattern) {
+          if (reconciled === basePatterns) reconciled = [...basePatterns];
+          reconciled.push(autoPattern);
+        }
+      } catch (e) {
+        console.warn('Manager: failed to reconcile project', meta && meta.id, e);
+      }
+    }
+    return reconciled;
+  }, []);
 
   // Storage initialization
   useEffect(() => {
@@ -140,7 +194,21 @@ function ManagerApp() {
         }
 
         setThreads(finalThreads);
-        if (patternsData) setPatterns(patternsData);
+
+        // Reconcile pattern library against CrossStitchDB.
+        // Projects added via backup restore or JSON import never go through
+        // syncProjectToLibrary, so they won't appear in the Patterns tab unless
+        // we explicitly check here.
+        let finalPatterns = patternsData || [];
+        if (typeof ProjectStorage !== 'undefined') {
+          try {
+            const allMeta = await ProjectStorage.listProjects();
+            finalPatterns = await reconcileAutoSyncedPatterns(finalPatterns, allMeta);
+          } catch (e) {
+            console.warn('Manager: pattern reconciliation failed', e);
+          }
+        }
+        setPatterns(finalPatterns);
       } catch (err) {
         console.error("Failed to load manager data:", err);
       }
@@ -171,6 +239,26 @@ function ManagerApp() {
     });
     loadActiveProject();
     ProjectStorage.listProjects().then(setStoredProjects).catch(err => console.error("Failed to list projects:", err));
+
+    // Re-reconcile when the user switches back to this tab, so projects synced
+    // by the Creator or Tracker while the Manager was in the background appear
+    // without requiring a page reload.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      ProjectStorage.listProjects().then(meta => {
+        setStoredProjects(meta);
+        setPatterns(prev => {
+          // Load full projects async and merge; until resolved, return existing state
+          (async () => {
+            const reconciled = await reconcileAutoSyncedPatterns(prev, meta);
+            if (reconciled !== prev) setPatterns(reconciled);
+          })();
+          return prev; // optimistic: no change until async resolves
+        });
+      }).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   // Auto-save Manager Data
@@ -221,13 +309,18 @@ function ManagerApp() {
     if (typeof StashBridge === "undefined") return;
     StashBridge.detectConflicts().then(setConflicts).catch(() => {});
     StashBridge.whatCanIStart().then(setReadyToStart).catch(() => {});
-    // Low-stock: threads where owned > 0 but below min_stock
+    // Low-stock: threads where owned > 0 but below min_stock (explicit), or below the
+    // global lowStockThreshold (1 skein) when no per-thread minimum has been set.
     const alerts = [];
-    for (const [id, t] of Object.entries(threads)) {
+    for (const [compositeKey, t] of Object.entries(threads)) {
+      if (!t.owned || t.owned <= 0) continue; // completely missing threads handled by pattern detail
       const minStock = t.min_stock || 0;
-      if (minStock > 0 && t.owned < minStock) {
-        const info = DMC.find(d => d.id === id);
-        alerts.push({ id, name: info ? info.name : id, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: minStock });
+      const effectiveMin = minStock > 0 ? minStock : lowStockThreshold;
+      if (t.owned < effectiveMin) {
+        const brand = compositeKey.indexOf(':') < 0 ? 'dmc' : compositeKey.split(':')[0];
+        const bareId = compositeKey.indexOf(':') < 0 ? compositeKey : compositeKey.split(':').slice(1).join(':');
+        const info = typeof getThreadByKey === 'function' ? getThreadByKey(compositeKey) : DMC.find(d => d.id === bareId);
+        alerts.push({ id: compositeKey, brand, bareId, name: info ? info.name : bareId, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: effectiveMin });
       }
     }
     alerts.sort((a, b) => (a.min_stock - a.owned) - (b.min_stock - b.owned));
@@ -243,8 +336,8 @@ function ManagerApp() {
       if (pat.threads) pat.threads.forEach(t => activeIds.add(t.id));
     });
     return {
-      lowStockNeeded: lowStockAlerts.filter(a => activeIds.has(a.id)),
-      lowStockNotNeeded: lowStockAlerts.filter(a => !activeIds.has(a.id)),
+      lowStockNeeded: lowStockAlerts.filter(a => activeIds.has(a.bareId || a.id)),
+      lowStockNotNeeded: lowStockAlerts.filter(a => !activeIds.has(a.bareId || a.id)),
     };
   }, [lowStockAlerts, patterns]);
 
@@ -470,10 +563,10 @@ function ManagerApp() {
       {/* Sub-tab bar */}
       <div className="mgr-tab-bar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex" }}>
-          <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); }}>
+          <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
             <span className="icon">{Icons.thread()}</span> Thread Inventory <span className="cnt">{totalOwnedCount}</span>
           </button>
-          <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); }}>
+          <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
             <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
           </button>
         </div>
@@ -543,9 +636,11 @@ function ManagerApp() {
                 <div style={{ fontSize: 12, color: "#475569", marginBottom: 10 }}>These threads are needed by multiple patterns but you don't have enough.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflow: "auto" }}>
                   {conflicts.map(c => (
-                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fecaca" }}>
+                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fecaca", cursor: "pointer" }}
+                      title={"Open thread card for " + formatBrandLabel(c.brand) + " " + c.id}
+                      onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(c.key); setPanelOpen(true); }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {c.id}</span>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>{formatBrandLabel(c.brand)} {c.id}</span>
                       <span style={{ fontSize: 11, color: "#475569", flex: 1 }}>{c.name}</span>
                       <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 600 }}>own {c.owned}, need {c.totalNeeded}</span>
                       <span style={{ fontSize: 10, color: "#94a3b8" }}>{c.patterns.map(p => p.title).join(", ")}</span>
@@ -562,12 +657,14 @@ function ManagerApp() {
                 <div style={{ fontSize: 12, color: "#475569", marginBottom: 10 }}>Threads below your minimum stock level that are used by active projects.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockNeeded.map(a => (
-                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fde68a" }}>
+                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fde68a", cursor: "pointer" }}
+                      title={"Open thread card for " + formatBrandLabel(a.brand) + " " + (a.bareId || a.id)}
+                      onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(a.id); setPanelOpen(true); }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {a.id}</span>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>{formatBrandLabel(a.brand)} {a.bareId || a.id}</span>
                       <span style={{ fontSize: 11, color: "#475569", flex: 1 }}>{a.name}</span>
                       <span style={{ fontSize: 11, color: "#b45309", fontWeight: 600 }}>have {a.owned}, min {a.min_stock}</span>
-                      <button onClick={() => { updateThread(a.id, "tobuy", true); }} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, border: "1px solid #fed7aa", background: "#fff7ed", color: "#ea580c", cursor: "pointer", fontWeight: 600 }}>Add to buy</button>
+                      <button onClick={(e) => { e.stopPropagation(); updateThread(a.id, "tobuy", true); }} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, border: "1px solid #fed7aa", background: "#fff7ed", color: "#ea580c", cursor: "pointer", fontWeight: 600 }}>Add to buy</button>
                     </div>
                   ))}
                 </div>
@@ -583,7 +680,7 @@ function ManagerApp() {
                   {lowStockNotNeeded.map(a => (
                     <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #e2e8f0" }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {a.id}</span>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>{formatBrandLabel(a.brand)} {a.bareId || a.id}</span>
                       <span style={{ fontSize: 11, color: "#475569", flex: 1 }}>{a.name}</span>
                       <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>have {a.owned}, min {a.min_stock}</span>
                     </div>
@@ -601,7 +698,7 @@ function ManagerApp() {
                 const gaugeLevel = !state.partialStatus ? 0 : state.partialStatus === "mostly-full" ? 3 : state.partialStatus === "about-half" ? 2 : state.partialStatus === "remnant" ? 1 : state.partialStatus === "used-up" ? 4 : 0;
 
                 return (
-                  <div key={d.compositeKey} className={"tcard" + (isSelected ? " on" : "")} onClick={() => setSelectedThread(isSelected ? null : d.compositeKey)}>
+                  <div key={d.compositeKey} className={"tcard" + (isSelected ? " on" : "")} onClick={() => { const next = isSelected ? null : d.compositeKey; setSelectedThread(next); if (next) setPanelOpen(true); }}>
                     <div className="sw" style={{ background: `rgb(${d.rgb})` }} />
                     <div className="info">
                       <div className="tid">{d.id}{d.brand === 'anchor' && <span style={{fontSize:9,fontWeight:700,background:'#e0f2fe',color:'#0369a1',borderRadius:3,padding:'0 3px',marginLeft:4,verticalAlign:'middle'}}>A</span>}</div>
@@ -628,7 +725,12 @@ function ManagerApp() {
           </div>
 
           {/* Right Panel — Thread Detail */}
-          <div className="mgr-rpanel">
+          {panelOpen && <div className="rpanel-backdrop" onClick={() => setPanelOpen(false)} />}
+          <div className={"mgr-rpanel" + (panelOpen ? " mgr-rpanel--open" : "")}>
+            <div className="mgr-panel-handle" onClick={() => setPanelOpen(o => !o)}>
+              <div className="rpanel-handle-bar" />
+              <span style={{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}>{selectedThread ? "Thread Detail" : "Thread Detail"}</span>
+            </div>
             {selectedThread ? (() => {
               const d = typeof getThreadByKey === 'function' ? getThreadByKey(selectedThread) : DMC.find(x => x.id === selectedThread);
               if (!d) return <div className="rp-s" style={{ color: "#94a3b8", textAlign: "center", padding: 20 }}>Thread not found</div>;
@@ -862,7 +964,7 @@ function ManagerApp() {
               {filteredPatterns.map(p => {
                 const isSelected = selectedPatternsForList.has(p.id);
                 return (
-                  <div key={p.id} className={"pcard" + (viewingPattern && viewingPattern.id === p.id ? " on" : "")} onClick={() => setViewingPattern(viewingPattern && viewingPattern.id === p.id ? null : p)}>
+                  <div key={p.id} className={"pcard" + (viewingPattern && viewingPattern.id === p.id ? " on" : "")} onClick={() => { const next = viewingPattern && viewingPattern.id === p.id ? null : p; setViewingPattern(next); if (next) setPanelOpen(true); }}>
                     <div className="ptitle">
                       <input
                         type="checkbox"
@@ -902,13 +1004,18 @@ function ManagerApp() {
           </div>
 
           {/* Right Panel — Pattern Detail */}
-          <div className="mgr-rpanel">
+          {panelOpen && <div className="rpanel-backdrop" onClick={() => setPanelOpen(false)} />}
+          <div className={"mgr-rpanel" + (panelOpen ? " mgr-rpanel--open" : "")}>
+            <div className="mgr-panel-handle" onClick={() => setPanelOpen(o => !o)}>
+              <div className="rpanel-handle-bar" />
+              <span style={{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}>{viewingPattern ? "Pattern Detail" : "Pattern Detail"}</span>
+            </div>
             {viewingPattern ? (() => {
               const p = viewingPattern;
               const coverage = p.threads && p.threads.length > 0
-                ? Math.round(p.threads.filter(t => (threads[t.id] || {}).owned > 0).length / p.threads.length * 100)
+                ? Math.round(p.threads.filter(t => { const k = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id; return (threads[k] || {}).owned > 0; }).length / p.threads.length * 100)
                 : 0;
-              const missingThreads = p.threads ? p.threads.filter(t => !(threads[t.id] || {}).owned) : [];
+              const missingThreads = p.threads ? p.threads.filter(t => { const k = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id; return !(threads[k] || {}).owned; }) : [];
               return <>
                 <div className="rp-s">
                   <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 2 }}>{p.title || "Untitled"}</div>
@@ -929,7 +1036,7 @@ function ManagerApp() {
                   <div style={{ height: 6, background: "#f1f5f9", borderRadius: 3, overflow: "hidden", border: "1px solid #e2e8f0", marginBottom: 8 }}>
                     <div style={{ height: "100%", width: coverage + "%", background: "#0d9488", borderRadius: 3 }} />
                   </div>
-                  <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.threads ? p.threads.filter(t => (threads[t.id] || {}).owned > 0).length : 0} of {p.threads ? p.threads.length : 0} threads in your stash. {missingThreads.length} missing.</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.threads ? p.threads.filter(t => { const k = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id; return (threads[k] || {}).owned > 0; }).length : 0} of {p.threads ? p.threads.length : 0} threads in your stash. {missingThreads.length} missing.</div>
                 </div>
                 {missingThreads.length > 0 && (
                   <div className="rp-s">
@@ -937,8 +1044,10 @@ function ManagerApp() {
                     <div className="used-in">
                       {missingThreads.map(t => {
                         const dmc = DMC.find(x => x.id === t.id);
+                        const compositeKey = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id;
                         return (
-                          <div key={t.id} className="ui-row">
+                          <div key={t.id} className="ui-row" style={{ cursor: "pointer" }} title={"Open thread card for DMC " + t.id}
+                            onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(compositeKey); }}>
                             <div style={{ width: 12, height: 12, borderRadius: 3, background: dmc ? `rgb(${dmc.rgb})` : "#ccc", border: "1px solid #e2e8f0" }} />
                             {t.id} {dmc ? dmc.name : ""} <span className="need">{t.qty ? t.qty + " sk" : ""}</span>
                           </div>
@@ -1621,7 +1730,8 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
 
     const missing = [];
     Object.entries(required).forEach(([id, totalQtyReq]) => {
-      const invState = inventoryThreads[id] || { owned: 0 };
+      const k = id.indexOf(':') < 0 ? 'dmc:' + id : id;
+      const invState = inventoryThreads[k] || inventoryThreads[id] || { owned: 0 };
       const missingQty = totalQtyReq - invState.owned;
       if (missingQty > 0) {
         const info = DMC.find(d => d.id === id);

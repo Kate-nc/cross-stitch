@@ -70,24 +70,23 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
-          // Overlay toggle
-          gen.img && h("button", {
-            className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
-            onClick:function(){ cv.setShowOverlay(!cv.showOverlay); },
-            title:"Toggle source image overlay", "aria-label":"Toggle source image overlay"
-          }, "\uD83D\uDDBC\uFE0F Overlay"),
-          h("div", {className:"tb-sdiv"}),
-          // Zoom
-          createZoomGrp,
-          h("div", {className:"tb-sdiv"}),
-          // Generate / Regenerate
+          // Generate / Regenerate — first so always visible on narrow screens
           h("button", {
             className:"tb-btn tb-btn--green",
             onClick:function(){ gen.generate(); },
             disabled:gen.busy,
             "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
             title:gen.hasGenerated?"Regenerate pattern":"Generate pattern"
-          }, gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate")
+          }, gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate"),
+          h("div", {className:"tb-sdiv"}),
+          // Overlay toggle
+          gen.img && h("button", {
+            className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
+            onClick:function(){ cv.setShowOverlay(!cv.showOverlay); },
+            title:"Toggle source image overlay", "aria-label":"Toggle source image overlay"
+          }, "\uD83D\uDDBC\uFE0F Overlay"),
+          // Zoom
+          createZoomGrp
         )
       )
     );

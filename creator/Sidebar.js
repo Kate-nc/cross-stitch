@@ -839,23 +839,42 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   var tabBar = h("div", {
     role:"tablist", "aria-label":mode === "create" ? "Create mode panels" : "Edit mode panels",
-    style:{display:"flex",borderBottom:"1px solid var(--border)",background:"var(--surface)"}
-  }, tabs.map(function(kl) {
-    return h("button", {
-      key:kl[0],
-      role:"tab",
-      "aria-selected":sTab===kl[0],
-      "aria-controls":"sidebar-panel-"+kl[0],
-      onClick:function(){ app.setSidebarTab(kl[0]); },
-      style:{
-        flex:1,padding:"8px 2px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
-        border:"none",borderBottom:sTab===kl[0]?"2px solid var(--accent)":"2px solid transparent",
-        cursor:"pointer",fontFamily:"inherit",
-        background:"transparent",
-        color:sTab===kl[0]?"var(--accent)":"var(--text-secondary)",
-      }
-    }, kl[1]);
-  }));
+    style:{display:"flex",background:"var(--surface)",flexDirection:"column"}
+  },
+    h("div", {"aria-hidden":"true", className:"rpanel-handle-wrap", style:{paddingTop:6,paddingBottom:2,display:"flex",justifyContent:"center"}},
+      h("div", {className:"rpanel-handle-bar"})
+    ),
+    h("div", {style:{display:"flex",borderBottom:"1px solid var(--border)"}},
+      tabs.map(function(kl) {
+        return h("button", {
+          key:kl[0],
+          role:"tab",
+          "aria-selected":sTab===kl[0],
+          "aria-controls":"sidebar-panel-"+kl[0],
+          onClick:function(){
+            var isMobile = window.matchMedia && window.matchMedia("(max-width: 899px)").matches;
+            if (isMobile) {
+              if (app.sidebarTab === kl[0] && app.panelOpen) {
+                app.setPanelOpen(false);
+              } else {
+                app.setSidebarTab(kl[0]);
+                app.setPanelOpen(true);
+              }
+            } else {
+              app.setSidebarTab(kl[0]);
+            }
+          },
+          style:{
+            flex:1,padding:"8px 2px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
+            border:"none",borderBottom:sTab===kl[0]?"2px solid var(--accent)":"2px solid transparent",
+            cursor:"pointer",fontFamily:"inherit",
+            background:"transparent",
+            color:sTab===kl[0]?"var(--accent)":"var(--text-secondary)",
+          }
+        }, kl[1]);
+      })
+    )
+  );
 
   // ─── View toggle (shared between View tab content in both modes) ─────────
   var viewToggle = (ctx.pat && ctx.pal) ? h("div", {
