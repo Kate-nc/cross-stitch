@@ -480,6 +480,10 @@ useEffect(()=>{try{localStorage.setItem("cs_focusEnabled",focusEnabled?"1":"0");
 useEffect(()=>{try{localStorage.setItem("cs_colourSeq",colourSequence);}catch(_){}},[colourSequence]);
 useEffect(()=>{try{localStorage.setItem("cs_startCorner",startCorner);}catch(_){}},[startCorner]);
 useEffect(()=>{try{localStorage.setItem("cs_bcVisible",breadcrumbVisible?"1":"0");}catch(_){}},[breadcrumbVisible]);
+useEffect(()=>{try{localStorage.setItem("cs_countAids",countingAidsEnabled?"1":"0");}catch(_){}},[countingAidsEnabled]);
+useEffect(()=>{try{localStorage.setItem("cs_countRunMin",String(countRunMin));}catch(_){}},[countRunMin]);
+useEffect(()=>{try{localStorage.setItem("cs_countRunDir",countRunDir);}catch(_){}},[countRunDir]);
+useEffect(()=>{try{localStorage.setItem("cs_countNinja",countNinjaEnabled?"1":"0");}catch(_){}},[countNinjaEnabled]);
 const[blockAdvanceToast,setBlockAdvanceToast]=useState(null);
 const prevFocusBlockDoneRef=useRef(false);
 const blockAdvanceTimerRef=useRef(null);
@@ -491,6 +495,13 @@ const[sessionGoalInput,setSessionGoalInput]=useState("");
 const[sessionSummaryData,setSessionSummaryData]=useState(null);
 const focusOverlayCanvasRef=useRef(null);
 const breadcrumbCanvasRef=useRef(null);
+// ── Counting aids ──
+const[countingAidsEnabled,setCountingAidsEnabled]=useState(()=>{try{return localStorage.getItem("cs_countAids")!=="0";}catch(_){return true;}});
+const[countRunMin,setCountRunMin]=useState(()=>{try{return parseInt(localStorage.getItem("cs_countRunMin")||"3");}catch(_){return 3;}});
+const[countRunDir,setCountRunDir]=useState(()=>{try{return localStorage.getItem("cs_countRunDir")||"h";}catch(_){return"h";}});
+const[countNinjaEnabled,setCountNinjaEnabled]=useState(()=>{try{return localStorage.getItem("cs_countNinja")!=="0";}catch(_){return true;}});
+const countingAidsCanvasRef=useRef(null);
+const countingAidsRafRef=useRef(null);
 const[hlRow,setHlRow]=useState(-1),[hlCol,setHlCol]=useState(-1);
 const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
@@ -3064,6 +3075,174 @@ useEffect(()=>{
   });
 },[breadcrumbs,breadcrumbVisible,scs,sW,sH,blockW,blockH,statsSessions]);
 
+// ═══ Counting aids overlay ═══
+useEffect(()=>{
+  const canvas=countingAidsCanvasRef.current;
+  if(!canvas)return;
+  if(stitchView!=="highlight"||!focusColour||!countingAidsEnabled||!pat||!done){
+    if(canvas.width>0){const ctx=canvas.getContext("2d");ctx.clearRect(0,0,canvas.width,canvas.height);}
+    return;
+  }
+  const needW=sW*scs+G+2,needH=sH*scs+G+2;
+  if(canvas.width!==needW||canvas.height!==needH){canvas.width=needW;canvas.height=needH;}
+  const tier=lockDetailLevel?3:tierRef.current;
+  if(tier<2){const ctx=canvas.getContext("2d");ctx.clearRect(0,0,canvas.width,canvas.height);return;}
+  cancelAnimationFrame(countingAidsRafRef.current);
+  countingAidsRafRef.current=requestAnimationFrame(()=>{
+    const ctx=canvas.getContext("2d");
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
+    // Viewport culling
+    const scroll=stitchScrollRef.current;
+    let visC0=0,visC1=bCols,visR0=0,visR1=bRows;
+    if(scroll){
+      const sl=scroll.scrollLeft,st=scroll.scrollTop,cw=scroll.clientWidth,ch=scroll.clientHeight;
+      visC0=Math.max(0,Math.floor((sl-G)/scs/blockW));
+      visC1=Math.min(bCols,Math.ceil((sl+cw)/scs/blockW)+1);
+      visR0=Math.max(0,Math.floor((st-G)/scs/blockH));
+      visR1=Math.min(bRows,Math.ceil((st+ch)/scs/blockH)+1);
+    }
+    // Ninja icon: 4-pointed star (shuriken)
+    function drawNinjaIcon(cx,cy,r){
+      const ir=r*0.35;
+      ctx.beginPath();
+      for(let i=0;i<4;i++){
+        const outerAngle=(i*Math.PI/2)-Math.PI/2;
+        const innerAngle=outerAngle+Math.PI/4;
+        ctx.lineTo(cx+Math.cos(outerAngle)*r,cy+Math.sin(outerAngle)*r);
+        ctx.lineTo(cx+Math.cos(innerAngle)*ir,cy+Math.sin(innerAngle)*ir);
+      }
+      ctx.closePath();
+      ctx.fillStyle="rgba(234,88,12,0.85)";ctx.fill();
+      ctx.strokeStyle="rgba(234,88,12,1)";ctx.lineWidth=0.5;ctx.stroke();
+    }
+    const ps=analysisResult&&analysisResult.perStitch;
+    // Per-block counts + ninja detection
+    for(let by=visR0;by<visR1;by++){for(let bx=visC0;bx<visC1;bx++){
+      const x0=bx*blockW,y0=by*blockH;
+      const x1=Math.min(x0+blockW,sW),y1=Math.min(y0+blockH,sH);
+      let total=0,remaining=0;
+      for(let row=y0;row<y1;row++){for(let col=x0;col<x1;col++){
+        const idx=row*sW+col;
+        const m=pat[idx];
+        if(!m||m.id==="__skip__"||m.id==="__empty__")continue;
+        if(m.id!==focusColour)continue;
+        total++;
+        if(!done[idx])remaining++;
+      }}
+      if(total===0)continue;
+      const isActive=focusBlock&&focusBlock.bx===bx&&focusBlock.by===by;
+      const px=G+x0*scs+2,py=G+y0*scs+2;
+      if(remaining===0){
+        ctx.fillStyle="#0d9488";ctx.font="bold 9px sans-serif";
+        ctx.textAlign="left";ctx.textBaseline="top";
+        ctx.fillText("✓",px,py);
+      }else if(isActive){
+        const label=String(remaining);
+        ctx.font="bold 10px sans-serif";
+        ctx.textAlign="left";ctx.textBaseline="top";
+        const tw=ctx.measureText(label).width;
+        ctx.fillStyle="rgba(13,148,136,0.15)";
+        ctx.beginPath();
+        if(ctx.roundRect)ctx.roundRect(px-2,py-1,tw+6,13,3);else ctx.rect(px-2,py-1,tw+6,13);
+        ctx.fill();
+        ctx.fillStyle="#0d9488";ctx.fillText(label,px,py);
+      }else{
+        ctx.fillStyle="rgba(0,0,0,0.3)";ctx.font="8px sans-serif";
+        ctx.textAlign="left";ctx.textBaseline="top";
+        ctx.fillText(String(remaining),px,py);
+      }
+    }}
+    // Run-length badges
+    if(countRunMin>0){
+      for(let by=visR0;by<visR1;by++){for(let bx=visC0;bx<visC1;bx++){
+        const x0=bx*blockW,y0=by*blockH;
+        const x1=Math.min(x0+blockW,sW),y1=Math.min(y0+blockH,sH);
+        // Horizontal runs
+        if(countRunDir==="h"||countRunDir==="both"){
+          for(let row=y0;row<y1;row++){
+            let runStart=-1,runLen=0;
+            for(let col=x0;col<=x1;col++){
+              const inBounds=col<x1;
+              const match=inBounds&&pat[row*sW+col]&&pat[row*sW+col].id===focusColour&&!done[row*sW+col];
+              if(match){if(runStart<0){runStart=col;runLen=1;}else runLen++;}
+              else if(runStart>=0){
+                if(runLen>=countRunMin){
+                  const midCol=runStart+Math.floor(runLen/2);
+                  const bpx=G+midCol*scs+scs-2,bpy=G+row*scs+2;
+                  const label=String(runLen);
+                  ctx.font="bold 8px monospace";
+                  const tw=Math.max(ctx.measureText(label).width+6,14);
+                  ctx.fillStyle="#0d9488";
+                  ctx.beginPath();
+                  if(ctx.roundRect)ctx.roundRect(bpx-tw,bpy,tw,11,5);else ctx.rect(bpx-tw,bpy,tw,11);
+                  ctx.fill();
+                  ctx.fillStyle="#fff";ctx.textAlign="center";ctx.textBaseline="top";
+                  ctx.fillText(label,bpx-tw/2,bpy+1.5);
+                }
+                runStart=-1;runLen=0;
+              }
+            }
+          }
+        }
+        // Vertical runs
+        if(countRunDir==="v"||countRunDir==="both"){
+          for(let col=x0;col<x1;col++){
+            let runStart=-1,runLen=0;
+            for(let row=y0;row<=y1;row++){
+              const inBounds=row<y1;
+              const match=inBounds&&pat[row*sW+col]&&pat[row*sW+col].id===focusColour&&!done[row*sW+col];
+              if(match){if(runStart<0){runStart=row;runLen=1;}else runLen++;}
+              else if(runStart>=0){
+                if(runLen>=countRunMin){
+                  const midRow=runStart+Math.floor(runLen/2);
+                  const bpx=G+col*scs+2,bpy=G+midRow*scs+scs-13;
+                  const label=String(runLen);
+                  ctx.font="bold 8px monospace";
+                  const tw=Math.max(ctx.measureText(label).width+6,14);
+                  ctx.fillStyle="#7c3aed";
+                  ctx.beginPath();
+                  if(ctx.roundRect)ctx.roundRect(bpx,bpy,tw,11,5);else ctx.rect(bpx,bpy,tw,11);
+                  ctx.fill();
+                  ctx.fillStyle="#fff";ctx.textAlign="center";ctx.textBaseline="top";
+                  ctx.fillText(label,bpx+tw/2,bpy+1.5);
+                }
+                runStart=-1;runLen=0;
+              }
+            }
+          }
+        }
+      }}
+    }
+    // Ninja stitch detection
+    if(countNinjaEnabled){
+      const r=Math.max(4,scs*0.3);
+      for(let by=visR0;by<visR1;by++){for(let bx=visC0;bx<visC1;bx++){
+        const x0=bx*blockW,y0=by*blockH;
+        const x1=Math.min(x0+blockW,sW),y1=Math.min(y0+blockH,sH);
+        for(let row=y0;row<y1;row++){for(let col=x0;col<x1;col++){
+          const idx=row*sW+col;
+          const m=pat[idx];
+          if(!m||m.id!==focusColour||done[idx])continue;
+          let isolated=false;
+          if(ps&&ps.clusterSize){
+            isolated=ps.clusterSize[idx]===1;
+          }else{
+            const upIdx=row>0?(row-1)*sW+col:-1;
+            const dnIdx=row<sH-1?(row+1)*sW+col:-1;
+            const ltIdx=col>0?row*sW+col-1:-1;
+            const rtIdx=col<sW-1?row*sW+col+1:-1;
+            isolated=![upIdx,dnIdx,ltIdx,rtIdx].some(ni=>ni>=0&&pat[ni]&&pat[ni].id===focusColour&&!done[ni]);
+          }
+          if(isolated){
+            drawNinjaIcon(G+col*scs+scs/2,G+row*scs+scs/2,r);
+          }
+        }}
+      }}
+    }
+  });
+},[pat,done,sW,sH,scs,focusColour,stitchView,countingAidsEnabled,countRunMin,countRunDir,countNinjaEnabled,blockW,blockH,focusBlock,countsVer,analysisResult,lockDetailLevel]);
+
 
 const hlAntsIntervalRef=useRef(null);
 useEffect(()=>{
@@ -3674,6 +3853,7 @@ useEffect(()=>{
         if(e.key==="2"){setHighlightMode("outline");return;}
         if(e.key==="3"){setHighlightMode("tint");return;}
         if(e.key==="4"){setHighlightMode("spotlight");return;}
+        if(e.key==="c"||e.key==="C"){setCountingAidsEnabled(v=>!v);return;}
       }
       if(e.key==="ArrowRight"||e.key==="]"){
         e.preventDefault();
@@ -3822,6 +4002,7 @@ return(
       <span className="tb-ovf-lbl">Tools</span>
       <button className={"tb-ovf-item"+(trackerPreviewOpen?" tb-ovf-item--on":"")} onClick={()=>{setTrackerPreviewOpen(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Realistic preview{trackerPreviewOpen?" ✓":""}</button>
       <button className={"tb-ovf-item"+(threadUsageMode?" tb-ovf-item--on":"")} onClick={()=>{setThreadUsageMode(m=>m?null:"cluster");setTOverflowOpen(false);}}>Thread usage{threadUsageMode?" ✓":""}</button>
+      <button className={"tb-ovf-item"+(countingAidsEnabled?" tb-ovf-item--on":"")} onClick={()=>{setCountingAidsEnabled(v=>!v);setTOverflowOpen(false);}}>🔢 Counting aids{countingAidsEnabled?" ✓":""}</button>
       <button className={"tb-ovf-item"} onClick={()=>{setRpanelTab("more");setMobileDrawerOpen(true);setTOverflowOpen(false);}}>Layers{!Object.values(layerVis).every(Boolean)?" (filtered)":""}</button>
       <button className={"tb-ovf-item"+(statsView?" tb-ovf-item--on":"")} onClick={()=>{setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);setTOverflowOpen(false);}}>📊 Stats{statsView?" ✓":""}</button>
       <div className="tb-ovf-sep"/>
@@ -4069,6 +4250,8 @@ return(
           {breadcrumbVisible&&<canvas ref={breadcrumbCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:5,pointerEvents:"none"}}/>}
           {/* Focus area spotlight overlay */}
           {focusEnabled&&focusBlock&&<canvas ref={focusOverlayCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:6,pointerEvents:"none"}}/>}
+          {/* Counting aids overlay (block counts, run lengths, ninja stitches) */}
+          {countingAidsEnabled&&stitchView==="highlight"&&focusColour&&<canvas ref={countingAidsCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:7,pointerEvents:"none"}}/>}
 
           {rangeModeActive&&rangeAnchor&&<div style={{
             position:'absolute',
@@ -4294,6 +4477,35 @@ return(
             <input type="range" min={5} max={50} value={Math.round(spotDimOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setSpotDimOpacity(v);try{localStorage.setItem("cs_spotDimOp",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
             <span style={{width:28,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(spotDimOpacity*100)}%</span>
           </div>}
+        </div>}
+        {stitchView==="highlight"&&focusColour&&<div style={{marginTop:8,paddingTop:8,borderTop:"0.5px solid #e2e8f0"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <span style={{fontSize:11,fontWeight:600,color:"#475569"}}>Counting aids</span>
+            <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#475569",cursor:"pointer"}}>
+              <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>Show
+            </label>
+          </div>
+          {countingAidsEnabled&&<>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:10}}>
+              <span style={{color:"#475569",flexShrink:0}}>Runs</span>
+              <div style={{display:"flex",gap:0,borderRadius:5,overflow:"hidden",border:"1px solid #e2e8f0"}}>
+                {[[0,"Off"],[1,"All"],[3,"3+"],[5,"5+"],[10,"10+"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setCountRunMin(v)} style={{padding:"2px 7px",fontSize:10,border:"none",borderRight:"1px solid #e2e8f0",background:countRunMin===v?"#0d9488":"#f8fafc",color:countRunMin===v?"#fff":"#475569",cursor:"pointer",fontWeight:countRunMin===v?600:400}}>{l}</button>
+                ))}
+              </div>
+            </div>
+            {countRunMin>0&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:10}}>
+              <span style={{color:"#475569",flexShrink:0}}>Direction</span>
+              <div style={{display:"flex",gap:0,borderRadius:5,overflow:"hidden",border:"1px solid #e2e8f0"}}>
+                {[["h","Horiz"],["v","Vert"],["both","Both"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setCountRunDir(v)} style={{padding:"2px 7px",fontSize:10,border:"none",borderRight:"1px solid #e2e8f0",background:countRunDir===v?"#0d9488":"#f8fafc",color:countRunDir===v?"#fff":"#475569",cursor:"pointer",fontWeight:countRunDir===v?600:400}}>{l}</button>
+                ))}
+              </div>
+            </div>}
+            <label style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#475569",cursor:"pointer"}}>
+              <input type="checkbox" checked={countNinjaEnabled} onChange={e=>setCountNinjaEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#ea580c"}}/>🥷 Ninja stitch warnings
+            </label>
+          </>}
         </div>}
       </div>}
 

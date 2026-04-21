@@ -256,6 +256,7 @@ const SharedModals = {
           shRow(['P'], 'Pause / resume session timer'),
           shRow(['V'], 'Cycle view mode'),
           shRow(['[', ']'], 'Previous / next colour'),
+          shRow(['C'], 'Toggle counting aids (highlight mode)'),
           shRow(['D'], 'Toggle colour drawer'),
           shRow(['+', '−'], 'Zoom in / out'),
           shRow(['0'], 'Zoom to fit'),
