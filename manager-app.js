@@ -63,6 +63,50 @@ function ManagerApp() {
   const [backupStatus, setBackupStatus] = useState(null); // { type: 'success'|'error'|'confirm', message, summary?, onConfirm? }
   const [panelOpen, setPanelOpen] = useState(false);
   const lowStockThreshold = 1;
+  const formatBrandLabel = (brand) => {
+    const b = (brand || "dmc").toString().toLowerCase();
+    return b === "anchor" ? "Anchor" : b === "dmc" ? "DMC" : (brand || "DMC");
+  };
+  const getPatternTitleFromProject = (meta, full) => {
+    if (meta && meta.name) return meta.name;
+    if (full && full.settings && Number.isFinite(full.settings.sW) && Number.isFinite(full.settings.sH)) return `${full.settings.sW}×${full.settings.sH} pattern`;
+    return 'Pattern';
+  };
+  const buildAutoSyncedPattern = (meta, full) => {
+    if (!full || !full.pattern) return null;
+    const counts = {};
+    for (const cell of full.pattern) {
+      if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
+      counts[cell.id] = (counts[cell.id] || 0) + 1;
+    }
+    const threadList = Object.entries(counts).map(([id, stitches]) => {
+      const dmcEntry = typeof DMC !== 'undefined' ? DMC.find(d => d.id === id) : null;
+      return { id, name: dmcEntry ? dmcEntry.name : id, qty: stitches, unit: 'stitches', brand: 'DMC' };
+    });
+    return {
+      id: Date.now().toString() + Math.random().toString(36).slice(2),
+      linkedProjectId: meta.id,
+      title: getPatternTitleFromProject(meta, full),
+      designer: '',
+      status: 'inprogress',
+      tags: ['auto-synced'],
+      threads: threadList
+    };
+  };
+  const reconcileAutoSyncedPatterns = useCallback(async (basePatterns, allMeta) => {
+    const existingLinkedIds = new Set(basePatterns.map(p => p.linkedProjectId).filter(Boolean));
+    const unlinked = allMeta.filter(m => !existingLinkedIds.has(m.id));
+    if (unlinked.length === 0) return basePatterns;
+    const reconciled = [...basePatterns];
+    for (const meta of unlinked) {
+      try {
+        const full = await ProjectStorage.get(meta.id);
+        const autoPattern = buildAutoSyncedPattern(meta, full);
+        if (autoPattern) reconciled.push(autoPattern);
+      } catch (e) {}
+    }
+    return reconciled;
+  }, []);
 
   // Storage initialization
   useEffect(() => {
@@ -150,34 +194,7 @@ function ManagerApp() {
         if (typeof ProjectStorage !== 'undefined') {
           try {
             const allMeta = await ProjectStorage.listProjects();
-            const existingLinkedIds = new Set(finalPatterns.map(p => p.linkedProjectId).filter(Boolean));
-            const unlinked = allMeta.filter(m => !existingLinkedIds.has(m.id));
-            if (unlinked.length > 0) {
-              const reconciled = [...finalPatterns];
-              for (const meta of unlinked) {
-                const full = await ProjectStorage.get(meta.id);
-                if (!full || !full.pattern) continue;
-                const counts = {};
-                for (const cell of full.pattern) {
-                  if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
-                  counts[cell.id] = (counts[cell.id] || 0) + 1;
-                }
-                const threadList = Object.entries(counts).map(([id, stitches]) => {
-                  const dmcEntry = typeof DMC !== 'undefined' ? DMC.find(d => d.id === id) : null;
-                  return { id, name: dmcEntry ? dmcEntry.name : id, qty: stitches, unit: 'stitches', brand: 'DMC' };
-                });
-                reconciled.push({
-                  id: Date.now().toString() + Math.random().toString(36).slice(2),
-                  linkedProjectId: meta.id,
-                  title: meta.name || (full.settings ? `${full.settings.sW}\u00D7${full.settings.sH} pattern` : 'Pattern'),
-                  designer: '',
-                  status: 'inprogress',
-                  tags: ['auto-synced'],
-                  threads: threadList
-                });
-              }
-              finalPatterns = reconciled;
-            }
+            finalPatterns = await reconcileAutoSyncedPatterns(finalPatterns, allMeta);
           } catch (e) {
             console.warn('Manager: pattern reconciliation failed', e);
           }
@@ -222,37 +239,10 @@ function ManagerApp() {
       ProjectStorage.listProjects().then(meta => {
         setStoredProjects(meta);
         setPatterns(prev => {
-          const existingLinkedIds = new Set(prev.map(p => p.linkedProjectId).filter(Boolean));
-          const unlinked = meta.filter(m => !existingLinkedIds.has(m.id));
-          if (unlinked.length === 0) return prev;
           // Load full projects async and merge; until resolved, return existing state
           (async () => {
-            const reconciled = [...prev];
-            for (const m of unlinked) {
-              try {
-                const full = await ProjectStorage.get(m.id);
-                if (!full || !full.pattern) continue;
-                const counts = {};
-                for (const cell of full.pattern) {
-                  if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
-                  counts[cell.id] = (counts[cell.id] || 0) + 1;
-                }
-                const threadList = Object.entries(counts).map(([id, stitches]) => {
-                  const dmcEntry = typeof DMC !== 'undefined' ? DMC.find(d => d.id === id) : null;
-                  return { id, name: dmcEntry ? dmcEntry.name : id, qty: stitches, unit: 'stitches', brand: 'DMC' };
-                });
-                reconciled.push({
-                  id: Date.now().toString() + Math.random().toString(36).slice(2),
-                  linkedProjectId: m.id,
-                  title: m.name || 'Pattern',
-                  designer: '',
-                  status: 'inprogress',
-                  tags: ['auto-synced'],
-                  threads: threadList
-                });
-              } catch (e) { /* skip individual project errors */ }
-            }
-            setPatterns(reconciled);
+            const reconciled = await reconcileAutoSyncedPatterns(prev, meta);
+            if (reconciled !== prev) setPatterns(reconciled);
           })();
           return prev; // optimistic: no change until async resolves
         });
@@ -317,10 +307,11 @@ function ManagerApp() {
       if (!t.owned || t.owned <= 0) continue; // completely missing threads handled by pattern detail
       const minStock = t.min_stock || 0;
       const effectiveMin = minStock > 0 ? minStock : lowStockThreshold;
-      if (t.owned <= effectiveMin) {
+      if (t.owned < effectiveMin) {
+        const brand = compositeKey.indexOf(':') < 0 ? 'dmc' : compositeKey.split(':')[0];
         const bareId = compositeKey.indexOf(':') < 0 ? compositeKey : compositeKey.split(':').slice(1).join(':');
         const info = typeof getThreadByKey === 'function' ? getThreadByKey(compositeKey) : DMC.find(d => d.id === bareId);
-        alerts.push({ id: compositeKey, bareId, name: info ? info.name : bareId, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: effectiveMin });
+        alerts.push({ id: compositeKey, brand, bareId, name: info ? info.name : bareId, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: effectiveMin });
       }
     }
     alerts.sort((a, b) => (a.min_stock - a.owned) - (b.min_stock - b.owned));
@@ -637,10 +628,10 @@ function ManagerApp() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflow: "auto" }}>
                   {conflicts.map(c => (
                     <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fecaca", cursor: "pointer" }}
-                      title={"Open thread card for DMC " + c.id}
-                      onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(c.key); }}>
+                      title={"Open thread card for " + formatBrandLabel(c.brand) + " " + c.id}
+                      onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(c.key); setPanelOpen(true); }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {c.id}</span>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>{formatBrandLabel(c.brand)} {c.id}</span>
                       <span style={{ fontSize: 11, color: "#475569", flex: 1 }}>{c.name}</span>
                       <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 600 }}>own {c.owned}, need {c.totalNeeded}</span>
                       <span style={{ fontSize: 10, color: "#94a3b8" }}>{c.patterns.map(p => p.title).join(", ")}</span>
@@ -658,10 +649,10 @@ function ManagerApp() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockNeeded.map(a => (
                     <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fde68a", cursor: "pointer" }}
-                      title={"Open thread card for " + (a.bareId || a.id)}
-                      onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(a.id); }}>
+                      title={"Open thread card for " + formatBrandLabel(a.brand) + " " + (a.bareId || a.id)}
+                      onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(a.id); setPanelOpen(true); }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {a.bareId || a.id}</span>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>{formatBrandLabel(a.brand)} {a.bareId || a.id}</span>
                       <span style={{ fontSize: 11, color: "#475569", flex: 1 }}>{a.name}</span>
                       <span style={{ fontSize: 11, color: "#b45309", fontWeight: 600 }}>have {a.owned}, min {a.min_stock}</span>
                       <button onClick={(e) => { e.stopPropagation(); updateThread(a.id, "tobuy", true); }} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, border: "1px solid #fed7aa", background: "#fff7ed", color: "#ea580c", cursor: "pointer", fontWeight: 600 }}>Add to buy</button>
@@ -680,7 +671,7 @@ function ManagerApp() {
                   {lowStockNotNeeded.map(a => (
                     <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #e2e8f0" }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600, fontSize: 12 }}>DMC {a.bareId || a.id}</span>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>{formatBrandLabel(a.brand)} {a.bareId || a.id}</span>
                       <span style={{ fontSize: 11, color: "#475569", flex: 1 }}>{a.name}</span>
                       <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>have {a.owned}, min {a.min_stock}</span>
                     </div>

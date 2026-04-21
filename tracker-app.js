@@ -3104,17 +3104,17 @@ useEffect(()=>{
 
 // ═══ Counting aids overlay ═══
 useEffect(()=>{
+  cancelAnimationFrame(countingAidsRafRef.current);
   const canvas=countingAidsCanvasRef.current;
-  if(!canvas)return;
+  if(!canvas)return ()=>{cancelAnimationFrame(countingAidsRafRef.current);};
   if(stitchView!=="highlight"||!focusColour||!countingAidsEnabled||!pat||!done){
     if(canvas.width>0){const ctx=canvas.getContext("2d");ctx.clearRect(0,0,canvas.width,canvas.height);}
-    return;
+    return ()=>{cancelAnimationFrame(countingAidsRafRef.current);};
   }
   const needW=sW*scs+G+2,needH=sH*scs+G+2;
   if(canvas.width!==needW||canvas.height!==needH){canvas.width=needW;canvas.height=needH;}
   const tier=lockDetailLevel?3:tierRef.current;
-  if(tier<2){const ctx=canvas.getContext("2d");ctx.clearRect(0,0,canvas.width,canvas.height);return;}
-  cancelAnimationFrame(countingAidsRafRef.current);
+  if(tier<2){const ctx=canvas.getContext("2d");ctx.clearRect(0,0,canvas.width,canvas.height);return ()=>{cancelAnimationFrame(countingAidsRafRef.current);};}
   countingAidsRafRef.current=requestAnimationFrame(()=>{
     const ctx=canvas.getContext("2d");
     ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -3268,6 +3268,7 @@ useEffect(()=>{
       }}
     }
   });
+  return ()=>{cancelAnimationFrame(countingAidsRafRef.current);};
 },[pat,done,sW,sH,scs,focusColour,stitchView,countingAidsEnabled,countRunMin,countRunDir,countNinjaEnabled,blockW,blockH,focusBlock,countsVer,analysisResult,lockDetailLevel]);
 
 
@@ -4747,7 +4748,12 @@ return(
     setExplicitSession({startTime:Date.now(),timeAvail:cfg.timeAvail,stitchGoal:cfg.stitchGoal,startStitches:doneCount,blocks:[]});
     setSessionConfigOpen(false);
   }}/>}
-  {sessionSummaryData&&<SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.stitchesCompleted||0),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={breadcrumbs&&breadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(breadcrumbs&&breadcrumbs.length>0&&stitchScrollRef.current){const b=breadcrumbs[0];const cx=G+b.bx*blockW*scs+blockW*scs/2;const cy=G+b.by*blockH*scs+blockH*scs/2;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>}
+  {sessionSummaryData&&(()=>{
+    const currentSessionIdx=statsSessions?statsSessions.length:0;
+    const sessionBreadcrumbs=(breadcrumbs||[]).filter(b=>b&&b.sessionIdx===currentSessionIdx);
+    const firstSessionBreadcrumb=sessionBreadcrumbs.length>0?sessionBreadcrumbs[0]:null;
+    return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.stitchesCompleted||0),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const cx=G+b.bx*blockW*scs+blockW*scs/2;const cy=G+b.by*blockH*scs+blockH*scs/2;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
+  })()}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
   {modal==="pdf_export"&&<div className="modal-overlay" onClick={()=>setModal(null)}>
     <div className="modal-content" style={{maxWidth:400}} onClick={e=>e.stopPropagation()}>

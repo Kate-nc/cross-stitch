@@ -1701,11 +1701,12 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   .mgr-content{padding-bottom:56px;}
 }
 /* ═════════════════════════════════════════════════════════
-   DESKTOP LAYOUT — Full viewport, no page scroll
-   All scrolling happens inside canvas-area or rpanel.
+   DESKTOP LAYOUT — Full viewport with root scrolling
+   Creator canvas/sidebar keep their internal scrolling behaviour.
    ═════════════════════════════════════════════════════════ */
 @media (min-width: 900px) {
-  html, body { overflow: hidden; }
+  html, body { height: 100%; overflow: visible; }
+  #root { height: 100vh; overflow: auto; }
   /* cs-main children stretch to fill remaining viewport height */
   .cs-main { align-items: stretch; }
   /* Canvas area scrolls within its own box, not the page */
