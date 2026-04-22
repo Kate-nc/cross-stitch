@@ -9,7 +9,8 @@
 //   onTrack     – callback to navigate to tracker (creator page only)
 //   onSave      – callback to download JSON
 //   onNameChange – callback(newName) when user edits the inline name
-function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onSave, onHome, onNameChange }) {
+//   showAutosaved – if true, show a small “Auto-saved” hint next to the name
+function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onSave, onHome, onNameChange, showAutosaved }) {
   if (!name) return null;
   const dimStr = dimensions ? `${dimensions.width}×${dimensions.height}` : null;
   const colStr = palette ? `${palette.length} colour${palette.length !== 1 ? 's' : ''}` : null;
@@ -61,6 +62,11 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
                 title: undefined
               }, name),
         meta && React.createElement('span', { className: 'tb-context-meta' }, meta),
+        showAutosaved && React.createElement('span', {
+          className: 'tb-context-meta',
+          style: { color:'#16a34a', fontSize:11 },
+          title: 'Your work auto-saves to this device. Use Download to export a .json file.'
+        }, '✓ Auto-saved'),
         pct !== null && React.createElement('span', { className: 'tb-context-pct' },
           React.createElement('span', { className: 'tb-context-pct-bar' },
             React.createElement('span', { className: 'tb-context-pct-fill', style: { width: pct + '%' } })
@@ -74,13 +80,17 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
         page === 'creator' && onTrack &&
           React.createElement('button', { className: 'tb-context-btn tb-context-btn--primary', onClick: onTrack }, 'Track ›'),
         onSave &&
-          React.createElement('button', { className: 'tb-context-btn', onClick: onSave }, 'Save')
+          React.createElement('button', {
+            className: 'tb-context-btn',
+            onClick: onSave,
+            title: 'Download a .json copy of this project to your computer (work auto-saves to this device).'
+          }, 'Download')
       )
     )
   );
 }
 
-function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange }) {
+function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
 
@@ -274,7 +284,12 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   'aria-label': 'Rename project'
                 }, propProjectName || projName))
             : React.createElement('span', { className: 'tb-proj-badge-name' }, propProjectName || projName),
-          (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) !== null && React.createElement('span', { className: 'tb-proj-badge-pct' }, (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) + '%')
+          (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) !== null && React.createElement('span', { className: 'tb-proj-badge-pct' }, (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) + '%'),
+          showAutosaved && React.createElement('span', {
+            className: 'tb-proj-badge-pct',
+            style: { background:'transparent', color:'#16a34a', fontWeight:600, fontSize:10, padding:'0 4px' },
+            title: 'Your work auto-saves to this device. Use Download to export a .json file.'
+          }, '✓ Auto-saved')
         ),
 
         React.createElement('div', { className: 'tb-sep' }),
@@ -333,8 +348,9 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             }, 'Open…'),
             onSave && React.createElement('button', {
               className: 'tb-page-dropdown-item',
-              onClick: () => { onSave(); setFileMenuOpen(false); }
-            }, 'Save (.json)'),
+              onClick: () => { onSave(); setFileMenuOpen(false); },
+              title: 'Download a .json copy. Your project also auto-saves to this device.'
+            }, 'Download (.json)'),
             (page === 'creator' || page === 'editor') && onTrack && React.createElement('button', {
               className: 'tb-page-dropdown-item',
               onClick: () => { onTrack(); setFileMenuOpen(false); }

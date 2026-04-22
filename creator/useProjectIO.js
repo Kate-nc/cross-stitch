@@ -34,7 +34,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       psArr.push([k, e]);
     });
     var project = Object.assign({}, state.trackerFieldsRef.current, {
-      version: 10, id: state.projectIdRef.current, page: "creator", name: finalName,
+      version: 11, id: state.projectIdRef.current, page: "creator", name: finalName,
+      designer: state.projectDesigner || "", description: state.projectDescription || "",
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
@@ -87,7 +88,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       psArr.push([k, e]);
     });
     var project = Object.assign({}, state.trackerFieldsRef.current, {
-      version: 10, id: projectIdRef.current, page: "creator", name: projectName,
+      version: 11, id: projectIdRef.current, page: "creator", name: projectName,
+      designer: state.projectDesigner || "", description: state.projectDescription || "",
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
@@ -193,6 +195,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     }
     state.setPartialStitchTool(null);
     state.setProjectName(project.name || "");
+    state.setProjectDesigner(project.designer || "");
+    state.setProjectDescription(project.description || "");
     state.projectIdRef.current = project.id || null;
     state.createdAtRef.current = project.createdAt || null;
 
@@ -483,7 +487,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
     var project5 = Object.assign({}, state.trackerFieldsRef.current, {
-      version: 10, id: state.projectIdRef.current, page: "creator", name: state.projectName,
+      version: 11, id: state.projectIdRef.current, page: "creator", name: state.projectName,
+      designer: state.projectDesigner || "", description: state.projectDescription || "",
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
@@ -522,6 +527,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
+    state.projectDesigner, state.projectDescription,
     state.isActive,
   ]);
 
@@ -566,6 +572,19 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       };
     };
   }, []);
+
+  // Flush pending autosave on page unload so name/metadata edits made within the
+  // 1 s debounce window aren't lost.
+  React.useEffect(function() {
+    function handleBeforeUnload() {
+      var p = creatorSnapshotRef.current;
+      if (!p || !state.isActive) return;
+      try { ProjectStorage.save(p); } catch (_) {}
+      try { saveProjectToDB(p); } catch (_) {}
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return function() { window.removeEventListener("beforeunload", handleBeforeUnload); };
+  }, [state.isActive]);
 
   // Paste image handler
   React.useEffect(function() {

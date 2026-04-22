@@ -1021,7 +1021,41 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ─── Create Mode Sidebar ─────────────────────────────────────────────────
   if (mode === "create") {
+    // Project info — name, designer, description. Always-visible at top so
+    // users can name a pattern before generating it.
+    var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
+      h("div", {style:{display:"flex",flexDirection:"column",gap:8,padding:"4px 0 2px"}},
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+          "Pattern name",
+          h("input", {
+            type:"text", value: app.projectName || "", maxLength:60,
+            placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
+            onChange: function(e) { app.setProjectName(e.target.value.slice(0,60)); },
+            style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+          })
+        ),
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+          "Designer (optional)",
+          h("input", {
+            type:"text", value: app.projectDesigner || "", maxLength:80,
+            placeholder: "Your name or studio",
+            onChange: function(e) { app.setProjectDesigner(e.target.value.slice(0,80)); },
+            style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+          })
+        ),
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+          "Description / notes (optional)",
+          h("textarea", {
+            value: app.projectDescription || "", maxLength:500, rows:3,
+            placeholder: "Source, copyright, stitching notes\u2026",
+            onChange: function(e) { app.setProjectDescription(e.target.value.slice(0,500)); },
+            style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+          })
+        )
+      )
+    );
     var settingsContent = h(React.Fragment, null,
+      projectInfoSection,
       imageCard,
       dimSection,
       palSection,

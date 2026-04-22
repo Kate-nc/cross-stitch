@@ -105,16 +105,25 @@ window.CreatorExportTab = function CreatorExportTab() {
   function doExport() {
     setError(null);
     if (!modesArr.length) { setError("Pick at least one chart mode (B&W or Colour)."); return; }
-    var project = window.PdfExport.buildExportProject(ctx);
+    // Merge app-level project metadata (name/designer/description live on AppContext, not PatternData).
+    var exportCtx = Object.assign({}, ctx, {
+      projectName: app.projectName,
+      projectDesigner: app.projectDesigner,
+      projectDescription: app.projectDescription,
+    });
+    var project = window.PdfExport.buildExportProject(exportCtx);
     if (!project) { setError("No pattern to export."); return; }
     project.coverPreviewJpeg = window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
+    var branding = window.PdfExport.readBranding();
+    // Per-project designer overrides global designer branding when set.
+    if (app.projectDesigner) branding = Object.assign({}, branding, { designerName: app.projectDesigner });
     var opts = {
       pageSize: pageSize[0], marginsMm: marginsMm[0],
       stitchesPerPage: stPerPg[0], customCols: customCols[0], customRows: customRows[0],
       chartModes: modesArr, overlap: overlap[0],
       includeCover: includeCover[0], includeInfo: includeInfo[0],
       includeIndex: includeIndex[0], miniLegend: miniLegend[0],
-      branding: window.PdfExport.readBranding(),
+      branding: branding,
       locale: navigator.language || "en-GB",
     };
     setProgress({ stage: "init", current: 0, total: totalPagesPreview || 1 });
@@ -292,7 +301,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       h("p", { style: { fontSize: 11, color: "#64748b", margin: "0 0 10px" } },
         "Save the editable .json so you can re-open this pattern later or in Stitch Tracker."),
       h("div", { style: { display: "flex", gap: 8 } },
-        h("button", { onClick: app.saveProject, style: { padding: "8px 16px", fontSize: 13, borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 } }, "Save (.json)"),
+        h("button", { onClick: app.saveProject, style: { padding: "8px 16px", fontSize: 13, borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 }, title: "Download a .json copy. Your project also auto-saves to this device." }, "Download (.json)"),
         h("button", { onClick: function () { app.loadRef.current && app.loadRef.current.click(); }, style: { padding: "8px 16px", fontSize: 13, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", fontWeight: 500 } }, "Load")
       )
     )

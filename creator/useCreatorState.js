@@ -210,6 +210,9 @@ window.useCreatorState = function useCreatorState() {
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
+  // Optional metadata users can fill in before/after generating
+  var _projDesigner = useState(""); var projectDesigner = _projDesigner[0], setProjectDesigner = _projDesigner[1];
+  var _projDesc     = useState(""); var projectDescription = _projDesc[0], setProjectDescription = _projDesc[1];
 
   // Eyedropper feedback
   var _edEmpty = useState(false);    var eyedropperEmpty = _edEmpty[0], setEyedropperEmpty = _edEmpty[1];
@@ -994,6 +997,8 @@ window.useCreatorState = function useCreatorState() {
     previewMapped, setPreviewMapped, previewColors, setPreviewColors,
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
     previewTimerRef, projectName, setProjectName,
+    projectDesigner, setProjectDesigner,
+    projectDescription, setProjectDescription,
     namePromptOpen, setNamePromptOpen,
     cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
     pcRef, fRef, scrollRef, expRef, loadRef,

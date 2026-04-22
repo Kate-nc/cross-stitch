@@ -395,6 +395,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     shortcutsHintDismissed: state.shortcutsHintDismissed, setShortcutsHintDismissed: state.setShortcutsHintDismissed,
     namePromptOpen: state.namePromptOpen, setNamePromptOpen: state.setNamePromptOpen,
     projectName: state.projectName, setProjectName: state.setProjectName,
+    projectDesigner: state.projectDesigner, setProjectDesigner: state.setProjectDesigner,
+    projectDescription: state.projectDescription, setProjectDescription: state.setProjectDescription,
     eyedropperEmpty: state.eyedropperEmpty, setEyedropperEmpty: state.setEyedropperEmpty,
     projectIdRef: state.projectIdRef, createdAtRef: state.createdAtRef, userActedRef: state.userActedRef,
     G: state.G,
@@ -429,6 +431,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage,
     state.toasts, state.overflowOpen, state.panelOpen, state.stripCollapsed,
     state.shortcutsHintDismissed, state.namePromptOpen, state.projectName,
+    state.projectDesigner, state.projectDescription,
     state.eyedropperEmpty, state.pxX, state.pxY, state.totPg,
     state.previewActive, state.previewShowGrid, state.previewFabricBg,
     state.previewMode, state.realisticLevel, state.coverageOverride,
@@ -648,7 +651,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
         setModal={state.setModal}
         projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):undefined}
-        onNameChange={state.pat&&state.pal?n=>state.setProjectName(n):undefined} />
+        onNameChange={state.pat&&state.pal?n=>state.setProjectName(n):undefined}
+        showAutosaved={!!(state.pat&&state.pal)} />
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
         onConfirm={name=>{state.setProjectName(name);state.setNamePromptOpen(false);io.doSaveProject(name);}}

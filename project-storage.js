@@ -67,6 +67,8 @@ const ProjectStorage = (() => {
     return {
       id: p.id,
       name: p.name || `${s.sW || "?"}×${s.sH || "?"} pattern`,
+      designer: p.designer || "",
+      description: p.description || "",
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
       dimensions: { width: s.sW || 0, height: s.sH || 0 },
