@@ -53,10 +53,24 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     });
   }, [ctx.pat, ctx.pal, stash, effectiveFabric, app.confettiData, ctx.colourDoneCounts]);
 
+  var threadIdCollator = new Intl.Collator(undefined, {numeric: true, sensitivity: "base"});
+  function compareThreadIds(aId, bId) {
+    var aStr = String(aId == null ? "" : aId);
+    var bStr = String(bId == null ? "" : bId);
+    var aIsNumeric = /^\d+$/.test(aStr);
+    var bIsNumeric = /^\d+$/.test(bStr);
+    if (aIsNumeric && bIsNumeric) {
+      var aNum = parseInt(aStr, 10);
+      var bNum = parseInt(bStr, 10);
+      if (aNum !== bNum) return aNum - bNum;
+    }
+    return threadIdCollator.compare(aStr, bStr);
+  }
+
   var sortedRows = useMemo(function() {
     var copy = rows.slice();
     if (sort === "number") {
-      copy.sort(function(a, b) { return a.p.id < b.p.id ? -1 : a.p.id > b.p.id ? 1 : 0; });
+      copy.sort(function(a, b) { return compareThreadIds(a.p.id, b.p.id); });
     } else if (sort === "stitches") {
       copy.sort(function(a, b) { return b.p.count - a.p.count; });
     } else if (sort === "skeins") {
