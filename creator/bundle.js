@@ -3508,6 +3508,11 @@ window.useCreatorState = function useCreatorState() {
   var _pat  = useState(null);         var pat  = _pat[0],  setPat  = _pat[1];
   var _pal  = useState(null);         var pal  = _pal[0],  setPal  = _pal[1];
   var _cmap = useState(null);         var cmap = _cmap[0], setCmap = _cmap[1];
+  var _cwSlots = useState([]);        var colourSlots = _cwSlots[0], setColourSlots = _cwSlots[1];
+  var _cways   = useState([]);        var colourways = _cways[0], setColourways = _cways[1];
+  var _actCwId = useState(null);      var activeColourwayId = _actCwId[0], setActiveColourwayId = _actCwId[1];
+  var _cwRoles = useState([]);        var customRoles = _cwRoles[0], setCustomRoles = _cwRoles[1];
+  var colourwayStateRef = useRef({ colourSlots: [], colourways: [], activeColourwayId: null, customRoles: [] });
   var _busy = useState(false);        var busy = _busy[0], setBusy = _busy[1];
   var _oW   = useState(0);            var origW = _oW[0],  setOrigW = _oW[1];
   var _oH   = useState(0);            var origH = _oH[0],  setOrigH = _oH[1];
@@ -3914,6 +3919,7 @@ window.useCreatorState = function useCreatorState() {
 
   function resetAll() {
     setPat(null); setPal(null); setCmap(null); setHiId(null);
+    setColourSlots([]); setColourways([]); setActiveColourwayId(null); setCustomRoles([]);
     setBsLines([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
@@ -3935,6 +3941,71 @@ window.useCreatorState = function useCreatorState() {
     setBrushAndActivate("paint");
     selectStitchType("cross");
     setSelectedColorId(pal[0].id);
+  }, [pat, pal, colourSlots, colourways, activeColourwayId, customRoles]);
+
+  useEffect(function() {
+    colourwayStateRef.current = {
+      colourSlots: Array.isArray(colourSlots) ? colourSlots : [],
+      colourways: Array.isArray(colourways) ? colourways : [],
+      activeColourwayId: activeColourwayId,
+      customRoles: Array.isArray(customRoles) ? customRoles : [],
+    };
+  }, [colourSlots, colourways, activeColourwayId, customRoles]);
+
+  // ── Colourway model bootstrap / slot reconciliation ─────────────────────────
+  useEffect(function() {
+    if (!pat || !pal || !Array.isArray(pal) || pal.length === 0) return;
+    if (typeof ColourwaySystem === "undefined" || !ColourwaySystem.buildColourwayModel) return;
+    function shallowEqArr(a, b) {
+      if (!Array.isArray(a) || !Array.isArray(b)) return false;
+      if (a.length !== b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+      }
+      return true;
+    }
+    function sameModel(a, b) {
+      var aSlots = (a.colourSlots || []).map(function(s) { return s.id + "|" + (s.role || "") + "|" + (s.symbol || ""); });
+      var bSlots = (b.colourSlots || []).map(function(s) { return s.id + "|" + (s.role || "") + "|" + (s.symbol || ""); });
+      if (!shallowEqArr(aSlots, bSlots)) return false;
+      if (a.activeColourwayId !== b.activeColourwayId) return false;
+      if (!shallowEqArr(a.customRoles || [], b.customRoles || [])) return false;
+      var aCw = (a.colourways || []).map(function(c) { return c.id + "|" + c.name + "|" + (c.isBase ? 1 : 0) + "|" + Object.keys(c.colourMap || {}).sort().map(function(k) { return k + ":" + c.colourMap[k]; }).join(","); });
+      var bCw = (b.colourways || []).map(function(c) { return c.id + "|" + c.name + "|" + (c.isBase ? 1 : 0) + "|" + Object.keys(c.colourMap || {}).sort().map(function(k) { return k + ":" + c.colourMap[k]; }).join(","); });
+      return shallowEqArr(aCw, bCw);
+    }
+    var curr = colourwayStateRef.current || {};
+    var next = {
+      colourSlots: Array.isArray(curr.colourSlots) ? curr.colourSlots.slice() : [],
+      colourways: Array.isArray(curr.colourways) ? curr.colourways.slice() : [],
+      activeColourwayId: curr.activeColourwayId,
+      customRoles: Array.isArray(curr.customRoles) ? curr.customRoles.slice() : [],
+    };
+    if (!next.colourways.length || !next.colourSlots.length) {
+      next = ColourwaySystem.buildColourwayModel({ pattern: pat, palette: pal });
+      if (sameModel(curr, next)) return;
+      setColourSlots(next.colourSlots || []);
+      setColourways(next.colourways || []);
+      setActiveColourwayId(next.activeColourwayId || null);
+      setCustomRoles(next.customRoles || []);
+      return;
+    }
+    ColourwaySystem.reconcileSlotsFromPalette(next, pat, pal);
+    var ok = ColourwaySystem.validate(next, pat);
+    if (!ok.ok) {
+      var rebuilt = ColourwaySystem.buildColourwayModel({ pattern: pat, palette: pal });
+      if (sameModel(curr, rebuilt)) return;
+      setColourSlots(rebuilt.colourSlots || []);
+      setColourways(rebuilt.colourways || []);
+      setActiveColourwayId(rebuilt.activeColourwayId || null);
+      setCustomRoles(rebuilt.customRoles || []);
+      return;
+    }
+    if (sameModel(curr, next)) return;
+    setColourSlots(next.colourSlots || []);
+    setColourways(next.colourways || []);
+    setActiveColourwayId(next.activeColourwayId || null);
+    setCustomRoles(next.customRoles || []);
   }, [pat, pal]);
 
   // ── Dimming animation: 150ms fade-in/out when hiId or highlightMode changes ──
@@ -4404,7 +4475,9 @@ window.useCreatorState = function useCreatorState() {
     dith, setDith, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     orphans, setOrphans, allowBlends, setAllowBlends,
-    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy,
+    pat, setPat, pal, setPal, cmap, setCmap,
+    colourSlots, setColourSlots, colourways, setColourways, activeColourwayId, setActiveColourwayId, customRoles, setCustomRoles,
+    busy, setBusy,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, sidebarTab, setSidebarTab,
@@ -5758,6 +5831,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      colourSlots: Array.isArray(state.colourSlots) ? state.colourSlots : [],
+      colourways: Array.isArray(state.colourways) ? state.colourways : [],
+      activeColourwayId: state.activeColourwayId || null,
+      customRoles: Array.isArray(state.customRoles) ? state.customRoles : [],
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
@@ -5810,6 +5887,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       version: 10, id: projectIdRef.current, page: "creator", name: projectName,
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      colourSlots: Array.isArray(state.colourSlots) ? state.colourSlots : [],
+      colourways: Array.isArray(state.colourways) ? state.colourways : [],
+      activeColourwayId: state.activeColourwayId || null,
+      customRoles: Array.isArray(state.customRoles) ? state.customRoles : [],
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
@@ -5868,6 +5949,25 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var restored = project.pattern.map(restoreStitch);
     var result = buildPalette(restored);
     state.setPat(restored); state.setPal(result.pal); state.setCmap(result.cmap);
+    if (typeof ColourwaySystem !== "undefined" && ColourwaySystem.buildColourwayModel) {
+      var cwModel = null;
+      if (Array.isArray(project.colourways) && project.colourways.length > 0 && Array.isArray(project.colourSlots)) {
+        cwModel = {
+          colourSlots: project.colourSlots,
+          colourways: project.colourways,
+          activeColourwayId: project.activeColourwayId || (project.colourways[0] && project.colourways[0].id) || null,
+          customRoles: Array.isArray(project.customRoles) ? project.customRoles : [],
+        };
+        ColourwaySystem.reconcileSlotsFromPalette(cwModel, restored, result.pal);
+        var validation = ColourwaySystem.validate(cwModel, restored);
+        if (!validation.ok) cwModel = null;
+      }
+      if (!cwModel) cwModel = ColourwaySystem.buildColourwayModel({ pattern: restored, palette: result.pal });
+      if (state.setColourSlots) state.setColourSlots(cwModel.colourSlots || []);
+      if (state.setColourways) state.setColourways(cwModel.colourways || []);
+      if (state.setActiveColourwayId) state.setActiveColourwayId(cwModel.activeColourwayId || null);
+      if (state.setCustomRoles) state.setCustomRoles(cwModel.customRoles || []);
+    }
     state.setTab("pattern"); state.setActiveTool(null); state.setSelectedColorId(null);
     state.setEditHistory([]); state.setRedoHistory([]); state.setSidebarOpen(true);
     state.setThreadOwned(project.threadOwned || {});
@@ -6207,6 +6307,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      colourSlots: Array.isArray(state.colourSlots) ? state.colourSlots : [],
+      colourways: Array.isArray(state.colourways) ? state.colourways : [],
+      activeColourwayId: state.activeColourwayId || null,
+      customRoles: Array.isArray(state.customRoles) ? state.customRoles : [],
       bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
       parkMarkers: state.parkMarkers, totalTime: state.totalTime, sessions: state.sessions,
       hlRow: state.hlRow, hlCol: state.hlCol, threadOwned: state.threadOwned,
@@ -6240,6 +6344,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.bri, state.con, state.sat, state.dith, state.skipBg, state.bgTh, state.bgCol,
     state.minSt, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed,
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
+    state.colourSlots, state.colourways, state.activeColourwayId, state.customRoles,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
     state.isActive,

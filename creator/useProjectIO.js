@@ -38,6 +38,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      colourSlots: Array.isArray(state.colourSlots) ? state.colourSlots : [],
+      colourways: Array.isArray(state.colourways) ? state.colourways : [],
+      activeColourwayId: state.activeColourwayId || null,
+      customRoles: Array.isArray(state.customRoles) ? state.customRoles : [],
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
@@ -90,6 +94,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       version: 10, id: projectIdRef.current, page: "creator", name: projectName,
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      colourSlots: Array.isArray(state.colourSlots) ? state.colourSlots : [],
+      colourways: Array.isArray(state.colourways) ? state.colourways : [],
+      activeColourwayId: state.activeColourwayId || null,
+      customRoles: Array.isArray(state.customRoles) ? state.customRoles : [],
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
@@ -148,6 +156,25 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var restored = project.pattern.map(restoreStitch);
     var result = buildPalette(restored);
     state.setPat(restored); state.setPal(result.pal); state.setCmap(result.cmap);
+    if (typeof ColourwaySystem !== "undefined" && ColourwaySystem.buildColourwayModel) {
+      var cwModel = null;
+      if (Array.isArray(project.colourways) && project.colourways.length > 0 && Array.isArray(project.colourSlots)) {
+        cwModel = {
+          colourSlots: project.colourSlots,
+          colourways: project.colourways,
+          activeColourwayId: project.activeColourwayId || (project.colourways[0] && project.colourways[0].id) || null,
+          customRoles: Array.isArray(project.customRoles) ? project.customRoles : [],
+        };
+        ColourwaySystem.reconcileSlotsFromPalette(cwModel, restored, result.pal);
+        var validation = ColourwaySystem.validate(cwModel, restored);
+        if (!validation.ok) cwModel = null;
+      }
+      if (!cwModel) cwModel = ColourwaySystem.buildColourwayModel({ pattern: restored, palette: result.pal });
+      if (state.setColourSlots) state.setColourSlots(cwModel.colourSlots || []);
+      if (state.setColourways) state.setColourways(cwModel.colourways || []);
+      if (state.setActiveColourwayId) state.setActiveColourwayId(cwModel.activeColourwayId || null);
+      if (state.setCustomRoles) state.setCustomRoles(cwModel.customRoles || []);
+    }
     state.setTab("pattern"); state.setActiveTool(null); state.setSelectedColorId(null);
     state.setEditHistory([]); state.setRedoHistory([]); state.setSidebarOpen(true);
     state.setThreadOwned(project.threadOwned || {});
@@ -487,6 +514,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      colourSlots: Array.isArray(state.colourSlots) ? state.colourSlots : [],
+      colourways: Array.isArray(state.colourways) ? state.colourways : [],
+      activeColourwayId: state.activeColourwayId || null,
+      customRoles: Array.isArray(state.customRoles) ? state.customRoles : [],
       bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
       parkMarkers: state.parkMarkers, totalTime: state.totalTime, sessions: state.sessions,
       hlRow: state.hlRow, hlCol: state.hlCol, threadOwned: state.threadOwned,
@@ -520,6 +551,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.bri, state.con, state.sat, state.dith, state.skipBg, state.bgTh, state.bgCol,
     state.minSt, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed,
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
+    state.colourSlots, state.colourways, state.activeColourwayId, state.customRoles,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
     state.isActive,
