@@ -39,6 +39,7 @@ const ORDER = [
   'PatternTab.js',
   'ProjectTab.js',
   'LegendTab.js',
+  'PrepareTab.js',
   'DesignerBrandingSection.js',
   'ExportTab.js',
 ];
