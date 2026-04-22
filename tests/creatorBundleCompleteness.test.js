@@ -82,4 +82,68 @@ describe('Creator bundle completeness', () => {
       );
     }
   });
+
+  // 4. Every bare PascalCase JSX identifier in creator-main.js (e.g. <Header/>,
+  //    <NamePromptModal/>, <ComparisonSlider/>) must be defined either as a
+  //    top-level `function`/`const`/`var` declaration OR a `window.X =`
+  //    assignment in one of the scripts loaded before creator-main.js by
+  //    index.html. Otherwise the JSX evaluates to `undefined` at render time
+  //    and triggers React error #130.
+  test('every bare JSX component in creator-main.js resolves in a sibling script', () => {
+    // Determine which JS files are loaded by index.html before creator-main.js.
+    const indexHtml = read('index.html');
+    const scriptSrcs = Array.from(
+      indexHtml.matchAll(/<script[^>]*\bsrc=["']([^"']+\.js)["']/gi)
+    ).map((m) => m[1]).filter((s) => !/^https?:/i.test(s));
+
+    // Always include creator-main.js itself (locally-defined components like
+    // ComparisonSlider / CreatorErrorBoundary / CreatorApp / UnifiedApp).
+    const candidateFiles = new Set(['creator-main.js', 'creator/bundle.js']);
+    for (const src of scriptSrcs) candidateFiles.add(src.replace(/^\.\//, ''));
+
+    // Concatenate all candidate file contents into one searchable corpus.
+    let corpus = '';
+    for (const rel of candidateFiles) {
+      const abs = path.join(ROOT, rel);
+      if (fs.existsSync(abs)) corpus += '\n' + fs.readFileSync(abs, 'utf8');
+    }
+
+    // React built-ins / DOM-ish names we should NOT treat as components.
+    const RESERVED = new Set([
+      'React','ReactDOM','Fragment','Suspense','StrictMode','Provider',
+      'Consumer','Component','PureComponent','Children','Profiler',
+    ]);
+
+    // Extract bare PascalCase JSX tags: `<Foo` or `<Foo.Bar` (we only check the head).
+    // Excludes `<window.…` (covered by test #1) and HTML lowercase tags.
+    const jsxRe = /<\s*([A-Z][A-Za-z0-9_]*)(?=[\s/>.])/g;
+    const referenced = new Set();
+    let m;
+    while ((m = jsxRe.exec(creatorMain)) !== null) {
+      const name = m[1];
+      if (RESERVED.has(name)) continue;
+      referenced.add(name);
+    }
+
+    expect(referenced.size).toBeGreaterThan(0); // sanity
+
+    const missing = [];
+    for (const name of referenced) {
+      // Match top-level declarations or `window.<Name> =` assignments.
+      const decl = new RegExp(
+        '(^|\\n)\\s*(?:function|class|const|let|var)\\s+' + name + '\\b'
+      );
+      const win = new RegExp('\\bwindow\\.' + name + '\\s*=');
+      if (!decl.test(corpus) && !win.test(corpus)) missing.push(name);
+    }
+
+    if (missing.length) {
+      throw new Error(
+        'creator-main.js renders these bare JSX components, but they are not ' +
+        'declared (function/const/var) nor assigned to `window.*` in any script ' +
+        'loaded by index.html. They will be `undefined` at render time and ' +
+        'trigger React error #130:\n  - ' + missing.join('\n  - ')
+      );
+    }
+  });
 });
