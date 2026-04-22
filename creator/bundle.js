@@ -6417,6 +6417,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setProjectName(project.name || "");
     state.setProjectDesigner(project.designer || "");
     state.setProjectDescription(project.description || "");
+    // Clear pending-metadata localStorage so a stale pre-gen name can't bleed back in
+    try { localStorage.removeItem("cs_pend_meta"); } catch (_) {}
     state.projectIdRef.current = project.id || null;
     state.createdAtRef.current = project.createdAt || null;
 
@@ -6628,9 +6630,32 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     loadProjectFromDB().then(function(project4) {
       if (project4 && project4.pattern && project4.settings && !state.userActedRef.current) {
         processLoadedProject(project4);
+      } else if (!state.userActedRef.current) {
+        // No saved project — restore any pending metadata typed before generation
+        try {
+          var pend = localStorage.getItem("cs_pend_meta");
+          if (pend) {
+            var pm = JSON.parse(pend);
+            if (pm.n) state.setProjectName(pm.n);
+            if (pm.d) state.setProjectDesigner(pm.d);
+            if (pm.ds) state.setProjectDescription(pm.ds);
+          }
+        } catch (_) {}
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist name/designer/description to localStorage so they survive a refresh
+  // even before the first pattern is generated (when the full autosave is gated on pat/pal).
+  React.useEffect(function() {
+    try {
+      localStorage.setItem("cs_pend_meta", JSON.stringify({
+        n: state.projectName || "",
+        d: state.projectDesigner || "",
+        ds: state.projectDescription || ""
+      }));
+    } catch (_) {}
+  }, [state.projectName, state.projectDesigner, state.projectDescription]);
 
   // Stash sync on mount
   React.useEffect(function() {
@@ -12270,7 +12295,41 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     );
   }
 
+  // ── Project info (name, designer, description) ─────────────────────────────
+  var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
+    h("div", {style:{display:"flex",flexDirection:"column",gap:8,padding:"4px 0 2px"}},
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        "Pattern name",
+        h("input", {
+          type:"text", value: app.projectName || "", maxLength:60,
+          placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
+          onChange: function(e) { app.setProjectName(e.target.value.slice(0,60)); },
+          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+        })
+      ),
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        "Designer (optional)",
+        h("input", {
+          type:"text", value: app.projectDesigner || "", maxLength:80,
+          placeholder: "Your name or studio",
+          onChange: function(e) { app.setProjectDesigner(e.target.value.slice(0,80)); },
+          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+        })
+      ),
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        "Description / notes (optional)",
+        h("textarea", {
+          value: app.projectDescription || "", maxLength:500, rows:3,
+          placeholder: "Source, copyright, stitching notes\u2026",
+          onChange: function(e) { app.setProjectDescription(e.target.value.slice(0,500)); },
+          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+        })
+      )
+    )
+  );
+
   return h("div", {style:{display:"flex",flexDirection:"column",gap:12}},
+    projectInfoSection,
     renderPatternSummary(),
     renderTimeEstimate(),
     renderFinishedSize(),

@@ -197,6 +197,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setProjectName(project.name || "");
     state.setProjectDesigner(project.designer || "");
     state.setProjectDescription(project.description || "");
+    // Clear pending-metadata localStorage so a stale pre-gen name can't bleed back in
+    try { localStorage.removeItem("cs_pend_meta"); } catch (_) {}
     state.projectIdRef.current = project.id || null;
     state.createdAtRef.current = project.createdAt || null;
 
@@ -408,9 +410,32 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     loadProjectFromDB().then(function(project4) {
       if (project4 && project4.pattern && project4.settings && !state.userActedRef.current) {
         processLoadedProject(project4);
+      } else if (!state.userActedRef.current) {
+        // No saved project — restore any pending metadata typed before generation
+        try {
+          var pend = localStorage.getItem("cs_pend_meta");
+          if (pend) {
+            var pm = JSON.parse(pend);
+            if (pm.n) state.setProjectName(pm.n);
+            if (pm.d) state.setProjectDesigner(pm.d);
+            if (pm.ds) state.setProjectDescription(pm.ds);
+          }
+        } catch (_) {}
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist name/designer/description to localStorage so they survive a refresh
+  // even before the first pattern is generated (when the full autosave is gated on pat/pal).
+  React.useEffect(function() {
+    try {
+      localStorage.setItem("cs_pend_meta", JSON.stringify({
+        n: state.projectName || "",
+        d: state.projectDesigner || "",
+        ds: state.projectDescription || ""
+      }));
+    } catch (_) {}
+  }, [state.projectName, state.projectDesigner, state.projectDescription]);
 
   // Stash sync on mount
   React.useEffect(function() {
