@@ -137,7 +137,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   function cancelExport() {
     if (!runningRef.current) return;
     runningRef.current = null;
-    window.PdfExport.cancel(0);
+    window.PdfExport.cancelAll();
     setProgress(null);
   }
 

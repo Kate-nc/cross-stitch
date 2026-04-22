@@ -324,11 +324,13 @@ async function drawCoverPage(pdfDoc, project, options, font, bold, rgbColor, pag
 }
 
 function finishedSize(w, h, fabricCt) {
-  var inW = w / fabricCt;
-  var inH = h / fabricCt;
+  // 28ct evenweave is stitched over 2 threads, giving the same finished size as 14ct
+  var effectiveCt = fabricCt === 28 ? 14 : fabricCt;
+  var inW = w / effectiveCt;
+  var inH = h / effectiveCt;
   var cmW = inW * 2.54;
   var cmH = inH * 2.54;
-  return cmW.toFixed(1) + " × " + cmH.toFixed(1) + " cm (" + inW.toFixed(1) + "\" × " + inH.toFixed(1) + "\") on " + fabricCt + "ct";
+  return cmW.toFixed(1) + " \xD7 " + cmH.toFixed(1) + " cm (" + inW.toFixed(1) + "\" \xD7 " + inH.toFixed(1) + "\") on " + fabricCt + "ct";
 }
 
 function countDistinctColours(palette) {

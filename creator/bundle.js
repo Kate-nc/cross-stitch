@@ -905,6 +905,11 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
     slot.reject(new Error("PDF export cancelled"));
   }
 
+  function cancelAll() {
+    var ids = Object.keys(pending);
+    ids.forEach(function (id) { cancel(parseInt(id, 10)); });
+  }
+
   function downloadBytes(bytes, filename) {
     var blob = new Blob([bytes], { type: "application/pdf" });
     var url = URL.createObjectURL(blob);
@@ -1082,15 +1087,27 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
       canvas.width = sW; canvas.height = sH;
       var ctx = canvas.getContext("2d");
       var imgData = ctx.createImageData(sW, sH);
+      var psMap = (partialStitches instanceof Map) ? partialStitches : null;
+      var quads = ["TL", "TR", "BL", "BR"];
       for (var i = 0; i < pat.length; i++) {
         var c = pat[i];
         var off = i * 4;
-        if (!c || c.id === "__skip__" || c.id === "__empty__") {
-          imgData.data[off] = 255; imgData.data[off + 1] = 255; imgData.data[off + 2] = 255; imgData.data[off + 3] = 255;
-        } else {
-          var rgb = c.rgb || [128, 128, 128];
-          imgData.data[off] = rgb[0]; imgData.data[off + 1] = rgb[1]; imgData.data[off + 2] = rgb[2]; imgData.data[off + 3] = 255;
+        var isEmpty = !c || c.id === "__skip__" || c.id === "__empty__";
+        var baseRgb = isEmpty ? [255, 255, 255] : (c.rgb || [128, 128, 128]);
+        var rgb = baseRgb;
+        if (psMap) {
+          var psEntry = psMap.get(i);
+          if (psEntry) {
+            var r = 0, g = 0, b = 0;
+            for (var q = 0; q < 4; q++) {
+              var qs = psEntry[quads[q]];
+              var qRgb = (qs && qs.rgb) ? qs.rgb : baseRgb;
+              r += qRgb[0]; g += qRgb[1]; b += qRgb[2];
+            }
+            rgb = [Math.round(r / 4), Math.round(g / 4), Math.round(b / 4)];
+          }
         }
+        imgData.data[off] = rgb[0]; imgData.data[off + 1] = rgb[1]; imgData.data[off + 2] = rgb[2]; imgData.data[off + 3] = 255;
       }
       ctx.putImageData(imgData, 0, 0);
       return canvas.toDataURL("image/jpeg", 0.85);
@@ -1100,6 +1117,7 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
   window.PdfExport = {
     runExport: runExport,
     cancel: cancel,
+    cancelAll: cancelAll,
     downloadBytes: downloadBytes,
     capturePreviewJpeg: capturePreviewJpeg,
     buildExportProject: buildExportProject,
@@ -13331,7 +13349,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   function cancelExport() {
     if (!runningRef.current) return;
     runningRef.current = null;
-    window.PdfExport.cancel(0);
+    window.PdfExport.cancelAll();
     setProgress(null);
   }
 
