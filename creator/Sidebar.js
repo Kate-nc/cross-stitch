@@ -854,11 +854,13 @@ window.CreatorSidebar = function CreatorSidebar() {
           onClick:function(){
             var isMobile = window.matchMedia && window.matchMedia("(max-width: 899px)").matches;
             if (isMobile) {
-              if (app.sidebarTab === kl[0] && app.panelOpen) {
-                app.setPanelOpen(false);
+              var panelIsOpen = typeof app.panelOpen === "boolean" ? app.panelOpen : !!app.sidebarOpen;
+              var setPanelOpen = typeof app.setPanelOpen === "function" ? app.setPanelOpen : (typeof app.setSidebarOpen === "function" ? app.setSidebarOpen : null);
+              if (app.sidebarTab === kl[0] && panelIsOpen) {
+                if (setPanelOpen) setPanelOpen(false);
               } else {
                 app.setSidebarTab(kl[0]);
-                app.setPanelOpen(true);
+                if (setPanelOpen) setPanelOpen(true);
               }
             } else {
               app.setSidebarTab(kl[0]);
