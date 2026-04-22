@@ -688,7 +688,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               <window.CreatorPatternTab/>
               <window.CreatorProjectTab/>
               <window.CreatorLegendTab/>
-              <window.CreatorPrepareTab/>
               <window.CreatorExportTab/>
             </div>}
             {!state.pat&&state.img&&<div style={{display:"flex",flexDirection:"column",gap:16,padding:"20px 16px"}}>
