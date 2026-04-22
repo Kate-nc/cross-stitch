@@ -1781,10 +1781,28 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
       return `${mark} DMC ${t.id} ${t.name} \u2014 need ${t.needed} skein${t.needed !== 1 ? 's' : ''}${own}`;
     });
     const footer = `\nTotal: ${ownedColours}/${totalColours} colours in stash`;
-    navigator.clipboard.writeText(header + lines.join('\n') + footer).then(() => {
+    const text = header + lines.join('\n') + footer;
+    const onCopySuccess = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(onCopySuccess).catch(() => {});
+      return;
+    }
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const copiedOk = document.execCommand && document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (copiedOk) onCopySuccess();
+    } catch (_) {}
   };
 
   const handleShare = () => {
