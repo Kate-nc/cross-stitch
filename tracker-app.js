@@ -335,6 +335,61 @@ function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,hasBreadcrumbs
   );
 }
 
+function TrackerProjectPicker({list,currentId,onPick,onClose}){
+  const sorted=[...(list||[])].sort((a,b)=>{
+    const ad=a.updatedAt?new Date(a.updatedAt).getTime():0;
+    const bd=b.updatedAt?new Date(b.updatedAt).getTime():0;
+    return bd-ad;
+  });
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.55)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:12,padding:20,maxWidth:560,width:"100%",maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <h3 style={{margin:0,fontSize:17,color:"#0f172a"}}>Switch project</h3>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b",padding:"0 4px"}}>×</button>
+        </div>
+        <p style={{margin:"0 0 12px",fontSize:12,color:"#64748b"}}>Pick another saved project to track. Your current progress is auto-saved.</p>
+        <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:8,paddingRight:4}}>
+          {sorted.length===0&&<div style={{padding:"24px 0",textAlign:"center",fontSize:13,color:"#94a3b8"}}>No saved projects yet.</div>}
+          {sorted.map(p=>{
+            const isActive=p.id===currentId;
+            const total=p.totalStitches||0;
+            const done=p.completedStitches||0;
+            const pct=total>0?Math.round(done/total*100):0;
+            return(
+              <button key={p.id} onClick={()=>!isActive&&onPick(p)} disabled={isActive} style={{
+                display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:8,
+                border:isActive?"2px solid #0d9488":"1px solid #e2e8f0",
+                background:isActive?"#f0fdfa":"#fff",
+                cursor:isActive?"default":"pointer",textAlign:"left",fontFamily:"inherit",
+                opacity:isActive?0.85:1
+              }}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:600,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {p.name||"Untitled"}
+                    {isActive&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:"#0d9488",background:"#ccfbf1",padding:"1px 6px",borderRadius:8,verticalAlign:"middle"}}>ACTIVE</span>}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
+                    <div style={{flex:1,height:5,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{width:pct+"%",height:"100%",background:pct===100?"#16a34a":"#0d9488"}}/>
+                    </div>
+                    <span style={{fontSize:11,color:"#64748b",fontVariantNumeric:"tabular-nums",minWidth:36,textAlign:"right"}}>{pct}%</span>
+                  </div>
+                  <div style={{fontSize:10,color:"#94a3b8",marginTop:3}}>
+                    {p.dimensions?(p.dimensions.width+"\u00D7"+p.dimensions.height+" \u00B7 "):""}
+                    {done.toLocaleString()+" / "+total.toLocaleString()+" stitches"}
+                    {p.updatedAt?(" \u00B7 updated "+new Date(p.updatedAt).toLocaleDateString()):""}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80),[sH,setSH]=useState(80);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null);
@@ -345,6 +400,9 @@ const[stitchSpeed,setStitchSpeed]=useState(40);
 
 const[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
+const[projectPickerOpen,setProjectPickerOpen]=useState(false);
+const[projectPickerList,setProjectPickerList]=useState([]);
+const[preferencesOpen,setPreferencesOpen]=useState(false);
 const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
 const [pdfSettings, setPdfSettings] = useState({ chartStyle: 'symbols', cellSize: 3, paper: 'a4', orientation: 'portrait', gridInterval: 10, gridNumbers: true, centerMarks: true, legendLocation: 'separate', legendColumns: 2, coverPage: true, progressOverlay: false, separateBackstitch: false });
 const showCtr=true;
@@ -3989,7 +4047,14 @@ useEffect(()=>{
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>setProjectName(n)):undefined} showAutosaved={!!(pat&&pal)} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>setProjectName(n)):undefined} showAutosaved={!!(pat&&pal)} />
+{projectPickerOpen&&<TrackerProjectPicker
+  list={projectPickerList}
+  currentId={projectIdRef.current}
+  onClose={()=>setProjectPickerOpen(false)}
+  onPick={(meta)=>{ProjectStorage.get(meta.id).then(p=>{if(p&&p.pattern&&p.settings){processLoadedProject(p);ProjectStorage.setActiveProject(p.id).catch(()=>{});setProjectPickerOpen(false);}}).catch(err=>{alert("Failed to load project: "+err.message);});}}
+/>}
+{preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>setPreferencesOpen(false)})}
 {namePromptOpen&&<NamePromptModal
   defaultName={projectName || (sW+'×'+sH+' pattern')}
   onConfirm={name=>{setProjectName(name);setNamePromptOpen(false);doSaveProject(name);}}

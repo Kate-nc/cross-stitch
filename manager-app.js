@@ -61,6 +61,7 @@ function ManagerApp() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null); // { type: 'success'|'error'|'confirm', message, summary?, onConfirm? }
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const lowStockThreshold = 1;
   const formatBrandLabel = (brand) => {
@@ -292,7 +293,19 @@ function ManagerApp() {
       }).catch(() => {});
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+
+    // After a backup restore, the underlying IndexedDB stores have been replaced.
+    // Re-load threads and patterns so the UI doesn't keep showing stale state.
+    const handleBackupRestored = () => {
+      loadManagerData();
+      loadActiveProject();
+      ProjectStorage.listProjects().then(setStoredProjects).catch(() => {});
+    };
+    window.addEventListener('cs:backupRestored', handleBackupRestored);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('cs:backupRestored', handleBackupRestored);
+    };
   }, []);
 
   // Auto-save Manager Data
@@ -574,7 +587,8 @@ function ManagerApp() {
 
   return (
     <>
-      <Header page="manager" setModal={setModal} onBackupDownload={handleBackupDownload} onRestoreFile={handleRestoreFile} storageUsage={storageUsage} />
+      <Header page="manager" setModal={setModal} onBackupDownload={handleBackupDownload} onRestoreFile={handleRestoreFile} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} storageUsage={storageUsage} />
+      {preferencesOpen && typeof window.PreferencesModal!=='undefined' && React.createElement(window.PreferencesModal,{onClose:()=>setPreferencesOpen(false)})}
       {backupStatus && (
         <div style={{ padding: "8px 20px 0" }}>
           <div style={{ padding: "10px 14px", borderRadius: 8, fontSize: 12, background: backupStatus.type === "error" ? "#fef2f2" : backupStatus.type === "confirm" ? "#fffbeb" : "#f0fdf4", border: `1px solid ${backupStatus.type === "error" ? "#fecaca" : backupStatus.type === "confirm" ? "#fde68a" : "#bbf7d0"}`, color: backupStatus.type === "error" ? "#dc2626" : backupStatus.type === "confirm" ? "#92400e" : "#15803d" }}>
@@ -1013,13 +1027,16 @@ function ManagerApp() {
                       </span>
                     </div>
                     {p.designer && <div className="pdesigner">by {p.designer}</div>}
-                    {p.tags && p.tags.length > 0 && (
+                    {((p.tags && p.tags.length > 0) || !p.linkedProjectId) && (
                       <div className="ptags">
-                        {p.tags.filter(tag => tag !== "auto-synced").map(tag => (
+                        {(p.tags || []).filter(tag => tag !== "auto-synced").map(tag => (
                           <span key={tag} className="tag">{tag}</span>
                         ))}
-                        {(p.tags.includes("auto-synced") || p.linkedProjectId) && (
+                        {((p.tags && p.tags.includes("auto-synced")) || p.linkedProjectId) && (
                           <span className="tag" style={{ background: "#f0fdfa", color: "#0d9488", fontWeight: 600 }}>Auto-synced</span>
+                        )}
+                        {!p.linkedProjectId && (
+                          <span className="tag" style={{ background: "#fef3c7", color: "#92400e", fontWeight: 600 }} title="This pattern was added manually here and isn't linked to a generated project.">Stash Manager only</span>
                         )}
                       </div>
                     )}

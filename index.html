@@ -54,6 +54,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="home-screen.js"></script>
 <script src="palette-swap.js"></script>
 <script src="user-prefs.js"></script>
+<script src="preferences-modal.js"></script>
 <script src="assets/fonts/CrossStitchSymbols.base64.js"></script>
 <script src="creator/bundle.js"></script>
 <!-- Lazy-load helpers â€” available to both regular and Babel scripts -->
@@ -106,7 +107,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_v15';
+var CREATOR_CACHE_KEY = 'babel_creator_v16';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

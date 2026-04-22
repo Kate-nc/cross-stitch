@@ -320,7 +320,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               return 1;
             })()
           }
-        }, "Substitute from Stash"),
+        }, "Replace with Stash Threads"),
         h("button", {
           onClick: function() {
             if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
@@ -343,7 +343,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               title: "Convert this pattern's palette between DMC and Anchor thread brands",
               style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontWeight:600,
                 opacity:(!ctx.pat || !ctx.pal || ctx.pal.length === 0) ? 0.5 : 1}
-            }, "Convert Palette")
+            }, "Change Thread Brand")
           : null
       ),
       ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8f9fa",fontSize:12}},

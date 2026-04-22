@@ -90,7 +90,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
   );
 }
 
-function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved }) {
+function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, onOpenProject, onPreferences, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
 
@@ -342,6 +342,14 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               className: 'tb-page-dropdown-item',
               onClick: () => { onNewProject(); setFileMenuOpen(false); }
             }, 'New Project'),
+            onOpenProject && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => { onOpenProject(); setFileMenuOpen(false); }
+            }, 'Switch Project\u2026'),
+            onPreferences && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => { onPreferences(); setFileMenuOpen(false); }
+            }, 'Preferences\u2026'),
             onOpen && React.createElement('button', {
               className: 'tb-page-dropdown-item',
               onClick: () => { onOpen(); setFileMenuOpen(false); }

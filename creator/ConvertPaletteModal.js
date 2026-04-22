@@ -213,7 +213,7 @@ window.ConvertPaletteModal = (function () {
     return React.createElement('div', { className: 'modal-overlay', onClick: function (e) { if (e.target === e.currentTarget) onClose(); } },
       React.createElement('div', { className: 'modal-box', style: { maxWidth: 640, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' } },
         React.createElement('div', { className: 'modal-header' },
-          React.createElement('div', { className: 'modal-title' }, 'Convert Palette'),
+          React.createElement('div', { className: 'modal-title' }, 'Change Thread Brand'),
           React.createElement('button', { className: 'modal-close', onClick: onClose }, '×')
         ),
         React.createElement('div', { style: { padding: '12px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },

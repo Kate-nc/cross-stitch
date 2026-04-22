@@ -4172,6 +4172,7 @@ window.useCreatorState = function useCreatorState() {
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
+  var _prefsOpen = useState(false); var preferencesOpen = _prefsOpen[0], setPreferencesOpen = _prefsOpen[1];
   // Optional metadata users can fill in before/after generating
   var _projDesigner = useState(""); var projectDesigner = _projDesigner[0], setProjectDesigner = _projDesigner[1];
   var _projDesc     = useState(""); var projectDescription = _projDesc[0], setProjectDescription = _projDesc[1];
@@ -4962,6 +4963,7 @@ window.useCreatorState = function useCreatorState() {
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
     namePromptOpen, setNamePromptOpen,
+    preferencesOpen, setPreferencesOpen,
     cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
     pcRef, fRef, scrollRef, expRef, loadRef,
     prevSW, prevSH, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef, overflowRef,
@@ -9509,7 +9511,7 @@ function SubstituteFromStashModalInner(props) {
     },
       // ── Header ────────────────────────────────────────────────────────────────
       h("div", { style: { display: "flex", alignItems: "center", padding: "16px 20px 14px", borderBottom: "1px solid #f1f5f9", flexShrink: 0 } },
-        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1e293b", flex: 1 } }, "Substitute from Stash"),
+        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1e293b", flex: 1 } }, "Replace with Stash Threads"),
         h("button", {
           onClick: closeModal,
           style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8", padding: "0 4px", borderRadius: 6, lineHeight: 1 }
@@ -9841,7 +9843,7 @@ window.ConvertPaletteModal = (function () {
     return React.createElement('div', { className: 'modal-overlay', onClick: function (e) { if (e.target === e.currentTarget) onClose(); } },
       React.createElement('div', { className: 'modal-box', style: { maxWidth: 640, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' } },
         React.createElement('div', { className: 'modal-header' },
-          React.createElement('div', { className: 'modal-title' }, 'Convert Palette'),
+          React.createElement('div', { className: 'modal-title' }, 'Change Thread Brand'),
           React.createElement('button', { className: 'modal-close', onClick: onClose }, '×')
         ),
         React.createElement('div', { style: { padding: '12px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
@@ -12214,7 +12216,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               return 1;
             })()
           }
-        }, "Substitute from Stash"),
+        }, "Replace with Stash Threads"),
         h("button", {
           onClick: function() {
             if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
@@ -12237,7 +12239,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               title: "Convert this pattern's palette between DMC and Anchor thread brands",
               style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontWeight:600,
                 opacity:(!ctx.pat || !ctx.pal || ctx.pal.length === 0) ? 0.5 : 1}
-            }, "Convert Palette")
+            }, "Change Thread Brand")
           : null
       ),
       ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8f9fa",fontSize:12}},
@@ -13367,6 +13369,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var miniLegend   = React.useState(readPref("exportMiniLegend",      true));
   var settingsOpen = React.useState(false);
   var brandingOpen = React.useState(false);
+  var exportFormat = React.useState("pdf"); // "pdf" | "png"
 
   function bind(pair, prefKey) {
     return function (v) { pair[1](v); if (prefKey) writePref(prefKey, v); };
@@ -13481,6 +13484,39 @@ window.CreatorExportTab = function CreatorExportTab() {
     setProgress(null);
   }
 
+  function doExportPng() {
+    setError(null);
+    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("No pattern to export."); return; }
+    var CELL = 10;
+    var c = document.createElement("canvas");
+    c.width = ctx.sW * CELL;
+    c.height = ctx.sH * CELL;
+    var g = c.getContext("2d");
+    g.fillStyle = "#ffffff";
+    g.fillRect(0, 0, c.width, c.height);
+    for (var y = 0; y < ctx.sH; y++) {
+      for (var x = 0; x < ctx.sW; x++) {
+        var cell = ctx.pat[y * ctx.sW + x];
+        if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+        var rgb = cell.rgb;
+        if (!rgb || rgb.length < 3) continue;
+        g.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+        g.fillRect(x * CELL, y * CELL, CELL, CELL);
+      }
+    }
+    c.toBlob(function (blob) {
+      if (!blob) { setError("Failed to create PNG."); return; }
+      var name = ((app.projectName || "pattern") + "").replace(/[^\w\-]+/g, "_") + ".png";
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    }, "image/png");
+  }
+
   if (!(ctx && ctx.pat && ctx.pal)) return null;
   if (app.tab !== "export") return null;
 
@@ -13525,10 +13561,10 @@ window.CreatorExportTab = function CreatorExportTab() {
 
         h("div", { style: { marginBottom: 14 } },
           h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 6 } }, "Format"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12 } },
-            h("input", { type: "radio", checked: true, readOnly: true }), "PDF"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, opacity: 0.5 } },
-            h("input", { type: "radio", disabled: true }), "PNG (coming soon)"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "pdf", onChange: function () { exportFormat[1]("pdf"); } }), "PDF"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "png", onChange: function () { exportFormat[1]("png"); } }), "PNG"),
           h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.5 } },
             h("input", { type: "radio", disabled: true }), "OXS (coming soon)")
         ),
@@ -13602,12 +13638,10 @@ window.CreatorExportTab = function CreatorExportTab() {
       )
     ),
 
-    h("div", null,
-      h("button", { onClick: function () { setBrandingOpen(!brandingOpen[0]); }, style: sectionToggle },
-        h("span", null, "Designer branding"),
-        h("span", { style: { color: "#64748b" } }, brandingOpen[0] ? "▲" : "▼")
-      ),
-      brandingOpen[0] && window.CreatorDesignerBrandingSection && h(window.CreatorDesignerBrandingSection)
+    h("div", { style: { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#475569" } },
+      "Designer branding (name, logo, copyright) is now in ",
+      h("strong", null, "File → Preferences"),
+      ". Settings there apply to every PDF you export."
     ),
 
     progressState[0] ? h("div", { style: { background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 10, padding: 16 } },
@@ -13620,21 +13654,11 @@ window.CreatorExportTab = function CreatorExportTab() {
       ),
       h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize: 13, borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", cursor: "pointer", fontWeight: 600 } }, "Cancel")
     ) : h("button", {
-      onClick: doExport,
-      style: (modesArr.length === 0) ? disabledCta : ctaStyle,
-      disabled: modesArr.length === 0,
-    }, "Export PDF"),
+      onClick: exportFormat[0] === "png" ? doExportPng : doExport,
+      style: (exportFormat[0] === "pdf" && modesArr.length === 0) ? disabledCta : ctaStyle,
+      disabled: exportFormat[0] === "pdf" && modesArr.length === 0,
+    }, exportFormat[0] === "png" ? "Export PNG" : "Export PDF"),
 
-    errorState[0] && h("div", { style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, fontSize: 12, color: "#b91c1c" } }, errorState[0]),
-
-    h("div", { style: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14 } },
-      h("h4", { style: { margin: "0 0 8px", fontSize: 13, color: "#0f172a" } }, "Save / load project file"),
-      h("p", { style: { fontSize: 11, color: "#64748b", margin: "0 0 10px" } },
-        "Save the editable .json so you can re-open this pattern later or in Stitch Tracker."),
-      h("div", { style: { display: "flex", gap: 8 } },
-        h("button", { onClick: app.saveProject, style: { padding: "8px 16px", fontSize: 13, borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 }, title: "Download a .json copy. Your project also auto-saves to this device." }, "Download (.json)"),
-        h("button", { onClick: function () { app.loadRef.current && app.loadRef.current.click(); }, style: { padding: "8px 16px", fontSize: 13, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", fontWeight: 500 } }, "Load")
-      )
-    )
+    errorState[0] && h("div", { style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, fontSize: 12, color: "#b91c1c" } }, errorState[0])
   );
 };
