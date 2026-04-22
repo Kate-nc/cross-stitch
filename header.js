@@ -152,7 +152,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     e.target.value = '';
   }
 
-  const creatorPages = [['pattern','Pattern'],['project','Project'],['legend','Threads'],['export','Export']];
+  const creatorPages = [['pattern','Pattern'],['project','Project'],['legend','Materials'],['export','Export']];
   const activeLabel = creatorPages.find(p => p[0] === tab)?.[1] || 'Pattern';
 
   // App-section nav tabs — include Edit between Create and Track
