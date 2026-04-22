@@ -1758,7 +1758,19 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
 
   const sortedThreads = useMemo(() => {
     const copy = allThreads.slice();
-    if (sort === 'number') copy.sort((a, b) => parseInt(a.id) - parseInt(b.id));
+    const compareThreadIds = (a, b) => {
+      const aId = String(a.id);
+      const bId = String(b.id);
+      const aIsNumeric = /^\d+$/.test(aId);
+      const bIsNumeric = /^\d+$/.test(bId);
+      if (aIsNumeric && bIsNumeric) {
+        const diff = Number(aId) - Number(bId);
+        return diff || aId.localeCompare(bId, undefined, { numeric: true, sensitivity: 'base' });
+      }
+      if (aIsNumeric !== bIsNumeric) return aIsNumeric ? -1 : 1;
+      return aId.localeCompare(bId, undefined, { numeric: true, sensitivity: 'base' });
+    };
+    if (sort === 'number') copy.sort(compareThreadIds);
     else if (sort === 'skeins') copy.sort((a, b) => b.needed - a.needed);
     else if (sort === 'status') {
       const o = { needed: 0, partial: 1, owned: 2 };
