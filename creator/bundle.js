@@ -2511,6 +2511,317 @@ window.exportCoverSheet = async function exportCoverSheet(data) {
 };
 
 
+/* ─── exportOxs.js ─── */
+/* creator/exportOxs.js — OXS (Open Cross Stitch) XML export.
+   Produces an XML file compatible with the parseOXS importer in import-formats.js.
+   Round-trip guarantee: solid stitches survive export → import with identical
+   stitch positions and the nearest-matching DMC colour.
+   Blend stitches are exported with a colour-averaged palette entry (OXS does not
+   natively support blended threads). */
+
+/**
+ * Build the OXS XML string from pattern data.
+ * Extracted as a pure function so it can be unit-tested without a DOM.
+ *
+ * @param {Array}  pat       Flat pattern array (length sW * sH)
+ * @param {Array}  pal       Palette array of colour entries
+ * @param {number} sW        Pattern width in stitches
+ * @param {number} sH        Pattern height in stitches
+ * @param {number} fabricCt  Fabric count (e.g. 14)
+ * @param {Array}  bsLines   Backstitch line objects [{x1,y1,x2,y2}]
+ * @param {string} name      Pattern name (used in <properties>)
+ * @returns {string}  Complete OXS XML string
+ */
+window.buildOxsXml = function buildOxsXml(pat, pal, sW, sH, fabricCt, bsLines, name) {
+  fabricCt = fabricCt || 14;
+  bsLines = bsLines || [];
+  name = name || "Cross Stitch Pattern";
+
+  function escapeXml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+  }
+
+  // Build palette index — one entry per unique stitch ID.
+  // Blends are represented by an averaged colour (OXS is single-thread per cell).
+  var palIndex = {};   // stitch id → integer index
+  var palEntries = []; // [{index, id, displayName, number, rgb}]
+
+  (pal || []).forEach(function(p) {
+    var id = p.id;
+    if (palIndex.hasOwnProperty(id)) return; // already mapped
+    var idx = palEntries.length;
+    palIndex[id] = idx;
+    if (p.type === "blend" && p.threads && p.threads.length >= 2) {
+      var t0 = p.threads[0], t1 = p.threads[1];
+      palEntries.push({
+        index: idx,
+        id: id,
+        number: t0.id,                        // first thread's DMC number for import matching
+        displayName: t0.name + " + " + t1.name,
+        rgb: [
+          Math.round((t0.rgb[0] + t1.rgb[0]) / 2),
+          Math.round((t0.rgb[1] + t1.rgb[1]) / 2),
+          Math.round((t0.rgb[2] + t1.rgb[2]) / 2)
+        ]
+      });
+    } else {
+      palEntries.push({
+        index: idx,
+        id: id,
+        number: String(p.id),
+        displayName: p.name || "",
+        rgb: p.rgb || [0, 0, 0]
+      });
+    }
+  });
+
+  var lines = [];
+  lines.push('<?xml version="1.0" encoding="UTF-8"?>');
+  lines.push('<chart>');
+  lines.push('  <properties chartwidth="' + sW + '" chartheight="' + sH +
+             '" fabriccount="' + fabricCt + '" name="' + escapeXml(name) + '" />');
+
+  // Palette
+  lines.push('  <palette>');
+  palEntries.forEach(function(e) {
+    lines.push('    <color index="' + e.index +
+               '" number="' + escapeXml(e.number) +
+               '" name="' + escapeXml(e.displayName) +
+               '" red="' + e.rgb[0] +
+               '" green="' + e.rgb[1] +
+               '" blue="' + e.rgb[2] + '" />');
+  });
+  lines.push('  </palette>');
+
+  // Full stitches
+  lines.push('  <fullstitches>');
+  for (var row = 0; row < sH; row++) {
+    for (var col = 0; col < sW; col++) {
+      var cell = pat[row * sW + col];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      var idx = palIndex[cell.id];
+      if (idx === undefined) continue;
+      lines.push('    <stitch x="' + col + '" y="' + row + '" palindex="' + idx + '" />');
+    }
+  }
+  lines.push('  </fullstitches>');
+
+  // Backstitch lines
+  if (bsLines.length > 0) {
+    lines.push('  <backstitches>');
+    bsLines.forEach(function(ln) {
+      lines.push('    <backstitch x1="' + ln.x1 + '" y1="' + ln.y1 +
+                 '" x2="' + ln.x2 + '" y2="' + ln.y2 + '" />');
+    });
+    lines.push('  </backstitches>');
+  }
+
+  lines.push('</chart>');
+  return lines.join('\n');
+};
+
+/**
+ * Export the current pattern as an OXS file and trigger a browser download.
+ * @param {object} data  Pattern data snapshot (pat, pal, sW, sH, fabricCt, bsLines, projectName)
+ */
+window.exportOXS = function exportOXS(data) {
+  var pat = data.pat, pal = data.pal;
+  var sW = data.sW, sH = data.sH;
+  if (!pat || !pal || !sW || !sH) return;
+
+  var fabricCt = data.fabricCt || 14;
+  var bsLines = data.bsLines || [];
+  var name = data.projectName || data.name || "Cross Stitch Pattern";
+
+  var xml = buildOxsXml(pat, pal, sW, sH, fabricCt, bsLines, name);
+
+  var blob = new Blob([xml], { type: "application/xml" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = (name || "pattern").replace(/[^a-z0-9_\- ]/gi, "_") + ".oxs";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+};
+
+
+/* ─── exportPng.js ─── */
+/* creator/exportPng.js — PNG image export for the pattern.
+   Exports the pattern as a raster PNG image.
+
+   Two modes:
+     "preview" — flat colour blocks (no grid, no symbols). Suitable for
+                 social media / listing previews.  Uses the same pixel-art
+                 colour data as generatePatternThumbnail but at user-selected
+                 resolution.
+     "chart"   — colour blocks with grid lines overlaid (grid is drawn when
+                 cellPx >= 4).  Useful for sharing a compact chart view.
+
+   Resolution presets:
+     instagram  1080 × 1080  (square-cropped, centred)
+     etsy       2000 × 2000  (square-cropped, centred)
+     print      4000 × 4000  (square-cropped, centred)
+     custom     user-specified; not square-forced
+
+   Background options:  "white" | "transparent"
+   Transparent background is only meaningful in PNG (the output is always PNG).
+
+   Exposed globals:
+     window.PNG_PRESETS   — array of preset descriptors for use in the UI
+     window.exportPNG     — main export entry point */
+
+window.PNG_PRESETS = [
+  { label: "Instagram (1080\xd71080)", key: "instagram", size: 1080, square: true },
+  { label: "Etsy listing (2000\xd72000)", key: "etsy", size: 2000, square: true },
+  { label: "Print quality (4000\xd74000)", key: "print", size: 4000, square: true },
+  { label: "Custom size", key: "custom", size: null, square: false }
+];
+
+/**
+ * Export the current pattern as a PNG image and trigger a browser download.
+ *
+ * @param {object} options
+ *   preset      {string}  One of the PNG_PRESETS keys (default "etsy")
+ *   customSize  {number}  Pixel dimension used when preset === "custom"
+ *   bgMode      {string}  "white" | "transparent" (default "white")
+ *   mode        {string}  "preview" | "chart" (default "preview")
+ * @param {object} data
+ *   pat, cmap, sW, sH, partialStitches, projectName
+ */
+window.exportPNG = function exportPNG(options, data) {
+  options = options || {};
+  var preset     = options.preset     || "etsy";
+  var customSize = options.customSize || 2000;
+  var bgMode     = options.bgMode     || "white";
+  var mode       = options.mode       || "preview";
+
+  var pat             = data.pat;
+  var sW              = data.sW;
+  var sH              = data.sH;
+  var partialStitches = data.partialStitches || new Map();
+  var name            = data.projectName || data.name || "pattern";
+
+  if (!pat || !sW || !sH) return;
+
+  var presetObj = (window.PNG_PRESETS || []).find(function(p) { return p.key === preset; }) ||
+                  { size: 2000, square: true };
+  var targetSize = presetObj.size || customSize;
+  var isSquare   = presetObj.square;
+
+  // Derive cell pixel size from the target resolution.
+  var maxDim  = Math.max(sW, sH);
+  var cellPx  = Math.max(1, Math.floor(targetSize / maxDim));
+
+  // Hard cap: never produce an image larger than 8000 × 8000 pixels.
+  var rawW = sW * cellPx, rawH = sH * cellPx;
+  if (rawW > 8000 || rawH > 8000) {
+    var capScale = Math.min(8000 / rawW, 8000 / rawH);
+    cellPx = Math.max(1, Math.floor(cellPx * capScale));
+    rawW   = sW * cellPx;
+    rawH   = sH * cellPx;
+  }
+
+  var canvasW = isSquare ? targetSize : rawW;
+  var canvasH = isSquare ? targetSize : rawH;
+  var offsetX = isSquare ? Math.floor((canvasW - rawW) / 2) : 0;
+  var offsetY = isSquare ? Math.floor((canvasH - rawH) / 2) : 0;
+
+  var canvas = document.createElement("canvas");
+  canvas.width  = canvasW;
+  canvas.height = canvasH;
+  var ctx = canvas.getContext("2d");
+
+  // Background fill.
+  if (bgMode === "transparent") {
+    ctx.clearRect(0, 0, canvasW, canvasH);
+  } else {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvasW, canvasH);
+  }
+
+  var pqKeys = ["TL", "TR", "BL", "BR"];
+
+  // Draw each stitch cell.
+  for (var row = 0; row < sH; row++) {
+    for (var col = 0; col < sW; col++) {
+      var cellIdx = row * sW + col;
+      var px = offsetX + col * cellPx;
+      var py = offsetY + row * cellPx;
+
+      var ps = partialStitches && partialStitches.get(cellIdx);
+      if (ps) {
+        // Partial stitch: blend the occupied quadrant colours.
+        var r = 0, g = 0, b = 0, cnt = 0;
+        for (var qi = 0; qi < pqKeys.length; qi++) {
+          var qe = ps[pqKeys[qi]];
+          if (qe) { r += qe.rgb[0]; g += qe.rgb[1]; b += qe.rgb[2]; cnt++; }
+        }
+        if (cnt > 0) {
+          ctx.fillStyle = "rgb(" + Math.round(r / cnt) + "," +
+                                   Math.round(g / cnt) + "," +
+                                   Math.round(b / cnt) + ")";
+          ctx.fillRect(px, py, cellPx, cellPx);
+        }
+        continue;
+      }
+
+      var cell = pat[cellIdx];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+
+      ctx.fillStyle = "rgb(" + cell.rgb[0] + "," + cell.rgb[1] + "," + cell.rgb[2] + ")";
+      ctx.fillRect(px, py, cellPx, cellPx);
+    }
+  }
+
+  // Chart-mode grid lines (drawn only when cells are large enough to be visible).
+  if (mode === "chart" && cellPx >= 4) {
+    ctx.save();
+    for (var gx = 0; gx <= sW; gx++) {
+      var isMajorX = gx % 10 === 0;
+      var lx = offsetX + gx * cellPx + 0.5;
+      ctx.globalAlpha = isMajorX ? 0.7 : 0.35;
+      ctx.strokeStyle = "#808080";
+      ctx.lineWidth   = isMajorX ? 1.5 : 0.5;
+      ctx.beginPath();
+      ctx.moveTo(lx, offsetY);
+      ctx.lineTo(lx, offsetY + sH * cellPx);
+      ctx.stroke();
+    }
+    for (var gy = 0; gy <= sH; gy++) {
+      var isMajorY = gy % 10 === 0;
+      var ly = offsetY + gy * cellPx + 0.5;
+      ctx.globalAlpha = isMajorY ? 0.7 : 0.35;
+      ctx.lineWidth   = isMajorY ? 1.5 : 0.5;
+      ctx.beginPath();
+      ctx.moveTo(offsetX, ly);
+      ctx.lineTo(offsetX + sW * cellPx, ly);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  var safeName = (name || "pattern").replace(/[^a-z0-9_\- ]/gi, "_");
+  canvas.toBlob(function(blob) {
+    if (!blob) return;
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = safeName + ".png";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  }, "image/png");
+};
+
+
 /* ─── useMagicWand.js ─── */
 /* creator/useMagicWand.js — Magic Wand selection engine.
    Provides flood-fill + global colour selection, modifier key modes,
@@ -12179,20 +12490,439 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
 
 
-/* ─── ExportTab.js ─── */
-/* creator/ExportTab.js — Export tab with PNG preview canvas, PDF/save buttons.
+/* ─── PrepareTab.js ─── */
+/* creator/PrepareTab.js — Prepare tab: shopping list + fabric calculator.
    Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: Section (components.js), drawPatternOnCanvas (canvasRenderer.js),
-               exportPDF, exportCoverSheet (exportPdf.js), A4W, A4H (constants.js),
+   Depends on: stitchesToSkeins (threadCalc.js), FABRIC_COUNTS (constants.js),
+               StashBridge (stash-bridge.js), CreatorContext (context.js) */
+
+window.CreatorPrepareTab = function CreatorPrepareTab() {
+  var STITCHES_PER_SKEIN_ESTIMATE = 800;
+  var ctx = window.usePatternData();
+  var app = window.useApp();
+  var h = React.createElement;
+
+  var useState = React.useState;
+  var useMemo = React.useMemo;
+
+  var _units = useState('in'); var units = _units[0]; var setUnits = _units[1];
+  var _margin = useState(3); var margin = _margin[0]; var setMargin = _margin[1];
+  var _overTwo = useState(false); var overTwo = _overTwo[0]; var setOverTwo = _overTwo[1];
+  var _fabOpen = useState(false); var fabOpen = _fabOpen[0]; var setFabOpen = _fabOpen[1];
+  var _sort = useState('number'); var sort = _sort[0]; var setSort = _sort[1];
+  var _copied = useState(false); var copied = _copied[0]; var setCopied = _copied[1];
+  var _addedAll = useState(false); var addedAll = _addedAll[0]; var setAddedAll = _addedAll[1];
+  var threadIdCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+  var stash = ctx.globalStash || {};
+  var fabricCt = ctx.fabricCt || 14;
+
+  // Determine effective stitch count per thread (accounting for over-two)
+  var effectiveFabric = overTwo ? fabricCt / 2 : fabricCt;
+
+  // Build shopping list rows — always call useMemo unconditionally
+  var rows = useMemo(function() {
+    if (!(ctx.pat && ctx.pal)) return [];
+    return ctx.pal.map(function(p) {
+      var key = 'dmc:' + p.id;
+      var stashEntry = stash[key] || {};
+      var owned = stashEntry.owned || 0;
+
+      var skResult = (typeof stitchesToSkeins === 'function')
+        ? stitchesToSkeins({ stitchCount: p.count, fabricCount: effectiveFabric, strandsUsed: 2 })
+        : null;
+
+      var needed;
+      if (skResult) {
+        if (skResult.colorA) {
+          // Blend
+          needed = Math.max(skResult.colorA.skeinsToBuy || 0, (skResult.colorB && skResult.colorB.skeinsToBuy) || 0);
+        } else {
+          needed = skResult.skeinsToBuy || 0;
+        }
+      } else {
+        needed = Math.ceil(p.count / STITCHES_PER_SKEIN_ESTIMATE) || 0;
+      }
+      // Any palette entry with stitches should require at least one skein.
+      if ((p.count || 0) > 0) needed = Math.max(1, needed || 0);
+
+      var status;
+      if (owned >= needed) {
+        status = 'owned';
+      } else if (owned > 0) {
+        status = 'partial';
+      } else {
+        status = 'needed';
+      }
+
+      var name = p.type === 'blend' && p.threads
+        ? p.threads[0].name + ' + ' + p.threads[1].name
+        : (p.name || p.id);
+
+      return { p: p, key: key, owned: owned, needed: needed, status: status, name: name };
+    });
+  }, [ctx.pat, ctx.pal, stash, effectiveFabric]);
+
+  // Sort
+  function compareThreadIds(aId, bId) {
+    var aStr = String(aId == null ? '' : aId);
+    var bStr = String(bId == null ? '' : bId);
+    var aIsNumeric = /^\d+$/.test(aStr);
+    var bIsNumeric = /^\d+$/.test(bStr);
+    if (aIsNumeric && bIsNumeric) {
+      var aNum = parseInt(aStr, 10);
+      var bNum = parseInt(bStr, 10);
+      if (aNum !== bNum) return aNum - bNum;
+    } else if (aIsNumeric !== bIsNumeric) {
+      return aIsNumeric ? -1 : 1;
+    }
+    return threadIdCollator.compare(aStr, bStr);
+  }
+
+  var sortedRows = useMemo(function() {
+    var copy = rows.slice();
+    if (sort === 'number') {
+      copy.sort(function(a, b) { return compareThreadIds(a.p.id, b.p.id); });
+    } else if (sort === 'stitches') {
+      copy.sort(function(a, b) { return b.p.count - a.p.count; });
+    } else if (sort === 'skeins') {
+      copy.sort(function(a, b) { return b.needed - a.needed; });
+    } else if (sort === 'status') {
+      var order = { needed: 0, partial: 1, owned: 2 };
+      copy.sort(function(a, b) { return order[a.status] - order[b.status]; });
+    }
+    return copy;
+  }, [rows, sort]);
+
+  // Summary
+  var totalColours = rows.length;
+  var ownedColours = rows.filter(function(r) { return r.status === 'owned'; }).length;
+  var partialColours = rows.filter(function(r) { return r.status === 'partial'; }).length;
+  var needSkeins = rows.reduce(function(acc, r) {
+    return acc + Math.max(0, r.needed - r.owned);
+  }, 0);
+
+  // Early returns AFTER all hooks
+  if (!(ctx.pat && ctx.pal)) return null;
+  if (app.tab !== 'prepare') return null;
+
+  // Fabric calculator
+  var fabCounts = typeof FABRIC_COUNTS !== 'undefined' ? FABRIC_COUNTS : [
+    {ct:11,label:'11 count'},{ct:14,label:'14 count'},{ct:16,label:'16 count'},{ct:18,label:'18 count'}
+  ];
+
+  var sW = ctx.sW || 0;
+  var sH = ctx.sH || 0;
+
+  function calcFab(ct, div) {
+    var ef = div ? ct / div : ct;
+    var wIn = sW / ef + margin * 2;
+    var hIn = sH / ef + margin * 2;
+    if (units === 'cm') return { w: (wIn * 2.54).toFixed(1) + ' cm', h: (hIn * 2.54).toFixed(1) + ' cm' };
+    return { w: wIn.toFixed(1) + '"', h: hIn.toFixed(1) + '"' };
+  }
+
+  // Copy as text
+  function handleCopy() {
+    var lines = ['Shopping List'];
+    lines.push(sW + '\u00d7' + sH + ' stitches @ ' + fabricCt + ' count' + (overTwo ? ' over two' : ''));
+    lines.push('');
+    sortedRows.forEach(function(r) {
+      var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
+      var mark = r.status === 'owned' ? '\u2713' : r.status === 'partial' ? '~' : '\u25cb';
+      lines.push(mark + ' DMC ' + r.p.id + ' \u2014 ' + r.name + ' \u2014 ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
+    });
+    lines.push('');
+    lines.push('Total: ' + ownedColours + '/' + totalColours + ' colours owned');
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(lines.join('\n')).then(function() {
+        setCopied(true);
+        setTimeout(function() { setCopied(false); }, 2000);
+      }).catch(function() {});
+    }
+  }
+
+  // Share
+  function handleShare() {
+    if (typeof navigator === 'undefined' || !navigator.share) return;
+    var lines = ['Shopping List \u2014 ' + sW + '\u00d7' + sH + ' @ ' + fabricCt + ' count', ''];
+    sortedRows.forEach(function(r) {
+      if (r.status !== 'owned') {
+        var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
+        lines.push('DMC ' + r.p.id + ' ' + r.name + ' \u2014 need ' + Math.max(0, r.needed - r.owned) + ' skein' + (Math.max(0, r.needed - r.owned) !== 1 ? 's' : '') + own);
+      }
+    });
+    navigator.share({ title: 'Cross Stitch Shopping List', text: lines.join('\n') }).catch(function() {});
+  }
+
+  // Add all to stash
+  function handleAddAll() {
+    if (typeof StashBridge === 'undefined') return;
+    var promises = rows.filter(function(r) { return r.status !== 'owned'; }).map(function(r) {
+      var newOwned = r.needed;
+      return StashBridge.updateThreadOwned(r.p.id, newOwned);
+    });
+    Promise.all(promises).then(function() {
+      setAddedAll(true);
+      setTimeout(function() { setAddedAll(false); }, 2500);
+      // Refresh stash
+      if (typeof StashBridge !== 'undefined') {
+        StashBridge.getGlobalStash().then(function(s) { ctx.setGlobalStash(s); }).catch(function() {});
+      }
+    }).catch(function() {});
+  }
+
+  // Status badge
+  function statusBadge(status) {
+    var map = {
+      owned: { label: 'In stash \u2713', bg: '#f0fdf4', color: '#16a34a' },
+      partial: { label: 'Partial', bg: '#fff7ed', color: '#ea580c' },
+      needed: { label: 'Need to buy', bg: '#fef2f2', color: '#dc2626' }
+    };
+    var s = map[status] || map.needed;
+    return h('span', {
+      style: { padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+               background: s.bg, color: s.color }
+    }, s.label);
+  }
+
+  var canShare = typeof navigator !== 'undefined' && !!navigator.share;
+
+  return h('div', {style: {maxWidth: 900}},
+    // Summary banner
+    h('div', {style: {
+      display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+      padding: '10px 14px', background: '#f0fdf4', borderRadius: 8,
+      border: '0.5px solid #bbf7d0', marginBottom: 16, fontSize: 12
+    }},
+      h('span', {style: {fontWeight: 600, color: '#15803d'}},
+        ownedColours === totalColours
+          ? '\u2713 All ' + totalColours + ' colours in stash!'
+          : 'You own ' + ownedColours + ' of ' + totalColours + ' colours.'
+      ),
+      partialColours > 0 && h('span', {style: {color: '#ea580c'}},
+        partialColours + ' partial.'
+      ),
+      (ownedColours < totalColours) && h('span', {style: {color: '#dc2626'}},
+        'Still need: ' + (totalColours - ownedColours - partialColours) + ' colours, ~' + needSkeins + ' skeins.'
+      ),
+      h('div', {style: {marginLeft: 'auto', display: 'flex', gap: 8}},
+        h('button', {
+          onClick: handleCopy,
+          style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
+                   border: '0.5px solid #e2e8f0', background: copied ? '#0d9488' : '#fff',
+                   color: copied ? '#fff' : '#475569', fontWeight: 500 }
+        }, copied ? '\u2713 Copied' : 'Copy list'),
+        canShare && h('button', {
+          onClick: handleShare,
+          style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
+                   border: '0.5px solid #e2e8f0', background: '#fff', color: '#475569', fontWeight: 500 }
+        }, 'Share'),
+        h('a', {
+          href: 'manager.html', target: '_blank',
+          style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
+                   border: '0.5px solid #e2e8f0', background: '#fff', color: '#475569',
+                   fontWeight: 500, textDecoration: 'none', display: 'inline-block' }
+        }, 'View thread stash \u2192')
+      )
+    ),
+
+    // Controls row
+    h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap'}},
+      h('label', {style: {fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4}},
+        h('input', {
+          type: 'checkbox', checked: overTwo,
+          onChange: function(e) { setOverTwo(e.target.checked); }
+        }),
+        'Over two'
+      ),
+      h('span', {style: {fontSize: 12, color: '#94a3b8'}},'|'),
+      h('span', {style: {fontSize: 12, color: '#475569'}}, 'Sort:'),
+      h('select', {
+        value: sort,
+        onChange: function(e) { setSort(e.target.value); },
+        style: { fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '0.5px solid #e2e8f0', background: '#fff' }
+      },
+        h('option', {value: 'number'}, 'Thread number'),
+        h('option', {value: 'stitches'}, 'Stitch count'),
+        h('option', {value: 'skeins'}, 'Skeins needed'),
+        h('option', {value: 'status'}, 'Status')
+      ),
+      (ownedColours < totalColours) && h('button', {
+        onClick: handleAddAll,
+        style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
+                 border: '0.5px solid #e2e8f0', background: addedAll ? '#0d9488' : '#fff',
+                 color: addedAll ? '#fff' : '#475569', fontWeight: 500, marginLeft: 'auto' }
+      }, addedAll ? '\u2713 Added to stash' : 'Mark all as owned')
+    ),
+
+    // Thread table
+    h('div', {style: {overflow: 'auto', maxHeight: 480, marginBottom: 20}},
+      h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize: 12}},
+        h('thead', null,
+          h('tr', {style: {background: '#f8f9fa'}},
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, ''),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'DMC'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Name'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Stitches'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Skeins'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'In stash'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Status')
+          )
+        ),
+        h('tbody', null,
+          sortedRows.map(function(r, i) {
+            return h('tr', {
+              key: r.p.id,
+              style: {
+                borderBottom: '0.5px solid #f1f5f9',
+                background: r.status === 'owned' ? '#f0fdf4' : i % 2 === 0 ? 'transparent' : '#fafafa'
+              }
+            },
+              h('td', {style: {padding: '6px 10px'}},
+                h('div', {style: {width: 20, height: 20, borderRadius: 4, background: 'rgb(' + r.p.rgb + ')',
+                                  border: '0.5px solid #e2e8f0', display: 'inline-block'}})
+              ),
+              h('td', {style: {padding: '6px 10px', fontWeight: 600}}, r.p.id),
+              h('td', {style: {padding: '6px 10px', color: '#475569'}}, r.name),
+              h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.p.count.toLocaleString()),
+              h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, r.needed),
+              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#15803d' : '#94a3b8'}},
+                r.owned > 0 ? r.owned : '\u2014'
+              ),
+              h('td', {style: {padding: '6px 10px'}}, statusBadge(r.status))
+            );
+          })
+        )
+      )
+    ),
+
+    // Fabric calculator (collapsible)
+    h('div', {style: {border: '0.5px solid #e2e8f0', borderRadius: 8, overflow: 'hidden'}},
+      h('button', {
+        onClick: function() { setFabOpen(function(o) { return !o; }); },
+        style: {
+          width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12,
+          fontWeight: 600, color: '#475569', background: '#f8f9fa', border: 'none',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
+        }
+      },
+        h('span', {style: {fontSize: 9, opacity: 0.6}}, fabOpen ? '\u25be' : '\u25b8'),
+        'Fabric Calculator'
+      ),
+      fabOpen && h('div', {style: {padding: '14px'}},
+        // Controls
+        h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap'}},
+          h('span', {style: {fontSize: 12, color: '#475569'}}, 'Margin:'),
+          h('input', {
+            type: 'number', min: 0, max: 10, step: 0.5, value: margin,
+            onChange: function(e) { setMargin(Number(e.target.value) || 0); },
+            style: { width: 60, padding: '3px 8px', fontSize: 12, borderRadius: 6, border: '0.5px solid #e2e8f0' }
+          }),
+          h('span', {style: {fontSize: 12, color: '#94a3b8'}}, 'inches each side'),
+          h('span', {style: {fontSize: 12, color: '#94a3b8'}}, '|'),
+          h('span', {style: {fontSize: 12, color: '#475569'}}, 'Units:'),
+          ['in', 'cm'].map(function(u) {
+            return h('button', {
+              key: u,
+              onClick: function() { setUnits(u); },
+              style: {
+                fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
+                border: '0.5px solid ' + (units === u ? '#0d9488' : '#e2e8f0'),
+                background: units === u ? '#f0fdfa' : '#fff',
+                color: units === u ? '#0d9488' : '#475569', fontWeight: units === u ? 600 : 400
+              }
+            }, u === 'in' ? 'Inches' : 'Centimetres');
+          }),
+          h('label', {style: {fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4}},
+            h('input', {
+              type: 'checkbox', checked: overTwo,
+              onChange: function(e) { setOverTwo(e.target.checked); }
+            }),
+            'Over two'
+          )
+        ),
+        // Table
+        h('div', {style: {overflow: 'auto'}},
+          h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize: 12}},
+            h('thead', null,
+              h('tr', {style: {background: '#f8f9fa'}},
+                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Count'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Width'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Height'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, '')
+              )
+            ),
+            h('tbody', null,
+              fabCounts.map(function(f) {
+                var dims = calcFab(f.ct, overTwo ? 2 : null);
+                var isCurrent = f.ct === fabricCt;
+                return h('tr', {
+                  key: f.ct,
+                  style: {
+                    borderBottom: '0.5px solid #f1f5f9',
+                    background: isCurrent ? '#f0fdf4' : 'transparent'
+                  }
+                },
+                  h('td', {style: {padding: '6px 10px', fontWeight: isCurrent ? 700 : 400}},
+                    f.label + (overTwo ? ' (over 2)' : '')
+                  ),
+                  h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.w),
+                  h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.h),
+                  h('td', {style: {padding: '6px 10px'}},
+                    isCurrent && h('span', {style: {fontSize: 10, color: '#0d9488', fontWeight: 600}}, '\u2190 current')
+                  )
+                );
+              })
+            )
+          )
+        ),
+        h('p', {style: {fontSize: 11, color: '#94a3b8', marginTop: 10}},
+          'Pattern: ' + sW + '\u00d7' + sH + ' stitches. Margin: ' + margin + '" each side.'
+          + (overTwo ? ' Stitching over two threads.' : '')
+        )
+      )
+    )
+  );
+};
+
+
+/* ─── ExportTab.js ─── */
+/* creator/ExportTab.js — Export tab: presets, PDF, PNG, OXS, and Save/Load.
+   Reads from PatternDataContext, CanvasContext, and AppContext.
+   Depends on: Section (components.js), Icons (icons.js),
+               drawPatternOnCanvas (canvasRenderer.js),
+               exportPDF, exportCoverSheet (exportPdf.js),
+               exportOXS (exportOxs.js),
+               exportPNG, PNG_PRESETS (exportPng.js),
+               A4W, A4H (constants.js),
                CreatorContext (context.js) */
 
 window.CreatorExportTab = function CreatorExportTab() {
   var ctx = window.usePatternData();
-  var cv = window.useCanvas();
+  var cv  = window.useCanvas();
   var app = window.useApp();
-  var h = React.createElement;
+  var h   = React.createElement;
+
+  // Local state for PNG options
+  var _pngPreset    = React.useState("etsy");
+  var pngPreset     = _pngPreset[0], setPngPreset = _pngPreset[1];
+  var _pngBg        = React.useState("white");
+  var pngBgMode     = _pngBg[0],    setPngBgMode = _pngBg[1];
+  var _pngMode      = React.useState("preview");
+  var pngMode       = _pngMode[0],  setPngMode   = _pngMode[1];
+  var _pngCustom    = React.useState(2000);
+  var pngCustomSize = _pngCustom[0], setPngCustomSize = _pngCustom[1];
 
   var G = app.G;
+
+  // Build the merged export-data object consumed by all export functions.
+  function makeExportData() {
+    return Object.assign({}, ctx, {
+      bsLines:     cv.bsLines || [],
+      projectName: app.projectName || ""
+    });
+  }
 
   // renderExport callback — must be declared before any early returns (Rules of Hooks)
   var renderExport = React.useCallback(function() {
@@ -12222,59 +12952,155 @@ window.CreatorExportTab = function CreatorExportTab() {
   if (!(ctx.pat && ctx.pal)) return null;
   if (app.tab !== "export") return null;
 
+  var patternReady = !!(ctx.pat && ctx.pal && ctx.cmap);
+
+  // ─── Export preset definitions ───────────────────────────────────────────────
+  var PRESETS = [
+    {
+      key: "pk",
+      label: "Pattern Keeper",
+      icon: "\uD83D\uDCCB",
+      description: "Colour + B&W chart pages, medium cells, 2-row overlap",
+      action: function() {
+        app.setPdfDisplayMode("color_symbol");
+        app.setPdfCellSize(3);
+        app.setPdfSinglePage(false);
+        exportPDF({displayMode:"color_symbol", cellSize:3, singlePage:false}, makeExportData());
+      }
+    },
+    {
+      key: "print",
+      label: "Home printing",
+      icon: "\uD83D\uDDA8\uFE0F",
+      description: "Large print, colour + symbols, no overlap",
+      action: function() {
+        app.setPdfDisplayMode("color_symbol");
+        app.setPdfCellSize(4.5);
+        app.setPdfSinglePage(false);
+        exportPDF({displayMode:"color_symbol", cellSize:4.5, singlePage:false}, makeExportData());
+      }
+    },
+    {
+      key: "etsy",
+      label: "Etsy preview",
+      icon: "\uD83D\uDECD\uFE0F",
+      description: "Preview image at 2000\xd72000 PNG for listings",
+      action: function() {
+        exportPNG({preset:"etsy", bgMode:"white", mode:"preview"}, makeExportData());
+      }
+    },
+    {
+      key: "social",
+      label: "Social media",
+      icon: "\uD83D\uDCF8",
+      description: "Preview image at 1080\xd71080 for Instagram / Facebook",
+      action: function() {
+        exportPNG({preset:"instagram", bgMode:"white", mode:"preview"}, makeExportData());
+      }
+    },
+    {
+      key: "oxs",
+      label: "Other software",
+      icon: "\uD83D\uDDC2\uFE0F",
+      description: "OXS file for WinStitch / MacStitch",
+      action: function() { exportOXS(makeExportData()); }
+    }
+  ];
+
+  // ─── Shared styles ────────────────────────────────────────────────────────────
+  var sBtn    = {padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600};
+  var sOutBtn = Object.assign({},sBtn,{background:"#fff",color:"#0d9488",border:"1.5px solid #0d9488"});
+  var sSmBtn  = {padding:"3px 8px",fontSize:11,borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer"};
+  var sLabel  = {fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6};
+  var sSel    = {padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"};
+
   return h("div", {style:{display:"flex",flexDirection:"column",gap:12}},
+
+    // ─── Copied feedback ─────────────────────────────────────────────────────
     app.copied && h("div", {style:{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!"),
 
+    // ─── Open in Tracker ─────────────────────────────────────────────────────
     h("button", {
-      onClick: app.handleOpenInTracker,
-      style:{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:8}
+      onClick:app.handleOpenInTracker,
+      style:Object.assign({},sBtn,{padding:"12px 20px",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",gap:8})
     }, Icons.thread(), " Open in Stitch Tracker \u2192"),
 
+    // ─── Quick Export Presets ─────────────────────────────────────────────────
+    h(Section, {title:"Quick Export"},
+      h("p", {style:{fontSize:12,color:"#475569",margin:"4px 0 10px"}},
+        "One-tap export for common use cases."
+      ),
+      h("div", {style:{display:"flex",flexWrap:"wrap",gap:8}},
+        PRESETS.map(function(preset) {
+          return h("button", {
+            key:preset.key,
+            onClick:patternReady ? preset.action : undefined,
+            disabled:!patternReady,
+            title:preset.description,
+            style:{
+              display:"flex",flexDirection:"column",alignItems:"center",gap:4,
+              padding:"10px 14px",borderRadius:10,
+              border:"1.5px solid #e2e8f0",
+              background:patternReady?"#f8fafc":"#f1f5f9",
+              cursor:patternReady?"pointer":"not-allowed",
+              fontSize:11,fontWeight:600,
+              color:patternReady?"#1e293b":"#94a3b8",
+              minWidth:80
+            }
+          },
+            h("span",{style:{fontSize:22}}, preset.icon),
+            h("span",null, preset.label)
+          );
+        })
+      )
+    ),
+
+    // ─── PDF Export ───────────────────────────────────────────────────────────
     h(Section, {title:"PDF Export"},
       h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},
-        "Multi-page PDF with legend and chart."
+        "Multi-page PDF with legend, cover sheet, and chart pages."
       ),
-      h("div", {style:{display:"flex",gap:16,alignItems:"center",marginBottom:10}},
-        h("label", {style:{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6}},
-          "Chart Mode:",
+      h("div", {style:{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap",marginBottom:10}},
+        h("label", {style:sLabel},
+          "Chart mode:",
           h("select", {
             value:app.pdfDisplayMode, onChange:function(e){app.setPdfDisplayMode(e.target.value);},
-            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
+            style:sSel
           },
-            h("option", {value:"color_symbol"}, "Color + Symbols"),
-            h("option", {value:"symbol"}, "Symbols Only"),
-            h("option", {value:"color"}, "Color Blocks Only")
+            h("option", {value:"color_symbol"}, "Colour + Symbols"),
+            h("option", {value:"symbol"}, "Symbols only (B&W)"),
+            h("option", {value:"color"}, "Colour blocks only")
           )
         ),
-        h("label", {style:{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6}},
-          "Cell Size:",
+        h("label", {style:sLabel},
+          "Cell size:",
           h("select", {
             value:app.pdfCellSize, onChange:function(e){app.setPdfCellSize(Number(e.target.value));},
-            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
+            style:sSel
           },
-            h("option", {value:2.5}, "Small (2.5mm)"),
-            h("option", {value:3}, "Medium (3mm)"),
-            h("option", {value:4.5}, "Large (4.5mm)")
+            h("option", {value:2.5}, "Small (2.5 mm)"),
+            h("option", {value:3}, "Medium (3 mm)"),
+            h("option", {value:4.5}, "Large (4.5 mm)")
           )
         ),
-        h("label", {style:{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}},
+        h("label", {style:Object.assign({},sLabel,{cursor:"pointer"})},
           h("input", {
             type:"checkbox", checked:app.pdfSinglePage,
             onChange:function(e){app.setPdfSinglePage(e.target.checked);}
           }),
-          " Single Page"
+          " Single page"
         )
       ),
       h("div", {style:{display:"flex",gap:8,flexWrap:"wrap"}},
         h("button", {
           onClick:function(){
-            exportPDF({displayMode:app.pdfDisplayMode, cellSize:app.pdfCellSize, singlePage:app.pdfSinglePage}, ctx);
+            exportPDF({displayMode:app.pdfDisplayMode, cellSize:app.pdfCellSize, singlePage:app.pdfSinglePage}, makeExportData());
           },
-          style:{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none"}
+          style:sBtn
         }, "Download Pattern PDF"),
         h("button", {
-          onClick:function(){ exportCoverSheet(ctx); },
-          style:{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}
+          onClick:function(){ exportCoverSheet(makeExportData()); },
+          style:sOutBtn
         }, "Cover Sheet PDF")
       ),
       h("p", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
@@ -12282,7 +13108,76 @@ window.CreatorExportTab = function CreatorExportTab() {
       )
     ),
 
-    h(Section, {title:"PNG Chart"},
+    // ─── PNG Image Export ─────────────────────────────────────────────────────
+    h(Section, {title:"PNG Image Export"},
+      h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},
+        "Export the pattern as a raster PNG image. Ideal for social media, Etsy listings, or blog posts."
+      ),
+      h("div", {style:{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap",marginBottom:10}},
+        h("label", {style:sLabel},
+          "Resolution:",
+          h("select", {
+            value:pngPreset, onChange:function(e){setPngPreset(e.target.value);},
+            style:sSel
+          },
+            (window.PNG_PRESETS||[]).map(function(p){
+              return h("option",{key:p.key,value:p.key}, p.label);
+            })
+          )
+        ),
+        pngPreset==="custom" && h("label", {style:sLabel},
+          "Size (px):",
+          h("input", {
+            type:"number", value:pngCustomSize, min:100, max:8000, step:100,
+            onChange:function(e){setPngCustomSize(Number(e.target.value)||2000);},
+            style:Object.assign({},sSel,{width:80})
+          })
+        ),
+        h("label", {style:sLabel},
+          "Background:",
+          h("select", {
+            value:pngBgMode, onChange:function(e){setPngBgMode(e.target.value);},
+            style:sSel
+          },
+            h("option",{value:"white"}, "White"),
+            h("option",{value:"transparent"}, "Transparent")
+          )
+        ),
+        h("label", {style:sLabel},
+          "Style:",
+          h("select", {
+            value:pngMode, onChange:function(e){setPngMode(e.target.value);},
+            style:sSel
+          },
+            h("option",{value:"preview"}, "Colour preview"),
+            h("option",{value:"chart"}, "Colour + grid lines")
+          )
+        )
+      ),
+      h("button", {
+        onClick:function(){
+          exportPNG({preset:pngPreset, customSize:pngCustomSize, bgMode:pngBgMode, mode:pngMode}, makeExportData());
+        },
+        style:sBtn
+      }, "Download PNG")
+    ),
+
+    // ─── OXS Export ───────────────────────────────────────────────────────────
+    h(Section, {title:"OXS Export"},
+      h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},
+        "Export as OXS (Open Cross Stitch XML). Compatible with WinStitch, MacStitch, and other software that supports this open format."
+      ),
+      h("button", {
+        onClick:function(){ exportOXS(makeExportData()); },
+        style:sOutBtn
+      }, "Download .oxs"),
+      h("p", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
+        "Blend stitches are exported using their primary thread colour (OXS does not natively support blended threads). Re-import to verify round-trip fidelity."
+      )
+    ),
+
+    // ─── Chart Preview canvas ────────────────────────────────────────────────
+    h(Section, {title:"Chart Preview"},
       h("div", {style:{display:"flex",gap:8,alignItems:"center",marginTop:8,marginBottom:8}},
         h("label", {style:{display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer"}},
           h("input", {
@@ -12295,13 +13190,13 @@ window.CreatorExportTab = function CreatorExportTab() {
           h("button", {
             onClick:function(){app.setExportPage(function(p){return Math.max(0,p-1);});},
             disabled:app.exportPage===0,
-            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
+            style:sSmBtn
           }, "\u25C4"),
           h("span", {style:{fontSize:12}}, "Page "+(app.exportPage+1)+"/"+app.totPg),
           h("button", {
             onClick:function(){app.setExportPage(function(p){return Math.min(app.totPg-1,p+1);});},
             disabled:app.exportPage>=app.totPg-1,
-            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
+            style:sSmBtn
           }, "\u25BA")
         )
       ),
@@ -12310,6 +13205,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       )
     ),
 
+    // ─── Save / Load ─────────────────────────────────────────────────────────
     h(Section, {title:"Save / Load"},
       h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},
         "Saves pattern for later editing or opening in Stitch Tracker."
@@ -12317,7 +13213,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       h("div", {style:{display:"flex",gap:8}},
         h("button", {
           onClick:app.saveProject,
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}
+          style:sBtn
         }, "Save (.json)"),
         h("button", {
           onClick:function(){app.loadRef.current.click();},

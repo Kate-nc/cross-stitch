@@ -16,6 +16,8 @@ const ORDER = [
   'PreviewCanvas.js',
   'RealisticCanvas.js',
   'exportPdf.js',
+  'exportOxs.js',
+  'exportPng.js',
   'useMagicWand.js',
   'useLassoSelect.js',
   'useCreatorState.js',
@@ -37,6 +39,7 @@ const ORDER = [
   'PatternTab.js',
   'ProjectTab.js',
   'LegendTab.js',
+  'PrepareTab.js',
   'ExportTab.js',
 ];
 
