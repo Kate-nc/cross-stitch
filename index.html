@@ -15,7 +15,8 @@
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 <!-- Prefetch lazy-loaded assets in the background at idle time -->
 <link rel="prefetch" href="tracker-app.js">
-<link rel="prefetch" href="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+<link rel="prefetch" href="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js">
+<link rel="prefetch" href="pdf-export-worker.js">
 <!-- Prefetch creator-main.js in the background so it is ready when the user switches to Creator mode -->
 <link rel="prefetch" href="creator-main.js">
 <link rel="prefetch" href="stats-page.js">
@@ -31,7 +32,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <!-- pako needed at startup (project data uses deflate/inflate) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-<!-- jsPDF, pdf.js and pdf-importer are lazy-loaded on first use -->
+<!-- pdf-lib (export), pdf.js (import) and pdf-importer are lazy-loaded on first use -->
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
@@ -53,6 +54,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="home-screen.js"></script>
 <script src="palette-swap.js"></script>
 <script src="user-prefs.js"></script>
+<script src="assets/fonts/CrossStitchSymbols.base64.js"></script>
 <script src="creator/bundle.js"></script>
 <!-- Lazy-load helpers â€” available to both regular and Babel scripts -->
 <script>
@@ -104,7 +106,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_v12';
+var CREATOR_CACHE_KEY = 'babel_creator_v13';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

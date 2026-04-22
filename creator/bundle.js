@@ -24,6 +24,1127 @@ window.useCanvas = function useCanvas() { return React.useContext(window.CanvasC
 window.usePatternData = function usePatternData() { return React.useContext(window.PatternDataContext); };
 
 
+/* ─── symbolFontSpec.js ─── */
+/* creator/symbolFontSpec.js — Glyph spec for the embedded chart symbol font.
+ *
+ * Produces a deterministic list of 96 visually-distinct symbol glyphs assigned
+ * to Private Use Area code points U+E000..U+E05F. The same spec is consumed by:
+ *   • build-symbol-font.js   — converts the spec into assets/fonts/CrossStitchSymbols.ttf
+ *   • pdf-export-worker.js   — picks a glyph for each palette entry
+ *   • creator/pdfExport.js   — passes the codepoint map to the worker
+ *
+ * Each glyph is described by a list of drawing primitives executed in a 1000×1000
+ * em square (with origin at the bottom-left). The unit interval [100..900] is the
+ * "safe area"; glyphs that touch the bounds will collide with adjacent cells when
+ * rendered at 8pt on a chart, so primitives stay clear of those edges.
+ *
+ * Primitives (intentionally tiny; the renderer is in build-symbol-font.js):
+ *   { kind: "rect",   x, y, w, h, fill, stroke, sw }
+ *   { kind: "circle", cx, cy, r,    fill, stroke, sw }
+ *   { kind: "tri",    pts: [[x,y],...], fill, stroke, sw }
+ *   { kind: "line",   x1, y1, x2, y2, sw }
+ *   { kind: "ring",   cx, cy, r, sw }       // outline circle (no fill)
+ *
+ * No drawing primitive uses curves: opentype.js builds them out of straight
+ * segments and (for circles/rings) cubic Bézier arcs handled inside the
+ * generator. Keeping the spec declarative means it can be unit-tested without
+ * a font runtime.
+ *
+ * Glyph families (16 each, 6 families = 96):
+ *   00..0F  Filled solid shapes (square, triangle, diamond, …)
+ *   10..1F  Outline shapes (matching family 1 but stroked)
+ *   20..2F  Dotted / pip patterns
+ *   30..3F  Cross / plus / x marks
+ *   40..4F  Bars and chevrons (directional)
+ *   50..5F  Compound / quartered shapes
+ *
+ * The character at U+E000 is assigned to the most-used palette entry in a
+ * pattern, U+E001 to the second-most, and so on. This is deterministic and
+ * means Pattern Keeper can build a thread→symbol map by scanning the legend.
+ */
+(function (root) {
+  "use strict";
+
+  var EM = 1000;
+  var SAFE_LO = 120;          // glyphs stay within [120..880] of the em square
+  var SAFE_HI = 880;
+  var CTR = EM / 2;           // 500
+  var SW_THIN = 60;           // stroke widths in em units (~6% em)
+  var SW_MED  = 90;
+  var SW_FAT  = 130;
+
+  // ─── helpers (build-time only) ───────────────────────────────────────────
+  function rect(x, y, w, h, opt) {
+    return Object.assign({ kind: "rect", x: x, y: y, w: w, h: h, fill: true }, opt || {});
+  }
+  function ring(cx, cy, r, sw) {
+    return { kind: "ring", cx: cx, cy: cy, r: r, sw: sw || SW_MED };
+  }
+  function disc(cx, cy, r) {
+    return { kind: "circle", cx: cx, cy: cy, r: r, fill: true };
+  }
+  function tri(p1, p2, p3, opt) {
+    return Object.assign({ kind: "tri", pts: [p1, p2, p3], fill: true }, opt || {});
+  }
+  function line(x1, y1, x2, y2, sw) {
+    return { kind: "line", x1: x1, y1: y1, x2: x2, y2: y2, sw: sw || SW_MED };
+  }
+
+  var glyphs = [];
+
+  // ── Family 0: filled solid shapes (16) ──────────────────────────────────
+  // 00 ■ filled square
+  glyphs.push({ name: "sq.fill", prims: [ rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, SAFE_HI - SAFE_LO) ] });
+  // 01 ▲ up-triangle
+  glyphs.push({ name: "tri.up",  prims: [ tri([CTR, SAFE_HI], [SAFE_LO, SAFE_LO], [SAFE_HI, SAFE_LO]) ] });
+  // 02 ▼ down-triangle
+  glyphs.push({ name: "tri.dn",  prims: [ tri([SAFE_LO, SAFE_HI], [SAFE_HI, SAFE_HI], [CTR, SAFE_LO]) ] });
+  // 03 ◀ left-triangle
+  glyphs.push({ name: "tri.lt",  prims: [ tri([SAFE_HI, SAFE_LO], [SAFE_HI, SAFE_HI], [SAFE_LO, CTR]) ] });
+  // 04 ▶ right-triangle
+  glyphs.push({ name: "tri.rt",  prims: [ tri([SAFE_LO, SAFE_LO], [SAFE_LO, SAFE_HI], [SAFE_HI, CTR]) ] });
+  // 05 ◆ filled diamond
+  glyphs.push({ name: "diamond.fill", prims: [
+    tri([CTR, SAFE_HI], [SAFE_LO, CTR], [CTR, SAFE_LO]),
+    tri([CTR, SAFE_HI], [CTR, SAFE_LO], [SAFE_HI, CTR]),
+  ] });
+  // 06 ● filled circle
+  glyphs.push({ name: "circ.fill", prims: [ disc(CTR, CTR, 360) ] });
+  // 07 ⬣ filled hexagon (approx via rectangles + tri caps)
+  glyphs.push({ name: "hex.fill", prims: [
+    rect(SAFE_LO + 80, CTR - 250, SAFE_HI - SAFE_LO - 160, 500),
+    tri([CTR, SAFE_HI], [SAFE_LO + 80, CTR + 250], [SAFE_HI - 80, CTR + 250]),
+    tri([CTR, SAFE_LO], [SAFE_LO + 80, CTR - 250], [SAFE_HI - 80, CTR - 250]),
+  ] });
+  // 08 ◼ small inset square
+  glyphs.push({ name: "sq.inset", prims: [ rect(SAFE_LO + 60, SAFE_LO + 60, SAFE_HI - SAFE_LO - 120, SAFE_HI - SAFE_LO - 120) ] });
+  // 09 ▰ tall bar
+  glyphs.push({ name: "bar.v", prims: [ rect(CTR - 130, SAFE_LO, 260, SAFE_HI - SAFE_LO) ] });
+  // 0A ▬ wide bar
+  glyphs.push({ name: "bar.h", prims: [ rect(SAFE_LO, CTR - 130, SAFE_HI - SAFE_LO, 260) ] });
+  // 0B ★ five-point star (approx via 5 triangles around a centre disc)
+  glyphs.push({ name: "star5", prims: [
+    disc(CTR, CTR, 130),
+    tri([CTR, SAFE_HI], [CTR - 110, CTR + 80], [CTR + 110, CTR + 80]),
+    tri([SAFE_HI, CTR + 100], [CTR + 90, CTR + 30], [CTR + 110, CTR - 70]),
+    tri([SAFE_LO, CTR + 100], [CTR - 110, CTR - 70], [CTR - 90, CTR + 30]),
+    tri([SAFE_LO + 100, SAFE_LO], [CTR - 90, CTR - 50], [CTR - 30, CTR - 130]),
+    tri([SAFE_HI - 100, SAFE_LO], [CTR + 30, CTR - 130], [CTR + 90, CTR - 50]),
+  ] });
+  // 0C heart-ish (two discs + tri)
+  glyphs.push({ name: "heart", prims: [
+    disc(CTR - 150, CTR + 100, 200),
+    disc(CTR + 150, CTR + 100, 200),
+    tri([SAFE_LO + 50, CTR + 50], [SAFE_HI - 50, CTR + 50], [CTR, SAFE_LO]),
+  ] });
+  // 0D filled parallelogram (skewed bar)
+  glyphs.push({ name: "para.fill", prims: [
+    tri([SAFE_LO, SAFE_LO], [SAFE_LO + 250, SAFE_HI], [SAFE_HI, SAFE_HI]),
+    tri([SAFE_LO, SAFE_LO], [SAFE_HI, SAFE_HI], [SAFE_HI - 250, SAFE_LO]),
+  ] });
+  // 0E trapezoid
+  glyphs.push({ name: "trap", prims: [
+    tri([SAFE_LO, SAFE_LO], [SAFE_LO + 200, SAFE_HI], [SAFE_HI - 200, SAFE_HI]),
+    tri([SAFE_LO, SAFE_LO], [SAFE_HI - 200, SAFE_HI], [SAFE_HI, SAFE_LO]),
+  ] });
+  // 0F kite
+  glyphs.push({ name: "kite", prims: [
+    tri([CTR, SAFE_HI], [SAFE_LO, CTR + 80], [SAFE_HI, CTR + 80]),
+    tri([SAFE_LO, CTR + 80], [CTR, SAFE_LO], [SAFE_HI, CTR + 80]),
+  ] });
+
+  // ── Family 1: outline shapes (16) ───────────────────────────────────────
+  // 10 □ outline square
+  glyphs.push({ name: "sq.line", prims: [
+    rect(SAFE_LO, SAFE_HI - SW_MED, SAFE_HI - SAFE_LO, SW_MED),
+    rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, SW_MED),
+    rect(SAFE_LO, SAFE_LO, SW_MED, SAFE_HI - SAFE_LO),
+    rect(SAFE_HI - SW_MED, SAFE_LO, SW_MED, SAFE_HI - SAFE_LO),
+  ] });
+  // 11 ○ ring
+  glyphs.push({ name: "circ.ring", prims: [ ring(CTR, CTR, 340, SW_MED) ] });
+  // 12 △ outline up triangle (approx via 3 strokes)
+  glyphs.push({ name: "tri.up.line", prims: [
+    line(CTR, SAFE_HI, SAFE_LO, SAFE_LO, SW_MED),
+    line(CTR, SAFE_HI, SAFE_HI, SAFE_LO, SW_MED),
+    line(SAFE_LO, SAFE_LO, SAFE_HI, SAFE_LO, SW_MED),
+  ] });
+  // 13 ▽ outline down triangle
+  glyphs.push({ name: "tri.dn.line", prims: [
+    line(SAFE_LO, SAFE_HI, SAFE_HI, SAFE_HI, SW_MED),
+    line(SAFE_LO, SAFE_HI, CTR, SAFE_LO, SW_MED),
+    line(SAFE_HI, SAFE_HI, CTR, SAFE_LO, SW_MED),
+  ] });
+  // 14 ◇ outline diamond
+  glyphs.push({ name: "diamond.line", prims: [
+    line(CTR, SAFE_HI, SAFE_LO, CTR, SW_MED),
+    line(CTR, SAFE_HI, SAFE_HI, CTR, SW_MED),
+    line(SAFE_LO, CTR, CTR, SAFE_LO, SW_MED),
+    line(SAFE_HI, CTR, CTR, SAFE_LO, SW_MED),
+  ] });
+  // 15 ⬡ outline hexagon (six strokes)
+  glyphs.push({ name: "hex.line", prims: [
+    line(SAFE_LO + 80, CTR - 250, SAFE_HI - 80, CTR - 250, SW_MED),
+    line(SAFE_LO + 80, CTR + 250, SAFE_HI - 80, CTR + 250, SW_MED),
+    line(SAFE_LO + 80, CTR - 250, SAFE_LO + 80, CTR + 250, SW_MED),
+    line(SAFE_HI - 80, CTR - 250, SAFE_HI - 80, CTR + 250, SW_MED),
+    line(CTR, SAFE_HI, SAFE_LO + 80, CTR + 250, SW_MED),
+    line(CTR, SAFE_HI, SAFE_HI - 80, CTR + 250, SW_MED),
+    line(CTR, SAFE_LO, SAFE_LO + 80, CTR - 250, SW_MED),
+    line(CTR, SAFE_LO, SAFE_HI - 80, CTR - 250, SW_MED),
+  ] });
+  // 16 outline parallelogram
+  glyphs.push({ name: "para.line", prims: [
+    line(SAFE_LO, SAFE_LO, SAFE_HI - 250, SAFE_LO, SW_MED),
+    line(SAFE_HI - 250, SAFE_LO, SAFE_HI, SAFE_HI, SW_MED),
+    line(SAFE_HI, SAFE_HI, SAFE_LO + 250, SAFE_HI, SW_MED),
+    line(SAFE_LO + 250, SAFE_HI, SAFE_LO, SAFE_LO, SW_MED),
+  ] });
+  // 17 outline trapezoid
+  glyphs.push({ name: "trap.line", prims: [
+    line(SAFE_LO, SAFE_LO, SAFE_HI, SAFE_LO, SW_MED),
+    line(SAFE_HI, SAFE_LO, SAFE_HI - 200, SAFE_HI, SW_MED),
+    line(SAFE_HI - 200, SAFE_HI, SAFE_LO + 200, SAFE_HI, SW_MED),
+    line(SAFE_LO + 200, SAFE_HI, SAFE_LO, SAFE_LO, SW_MED),
+  ] });
+  // 18 thin square
+  glyphs.push({ name: "sq.line.thin", prims: [
+    rect(SAFE_LO, SAFE_HI - SW_THIN, SAFE_HI - SAFE_LO, SW_THIN),
+    rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, SW_THIN),
+    rect(SAFE_LO, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
+    rect(SAFE_HI - SW_THIN, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
+  ] });
+  // 19 thin ring
+  glyphs.push({ name: "circ.ring.thin", prims: [ ring(CTR, CTR, 340, SW_THIN) ] });
+  // 1A nested squares
+  glyphs.push({ name: "sq.nested", prims: [
+    rect(SAFE_LO, SAFE_HI - SW_THIN, SAFE_HI - SAFE_LO, SW_THIN),
+    rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, SW_THIN),
+    rect(SAFE_LO, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
+    rect(SAFE_HI - SW_THIN, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
+    rect(CTR - 110, CTR - 110, 220, 220),
+  ] });
+  // 1B nested rings
+  glyphs.push({ name: "circ.nested", prims: [ ring(CTR, CTR, 340, SW_THIN), disc(CTR, CTR, 110) ] });
+  // 1C double-ring
+  glyphs.push({ name: "circ.dring", prims: [ ring(CTR, CTR, 340, SW_THIN), ring(CTR, CTR, 220, SW_THIN) ] });
+  // 1D ring + cross dot
+  glyphs.push({ name: "circ.ring.dot", prims: [ ring(CTR, CTR, 320, SW_MED), disc(CTR, CTR, 60) ] });
+  // 1E square + dot
+  glyphs.push({ name: "sq.line.dot", prims: [
+    rect(SAFE_LO, SAFE_HI - SW_MED, SAFE_HI - SAFE_LO, SW_MED),
+    rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, SW_MED),
+    rect(SAFE_LO, SAFE_LO, SW_MED, SAFE_HI - SAFE_LO),
+    rect(SAFE_HI - SW_MED, SAFE_LO, SW_MED, SAFE_HI - SAFE_LO),
+    disc(CTR, CTR, 80),
+  ] });
+  // 1F outline diamond + dot
+  glyphs.push({ name: "diamond.line.dot", prims: [
+    line(CTR, SAFE_HI, SAFE_LO, CTR, SW_MED),
+    line(CTR, SAFE_HI, SAFE_HI, CTR, SW_MED),
+    line(SAFE_LO, CTR, CTR, SAFE_LO, SW_MED),
+    line(SAFE_HI, CTR, CTR, SAFE_LO, SW_MED),
+    disc(CTR, CTR, 70),
+  ] });
+
+  // ── Family 2: dotted / pip patterns (16) ────────────────────────────────
+  function pip(cx, cy) { return disc(cx, cy, 90); }
+  // 20 single centre dot
+  glyphs.push({ name: "pip.1c", prims: [ pip(CTR, CTR) ] });
+  // 21 two horizontal dots
+  glyphs.push({ name: "pip.2h", prims: [ pip(CTR - 180, CTR), pip(CTR + 180, CTR) ] });
+  // 22 two vertical dots
+  glyphs.push({ name: "pip.2v", prims: [ pip(CTR, CTR + 180), pip(CTR, CTR - 180) ] });
+  // 23 two diagonal dots /
+  glyphs.push({ name: "pip.2d1", prims: [ pip(CTR - 180, CTR - 180), pip(CTR + 180, CTR + 180) ] });
+  // 24 two diagonal dots \
+  glyphs.push({ name: "pip.2d2", prims: [ pip(CTR - 180, CTR + 180), pip(CTR + 180, CTR - 180) ] });
+  // 25 three horizontal dots
+  glyphs.push({ name: "pip.3h", prims: [ pip(CTR - 240, CTR), pip(CTR, CTR), pip(CTR + 240, CTR) ] });
+  // 26 three vertical dots
+  glyphs.push({ name: "pip.3v", prims: [ pip(CTR, CTR + 240), pip(CTR, CTR), pip(CTR, CTR - 240) ] });
+  // 27 four corner dots
+  glyphs.push({ name: "pip.4c", prims: [
+    pip(CTR - 220, CTR + 220), pip(CTR + 220, CTR + 220),
+    pip(CTR - 220, CTR - 220), pip(CTR + 220, CTR - 220),
+  ] });
+  // 28 four edge dots (+)
+  glyphs.push({ name: "pip.4e", prims: [
+    pip(CTR, CTR + 240), pip(CTR + 240, CTR), pip(CTR, CTR - 240), pip(CTR - 240, CTR),
+  ] });
+  // 29 five dots (4 corners + centre)
+  glyphs.push({ name: "pip.5", prims: [
+    pip(CTR - 220, CTR + 220), pip(CTR + 220, CTR + 220),
+    pip(CTR - 220, CTR - 220), pip(CTR + 220, CTR - 220),
+    pip(CTR, CTR),
+  ] });
+  // 2A six dots (3×2)
+  glyphs.push({ name: "pip.6", prims: [
+    pip(CTR - 220, CTR + 200), pip(CTR, CTR + 200), pip(CTR + 220, CTR + 200),
+    pip(CTR - 220, CTR - 200), pip(CTR, CTR - 200), pip(CTR + 220, CTR - 200),
+  ] });
+  // 2B nine dots (3×3)
+  glyphs.push({ name: "pip.9", prims: [
+    pip(CTR - 220, CTR + 220), pip(CTR, CTR + 220), pip(CTR + 220, CTR + 220),
+    pip(CTR - 220, CTR),       pip(CTR, CTR),       pip(CTR + 220, CTR),
+    pip(CTR - 220, CTR - 220), pip(CTR, CTR - 220), pip(CTR + 220, CTR - 220),
+  ] });
+  // 2C dot + ring
+  glyphs.push({ name: "pip.ring", prims: [ pip(CTR, CTR), ring(CTR, CTR, 280, SW_THIN) ] });
+  // 2D vertical pip pair w/ ring
+  glyphs.push({ name: "pip.2v.ring", prims: [
+    ring(CTR, CTR, 320, SW_THIN), pip(CTR, CTR + 150), pip(CTR, CTR - 150),
+  ] });
+  // 2E cluster of small + large dot
+  glyphs.push({ name: "pip.mixed", prims: [
+    disc(CTR, CTR, 150),
+    pip(CTR - 250, CTR + 250), pip(CTR + 250, CTR + 250),
+    pip(CTR - 250, CTR - 250), pip(CTR + 250, CTR - 250),
+  ] });
+  // 2F dotted ring (8 small dots arranged in circle)
+  glyphs.push({ name: "pip.ring8", prims: [
+    pip(CTR + 280, CTR), pip(CTR, CTR + 280), pip(CTR - 280, CTR), pip(CTR, CTR - 280),
+    pip(CTR + 200, CTR + 200), pip(CTR - 200, CTR + 200),
+    pip(CTR + 200, CTR - 200), pip(CTR - 200, CTR - 200),
+  ] });
+
+  // ── Family 3: cross / plus / x marks (16) ───────────────────────────────
+  // 30 + plus
+  glyphs.push({ name: "plus", prims: [
+    rect(CTR - SW_MED / 2, SAFE_LO + 60, SW_MED, SAFE_HI - SAFE_LO - 120),
+    rect(SAFE_LO + 60, CTR - SW_MED / 2, SAFE_HI - SAFE_LO - 120, SW_MED),
+  ] });
+  // 31 fat plus
+  glyphs.push({ name: "plus.fat", prims: [
+    rect(CTR - SW_FAT / 2, SAFE_LO + 60, SW_FAT, SAFE_HI - SAFE_LO - 120),
+    rect(SAFE_LO + 60, CTR - SW_FAT / 2, SAFE_HI - SAFE_LO - 120, SW_FAT),
+  ] });
+  // 32 x cross
+  glyphs.push({ name: "x", prims: [
+    line(SAFE_LO + 80, SAFE_LO + 80, SAFE_HI - 80, SAFE_HI - 80, SW_MED),
+    line(SAFE_LO + 80, SAFE_HI - 80, SAFE_HI - 80, SAFE_LO + 80, SW_MED),
+  ] });
+  // 33 fat x
+  glyphs.push({ name: "x.fat", prims: [
+    line(SAFE_LO + 80, SAFE_LO + 80, SAFE_HI - 80, SAFE_HI - 80, SW_FAT),
+    line(SAFE_LO + 80, SAFE_HI - 80, SAFE_HI - 80, SAFE_LO + 80, SW_FAT),
+  ] });
+  // 34 plus + box
+  glyphs.push({ name: "plus.box", prims: [
+    rect(SAFE_LO, SAFE_HI - SW_THIN, SAFE_HI - SAFE_LO, SW_THIN),
+    rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, SW_THIN),
+    rect(SAFE_LO, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
+    rect(SAFE_HI - SW_THIN, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
+    rect(CTR - SW_MED / 2, SAFE_LO + 80, SW_MED, SAFE_HI - SAFE_LO - 160),
+    rect(SAFE_LO + 80, CTR - SW_MED / 2, SAFE_HI - SAFE_LO - 160, SW_MED),
+  ] });
+  // 35 x + box
+  glyphs.push({ name: "x.box", prims: [
+    rect(SAFE_LO, SAFE_HI - SW_THIN, SAFE_HI - SAFE_LO, SW_THIN),
+    rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, SW_THIN),
+    rect(SAFE_LO, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
+    rect(SAFE_HI - SW_THIN, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
+    line(SAFE_LO + 80, SAFE_LO + 80, SAFE_HI - 80, SAFE_HI - 80, SW_MED),
+    line(SAFE_LO + 80, SAFE_HI - 80, SAFE_HI - 80, SAFE_LO + 80, SW_MED),
+  ] });
+  // 36 plus + circle
+  glyphs.push({ name: "plus.circle", prims: [
+    ring(CTR, CTR, 340, SW_THIN),
+    rect(CTR - SW_MED / 2, CTR - 220, SW_MED, 440),
+    rect(CTR - 220, CTR - SW_MED / 2, 440, SW_MED),
+  ] });
+  // 37 x + circle
+  glyphs.push({ name: "x.circle", prims: [
+    ring(CTR, CTR, 340, SW_THIN),
+    line(CTR - 200, CTR - 200, CTR + 200, CTR + 200, SW_MED),
+    line(CTR - 200, CTR + 200, CTR + 200, CTR - 200, SW_MED),
+  ] });
+  // 38 asterisk (6 lines)
+  glyphs.push({ name: "ast", prims: [
+    line(SAFE_LO + 60, CTR, SAFE_HI - 60, CTR, SW_MED),
+    line(CTR, SAFE_LO + 60, CTR, SAFE_HI - 60, SW_MED),
+    line(SAFE_LO + 100, SAFE_LO + 100, SAFE_HI - 100, SAFE_HI - 100, SW_MED),
+    line(SAFE_LO + 100, SAFE_HI - 100, SAFE_HI - 100, SAFE_LO + 100, SW_MED),
+  ] });
+  // 39 thin asterisk
+  glyphs.push({ name: "ast.thin", prims: [
+    line(SAFE_LO + 60, CTR, SAFE_HI - 60, CTR, SW_THIN),
+    line(CTR, SAFE_LO + 60, CTR, SAFE_HI - 60, SW_THIN),
+    line(SAFE_LO + 100, SAFE_LO + 100, SAFE_HI - 100, SAFE_HI - 100, SW_THIN),
+    line(SAFE_LO + 100, SAFE_HI - 100, SAFE_HI - 100, SAFE_LO + 100, SW_THIN),
+  ] });
+  // 3A plus.thin
+  glyphs.push({ name: "plus.thin", prims: [
+    rect(CTR - SW_THIN / 2, SAFE_LO + 60, SW_THIN, SAFE_HI - SAFE_LO - 120),
+    rect(SAFE_LO + 60, CTR - SW_THIN / 2, SAFE_HI - SAFE_LO - 120, SW_THIN),
+  ] });
+  // 3B x.thin
+  glyphs.push({ name: "x.thin", prims: [
+    line(SAFE_LO + 80, SAFE_LO + 80, SAFE_HI - 80, SAFE_HI - 80, SW_THIN),
+    line(SAFE_LO + 80, SAFE_HI - 80, SAFE_HI - 80, SAFE_LO + 80, SW_THIN),
+  ] });
+  // 3C T mark (top bar + stem)
+  glyphs.push({ name: "T", prims: [
+    rect(SAFE_LO + 60, SAFE_HI - SW_FAT, SAFE_HI - SAFE_LO - 120, SW_FAT),
+    rect(CTR - SW_FAT / 2, SAFE_LO + 80, SW_FAT, SAFE_HI - SAFE_LO - 200),
+  ] });
+  // 3D inverted T
+  glyphs.push({ name: "T.inv", prims: [
+    rect(SAFE_LO + 60, SAFE_LO, SAFE_HI - SAFE_LO - 120, SW_FAT),
+    rect(CTR - SW_FAT / 2, SAFE_LO + SW_FAT, SW_FAT, SAFE_HI - SAFE_LO - 160),
+  ] });
+  // 3E H bar
+  glyphs.push({ name: "H", prims: [
+    rect(SAFE_LO + 80, SAFE_LO + 60, SW_FAT, SAFE_HI - SAFE_LO - 120),
+    rect(SAFE_HI - 80 - SW_FAT, SAFE_LO + 60, SW_FAT, SAFE_HI - SAFE_LO - 120),
+    rect(SAFE_LO + 80, CTR - SW_MED / 2, SAFE_HI - SAFE_LO - 160, SW_MED),
+  ] });
+  // 3F I bar (vertical with caps)
+  glyphs.push({ name: "I", prims: [
+    rect(SAFE_LO + 80, SAFE_HI - SW_FAT, SAFE_HI - SAFE_LO - 160, SW_FAT),
+    rect(SAFE_LO + 80, SAFE_LO, SAFE_HI - SAFE_LO - 160, SW_FAT),
+    rect(CTR - SW_FAT / 2, SAFE_LO + SW_FAT, SW_FAT, SAFE_HI - SAFE_LO - 2 * SW_FAT),
+  ] });
+
+  // ── Family 4: bars and chevrons (16) ────────────────────────────────────
+  // 40 horizontal stripe top
+  glyphs.push({ name: "stripe.top", prims: [ rect(SAFE_LO, SAFE_HI - 200, SAFE_HI - SAFE_LO, 200) ] });
+  // 41 horizontal stripe bottom
+  glyphs.push({ name: "stripe.bot", prims: [ rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, 200) ] });
+  // 42 vertical stripe left
+  glyphs.push({ name: "stripe.lt", prims: [ rect(SAFE_LO, SAFE_LO, 200, SAFE_HI - SAFE_LO) ] });
+  // 43 vertical stripe right
+  glyphs.push({ name: "stripe.rt", prims: [ rect(SAFE_HI - 200, SAFE_LO, 200, SAFE_HI - SAFE_LO) ] });
+  // 44 diagonal slash /
+  glyphs.push({ name: "slash", prims: [ line(SAFE_LO, SAFE_LO, SAFE_HI, SAFE_HI, SW_FAT) ] });
+  // 45 backslash \
+  glyphs.push({ name: "bslash", prims: [ line(SAFE_LO, SAFE_HI, SAFE_HI, SAFE_LO, SW_FAT) ] });
+  // 46 chevron up
+  glyphs.push({ name: "chev.up", prims: [
+    line(SAFE_LO, CTR - 100, CTR, CTR + 200, SW_FAT),
+    line(SAFE_HI, CTR - 100, CTR, CTR + 200, SW_FAT),
+  ] });
+  // 47 chevron down
+  glyphs.push({ name: "chev.dn", prims: [
+    line(SAFE_LO, CTR + 100, CTR, CTR - 200, SW_FAT),
+    line(SAFE_HI, CTR + 100, CTR, CTR - 200, SW_FAT),
+  ] });
+  // 48 chevron left
+  glyphs.push({ name: "chev.lt", prims: [
+    line(CTR + 100, SAFE_HI, CTR - 200, CTR, SW_FAT),
+    line(CTR + 100, SAFE_LO, CTR - 200, CTR, SW_FAT),
+  ] });
+  // 49 chevron right
+  glyphs.push({ name: "chev.rt", prims: [
+    line(CTR - 100, SAFE_HI, CTR + 200, CTR, SW_FAT),
+    line(CTR - 100, SAFE_LO, CTR + 200, CTR, SW_FAT),
+  ] });
+  // 4A two horizontal stripes
+  glyphs.push({ name: "stripe.2h", prims: [
+    rect(SAFE_LO, SAFE_HI - 150, SAFE_HI - SAFE_LO, 150),
+    rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, 150),
+  ] });
+  // 4B two vertical stripes
+  glyphs.push({ name: "stripe.2v", prims: [
+    rect(SAFE_LO, SAFE_LO, 150, SAFE_HI - SAFE_LO),
+    rect(SAFE_HI - 150, SAFE_LO, 150, SAFE_HI - SAFE_LO),
+  ] });
+  // 4C three horizontal bars (equal)
+  glyphs.push({ name: "stripe.3h", prims: [
+    rect(SAFE_LO, SAFE_HI - 120, SAFE_HI - SAFE_LO, 120),
+    rect(SAFE_LO, CTR - 60, SAFE_HI - SAFE_LO, 120),
+    rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, 120),
+  ] });
+  // 4D three vertical bars
+  glyphs.push({ name: "stripe.3v", prims: [
+    rect(SAFE_LO, SAFE_LO, 120, SAFE_HI - SAFE_LO),
+    rect(CTR - 60, SAFE_LO, 120, SAFE_HI - SAFE_LO),
+    rect(SAFE_HI - 120, SAFE_LO, 120, SAFE_HI - SAFE_LO),
+  ] });
+  // 4E zig-zag
+  glyphs.push({ name: "zig", prims: [
+    line(SAFE_LO, CTR + 200, CTR, CTR - 200, SW_MED),
+    line(CTR, CTR - 200, SAFE_HI, CTR + 200, SW_MED),
+  ] });
+  // 4F double slash
+  glyphs.push({ name: "slash.2", prims: [
+    line(SAFE_LO, SAFE_LO + 200, SAFE_HI - 200, SAFE_HI, SW_MED),
+    line(SAFE_LO + 200, SAFE_LO, SAFE_HI, SAFE_HI - 200, SW_MED),
+  ] });
+
+  // ── Family 5: compound / quartered shapes (16) ──────────────────────────
+  // 50 quartered square (TL+BR filled)
+  glyphs.push({ name: "quart.tlbr", prims: [
+    rect(SAFE_LO, CTR, (SAFE_HI - SAFE_LO) / 2, (SAFE_HI - SAFE_LO) / 2),
+    rect(CTR, SAFE_LO, (SAFE_HI - SAFE_LO) / 2, (SAFE_HI - SAFE_LO) / 2),
+  ] });
+  // 51 TR+BL
+  glyphs.push({ name: "quart.trbl", prims: [
+    rect(CTR, CTR, (SAFE_HI - SAFE_LO) / 2, (SAFE_HI - SAFE_LO) / 2),
+    rect(SAFE_LO, SAFE_LO, (SAFE_HI - SAFE_LO) / 2, (SAFE_HI - SAFE_LO) / 2),
+  ] });
+  // 52 top half filled
+  glyphs.push({ name: "half.t", prims: [ rect(SAFE_LO, CTR, SAFE_HI - SAFE_LO, (SAFE_HI - SAFE_LO) / 2) ] });
+  // 53 bottom half
+  glyphs.push({ name: "half.b", prims: [ rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, (SAFE_HI - SAFE_LO) / 2) ] });
+  // 54 left half
+  glyphs.push({ name: "half.l", prims: [ rect(SAFE_LO, SAFE_LO, (SAFE_HI - SAFE_LO) / 2, SAFE_HI - SAFE_LO) ] });
+  // 55 right half
+  glyphs.push({ name: "half.r", prims: [ rect(CTR, SAFE_LO, (SAFE_HI - SAFE_LO) / 2, SAFE_HI - SAFE_LO) ] });
+  // 56 TL triangle (half square diagonally)
+  glyphs.push({ name: "halfdiag.tl", prims: [ tri([SAFE_LO, SAFE_LO], [SAFE_LO, SAFE_HI], [SAFE_HI, SAFE_HI]) ] });
+  // 57 TR triangle
+  glyphs.push({ name: "halfdiag.tr", prims: [ tri([SAFE_LO, SAFE_HI], [SAFE_HI, SAFE_HI], [SAFE_HI, SAFE_LO]) ] });
+  // 58 BL triangle
+  glyphs.push({ name: "halfdiag.bl", prims: [ tri([SAFE_LO, SAFE_LO], [SAFE_LO, SAFE_HI], [SAFE_HI, SAFE_LO]) ] });
+  // 59 BR triangle
+  glyphs.push({ name: "halfdiag.br", prims: [ tri([SAFE_LO, SAFE_LO], [SAFE_HI, SAFE_HI], [SAFE_HI, SAFE_LO]) ] });
+  // 5A square + inner ring
+  glyphs.push({ name: "sq.ring", prims: [
+    rect(SAFE_LO, SAFE_HI - SW_THIN, SAFE_HI - SAFE_LO, SW_THIN),
+    rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, SW_THIN),
+    rect(SAFE_LO, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
+    rect(SAFE_HI - SW_THIN, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
+    ring(CTR, CTR, 200, SW_THIN),
+  ] });
+  // 5B circle + inner cross
+  glyphs.push({ name: "circ.cross", prims: [
+    disc(CTR, CTR, 320),
+    rect(CTR - 50, CTR - 200, 100, 400, { fill: true }),
+  ] });
+  // 5C diamond + dot
+  glyphs.push({ name: "diamond.dot", prims: [
+    tri([CTR, SAFE_HI], [SAFE_LO, CTR], [CTR, SAFE_LO]),
+    tri([CTR, SAFE_HI], [CTR, SAFE_LO], [SAFE_HI, CTR]),
+    disc(CTR, CTR, 80),
+  ] });
+  // 5D triangle + dot
+  glyphs.push({ name: "tri.up.dot", prims: [
+    tri([CTR, SAFE_HI], [SAFE_LO, SAFE_LO], [SAFE_HI, SAFE_LO]),
+    disc(CTR, SAFE_LO + 200, 80),
+  ] });
+  // 5E split square (top filled, bottom outline)
+  glyphs.push({ name: "split.tb", prims: [
+    rect(SAFE_LO, CTR, SAFE_HI - SAFE_LO, (SAFE_HI - SAFE_LO) / 2),
+    rect(SAFE_LO, SAFE_LO, SAFE_HI - SAFE_LO, SW_THIN),
+    rect(SAFE_LO, SAFE_LO, SW_THIN, (SAFE_HI - SAFE_LO) / 2),
+    rect(SAFE_HI - SW_THIN, SAFE_LO, SW_THIN, (SAFE_HI - SAFE_LO) / 2),
+  ] });
+  // 5F split square (left filled, right outline)
+  glyphs.push({ name: "split.lr", prims: [
+    rect(SAFE_LO, SAFE_LO, (SAFE_HI - SAFE_LO) / 2, SAFE_HI - SAFE_LO),
+    rect(CTR, SAFE_HI - SW_THIN, (SAFE_HI - SAFE_LO) / 2, SW_THIN),
+    rect(CTR, SAFE_LO, (SAFE_HI - SAFE_LO) / 2, SW_THIN),
+    rect(SAFE_HI - SW_THIN, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
+  ] });
+
+  // Validation: 96 glyphs, every glyph has at least one primitive
+  if (glyphs.length !== 96) {
+    throw new Error("symbolFontSpec: expected 96 glyphs, got " + glyphs.length);
+  }
+
+  var BASE_CODEPOINT = 0xE000; // PUA start
+  var spec = {
+    em: EM,
+    ascent: 800,
+    descent: 200,
+    fontFamily: "CrossStitchSymbols",
+    baseCodepoint: BASE_CODEPOINT,
+    glyphs: glyphs.map(function (g, i) {
+      return { codepoint: BASE_CODEPOINT + i, name: g.name, prims: g.prims };
+    }),
+  };
+
+  // Convenience: just the codepoints in assignment order.
+  spec.codepoints = spec.glyphs.map(function (g) { return g.codepoint; });
+
+  // ─── exports ──────────────────────────────────────────────────────────────
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = spec;            // for build-symbol-font.js + Jest
+  }
+  if (root && typeof root === "object") {
+    root.SYMBOL_FONT_SPEC = spec;     // for browser / worker
+  }
+})(typeof self !== "undefined" ? self : (typeof window !== "undefined" ? window : globalThis));
+
+
+/* ─── pdfChartLayout.js ─── */
+/* creator/pdfChartLayout.js — Pure helpers for PDF chart pagination & palette mapping.
+ *
+ * Loaded both:
+ *   • Inside pdf-export-worker.js via importScripts() — must work without DOM/window.
+ *   • As a regular <script> on the main thread (so the Export panel can preview
+ *     page counts before kicking off generation).
+ *
+ * Exports (browser): window.PdfChartLayout = { ... }
+ * Exports (CommonJS): module.exports = { ... }   ← used by Jest tests.
+ */
+(function (root) {
+  "use strict";
+
+  // mm → PDF points (1pt = 1/72 inch, 25.4mm = 1in)
+  function mmToPt(mm) { return mm * 72 / 25.4; }
+  function ptToMm(pt) { return pt * 25.4 / 72; }
+
+  // Page sizes in mm (portrait).
+  var PAGE_SIZES_MM = {
+    a4:     { w: 210,    h: 297 },
+    letter: { w: 215.9,  h: 279.4 },
+  };
+
+  /**
+   * Resolve "auto" page size based on locale (A4 unless en-US / en-CA).
+   */
+  function resolvePageSize(pageSize, locale) {
+    if (pageSize === "a4" || pageSize === "letter") return pageSize;
+    var loc = (locale || "").toLowerCase();
+    if (loc === "en-us" || loc === "en-ca" || loc.indexOf("en-us-") === 0 || loc.indexOf("en-ca-") === 0) {
+      return "letter";
+    }
+    return "a4";
+  }
+
+  /**
+   * Compute usable chart geometry for one page.
+   *
+   * Inputs:
+   *   pageSize:        "a4" | "letter" | "auto"
+   *   marginsMm:       page margin in mm (all four sides)
+   *   stitchesPerPage: "small" | "medium" | "large" | "custom"
+   *   customCols / customRows: target cells when "custom"
+   *   chartHeaderMm / chartFooterMm: vertical space reserved for column/row
+   *      labels and the mini-legend strip.
+   *   locale:          for resolving "auto" page size.
+   *
+   * Returns:
+   *   {
+   *     pageSize:    "a4" | "letter",
+   *     pageWmm, pageHmm,
+   *     marginMm,
+   *     contentWmm, contentHmm,        // body area minus margins
+   *     chartAreaWmm, chartAreaHmm,    // body area minus chart header/footer
+   *     cellMm,                        // chosen cell size, snapped to fit grid
+   *     colsPerPage, rowsPerPage,      // BOTH multiples of 10 (>= 10)
+   *   }
+   */
+  function computePageGeometry(opts) {
+    opts = opts || {};
+    var pageSize = resolvePageSize(opts.pageSize || "auto", opts.locale);
+    var sz = PAGE_SIZES_MM[pageSize];
+    var marginMm = (opts.marginsMm != null) ? opts.marginsMm : 12;
+    if (marginMm < 10) marginMm = 10;
+    var headerMm = opts.chartHeaderMm != null ? opts.chartHeaderMm : 14;
+    var footerMm = opts.chartFooterMm != null ? opts.chartFooterMm : 22;
+
+    var contentW = sz.w - 2 * marginMm;
+    var contentH = sz.h - 2 * marginMm;
+    var chartW = contentW - 6;          // 6mm gutter for row numbers
+    var chartH = contentH - headerMm - footerMm;
+
+    // Target cell size by preset (mm).
+    var targetCell;
+    var targetCols = null, targetRows = null;
+    switch (opts.stitchesPerPage || "medium") {
+      case "small":  targetCell = 2.0; break;
+      case "large":  targetCell = 4.0; break;
+      case "custom":
+        targetCols = Math.max(10, opts.customCols || 60);
+        targetRows = Math.max(10, opts.customRows || 70);
+        targetCell = Math.min(chartW / targetCols, chartH / targetRows);
+        break;
+      case "medium":
+      default:       targetCell = 2.8; break;
+    }
+
+    var cols, rows;
+    if (targetCols && targetRows) {
+      cols = Math.floor(targetCols / 10) * 10 || 10;
+      rows = Math.floor(targetRows / 10) * 10 || 10;
+    } else {
+      cols = Math.floor(chartW / targetCell / 10) * 10 || 10;
+      rows = Math.floor(chartH / targetCell / 10) * 10 || 10;
+    }
+
+    // Re-fit cell size so the chosen cols/rows fit perfectly.
+    var cellMm = Math.min(chartW / cols, chartH / rows);
+
+    return {
+      pageSize: pageSize,
+      pageWmm: sz.w,
+      pageHmm: sz.h,
+      marginMm: marginMm,
+      contentWmm: contentW,
+      contentHmm: contentH,
+      chartAreaWmm: chartW,
+      chartAreaHmm: chartH,
+      chartHeaderMm: headerMm,
+      chartFooterMm: footerMm,
+      cellMm: cellMm,
+      colsPerPage: cols,
+      rowsPerPage: rows,
+    };
+  }
+
+  /**
+   * Paginate a pattern of width × height into chart segments.
+   *
+   * Each break is aligned to the next 10-stitch boundary, so 10×10 blocks
+   * never split. When `overlap` is truthy the previous page's last 2 rows/cols
+   * are repeated at the start of the next page (and tagged as overlap zones).
+   *
+   * Returns an array of { pageIndex, gridRow, gridCol, x0, y0, x1, y1,
+   *                      overlapLeft, overlapTop, gridCols, gridRows }
+   *   - x0/y0 inclusive, x1/y1 exclusive (in stitch coordinates)
+   *   - overlapLeft/Top: number of overlap stitches on the leading edge (0 or 2)
+   */
+  function paginate(opts) {
+    var W = opts.patternW;
+    var H = opts.patternH;
+    var colsPerPage = opts.colsPerPage;
+    var rowsPerPage = opts.rowsPerPage;
+    var overlap = opts.overlap ? 2 : 0;
+
+    if (!W || !H || !colsPerPage || !rowsPerPage) return [];
+
+    // Effective stride: each page advances by (colsPerPage - overlap), but the
+    // FIRST page always starts at 0 with no overlap.
+    var strideX = Math.max(10, colsPerPage - overlap);
+    var strideY = Math.max(10, rowsPerPage - overlap);
+
+    // Build column anchors then row anchors.
+    var anchorsX = [0];
+    while (anchorsX[anchorsX.length - 1] + colsPerPage < W) {
+      anchorsX.push(anchorsX[anchorsX.length - 1] + strideX);
+    }
+    var anchorsY = [0];
+    while (anchorsY[anchorsY.length - 1] + rowsPerPage < H) {
+      anchorsY.push(anchorsY[anchorsY.length - 1] + strideY);
+    }
+
+    var pages = [];
+    var pageIndex = 0;
+    for (var ry = 0; ry < anchorsY.length; ry++) {
+      for (var rx = 0; rx < anchorsX.length; rx++) {
+        var x0 = anchorsX[rx];
+        var y0 = anchorsY[ry];
+        var x1 = Math.min(W, x0 + colsPerPage);
+        var y1 = Math.min(H, y0 + rowsPerPage);
+        pages.push({
+          pageIndex: pageIndex++,
+          gridCol: rx,
+          gridRow: ry,
+          x0: x0, y0: y0, x1: x1, y1: y1,
+          overlapLeft: rx > 0 ? overlap : 0,
+          overlapTop:  ry > 0 ? overlap : 0,
+          gridCols: anchorsX.length,
+          gridRows: anchorsY.length,
+        });
+      }
+    }
+    return pages;
+  }
+
+  /**
+   * Build a deterministic palette → codepoint map.
+   *
+   * Sort order:
+   *   1. solid threads first (sorted numerically by id where possible, else lexically),
+   *   2. then blends (sorted lexically by id).
+   *
+   * Codepoints are assigned starting at spec.baseCodepoint (U+E000).
+   * Blends past the end of the spec wrap around (worst case: very rare patterns
+   * with > 96 colours fall back to repeated symbols — visually distinguished by
+   * the colour swatch in the legend).
+   */
+  function buildCodepointMap(palette, spec) {
+    var base = spec.baseCodepoint;
+    var capacity = spec.glyphs.length;
+    var solids = [], blends = [];
+    palette.forEach(function (e) {
+      if (!e || !e.id) return;
+      if (e.id === "__skip__" || e.id === "__empty__") return;
+      if (e.type === "blend") blends.push(e); else solids.push(e);
+    });
+    function numericKey(id) {
+      var m = String(id).match(/^(\d+)/);
+      return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
+    }
+    solids.sort(function (a, b) {
+      var ka = numericKey(a.id), kb = numericKey(b.id);
+      if (ka !== kb) return ka - kb;
+      return String(a.id).localeCompare(String(b.id));
+    });
+    blends.sort(function (a, b) { return String(a.id).localeCompare(String(b.id)); });
+
+    var map = {};
+    var ordered = solids.concat(blends);
+    for (var i = 0; i < ordered.length; i++) {
+      map[ordered[i].id] = base + (i % capacity);
+    }
+    return { map: map, order: ordered.map(function (e) { return e.id; }) };
+  }
+
+  /**
+   * Choose a contrasting symbol colour for a swatch RGB.
+   * Returns [r,g,b] in 0..1 (PDF colour space).
+   *
+   * Uses the perceived luminance threshold described in the spec (>55% → black,
+   * else white).
+   */
+  function contrastColor(rgb) {
+    if (!rgb || rgb.length < 3) return [0, 0, 0];
+    var r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
+    // Standard relative luminance (sRGB approximation).
+    var y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    return y > 0.55 ? [0, 0, 0] : [1, 1, 1];
+  }
+
+  var api = {
+    PAGE_SIZES_MM: PAGE_SIZES_MM,
+    mmToPt: mmToPt,
+    ptToMm: ptToMm,
+    resolvePageSize: resolvePageSize,
+    computePageGeometry: computePageGeometry,
+    paginate: paginate,
+    buildCodepointMap: buildCodepointMap,
+    contrastColor: contrastColor,
+  };
+
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  if (root) root.PdfChartLayout = api;
+})(typeof self !== "undefined" ? self : (typeof window !== "undefined" ? window : globalThis));
+
+
+/* ─── pdfExport.js ─── */
+/* creator/pdfExport.js — Main-thread façade for the new PDF export pipeline.
+ *
+ * Owns one shared Web Worker (pdf-export-worker.js), spawned lazily on first use.
+ * Each call to runExport gets a unique reqId; stale results from cancelled jobs
+ * are discarded. Progress messages are forwarded through onProgress.
+ *
+ * Exposes (window):
+ *   PdfExport.runExport(project, options, onProgress) → Promise<Uint8Array>
+ *   PdfExport.cancel(reqId)
+ *   PdfExport.downloadBytes(bytes, filename)
+ *   PdfExport.capturePreviewJpeg(canvas, quality)
+ *
+ *   // Back-compat: old call sites in creator-main.js / header.js still call
+ *   // window.exportPDF(options, ctx). The shim below adapts those calls onto
+ *   // the new pipeline using sensible defaults for headless invocations.
+ *   window.exportPDF(options, ctx)
+ *   window.generatePatternThumbnail(pat, sW, sH, partialStitches)  // unchanged-ish
+ */
+(function () {
+  "use strict";
+
+  var workerRef = null;
+  var nextReqId = 1;
+  var pending = {}; // reqId → { resolve, reject, onProgress, cancelled }
+
+  function getWorker() {
+    if (workerRef) return workerRef;
+    try {
+      workerRef = new Worker("pdf-export-worker.js");
+    } catch (e) {
+      throw new Error("Failed to spawn PDF export worker: " + e.message);
+    }
+    workerRef.onmessage = function (e) {
+      var msg = e.data || {};
+      var slot = pending[msg.reqId];
+      if (!slot || slot.cancelled) return;
+      if (msg.type === "progress") {
+        if (slot.onProgress) {
+          try { slot.onProgress(msg); } catch (_) {}
+        }
+      } else if (msg.type === "result") {
+        delete pending[msg.reqId];
+        slot.resolve(new Uint8Array(msg.pdfBytes));
+      } else if (msg.type === "error") {
+        delete pending[msg.reqId];
+        var err = new Error(msg.message || "PDF export failed");
+        if (msg.stack) err.stack = msg.stack;
+        slot.reject(err);
+      }
+    };
+    workerRef.onerror = function (e) {
+      // Reject every in-flight job and tear down the worker so a fresh one
+      // is spawned next time.
+      Object.keys(pending).forEach(function (id) {
+        var slot = pending[id];
+        delete pending[id];
+        slot.reject(new Error("PDF worker crashed: " + (e.message || "unknown error")));
+      });
+      try { workerRef.terminate(); } catch (_) {}
+      workerRef = null;
+    };
+    return workerRef;
+  }
+
+  function runExport(project, options, onProgress) {
+    var w;
+    try { w = getWorker(); } catch (e) { return Promise.reject(e); }
+    var reqId = nextReqId++;
+    return new Promise(function (resolve, reject) {
+      pending[reqId] = { resolve: resolve, reject: reject, onProgress: onProgress, cancelled: false, reqId: reqId };
+      try {
+        w.postMessage({ type: "export", reqId: reqId, project: project, options: options || {} });
+      } catch (postErr) {
+        delete pending[reqId];
+        reject(postErr);
+      }
+    });
+  }
+
+  function cancel(reqId) {
+    var slot = pending[reqId];
+    if (!slot) return;
+    slot.cancelled = true;
+    delete pending[reqId];
+    // Easiest reliable cancellation: tear down the worker. Cheap to respawn.
+    if (workerRef) { try { workerRef.terminate(); } catch (_) {} workerRef = null; }
+    slot.reject(new Error("PDF export cancelled"));
+  }
+
+  function cancelAll() {
+    var ids = Object.keys(pending);
+    ids.forEach(function (id) { cancel(parseInt(id, 10)); });
+  }
+
+  function downloadBytes(bytes, filename) {
+    var blob = new Blob([bytes], { type: "application/pdf" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename || "pattern.pdf";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+      try { document.body.removeChild(a); } catch (_) {}
+      URL.revokeObjectURL(url);
+    }, 200);
+  }
+
+  /**
+   * Capture a small JPEG of a canvas (e.g. RealisticCanvas offscreen) for the
+   * cover page. Returns a data URL string, or null if the canvas isn't usable.
+   */
+  function capturePreviewJpeg(canvas, quality) {
+    if (!canvas || typeof canvas.toDataURL !== "function") return null;
+    try {
+      // Downscale very large source canvases so the embedded JPEG stays small.
+      var maxDim = 1400;
+      if (canvas.width <= maxDim && canvas.height <= maxDim) {
+        return canvas.toDataURL("image/jpeg", quality || 0.85);
+      }
+      var ratio = canvas.width / canvas.height;
+      var nw = ratio >= 1 ? maxDim : Math.round(maxDim * ratio);
+      var nh = ratio >= 1 ? Math.round(maxDim / ratio) : maxDim;
+      var tmp = document.createElement("canvas");
+      tmp.width = nw; tmp.height = nh;
+      tmp.getContext("2d").drawImage(canvas, 0, 0, nw, nh);
+      return tmp.toDataURL("image/jpeg", quality || 0.85);
+    } catch (_) { return null; }
+  }
+
+  /**
+   * Build a `project` payload suitable for runExport from the live editor
+   * context (the merged ctx object passed to legacy exportPDF). This keeps
+   * worker-bound data in plain JSON-serialisable form.
+   */
+  function buildExportProject(ctx) {
+    if (!ctx) return null;
+    var pal = (ctx.pal || ctx.palette || []).map(function (e) {
+      return e ? {
+        id: e.id,
+        name: e.name,
+        rgb: e.rgb,
+        type: e.type,
+        threads: e.threads ? e.threads.map(function (t) { return { id: t.id, name: t.name, rgb: t.rgb }; }) : undefined,
+      } : null;
+    }).filter(function (e) { return e && e.id; });
+
+    var pattern = (ctx.pat || []).map(function (c) {
+      if (!c) return { id: "__empty__", type: "solid", rgb: [255, 255, 255] };
+      return { id: c.id, type: c.type || "solid", rgb: c.rgb || [128, 128, 128] };
+    });
+
+    var partialEntries = null;
+    if (ctx.partialStitches && typeof ctx.partialStitches.forEach === "function") {
+      partialEntries = [];
+      ctx.partialStitches.forEach(function (v, k) { partialEntries.push([k, v]); });
+    } else if (Array.isArray(ctx.partialStitches)) {
+      partialEntries = ctx.partialStitches;
+    }
+
+    return {
+      name: ctx.projectName || ctx.name || "Untitled pattern",
+      w: ctx.sW || ctx.w,
+      h: ctx.sH || ctx.h,
+      pattern: pattern,
+      palette: pal,
+      partialStitches: partialEntries,
+      bsLines: ctx.bsLines || [],
+      fabricCt: ctx.fabricCt || 14,
+      skeinPrice: ctx.skeinPrice,
+      coverPreviewJpeg: ctx.coverPreviewJpeg || null,
+    };
+  }
+
+  /**
+   * Pull designer branding values from UserPrefs.
+   */
+  function readBranding() {
+    if (typeof window === "undefined" || !window.UserPrefs) return {};
+    var UP = window.UserPrefs;
+    return {
+      designerName:         UP.get("designerName")         || "",
+      designerLogo:         UP.get("designerLogo")         || null,
+      designerLogoPosition: UP.get("designerLogoPosition") || "top-right",
+      designerCopyright:    UP.get("designerCopyright")    || "",
+      designerContact:      UP.get("designerContact")      || "",
+    };
+  }
+
+  /**
+   * Default options for the "Pattern Keeper" preset.
+   */
+  function presetPatternKeeper() {
+    return {
+      pageSize: "auto",
+      marginsMm: 12,
+      stitchesPerPage: "medium",
+      chartModes: ["bw", "colour"],
+      overlap: true,
+      includeCover: true,
+      includeInfo: true,
+      includeIndex: true,
+      miniLegend: true,
+      locale: (typeof navigator !== "undefined" && navigator.language) || "en-GB",
+    };
+  }
+
+  /**
+   * Default options for the "Home printing" preset.
+   */
+  function presetHomePrinting() {
+    return {
+      pageSize: "auto",
+      marginsMm: 12,
+      stitchesPerPage: "large",
+      chartModes: ["colour", "bw"],
+      overlap: false,
+      includeCover: false,
+      includeInfo: true,
+      includeIndex: true,
+      miniLegend: true,
+      locale: (typeof navigator !== "undefined" && navigator.language) || "en-GB",
+    };
+  }
+
+  // ── Back-compat shim for old window.exportPDF(options, ctx) call sites ──
+  // `options` from those callers is the legacy { displayMode, cellSize, singlePage }.
+  // Map legacy options onto the new options shape conservatively.
+  function legacyExportPDF(legacyOpts, ctx) {
+    var legacy = legacyOpts || {};
+    var modes;
+    switch (legacy.displayMode) {
+      case "color":        modes = ["colour"]; break;
+      case "color_symbol": modes = ["colour"]; break;
+      case "symbol":       modes = ["bw"]; break;
+      default:             modes = ["bw", "colour"];
+    }
+    var stPerPg;
+    if (legacy.cellSize >= 4) stPerPg = "large";
+    else if (legacy.cellSize <= 2.5) stPerPg = "small";
+    else stPerPg = "medium";
+
+    var project = buildExportProject(ctx);
+    if (!project) return Promise.reject(new Error("No pattern to export"));
+    var opts = {
+      pageSize: "auto",
+      marginsMm: 12,
+      stitchesPerPage: stPerPg,
+      chartModes: modes,
+      overlap: true,
+      includeCover: true,
+      includeInfo: true,
+      includeIndex: true,
+      miniLegend: true,
+      branding: readBranding(),
+      locale: (typeof navigator !== "undefined" && navigator.language) || "en-GB",
+    };
+    return runExport(project, opts).then(function (bytes) {
+      downloadBytes(bytes, (project.name || "pattern").replace(/[^\w\-]+/g, "_") + ".pdf");
+      return bytes;
+    });
+  }
+
+  /** Legacy thumbnail generator — kept for any code still calling it. */
+  function legacyGenerateThumbnail(pat, sW, sH, partialStitches) {
+    if (!pat || !sW || !sH) return null;
+    try {
+      var canvas = document.createElement("canvas");
+      canvas.width = sW; canvas.height = sH;
+      var ctx = canvas.getContext("2d");
+      var imgData = ctx.createImageData(sW, sH);
+      var psMap = (partialStitches instanceof Map) ? partialStitches : null;
+      var quads = ["TL", "TR", "BL", "BR"];
+      for (var i = 0; i < pat.length; i++) {
+        var c = pat[i];
+        var off = i * 4;
+        var isEmpty = !c || c.id === "__skip__" || c.id === "__empty__";
+        var baseRgb = isEmpty ? [255, 255, 255] : (c.rgb || [128, 128, 128]);
+        var rgb = baseRgb;
+        if (psMap) {
+          var psEntry = psMap.get(i);
+          if (psEntry) {
+            var r = 0, g = 0, b = 0;
+            for (var q = 0; q < 4; q++) {
+              var qs = psEntry[quads[q]];
+              var qRgb = (qs && qs.rgb) ? qs.rgb : baseRgb;
+              r += qRgb[0]; g += qRgb[1]; b += qRgb[2];
+            }
+            rgb = [Math.round(r / 4), Math.round(g / 4), Math.round(b / 4)];
+          }
+        }
+        imgData.data[off] = rgb[0]; imgData.data[off + 1] = rgb[1]; imgData.data[off + 2] = rgb[2]; imgData.data[off + 3] = 255;
+      }
+      ctx.putImageData(imgData, 0, 0);
+      return canvas.toDataURL("image/jpeg", 0.85);
+    } catch (_) { return null; }
+  }
+
+  window.PdfExport = {
+    runExport: runExport,
+    cancel: cancel,
+    cancelAll: cancelAll,
+    downloadBytes: downloadBytes,
+    capturePreviewJpeg: capturePreviewJpeg,
+    buildExportProject: buildExportProject,
+    readBranding: readBranding,
+    presetPatternKeeper: presetPatternKeeper,
+    presetHomePrinting: presetHomePrinting,
+  };
+
+  // Back-compat globals (used by header File menu and creator-main.js)
+  window.exportPDF = legacyExportPDF;
+  window.generatePatternThumbnail = legacyGenerateThumbnail;
+  // exportCoverSheet was a separate jsPDF helper; route to the same pipeline
+  // with cover-only options for back-compat.
+  window.exportCoverSheet = function (ctx) {
+    var project = buildExportProject(ctx);
+    if (!project) return Promise.reject(new Error("No pattern to export"));
+    var opts = Object.assign(presetPatternKeeper(), {
+      chartModes: [], includeInfo: false, includeIndex: false, miniLegend: false, includeCover: true,
+      branding: readBranding(),
+    });
+    return runExport(project, opts).then(function (bytes) {
+      downloadBytes(bytes, (project.name || "pattern").replace(/[^\w\-]+/g, "_") + "_cover.pdf");
+    });
+  };
+})();
+
+
 /* ─── generate.js ─── */
 /* creator/generate.js — Pure pattern-generation pipeline.
    All inputs passed explicitly; returns { pat, pal, cmap, confettiData } or null.
@@ -1880,634 +3001,6 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
       })()
     )
   );
-};
-
-
-/* ─── exportPdf.js ─── */
-/* creator/exportPdf.js — PDF generation logic extracted from CreatorApp.
-   Uses globals: skeinEst, fmtTimeL, luminance, drawPDFSymbol, stitchesToSkeins,
-                 rgbToLab, dE, DMC_RAW (defined in helpers.js / constants.js).
-   Requires jsPDF to be loaded (lazy-loaded via window.loadScript). */
-
-/**
- * Generate a pixel-art thumbnail of the pattern as a JPEG data URL.
- * Used by exportPDF and exportCoverSheet for cover page.
- */
-window.generatePatternThumbnail = function generatePatternThumbnail(pat, sW, sH, partialStitches) {
-  var c = document.createElement("canvas");
-  c.width = sW; c.height = sH;
-  var ctx = c.getContext("2d");
-  var imgData = ctx.createImageData(sW, sH);
-  var d = imgData.data;
-  var pqKeys = ["TL", "TR", "BL", "BR"];
-  for (var i = 0; i < pat.length; i++) {
-    var m = pat[i];
-    var idx = i * 4;
-    var ps = partialStitches && partialStitches.get(i);
-    if (ps) {
-      var r = 0, g = 0, b = 0, cnt = 0;
-      for (var qi = 0; qi < pqKeys.length; qi++) { var qe = ps[pqKeys[qi]]; if (qe) { r += qe.rgb[0]; g += qe.rgb[1]; b += qe.rgb[2]; cnt++; } }
-      if (cnt > 0) { d[idx] = Math.round(r / cnt); d[idx + 1] = Math.round(g / cnt); d[idx + 2] = Math.round(b / cnt); d[idx + 3] = 255; continue; }
-    }
-    if (!m || m.id === "__skip__" || m.id === "__empty__") {
-      d[idx] = 255; d[idx + 1] = 255; d[idx + 2] = 255; d[idx + 3] = 255;
-    } else {
-      d[idx] = m.rgb[0]; d[idx + 1] = m.rgb[1]; d[idx + 2] = m.rgb[2]; d[idx + 3] = 255;
-    }
-  }
-  ctx.putImageData(imgData, 0, 0);
-  return c.toDataURL("image/jpeg", 0.85);
-};
-
-/**
- * Build and download a full cross-stitch pattern PDF.
- * @param {object} options  { displayMode, cellSize, singlePage }
- * @param {object} data     Snapshot of CreatorContext (or equivalent state)
- */
-window.exportPDF = async function exportPDF(options, data) {
-  var displayMode = options.displayMode || "color_symbol";
-  var cellMM = options.cellSize || 3;
-  var isSinglePage = options.singlePage === true;
-
-  var pat = data.pat, pal = data.pal, cmap = data.cmap;
-  var sW = data.sW, sH = data.sH;
-  var fabricCt = data.fabricCt, skeinPrice = data.skeinPrice, stitchSpeed = data.stitchSpeed;
-  var totalStitchable = data.totalStitchable, blendCount = data.blendCount, totalSkeins = data.totalSkeins;
-  var threadOwned = data.threadOwned || {}, done = data.done;
-  var totalTime = data.totalTime || 0, sessions = data.sessions || [];
-  var skeinData = data.skeinData || [], bsLines = data.bsLines || [];
-  var difficulty = data.difficulty;
-  var doneCount = data.doneCount || 0;
-  var partialStitches = data.partialStitches || new Map();
-
-  if (!pat || !pal || !cmap) return;
-  if (!window.jspdf) await window.loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
-  var jsPDF = window.jspdf.jsPDF;
-  var mg = 12;
-  var cW2 = 186;
-  var gridColsA4 = Math.floor(cW2 / cellMM), gridRowsA4 = Math.floor(275 / cellMM);
-
-  var pdf;
-  if (isSinglePage) {
-    var singleW = mg * 2 + sW * cellMM;
-    var singleH = mg * 2 + 10 + sH * cellMM;
-    pdf = new jsPDF("portrait", "mm", [Math.max(210, singleW), Math.max(297, singleH)]);
-  } else {
-    pdf = new jsPDF("portrait", "mm", "a4");
-  }
-
-  // ─── Cover Sheet ────────────────────────────────────────────────────────────
-  (function() {
-    var cmg = 15, y = cmg;
-    pdf.setFontSize(26); pdf.setTextColor(30, 30, 30); pdf.text("Cross Stitch Project", cmg, y + 10); y += 18;
-    pdf.setDrawColor(91, 123, 179); pdf.setLineWidth(0.8); pdf.line(cmg, y, 195, y); y += 10;
-
-    var thumbData = generatePatternThumbnail(pat, sW, sH, partialStitches);
-    var thumbW = 60, thumbH = (sH / sW) * 60;
-    if (thumbH > 80) { thumbH = 80; thumbW = (sW / sH) * 80; }
-    pdf.addImage(thumbData, "JPEG", (210 - thumbW) / 2, y, thumbW, thumbH);
-    y += thumbH + 10;
-
-    pdf.setFontSize(11); pdf.setTextColor(100); pdf.text("PATTERN SUMMARY", cmg, y); y += 7;
-    pdf.setFontSize(10); pdf.setTextColor(40);
-    var div2 = fabricCt === 28 ? 14 : fabricCt;
-    var wIn2 = sW / div2, hIn2 = sH / div2;
-    var coverRows = [
-      ["Pattern size", sW + " \xd7 " + sH + " stitches"],
-      ["Stitchable stitches", totalStitchable.toLocaleString()],
-      ["Colours", pal.length + " (" + blendCount + " blend" + (blendCount !== 1 ? "s" : "") + ")"],
-      ["Skeins needed", String(totalSkeins)],
-      ["Fabric", fabricCt + " count"],
-      ["Finished size", wIn2.toFixed(1) + "\u2033 \xd7 " + hIn2.toFixed(1) + "\u2033 (" + (wIn2 * 2.54).toFixed(1) + " \xd7 " + (hIn2 * 2.54).toFixed(1) + " cm)"],
-      ["With 1\u2033 margin", (wIn2 + 2).toFixed(0) + "\u2033 \xd7 " + (hIn2 + 2).toFixed(0) + "\u2033"],
-      ["Est. time", fmtTimeL(Math.round(totalStitchable / stitchSpeed * 3600)) + " (at " + stitchSpeed + " st/hr)"],
-      ["Difficulty", difficulty ? difficulty.label : "\u2014"],
-      ["Est. thread cost", "\xa3" + (totalSkeins * skeinPrice).toFixed(2) + " (at \xa3" + skeinPrice.toFixed(2) + "/skein)"],
-    ];
-    if (partialStitches.size > 0) coverRows.push(["Partial stitches", partialStitches.size + " cells"]);
-    coverRows.forEach(function(row) {
-      pdf.setTextColor(120); pdf.text(row[0] + ":", cmg, y);
-      pdf.setTextColor(40); pdf.text(row[1], cmg + 50, y); y += 5.5;
-    });
-    y += 6;
-
-    if (done && totalStitchable > 0 && doneCount > 0) {
-      var localPct = Math.round(doneCount / totalStitchable * 1000) / 10;
-      pdf.setFontSize(11); pdf.setTextColor(100); pdf.text("PROGRESS", cmg, y); y += 7;
-      pdf.setFontSize(10); pdf.setTextColor(40);
-      pdf.text(localPct + "% complete \u2014 " + doneCount.toLocaleString() + " of " + totalStitchable.toLocaleString() + " stitches", cmg, y); y += 8;
-      if (totalTime > 0) {
-        pdf.text("Time stitched: " + fmtTimeL(totalTime) + " (" + sessions.length + " session" + (sessions.length !== 1 ? "s" : "") + ")", cmg, y); y += 5.5;
-        pdf.text("Actual speed: " + Math.round(doneCount / (totalTime / 3600)) + " stitches/hr", cmg, y); y += 5.5;
-      }
-      y += 4;
-    }
-
-    pdf.setFontSize(11); pdf.setTextColor(100); pdf.text("THREAD LIST", cmg, y); y += 7;
-    pdf.setFontSize(8); pdf.setTextColor(80);
-    pdf.text("DMC", cmg, y); pdf.text("Name", cmg + 20, y); pdf.text("Skeins", cmg + 100, y); pdf.text("Status", cmg + 120, y); y += 2;
-    pdf.setDrawColor(200); pdf.line(cmg, y, 180, y); y += 4;
-    pdf.setFontSize(9);
-    skeinData.forEach(function(d) {
-      if (y > 275) { pdf.addPage(); y = cmg + 8; }
-      pdf.setFillColor(d.rgb[0], d.rgb[1], d.rgb[2]); pdf.circle(cmg + 3, y - 1.2, 1.8, "F");
-      pdf.setTextColor(40); pdf.text(d.id, cmg + 8, y); pdf.text(d.name, cmg + 20, y); pdf.text(String(d.skeins), cmg + 104, y);
-      var st = threadOwned[d.id] || "";
-      if (st === "owned") { pdf.setTextColor(22, 163, 74); pdf.text("Owned", cmg + 120, y); }
-      else { pdf.setTextColor(234, 88, 12); pdf.text("To buy", cmg + 120, y); }
-      pdf.setTextColor(40); y += 5;
-    });
-    y += 6;
-    if (y < 240) {
-      pdf.setFontSize(11); pdf.setTextColor(100); pdf.text("NOTES", cmg, y); y += 4;
-      pdf.setDrawColor(220);
-      for (var nl = 0; nl < 8; nl++) { y += 7; pdf.line(cmg, y, 180, y); }
-    }
-  }());
-  // ─── End Cover Sheet ────────────────────────────────────────────────────────
-
-  // ─── Thread Legend ───────────────────────────────────────────────────────────
-  pdf.addPage();
-  var ty = mg + 10;
-  pdf.setTextColor(0); pdf.setFontSize(14); pdf.text("Thread Legend", mg, ty); ty += 10;
-  pdf.setFontSize(9); pdf.setTextColor(80);
-  pdf.text("Symbol", mg, ty); pdf.text("Color", mg + 15, ty); pdf.text("DMC", mg + 30, ty);
-  pdf.text("Name", mg + 45, ty); pdf.text("Stitches", mg + 110, ty, { align: "right" });
-  pdf.text("Length", mg + 135, ty, { align: "right" }); pdf.text("Skeins", mg + 155, ty, { align: "right" });
-  ty += 2; pdf.setDrawColor(200); pdf.setLineWidth(0.3); pdf.line(mg, ty, mg + 155, ty); ty += 6;
-  pdf.setFontSize(8);
-  pal.forEach(function(p) {
-    if (ty > 285) { pdf.addPage(); ty = mg + 8; }
-    pdf.setFillColor(p.rgb[0], p.rgb[1], p.rgb[2]); pdf.setDrawColor(150);
-    pdf.rect(mg + 15, ty - 3, 6, 4, "DF");
-    pdf.setTextColor(40); pdf.setDrawColor(40); pdf.setFillColor(40);
-    if (typeof drawPDFSymbol === "function") { drawPDFSymbol(pdf, p.symbol, mg + 5, ty - 1, 3.5); }
-    else { pdf.text(p.symbol, mg + 3, ty); }
-    var isBlend = p.type === "blend";
-    var nameStr = isBlend ? p.threads[0].name + " + " + p.threads[1].name : p.name;
-    var usg;
-    if (typeof stitchesToSkeins === "function") {
-      usg = stitchesToSkeins({ stitchCount: p.count, fabricCount: fabricCt, strandsUsed: 2, isBlended: isBlend });
-    }
-    pdf.text(p.id, mg + 30, ty); pdf.text(nameStr, mg + 45, ty);
-    pdf.text(String(p.count), mg + 110, ty, { align: "right" });
-    if (usg) {
-      pdf.text(String(usg.totalThreadM) + "m", mg + 135, ty, { align: "right" });
-      var skDisplay = isBlend ? Math.max(usg.colorA.skeinsToBuy, usg.colorB.skeinsToBuy) : usg.skeinsToBuy;
-      pdf.text(String(skDisplay), mg + 155, ty, { align: "right" });
-    } else {
-      pdf.text("-", mg + 135, ty, { align: "right" });
-      pdf.text(String(skeinEst(p.count, fabricCt)), mg + 155, ty, { align: "right" });
-    }
-    ty += 6;
-  });
-
-  // Backstitch legend
-  if (bsLines && bsLines.length > 0) {
-    var bsUsed = {};
-    bsLines.forEach(function(l) {
-      var col = l.color || "#000000";
-      if (!bsUsed[col]) bsUsed[col] = { count: 0, dmc: "Unknown", name: "Black" };
-      bsUsed[col].count++;
-    });
-    Object.keys(bsUsed).forEach(function(hex) {
-      var mm = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
-      if (mm && typeof rgbToLab === "function" && typeof DMC_RAW !== "undefined") {
-        var lr = parseInt(mm[1], 16), lg = parseInt(mm[2], 16), lb = parseInt(mm[3], 16);
-        var lab = rgbToLab(lr, lg, lb);
-        var best = DMC_RAW[0], bDist = Infinity;
-        for (var i = 0; i < DMC_RAW.length; i++) {
-          var dr = DMC_RAW[i][2], dg = DMC_RAW[i][3], db2 = DMC_RAW[i][4];
-          var dist = dE(lab, rgbToLab(dr, dg, db2));
-          if (dist < bDist) { bDist = dist; best = DMC_RAW[i]; }
-        }
-        bsUsed[hex].dmc = best[0]; bsUsed[hex].name = best[1];
-      }
-    });
-    ty += 8;
-    if (ty > 280) { pdf.addPage(); ty = mg + 8; }
-    pdf.setTextColor(0); pdf.setFontSize(14); pdf.text("Backstitch Lines", mg, ty); ty += 10;
-    pdf.setFontSize(9); pdf.setTextColor(80);
-    pdf.text("Line", mg, ty); pdf.text("DMC", mg + 30, ty); pdf.text("Name", mg + 45, ty);
-    pdf.text("Segments", mg + 110, ty, { align: "right" }); ty += 2;
-    pdf.setDrawColor(200); pdf.setLineWidth(0.3); pdf.line(mg, ty, mg + 155, ty); ty += 6;
-    pdf.setFontSize(8);
-    Object.keys(bsUsed).forEach(function(hex) {
-      if (ty > 285) { pdf.addPage(); ty = mg + 8; }
-      pdf.setDrawColor(hex); pdf.setLineWidth(0.8);
-      pdf.line(mg + 2, ty - 1, mg + 15, ty - 1);
-      pdf.setTextColor(40);
-      pdf.text(String(bsUsed[hex].dmc), mg + 30, ty);
-      pdf.text(String(bsUsed[hex].name || "Black"), mg + 45, ty);
-      pdf.text(String(bsUsed[hex].count), mg + 110, ty, { align: "right" });
-      ty += 6;
-    });
-  }
-
-  // ─── Partial Stitch Guide ──────────────────────────────────────────────────
-  if (partialStitches.size > 0) {
-    ty += 8;
-    if (ty > 240) { pdf.addPage(); ty = mg + 8; }
-    pdf.setTextColor(0); pdf.setFontSize(14); pdf.text("Partial Stitches", mg, ty); ty += 8;
-    pdf.setFontSize(8); pdf.setTextColor(80);
-    pdf.text("Partial stitches occupy one or more quadrants of a cell (TL, TR, BL, BR), shown as coloured sub-squares.", mg, ty, {maxWidth: 180}); ty += 12;
-    var exMM = 8, exGap = 30, eY = ty;
-    // Quarter stitch — TL only
-    var e1x = mg;
-    pdf.setFillColor(255, 255, 255); pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.rect(e1x, eY, exMM, exMM, "DF");
-    pdf.setFillColor(91, 123, 179); pdf.rect(e1x, eY, exMM / 2, exMM / 2, "F");
-    pdf.setDrawColor(180); pdf.setLineWidth(0.08);
-    pdf.line(e1x + exMM / 2, eY, e1x + exMM / 2, eY + exMM); pdf.line(e1x, eY + exMM / 2, e1x + exMM, eY + exMM / 2);
-    pdf.setTextColor(80); pdf.setFontSize(7); pdf.text("Quarter", e1x + exMM / 2, eY + exMM + 4, {align: "center"});
-    // Half stitch — TL + BR (diagonal pair)
-    var e2x = mg + exGap;
-    pdf.setFillColor(255, 255, 255); pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.rect(e2x, eY, exMM, exMM, "DF");
-    pdf.setFillColor(91, 123, 179); pdf.rect(e2x, eY, exMM / 2, exMM / 2, "F");
-    pdf.setFillColor(200, 80, 80); pdf.rect(e2x + exMM / 2, eY + exMM / 2, exMM / 2, exMM / 2, "F");
-    pdf.setDrawColor(180); pdf.setLineWidth(0.08);
-    pdf.line(e2x + exMM / 2, eY, e2x + exMM / 2, eY + exMM); pdf.line(e2x, eY + exMM / 2, e2x + exMM, eY + exMM / 2);
-    pdf.setTextColor(80); pdf.setFontSize(7); pdf.text("Half", e2x + exMM / 2, eY + exMM + 4, {align: "center"});
-    // Three-quarter stitch — TL + TR + BL
-    var e3x = mg + exGap * 2;
-    pdf.setFillColor(255, 255, 255); pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.rect(e3x, eY, exMM, exMM, "DF");
-    pdf.setFillColor(91, 123, 179);
-    pdf.rect(e3x, eY, exMM / 2, exMM / 2, "F");
-    pdf.rect(e3x + exMM / 2, eY, exMM / 2, exMM / 2, "F");
-    pdf.rect(e3x, eY + exMM / 2, exMM / 2, exMM / 2, "F");
-    pdf.setDrawColor(180); pdf.setLineWidth(0.08);
-    pdf.line(e3x + exMM / 2, eY, e3x + exMM / 2, eY + exMM); pdf.line(e3x, eY + exMM / 2, e3x + exMM, eY + exMM / 2);
-    pdf.setTextColor(80); pdf.setFontSize(7); pdf.text("Three-quarter", e3x + exMM / 2, eY + exMM + 4, {align: "center"});
-    ty = eY + exMM + 10;
-    pdf.setFontSize(8); pdf.setTextColor(80);
-    pdf.text("This pattern contains " + partialStitches.size + " partial stitch cell" + (partialStitches.size !== 1 ? "s" : "") + ".", mg, ty);
-    ty += 6;
-  }
-
-  // ─── Chart Pages ─────────────────────────────────────────────────────────────
-  var gridCols = isSinglePage ? sW : gridColsA4;
-  var gridRows = isSinglePage ? sH : gridRowsA4;
-  var pagesX = Math.ceil(sW / gridCols), pagesY = Math.ceil(sH / gridRows);
-
-  // Draw a ¾ stitch triangle fill + symbol for PDF.
-  function drawPdfThreeQuarter(px3, py3, emptyCorner, rgb, symbol) {
-    var mx = px3 + cellMM / 2, my = py3 + cellMM / 2;
-    if (displayMode === "color_symbol" || displayMode === "color") {
-      pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
-      switch (emptyCorner) {
-        case "TL": pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3 + cellMM, "F"); break;
-        case "TR": pdf.triangle(px3, py3, px3, py3 + cellMM, px3 + cellMM, py3 + cellMM, "F"); break;
-        case "BL": pdf.triangle(px3, py3, px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, "F"); break;
-        case "BR": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F"); break;
-      }
-    }
-    if (symbol && (displayMode === "color_symbol" || displayMode === "symbol")) {
-      var sx, sy;
-      switch (emptyCorner) {
-        case "TL": sx = px3 + cellMM * 0.625; sy = py3 + cellMM * 0.625; break;
-        case "TR": sx = px3 + cellMM * 0.375; sy = py3 + cellMM * 0.625; break;
-        case "BL": sx = px3 + cellMM * 0.625; sy = py3 + cellMM * 0.375; break;
-        case "BR": sx = px3 + cellMM * 0.375; sy = py3 + cellMM * 0.375; break;
-      }
-      if (displayMode === "symbol") {
-        pdf.setDrawColor(180);
-        pdf.setLineWidth(0.08);
-        switch (emptyCorner) {
-          case "TL": pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3 + cellMM, "S"); break;
-          case "TR": pdf.triangle(px3, py3, px3, py3 + cellMM, px3 + cellMM, py3 + cellMM, "S"); break;
-          case "BL": pdf.triangle(px3, py3, px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, "S"); break;
-          case "BR": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "S"); break;
-        }
-      }
-      var symSize = cellMM >= 4.5 ? cellMM * 0.55 : cellMM * 0.45;
-      if (cellMM < 3.0) {
-        pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
-        pdf.circle(sx, sy, 0.3, "F");
-      } else {
-        var isLight = displayMode === "color_symbol" && luminance(rgb) <= 128;
-        pdf.setTextColor(isLight ? 255 : 0); pdf.setDrawColor(isLight ? 255 : 0); pdf.setFillColor(isLight ? 255 : 0);
-        if (typeof drawPDFSymbol === "function") {
-          drawPDFSymbol(pdf, symbol, sx, sy, symSize);
-        } else {
-          pdf.setFontSize(Math.max(3, symSize * 2));
-          pdf.text(symbol, sx, sy, { align: "center", baseline: "middle" });
-        }
-      }
-    }
-  }
-
-  // Draw a ¼ stitch complementary triangle fill + symbol for PDF.
-  function drawPdfQuarter(px3, py3, corner, rgb, symbol) {
-    if (displayMode === "color_symbol" || displayMode === "color") {
-      pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
-      switch (corner) {
-        case "TL": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F"); break;
-        case "TR": pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3, "F"); break;
-        case "BL": pdf.triangle(px3, py3 + cellMM, px3, py3, px3 + cellMM, py3 + cellMM, "F"); break;
-        case "BR": pdf.triangle(px3 + cellMM, py3 + cellMM, px3 + cellMM, py3, px3, py3 + cellMM, "F"); break;
-      }
-    }
-    if (symbol && (displayMode === "color_symbol" || displayMode === "symbol")) {
-      var sx, sy;
-      switch (corner) {
-        case "TL": sx = px3 + cellMM * 0.29; sy = py3 + cellMM * 0.29; break;
-        case "TR": sx = px3 + cellMM * 0.71; sy = py3 + cellMM * 0.29; break;
-        case "BL": sx = px3 + cellMM * 0.29; sy = py3 + cellMM * 0.71; break;
-        case "BR": sx = px3 + cellMM * 0.71; sy = py3 + cellMM * 0.71; break;
-      }
-      if (displayMode === "symbol") {
-        pdf.setDrawColor(180);
-        pdf.setLineWidth(0.08);
-        switch (corner) {
-          case "TL": pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "S"); break;
-          case "TR": pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3, "S"); break;
-          case "BL": pdf.triangle(px3, py3 + cellMM, px3, py3, px3 + cellMM, py3 + cellMM, "S"); break;
-          case "BR": pdf.triangle(px3 + cellMM, py3 + cellMM, px3 + cellMM, py3, px3, py3 + cellMM, "S"); break;
-        }
-      }
-      var symSize = cellMM >= 4.5 ? cellMM * 0.4 : cellMM * 0.35;
-      if (cellMM < 3.0) {
-        pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
-        pdf.circle(sx, sy, 0.25, "F");
-      } else {
-        var isLight = displayMode === "color_symbol" && luminance(rgb) <= 128;
-        pdf.setTextColor(isLight ? 255 : 0); pdf.setDrawColor(isLight ? 255 : 0); pdf.setFillColor(isLight ? 255 : 0);
-        if (typeof drawPDFSymbol === "function") {
-          drawPDFSymbol(pdf, symbol, sx, sy, symSize);
-        } else {
-          pdf.setFontSize(Math.max(2.5, symSize * 2));
-          pdf.text(symbol, sx, sy, { align: "center", baseline: "middle" });
-        }
-      }
-    }
-  }
-
-  function clipLine(x1, y1, x2, y2, xmin, ymin, xmax, ymax) {
-    var INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
-    function code(x, y) {
-      var c = INSIDE;
-      if (x < xmin) c |= LEFT; else if (x > xmax) c |= RIGHT;
-      if (y < ymin) c |= TOP; else if (y > ymax) c |= BOTTOM;
-      return c;
-    }
-    var o0 = code(x1, y1), o1 = code(x2, y2), accept = false;
-    while (true) {
-      if (!(o0 | o1)) { accept = true; break; }
-      else if (o0 & o1) { break; }
-      else {
-        var x, y, oOut = o0 ? o0 : o1;
-        if (oOut & TOP) { x = x1 + (x2 - x1) * (ymin - y1) / (y2 - y1); y = ymin; }
-        else if (oOut & BOTTOM) { x = x1 + (x2 - x1) * (ymax - y1) / (y2 - y1); y = ymax; }
-        else if (oOut & RIGHT) { y = y1 + (y2 - y1) * (xmax - x1) / (x2 - x1); x = xmax; }
-        else { y = y1 + (y2 - y1) * (xmin - x1) / (x2 - x1); x = xmin; }
-        if (oOut === o0) { x1 = x; y1 = y; o0 = code(x1, y1); }
-        else { x2 = x; y2 = y; o1 = code(x2, y2); }
-      }
-    }
-    return accept ? [x1, y1, x2, y2] : null;
-  }
-
-  function drawChartPages(isBackstitchOnly) {
-    for (var py2 = 0; py2 < pagesY; py2++) {
-      for (var px2 = 0; px2 < pagesX; px2++) {
-        pdf.addPage();
-        var x0 = px2 * gridCols, y0 = py2 * gridRows;
-        var mainW = Math.min(gridCols, sW - x0), mainH = Math.min(gridRows, sH - y0);
-        var overlapRight = (x0 + mainW < sW) ? 2 : 0, overlapBottom = (y0 + mainH < sH) ? 2 : 0;
-        var dW = mainW + overlapRight, dH = mainH + overlapBottom;
-        pdf.setFontSize(8); pdf.setTextColor(100);
-        var headerText = (isBackstitchOnly ? "Backstitch Chart - " : "") + "Page " + (py2 * pagesX + px2 + 1) + "/" + (pagesX * pagesY);
-        pdf.text(headerText, mg, mg + 4);
-
-        if (pagesX > 1 || pagesY > 1) {
-          var mmW = 3, mmMapW = pagesX * mmW;
-          var mmX = mg + dW * cellMM - mmMapW, mmY = mg + 2;
-          for (var my = 0; my < pagesY; my++) {
-            for (var mx = 0; mx < pagesX; mx++) {
-              if (mx === px2 && my === py2) { pdf.setFillColor(100); pdf.rect(mmX + mx * mmW, mmY + my * mmW, mmW, mmW, "F"); }
-              else { pdf.setDrawColor(200); pdf.rect(mmX + mx * mmW, mmY + my * mmW, mmW, mmW, "S"); }
-            }
-          }
-        }
-
-        for (var gy = 0; gy < dH; gy++) {
-          for (var gx = 0; gx < dW; gx++) {
-            var m = pat[(y0 + gy) * sW + (x0 + gx)];
-            var px3 = mg + gx * cellMM, py3 = mg + 8 + gy * cellMM;
-            var isOverlap = gx >= mainW || gy >= mainH;
-            if (isOverlap) { pdf.setGState(new pdf.GState({ opacity: 0.4 })); pdf.setFillColor(200, 200, 200); pdf.rect(px3, py3, cellMM, cellMM, "F"); }
-            var psEntry = !isBackstitchOnly ? partialStitches.get((y0 + gy) * sW + (x0 + gx)) : null;
-            if (psEntry) {
-              pdf.setFillColor(255, 255, 255); pdf.rect(px3, py3, cellMM, cellMM, "F");
-              if (cellMM < 2.5) {
-                // Too small for triangles — blend colours into a solid block
-                var _r = 0, _g = 0, _b = 0, _cnt = 0;
-                var _psk = ["TL","TR","BL","BR"];
-                for (var _qi = 0; _qi < _psk.length; _qi++) { var _qe = psEntry[_psk[_qi]]; if (_qe) { _r += _qe.rgb[0]; _g += _qe.rgb[1]; _b += _qe.rgb[2]; _cnt++; } }
-                if (_cnt > 0) { pdf.setFillColor(Math.round(_r/_cnt), Math.round(_g/_cnt), Math.round(_b/_cnt)); pdf.rect(px3, py3, cellMM, cellMM, "F"); }
-              } else {
-                var _psinstr = analysePartialStitches(psEntry, m);
-                _psinstr.forEach(function(inst) {
-                  var _pssi = cmap[inst.colour.id];
-                  var _pssym = _pssi ? _pssi.symbol : null;
-                  switch (inst.type) {
-                    case "three-quarter": drawPdfThreeQuarter(px3, py3, inst.emptyCorner, inst.colour.rgb, _pssym); break;
-                    case "quarter":       drawPdfQuarter(px3, py3, inst.corner, inst.colour.rgb, _pssym); break;
-                    case "half":
-                      if (displayMode === "color_symbol" || displayMode === "color") {
-                        pdf.setFillColor(inst.colour.rgb[0], inst.colour.rgb[1], inst.colour.rgb[2]);
-                        if (inst.direction === "fwd") {
-                          pdf.triangle(px3, py3 + cellMM, px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, "F");
-                          pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F");
-                        } else {
-                          pdf.triangle(px3, py3, px3 + cellMM, py3, px3, py3 + cellMM, "F");
-                          pdf.triangle(px3 + cellMM, py3, px3 + cellMM, py3 + cellMM, px3, py3 + cellMM, "F");
-                        }
-                      }
-                      if (_pssym && (displayMode === "color_symbol" || displayMode === "symbol") && cellMM >= 3) {
-                        var _hsl = displayMode === "color_symbol" && luminance(inst.colour.rgb) <= 128;
-                        pdf.setTextColor(_hsl ? 255 : 0); pdf.setDrawColor(_hsl ? 255 : 0); pdf.setFillColor(_hsl ? 255 : 0);
-                        if (typeof drawPDFSymbol === "function") drawPDFSymbol(pdf, _pssym, px3 + cellMM / 2, py3 + cellMM / 2, cellMM);
-                        else { pdf.setFontSize(Math.max(3, cellMM * 1.0)); pdf.text(_pssym, px3 + cellMM / 2, py3 + cellMM * 0.6, { align: "center" }); }
-                      }
-                      break;
-                  }
-                });
-                // Thin diagonal separator line through centre
-                pdf.setDrawColor(180); pdf.setLineWidth(0.08);
-                var _hasFwd = _psinstr.some(function(i) { return (i.type === "three-quarter" && (i.emptyCorner === "TL" || i.emptyCorner === "BR")) || (i.type === "half" && i.direction === "fwd"); });
-                var _hasBck = _psinstr.some(function(i) { return (i.type === "three-quarter" && (i.emptyCorner === "TR" || i.emptyCorner === "BL")) || (i.type === "half" && i.direction === "bck"); });
-                if (_hasFwd) pdf.line(px3, py3 + cellMM, px3 + cellMM, py3);
-                if (_hasBck) pdf.line(px3, py3, px3 + cellMM, py3 + cellMM);
-              }
-              pdf.setDrawColor(displayMode === "symbol" ? 150 : 200); pdf.setLineWidth(0.2); pdf.rect(px3, py3, cellMM, cellMM, "S");
-              if (isOverlap) pdf.setGState(new pdf.GState({ opacity: 1.0 }));
-              continue;
-            }
-            if (!m || m.id === "__skip__" || m.id === "__empty__") {
-              pdf.setDrawColor(220); pdf.rect(px3, py3, cellMM, cellMM, "S");
-              if (isOverlap) pdf.setGState(new pdf.GState({ opacity: 1.0 }));
-              continue;
-            }
-            var info = cmap[m.id];
-            if (!isBackstitchOnly) {
-              if (displayMode === "color_symbol" || displayMode === "color") {
-                pdf.setFillColor(m.rgb[0], m.rgb[1], m.rgb[2]); pdf.rect(px3, py3, cellMM, cellMM, "F");
-              } else {
-                pdf.setFillColor(255, 255, 255); pdf.rect(px3, py3, cellMM, cellMM, "F");
-              }
-            }
-            pdf.setDrawColor(isBackstitchOnly ? 220 : (displayMode === "symbol" ? 150 : 200));
-            pdf.rect(px3, py3, cellMM, cellMM, "S");
-            if (!isBackstitchOnly && info) {
-              if (displayMode === "color_symbol" || displayMode === "symbol") {
-                var isLight = displayMode === "color_symbol" && luminance(m.rgb) <= 128;
-                pdf.setTextColor(isLight ? 255 : 0); pdf.setDrawColor(isLight ? 255 : 0); pdf.setFillColor(isLight ? 255 : 0);
-                if (typeof drawPDFSymbol === "function") drawPDFSymbol(pdf, info.symbol, px3 + cellMM / 2, py3 + cellMM / 2, cellMM);
-                else { pdf.setFontSize(5); pdf.text(info.symbol, px3 + cellMM / 2, py3 + cellMM * 0.7, { align: "center" }); }
-              }
-            }
-            if (isOverlap) pdf.setGState(new pdf.GState({ opacity: 1.0 }));
-          }
-        }
-
-        pdf.setDrawColor(80); pdf.setLineWidth(0.2);
-        for (var gx2 = 0; gx2 <= dW; gx2++) {
-          if (gx2 % 10 === 0) {
-            pdf.line(mg + gx2 * cellMM, mg + 8, mg + gx2 * cellMM, mg + 8 + dH * cellMM);
-            if (gx2 < dW || x0 + gx2 === sW) { pdf.setFontSize(6); pdf.setTextColor(150); pdf.text(String(x0 + gx2 + 1), mg + gx2 * cellMM, mg + 7, { align: "center" }); }
-          }
-        }
-        if (dW % 10 !== 0) pdf.line(mg + dW * cellMM, mg + 8, mg + dW * cellMM, mg + 8 + dH * cellMM);
-        for (var gy2 = 0; gy2 <= dH; gy2++) {
-          if (gy2 % 10 === 0) {
-            pdf.line(mg, mg + 8 + gy2 * cellMM, mg + dW * cellMM, mg + 8 + gy2 * cellMM);
-            if (gy2 < dH || y0 + gy2 === sH) { pdf.setFontSize(6); pdf.setTextColor(150); pdf.text(String(y0 + gy2 + 1), mg - 1, mg + 8 + gy2 * cellMM + 1, { align: "right" }); }
-          }
-        }
-        if (dH % 10 !== 0) pdf.line(mg, mg + 8 + dH * cellMM, mg + dW * cellMM, mg + 8 + dH * cellMM);
-
-        if (overlapRight > 0) { pdf.setLineWidth(0.3); pdf.setDrawColor(120, 120, 120); pdf.setLineDash([2, 2]); pdf.line(mg + mainW * cellMM, mg + 8, mg + mainW * cellMM, mg + 8 + dH * cellMM); pdf.setLineDash([]); }
-        if (overlapBottom > 0) { pdf.setLineWidth(0.3); pdf.setDrawColor(120, 120, 120); pdf.setLineDash([2, 2]); pdf.line(mg, mg + 8 + mainH * cellMM, mg + dW * cellMM, mg + 8 + mainH * cellMM); pdf.setLineDash([]); }
-
-        if (bsLines && bsLines.length > 0) {
-          pdf.setLineWidth(0.6); pdf.setDrawColor(0, 0, 0);
-          bsLines.forEach(function(ln) {
-            var clipped = clipLine(ln.x1, ln.y1, ln.x2, ln.y2, x0, y0, x0 + dW, y0 + dH);
-            if (clipped) pdf.line(mg + (clipped[0] - x0) * cellMM, mg + 8 + (clipped[1] - y0) * cellMM, mg + (clipped[2] - x0) * cellMM, mg + 8 + (clipped[3] - y0) * cellMM);
-          });
-        }
-
-        pdf.setDrawColor(0); pdf.setLineWidth(0.4); pdf.rect(mg, mg + 8, dW * cellMM, dH * cellMM, "S");
-
-        var centerX = Math.floor(sW / 2), centerY = Math.floor(sH / 2);
-        if (centerX >= x0 && centerX < x0 + dW) {
-          var ccx = mg + (centerX - x0) * cellMM + (cellMM / 2);
-          if (py2 === 0) pdf.triangle(ccx, mg + 8 - 3, ccx - 2, mg + 8 - 6, ccx + 2, mg + 8 - 6, "F");
-          if (py2 === pagesY - 1 && mainH === dH) { var bY2 = mg + 8 + dH * cellMM; pdf.triangle(ccx, bY2 + 3, ccx - 2, bY2 + 6, ccx + 2, bY2 + 6, "F"); }
-        }
-        if (centerY >= y0 && centerY < y0 + dH) {
-          var ccy = mg + 8 + (centerY - y0) * cellMM + (cellMM / 2);
-          if (px2 === 0) pdf.triangle(mg - 3, ccy, mg - 6, ccy - 2, mg - 6, ccy + 2, "F");
-          if (px2 === pagesX - 1 && mainW === dW) { var rX = mg + dW * cellMM; pdf.triangle(rX + 3, ccy, rX + 6, ccy - 2, rX + 6, ccy + 2, "F"); }
-        }
-      }
-    }
-  }
-
-  drawChartPages(false);
-  if (bsLines && bsLines.length > 0) drawChartPages(true);
-
-  pdf.save("cross-stitch-pattern.pdf");
-};
-
-/**
- * Generate and download a standalone cover sheet PDF.
- * @param {object} data  Snapshot of CreatorContext (or equivalent state)
- */
-window.exportCoverSheet = async function exportCoverSheet(data) {
-  var pat = data.pat, pal = data.pal, cmap = data.cmap;
-  var sW = data.sW, sH = data.sH;
-  var fabricCt = data.fabricCt, skeinPrice = data.skeinPrice, stitchSpeed = data.stitchSpeed;
-  var totalStitchable = data.totalStitchable, blendCount = data.blendCount, totalSkeins = data.totalSkeins;
-  var threadOwned = data.threadOwned || {}, done = data.done;
-  var totalTime = data.totalTime || 0, sessions = data.sessions || [];
-  var skeinData = data.skeinData || [];
-  var difficulty = data.difficulty;
-  var doneCount = data.doneCount || 0;
-  var partialStitches = data.partialStitches || new Map();
-
-  if (!pat || !pal || !cmap) return;
-  if (!window.jspdf) await window.loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
-  var jsPDF = window.jspdf.jsPDF;
-  var pdf = new jsPDF("portrait", "mm", "a4");
-  var mg = 15, y = mg;
-
-  pdf.setFontSize(26); pdf.setTextColor(30, 30, 30); pdf.text("Cross Stitch Project", mg, y + 10); y += 18;
-  pdf.setDrawColor(91, 123, 179); pdf.setLineWidth(0.8); pdf.line(mg, y, 195, y); y += 10;
-
-  var thumbData = generatePatternThumbnail(pat, sW, sH, partialStitches);
-  var thumbW = 60, thumbH = (sH / sW) * 60;
-  if (thumbH > 80) { thumbH = 80; thumbW = (sW / sH) * 80; }
-  pdf.addImage(thumbData, "JPEG", (210 - thumbW) / 2, y, thumbW, thumbH);
-  y += thumbH + 10;
-
-  pdf.setFontSize(11); pdf.setTextColor(100); pdf.text("PATTERN SUMMARY", mg, y); y += 7;
-  pdf.setFontSize(10); pdf.setTextColor(40);
-  var div2 = fabricCt === 28 ? 14 : fabricCt;
-  var wIn2 = sW / div2, hIn2 = sH / div2;
-  var csRows = [
-    ["Pattern size", sW + " \xd7 " + sH + " stitches"],
-    ["Stitchable stitches", totalStitchable.toLocaleString()],
-    ["Colours", pal.length + " (" + blendCount + " blend" + (blendCount !== 1 ? "s" : "") + ")"],
-    ["Skeins needed", String(totalSkeins)],
-    ["Fabric", fabricCt + " count"],
-    ["Finished size", wIn2.toFixed(1) + "\u2033 \xd7 " + hIn2.toFixed(1) + "\u2033 (" + (wIn2 * 2.54).toFixed(1) + " \xd7 " + (hIn2 * 2.54).toFixed(1) + " cm)"],
-    ["With 1\u2033 margin", (wIn2 + 2).toFixed(0) + "\u2033 \xd7 " + (hIn2 + 2).toFixed(0) + "\u2033"],
-    ["Est. time", fmtTimeL(Math.round(totalStitchable / stitchSpeed * 3600)) + " (at " + stitchSpeed + " st/hr)"],
-    ["Difficulty", difficulty ? difficulty.label : "\u2014"],
-    ["Est. thread cost", "\xa3" + (totalSkeins * skeinPrice).toFixed(2) + " (at \xa3" + skeinPrice.toFixed(2) + "/skein)"],
-  ];
-  if (partialStitches.size > 0) csRows.push(["Partial stitches", partialStitches.size + " cells"]);
-  csRows.forEach(function(row) {
-    pdf.setTextColor(120); pdf.text(row[0] + ":", mg, y);
-    pdf.setTextColor(40); pdf.text(row[1], mg + 50, y); y += 5.5;
-  });
-  y += 6;
-
-  if (done && totalStitchable > 0 && doneCount > 0) {
-    var localPct = Math.round(doneCount / totalStitchable * 1000) / 10;
-    pdf.setFontSize(11); pdf.setTextColor(100); pdf.text("PROGRESS", mg, y); y += 7;
-    pdf.setFontSize(10); pdf.setTextColor(40);
-    pdf.text(localPct + "% complete \u2014 " + doneCount.toLocaleString() + " of " + totalStitchable.toLocaleString() + " stitches", mg, y); y += 8;
-    if (totalTime > 0) {
-      pdf.text("Time stitched: " + fmtTimeL(totalTime) + " (" + sessions.length + " session" + (sessions.length !== 1 ? "s" : "") + ")", mg, y); y += 5.5;
-      pdf.text("Actual speed: " + Math.round(doneCount / (totalTime / 3600)) + " stitches/hr", mg, y); y += 5.5;
-    }
-    y += 4;
-  }
-
-  pdf.setFontSize(11); pdf.setTextColor(100); pdf.text("THREAD LIST", mg, y); y += 7;
-  pdf.setFontSize(8); pdf.setTextColor(80);
-  pdf.text("DMC", mg, y); pdf.text("Name", mg + 20, y); pdf.text("Skeins", mg + 100, y); pdf.text("Status", mg + 120, y); y += 2;
-  pdf.setDrawColor(200); pdf.line(mg, y, 180, y); y += 4;
-  pdf.setFontSize(9);
-  skeinData.forEach(function(d) {
-    if (y > 275) { pdf.addPage(); y = mg + 8; }
-    pdf.setFillColor(d.rgb[0], d.rgb[1], d.rgb[2]); pdf.circle(mg + 3, y - 1.2, 1.8, "F");
-    pdf.setTextColor(40); pdf.text(d.id, mg + 8, y); pdf.text(d.name, mg + 20, y); pdf.text(String(d.skeins), mg + 104, y);
-    var st = threadOwned[d.id] || "";
-    if (st === "owned") { pdf.setTextColor(22, 163, 74); pdf.text("Owned", mg + 120, y); }
-    else { pdf.setTextColor(234, 88, 12); pdf.text("To buy", mg + 120, y); }
-    pdf.setTextColor(40); y += 5;
-  });
-  y += 6;
-  if (y < 240) {
-    pdf.setFontSize(11); pdf.setTextColor(100); pdf.text("NOTES", mg, y); y += 4;
-    pdf.setDrawColor(220);
-    for (var nl = 0; nl < 8; nl++) { y += 7; pdf.line(mg, y, 180, y); }
-  }
-
-  pdf.save("cross-stitch-cover-sheet.pdf");
 };
 
 
@@ -12179,150 +12672,840 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
 
 
-/* ─── ExportTab.js ─── */
-/* creator/ExportTab.js — Export tab with PNG preview canvas, PDF/save buttons.
+/* ─── PrepareTab.js ─── */
+/* creator/PrepareTab.js — Prepare tab: shopping list + fabric calculator.
    Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: Section (components.js), drawPatternOnCanvas (canvasRenderer.js),
-               exportPDF, exportCoverSheet (exportPdf.js), A4W, A4H (constants.js),
-               CreatorContext (context.js) */
+   Depends on: stitchesToSkeins (threadCalc.js), FABRIC_COUNTS (constants.js),
+               StashBridge (stash-bridge.js), CreatorContext (context.js) */
 
-window.CreatorExportTab = function CreatorExportTab() {
+window.CreatorPrepareTab = function CreatorPrepareTab() {
+  var STITCHES_PER_SKEIN_ESTIMATE = 800;
   var ctx = window.usePatternData();
-  var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
 
-  var G = app.G;
+  var useState = React.useState;
+  var useMemo = React.useMemo;
 
-  // renderExport callback — must be declared before any early returns (Rules of Hooks)
-  var renderExport = React.useCallback(function() {
-    if (app.tab !== "export" || !app.expRef.current || !ctx.pat || !ctx.cmap) return;
-    var epC = app.exportPage % app.pxX;
-    var epR = Math.floor(app.exportPage / app.pxX);
-    var eX0 = epC * A4W, eY0 = epR * A4H;
-    var eW = Math.min(A4W, ctx.sW - eX0), eH = Math.min(A4H, ctx.sH - eY0);
-    var dW2 = app.pageMode ? eW : ctx.sW;
-    var dH2 = app.pageMode ? eH : ctx.sH;
-    var oX2 = app.pageMode ? eX0 : 0;
-    var oY2 = app.pageMode ? eY0 : 0;
-    var expCs = Math.max(8, Math.min(20, Math.floor(750 / Math.max(dW2, dH2))));
-    app.expRef.current.width  = dW2 * expCs + G + 2;
-    app.expRef.current.height = dH2 * expCs + G + 2;
-    // Draw without overlay — merge CanvasContext (view, hiId, bsLines, activeTool, etc.) so
-    // drawPatternOnCanvas receives all required fields; final object overrides suppress the overlay.
-    var exportState = Object.assign({}, ctx, cv, {showOverlay: false, overlayOpacity: 0});
-    drawPatternOnCanvas(app.expRef.current.getContext("2d"), oX2, oY2, dW2, dH2, expCs, G, exportState);
-  }, [
-    app.tab, ctx.pat, ctx.cmap, ctx.sW, ctx.sH, app.pageMode, app.exportPage, app.pxX,
-    cv.view, cv.hiId, cv.showCtr, cv.bsLines, ctx.partialStitches
-  ]);
+  var _units = useState('in'); var units = _units[0]; var setUnits = _units[1];
+  var _margin = useState(3); var margin = _margin[0]; var setMargin = _margin[1];
+  var _overTwo = useState(false); var overTwo = _overTwo[0]; var setOverTwo = _overTwo[1];
+  var _fabOpen = useState(false); var fabOpen = _fabOpen[0]; var setFabOpen = _fabOpen[1];
+  var _sort = useState('number'); var sort = _sort[0]; var setSort = _sort[1];
+  var _copied = useState(false); var copied = _copied[0]; var setCopied = _copied[1];
+  var _addedAll = useState(false); var addedAll = _addedAll[0]; var setAddedAll = _addedAll[1];
+  var threadIdCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
-  React.useEffect(function() { renderExport(); }, [renderExport]);
+  var stash = ctx.globalStash || {};
+  var fabricCt = ctx.fabricCt || 14;
 
+  // Determine effective stitch count per thread (accounting for over-two)
+  var effectiveFabric = overTwo ? fabricCt / 2 : fabricCt;
+
+  // Build shopping list rows — always call useMemo unconditionally
+  var rows = useMemo(function() {
+    if (!(ctx.pat && ctx.pal)) return [];
+    return ctx.pal.map(function(p) {
+      var key = 'dmc:' + p.id;
+      var stashEntry = stash[key] || {};
+      var owned = stashEntry.owned || 0;
+
+      var skResult = (typeof stitchesToSkeins === 'function')
+        ? stitchesToSkeins({ stitchCount: p.count, fabricCount: effectiveFabric, strandsUsed: 2 })
+        : null;
+
+      var needed;
+      if (skResult) {
+        if (skResult.colorA) {
+          // Blend
+          needed = Math.max(skResult.colorA.skeinsToBuy || 0, (skResult.colorB && skResult.colorB.skeinsToBuy) || 0);
+        } else {
+          needed = skResult.skeinsToBuy || 0;
+        }
+      } else {
+        needed = Math.ceil(p.count / STITCHES_PER_SKEIN_ESTIMATE) || 0;
+      }
+      // Any palette entry with stitches should require at least one skein.
+      if ((p.count || 0) > 0) needed = Math.max(1, needed || 0);
+
+      var status;
+      if (owned >= needed) {
+        status = 'owned';
+      } else if (owned > 0) {
+        status = 'partial';
+      } else {
+        status = 'needed';
+      }
+
+      var name = p.type === 'blend' && p.threads
+        ? p.threads[0].name + ' + ' + p.threads[1].name
+        : (p.name || p.id);
+
+      return { p: p, key: key, owned: owned, needed: needed, status: status, name: name };
+    });
+  }, [ctx.pat, ctx.pal, stash, effectiveFabric]);
+
+  // Sort
+  function compareThreadIds(aId, bId) {
+    var aStr = String(aId == null ? '' : aId);
+    var bStr = String(bId == null ? '' : bId);
+    var aIsNumeric = /^\d+$/.test(aStr);
+    var bIsNumeric = /^\d+$/.test(bStr);
+    if (aIsNumeric && bIsNumeric) {
+      var aNum = parseInt(aStr, 10);
+      var bNum = parseInt(bStr, 10);
+      if (aNum !== bNum) return aNum - bNum;
+    } else if (aIsNumeric !== bIsNumeric) {
+      return aIsNumeric ? -1 : 1;
+    }
+    return threadIdCollator.compare(aStr, bStr);
+  }
+
+  var sortedRows = useMemo(function() {
+    var copy = rows.slice();
+    if (sort === 'number') {
+      copy.sort(function(a, b) { return compareThreadIds(a.p.id, b.p.id); });
+    } else if (sort === 'stitches') {
+      copy.sort(function(a, b) { return b.p.count - a.p.count; });
+    } else if (sort === 'skeins') {
+      copy.sort(function(a, b) { return b.needed - a.needed; });
+    } else if (sort === 'status') {
+      var order = { needed: 0, partial: 1, owned: 2 };
+      copy.sort(function(a, b) { return order[a.status] - order[b.status]; });
+    }
+    return copy;
+  }, [rows, sort]);
+
+  // Summary
+  var totalColours = rows.length;
+  var ownedColours = rows.filter(function(r) { return r.status === 'owned'; }).length;
+  var partialColours = rows.filter(function(r) { return r.status === 'partial'; }).length;
+  var needSkeins = rows.reduce(function(acc, r) {
+    return acc + Math.max(0, r.needed - r.owned);
+  }, 0);
+
+  // Early returns AFTER all hooks
   if (!(ctx.pat && ctx.pal)) return null;
+  if (app.tab !== 'prepare') return null;
+
+  // Fabric calculator
+  var fabCounts = typeof FABRIC_COUNTS !== 'undefined' ? FABRIC_COUNTS : [
+    {ct:11,label:'11 count'},{ct:14,label:'14 count'},{ct:16,label:'16 count'},{ct:18,label:'18 count'}
+  ];
+
+  var sW = ctx.sW || 0;
+  var sH = ctx.sH || 0;
+
+  function calcFab(ct, div) {
+    var ef = div ? ct / div : ct;
+    var wIn = sW / ef + margin * 2;
+    var hIn = sH / ef + margin * 2;
+    if (units === 'cm') return { w: (wIn * 2.54).toFixed(1) + ' cm', h: (hIn * 2.54).toFixed(1) + ' cm' };
+    return { w: wIn.toFixed(1) + '"', h: hIn.toFixed(1) + '"' };
+  }
+
+  // Copy as text
+  function handleCopy() {
+    var lines = ['Shopping List'];
+    lines.push(sW + '\u00d7' + sH + ' stitches @ ' + fabricCt + ' count' + (overTwo ? ' over two' : ''));
+    lines.push('');
+    sortedRows.forEach(function(r) {
+      var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
+      var mark = r.status === 'owned' ? '\u2713' : r.status === 'partial' ? '~' : '\u25cb';
+      lines.push(mark + ' DMC ' + r.p.id + ' \u2014 ' + r.name + ' \u2014 ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
+    });
+    lines.push('');
+    lines.push('Total: ' + ownedColours + '/' + totalColours + ' colours owned');
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(lines.join('\n')).then(function() {
+        setCopied(true);
+        setTimeout(function() { setCopied(false); }, 2000);
+      }).catch(function() {});
+    }
+  }
+
+  // Share
+  function handleShare() {
+    if (typeof navigator === 'undefined' || !navigator.share) return;
+    var lines = ['Shopping List \u2014 ' + sW + '\u00d7' + sH + ' @ ' + fabricCt + ' count', ''];
+    sortedRows.forEach(function(r) {
+      if (r.status !== 'owned') {
+        var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
+        lines.push('DMC ' + r.p.id + ' ' + r.name + ' \u2014 need ' + Math.max(0, r.needed - r.owned) + ' skein' + (Math.max(0, r.needed - r.owned) !== 1 ? 's' : '') + own);
+      }
+    });
+    navigator.share({ title: 'Cross Stitch Shopping List', text: lines.join('\n') }).catch(function() {});
+  }
+
+  // Add all to stash
+  function handleAddAll() {
+    if (typeof StashBridge === 'undefined') return;
+    var promises = rows.filter(function(r) { return r.status !== 'owned'; }).map(function(r) {
+      var newOwned = r.needed;
+      return StashBridge.updateThreadOwned(r.p.id, newOwned);
+    });
+    Promise.all(promises).then(function() {
+      setAddedAll(true);
+      setTimeout(function() { setAddedAll(false); }, 2500);
+      // Refresh stash
+      if (typeof StashBridge !== 'undefined') {
+        StashBridge.getGlobalStash().then(function(s) { ctx.setGlobalStash(s); }).catch(function() {});
+      }
+    }).catch(function() {});
+  }
+
+  // Status badge
+  function statusBadge(status) {
+    var map = {
+      owned: { label: 'In stash \u2713', bg: '#f0fdf4', color: '#16a34a' },
+      partial: { label: 'Partial', bg: '#fff7ed', color: '#ea580c' },
+      needed: { label: 'Need to buy', bg: '#fef2f2', color: '#dc2626' }
+    };
+    var s = map[status] || map.needed;
+    return h('span', {
+      style: { padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+               background: s.bg, color: s.color }
+    }, s.label);
+  }
+
+  var canShare = typeof navigator !== 'undefined' && !!navigator.share;
+
+  return h('div', {style: {maxWidth: 900}},
+    // Summary banner
+    h('div', {style: {
+      display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+      padding: '10px 14px', background: '#f0fdf4', borderRadius: 8,
+      border: '0.5px solid #bbf7d0', marginBottom: 16, fontSize: 12
+    }},
+      h('span', {style: {fontWeight: 600, color: '#15803d'}},
+        ownedColours === totalColours
+          ? '\u2713 All ' + totalColours + ' colours in stash!'
+          : 'You own ' + ownedColours + ' of ' + totalColours + ' colours.'
+      ),
+      partialColours > 0 && h('span', {style: {color: '#ea580c'}},
+        partialColours + ' partial.'
+      ),
+      (ownedColours < totalColours) && h('span', {style: {color: '#dc2626'}},
+        'Still need: ' + (totalColours - ownedColours - partialColours) + ' colours, ~' + needSkeins + ' skeins.'
+      ),
+      h('div', {style: {marginLeft: 'auto', display: 'flex', gap: 8}},
+        h('button', {
+          onClick: handleCopy,
+          style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
+                   border: '0.5px solid #e2e8f0', background: copied ? '#0d9488' : '#fff',
+                   color: copied ? '#fff' : '#475569', fontWeight: 500 }
+        }, copied ? '\u2713 Copied' : 'Copy list'),
+        canShare && h('button', {
+          onClick: handleShare,
+          style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
+                   border: '0.5px solid #e2e8f0', background: '#fff', color: '#475569', fontWeight: 500 }
+        }, 'Share'),
+        h('a', {
+          href: 'manager.html', target: '_blank',
+          style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
+                   border: '0.5px solid #e2e8f0', background: '#fff', color: '#475569',
+                   fontWeight: 500, textDecoration: 'none', display: 'inline-block' }
+        }, 'View thread stash \u2192')
+      )
+    ),
+
+    // Controls row
+    h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap'}},
+      h('label', {style: {fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4}},
+        h('input', {
+          type: 'checkbox', checked: overTwo,
+          onChange: function(e) { setOverTwo(e.target.checked); }
+        }),
+        'Over two'
+      ),
+      h('span', {style: {fontSize: 12, color: '#94a3b8'}},'|'),
+      h('span', {style: {fontSize: 12, color: '#475569'}}, 'Sort:'),
+      h('select', {
+        value: sort,
+        onChange: function(e) { setSort(e.target.value); },
+        style: { fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '0.5px solid #e2e8f0', background: '#fff' }
+      },
+        h('option', {value: 'number'}, 'Thread number'),
+        h('option', {value: 'stitches'}, 'Stitch count'),
+        h('option', {value: 'skeins'}, 'Skeins needed'),
+        h('option', {value: 'status'}, 'Status')
+      ),
+      (ownedColours < totalColours) && h('button', {
+        onClick: handleAddAll,
+        style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
+                 border: '0.5px solid #e2e8f0', background: addedAll ? '#0d9488' : '#fff',
+                 color: addedAll ? '#fff' : '#475569', fontWeight: 500, marginLeft: 'auto' }
+      }, addedAll ? '\u2713 Added to stash' : 'Mark all as owned')
+    ),
+
+    // Thread table
+    h('div', {style: {overflow: 'auto', maxHeight: 480, marginBottom: 20}},
+      h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize: 12}},
+        h('thead', null,
+          h('tr', {style: {background: '#f8f9fa'}},
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, ''),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'DMC'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Name'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Stitches'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Skeins'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'In stash'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Status')
+          )
+        ),
+        h('tbody', null,
+          sortedRows.map(function(r, i) {
+            return h('tr', {
+              key: r.p.id,
+              style: {
+                borderBottom: '0.5px solid #f1f5f9',
+                background: r.status === 'owned' ? '#f0fdf4' : i % 2 === 0 ? 'transparent' : '#fafafa'
+              }
+            },
+              h('td', {style: {padding: '6px 10px'}},
+                h('div', {style: {width: 20, height: 20, borderRadius: 4, background: 'rgb(' + r.p.rgb + ')',
+                                  border: '0.5px solid #e2e8f0', display: 'inline-block'}})
+              ),
+              h('td', {style: {padding: '6px 10px', fontWeight: 600}}, r.p.id),
+              h('td', {style: {padding: '6px 10px', color: '#475569'}}, r.name),
+              h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.p.count.toLocaleString()),
+              h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, r.needed),
+              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#15803d' : '#94a3b8'}},
+                r.owned > 0 ? r.owned : '\u2014'
+              ),
+              h('td', {style: {padding: '6px 10px'}}, statusBadge(r.status))
+            );
+          })
+        )
+      )
+    ),
+
+    // Fabric calculator (collapsible)
+    h('div', {style: {border: '0.5px solid #e2e8f0', borderRadius: 8, overflow: 'hidden'}},
+      h('button', {
+        onClick: function() { setFabOpen(function(o) { return !o; }); },
+        style: {
+          width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12,
+          fontWeight: 600, color: '#475569', background: '#f8f9fa', border: 'none',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
+        }
+      },
+        h('span', {style: {fontSize: 9, opacity: 0.6}}, fabOpen ? '\u25be' : '\u25b8'),
+        'Fabric Calculator'
+      ),
+      fabOpen && h('div', {style: {padding: '14px'}},
+        // Controls
+        h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap'}},
+          h('span', {style: {fontSize: 12, color: '#475569'}}, 'Margin:'),
+          h('input', {
+            type: 'number', min: 0, max: 10, step: 0.5, value: margin,
+            onChange: function(e) { setMargin(Number(e.target.value) || 0); },
+            style: { width: 60, padding: '3px 8px', fontSize: 12, borderRadius: 6, border: '0.5px solid #e2e8f0' }
+          }),
+          h('span', {style: {fontSize: 12, color: '#94a3b8'}}, 'inches each side'),
+          h('span', {style: {fontSize: 12, color: '#94a3b8'}}, '|'),
+          h('span', {style: {fontSize: 12, color: '#475569'}}, 'Units:'),
+          ['in', 'cm'].map(function(u) {
+            return h('button', {
+              key: u,
+              onClick: function() { setUnits(u); },
+              style: {
+                fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
+                border: '0.5px solid ' + (units === u ? '#0d9488' : '#e2e8f0'),
+                background: units === u ? '#f0fdfa' : '#fff',
+                color: units === u ? '#0d9488' : '#475569', fontWeight: units === u ? 600 : 400
+              }
+            }, u === 'in' ? 'Inches' : 'Centimetres');
+          }),
+          h('label', {style: {fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4}},
+            h('input', {
+              type: 'checkbox', checked: overTwo,
+              onChange: function(e) { setOverTwo(e.target.checked); }
+            }),
+            'Over two'
+          )
+        ),
+        // Table
+        h('div', {style: {overflow: 'auto'}},
+          h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize: 12}},
+            h('thead', null,
+              h('tr', {style: {background: '#f8f9fa'}},
+                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Count'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Width'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Height'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, '')
+              )
+            ),
+            h('tbody', null,
+              fabCounts.map(function(f) {
+                var dims = calcFab(f.ct, overTwo ? 2 : null);
+                var isCurrent = f.ct === fabricCt;
+                return h('tr', {
+                  key: f.ct,
+                  style: {
+                    borderBottom: '0.5px solid #f1f5f9',
+                    background: isCurrent ? '#f0fdf4' : 'transparent'
+                  }
+                },
+                  h('td', {style: {padding: '6px 10px', fontWeight: isCurrent ? 700 : 400}},
+                    f.label + (overTwo ? ' (over 2)' : '')
+                  ),
+                  h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.w),
+                  h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.h),
+                  h('td', {style: {padding: '6px 10px'}},
+                    isCurrent && h('span', {style: {fontSize: 10, color: '#0d9488', fontWeight: 600}}, '\u2190 current')
+                  )
+                );
+              })
+            )
+          )
+        ),
+        h('p', {style: {fontSize: 11, color: '#94a3b8', marginTop: 10}},
+          'Pattern: ' + sW + '\u00d7' + sH + ' stitches. Margin: ' + margin + '" each side.'
+          + (overTwo ? ' Stitching over two threads.' : '')
+        )
+      )
+    )
+  );
+};
+
+
+/* ─── DesignerBrandingSection.js ─── */
+/* creator/DesignerBrandingSection.js — Designer branding settings card.
+ *
+ * Reads/writes UserPrefs keys: designerName, designerLogo (data URL),
+ * designerLogoPosition, designerCopyright, designerContact.
+ *
+ * Exposed as window.CreatorDesignerBrandingSection for the Export tab.
+ */
+(function () {
+  "use strict";
+  var React = window.React;
+  var h = React.createElement;
+
+  function readPrefs() {
+    var UP = window.UserPrefs;
+    return {
+      designerName:         (UP && UP.get("designerName"))         || "",
+      designerLogo:         (UP && UP.get("designerLogo"))         || null,
+      designerLogoPosition: (UP && UP.get("designerLogoPosition")) || "top-right",
+      designerCopyright:    (UP && UP.get("designerCopyright"))    || "",
+      designerContact:      (UP && UP.get("designerContact"))      || "",
+    };
+  }
+
+  // Downscale a logo before saving so localStorage doesn't blow up. Target max 600px on the
+  // longest side, JPEG quality 90% (PNG kept as PNG for transparency).
+  function downscaleImage(file) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onerror = function () { reject(new Error("Failed to read file")); };
+      fr.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var maxDim = 600;
+          var w = img.naturalWidth, hgt = img.naturalHeight;
+          if (w > maxDim || hgt > maxDim) {
+            var ratio = w / hgt;
+            if (ratio >= 1) { w = maxDim; hgt = Math.round(maxDim / ratio); }
+            else { hgt = maxDim; w = Math.round(maxDim * ratio); }
+          }
+          var c = document.createElement("canvas");
+          c.width = w; c.height = hgt;
+          c.getContext("2d").drawImage(img, 0, 0, w, hgt);
+          var isPng = /image\/png/i.test(file.type);
+          resolve(c.toDataURL(isPng ? "image/png" : "image/jpeg", isPng ? undefined : 0.9));
+        };
+        img.onerror = function () { reject(new Error("Image decode failed")); };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  window.CreatorDesignerBrandingSection = function CreatorDesignerBrandingSection() {
+    var initial = readPrefs();
+    var stateAndSet = React.useState(initial);
+    var state = stateAndSet[0];
+    var setState = stateAndSet[1];
+    var fileRef = React.useRef(null);
+
+    function update(key, value) {
+      setState(function (prev) {
+        var next = Object.assign({}, prev); next[key] = value; return next;
+      });
+      try { window.UserPrefs.set(key, value); } catch (_) {}
+    }
+
+    function onPickLogo(e) {
+      var f = e.target.files && e.target.files[0];
+      if (!f) return;
+      downscaleImage(f).then(function (dataUrl) {
+        update("designerLogo", dataUrl);
+      }).catch(function (err) {
+        alert("Could not load logo: " + err.message);
+      });
+    }
+
+    function clearLogo() { update("designerLogo", null); }
+
+    var inputStyle = { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 13, width: "100%", boxSizing: "border-box" };
+    var labelStyle = { fontSize: 11, fontWeight: 600, color: "#3f3f46", display: "block", marginBottom: 4 };
+
+    return h("div", { style: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14 } },
+      h("h4", { style: { margin: "0 0 8px", fontSize: 13, color: "#0f172a" } }, "Designer branding"),
+      h("p", { style: { fontSize: 11, color: "#64748b", margin: "0 0 12px" } },
+        "These settings apply to every PDF you export. They live on this device only."),
+
+      h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 } },
+        h("div", null,
+          h("label", { style: labelStyle }, "Designer / shop name"),
+          h("input", { type: "text", value: state.designerName, placeholder: "Your shop name",
+            onChange: function (e) { update("designerName", e.target.value); }, style: inputStyle })
+        ),
+        h("div", null,
+          h("label", { style: labelStyle }, "Contact / website"),
+          h("input", { type: "text", value: state.designerContact, placeholder: "yourshop.example",
+            onChange: function (e) { update("designerContact", e.target.value); }, style: inputStyle })
+        )
+      ),
+
+      h("div", { style: { display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 10 } },
+        h("div", { style: { flex: "0 0 110px" } },
+          h("label", { style: labelStyle }, "Logo"),
+          state.designerLogo
+            ? h("div", { style: { width: 100, height: 100, border: "1px solid #cbd5e1", borderRadius: 6, background: "#fafafa", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" } },
+                h("img", { src: state.designerLogo, alt: "logo", style: { maxWidth: "100%", maxHeight: "100%" } }))
+            : h("button", { onClick: function () { fileRef.current && fileRef.current.click(); },
+                style: { width: 100, height: 100, border: "1.5px dashed #cbd5e1", borderRadius: 6, background: "#f8fafc", cursor: "pointer", fontSize: 11, color: "#64748b" } },
+                "Upload logo"),
+          h("input", { ref: fileRef, type: "file", accept: "image/png,image/jpeg", style: { display: "none" }, onChange: onPickLogo }),
+          state.designerLogo && h("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
+            h("button", { onClick: function () { fileRef.current && fileRef.current.click(); }, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", cursor: "pointer" } }, "Replace"),
+            h("button", { onClick: clearLogo, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#b91c1c", cursor: "pointer" } }, "Remove")
+          )
+        ),
+        h("div", { style: { flex: 1 } },
+          h("label", { style: labelStyle }, "Logo position"),
+          h("div", { style: { display: "flex", gap: 12, fontSize: 12 } },
+            h("label", { style: { display: "flex", alignItems: "center", gap: 4, cursor: "pointer" } },
+              h("input", { type: "radio", name: "logoPos", value: "top-left",
+                checked: state.designerLogoPosition === "top-left",
+                onChange: function () { update("designerLogoPosition", "top-left"); } }),
+              "Top-left"),
+            h("label", { style: { display: "flex", alignItems: "center", gap: 4, cursor: "pointer" } },
+              h("input", { type: "radio", name: "logoPos", value: "top-right",
+                checked: state.designerLogoPosition === "top-right",
+                onChange: function () { update("designerLogoPosition", "top-right"); } }),
+              "Top-right")
+          ),
+          h("label", { style: Object.assign({}, labelStyle, { marginTop: 12 }) }, "Copyright notice"),
+          h("textarea", { value: state.designerCopyright, rows: 2, placeholder: "© 2026 Your Shop. For personal use only.",
+            onChange: function (e) { update("designerCopyright", e.target.value); },
+            style: Object.assign({}, inputStyle, { resize: "vertical", fontFamily: "inherit" }) })
+        )
+      )
+    );
+  };
+})();
+
+
+/* ─── ExportTab.js ─── */
+/* creator/ExportTab.js — Unified Export panel.
+ *
+ * Replaces the old jsPDF-based export UI. Sections:
+ *   1. Quick presets — large one-tap buttons
+ *   2. Format & settings — collapsible detailed controls
+ *   3. Designer branding — settings persisted via UserPrefs
+ *   4. Export action — triggers worker-backed PDF generation with progress UI
+ *
+ * Depends on:
+ *   window.PdfExport          — runExport / downloadBytes / preset helpers (creator/pdfExport.js)
+ *   window.PdfChartLayout     — page count preview (creator/pdfChartLayout.js)
+ *   window.UserPrefs          — pref persistence
+ *   window.CreatorDesignerBrandingSection — branding component
+ */
+window.CreatorExportTab = function CreatorExportTab() {
+  var ctx = window.usePatternData();
+  var app = window.useApp();
+  var h = React.createElement;
+
+  var UP = window.UserPrefs;
+  function readPref(k, fallback) { return UP ? UP.get(k) : fallback; }
+  function writePref(k, v) { try { UP && UP.set(k, v); } catch (_) {} }
+
+  var presetState  = React.useState(readPref("exportPreset",          "patternKeeper"));
+  var pageSize     = React.useState(readPref("exportPageSize",        "auto"));
+  var marginsMm    = React.useState(readPref("exportMarginsMm",       12));
+  var stPerPg      = React.useState(readPref("exportStitchesPerPage", "medium"));
+  var customCols   = React.useState(readPref("exportCustomCols",      60));
+  var customRows   = React.useState(readPref("exportCustomRows",      70));
+  var modeBw       = React.useState(readPref("exportChartModeBw",     true));
+  var modeColour   = React.useState(readPref("exportChartModeColour", true));
+  var overlap      = React.useState(readPref("exportOverlap",         true));
+  var includeCover = React.useState(readPref("exportIncludeCover",    true));
+  var includeInfo  = React.useState(readPref("exportIncludeInfo",     true));
+  var includeIndex = React.useState(readPref("exportIncludeIndex",    true));
+  var miniLegend   = React.useState(readPref("exportMiniLegend",      true));
+  var settingsOpen = React.useState(false);
+  var brandingOpen = React.useState(false);
+
+  function bind(pair, prefKey) {
+    return function (v) { pair[1](v); if (prefKey) writePref(prefKey, v); };
+  }
+  var setPreset       = bind(presetState,  "exportPreset");
+  var setPageSize     = bind(pageSize,     "exportPageSize");
+  var setMarginsMm    = bind(marginsMm,    "exportMarginsMm");
+  var setStPerPg      = bind(stPerPg,      "exportStitchesPerPage");
+  var setCustomCols   = bind(customCols,   "exportCustomCols");
+  var setCustomRows   = bind(customRows,   "exportCustomRows");
+  var setModeBw       = bind(modeBw,       "exportChartModeBw");
+  var setModeColour   = bind(modeColour,   "exportChartModeColour");
+  var setOverlap      = bind(overlap,      "exportOverlap");
+  var setIncludeCover = bind(includeCover, "exportIncludeCover");
+  var setIncludeInfo  = bind(includeInfo,  "exportIncludeInfo");
+  var setIncludeIndex = bind(includeIndex, "exportIncludeIndex");
+  var setMiniLegend   = bind(miniLegend,   "exportMiniLegend");
+  var setSettingsOpen = settingsOpen[1];
+  var setBrandingOpen = brandingOpen[1];
+
+  var progressState = React.useState(null);
+  var setProgress = progressState[1];
+  var errorState = React.useState(null);
+  var setError = errorState[1];
+  var runningRef = React.useRef(null);
+
+  function applyPreset(name) {
+    setPreset(name);
+    var src = name === "homePrinting" ? window.PdfExport.presetHomePrinting()
+                                      : window.PdfExport.presetPatternKeeper();
+    setPageSize(src.pageSize); setMarginsMm(src.marginsMm);
+    setStPerPg(src.stitchesPerPage);
+    setModeBw(src.chartModes.indexOf("bw") >= 0);
+    setModeColour(src.chartModes.indexOf("colour") >= 0);
+    setOverlap(!!src.overlap);
+    setIncludeCover(!!src.includeCover);
+    setIncludeInfo(!!src.includeInfo);
+    setIncludeIndex(!!src.includeIndex);
+    setMiniLegend(!!src.miniLegend);
+  }
+
+  // Page-count preview
+  var pageGeom = null, paged = null;
+  if (ctx && ctx.pat && ctx.sW && ctx.sH) {
+    try {
+      pageGeom = window.PdfChartLayout.computePageGeometry({
+        pageSize: pageSize[0], marginsMm: marginsMm[0],
+        stitchesPerPage: stPerPg[0], customCols: customCols[0], customRows: customRows[0],
+        locale: navigator.language,
+      });
+      paged = window.PdfChartLayout.paginate({
+        patternW: ctx.sW, patternH: ctx.sH,
+        colsPerPage: pageGeom.colsPerPage, rowsPerPage: pageGeom.rowsPerPage,
+        overlap: overlap[0],
+      });
+    } catch (_) {}
+  }
+  var modesArr = [];
+  if (modeBw[0]) modesArr.push("bw");
+  if (modeColour[0]) modesArr.push("colour");
+  var totalPagesPreview = (paged ? paged.length * Math.max(1, modesArr.length) : 0)
+    + (includeCover[0] ? 1 : 0)
+    + (includeInfo[0] ? 1 : 0)
+    + (includeIndex[0] && paged && paged.length > 1 ? 1 : 0)
+    + (ctx && ctx.pal ? Math.max(1, Math.ceil(ctx.pal.length / 32)) : 0);
+
+  function doExport() {
+    setError(null);
+    if (!modesArr.length) { setError("Pick at least one chart mode (B&W or Colour)."); return; }
+    var project = window.PdfExport.buildExportProject(ctx);
+    if (!project) { setError("No pattern to export."); return; }
+    project.coverPreviewJpeg = window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
+    var opts = {
+      pageSize: pageSize[0], marginsMm: marginsMm[0],
+      stitchesPerPage: stPerPg[0], customCols: customCols[0], customRows: customRows[0],
+      chartModes: modesArr, overlap: overlap[0],
+      includeCover: includeCover[0], includeInfo: includeInfo[0],
+      includeIndex: includeIndex[0], miniLegend: miniLegend[0],
+      branding: window.PdfExport.readBranding(),
+      locale: navigator.language || "en-GB",
+    };
+    setProgress({ stage: "init", current: 0, total: totalPagesPreview || 1 });
+    var tag = {};
+    runningRef.current = tag;
+    window.PdfExport.runExport(project, opts, function (msg) {
+      if (runningRef.current !== tag) return;
+      setProgress({ stage: msg.stage, current: msg.current, total: msg.total || totalPagesPreview });
+    }).then(function (bytes) {
+      if (runningRef.current !== tag) return;
+      setProgress(null); runningRef.current = null;
+      var fname = (project.name || "pattern").replace(/[^\w\-]+/g, "_") + ".pdf";
+      window.PdfExport.downloadBytes(bytes, fname);
+    }).catch(function (err) {
+      if (runningRef.current !== tag) return;
+      setProgress(null); runningRef.current = null;
+      setError(err.message || "Export failed");
+    });
+  }
+  function cancelExport() {
+    if (!runningRef.current) return;
+    runningRef.current = null;
+    window.PdfExport.cancelAll();
+    setProgress(null);
+  }
+
+  if (!(ctx && ctx.pat && ctx.pal)) return null;
   if (app.tab !== "export") return null;
 
-  return h("div", {style:{display:"flex",flexDirection:"column",gap:12}},
-    app.copied && h("div", {style:{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!"),
+  var presetCardActive = { background: "#0d9488", color: "#fff", borderColor: "#0d9488" };
+  var presetCardBase = { flex: 1, padding: 14, borderRadius: 10, border: "1.5px solid #cbd5e1", background: "#fff", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 };
+  var ctaStyle = { padding: "14px 22px", fontSize: 16, borderRadius: 10, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
+  var disabledCta = Object.assign({}, ctaStyle, { background: "#94a3b8", cursor: "not-allowed" });
+  var sectionToggle = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "#0f172a" };
+
+  return h("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
+    app.copied && h("div", { style: { background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "#16a34a", fontWeight: 600 } }, "Copied!"),
 
     h("button", {
       onClick: app.handleOpenInTracker,
-      style:{padding:"12px 20px",fontSize:15,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:8}
-    }, Icons.thread(), " Open in Stitch Tracker \u2192"),
+      style: { padding: "12px 20px", fontSize: 15, borderRadius: 8, border: "none", background: "#0f766e", color: "#fff", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }
+    }, window.Icons && Icons.thread && Icons.thread(), " Open in Stitch Tracker →"),
 
-    h(Section, {title:"PDF Export"},
-      h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},
-        "Multi-page PDF with legend and chart."
-      ),
-      h("div", {style:{display:"flex",gap:16,alignItems:"center",marginBottom:10}},
-        h("label", {style:{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6}},
-          "Chart Mode:",
-          h("select", {
-            value:app.pdfDisplayMode, onChange:function(e){app.setPdfDisplayMode(e.target.value);},
-            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
-          },
-            h("option", {value:"color_symbol"}, "Color + Symbols"),
-            h("option", {value:"symbol"}, "Symbols Only"),
-            h("option", {value:"color"}, "Color Blocks Only")
-          )
+    h("div", null,
+      h("h3", { style: { margin: "0 0 8px", fontSize: 14, color: "#0f172a" } }, "Quick presets"),
+      h("div", { style: { display: "flex", gap: 10 } },
+        h("button", { onClick: function () { applyPreset("patternKeeper"); },
+          style: Object.assign({}, presetCardBase, presetState[0] === "patternKeeper" ? presetCardActive : {}) },
+          h("strong", { style: { fontSize: 14 } }, "For Pattern Keeper"),
+          h("span", { style: { fontSize: 11, opacity: 0.85 } },
+            "Symbols + colour, medium print, 2-row overlap, cover page on. Customers can highlight and track stitches in Pattern Keeper.")
         ),
-        h("label", {style:{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6}},
-          "Cell Size:",
-          h("select", {
-            value:app.pdfCellSize, onChange:function(e){app.setPdfCellSize(Number(e.target.value));},
-            style:{padding:"4px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:12,background:"#fff"}
-          },
-            h("option", {value:2.5}, "Small (2.5mm)"),
-            h("option", {value:3}, "Medium (3mm)"),
-            h("option", {value:4.5}, "Large (4.5mm)")
-          )
-        ),
-        h("label", {style:{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}},
-          h("input", {
-            type:"checkbox", checked:app.pdfSinglePage,
-            onChange:function(e){app.setPdfSinglePage(e.target.checked);}
-          }),
-          " Single Page"
+        h("button", { onClick: function () { applyPreset("homePrinting"); },
+          style: Object.assign({}, presetCardBase, presetState[0] === "homePrinting" ? presetCardActive : {}) },
+          h("strong", { style: { fontSize: 14 } }, "For printing (home)"),
+          h("span", { style: { fontSize: 11, opacity: 0.85 } },
+            "Colour + B&W charts, large print, no overlap, cover page off. Easier on the eyes when stitching from paper.")
         )
-      ),
-      h("div", {style:{display:"flex",gap:8,flexWrap:"wrap"}},
-        h("button", {
-          onClick:function(){
-            exportPDF({displayMode:app.pdfDisplayMode, cellSize:app.pdfCellSize, singlePage:app.pdfSinglePage}, ctx);
-          },
-          style:{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600,boxShadow:"none"}
-        }, "Download Pattern PDF"),
-        h("button", {
-          onClick:function(){ exportCoverSheet(ctx); },
-          style:{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1.5px solid #0d9488",background:"#fff",color:"#0d9488",cursor:"pointer",fontWeight:600}
-        }, "Cover Sheet PDF")
-      ),
-      h("p", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
-        "The cover sheet includes pattern summary, thread list with owned/to-buy status, and space for notes \u2014 perfect for tucking into your project bag."
       )
     ),
 
-    h(Section, {title:"PNG Chart"},
-      h("div", {style:{display:"flex",gap:8,alignItems:"center",marginTop:8,marginBottom:8}},
-        h("label", {style:{display:"flex",alignItems:"center",gap:4,fontSize:12,cursor:"pointer"}},
-          h("input", {
-            type:"checkbox", checked:app.pageMode,
-            onChange:function(e){app.setPageMode(e.target.checked); app.setExportPage(0);}
-          }),
-          "A4 pages"
-        ),
-        app.pageMode && h(React.Fragment, null,
-          h("button", {
-            onClick:function(){app.setExportPage(function(p){return Math.max(0,p-1);});},
-            disabled:app.exportPage===0,
-            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
-          }, "\u25C4"),
-          h("span", {style:{fontSize:12}}, "Page "+(app.exportPage+1)+"/"+app.totPg),
-          h("button", {
-            onClick:function(){app.setExportPage(function(p){return Math.min(app.totPg-1,p+1);});},
-            disabled:app.exportPage>=app.totPg-1,
-            style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}
-          }, "\u25BA")
-        )
+    h("div", null,
+      h("button", { onClick: function () { setSettingsOpen(!settingsOpen[0]); }, style: sectionToggle },
+        h("span", null, "Format & settings"),
+        h("span", { style: { color: "#64748b" } }, settingsOpen[0] ? "▲" : "▼")
       ),
-      h("div", {style:{overflow:"auto",maxHeight:400,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#fff"}},
-        h("canvas", {ref:app.expRef, style:{display:"block"}})
+      settingsOpen[0] && h("div", { style: { background: "#fff", border: "1px solid #e2e8f0", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 14 } },
+
+        h("div", { style: { marginBottom: 14 } },
+          h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 6 } }, "Format"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12 } },
+            h("input", { type: "radio", checked: true, readOnly: true }), "PDF"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, opacity: 0.5 } },
+            h("input", { type: "radio", disabled: true }), "PNG (coming soon)"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.5 } },
+            h("input", { type: "radio", disabled: true }), "OXS (coming soon)")
+        ),
+
+        h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 } },
+          h("div", null,
+            h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Page size"),
+            h("select", { value: pageSize[0], onChange: function (e) { setPageSize(e.target.value); }, style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12, width: "100%" } },
+              h("option", { value: "auto" },   "Auto (A4 / Letter from locale)"),
+              h("option", { value: "a4" },     "A4 (210 × 297 mm)"),
+              h("option", { value: "letter" }, "US Letter (8.5 × 11 in)")
+            )
+          ),
+          h("div", null,
+            h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Page margin (mm)"),
+            h("input", { type: "number", min: 10, max: 30, value: marginsMm[0], onChange: function (e) { setMarginsMm(Number(e.target.value)); },
+              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12, width: "100%" } })
+          )
+        ),
+
+        h("div", { style: { marginBottom: 12 } },
+          h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Stitches per page"),
+          h("select", { value: stPerPg[0], onChange: function (e) { setStPerPg(e.target.value); }, style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12 } },
+            h("option", { value: "small" },  "Small print (~80 × 100, ~2mm cells)"),
+            h("option", { value: "medium" }, "Medium print (~60 × 70, ~2.8mm cells, ideal for PK)"),
+            h("option", { value: "large" },  "Large print (~40 × 50, ~4mm cells, easier to read)"),
+            h("option", { value: "custom" }, "Custom")
+          ),
+          stPerPg[0] === "custom" && h("div", { style: { display: "flex", gap: 8, marginTop: 6 } },
+            h("input", { type: "number", min: 10, max: 200, step: 10, value: customCols[0], onChange: function (e) { setCustomCols(Number(e.target.value)); },
+              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12, width: 90 } }),
+            h("span", { style: { fontSize: 12, alignSelf: "center" } }, "cols ×"),
+            h("input", { type: "number", min: 10, max: 200, step: 10, value: customRows[0], onChange: function (e) { setCustomRows(Number(e.target.value)); },
+              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12, width: 90 } }),
+            h("span", { style: { fontSize: 12, alignSelf: "center" } }, "rows")
+          )
+        ),
+
+        h("div", { style: { marginBottom: 12 } },
+          h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Chart modes"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "checkbox", checked: modeBw[0], onChange: function (e) { setModeBw(e.target.checked); } }),
+            "Symbols on white (B&W)"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "checkbox", checked: modeColour[0], onChange: function (e) { setModeColour(e.target.checked); } }),
+            "Colour blocks with symbols")
+        ),
+
+        h("div", { style: { display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 6 } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "checkbox", checked: overlap[0], onChange: function (e) { setOverlap(e.target.checked); } }),
+            "2-row/column overlap zone"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "checkbox", checked: includeCover[0], onChange: function (e) { setIncludeCover(e.target.checked); } }),
+            "Cover page"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "checkbox", checked: includeInfo[0], onChange: function (e) { setIncludeInfo(e.target.checked); } }),
+            "Info page"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "checkbox", checked: includeIndex[0], onChange: function (e) { setIncludeIndex(e.target.checked); } }),
+            "Chart index"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "checkbox", checked: miniLegend[0], onChange: function (e) { setMiniLegend(e.target.checked); } }),
+            "Mini-legend strip on each page")
+        ),
+
+        pageGeom && h("p", { style: { fontSize: 11, color: "#64748b", marginTop: 12, marginBottom: 0 } },
+          "Will produce ~" + totalPagesPreview + " page" + (totalPagesPreview === 1 ? "" : "s") +
+          " (chart grid: " + pageGeom.colsPerPage + " × " + pageGeom.rowsPerPage +
+          " stitches per chart page, cell ≈ " + pageGeom.cellMm.toFixed(2) + " mm).")
       )
     ),
 
-    h(Section, {title:"Save / Load"},
-      h("p", {style:{fontSize:12,color:"#475569",margin:"8px 0 10px"}},
-        "Saves pattern for later editing or opening in Stitch Tracker."
+    h("div", null,
+      h("button", { onClick: function () { setBrandingOpen(!brandingOpen[0]); }, style: sectionToggle },
+        h("span", null, "Designer branding"),
+        h("span", { style: { color: "#64748b" } }, brandingOpen[0] ? "▲" : "▼")
       ),
-      h("div", {style:{display:"flex",gap:8}},
-        h("button", {
-          onClick:app.saveProject,
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}
-        }, "Save (.json)"),
-        h("button", {
-          onClick:function(){app.loadRef.current.click();},
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
-        }, "Load")
+      brandingOpen[0] && window.CreatorDesignerBrandingSection && h(window.CreatorDesignerBrandingSection)
+    ),
+
+    progressState[0] ? h("div", { style: { background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 10, padding: 16 } },
+      h("div", { style: { fontSize: 13, fontWeight: 600, color: "#0f172a", marginBottom: 8 } },
+        "Generating PDF… " + (progressState[0].current || 0) + " of " + (progressState[0].total || "?") + " pages"),
+      h("div", { style: { background: "#e2e8f0", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 10 } },
+        h("div", { style: {
+          width: ((progressState[0].total ? Math.min(100, (progressState[0].current / progressState[0].total) * 100) : 30)) + "%",
+          height: "100%", background: "#0d9488", transition: "width 120ms ease-out" } })
+      ),
+      h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize: 13, borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", cursor: "pointer", fontWeight: 600 } }, "Cancel")
+    ) : h("button", {
+      onClick: doExport,
+      style: (modesArr.length === 0) ? disabledCta : ctaStyle,
+      disabled: modesArr.length === 0,
+    }, "Export PDF"),
+
+    errorState[0] && h("div", { style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, fontSize: 12, color: "#b91c1c" } }, errorState[0]),
+
+    h("div", { style: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14 } },
+      h("h4", { style: { margin: "0 0 8px", fontSize: 13, color: "#0f172a" } }, "Save / load project file"),
+      h("p", { style: { fontSize: 11, color: "#64748b", margin: "0 0 10px" } },
+        "Save the editable .json so you can re-open this pattern later or in Stitch Tracker."),
+      h("div", { style: { display: "flex", gap: 8 } },
+        h("button", { onClick: app.saveProject, style: { padding: "8px 16px", fontSize: 13, borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 } }, "Save (.json)"),
+        h("button", { onClick: function () { app.loadRef.current && app.loadRef.current.click(); }, style: { padding: "8px 16px", fontSize: 13, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", fontWeight: 500 } }, "Load")
       )
     )
   );

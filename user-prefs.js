@@ -26,6 +26,28 @@
     preferredMountColour:   "#FFFFFF",
     preferredMountWidth:    0.08,
     previewQualityAuto:     true,
+
+    // ─── Designer branding (consumed by the PDF export pipeline) ────────
+    designerName:         "",
+    designerLogo:         null,        // data URL (PNG/JPEG) or null
+    designerLogoPosition: "top-right", // "top-left" | "top-right"
+    designerCopyright:    "",
+    designerContact:      "",
+
+    // ─── PDF export defaults (last-used values for the Export panel) ────
+    exportPreset:           "patternKeeper", // "patternKeeper" | "homePrinting"
+    exportPageSize:         "auto",          // "auto" | "a4" | "letter"
+    exportMarginsMm:        12,
+    exportStitchesPerPage:  "medium",        // "small" | "medium" | "large" | "custom"
+    exportCustomCols:       60,
+    exportCustomRows:       70,
+    exportChartModeBw:      true,
+    exportChartModeColour:  true,
+    exportOverlap:          true,
+    exportIncludeCover:     true,
+    exportIncludeInfo:      true,
+    exportIncludeIndex:     true,
+    exportMiniLegend:       true,
   };
 
   var PVIEW_DEFAULTS = {
