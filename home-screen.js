@@ -825,6 +825,36 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
 
   // Rest of projects for recent list (exclude hero)
   var recentProjects = projects.length > 1 ? projects.slice(1, 6) : [];
+  var patternsByProjectId = useMemo(function() {
+    var map = new Map();
+    if (!patterns || patterns.length === 0) return map;
+    patterns.forEach(function(p) {
+      if (p && p.linkedProjectId) map.set(p.linkedProjectId, p);
+    });
+    return map;
+  }, [patterns]);
+
+  // Compute stash coverage indicator for a project (uses linked pattern library entry)
+  // Returns 'all' (green), 'some' (amber), or null (unknown)
+  function getStashStatus(proj) {
+    if (!hasStash || !patterns || patterns.length === 0) return null;
+    var pat = patternsByProjectId.get(proj.id);
+    if (!pat || !pat.threads || pat.threads.length === 0) return null;
+    var total = 0;
+    var owned = 0;
+    pat.threads.forEach(function(t) {
+      var ids = String((t && t.id) || '').split('+').map(function(id) { return id.trim(); }).filter(Boolean);
+      if (ids.length === 0) return;
+      ids.forEach(function(id) {
+        total++;
+        var k = id.indexOf(':') < 0 ? 'dmc:' + id : id;
+        if (stash[k] && stash[k].owned > 0) owned++;
+      });
+    });
+    if (total === 0) return null;
+    if (owned === 0) return null;
+    return owned >= total ? 'all' : 'some';
+  }
 
   // Stash alerts
   var stashAlerts = useMemo(function() {
@@ -1086,6 +1116,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
                   : 0;
                 var isDone = pct >= 100;
                 var mode = proj.source === 'creator' ? 'creator' : 'tracker';
+                var stashStatus = getStashStatus(proj);
                 return h('button', {
                   key: proj.id,
                   className: 'home-recent-row',
@@ -1097,6 +1128,14 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
                       : h('div', { className: 'home-recent-swatch-placeholder' })
                   ),
                   h('span', { className: 'home-recent-name' }, proj.name || 'Untitled'),
+                  stashStatus && h('span', {
+                    title: stashStatus === 'all' ? 'All threads in stash' : 'Some threads in stash',
+                    style: {
+                      width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                      background: stashStatus === 'all' ? '#16a34a' : '#f59e0b',
+                      display: 'inline-block', marginRight: 4
+                    }
+                  }),
                   h('span', { className: 'home-recent-progress' + (isDone ? ' home-recent-progress--done' : '') },
                     isDone ? 'Done' : pct + '%'
                   )

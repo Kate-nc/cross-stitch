@@ -1713,119 +1713,201 @@ function UserProfileModal({ profile, onSave, onClose }) {
 
 function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose }) {
   const [copied, setCopied] = useState(false);
+  const [sort, setSort] = useState('number');
 
-  const missingThreads = useMemo(() => {
-    // Aggregate required threads across all selected patterns
+  const allThreads = useMemo(() => {
     const required = {};
+    const addRequired = (id, qty) => {
+      if (!id) return;
+      const n = Number(qty) || 0;
+      if (!required[id]) required[id] = 0;
+      required[id] += n;
+    };
     patterns.forEach(p => {
       if (!p.threads) return;
-
       const settings = {
-          fabricCount: p.project_overrides?.fabric_count || userProfile?.fabric_count || 14,
-          strandsUsed: p.project_overrides?.strands_used || userProfile?.strands_used || 2,
-          threadBrand: p.project_overrides?.thread_brand || userProfile?.thread_brand || "DMC",
-          wasteFactor: p.project_overrides?.waste_factor || userProfile?.waste_factor || 0.20
+        fabricCount: p.project_overrides?.fabric_count || userProfile?.fabric_count || 14,
+        strandsUsed: p.project_overrides?.strands_used || userProfile?.strands_used || 2,
+        threadBrand: p.project_overrides?.thread_brand || userProfile?.thread_brand || "DMC",
+        wasteFactor: p.project_overrides?.waste_factor || userProfile?.waste_factor || 0.20
       };
-
       p.threads.forEach(t => {
-        let qtyA = 0;
-        let qtyB = 0;
-
+        const blendParts = typeof t.id === "string" && t.id.includes("+")
+          ? t.id.split("+").map(part => part.trim()).filter(Boolean)
+          : null;
+        const isBlend = !!t.is_blended || (blendParts && blendParts.length === 2);
+        let qtyA = 0, qtyB = 0;
         if (t.unit === "stitches") {
-             const res = stitchesToSkeins({
-                 stitchCount: t.qty,
-                 fabricCount: settings.fabricCount,
-                 strandsUsed: settings.strandsUsed,
-                 skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0,
-                 wasteFactor: settings.wasteFactor,
-                 isBlended: t.is_blended,
-                 blendRatio: t.blend_ratio
-             });
-             if (t.is_blended) {
-                 qtyA = res.colorA.skeinsToBuy;
-                 qtyB = res.colorB.skeinsToBuy;
-             } else {
-                 qtyA = res.skeinsToBuy;
-             }
+          const res = stitchesToSkeins({
+            stitchCount: t.qty, fabricCount: settings.fabricCount,
+            strandsUsed: settings.strandsUsed,
+            skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0,
+            wasteFactor: settings.wasteFactor, isBlended: isBlend, blendRatio: t.blend_ratio
+          });
+          if (isBlend) {
+            qtyA = (res.colorA && res.colorA.skeinsToBuy) || 0;
+            qtyB = (res.colorB && res.colorB.skeinsToBuy) || 0;
+          }
+          else { qtyA = res.skeinsToBuy; }
+        } else if (isBlend) {
+          qtyA = (Number(t.qty) || 0) / 2;
+          qtyB = (Number(t.qty) || 0) / 2;
+        } else { qtyA = t.qty; }
+        if (isBlend) {
+          const idA = blendParts ? blendParts[0] : t.id;
+          const idB = blendParts ? blendParts[1] : t.blend_id;
+          addRequired(idA, qtyA);
+          addRequired(idB, qtyB);
         } else {
-             // skeins
-             qtyA = t.qty; // Note: we can't accurately split skeins in blends, so apply all to primary
-        }
-
-        if (!required[t.id]) required[t.id] = 0;
-        required[t.id] += qtyA;
-
-        if (t.is_blended && t.blend_id) {
-            if (!required[t.blend_id]) required[t.blend_id] = 0;
-            required[t.blend_id] += qtyB;
+          addRequired(t.id, qtyA);
         }
       });
     });
-
-    const missing = [];
-    Object.entries(required).forEach(([id, totalQtyReq]) => {
+    return Object.entries(required).map(([id, totalNeeded]) => {
       const k = id.indexOf(':') < 0 ? 'dmc:' + id : id;
       const invState = inventoryThreads[k] || inventoryThreads[id] || { owned: 0 };
-      const missingQty = totalQtyReq - invState.owned;
-      if (missingQty > 0) {
-        const info = DMC.find(d => d.id === id);
-        missing.push({
-          id,
-          name: info ? info.name : "",
-          rgb: info ? info.rgb : [128,128,128],
-          qty: missingQty
-        });
-      }
+      const owned = invState.owned || 0;
+      const info = DMC.find(d => d.id === id);
+      const status = owned >= totalNeeded ? 'owned' : owned > 0 ? 'partial' : 'needed';
+      return { id, name: info ? info.name : "", rgb: info ? info.rgb : [128,128,128],
+               needed: totalNeeded, owned, status, missing: Math.max(0, totalNeeded - owned) };
     });
-
-    return missing.sort((a, b) => parseInt(a.id) - parseInt(b.id));
   }, [patterns, inventoryThreads, userProfile]);
 
+  const sortedThreads = useMemo(() => {
+    const copy = allThreads.slice();
+    const compareThreadIds = (a, b) => {
+      const aId = String(a.id);
+      const bId = String(b.id);
+      const aIsNumeric = /^\d+$/.test(aId);
+      const bIsNumeric = /^\d+$/.test(bId);
+      if (aIsNumeric && bIsNumeric) {
+        const diff = Number(aId) - Number(bId);
+        return diff || aId.localeCompare(bId, undefined, { numeric: true, sensitivity: 'base' });
+      }
+      if (aIsNumeric !== bIsNumeric) return aIsNumeric ? -1 : 1;
+      return aId.localeCompare(bId, undefined, { numeric: true, sensitivity: 'base' });
+    };
+    if (sort === 'number') copy.sort(compareThreadIds);
+    else if (sort === 'skeins') copy.sort((a, b) => b.needed - a.needed);
+    else if (sort === 'status') {
+      const o = { needed: 0, partial: 1, owned: 2 };
+      copy.sort((a, b) => o[a.status] - o[b.status]);
+    }
+    return copy;
+  }, [allThreads, sort]);
+
+  const totalColours = allThreads.length;
+  const ownedColours = allThreads.filter(t => t.status === 'owned').length;
+  const partialColours = allThreads.filter(t => t.status === 'partial').length;
+  const totalMissingColours = allThreads.filter(t => t.status !== 'owned').length;
+  const totalMissingSkeins = allThreads.reduce((acc, t) => acc + t.missing, 0);
+
   const copyList = () => {
-    const text = missingThreads.map(t => `DMC ${t.id} ${t.name} x${t.qty}`).join('\n');
-    navigator.clipboard.writeText(text).then(() => {
+    const header = `Shopping List — ${patterns.map(p => p.title).join(', ')}\n`;
+    const lines = sortedThreads.map(t => {
+      const own = t.owned > 0 ? ` (own ${t.owned})` : '';
+      const mark = t.status === 'owned' ? '\u2713' : t.status === 'partial' ? '~' : '\u25cb';
+      return `${mark} DMC ${t.id} ${t.name} \u2014 need ${t.needed} skein${t.needed !== 1 ? 's' : ''}${own}`;
+    });
+    const footer = `\nTotal: ${ownedColours}/${totalColours} colours in stash`;
+    const text = header + lines.join('\n') + footer;
+    const onCopySuccess = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(onCopySuccess).catch(() => {});
+      return;
+    }
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const copiedOk = document.execCommand && document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (copiedOk) onCopySuccess();
+    } catch (_) {}
+  };
+
+  const handleShare = () => {
+    if (!navigator.share) return;
+    const missingOnly = sortedThreads.filter(t => t.status !== 'owned');
+    const text = `Shopping List\n` + missingOnly.map(t => {
+      const own = t.owned > 0 ? ` (own ${t.owned})` : '';
+      return `DMC ${t.id} ${t.name} \u2014 ${t.missing} skein${t.missing !== 1 ? 's' : ''}${own}`;
+    }).join('\n');
+    navigator.share({ title: 'Cross Stitch Shopping List', text }).catch(() => {});
+  };
+
+  const statusBadge = (status, owned, needed) => {
+    if (status === 'owned') return <span style={{ fontSize: 10, fontWeight: 600, color: '#16a34a', background: '#f0fdf4', padding: '2px 7px', borderRadius: 10 }}>In stash</span>;
+    if (status === 'partial') return <span style={{ fontSize: 10, fontWeight: 600, color: '#ea580c', background: '#fff7ed', padding: '2px 7px', borderRadius: 10 }}>Partial ({owned}/{needed})</span>;
+    return <span style={{ fontSize: 10, fontWeight: 600, color: '#dc2626', background: '#fef2f2', padding: '2px 7px', borderRadius: 10 }}>Need to buy</span>;
   };
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000 }}>
-      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", padding: 0 }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 540, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", padding: 0 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Shopping List</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#94a3b8" }}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#94a3b8" }}>&times;</button>
         </div>
-
-        <div style={{ padding: 20, overflowY: "auto", flex: 1 }}>
-          <div style={{ fontSize: 13, color: "#475569", marginBottom: 16 }}>
-            Based on your inventory, here is what you need for the {patterns.length} selected pattern(s).
-          </div>
-
-          {missingThreads.length === 0 ? (
+        <div style={{ padding: "10px 20px", background: ownedColours === totalColours ? "#f0fdf4" : "#fffbeb", borderBottom: "1px solid #e2e8f0", fontSize: 12, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          <span style={{ fontWeight: 600, color: ownedColours === totalColours ? "#16a34a" : "#92400e" }}>
+            {ownedColours === totalColours
+              ? `\u2713 You have all ${totalColours} colours!`
+              : `You own ${ownedColours} of ${totalColours} colours.`}
+          </span>
+          {partialColours > 0 && <span style={{ color: "#ea580c" }}>{partialColours} partial.</span>}
+          {totalMissingColours > 0 && <span style={{ color: "#dc2626" }}>Still need: {totalMissingColours} colours, ~{totalMissingSkeins} skeins.</span>}
+        </div>
+        <div style={{ padding: "8px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+          <span style={{ color: "#475569" }}>Sort:</span>
+          {[['number','Thread #'],['skeins','Skeins'],['status','Status']].map(([id, label]) => (
+            <button key={id} onClick={() => setSort(id)} style={{
+              padding: "3px 10px", borderRadius: 6, cursor: "pointer", fontSize: 11,
+              border: "0.5px solid " + (sort === id ? "#0d9488" : "#e2e8f0"),
+              background: sort === id ? "#f0fdfa" : "#fff",
+              color: sort === id ? "#0d9488" : "#475569", fontWeight: sort === id ? 600 : 400
+            }}>{label}</button>
+          ))}
+        </div>
+        <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1 }}>
+          {allThreads.length === 0 ? (
+            <div style={{ padding: 30, textAlign: "center", color: "#94a3b8" }}>No threads in selected patterns.</div>
+          ) : ownedColours === totalColours ? (
             <div style={{ padding: 30, textAlign: "center", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, color: "#16a34a", fontWeight: 600 }}>
               You have all the required threads!
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {missingThreads.map(t => (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", background: "#f8f9fa", borderRadius: 8, border: "1px solid #e2e8f0" }}>
-                  <div style={{ width: 20, height: 20, borderRadius: 4, background: `rgb(${t.rgb})`, border: "1px solid #cbd5e1" }} />
-                  <div style={{ width: 40, fontWeight: 700, fontSize: 13 }}>{t.id}</div>
-                  <div style={{ flex: 1, fontSize: 12, color: "#475569", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#ea580c" }}>{t.qty} sk</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {sortedThreads.map(t => (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: t.status === 'owned' ? "#f0fdf4" : "#f8f9fa", borderRadius: 8, border: "1px solid " + (t.status === 'owned' ? "#bbf7d0" : "#e2e8f0") }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 4, background: `rgb(${t.rgb})`, border: "1px solid #cbd5e1", flexShrink: 0 }} />
+                  <div style={{ width: 38, fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{t.id}</div>
+                  <div style={{ flex: 1, fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#1e293b", flexShrink: 0 }}>{t.needed} sk</div>
+                  {statusBadge(t.status, t.owned, t.needed)}
                 </div>
               ))}
             </div>
           )}
         </div>
-
-        <div style={{ padding: "16px 20px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8f9fa", borderRadius: "0 0 8px 8px" }}>
-          <span style={{ fontSize: 13, color: "#16a34a", fontWeight: 600, opacity: copied ? 1 : 0, transition: "opacity 0.2s" }}>Copied to clipboard!</span>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #e2e8f0", background: "#fff", cursor: "pointer", fontWeight: 600 }}>Close</button>
-            {missingThreads.length > 0 && (
-              <button onClick={copyList} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Copy List</button>
+        <div style={{ padding: "14px 20px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8f9fa", borderRadius: "0 0 8px 8px", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 600, opacity: copied ? 1 : 0, transition: "opacity 0.2s" }}>Copied!</span>
+          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+            <button onClick={onClose} style={{ padding: "7px 14px", borderRadius: 8, border: "0.5px solid #e2e8f0", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Close</button>
+            {typeof navigator !== 'undefined' && navigator.share && totalMissingColours > 0 && (
+              <button onClick={handleShare} style={{ padding: "7px 14px", borderRadius: 8, border: "0.5px solid #e2e8f0", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Share</button>
+            )}
+            {allThreads.length > 0 && (
+              <button onClick={copyList} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>{copied ? "\u2713 Copied" : "Copy List"}</button>
             )}
           </div>
         </div>
@@ -1833,5 +1915,4 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
     </div>
   );
 }
-
 ReactDOM.createRoot(document.getElementById("root")).render(<ManagerApp />);

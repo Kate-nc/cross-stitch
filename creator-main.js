@@ -689,6 +689,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               <window.CreatorPatternTab/>
               <window.CreatorProjectTab/>
               <window.CreatorLegendTab/>
+              <window.CreatorPrepareTab/>
               <window.CreatorExportTab/>
             </div>}
             {!state.pat&&state.img&&<div style={{display:"flex",flexDirection:"column",gap:16,padding:"20px 16px"}}>
@@ -781,7 +782,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               </div>}
             </div>}
           </div>
-          {state.tab!=="stitch"&&<>
+          {state.tab==="pattern"&&<>
             {state.panelOpen&&<div className="rpanel-backdrop" onClick={()=>state.setPanelOpen(false)}/>}
             <div className={"rpanel"+(state.panelOpen?" rpanel--open":"")}>
             <window.CreatorSidebar/>
