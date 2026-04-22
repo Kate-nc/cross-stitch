@@ -9,7 +9,6 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var h = React.createElement;
 
   var useState = React.useState;
-  var useEffect = React.useEffect;
   var useMemo = React.useMemo;
 
   var _units = useState('in'); var units = _units[0]; var setUnits = _units[1];
