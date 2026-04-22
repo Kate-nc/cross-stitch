@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v5';
+var CACHE_NAME = 'cross-stitch-cache-v6';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -45,13 +45,16 @@ var PRECACHE_URLS = [
   './pdf.worker.min.js',
   './backup-restore.js',
   './sync-engine.js',
+  './pdf-export-worker.js',
+  './assets/fonts/CrossStitchSymbols.base64.js',
+  './assets/fonts/CrossStitchSymbols.ttf',
 
   // External CDN dependencies (exact versioned URLs from HTML)
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
 ];
 

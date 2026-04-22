@@ -11,11 +11,13 @@ const path = require('path');
 
 const ORDER = [
   'context.js',
+  'symbolFontSpec.js',
+  'pdfChartLayout.js',
+  'pdfExport.js',
   'generate.js',
   'canvasRenderer.js',
   'PreviewCanvas.js',
   'RealisticCanvas.js',
-  'exportPdf.js',
   'useMagicWand.js',
   'useLassoSelect.js',
   'useCreatorState.js',
@@ -37,6 +39,7 @@ const ORDER = [
   'PatternTab.js',
   'ProjectTab.js',
   'LegendTab.js',
+  'DesignerBrandingSection.js',
   'ExportTab.js',
 ];
 
