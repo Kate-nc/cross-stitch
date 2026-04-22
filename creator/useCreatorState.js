@@ -41,6 +41,11 @@ window.useCreatorState = function useCreatorState() {
   var _pat  = useState(null);         var pat  = _pat[0],  setPat  = _pat[1];
   var _pal  = useState(null);         var pal  = _pal[0],  setPal  = _pal[1];
   var _cmap = useState(null);         var cmap = _cmap[0], setCmap = _cmap[1];
+  var _cwSlots = useState([]);        var colourSlots = _cwSlots[0], setColourSlots = _cwSlots[1];
+  var _cways   = useState([]);        var colourways = _cways[0], setColourways = _cways[1];
+  var _actCwId = useState(null);      var activeColourwayId = _actCwId[0], setActiveColourwayId = _actCwId[1];
+  var _cwRoles = useState([]);        var customRoles = _cwRoles[0], setCustomRoles = _cwRoles[1];
+  var colourwayStateRef = useRef({ colourSlots: [], colourways: [], activeColourwayId: null, customRoles: [] });
   var _busy = useState(false);        var busy = _busy[0], setBusy = _busy[1];
   var _oW   = useState(0);            var origW = _oW[0],  setOrigW = _oW[1];
   var _oH   = useState(0);            var origH = _oH[0],  setOrigH = _oH[1];
@@ -447,6 +452,7 @@ window.useCreatorState = function useCreatorState() {
 
   function resetAll() {
     setPat(null); setPal(null); setCmap(null); setHiId(null);
+    setColourSlots([]); setColourways([]); setActiveColourwayId(null); setCustomRoles([]);
     setBsLines([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
@@ -468,6 +474,71 @@ window.useCreatorState = function useCreatorState() {
     setBrushAndActivate("paint");
     selectStitchType("cross");
     setSelectedColorId(pal[0].id);
+  }, [pat, pal, colourSlots, colourways, activeColourwayId, customRoles]);
+
+  useEffect(function() {
+    colourwayStateRef.current = {
+      colourSlots: Array.isArray(colourSlots) ? colourSlots : [],
+      colourways: Array.isArray(colourways) ? colourways : [],
+      activeColourwayId: activeColourwayId,
+      customRoles: Array.isArray(customRoles) ? customRoles : [],
+    };
+  }, [colourSlots, colourways, activeColourwayId, customRoles]);
+
+  // ── Colourway model bootstrap / slot reconciliation ─────────────────────────
+  useEffect(function() {
+    if (!pat || !pal || !Array.isArray(pal) || pal.length === 0) return;
+    if (typeof ColourwaySystem === "undefined" || !ColourwaySystem.buildColourwayModel) return;
+    function shallowEqArr(a, b) {
+      if (!Array.isArray(a) || !Array.isArray(b)) return false;
+      if (a.length !== b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+      }
+      return true;
+    }
+    function sameModel(a, b) {
+      var aSlots = (a.colourSlots || []).map(function(s) { return s.id + "|" + (s.role || "") + "|" + (s.symbol || ""); });
+      var bSlots = (b.colourSlots || []).map(function(s) { return s.id + "|" + (s.role || "") + "|" + (s.symbol || ""); });
+      if (!shallowEqArr(aSlots, bSlots)) return false;
+      if (a.activeColourwayId !== b.activeColourwayId) return false;
+      if (!shallowEqArr(a.customRoles || [], b.customRoles || [])) return false;
+      var aCw = (a.colourways || []).map(function(c) { return c.id + "|" + c.name + "|" + (c.isBase ? 1 : 0) + "|" + Object.keys(c.colourMap || {}).sort().map(function(k) { return k + ":" + c.colourMap[k]; }).join(","); });
+      var bCw = (b.colourways || []).map(function(c) { return c.id + "|" + c.name + "|" + (c.isBase ? 1 : 0) + "|" + Object.keys(c.colourMap || {}).sort().map(function(k) { return k + ":" + c.colourMap[k]; }).join(","); });
+      return shallowEqArr(aCw, bCw);
+    }
+    var curr = colourwayStateRef.current || {};
+    var next = {
+      colourSlots: Array.isArray(curr.colourSlots) ? curr.colourSlots.slice() : [],
+      colourways: Array.isArray(curr.colourways) ? curr.colourways.slice() : [],
+      activeColourwayId: curr.activeColourwayId,
+      customRoles: Array.isArray(curr.customRoles) ? curr.customRoles.slice() : [],
+    };
+    if (!next.colourways.length || !next.colourSlots.length) {
+      next = ColourwaySystem.buildColourwayModel({ pattern: pat, palette: pal });
+      if (sameModel(curr, next)) return;
+      setColourSlots(next.colourSlots || []);
+      setColourways(next.colourways || []);
+      setActiveColourwayId(next.activeColourwayId || null);
+      setCustomRoles(next.customRoles || []);
+      return;
+    }
+    ColourwaySystem.reconcileSlotsFromPalette(next, pat, pal);
+    var ok = ColourwaySystem.validate(next, pat);
+    if (!ok.ok) {
+      var rebuilt = ColourwaySystem.buildColourwayModel({ pattern: pat, palette: pal });
+      if (sameModel(curr, rebuilt)) return;
+      setColourSlots(rebuilt.colourSlots || []);
+      setColourways(rebuilt.colourways || []);
+      setActiveColourwayId(rebuilt.activeColourwayId || null);
+      setCustomRoles(rebuilt.customRoles || []);
+      return;
+    }
+    if (sameModel(curr, next)) return;
+    setColourSlots(next.colourSlots || []);
+    setColourways(next.colourways || []);
+    setActiveColourwayId(next.activeColourwayId || null);
+    setCustomRoles(next.customRoles || []);
   }, [pat, pal]);
 
   // ── Dimming animation: 150ms fade-in/out when hiId or highlightMode changes ──
@@ -937,7 +1008,9 @@ window.useCreatorState = function useCreatorState() {
     dith, setDith, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     orphans, setOrphans, allowBlends, setAllowBlends,
-    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy,
+    pat, setPat, pal, setPal, cmap, setCmap,
+    colourSlots, setColourSlots, colourways, setColourways, activeColourwayId, setActiveColourwayId, customRoles, setCustomRoles,
+    busy, setBusy,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, sidebarTab, setSidebarTab,
