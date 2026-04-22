@@ -781,7 +781,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               </div>}
             </div>}
           </div>
-          {state.tab!=="stitch"&&<>
+          {state.tab==="pattern"&&<>
             {state.panelOpen&&<div className="rpanel-backdrop" onClick={()=>state.setPanelOpen(false)}/>}
             <div className={"rpanel"+(state.panelOpen?" rpanel--open":"")}>
             <window.CreatorSidebar/>

@@ -11978,12 +11978,12 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Copy as text
   function handleCopy() {
     var lines = ['Shopping List'];
-    lines.push(sW + '×' + sH + ' stitches @ ' + fabricCt + ' count' + (overTwo ? ' over two' : ''));
+    lines.push(sW + '\u00d7' + sH + ' stitches @ ' + fabricCt + ' count' + (overTwo ? ' over two' : ''));
     lines.push('');
     sortedRows.forEach(function(r) {
       var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
       var mark = r.status === 'owned' ? '\u2713' : r.status === 'partial' ? '~' : '\u25cb';
-      lines.push(mark + ' DMC ' + r.p.id + ' — ' + r.name + ' — ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
+      lines.push(mark + ' DMC ' + r.p.id + ' \u2014 ' + r.name + ' \u2014 ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
     });
     lines.push('');
     lines.push('Total: ' + ownedColours + '/' + totalColours + ' colours owned');
@@ -12223,7 +12223,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.w),
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.h),
                   h('td', {style: {padding: '6px 10px'}},
-                    isCurrent && h('span', {style: {fontSize: 10, color: '#0d9488', fontWeight: 600}}, '← current')
+                    isCurrent && h('span', {style: {fontSize: 10, color: '#0d9488', fontWeight: 600}}, '\u2190 current')
                   )
                 );
               })
@@ -12231,7 +12231,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
           )
         ),
         h('p', {style: {fontSize: 11, color: '#94a3b8', marginTop: 10}},
-          'Pattern: ' + sW + '×' + sH + ' stitches. Margin: ' + margin + '" each side.'
+          'Pattern: ' + sW + '\u00d7' + sH + ' stitches. Margin: ' + margin + '" each side.'
           + (overTwo ? ' Stitching over two threads.' : '')
         )
       )
