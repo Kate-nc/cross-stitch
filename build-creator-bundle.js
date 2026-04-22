@@ -16,6 +16,8 @@ const ORDER = [
   'PreviewCanvas.js',
   'RealisticCanvas.js',
   'exportPdf.js',
+  'exportOxs.js',
+  'exportPng.js',
   'useMagicWand.js',
   'useLassoSelect.js',
   'useCreatorState.js',
