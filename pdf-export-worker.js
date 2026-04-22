@@ -40,7 +40,8 @@ importScripts(
   "creator/symbolFontSpec.js",
   "creator/pdfChartLayout.js",
   "assets/fonts/CrossStitchSymbols.base64.js",
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js",
+  "https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/lib/fontkit.umd.min.js"
 );
 
 var Layout = self.PdfChartLayout;
@@ -102,6 +103,9 @@ async function buildPdf(project, options, reqId) {
   pdfDoc.setTitle(project.name || "Cross-stitch pattern");
   pdfDoc.setCreator("Cross Stitch Pattern Generator");
   pdfDoc.setProducer("Cross Stitch Pattern Generator (pdf-lib)");
+
+  // Register fontkit so pdf-lib can embed custom (non-standard) fonts.
+  if (self.fontkit) pdfDoc.registerFontkit(self.fontkit);
 
   // Embed the symbol font once, no subsetting (Pattern Keeper needs the full cmap).
   var fontBytes = base64ToUint8(FONT_B64);

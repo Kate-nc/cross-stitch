@@ -55,7 +55,8 @@ var PRECACHE_URLS = [
   'https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+  'https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/lib/fontkit.umd.min.js'
 ];
 
 // Install: pre-cache all assets individually so one failure doesn't block the rest
