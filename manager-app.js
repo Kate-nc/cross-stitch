@@ -1,4 +1,4 @@
-﻿const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useMemo, useCallback } = React;
 
 function PartialGauge({ status }) {
   const segments = {
@@ -98,14 +98,14 @@ function ManagerApp() {
     };
   };
   const reconcileAutoSyncedPatterns = useCallback(async (basePatterns, allMeta) => {
-    // Build a map of linkedProjectId â†’ index for fast lookup.
+    // Build a map of linkedProjectId → index for fast lookup.
     const linkedIdxMap = new Map(
       basePatterns.map((p, i) => p.linkedProjectId ? [p.linkedProjectId, i] : null).filter(Boolean)
     );
     const unlinked = allMeta.filter(m => !linkedIdxMap.has(m.id));
 
     // For each project that already has a library entry, check whether its name has
-    // changed (e.g. renamed on another device via sync). If so, update title only â€”
+    // changed (e.g. renamed on another device via sync). If so, update title only —
     // leave user-set fields (designer, tags, status) untouched. Threads are managed
     // exclusively by syncProjectToLibrary (auto-save) so we don't re-compute them here.
     let reconciled = basePatterns;
@@ -167,7 +167,7 @@ function ManagerApp() {
           // Backup
           store.put(threadsData, "threads_backup_v1");
 
-          // Migrate v1 â†’ v3
+          // Migrate v1 → v3
           finalThreads = {};
           for (const [id, t] of Object.entries(threadsData)) {
             finalThreads[id] = { ...t, partialStatus: t.partialStatus || null, min_stock: 0 };
@@ -175,7 +175,7 @@ function ManagerApp() {
           store.put(finalThreads, "threads");
           store.put(3, "stashDataVersion");
         } else if (threadsData && versionData === 2) {
-          // Migrate v2 â†’ v3: add min_stock
+          // Migrate v2 → v3: add min_stock
           finalThreads = {};
           for (const [id, t] of Object.entries(threadsData)) {
             finalThreads[id] = { ...t, min_stock: t.min_stock || 0 };
@@ -196,7 +196,7 @@ function ManagerApp() {
           store.put(4, "stashDataVersion");
         }
 
-        // v3 â†’ v4: convert bare DMC keys to composite keys and add Anchor threads
+        // v3 → v4: convert bare DMC keys to composite keys and add Anchor threads
         if (threadsData && versionData === 3) {
           const migrated = {};
           for (const [key, val] of Object.entries(finalThreads)) {
@@ -253,7 +253,7 @@ function ManagerApp() {
     };
 
     // Await loadManagerData so ensurePersistence() has settled before we read the
-    // storage estimate â€” otherwise the persistent flag races and shows false.
+    // storage estimate — otherwise the persistent flag races and shows false.
     loadManagerData().then(() => {
       ProjectStorage.getStorageEstimate().then(setStorageUsage).catch(() => {});
     });
@@ -610,11 +610,11 @@ function ManagerApp() {
           style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: "0 14px", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap" }}
           aria-label="Open Showcase view"
         >
-          âœ¦ Showcase
+          ✦ Showcase
         </button>
       </div>
 
-      {/* Filter bar â€” threads */}
+      {/* Filter bar — threads */}
       {tab === "inventory" && (
         <div className="mgr-filter-bar">
           <input
@@ -651,7 +651,7 @@ function ManagerApp() {
         </div>
       )}
 
-      {/* Stats strip â€” threads */}
+      {/* Stats strip — threads */}
       {tab === "inventory" && (
         <div className="mgr-stats-strip">
           <div className="stat">{Icons.check()} <span className="val">{totalOwnedCount}</span> skeins owned</div>
@@ -684,10 +684,10 @@ function ManagerApp() {
               </div>
             )}
 
-            {/* Smart Hub: Low-Stock Alerts â€” needed by active projects */}
+            {/* Smart Hub: Low-Stock Alerts — needed by active projects */}
             {lowStockNeeded && lowStockNeeded.length > 0 && (
               <div className="alert-card warn" style={{ marginBottom: 16 }}>
-                <div className="at">{Icons.box()} Low Stock â€” Needed ({lowStockNeeded.length})</div>
+                <div className="at">{Icons.box()} Low Stock — Needed ({lowStockNeeded.length})</div>
                 <div style={{ fontSize: 12, color: "#475569", marginBottom: 10 }}>Threads below your minimum stock level that are used by active projects.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockNeeded.map(a => (
@@ -705,10 +705,10 @@ function ManagerApp() {
               </div>
             )}
 
-            {/* Smart Hub: Low-Stock â€” not currently needed */}
+            {/* Smart Hub: Low-Stock — not currently needed */}
             {lowStockNotNeeded && lowStockNotNeeded.length > 0 && (
               <div className="alert-card" style={{ marginBottom: 16, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
-                <div className="at" style={{ color: "#64748b" }}>{Icons.box()} Low stash â€” not currently needed ({lowStockNotNeeded.length})</div>
+                <div className="at" style={{ color: "#64748b" }}>{Icons.box()} Low stash — not currently needed ({lowStockNotNeeded.length})</div>
                 <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 10 }}>These threads are below minimum stock but aren't used by any active project.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockNotNeeded.map(a => (
@@ -758,7 +758,7 @@ function ManagerApp() {
             </div>
           </div>
 
-          {/* Right Panel â€” Thread Detail */}
+          {/* Right Panel — Thread Detail */}
           {panelOpen && <div className="rpanel-backdrop" onClick={() => setPanelOpen(false)} />}
           <div className={"mgr-rpanel" + (panelOpen ? " mgr-rpanel--open" : "")}>
             <div className="mgr-panel-handle" onClick={() => setPanelOpen(o => !o)}>
@@ -784,7 +784,7 @@ function ManagerApp() {
                   <div className="td-row">
                     <span className="lbl">Full skeins</span>
                     <div className="qty-ctrl">
-                      <button onClick={() => updateThread(selectedThread, "owned", Math.max(0, state.owned - 1))}>âˆ’</button>
+                      <button onClick={() => updateThread(selectedThread, "owned", Math.max(0, state.owned - 1))}>−</button>
                       <span className="num">{state.owned}</span>
                       <button onClick={() => updateThread(selectedThread, "owned", state.owned + 1)}>+</button>
                     </div>
@@ -792,7 +792,7 @@ function ManagerApp() {
                   <div className="td-row">
                     <span className="lbl">Min stock</span>
                     <div className="qty-ctrl">
-                      <button onClick={() => updateThread(selectedThread, "min_stock", Math.max(0, (state.min_stock || 0) - 1))}>âˆ’</button>
+                      <button onClick={() => updateThread(selectedThread, "min_stock", Math.max(0, (state.min_stock || 0) - 1))}>−</button>
                       <span className="num">{state.min_stock || 0}</span>
                       <button onClick={() => updateThread(selectedThread, "min_stock", (state.min_stock || 0) + 1)}>+</button>
                     </div>
@@ -807,10 +807,10 @@ function ManagerApp() {
                     <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 4, textAlign: "center" }}>Opened skein level</div>
                     <div className="gauge-lg">
                       {[
-                        { val: null, label: "â€”" },
-                        { val: "mostly-full", label: "Â¾" },
-                        { val: "about-half", label: "Â½" },
-                        { val: "remnant", label: "Â¼" }
+                        { val: null, label: "—" },
+                        { val: "mostly-full", label: "¾" },
+                        { val: "about-half", label: "½" },
+                        { val: "remnant", label: "¼" }
                       ].map(opt => {
                         const isActive = state.partialStatus === opt.val || (opt.val === null && !state.partialStatus);
                         return <div key={opt.val || "none"} className={"seg" + (isActive ? " full" : "")} title={opt.val || "None"} onClick={() => updateThread(selectedThread, "partialStatus", opt.val)}>{opt.label}</div>;
@@ -900,14 +900,14 @@ function ManagerApp() {
                 <div className="at">{Icons.dot()} Currently Tracking</div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span>{activeProject.name || (activeProject.pattern && activeProject.pattern.length > 0 ? "Active Project" : "Unnamed Project")}</span>
-                  <a href="stitch.html" style={{ color: "#065f46", fontWeight: 600, fontSize: 11 }}>Go to Tracker â†’</a>
+                  <a href="stitch.html" style={{ color: "#065f46", fontWeight: 600, fontSize: 11 }}>Go to Tracker →</a>
                 </div>
               </div>
             )}
             {/* Smart Hub: Ready to Start */}
             {readyToStart && readyToStart.length > 0 && (
               <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "14px 16px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#16a34a", marginBottom: 8 }}>âœ“ Ready to Start</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#16a34a", marginBottom: 8 }}>✓ Ready to Start</div>
                 <div style={{ fontSize: 12, color: "#475569", marginBottom: 10 }}>Patterns you can fully kit from your current stash.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 200, overflow: "auto" }}>
                   {readyToStart.map(r => (
@@ -919,7 +919,7 @@ function ManagerApp() {
                       {r.pct === 100 ? (
                         <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#dcfce7", color: "#16a34a" }}>100% kitted</span>
                       ) : (
-                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#fff7ed", color: "#ea580c" }}>{r.pct}% â€” {r.missing.length} missing</span>
+                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#fff7ed", color: "#ea580c" }}>{r.pct}% — {r.missing.length} missing</span>
                       )}
                     </div>
                   ))}
@@ -940,7 +940,7 @@ function ManagerApp() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
                           <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>
-                            {p.dimensions.width}Ã—{p.dimensions.height} Â· {pct}% done Â· {p.source === "tracker" ? "Tracked" : "Created"} Â· {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : ""}
+                            {p.dimensions.width}×{p.dimensions.height} · {pct}% done · {p.source === "tracker" ? "Tracked" : "Created"} · {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : ""}
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
@@ -1037,7 +1037,7 @@ function ManagerApp() {
             </div>
           </div>
 
-          {/* Right Panel â€” Pattern Detail */}
+          {/* Right Panel — Pattern Detail */}
           {panelOpen && <div className="rpanel-backdrop" onClick={() => setPanelOpen(false)} />}
           <div className={"mgr-rpanel" + (panelOpen ? " mgr-rpanel--open" : "")}>
             <div className="mgr-panel-handle" onClick={() => setPanelOpen(o => !o)}>
@@ -1253,7 +1253,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 600, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", padding: 0 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>{pattern.title ? "Edit Pattern" : "Add Pattern"}</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#94a3b8" }}>Ã—</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#94a3b8" }}>×</button>
         </div>
 
         <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1284,7 +1284,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
                 {edited.tags.map(tag => (
                   <span key={tag} style={{ padding: "4px 8px", background: "#f1f5f9", borderRadius: 6, fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                    {tag} <button onClick={() => removeTag(tag)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: 0 }}>Ã—</button>
+                    {tag} <button onClick={() => removeTag(tag)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: 0 }}>×</button>
                   </span>
                 ))}
               </div>
@@ -1343,7 +1343,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
                 </div>
               </div>
 
-              {threadQty === "" && <div style={{ fontSize: 11, color: "#d97706" }}>Quantity cleared â€” please enter the value in {threadUnit}.</div>}
+              {threadQty === "" && <div style={{ fontSize: 11, color: "#d97706" }}>Quantity cleared — please enter the value in {threadUnit}.</div>}
 
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
                 <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
@@ -1420,7 +1420,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
                       <span style={{ fontSize: 11, color: "#94a3b8", width: 16 }}>{displayUnit}</span>
                     </div>
 
-                    <button onClick={() => removeThread(idx)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: "4px" }}>Ã—</button>
+                    <button onClick={() => removeThread(idx)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: "4px" }}>×</button>
                   </div>
                 );
               })}
@@ -1433,7 +1433,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
 
         <div style={{ padding: "16px 20px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end", gap: 10, background: "#f8f9fa", borderRadius: "0 0 8px 8px" }}>
           <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #e2e8f0", background: "#fff", cursor: "pointer", fontWeight: 600 }}>Cancel</button>
-          <button onClick={handleTrack} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#ea580c", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Start Tracking â†’</button>
+          <button onClick={handleTrack} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#ea580c", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Start Tracking →</button>
           <button onClick={() => onSave(edited)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save Pattern</button>
         </div>
       </div>
@@ -1558,7 +1558,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
             <h2 style={{ margin: 0, fontSize: 20, marginBottom: 4 }}>{pattern.title || "Untitled"}</h2>
             {pattern.designer && <div style={{ fontSize: 13, color: "#475569" }}>by {pattern.designer}</div>}
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#94a3b8" }}>Ã—</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#94a3b8" }}>×</button>
         </div>
 
         <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1566,7 +1566,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
             <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: statusColors[pattern.status].bg, color: statusColors[pattern.status].text }}>
               {statusColors[pattern.status].label}
             </span>
-            {pattern.fabric && <span style={{ fontSize: 13, color: "#475569" }}>â€¢ {pattern.fabric}</span>}
+            {pattern.fabric && <span style={{ fontSize: 13, color: "#475569" }}>• {pattern.fabric}</span>}
           </div>
 
           {pattern.tags && pattern.tags.length > 0 && (
@@ -1598,32 +1598,32 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
                   if (t.is_blended) {
                       const rA = t.blend_ratio ? t.blend_ratio[0] : 1;
                       const rB = t.blend_ratio ? t.blend_ratio[1] : 1;
-                      text = `DMC ${t.id} + DMC ${t.blend_id} [${rA}:${rB}] â€” ${t.unit === "stitches" ? t.qty + " stitches" : t.qty + " skeins"}`;
+                      text = `DMC ${t.id} + DMC ${t.blend_id} [${rA}:${rB}] — ${t.unit === "stitches" ? t.qty + " stitches" : t.qty + " skeins"}`;
                       if (t.unit === "stitches") {
                           if (rA === rB) {
                               subtext = `~${t.skToBuy} skein(s) each`;
                           } else {
-                              subtext = `â†’ DMC ${t.id}: ~${t.skToBuy} skeins Â· DMC ${t.blend_id}: ~${t.skBToBuy} skeins`;
+                              subtext = `→ DMC ${t.id}: ~${t.skToBuy} skeins · DMC ${t.blend_id}: ~${t.skBToBuy} skeins`;
                           }
                       } else {
                           subtext = `Stitch estimate not available for blended entries stored as skeins.`;
                       }
                   } else {
                       if (t.unit === "stitches") {
-                          text = `DMC ${t.id} (${t.name}) â€” ${t.qty.toLocaleString()} stitches (~${t.skToBuy} skeins)`;
+                          text = `DMC ${t.id} (${t.name}) — ${t.qty.toLocaleString()} stitches (~${t.skToBuy} skeins)`;
                       } else {
                           // Is skeins or fallback
                           if (t.unit === "skeins" && t.isApprox) {
-                              text = `DMC ${t.id} (${t.name}) â€” ${t.qty} skein(s) (~${t.stApprox.toLocaleString()} stitches)`;
+                              text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s) (~${t.stApprox.toLocaleString()} stitches)`;
                           } else {
-                              text = `DMC ${t.id} (${t.name}) â€” ${t.qty} skein(s)`;
+                              text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s)`;
                           }
                       }
                   }
 
                   const settingsUsed = t.settings;
                   const isOverride = !!pattern.project_overrides;
-                  const settingsBadge = `Based on: ${settingsUsed.fabricCount}ct Â· ${settingsUsed.strandsUsed} strands Â· ${settingsUsed.threadBrand} Â· ${Math.round(settingsUsed.wasteFactor * 100)}% waste ${isOverride ? "(project settings)" : ""}`;
+                  const settingsBadge = `Based on: ${settingsUsed.fabricCount}ct · ${settingsUsed.strandsUsed} strands · ${settingsUsed.threadBrand} · ${Math.round(settingsUsed.wasteFactor * 100)}% waste ${isOverride ? "(project settings)" : ""}`;
 
                   return (
                     <div key={idx} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "12px 16px", background: "#f8f9fa", borderRadius: 8, border: "1px solid #e2e8f0" }}>
@@ -1663,7 +1663,7 @@ function UserProfileModal({ profile, onSave, onClose }) {
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", padding: 0 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Default Thread Settings</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#94a3b8" }}>Ã—</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#94a3b8" }}>×</button>
         </div>
 
         <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1717,6 +1717,12 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
 
   const allThreads = useMemo(() => {
     const required = {};
+    const addRequired = (id, qty) => {
+      if (!id) return;
+      const n = Number(qty) || 0;
+      if (!required[id]) required[id] = 0;
+      required[id] += n;
+    };
     patterns.forEach(p => {
       if (!p.threads) return;
       const settings = {
@@ -1726,22 +1732,34 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
         wasteFactor: p.project_overrides?.waste_factor || userProfile?.waste_factor || 0.20
       };
       p.threads.forEach(t => {
+        const blendParts = typeof t.id === "string" && t.id.includes("+")
+          ? t.id.split("+").map(part => part.trim()).filter(Boolean)
+          : null;
+        const isBlend = !!t.is_blended || (blendParts && blendParts.length === 2);
         let qtyA = 0, qtyB = 0;
         if (t.unit === "stitches") {
           const res = stitchesToSkeins({
             stitchCount: t.qty, fabricCount: settings.fabricCount,
             strandsUsed: settings.strandsUsed,
             skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0,
-            wasteFactor: settings.wasteFactor, isBlended: t.is_blended, blendRatio: t.blend_ratio
+            wasteFactor: settings.wasteFactor, isBlended: isBlend, blendRatio: t.blend_ratio
           });
-          if (t.is_blended) { qtyA = res.colorA.skeinsToBuy; qtyB = res.colorB.skeinsToBuy; }
+          if (isBlend) {
+            qtyA = (res.colorA && res.colorA.skeinsToBuy) || 0;
+            qtyB = (res.colorB && res.colorB.skeinsToBuy) || 0;
+          }
           else { qtyA = res.skeinsToBuy; }
+        } else if (isBlend) {
+          qtyA = (Number(t.qty) || 0) / 2;
+          qtyB = (Number(t.qty) || 0) / 2;
         } else { qtyA = t.qty; }
-        if (!required[t.id]) required[t.id] = 0;
-        required[t.id] += qtyA;
-        if (t.is_blended && t.blend_id) {
-          if (!required[t.blend_id]) required[t.blend_id] = 0;
-          required[t.blend_id] += qtyB;
+        if (isBlend) {
+          const idA = blendParts ? blendParts[0] : t.id;
+          const idB = blendParts ? blendParts[1] : t.blend_id;
+          addRequired(idA, qtyA);
+          addRequired(idB, qtyB);
+        } else {
+          addRequired(t.id, qtyA);
         }
       });
     });
@@ -1898,4 +1916,3 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
   );
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<ManagerApp />);
-

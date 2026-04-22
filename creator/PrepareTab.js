@@ -18,6 +18,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var _sort = useState('number'); var sort = _sort[0]; var setSort = _sort[1];
   var _copied = useState(false); var copied = _copied[0]; var setCopied = _copied[1];
   var _addedAll = useState(false); var addedAll = _addedAll[0]; var setAddedAll = _addedAll[1];
+  var threadIdCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
   var stash = ctx.globalStash || {};
   var fabricCt = ctx.fabricCt || 14;
@@ -41,13 +42,14 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
       if (skResult) {
         if (skResult.colorA) {
           // Blend
-          needed = Math.max(skResult.colorA.skeinsToBuy, skResult.colorB.skeinsToBuy);
+          needed = Math.max(skResult.colorA.skeinsToBuy || 0, (skResult.colorB && skResult.colorB.skeinsToBuy) || 0);
         } else {
           needed = skResult.skeinsToBuy || 0;
         }
       } else {
-        needed = Math.ceil(p.count / 800) || 1;
+        needed = Math.ceil(p.count / 800) || 0;
       }
+      if ((p.count || 0) > 0) needed = Math.max(1, needed || 0);
 
       var status;
       if (owned >= needed) {
@@ -67,10 +69,25 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   }, [ctx.pat, ctx.pal, stash, effectiveFabric]);
 
   // Sort
+  function compareThreadIds(aId, bId) {
+    var aStr = String(aId == null ? '' : aId);
+    var bStr = String(bId == null ? '' : bId);
+    var aIsNumeric = /^\d+$/.test(aStr);
+    var bIsNumeric = /^\d+$/.test(bStr);
+    if (aIsNumeric && bIsNumeric) {
+      var aNum = parseInt(aStr, 10);
+      var bNum = parseInt(bStr, 10);
+      if (aNum !== bNum) return aNum - bNum;
+    } else if (aIsNumeric !== bIsNumeric) {
+      return aIsNumeric ? -1 : 1;
+    }
+    return threadIdCollator.compare(aStr, bStr);
+  }
+
   var sortedRows = useMemo(function() {
     var copy = rows.slice();
     if (sort === 'number') {
-      copy.sort(function(a, b) { return (a.p.id < b.p.id ? -1 : a.p.id > b.p.id ? 1 : 0); });
+      copy.sort(function(a, b) { return compareThreadIds(a.p.id, b.p.id); });
     } else if (sort === 'stitches') {
       copy.sort(function(a, b) { return b.p.count - a.p.count; });
     } else if (sort === 'skeins') {
