@@ -6022,29 +6022,37 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     rd.onload = function(ev) {
       var i = new Image();
       var proceed = function() {
-        var targetW = i.width, targetH = i.height;
-        var MAX_AREA = 2000 * 2000;
-        if (targetW * targetH > MAX_AREA || (f.size && f.size > 5 * 1024 * 1024)) {
-          var scale = Math.sqrt(MAX_AREA / (targetW * targetH));
-          if (scale < 1) { targetW = Math.round(targetW * scale); targetH = Math.round(targetH * scale); }
-          var c = document.createElement("canvas"); c.width = targetW; c.height = targetH;
-          var cx = c.getContext("2d"); cx.drawImage(i, 0, 0, targetW, targetH);
-          var scaledImg = new Image();
-          scaledImg.onload = function() {
-            state.userActedRef.current = true;
-            state.setOrigW(targetW); state.setOrigH(targetH);
-            var a = targetW / targetH; state.setAr(a);
-            state.setSW(80); state.setSH(Math.round(80 / a));
-            state.setImg(scaledImg); state.resetAll(); state.setIsUploading(false);
-          };
-          scaledImg.src = c.toDataURL("image/jpeg", 0.85);
-          return;
-        }
-        state.userActedRef.current = true;
-        state.setOrigW(i.width); state.setOrigH(i.height);
-        var a2 = i.width / i.height; state.setAr(a2);
-        state.setSW(80); state.setSH(Math.round(80 / a2));
-        state.setImg(i); state.resetAll(); state.setIsUploading(false);
+        try {
+          var targetW = i.width, targetH = i.height;
+          if (!targetW || !targetH) { state.setIsUploading(false); return; }
+          var MAX_AREA = 2000 * 2000;
+          if (targetW * targetH > MAX_AREA || (f.size && f.size > 5 * 1024 * 1024)) {
+            var scale = Math.sqrt(MAX_AREA / (targetW * targetH));
+            if (scale < 1) { targetW = Math.round(targetW * scale); targetH = Math.round(targetH * scale); }
+            var c = document.createElement("canvas"); c.width = targetW; c.height = targetH;
+            var cx = c.getContext("2d");
+            if (!cx) { state.setIsUploading(false); return; }
+            cx.drawImage(i, 0, 0, targetW, targetH);
+            var scaledImg = new Image();
+            scaledImg.onerror = function() { state.setIsUploading(false); };
+            scaledImg.onload = function() {
+              try {
+                state.userActedRef.current = true;
+                state.setOrigW(targetW); state.setOrigH(targetH);
+                var a = targetW / targetH; state.setAr(a);
+                state.setSW(80); state.setSH(Math.round(80 / a));
+                state.setImg(scaledImg); state.resetAll(); state.setIsUploading(false);
+              } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
+            };
+            scaledImg.src = c.toDataURL("image/jpeg", 0.85);
+            return;
+          }
+          state.userActedRef.current = true;
+          state.setOrigW(i.width); state.setOrigH(i.height);
+          var a2 = i.width / i.height; state.setAr(a2);
+          state.setSW(80); state.setSH(Math.round(80 / a2));
+          state.setImg(i); state.resetAll(); state.setIsUploading(false);
+        } catch(err) { console.error("Image processing error:", err); state.setIsUploading(false); }
       };
       if (typeof i.decode === "function") {
         i.src = ev.target.result;

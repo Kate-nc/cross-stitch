@@ -51,6 +51,19 @@ const ProjectStorage = (() => {
     const totalMinutes = Math.round(totalSeconds / 60);
     const totalNet = sessions.reduce((sum, s) => sum + (s.netStitches || 0), 0);
     const uniqueDays = new Set(sessions.map(s => s.date).filter(Boolean)).size;
+    const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
+    // Compute stitches this week and this month for dashboard stats
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const monthStr = todayStr.slice(0, 7);
+    const dow = now.getDay() === 0 ? 6 : now.getDay() - 1; // Mon=0
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow);
+    const weekStartStr = weekStart.toISOString().slice(0, 10);
+    let stitchesThisWeek = 0, stitchesThisMonth = 0;
+    for (const s2 of sessions) {
+      if (s2.date >= weekStartStr) stitchesThisWeek += (s2.netStitches || 0);
+      if (s2.date && s2.date.slice(0, 7) === monthStr) stitchesThisMonth += (s2.netStitches || 0);
+    }
     return {
       id: p.id,
       name: p.name || `${s.sW || "?"}×${s.sH || "?"} pattern`,
@@ -64,6 +77,12 @@ const ProjectStorage = (() => {
       totalMinutes: totalMinutes,
       uniqueActiveDays: uniqueDays,
       stitchesPerHour: totalSeconds > 0 ? Math.round(totalNet / (totalSeconds / 3600)) : 0,
+      lastSessionDate: lastSession ? lastSession.date : null,
+      lastSessionStitches: lastSession ? (lastSession.netStitches || 0) : 0,
+      stitchesThisWeek,
+      stitchesThisMonth,
+      thumbnail: p.thumbnail || null,
+      fabricCt: s.fabricCt || 14,
     };
   }
 
@@ -594,6 +613,21 @@ const ProjectStorage = (() => {
         const results = await StashBridge.whatCanIStart();
         return results;
       } catch (e) { return []; }
+    },
+
+    // Dashboard project state management.
+    // States: 'active' | 'queued' | 'paused' | 'complete' | 'design'
+    // Stored in localStorage so it's fast to read without loading full project data.
+    getProjectStates() {
+      try { return JSON.parse(localStorage.getItem('cs_projectStates') || '{}'); } catch(e) { return {}; }
+    },
+
+    setProjectState(id, state) {
+      try {
+        var s = this.getProjectStates();
+        if (state == null) { delete s[id]; } else { s[id] = state; }
+        localStorage.setItem('cs_projectStates', JSON.stringify(s));
+      } catch(e) {}
     },
   };
 })();

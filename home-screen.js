@@ -28,6 +28,519 @@ function getGreeting() {
   return 'Good evening';
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Helpers used by the multi-project dashboard
+// ─────────────────────────────────────────────────────────────────
+
+function daysBetween(dateStrOrDate) {
+  if (!dateStrOrDate) return null;
+  var d = typeof dateStrOrDate === 'string' ? new Date(dateStrOrDate) : dateStrOrDate;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+// Derive a project state from metadata when no override is stored.
+// active  = has at least one completed stitch and is not 100% done
+// complete = 100% done
+// queued  = no stitches yet
+// design  = source is 'creator' only (no tracking data)
+function inferProjectState(proj) {
+  var cs = proj.completedStitches || 0;
+  var ts = proj.totalStitches || 0;
+  if (ts > 0 && cs >= ts) return 'complete';
+  if (cs > 0) return 'active';
+  if (proj.source === 'creator' && proj.sessionCount === 0) return 'design';
+  return 'queued';
+}
+
+// Get the effective state for a project (override wins over inferred).
+function getProjectState(proj, overrides) {
+  if (overrides && overrides[proj.id]) return overrides[proj.id];
+  return inferProjectState(proj);
+}
+
+// Estimate remaining hours for a project.
+function estimateRemainingHours(proj) {
+  var remaining = (proj.totalStitches || 0) - (proj.completedStitches || 0);
+  if (remaining <= 0) return 0;
+  var speed = proj.stitchesPerHour > 0 ? proj.stitchesPerHour : 100;
+  return remaining / speed;
+}
+
+function fmtHours(h) {
+  if (h < 1) return '<1 hr';
+  if (h < 100) return Math.round(h) + ' hrs';
+  var days = Math.round(h / 6); // assume ~6hr/day
+  if (days < 30) return '\u2248' + days + ' days';
+  return '\u2248' + Math.round(days / 7) + ' weeks';
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Suggestion algorithm
+// ─────────────────────────────────────────────────────────────────
+function getSuggestion(activeProjects, stashMap) {
+  if (!activeProjects || activeProjects.length === 0) return null;
+  var now = new Date();
+  var hour = now.getHours();
+
+  var scored = activeProjects.map(function(proj) {
+    var score = 0;
+    var cs = proj.completedStitches || 0;
+    var ts = proj.totalStitches || 1;
+    var pct = cs / ts;
+
+    // Recency boost: each day since last stitch adds points
+    var days = daysBetween(proj.lastSessionDate || proj.updatedAt);
+    if (days != null) score += Math.min(days * 3, 30);
+
+    // Near-completion boost
+    if (pct >= 0.8) score += 20;
+    else if (pct >= 0.5) score += 5;
+
+    // Evening suggestion boost (relaxing, large blocks)
+    // We can't know block size without full pattern data, so skip that nuance.
+
+    // Stash readiness
+    if (stashMap && stashMap[proj.id]) score += 10;
+
+    return { proj: proj, score: score, days: days, pct: Math.round(pct * 100) };
+  });
+
+  scored.sort(function(a, b) { return b.score - a.score; });
+  var top = scored[0];
+  if (!top) return null;
+
+  var reason = '';
+  if (top.days != null && top.days >= 5) {
+    reason = "You haven\u2019t stitched this in " + top.days + " day" + (top.days === 1 ? '' : 's') + '.';
+  } else if (top.pct >= 80) {
+    reason = "You\u2019re " + top.pct + "% done \u2014 so close to the finish line!";
+  } else {
+    reason = "Keep the momentum going \u2014 you\u2019re " + top.pct + "% done.";
+  }
+  return { proj: top.proj, reason: reason };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ProjectCard
+// ─────────────────────────────────────────────────────────────────
+function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg }) {
+  var h = React.createElement;
+  var cs = proj.completedStitches || 0;
+  var ts = proj.totalStitches || 0;
+  var pct = ts > 0 ? Math.round(cs / ts * 100) : 0;
+  var days = daysBetween(proj.lastSessionDate || proj.updatedAt);
+  var isNeglected = days != null && days > 13;
+  var remHours = estimateRemainingHours(proj);
+  var weekSt = proj.stitchesThisWeek || 0;
+  var weekSess = 0; // not stored in meta, skip for now
+  var dim = proj.dimensions ? (proj.dimensions.width + '\u00D7' + proj.dimensions.height) : '';
+  var fabricCt = proj.fabricCt ? proj.fabricCt + '-count' : '';
+  var stashColor = stashOk === true ? '#16a34a' : stashOk === false ? '#b45309' : '#a1a1aa';
+  var stashIcon = stashOk === true ? '\u2713' : stashOk === false ? '!' : '\u25CB';
+
+  return h('div', { className: 'mpd-card' },
+    // Thumbnail
+    h('div', { className: 'mpd-card-thumb', onClick: function() { onOpen(proj, 'tracker'); } },
+      proj.thumbnail
+        ? h('img', { src: proj.thumbnail, alt: '', className: 'mpd-card-thumb-img' })
+        : h('div', { className: 'mpd-card-thumb-placeholder' })
+    ),
+    // Body
+    h('div', { className: 'mpd-card-body' },
+      // Top row: name + progress
+      h('div', { className: 'mpd-card-top' },
+        h('div', { className: 'mpd-card-name', onClick: function() { onOpen(proj, 'tracker'); } },
+          proj.name || 'Untitled'
+        ),
+        h('div', { className: 'mpd-card-pct' + (pct >= 100 ? ' mpd-card-pct--done' : '') },
+          pct + '%'
+        )
+      ),
+      // Progress bar
+      h('div', { className: 'mpd-card-progress-track', role: 'progressbar', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100 },
+        h('div', { className: 'mpd-card-progress-fill', style: { width: Math.min(100, pct) + '%' } })
+      ),
+      // Metadata row
+      dim || fabricCt ? h('div', { className: 'mpd-card-meta' },
+        dim && h('span', null, dim),
+        dim && fabricCt && h('span', { className: 'mpd-card-sep' }, '\u00B7'),
+        fabricCt && h('span', null, fabricCt)
+      ) : null,
+      // Recency
+      h('div', { className: 'mpd-card-recency' + (isNeglected ? ' mpd-card-recency--warn' : '') },
+        days === 0 ? 'Last stitched today' :
+        days === 1 ? 'Last stitched yesterday' :
+        days != null ? 'Last stitched ' + days + ' days ago' + (isNeglected ? ' \u26A0\uFE0F' : '') : 'Not started'
+      ),
+      // Session summary
+      weekSt > 0 && h('div', { className: 'mpd-card-session' },
+        'This week: ' + weekSt.toLocaleString() + ' stitches'
+      ),
+      // Time estimate
+      remHours > 0 && h('div', { className: 'mpd-card-estimate' },
+        'Est. remaining: ' + fmtHours(remHours)
+      ),
+      // Footer row: stash + continue
+      h('div', { className: 'mpd-card-footer' },
+        h('div', { className: 'mpd-card-stash', style: { color: stashColor }, title: stashMsg || '' },
+          stashIcon + ' ' + (stashMsg || (stashOk === true ? 'Ready' : stashOk === false ? 'Need threads' : 'Stash not checked'))
+        ),
+        h('div', { className: 'mpd-card-actions' },
+          h('button', {
+            className: 'mpd-btn mpd-btn--primary',
+            onClick: function() { onOpen(proj, 'tracker'); }
+          }, 'Continue'),
+          h('button', {
+            className: 'mpd-btn mpd-btn--ghost mpd-card-menu-btn',
+            title: 'Change project state',
+            onClick: function(e) {
+              e.stopPropagation();
+              onChangeState(proj);
+            }
+          }, '\u2026')
+        )
+      )
+    )
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// CompactProjectRow (for queued / paused / completed lists)
+// ─────────────────────────────────────────────────────────────────
+function CompactProjectRow({ proj, state, onOpen, onChangeState }) {
+  var h = React.createElement;
+  var cs = proj.completedStitches || 0;
+  var ts = proj.totalStitches || 0;
+  var pct = ts > 0 ? Math.round(cs / ts * 100) : 0;
+  var dim = proj.dimensions ? proj.dimensions.width + '\u00D7' + proj.dimensions.height : '';
+  var since = proj.lastSessionDate || proj.updatedAt;
+  var daysAgo = daysBetween(since);
+
+  var detail = '';
+  if (state === 'paused') {
+    detail = (daysAgo != null ? 'Paused ' + (daysAgo < 2 ? 'recently' : daysAgo + ' days ago') : '') +
+             (pct > 0 ? (detail ? ' \u00B7 ' : '') + pct + '% complete' : '');
+  } else if (state === 'complete') {
+    var completedAt = proj.updatedAt;
+    detail = completedAt ? 'Completed ' + new Date(completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Completed';
+    if (proj.totalMinutes > 0) detail += ' \u00B7 ' + Math.round(proj.totalMinutes / 60) + ' hrs';
+  } else {
+    detail = dim;
+  }
+
+  return h('div', { className: 'mpd-compact-row' },
+    h('div', { className: 'mpd-compact-thumb', onClick: function() { onOpen(proj, state === 'design' ? 'creator' : 'tracker'); } },
+      proj.thumbnail
+        ? h('img', { src: proj.thumbnail, alt: '', className: 'mpd-compact-thumb-img' })
+        : h('div', { className: 'mpd-compact-thumb-placeholder' })
+    ),
+    h('div', { className: 'mpd-compact-info', onClick: function() { onOpen(proj, state === 'design' ? 'creator' : 'tracker'); } },
+      h('span', { className: 'mpd-compact-name' }, proj.name || 'Untitled'),
+      detail && h('span', { className: 'mpd-compact-detail' }, detail)
+    ),
+    h('button', {
+      className: 'mpd-btn mpd-btn--ghost mpd-compact-menu-btn',
+      title: 'Change project state',
+      onClick: function(e) { e.stopPropagation(); onChangeState(proj); }
+    }, '\u2026')
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// StateChangeMenu — inline popover for moving a project to a new state
+// ─────────────────────────────────────────────────────────────────
+function StateChangeMenu({ proj, currentState, onSelect, onClose }) {
+  var h = React.createElement;
+  var options = [
+    { value: 'active',   label: 'Mark as Active' },
+    { value: 'queued',   label: 'Move to Queue' },
+    { value: 'paused',   label: 'Pause project' },
+    { value: 'complete', label: 'Mark as Complete' },
+    { value: 'design',   label: 'Design only (no tracking)' },
+  ].filter(function(o) { return o.value !== currentState; });
+
+  React.useEffect(function() {
+    function handler(e) { onClose(); }
+    document.addEventListener('click', handler);
+    return function() { document.removeEventListener('click', handler); };
+  }, []);
+
+  return h('div', { className: 'mpd-state-menu', onClick: function(e) { e.stopPropagation(); } },
+    h('div', { className: 'mpd-state-menu-title' }, 'Move to\u2026'),
+    options.map(function(o) {
+      return h('button', {
+        key: o.value,
+        className: 'mpd-state-menu-item',
+        onClick: function() { onSelect(proj, o.value); onClose(); }
+      }, o.label);
+    })
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MultiProjectDashboard — shown on home screen when >1 project exists
+// ─────────────────────────────────────────────────────────────────
+function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalStats, onAddNew }) {
+  var h = React.createElement;
+  var useState = React.useState;
+  var useEffect = React.useEffect;
+  var useMemo = React.useMemo;
+
+  var _states = useState(function() {
+    return typeof ProjectStorage !== 'undefined' ? ProjectStorage.getProjectStates() : {};
+  });
+  var states = _states[0], setStates = _states[1];
+
+  // [{ proj, id }] for the state change popover
+  var _menuProj = useState(null);
+  var menuProj = _menuProj[0], setMenuProj = _menuProj[1];
+
+  // collapsed sections
+  var _pausedOpen = useState(false);
+  var pausedOpen = _pausedOpen[0], setPausedOpen = _pausedOpen[1];
+  var _completedOpen = useState(false);
+  var completedOpen = _completedOpen[0], setCompletedOpen = _completedOpen[1];
+  var _designOpen = useState(false);
+  var designOpen = _designOpen[0], setDesignOpen = _designOpen[1];
+
+  // Stash readiness lookup: { projectId → true/false/null }
+  var stashReadiness = useMemo(function() {
+    if (!stash) return {};
+    var out = {};
+    projects.forEach(function(proj) {
+      // We don't have per-project thread requirements in metadata — fall back to null (not checked).
+      out[proj.id] = null;
+    });
+    return out;
+  }, [projects, stash]);
+
+  // Compute global summary stats from metadata
+  var summary = useMemo(function() {
+    var monthStr = new Date().toISOString().slice(0, 7);
+    var monthSt = 0;
+    projects.forEach(function(p) { monthSt += (p.stitchesThisMonth || 0); });
+    // Streak from localStorage (written by tracker)
+    var streak = 0;
+    try {
+      var streakData = JSON.parse(localStorage.getItem('cs_globalStreak') || 'null');
+      if (streakData && streakData.current) streak = streakData.current;
+    } catch(e) {}
+    var activeCount = projects.filter(function(p) { return getProjectState(p, states) === 'active'; }).length;
+    return { activeCount: activeCount, monthStitches: monthSt, streak: streak };
+  }, [projects, states]);
+
+  // Categorise projects
+  var categorised = useMemo(function() {
+    var active = [], queued = [], paused = [], complete = [], design = [];
+    projects.forEach(function(p) {
+      var s = getProjectState(p, states);
+      if (s === 'active') active.push(p);
+      else if (s === 'queued') queued.push(p);
+      else if (s === 'paused') paused.push(p);
+      else if (s === 'complete') complete.push(p);
+      else design.push(p);
+    });
+    // Sort active by most recently touched
+    active.sort(function(a, b) {
+      var da = a.lastSessionDate || a.updatedAt || '';
+      var db = b.lastSessionDate || b.updatedAt || '';
+      return db > da ? 1 : -1;
+    });
+    return { active: active, queued: queued, paused: paused, complete: complete, design: design };
+  }, [projects, states]);
+
+  // Suggestion
+  var suggestion = useMemo(function() {
+    return getSuggestion(categorised.active, null);
+  }, [categorised.active]);
+
+  function handleChangeState(proj, newState) {
+    if (typeof ProjectStorage !== 'undefined') {
+      ProjectStorage.setProjectState(proj.id, newState);
+    }
+    setStates(function(prev) {
+      var next = Object.assign({}, prev);
+      next[proj.id] = newState;
+      return next;
+    });
+  }
+
+  function openMenu(proj) {
+    setMenuProj(proj.id);
+  }
+
+  function handleOpenProject(proj, mode) {
+    if (onOpenProject) onOpenProject(proj, mode || 'tracker');
+  }
+
+  var stashForMap = stash ? {} : null;
+
+  return h('div', { className: 'mpd' },
+    // ── Summary bar ──
+    h('div', { className: 'mpd-summary-bar' },
+      h('span', null, summary.activeCount + ' active project' + (summary.activeCount !== 1 ? 's' : '')),
+      summary.monthStitches > 0 && h('span', null, '\u00B7 ' + summary.monthStitches.toLocaleString() + ' stitches this month'),
+      summary.streak > 1 && h('span', { className: 'mpd-streak' }, '\uD83D\uDD25 ' + summary.streak + '-day streak')
+    ),
+
+    // ── Suggestion card ──
+    suggestion && h('div', { className: 'mpd-suggestion' },
+      h('div', { className: 'mpd-suggestion-title' }, '\uD83D\uDCA1 Suggestion: pick up \u201C' + suggestion.proj.name + '\u201D'),
+      h('div', { className: 'mpd-suggestion-reason' }, suggestion.reason),
+      h('button', {
+        className: 'mpd-btn mpd-btn--primary',
+        onClick: function() { handleOpenProject(suggestion.proj, 'tracker'); }
+      }, 'Start now')
+    ),
+
+    // ── Active projects ──
+    categorised.active.length === 0
+      ? h('div', { className: 'mpd-empty-active' }, 'No active projects \u2014 move one from the queue or start something new.')
+      : h('div', { className: 'mpd-cards' },
+          categorised.active.map(function(proj) {
+            return h('div', { key: proj.id, style: { position: 'relative' } },
+              h(ProjectCard, {
+                proj: proj,
+                onOpen: handleOpenProject,
+                onChangeState: openMenu,
+                stashOk: stashReadiness[proj.id],
+                stashMsg: stashReadiness[proj.id] === true ? 'Ready (all in stash)' : stashReadiness[proj.id] === false ? 'Need threads' : null
+              }),
+              menuProj === proj.id && h(StateChangeMenu, {
+                proj: proj,
+                currentState: getProjectState(proj, states),
+                onSelect: handleChangeState,
+                onClose: function() { setMenuProj(null); }
+              })
+            );
+          })
+        ),
+
+    // ── Up next (queued) ──
+    h('div', { className: 'mpd-section' },
+      h('div', { className: 'mpd-section-header' },
+        h('span', null, 'Up next'),
+        h('span', { className: 'mpd-section-count' }, categorised.queued.length),
+        h('button', {
+          className: 'mpd-btn mpd-btn--ghost mpd-section-add',
+          onClick: onAddNew,
+          title: 'Add to queue'
+        }, '+ Add')
+      ),
+      categorised.queued.length === 0
+        ? h('div', { className: 'mpd-empty-msg' }, 'Nothing queued yet \u2014 add a project to plan what to stitch next.')
+        : categorised.queued.map(function(proj) {
+            return h('div', { key: proj.id, style: { position: 'relative' } },
+              h(CompactProjectRow, {
+                proj: proj, state: 'queued',
+                onOpen: handleOpenProject,
+                onChangeState: openMenu
+              }),
+              menuProj === proj.id && h(StateChangeMenu, {
+                proj: proj, currentState: 'queued',
+                onSelect: handleChangeState,
+                onClose: function() { setMenuProj(null); }
+              })
+            );
+          })
+    ),
+
+    // ── Paused ──
+    categorised.paused.length > 0 && h('div', { className: 'mpd-section' },
+      h('button', {
+        className: 'mpd-section-collapse-hdr',
+        onClick: function() { setPausedOpen(function(o) { return !o; }); },
+        'aria-expanded': pausedOpen
+      },
+        h('span', { className: 'mpd-collapse-arrow' }, pausedOpen ? '\u25BC' : '\u25B6'),
+        ' Paused (',
+        categorised.paused.length,
+        ' project',
+        categorised.paused.length !== 1 ? 's' : '',
+        ')'
+      ),
+      pausedOpen && categorised.paused.map(function(proj) {
+        return h('div', { key: proj.id, style: { position: 'relative' } },
+          h(CompactProjectRow, {
+            proj: proj, state: 'paused',
+            onOpen: handleOpenProject,
+            onChangeState: openMenu
+          }),
+          menuProj === proj.id && h(StateChangeMenu, {
+            proj: proj, currentState: 'paused',
+            onSelect: handleChangeState,
+            onClose: function() { setMenuProj(null); }
+          })
+        );
+      })
+    ),
+
+    // ── Completed ──
+    categorised.complete.length > 0 && h('div', { className: 'mpd-section' },
+      h('button', {
+        className: 'mpd-section-collapse-hdr',
+        onClick: function() { setCompletedOpen(function(o) { return !o; }); },
+        'aria-expanded': completedOpen
+      },
+        h('span', { className: 'mpd-collapse-arrow' }, completedOpen ? '\u25BC' : '\u25B6'),
+        ' Completed (',
+        categorised.complete.length,
+        ' project',
+        categorised.complete.length !== 1 ? 's' : '',
+        ')'
+      ),
+      completedOpen && categorised.complete.map(function(proj) {
+        return h('div', { key: proj.id, style: { position: 'relative' } },
+          h(CompactProjectRow, {
+            proj: proj, state: 'complete',
+            onOpen: handleOpenProject,
+            onChangeState: openMenu
+          }),
+          menuProj === proj.id && h(StateChangeMenu, {
+            proj: proj, currentState: 'complete',
+            onSelect: handleChangeState,
+            onClose: function() { setMenuProj(null); }
+          })
+        );
+      })
+    ),
+
+    // ── Designs (creator only, no tracking) ──
+    categorised.design.length > 0 && h('div', { className: 'mpd-section' },
+      h('button', {
+        className: 'mpd-section-collapse-hdr',
+        onClick: function() { setDesignOpen(function(o) { return !o; }); },
+        'aria-expanded': designOpen
+      },
+        h('span', { className: 'mpd-collapse-arrow' }, designOpen ? '\u25BC' : '\u25B6'),
+        ' My designs (',
+        categorised.design.length,
+        ')'
+      ),
+      designOpen && categorised.design.map(function(proj) {
+        return h('div', { key: proj.id, style: { position: 'relative' } },
+          h(CompactProjectRow, {
+            proj: proj, state: 'design',
+            onOpen: handleOpenProject,
+            onChangeState: openMenu
+          }),
+          menuProj === proj.id && h(StateChangeMenu, {
+            proj: proj, currentState: 'design',
+            onSelect: handleChangeState,
+            onClose: function() { setMenuProj(null); }
+          })
+        );
+      })
+    ),
+
+    // ── Stats link ──
+    onOpenGlobalStats && h('button', {
+      className: 'mpd-stats-link',
+      onClick: onOpenGlobalStats
+    }, '\uD83D\uDCCA View detailed stats across all projects \u2192')
+  );
+}
+
 function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, onImportPattern, onOpenProject, onNavigateToStash, onOpenGlobalStats, onOpenShowcase }) {
   var h = React.createElement;
   var useState = React.useState;
@@ -402,6 +915,9 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
 
   if (loading) return null;
 
+  // When multiple projects exist, show the rich multi-project dashboard instead of the simple hero layout.
+  var showDashboard = projectCount > 1;
+
   // --- Render ---
   return h('div', { className: 'home-screen' },
     // Hidden file inputs
@@ -415,8 +931,17 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       h('span', { 'aria-hidden': 'true' }, Icons.star())
     ),
 
-    // Stats row (hidden if empty state)
-    !isEmptyState && projectCount > 0 && h('div', {
+    // ── Multi-project dashboard (>1 project) ──
+    showDashboard && h(MultiProjectDashboard, {
+      projects: projects,
+      stash: stash,
+      onOpenProject: onOpenProject,
+      onOpenGlobalStats: onOpenGlobalStats,
+      onAddNew: function() { imageInputRef.current && imageInputRef.current.click(); }
+    }),
+
+    // ── Single / empty layout (0 or 1 project) ──
+    !showDashboard && !isEmptyState && projectCount > 0 && h('div', {
       className: 'home-stats-row' + (statsCards.length <= 2 ? ' home-stats-row--narrow' : ''),
       role: 'group',
       'aria-label': 'Project statistics',
@@ -437,7 +962,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     ),
 
     // Showcase entry tile (shown alongside stats row when projects exist)
-    !isEmptyState && projectCount > 0 && onOpenShowcase && h('div', {
+    !showDashboard && !isEmptyState && projectCount > 0 && onOpenShowcase && h('div', {
       style: { display: 'flex', justifyContent: 'flex-end', marginTop: -8, marginBottom: 4, paddingRight: 2 }
     },
       h('button', {
@@ -448,8 +973,8 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       }, '✦ See your Showcase →')
     ),
 
-    // Hero card (only if projects exist)
-    heroProject && h('div', { className: 'home-hero-card' },
+    // Hero card (only if projects exist, and not using multi-project dashboard)
+    !showDashboard && heroProject && h('div', { className: 'home-hero-card' },
       h('div', { className: 'home-hero-inner' },
         // Thumbnail
         h('div', { className: 'home-hero-thumb' },
@@ -484,8 +1009,8 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       )
     ),
 
-    // Start New + Recent
-    h('div', { className: 'home-panels' + (isEmptyState ? ' home-panels--full' : '') },
+    // Start New + Recent (shown below dashboard as an actions strip, or as main layout when 0-1 projects)
+    h('div', { className: 'home-panels' + (isEmptyState ? ' home-panels--full' : '') + (showDashboard ? ' home-panels--dashboard-footer' : '') },
       // Start New panel
       h('div', {
           className: 'home-panel',
@@ -547,8 +1072,8 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         )
       ),
 
-      // Recent panel (hidden in empty state — message shown below instead)
-      !isEmptyState && h('div', { className: 'home-panel' },
+      // Recent panel (hidden in empty state or when the multi-project dashboard is showing)
+      !isEmptyState && !showDashboard && h('div', { className: 'home-panel' },
         h('div', { className: 'home-panel-header' }, 'RECENT'),
         h('div', { className: 'home-panel-list' },
           recentProjects.length === 0
