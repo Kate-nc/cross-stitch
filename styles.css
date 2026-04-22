@@ -202,6 +202,8 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 /* ── Canvas + right-panel layout ── */
 .cs-main{display:flex;align-items:flex-start;flex:1;min-height:0;overflow:hidden;}
 .canvas-area{flex:1;min-width:0;min-height:0;overflow:auto;}
+.materials-cols{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px;align-items:start;}
+@media(max-width:599px){.materials-cols{grid-template-columns:1fr;}}
 .rpanel{width:280px;background:var(--surface);border-left:1px solid var(--border);flex-shrink:0;position:sticky;top:128px;max-height:calc(100vh - 128px);overflow-y:auto;align-self:flex-start;}
 .rp-tabs{display:flex;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:10;}
 .rp-tab{flex:1;padding:8px 0;font-size:11px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--text-tertiary);border-bottom:2px solid transparent;font-family:inherit;}
