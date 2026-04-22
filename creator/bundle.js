@@ -11884,17 +11884,15 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var _copied = useState(false); var copied = _copied[0]; var setCopied = _copied[1];
   var _addedAll = useState(false); var addedAll = _addedAll[0]; var setAddedAll = _addedAll[1];
 
-  if (!(ctx.pat && ctx.pal)) return null;
-  if (app.tab !== 'prepare') return null;
-
   var stash = ctx.globalStash || {};
   var fabricCt = ctx.fabricCt || 14;
 
   // Determine effective stitch count per thread (accounting for over-two)
   var effectiveFabric = overTwo ? fabricCt / 2 : fabricCt;
 
-  // Build shopping list rows
+  // Build shopping list rows — always call useMemo unconditionally
   var rows = useMemo(function() {
+    if (!(ctx.pat && ctx.pal)) return [];
     return ctx.pal.map(function(p) {
       var key = 'dmc:' + p.id;
       var stashEntry = stash[key] || {};
@@ -11931,7 +11929,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
 
       return { p: p, key: key, owned: owned, needed: needed, status: status, name: name };
     });
-  }, [ctx.pal, stash, effectiveFabric]);
+  }, [ctx.pat, ctx.pal, stash, effectiveFabric]);
 
   // Sort
   var sortedRows = useMemo(function() {
@@ -11957,6 +11955,10 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     return acc + Math.max(0, r.needed - r.owned);
   }, 0);
 
+  // Early returns AFTER all hooks
+  if (!(ctx.pat && ctx.pal)) return null;
+  if (app.tab !== 'prepare') return null;
+
   // Fabric calculator
   var fabCounts = typeof FABRIC_COUNTS !== 'undefined' ? FABRIC_COUNTS : [
     {ct:11,label:'11 count'},{ct:14,label:'14 count'},{ct:16,label:'16 count'},{ct:18,label:'18 count'}
@@ -11980,7 +11982,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     lines.push('');
     sortedRows.forEach(function(r) {
       var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
-      var mark = r.status === 'owned' ? '✓' : r.status === 'partial' ? '~' : '○';
+      var mark = r.status === 'owned' ? '\u2713' : r.status === 'partial' ? '~' : '\u25cb';
       lines.push(mark + ' DMC ' + r.p.id + ' — ' + r.name + ' — ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
     });
     lines.push('');
