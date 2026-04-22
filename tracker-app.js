@@ -388,7 +388,6 @@ function applyDoneCountsDelta(changes,patArr,newDoneArr){
   doneCountRef.current=dc;colourDoneCountsRef.current=cdc;setCountsVer(function(v){return v+1;});
 }
 
-const[sessions,setSessions]=useState([]);
 const[statsSessions,setStatsSessions]=useState([]);
 const totalTime=useMemo(()=>{if(!statsSessions||statsSessions.length===0)return 0;return statsSessions.reduce(function(sum,s){return sum+getSessionSeconds(s);},0);},[statsSessions]);
 const[statsSettings,setStatsSettings]=useState({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true});
@@ -848,19 +847,12 @@ function finaliseAutoSession(){
       pendingMilestonesRef.current=[];
     }
     setStatsSessions(prev=>[...(prev||[]),finalised]);
-    // Update stitchLog directly in v3FieldsRef so the next auto-save picks it up.
-    // Avoids a race where a separate IDB read-modify-write (appendStitchLog) could
-    // be overwritten by the tracker's own auto-save using stale v3FieldsRef data.
-    if(finalised.netStitches!==0&&projectIdRef.current){
+    // Update lastTouchedAt and finishStatus in v3FieldsRef.
+    // stitchLog is now derived from statsSessions in buildSnapshot() — no direct mutation needed.
+    if(projectIdRef.current){
       const _now=new Date();
-      const _fallbackDate=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0')+'-'+String(_now.getDate()).padStart(2,'0');
-      const _today=(session&&session.date)||((typeof getStitchingDateLocal==='function')?getStitchingDateLocal(_now,dayEndHour):_fallbackDate);
       const _prev=v3FieldsRef.current||{};
-      const _log=(_prev.stitchLog||[]).slice();
-      const _idx=_log.findIndex(function(e){return e.date===_today;});
-      if(_idx>=0){_log[_idx]={date:_today,count:_log[_idx].count+finalised.netStitches};}
-      else{_log.push({date:_today,count:finalised.netStitches});}
-      const _newV3=Object.assign({},_prev,{stitchLog:_log,lastTouchedAt:_now.toISOString()});
+      const _newV3=Object.assign({},_prev,{lastTouchedAt:_now.toISOString()});
       if(_prev.finishStatus==='planned'&&finalised.netStitches>0){_newV3.finishStatus='active';}
       v3FieldsRef.current=_newV3;
       autoSaveDirtyRef.current=true;
@@ -1430,8 +1422,6 @@ function doSaveProject(finalName){
     bsLines,
     done:done?Array.from(done):null,
     parkMarkers,
-    totalTime:totalTime+liveAutoElapsed,
-    sessions,
     hlRow,
     hlCol,
     threadOwned,
@@ -1948,7 +1938,7 @@ function handleEditInCreator(){
   const sseArrH=[...singleStitchEdits.entries()];
   const hsArrH=[...halfStitches.entries()].map(([idx,hs])=>[idx,{fwd:hs.fwd?{id:hs.fwd.id,rgb:hs.fwd.rgb}:undefined,bck:hs.bck?{id:hs.bck.id,rgb:hs.bck.rgb}:undefined}]);
   const hdArrH=[...halfDone.entries()];
-  let project={version:9,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,totalTime:totalTime+liveAutoElapsed,sessions,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
+  let project={version:9,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
   try{
     localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(project));
     window.location.href = "index.html?source=tracker";
@@ -2113,8 +2103,7 @@ function processLoadedProject(project){
   if(project.focusBlock)setFocusBlock(project.focusBlock);else setFocusBlock(null);
   if(project.startCorner)setStartCorner(project.startCorner);
   if(project.colourSequence)setColourSequence(project.colourSequence);
-  setSessions(project.sessions||[]);
-  // Legacy migration: if no sessions but totalTime exists, create a synthetic session
+  // Legacy migration: if no statsSessions but totalTime exists, create a synthetic session
   var rawStatsSessions=project.statsSessions||[];
   if(rawStatsSessions.length===0&&project.totalTime>0){
     var legacyDone=project.done?Array.from(project.done).filter(function(v){return v===1;}).length:0;
@@ -2437,14 +2426,25 @@ const buildSnapshot = () => {
     bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb } : undefined
   }]);
   const hdArr = [...halfDone.entries()];
+  // Derive stitchLog from statsSessions (single source of truth).
+  // Groups netStitches by date so stitchLog always matches what statsSessions says.
+  const _logMap = {};
+  (statsSessions || []).forEach(s => {
+    if (!s || !s.date) return;
+    _logMap[s.date] = (_logMap[s.date] || 0) + (s.netStitches || 0);
+  });
+  const _derivedLog = Object.entries(_logMap)
+    .filter(([, c]) => c !== 0)
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date < b.date ? -1 : 1);
+  if (v3FieldsRef.current) v3FieldsRef.current.stitchLog = _derivedLog;
   return {
     version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
     createdAt: createdAtRef.current, updatedAt: new Date().toISOString(),
     settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
     pattern: pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb }),
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
-    totalTime: totalTime + liveAutoElapsed,
-    sessions, hlRow, hlCol, threadOwned, originalPaletteState,
+    hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
     statsSessions, statsSettings, achievedMilestones, doneSnapshots,
     savedZoom: stitchZoom,
@@ -2492,12 +2492,13 @@ useEffect(() => {
         projectIdRef.current,
         projectName || `${sW}×${sH} pattern`,
         skeinData,
-        combinedDone >= combinedTotal && combinedTotal > 0 ? "completed" : "inprogress"
+        combinedDone >= combinedTotal && combinedTotal > 0 ? "completed" : "inprogress",
+        fabricCt
       ).catch(err => console.error("Library sync failed:", err));
     }
   }, 5000);
   return () => clearTimeout(saveTimer);
-}, [pat, pal, done, bsLines, parkMarkers, totalTime, sessions, hlRow, hlCol, threadOwned,
+}, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned,
     halfStitches, halfDone, singleStitchEdits,
     sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots, achievedMilestones]);
 
@@ -2588,8 +2589,7 @@ useEffect(() => {
       settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
       pattern: pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb }),
       bsLines, done: done ? Array.from(done) : null, parkMarkers,
-      totalTime: totalTime + liveAutoElapsed,
-      sessions, hlRow, hlCol, threadOwned, originalPaletteState,
+      hlRow, hlCol, threadOwned, originalPaletteState,
       singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
       statsSessions, statsSettings, achievedMilestones, doneSnapshots,
       savedZoom: stitchZoom,
@@ -2613,7 +2613,7 @@ useEffect(() => {
     };
   };
 }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done,
-    halfStitches, halfDone, parkMarkers, totalTime, liveAutoElapsed, sessions, hlRow, hlCol,
+    halfStitches, halfDone, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol,
     threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots,
     breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence]);
 
@@ -4834,7 +4834,8 @@ return(
           (async()=>{
             const stash=await StashBridge.getGlobalStash();
             for(const d of skeinData){
-              const gs=stash[d.id]||{owned:0};
+              // Stash is keyed by composite keys ("dmc:310"); d.id is a bare id ("310").
+              const gs=stash['dmc:'+d.id]||stash[d.id]||{owned:0};
               const newOwned=Math.max(0,gs.owned-d.skeins);
               await StashBridge.updateThreadOwned(d.id,newOwned);
             }
@@ -4849,7 +4850,8 @@ return(
           (async()=>{
             const stash=await StashBridge.getGlobalStash();
             for(const d of skeinData){
-              const gs=stash[d.id]||{owned:0};
+              // Stash is keyed by composite keys ("dmc:310"); d.id is a bare id ("310").
+              const gs=stash['dmc:'+d.id]||stash[d.id]||{owned:0};
               const deduct=Math.max(0,d.skeins-1);
               const newOwned=Math.max(0,gs.owned-deduct);
               await StashBridge.updateThreadOwned(d.id,newOwned);

@@ -38,25 +38,39 @@ function fmtHours(h) {
 
 // Load all stitch log data from all projects (or a single project if filtered)
 async function loadStitchData(filterProjectId) {
-  if (typeof ProjectStorage === 'undefined') return { byDay: {}, projects: [], trackingStart: null };
+  if (typeof ProjectStorage === 'undefined') return { byDay: {}, durationByDay: {}, projects: [], trackingStart: null };
   const metas = await ProjectStorage.listProjects();
   const byDay = {}; // { 'YYYY-MM-DD': { total: number, projects: { id: count } } }
+  const durationByDay = {}; // { 'YYYY-MM-DD': number } — real stitching seconds per day
   const projectNames = {};
   let trackingStart = null;
   for (const meta of metas) {
     const proj = await ProjectStorage.get(meta.id);
     if (!proj) continue;
     projectNames[proj.id] = proj.name || 'Untitled';
-    if (!proj.stitchLog || proj.stitchLog.length === 0) continue;
     if (filterProjectId && proj.id !== filterProjectId) continue;
-    for (const entry of proj.stitchLog) {
-      if (!trackingStart || entry.date < trackingStart) trackingStart = entry.date;
-      if (!byDay[entry.date]) byDay[entry.date] = { total: 0, projects: {} };
-      byDay[entry.date].total += entry.count;
-      byDay[entry.date].projects[proj.id] = (byDay[entry.date].projects[proj.id] || 0) + entry.count;
+    // Build stitchLog from statsSessions (derived, same as tracker's buildSnapshot)
+    if (proj.statsSessions && proj.statsSessions.length > 0) {
+      for (const s of proj.statsSessions) {
+        if (!s || !s.date) continue;
+        if (!trackingStart || s.date < trackingStart) trackingStart = s.date;
+        if (!byDay[s.date]) byDay[s.date] = { total: 0, projects: {} };
+        byDay[s.date].total += (s.netStitches || 0);
+        byDay[s.date].projects[proj.id] = (byDay[s.date].projects[proj.id] || 0) + (s.netStitches || 0);
+        const secs = s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60;
+        durationByDay[s.date] = (durationByDay[s.date] || 0) + secs;
+      }
+    } else if (proj.stitchLog && proj.stitchLog.length > 0) {
+      // Fallback for old projects that only have stitchLog and no statsSessions
+      for (const entry of proj.stitchLog) {
+        if (!trackingStart || entry.date < trackingStart) trackingStart = entry.date;
+        if (!byDay[entry.date]) byDay[entry.date] = { total: 0, projects: {} };
+        byDay[entry.date].total += entry.count;
+        byDay[entry.date].projects[proj.id] = (byDay[entry.date].projects[proj.id] || 0) + entry.count;
+      }
     }
   }
-  return { byDay, projects: Object.entries(projectNames).map(([id, name]) => ({ id, name })), trackingStart };
+  return { byDay, durationByDay, projects: Object.entries(projectNames).map(([id, name]) => ({ id, name })), trackingStart };
 }
 
 // Build the heatmap grid aligned to Sun-start weeks
@@ -271,6 +285,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
 
   const [loading, setLoading] = useState(true);
   const [byDay, setByDay] = useState({});
+  const [durationByDay, setDurationByDay] = useState({});
   const [projects, setProjects] = useState([]);
   const [trackingStart, setTrackingStart] = useState(null);
   const [filteredProjectName, setFilteredProjectName] = useState(null);
@@ -290,6 +305,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
       const data = await loadStitchData(filterProjectId);
       if (cancelled) return;
       setByDay(data.byDay);
+      setDurationByDay(data.durationByDay || {});
       setProjects(data.projects);
       setTrackingStart(data.trackingStart);
       if (filterProjectId) {
@@ -314,10 +330,15 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
     const totalStitches = active.reduce((s, d) => s + d.count, 0);
     if (active.length === 0) return null;
     const avgPerSession = Math.round(totalStitches / active.length);
-    const estHours = Math.round(totalStitches / STITCHES_PER_HOUR);
+    // Use real stitching seconds when available; fall back to estimate
+    const realSeconds = active.reduce((s, d) => s + (durationByDay[d.date] || 0), 0);
+    const estHours = realSeconds > 0
+      ? realSeconds / 3600
+      : totalStitches / STITCHES_PER_HOUR;
+    const estHoursRounded = Math.round(estHours);
     const totalDays = grid.filter(d => d.inPeriod && !d.preTracking).length;
-    return { totalStitches, sessionCount: active.length, avgPerSession, estHours, sessionHours: avgPerSession / STITCHES_PER_HOUR, totalDays };
-  }, [grid]);
+    return { totalStitches, sessionCount: active.length, avgPerSession, estHours: estHoursRounded, sessionHours: estHours / active.length, totalDays, hasRealDuration: realSeconds > 0 };
+  }, [grid, durationByDay]);
 
   const insights = useMemo(() => {
     if (!grid.length) return [];

@@ -283,8 +283,10 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   // Computed data
   var projectCount = projects.length;
   var stashEntries = stash ? Object.keys(stash) : [];
-  var hasStash = stash && stashEntries.length > 0;
-  var skeinCount = hasStash ? stashEntries.length : 0;
+  // Only count threads the user actually owns (owned > 0); the stash is pre-populated
+  // with all DMC/Anchor threads at owned:0, so counting all entries is misleading.
+  var skeinCount = stashEntries.filter(function(k) { return stash[k].owned > 0; }).length;
+  var hasStash = skeinCount > 0;
 
   // Average progress across all projects
   var avgProgress = useMemo(function() {
@@ -314,30 +316,41 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   // Stash alerts
   var stashAlerts = useMemo(function() {
     if (!hasStash) return null;
+    // Normalise a bare DMC id like '310' to the composite stash key 'dmc:310'.
+    // Pattern threads are stored with bare ids; stash keys are always composite.
+    function normKey(id) { return id && id.indexOf(':') < 0 ? 'dmc:' + id : id; }
     // Build set of thread IDs required by any non-completed pattern
     var activeIds = new Set();
     if (patterns && patterns.length > 0) {
       patterns.forEach(function(pat) {
         if (pat.status === 'completed') return;
-        if (pat.threads) pat.threads.forEach(function(t) { activeIds.add(t.id); });
+        if (pat.threads) pat.threads.forEach(function(t) { activeIds.add(normKey(t.id)); });
       });
     }
     var lowCount = 0;
     stashEntries.forEach(function(id) {
       var thread = stash[id];
-      var threshold = thread.min_stock != null ? thread.min_stock : 1;
+      // Match Manager's low-stock logic: use min_stock when explicitly set above 0,
+      // otherwise fall back to 1 (warn when only 1 skein remains).
+      var threshold = (thread.min_stock != null && thread.min_stock > 0) ? thread.min_stock : 1;
       // Only warn if the thread is actually needed by an active project
-      if (thread.owned <= threshold && activeIds.has(id)) lowCount++;
+      if (thread.owned > 0 && thread.owned <= threshold && activeIds.has(id)) lowCount++;
     });
     // Projects needing thread — check patterns that have thread requirements unmet by stash
     var projectsNeedThread = 0;
     if (patterns && patterns.length > 0) {
       patterns.forEach(function(pat) {
         if (!pat.threads || pat.status === 'completed' || pat.status === 'wishlist') return;
+        var patFabricCt = Number(pat.fabricCt);
+        if (!(patFabricCt > 0)) patFabricCt = 14;
         var needsThread = pat.threads.some(function(t) {
-          var s = stash[t.id];
+          var s = stash[normKey(t.id)];
           if (!s) return true;
-          return s.owned < (t.qty || 1);
+          // Pattern threads from auto-sync store qty as raw stitches; convert to skeins.
+          var neededSkeins = (t.unit === 'stitches' && typeof skeinEst === 'function')
+            ? skeinEst(t.qty, patFabricCt)
+            : (t.qty || 1);
+          return s.owned < neededSkeins;
         });
         if (needsThread) projectsNeedThread++;
       });

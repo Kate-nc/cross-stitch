@@ -493,12 +493,32 @@ const SyncEngine = (() => {
     Object.keys(allIds).forEach(function (id) {
       var l = localThreads[id] || {};
       var r = remoteThreads[id] || {};
-      merged.threads[id] = {
+      var entry = {
         owned: Math.max(l.owned || 0, r.owned || 0),
         tobuy: !!(l.tobuy || r.tobuy),
         partialStatus: l.partialStatus || r.partialStatus || null,
         min_stock: Math.max(l.min_stock || 0, r.min_stock || 0)
       };
+      // Preserve V3 metadata fields. Prefer local (most recent on this device);
+      // fall back to remote if local doesn't have them.
+      // History arrays are merged (union by date string) so no entries are lost.
+      entry.addedAt = l.addedAt || r.addedAt || null;
+      entry.lastAdjustedAt = l.lastAdjustedAt || r.lastAdjustedAt || null;
+      entry.acquisitionSource = l.acquisitionSource || r.acquisitionSource || null;
+      var lHist = Array.isArray(l.history) ? l.history : [];
+      var rHist = Array.isArray(r.history) ? r.history : [];
+      if (lHist.length === 0 && rHist.length === 0) {
+        entry.history = [];
+      } else {
+        // Merge by deduplicating on {date, delta} to avoid double-counting.
+        var seen = Object.create(null);
+        var allHist = lHist.concat(rHist);
+        allHist.forEach(function (h) { if (h && h.date) seen[h.date + '|' + h.delta] = h; });
+        entry.history = Object.values(seen).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+        // Cap at 500 entries per thread to match updateThreadOwned
+        if (entry.history.length > 500) entry.history = entry.history.slice(-500);
+      }
+      merged.threads[id] = entry;
     });
 
     // Merge pattern library: upsert by id, newer updatedAt wins
