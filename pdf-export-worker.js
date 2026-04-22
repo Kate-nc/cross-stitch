@@ -41,7 +41,7 @@ importScripts(
   "creator/pdfChartLayout.js",
   "assets/fonts/CrossStitchSymbols.base64.js",
   "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js",
-  "https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/lib/fontkit.umd.min.js"
+  "assets/fontkit.umd.min.js"
 );
 
 var Layout = self.PdfChartLayout;
