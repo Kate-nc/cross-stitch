@@ -4,6 +4,7 @@
                StashBridge (stash-bridge.js), CreatorContext (context.js) */
 
 window.CreatorPrepareTab = function CreatorPrepareTab() {
+  var STITCHES_PER_SKEIN_ESTIMATE = 800;
   var ctx = window.usePatternData();
   var app = window.useApp();
   var h = React.createElement;
@@ -47,8 +48,9 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
           needed = skResult.skeinsToBuy || 0;
         }
       } else {
-        needed = Math.ceil(p.count / 800) || 0;
+        needed = Math.ceil(p.count / STITCHES_PER_SKEIN_ESTIMATE) || 0;
       }
+      // Any palette entry with stitches should require at least one skein.
       if ((p.count || 0) > 0) needed = Math.max(1, needed || 0);
 
       var status;
