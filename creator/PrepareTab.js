@@ -132,11 +132,11 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Share
   function handleShare() {
     if (typeof navigator === 'undefined' || !navigator.share) return;
-    var lines = ['Shopping List — ' + sW + '×' + sH + ' @ ' + fabricCt + ' count', ''];
+    var lines = ['Shopping List \u2014 ' + sW + '\u00d7' + sH + ' @ ' + fabricCt + ' count', ''];
     sortedRows.forEach(function(r) {
       if (r.status !== 'owned') {
         var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
-        lines.push('DMC ' + r.p.id + ' ' + r.name + ' — need ' + Math.max(0, r.needed - r.owned) + ' skein' + (Math.max(0, r.needed - r.owned) !== 1 ? 's' : '') + own);
+        lines.push('DMC ' + r.p.id + ' ' + r.name + ' \u2014 need ' + Math.max(0, r.needed - r.owned) + ' skein' + (Math.max(0, r.needed - r.owned) !== 1 ? 's' : '') + own);
       }
     });
     navigator.share({ title: 'Cross Stitch Shopping List', text: lines.join('\n') }).catch(function() {});
@@ -162,7 +162,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Status badge
   function statusBadge(status) {
     var map = {
-      owned: { label: 'In stash ✓', bg: '#f0fdf4', color: '#16a34a' },
+      owned: { label: 'In stash \u2713', bg: '#f0fdf4', color: '#16a34a' },
       partial: { label: 'Partial', bg: '#fff7ed', color: '#ea580c' },
       needed: { label: 'Need to buy', bg: '#fef2f2', color: '#dc2626' }
     };
@@ -184,7 +184,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     }},
       h('span', {style: {fontWeight: 600, color: '#15803d'}},
         ownedColours === totalColours
-          ? '✓ All ' + totalColours + ' colours in stash!'
+          ? '\u2713 All ' + totalColours + ' colours in stash!'
           : 'You own ' + ownedColours + ' of ' + totalColours + ' colours.'
       ),
       partialColours > 0 && h('span', {style: {color: '#ea580c'}},
@@ -199,7 +199,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
           style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
                    border: '0.5px solid #e2e8f0', background: copied ? '#0d9488' : '#fff',
                    color: copied ? '#fff' : '#475569', fontWeight: 500 }
-        }, copied ? '✓ Copied' : 'Copy list'),
+        }, copied ? '\u2713 Copied' : 'Copy list'),
         canShare && h('button', {
           onClick: handleShare,
           style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
@@ -210,7 +210,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
           style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
                    border: '0.5px solid #e2e8f0', background: '#fff', color: '#475569',
                    fontWeight: 500, textDecoration: 'none', display: 'inline-block' }
-        }, 'View thread stash →')
+        }, 'View thread stash \u2192')
       )
     ),
 
@@ -240,7 +240,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
                  border: '0.5px solid #e2e8f0', background: addedAll ? '#0d9488' : '#fff',
                  color: addedAll ? '#fff' : '#475569', fontWeight: 500, marginLeft: 'auto' }
-      }, addedAll ? '✓ Added to stash' : 'Mark all as owned')
+      }, addedAll ? '\u2713 Added to stash' : 'Mark all as owned')
     ),
 
     // Thread table
@@ -275,7 +275,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
               h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.p.count.toLocaleString()),
               h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, r.needed),
               h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#15803d' : '#94a3b8'}},
-                r.owned > 0 ? r.owned : '—'
+                r.owned > 0 ? r.owned : '\u2014'
               ),
               h('td', {style: {padding: '6px 10px'}}, statusBadge(r.status))
             );
@@ -294,7 +294,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
         }
       },
-        h('span', {style: {fontSize: 9, opacity: 0.6}}, fabOpen ? '▾' : '▸'),
+        h('span', {style: {fontSize: 9, opacity: 0.6}}, fabOpen ? '\u25be' : '\u25b8'),
         'Fabric Calculator'
       ),
       fabOpen && h('div', {style: {padding: '14px'}},
