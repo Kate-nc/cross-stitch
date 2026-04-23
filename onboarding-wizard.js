@@ -344,13 +344,20 @@
 
     if (anchor) {
       // Targeted popover: dim backdrop with a hole, place panel near anchor.
-      return h("div", { className: "onboarding-targeted-overlay", style: { position: "fixed", inset: 0, zIndex: 5000 } },
+      // The wrapper itself MUST be click-through (pointerEvents:none) so that
+      // requireClick steps can still receive the click on the highlighted
+      // target underneath. The popover re-enables pointer events on itself so
+      // its own buttons remain interactive.
+      return h("div", {
+        className: "onboarding-targeted-overlay",
+        style: { position: "fixed", inset: 0, zIndex: 5000, pointerEvents: "none" }
+      },
         h("div", { style: arrowStyle }),
         h("div", Object.assign({}, dialogProps, {
           ref: contentRef,
           className: "modal-content onboarding-content",
           onClick: function (e) { e.stopPropagation(); },
-          style: Object.assign({}, popoverStyle, { zIndex: 5001 })
+          style: Object.assign({}, popoverStyle, { zIndex: 5001, pointerEvents: "auto" })
         }), children)
       );
     }

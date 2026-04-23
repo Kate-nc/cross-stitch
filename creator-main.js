@@ -1049,6 +1049,24 @@ function UnifiedApp(){
     return()=>window.removeEventListener('cs:showWelcome',h);
   },[]);
 
+  // Global "B" shortcut → open Bulk Add Threads from anywhere in the Creator
+  // page (home, design, track). Skipped while typing in inputs / with any
+  // modifier key held so we never intercept browser shortcuts (Ctrl+B etc).
+  React.useEffect(()=>{
+    if(typeof window.BulkAddModal==='undefined')return;
+    const onKey=(e)=>{
+      if(e.defaultPrevented)return;
+      if(e.ctrlKey||e.metaKey||e.altKey)return;
+      if((e.key||'').toLowerCase()!=='b')return;
+      const t=e.target;
+      if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable))return;
+      e.preventDefault();
+      setHomeBulkAddOpen(true);
+    };
+    window.addEventListener('keydown',onKey);
+    return()=>window.removeEventListener('keydown',onKey);
+  },[]);
+
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
   return <>
     {mode==='home'&&<div>
