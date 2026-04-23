@@ -2220,7 +2220,15 @@ function processLoadedProject(project){
   if(project.startCorner)setStartCorner(project.startCorner);
   if(project.colourSequence)setColourSequence(project.colourSequence);
   // Legacy migration: if no statsSessions but totalTime exists, create a synthetic session
-  var rawStatsSessions=project.statsSessions||[];
+  var rawStatsSessions=(project.statsSessions||[]).filter(function(s){
+    if(!s)return false;
+    if(s.startTime==null&&s.date==null)return true;
+    if(s.startTime!=null){
+      var t=new Date(s.startTime).getTime();
+      if(Number.isNaN(t))return false;
+    }
+    return true;
+  });
   if(rawStatsSessions.length===0&&project.totalTime>0){
     var legacyDone=project.done?Array.from(project.done).filter(function(v){return v===1;}).length:0;
     var normaliseSessionTime=(function(value){
@@ -2369,7 +2377,9 @@ function loadProject(e){
     rd.onload=ev=>{
       try{
         let project=JSON.parse(ev.target.result);
-        if(!project.pattern && !project.p)throw new Error("Invalid format");
+        const patternField = project.pattern || project.p;
+        if(!patternField) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
+        if(!Array.isArray(patternField)) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
         if(!project.id) project.id = ProjectStorage.newId();
         if(!project.createdAt) project.createdAt = new Date().toISOString();
         processLoadedProject(project);

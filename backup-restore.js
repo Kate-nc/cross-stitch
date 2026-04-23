@@ -102,17 +102,35 @@ const BackupRestore = (() => {
     // Downloads the backup as a .json file
     async downloadBackup() {
       const backup = await this.createBackup();
-      const json = JSON.stringify(backup);
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "cross-stitch-backup-" + new Date().toISOString().slice(0, 10) + ".json";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      return backup;
+      let url = null;
+      try {
+        const json = JSON.stringify(backup);
+        const blob = new Blob([json], { type: "application/json" });
+        url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "cross-stitch-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return backup;
+      } catch (err) {
+        // QuotaExceededError, RangeError (string-too-long), or OOM during
+        // serialisation — surface a clear, user-visible message rather than a
+        // silent failure.
+        const msg = "Backup export failed: " + (err && err.message ? err.message
+          : "browser ran out of space serialising the backup. Try closing other tabs and retrying.");
+        try {
+          if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+            window.Toast.show({ message: msg, type: "error", duration: 8000 });
+          } else if (typeof window !== "undefined" && window.alert) {
+            window.alert(msg);
+          }
+        } catch (_) {}
+        throw err;
+      } finally {
+        if (url) { try { URL.revokeObjectURL(url); } catch (_) {} }
+      }
     },
 
     // Validates a backup object. Returns { valid: bool, error?: string, summary?: {} }

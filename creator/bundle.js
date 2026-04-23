@@ -1258,6 +1258,11 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var minSt = opts.minSt, smooth = opts.smooth, smoothType = opts.smoothType;
   var stitchCleanup = opts.stitchCleanup, allowBlends = opts.allowBlends;
 
+  // Boundary validation: a 0-width or 0-height grid produces no stitches and
+  // would crash quantize() when it indexes data[i*4]. Bail out early so the
+  // caller can surface a friendly error.
+  if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
+
   var c = document.createElement("canvas");
   c.width = sW; c.height = sH;
   var cx = c.getContext("2d");
@@ -2897,7 +2902,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
           if (!cRgb && cmap) { var cLk = cmap[cc.id]; if (cLk) cRgb = cLk.rgb; }
           if (cRgb) cKey = cRgb[0] + "," + cRgb[1] + "," + cRgb[2];
         }
-        if (cKey) colourFreq[cKey] = (colourFreq[cKey] || 0) + 1;
+        if (cKey != null) colourFreq[cKey] = (colourFreq[cKey] || 0) + 1;
       }
     }
 
@@ -6106,6 +6111,11 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       state.setIsCropping(false);
       state.setCropRect(null);
       state.setPat(null); state.setPal(null); state.setCmap(null);
+      // Annotations authored against the previous coordinate system are no
+      // longer meaningful after crop + regenerate; clear them so they aren't
+      // rendered at stale positions.
+      if (typeof state.setBsLines === "function") state.setBsLines([]);
+      if (typeof state.setParkMarkers === "function") state.setParkMarkers([]);
     };
     newImg.src = c.toDataURL();
   }
@@ -6644,7 +6654,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     rd.onload = function(ev) {
       try {
         var project = JSON.parse(ev.target.result);
-        if (!project.pattern || !project.settings) throw new Error("Invalid");
+        if (!project.pattern || !Array.isArray(project.pattern)) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
+        if (!project.settings) throw new Error("Invalid");
         processLoadedProject(project);
       } catch (err) {
         console.error(err);
@@ -6731,7 +6742,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       rd2.onload = function(ev2) {
         try {
           var project2 = JSON.parse(ev2.target.result);
-          if (!project2.pattern || !project2.settings) throw new Error("Invalid");
+          if (!project2.pattern || !Array.isArray(project2.pattern)) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
+          if (!project2.settings) throw new Error("Invalid");
           processLoadedProject(project2);
         } catch (err2) {
           console.error(err2);
@@ -12506,7 +12518,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             StashBridge.getGlobalStash().then(function(stash) {
               var missing = [], short = [];
               ctx.skeinData.forEach(function(d) {
-                var owned2 = (stash[d.id] || {}).owned || 0;
+                var stashEntry2 = stash[d.id];
+                var owned2 = (stashEntry2 && typeof stashEntry2 === 'object' && typeof stashEntry2.owned === 'number') ? stashEntry2.owned : 0;
                 if (owned2 === 0) missing.push("DMC "+d.id+" (need "+d.skeins+"sk)");
                 else if (owned2 < d.skeins) short.push("DMC "+d.id+" (have "+owned2+", need "+d.skeins+"sk)");
               });

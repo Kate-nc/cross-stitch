@@ -311,7 +311,12 @@
     input.className = 'cs-cmdp-input';
     input.placeholder = 'Search actions…';
     input.setAttribute('aria-label', 'Search actions');
-    input.addEventListener('input', function () { renderResults(); });
+    input.addEventListener('input', function (e) {
+      // Skip while an IME composition is active so we don't search on partial
+      // characters (Japanese, Chinese, Korean keyboards etc.).
+      if (e && e.isComposing) return;
+      renderResults();
+    });
     input.addEventListener('keydown', onInputKey);
     inputWrap.appendChild(input);
 

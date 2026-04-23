@@ -382,7 +382,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
           if (!cRgb && cmap) { var cLk = cmap[cc.id]; if (cLk) cRgb = cLk.rgb; }
           if (cRgb) cKey = cRgb[0] + "," + cRgb[1] + "," + cRgb[2];
         }
-        if (cKey) colourFreq[cKey] = (colourFreq[cKey] || 0) + 1;
+        if (cKey != null) colourFreq[cKey] = (colourFreq[cKey] || 0) + 1;
       }
     }
 

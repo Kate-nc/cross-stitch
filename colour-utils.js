@@ -34,8 +34,10 @@ findBest.precomputeBlends = function(palette) {
     for (let j = i + 1; j < palette.length; j++) {
       const a = palette[i], b = palette[j];
       const lab = [(a.lab[0]+b.lab[0])/2, (a.lab[1]+b.lab[1])/2, (a.lab[2]+b.lab[2])/2];
+      // Canonicalise blend ID so [a,b] and [b,a] always produce the same string.
+      const blendId = [String(a.id), String(b.id)].sort().join("+");
       blends.push({
-        id: a.id + "+" + b.id,
+        id: blendId,
         lab: lab,
         rgb: [Math.round((a.rgb[0]+b.rgb[0])/2), Math.round((a.rgb[1]+b.rgb[1])/2), Math.round((a.rgb[2]+b.rgb[2])/2)],
         threads: [a, b]
@@ -94,6 +96,20 @@ function quantize(data,w,h,n,allowedPalette,options){
       let d2=dE2(cs[ci],pool[ti].lab);if(d2<bd){bd=d2;b=pool[ti];}
     }
     if(b){used.add(b.id);pl.push(b);}
+  }
+  // Empty-palette fallback: if no DMC matches were found (e.g. allowedPalette
+  // was empty or all pixels mapped to identical centres that exhausted the
+  // pool), return a single-colour palette using the median pixel colour so
+  // downstream pipeline stages don't abort.
+  if(!pl.length){
+    if(px.length){
+      let mid=px[Math.floor(px.length/2)];
+      let b=null,bd=1e9;
+      for(let ti=0;ti<pool.length;ti++){
+        let d2=dE2(mid,pool[ti].lab);if(d2<bd){bd=d2;b=pool[ti];}
+      }
+      if(b)pl.push(b);
+    }
   }
   return pl;
 }

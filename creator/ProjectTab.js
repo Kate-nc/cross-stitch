@@ -337,7 +337,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             StashBridge.getGlobalStash().then(function(stash) {
               var missing = [], short = [];
               ctx.skeinData.forEach(function(d) {
-                var owned2 = (stash[d.id] || {}).owned || 0;
+                var stashEntry2 = stash[d.id];
+                var owned2 = (stashEntry2 && typeof stashEntry2 === 'object' && typeof stashEntry2.owned === 'number') ? stashEntry2.owned : 0;
                 if (owned2 === 0) missing.push("DMC "+d.id+" (need "+d.skeins+"sk)");
                 else if (owned2 < d.skeins) short.push("DMC "+d.id+" (have "+owned2+", need "+d.skeins+"sk)");
               });

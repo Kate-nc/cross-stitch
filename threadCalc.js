@@ -16,7 +16,14 @@ function stitchesToSkeins({
   isBlended = false,
   blendRatio = null
 }) {
-  if (fabricCount <= 0) fabricCount = 14;
+  // Validate numeric inputs at the boundary so callers see a clear error
+  // instead of NaN propagating into the UI ("NaN skeins").
+  if (!Number.isFinite(stitchCount) || stitchCount < 0) {
+    throw new Error("stitchesToSkeins: stitchCount must be a non-negative finite number");
+  }
+  if (!Number.isFinite(fabricCount) || fabricCount <= 0) {
+    throw new Error("stitchesToSkeins: fabricCount must be a positive finite number");
+  }
   if (strandsUsed <= 0) strandsUsed = 2;
   if (wasteFactor >= 1) wasteFactor = 0.20;
   const holePitchCm = 2.54 / fabricCount;
@@ -26,10 +33,13 @@ function stitchesToSkeins({
 
   if (!isBlended) {
     const usablePerSkeinCm = skeinLengthCm * 6 * (1 - wasteFactor);
-    const skeinsExact = totalThreadCm / usablePerSkeinCm;
+    let skeinsRaw = totalThreadCm / usablePerSkeinCm;
+    // Epsilon guard: tiny patterns (e.g. a single pixel) should not demand a
+    // full skein. Treat near-zero exact values as zero.
+    if (skeinsRaw < 0.01) skeinsRaw = 0;
     return {
-      skeinsExact: Math.round(skeinsExact * 100) / 100,
-      skeinsToBuy: Math.ceil(skeinsExact),
+      skeinsExact: Math.round(skeinsRaw * 100) / 100,
+      skeinsToBuy: Math.ceil(skeinsRaw),
       totalThreadM: Math.round(totalThreadCm / 10) / 10
     };
   }

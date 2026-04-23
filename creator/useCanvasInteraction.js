@@ -830,6 +830,11 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       state.setIsCropping(false);
       state.setCropRect(null);
       state.setPat(null); state.setPal(null); state.setCmap(null);
+      // Annotations authored against the previous coordinate system are no
+      // longer meaningful after crop + regenerate; clear them so they aren't
+      // rendered at stale positions.
+      if (typeof state.setBsLines === "function") state.setBsLines([]);
+      if (typeof state.setParkMarkers === "function") state.setParkMarkers([]);
     };
     newImg.src = c.toDataURL();
   }

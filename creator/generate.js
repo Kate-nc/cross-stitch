@@ -91,6 +91,11 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var minSt = opts.minSt, smooth = opts.smooth, smoothType = opts.smoothType;
   var stitchCleanup = opts.stitchCleanup, allowBlends = opts.allowBlends;
 
+  // Boundary validation: a 0-width or 0-height grid produces no stitches and
+  // would crash quantize() when it indexes data[i*4]. Bail out early so the
+  // caller can surface a friendly error.
+  if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
+
   var c = document.createElement("canvas");
   c.width = sW; c.height = sH;
   var cx = c.getContext("2d");

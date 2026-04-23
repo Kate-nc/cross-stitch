@@ -57,7 +57,7 @@ function parseOXS(xmlString) {
   const doc = parser.parseFromString(xmlString, "application/xml");
   const parserError = doc.querySelector("parsererror");
   if (parserError) {
-    throw new Error("Invalid XML format");
+    throw new Error("Invalid OXS file: malformed XML");
   }
 
   const chart = doc.querySelector("chart") || doc.documentElement;
@@ -201,6 +201,21 @@ function parseOXS(xmlString) {
     });
   }
 
+  // Dedupe palette entries by DMC id (first-wins). Multiple palette indexes
+  // pointing at the same DMC colour can otherwise inflate the reported
+  // palette size and hide legitimate colour collisions.
+  const _seenPaletteId = {};
+  const _paletteIndexRedirect = {};
+  for (const _idx in paletteMap) {
+    const _id = paletteMap[_idx].dmcThread.id;
+    if (_seenPaletteId[_id] == null) {
+      _seenPaletteId[_id] = _idx;
+    } else {
+      _paletteIndexRedirect[_idx] = _seenPaletteId[_id];
+      delete paletteMap[_idx];
+    }
+  }
+
   // Parse stitches
   const pattern = new Array(width * height).fill(null).map(() => ({
     type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0]
@@ -221,6 +236,7 @@ function parseOXS(xmlString) {
 
     if (isNaN(x) || isNaN(y) || x < 0 || x >= width || y < 0 || y >= height) return;
 
+    if (_paletteIndexRedirect[palIdx] != null) palIdx = _paletteIndexRedirect[palIdx];
     const palEntry = paletteMap[palIdx];
     if (palEntry && palEntry.dmcThread) {
       const t = palEntry.dmcThread;
@@ -251,9 +267,13 @@ function parseOXS(xmlString) {
       let y1 = parseFloat(el.getAttribute("y1") || el.getAttribute("starty"));
       let x2 = parseFloat(el.getAttribute("x2") || el.getAttribute("endx"));
       let y2 = parseFloat(el.getAttribute("y2") || el.getAttribute("endy"));
-      if (!isNaN(x1) && !isNaN(y1) && !isNaN(x2) && !isNaN(y2)) {
-        bsLines.push({x1, y1, x2, y2});
-      }
+      if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) return;
+      // Reject zero-length lines (x1===x2 && y1===y2) and any line whose
+      // endpoints fall outside the chart grid.
+      if (x1 === x2 && y1 === y2) return;
+      if (x1 < 0 || x2 < 0 || y1 < 0 || y2 < 0) return;
+      if (x1 > width || x2 > width || y1 > height || y2 > height) return;
+      bsLines.push({x1, y1, x2, y2});
     });
   }
 
