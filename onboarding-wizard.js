@@ -34,26 +34,21 @@
     creator: [
       {
         title: "Welcome to the Pattern Creator",
-        body: "Convert any image into a printable cross-stitch pattern. We'll give you a 60-second tour.",
+        body: "Convert any image into a printable cross-stitch pattern. We'll show you around in under a minute.",
         tip: "Everything runs in your browser — your photos never leave this device."
       },
       {
-        title: "1. Upload an image",
-        body: "Drag-and-drop a photo onto the canvas or click 'From image'. The Creator will quantise it to a DMC palette.",
-        tip: "Click the highlighted 'From image' button to continue. Smaller images give a clearer pattern — aim for 300–1000 px on the long edge.",
+        title: "What lives where",
+        body: "The dashboard above lists projects you've already started. The 'Start New' panel below is how you begin something fresh: from an image, from scratch, or by importing a saved file.",
+        tip: "Your stash and pattern library live one click away under 'Open Stash Manager'."
+      },
+      {
+        title: "Pick a starting point",
+        body: "When you're ready, click any option in 'Start New'. We'll highlight 'From image' as the most common one — drop a photo or click to browse.",
+        tip: "Clicking any starting option will close this tour and take you into the editor.",
         target: "[data-onboard=\"home-from-image\"]",
         placement: "right",
-        requireClick: true
-      },
-      {
-        title: "2. Tune the palette",
-        body: "Choose how many colours to use, set a minimum stitches-per-colour to drop noise, and optionally pick a background colour to skip.",
-        tip: "You can always re-generate after changing settings without losing other edits."
-      },
-      {
-        title: "3. Edit & save",
-        body: "Use Paint, Fill, Magic Wand or Lasso to refine the pattern. Save with File \u2192 Save Project (.json), or export a printable PDF chart.",
-        tip: "Open the Help Centre any time from the gear menu for keyboard shortcuts."
+        dismissOnTargetClick: true
       }
     ],
     manager: [
@@ -63,19 +58,19 @@
       },
       {
         title: "1. Build your stash",
-        body: "Switch to the Threads tab and tick the threads you own. Use 'Bulk Add' to paste a list of IDs in one go.",
-        tip: "Click the highlighted Threads tab to continue.",
+        body: "The Threads tab is where you tick the threads you own. Use 'Bulk Add' to paste a list of IDs in one go.",
+        tip: "Clicking the highlighted tab will close this tour and take you straight there.",
         target: "[data-onboard=\"mgr-stash-tab\"]",
         placement: "bottom",
-        requireClick: true
+        dismissOnTargetClick: true
       },
       {
         title: "2. Browse your patterns",
-        body: "Patterns saved in the Creator/Tracker auto-sync here. You can also add patterns manually \u2014 these are flagged 'Stash Manager only'.",
-        tip: "Click the highlighted Patterns tab to continue.",
+        body: "The Patterns tab lists patterns saved in the Creator/Tracker (auto-synced) plus any you add manually here.",
+        tip: "Clicking the highlighted tab will close this tour.",
         target: "[data-onboard=\"mgr-patterns-tab\"]",
         placement: "bottom",
-        requireClick: true
+        dismissOnTargetClick: true
       },
       {
         title: "3. Plan a shopping trip",
@@ -137,15 +132,34 @@
     // step has no target or the target isn't in the DOM yet.
     var _anchor = React.useState(null);
     var anchor = _anchor[0], setAnchor = _anchor[1];
-    // When step.requireClick is true, the user must click the anchored target
-    // before the Next button enables. Reset to false on every step change.
-    var _clicked = React.useState(false);
-    var clicked = _clicked[0], setClicked = _clicked[1];
-    React.useEffect(function () { setClicked(false); }, [idx]);
+    // True once we've confirmed the current step's target selector is missing
+    // from the DOM after a brief grace period. When set, the popover centres
+    // itself instead of pinning to a stale rect at (0, 0).
+    var _targetMissing = React.useState(false);
+    var targetMissing = _targetMissing[0], setTargetMissing = _targetMissing[1];
+    React.useEffect(function () { setTargetMissing(false); }, [idx]);
 
     // Focus-trap container ref + initial-focus management for a11y.
     var contentRef = React.useRef(null);
     var titleId = React.useMemo(function () { return "ob-title-" + Math.random().toString(36).slice(2, 8); }, []);
+
+    // If the wizard is unmounted while still open (the host component
+    // navigated away mid-tour), still mark the page as done so it doesn't
+    // resurrect on next visit. The user clearly knew enough to leave.
+    React.useEffect(function () {
+      return function () { try { markDone(page); } catch (_) {} };
+    }, [page]);
+
+    // Defensive re-check on mount: if the page was already marked done
+    // (e.g. the user navigated away earlier and is now returning to a host
+    // that still has welcomeOpen=true in its state), close immediately so
+    // we don't replay the tour.
+    React.useEffect(function () {
+      if (!shouldShow(page) && typeof props.onClose === "function") {
+        props.onClose();
+      }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     function handleClose(skipFlag) {
       if (!skipFlag) markDone(page);
@@ -197,11 +211,15 @@
 
     // Recompute anchor rect whenever the step (or viewport) changes.
     React.useEffect(function () {
+      var missingTimer = null;
       function recompute() {
         if (!step.target) { setAnchor(null); return; }
         var el = document.querySelector(step.target);
         if (!el) { setAnchor(null); return; }
         var r = el.getBoundingClientRect();
+        // Defensive: an offscreen / display:none button reports a 0×0 rect.
+        // Treat that the same as missing so the popover centres itself.
+        if (r.width === 0 && r.height === 0) { setAnchor(null); return; }
         setAnchor({
           top: r.top, left: r.left, right: r.right, bottom: r.bottom,
           width: r.width, height: r.height,
@@ -209,18 +227,29 @@
         });
       }
       recompute();
+      // If the target wasn't found on first paint, give it 600 ms (covers
+      // animations / lazy mounts) before falling back to centred mode.
+      if (step.target && !document.querySelector(step.target)) {
+        missingTimer = setTimeout(function () {
+          if (!document.querySelector(step.target)) setTargetMissing(true);
+        }, 600);
+      }
       window.addEventListener("resize", recompute);
       window.addEventListener("scroll", recompute, true);
-      // For requireClick steps, listen for a click on the target and unlock Next.
-      var clickEl = step.requireClick && step.target ? document.querySelector(step.target) : null;
-      function onTargetClick() { setClicked(true); }
+      // dismissOnTargetClick: clicking the highlighted target closes the
+      // tour cleanly (and marks the page done), so navigating away as a
+      // result of that click won't leave the user stranded.
+      var clickEl = step.dismissOnTargetClick && step.target
+        ? document.querySelector(step.target) : null;
+      function onTargetClick() { handleClose(false); }
       if (clickEl) clickEl.addEventListener("click", onTargetClick);
       return function () {
+        if (missingTimer) clearTimeout(missingTimer);
         window.removeEventListener("resize", recompute);
         window.removeEventListener("scroll", recompute, true);
         if (clickEl) clickEl.removeEventListener("click", onTargetClick);
       };
-    }, [idx, step.target, step.placement, step.requireClick]);
+    }, [idx, step.target, step.placement, step.dismissOnTargetClick]);
 
     // Compute the popover style — either floating near the anchor, or centred.
     var popoverStyle = { maxWidth: 420, padding: 22, position: "relative" };
@@ -263,7 +292,7 @@
       };
     }
 
-    var primaryDisabled = !!(step.requireClick && !clicked && !isLast);
+    var primaryDisabled = false;
 
     // Custom-component step: hand off rendering to caller-supplied component.
     // The wizard still renders the close button + step indicator and the
@@ -333,9 +362,8 @@
               className: "onboarding-focusable",
               style: { padding: "8px 16px", fontSize: 13, borderRadius: 6, border: "none",
                 background: primaryDisabled ? "#94a3b8" : "#0d9488",
-                color: "#fff", cursor: primaryDisabled ? "not-allowed" : "pointer", fontWeight: 600 },
-              title: primaryDisabled ? "Complete the highlighted action to continue" : ""
-            }, isLast ? lastLabel : (step.requireClick && !clicked ? "Waiting…" : "Next"))
+                color: "#fff", cursor: primaryDisabled ? "not-allowed" : "pointer", fontWeight: 600 }
+            }, isLast ? lastLabel : "Next")
           )
         )
     ];
@@ -344,10 +372,10 @@
 
     if (anchor) {
       // Targeted popover: dim backdrop with a hole, place panel near anchor.
-      // The wrapper itself MUST be click-through (pointerEvents:none) so that
-      // requireClick steps can still receive the click on the highlighted
-      // target underneath. The popover re-enables pointer events on itself so
-      // its own buttons remain interactive.
+      // The wrapper itself MUST be click-through (pointerEvents:none) so
+      // that clicks on the highlighted target underneath still register —
+      // crucial for dismissOnTargetClick steps. The popover re-enables
+      // pointer events on itself so its own buttons remain interactive.
       return h("div", {
         className: "onboarding-targeted-overlay",
         style: { position: "fixed", inset: 0, zIndex: 5000, pointerEvents: "none" }
