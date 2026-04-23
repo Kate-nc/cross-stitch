@@ -1224,6 +1224,21 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   }
 
   // ── Render ──────────────────────────────────────────────────────
+  const hasAnyStitchingData = lifetimeStitches > 0 || activeProjectCount > 0 || finishedThisYear > 0 || projectDetails.length > 0;
+  if (!hasAnyStitchingData && window.EmptyState) {
+    return h('div', { className: 'gsd', style: { paddingBottom: 40 } },
+      h('div', { style: { padding: '24px 0' } },
+        h(window.EmptyState, {
+          icon: window.Icons && window.Icons.barChart ? window.Icons.barChart() : null,
+          title: 'No stitching data yet',
+          description: 'Open a project in the Stitch Tracker and mark some stitches — your stats will appear here.',
+          ctaLabel: 'Open a project to start tracking',
+          ctaAction: function() { window.location.href = 'stitch.html'; }
+        })
+      )
+    );
+  }
+
   return h('div', { className: 'gsd', style: { paddingBottom: 40 } },
     tabBar,
     h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 0 4px' } },

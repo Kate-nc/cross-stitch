@@ -806,11 +806,21 @@ function ManagerApp() {
                 );
               })}
               {filteredThreads.length === 0 && (
-                <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 20px", color: "#475569", fontSize: 14 }}>
-                  {threadFilter === 'remnants' ? "Threads marked as remnants will appear here. You can change a thread's status from its entry in the All tab." :
-                   threadFilter === 'usedup' ? "Threads marked as used up will appear here." :
-                   "No threads found."}
-                </div>
+                totalOwnedCount === 0 && threadFilter === 'all' && window.EmptyState
+                  ? <div style={{ gridColumn: "1 / -1", padding: "20px 0" }}>
+                      {React.createElement(window.EmptyState, {
+                        icon: Icons.thread(),
+                        title: "Your stash is empty",
+                        description: "Track which DMC and Anchor threads you own so you can plan projects and see what you still need.",
+                        ctaLabel: "Bulk add threads",
+                        ctaAction: () => setBulkAddOpen(true)
+                      })}
+                    </div>
+                  : <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 20px", color: "#475569", fontSize: 14 }}>
+                      {threadFilter === 'remnants' ? "Threads marked as remnants will appear here. You can change a thread's status from its entry in the All tab." :
+                       threadFilter === 'usedup' ? "Threads marked as used up will appear here." :
+                       "No threads found."}
+                    </div>
               )}
             </div>
           </div>
@@ -1221,9 +1231,19 @@ function ManagerApp() {
                 cards above (see the cardExtras callback on ProjectLibrary).
                 If no patterns exist yet, surface an empty-state nudge. */}
             {filteredPatterns.length === 0 && (
-              <div style={{ textAlign: "center", padding: "30px 20px", color: "#475569", fontSize: 13, background: "#fafafa", border: "1px dashed #cbd5e1", borderRadius: 8 }}>
-                No patterns yet. Click "+ Add Pattern" to start your library, or generate one in the Pattern Creator.
-              </div>
+              patterns.length === 0 && patternFilter === 'all' && window.EmptyState
+                ? React.createElement(window.EmptyState, {
+                    icon: Icons.clipboard(),
+                    title: "No patterns yet",
+                    description: "Build your library by adding patterns you own, want to stitch, or have completed.",
+                    ctaLabel: "Add your first pattern",
+                    ctaAction: () => setEditingPattern({})
+                  })
+                : <div style={{ textAlign: "center", padding: "30px 20px", color: "#475569", fontSize: 13, background: "#fafafa", border: "1px dashed #cbd5e1", borderRadius: 8 }}>
+                    {patterns.length === 0
+                      ? 'No patterns yet. Click "+ Add Pattern" to start your library, or generate one in the Pattern Creator.'
+                      : "No patterns match your filters."}
+                  </div>
             )}
           </div>
 

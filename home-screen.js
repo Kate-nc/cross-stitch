@@ -389,7 +389,48 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
 
   var stashForMap = stash ? {} : null;
 
+  // Most recently touched active project (excluding deleted/manager-only) for
+  // the sticky "Continue stitching" bar above the dashboard summary.
+  var continueProj = null;
+  for (var ci = 0; ci < categorised.active.length; ci++) {
+    var cp = categorised.active[ci];
+    if (!cp || cp.managerOnly) continue;
+    if (typeof ProjectStorage !== 'undefined' && ProjectStorage.isDeleted && ProjectStorage.isDeleted(cp.id)) continue;
+    continueProj = cp;
+    break;
+  }
+  var continuePct = continueProj && continueProj.totalStitches > 0
+    ? Math.round((continueProj.completedStitches || 0) / continueProj.totalStitches * 100)
+    : 0;
+
   return h('div', { className: 'mpd' },
+    // ── Sticky Continue bar (most recent active project) ──
+    continueProj && h('div', {
+      className: 'mpd-continue-bar',
+      style: {
+        background: 'var(--accent-light)', border: '1px solid var(--accent-border)',
+        borderRadius: 'var(--radius-lg)', padding: '8px 14px',
+        display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, minHeight: 48
+      }
+    },
+      h('div', {
+        style: { width: 32, height: 32, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--surface)', border: '1px solid var(--border)' }
+      },
+        continueProj.thumbnail
+          ? h('img', { src: continueProj.thumbnail, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })
+          : null
+      ),
+      h('div', { style: { flex: 1, minWidth: 0 } },
+        h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, continueProj.name || 'Untitled'),
+        h('div', { style: { fontSize: 11, color: 'var(--text-secondary)' } }, continuePct + '% complete')
+      ),
+      h('button', {
+        className: 'mpd-btn mpd-btn--primary',
+        style: { fontSize: 12, padding: '6px 12px', flexShrink: 0 },
+        onClick: function() { handleOpenProject(continueProj, 'tracker'); }
+      }, 'Continue \u2192')
+    ),
+
     // ── Summary bar ──
     h('div', { className: 'mpd-summary-bar' },
       h('span', null, summary.activeCount + ' active project' + (summary.activeCount !== 1 ? 's' : '')),
@@ -1082,6 +1123,14 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
               heroPct + '% · ' + timeAgo(heroProject.updatedAt)
             )
           ),
+          (heroProject.lastSessionStitches > 0 || heroProject.totalMinutes > 0) && h('div', {
+            className: 'home-hero-last-session',
+            style: { fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }
+          },
+            'Last session: '
+              + (heroProject.lastSessionStitches > 0 ? heroProject.lastSessionStitches.toLocaleString() + ' stitches' : '\u2014')
+              + (heroProject.lastSessionDate ? ' \u00B7 ' + timeAgo(heroProject.lastSessionDate) : '')
+          ),
           h('div', { className: 'home-hero-actions' },
             heroIsPrimaryTracker
               ? [
@@ -1209,9 +1258,13 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     ),
 
     // Empty state message for first-time users
-    isEmptyState && h('div', { className: 'home-empty-state' },
-      'No projects yet \u2014 start your first one above!'
-    ),
+    isEmptyState && (window.EmptyState ? h(window.EmptyState, {
+      icon: window.Icons && window.Icons.star ? window.Icons.star() : null,
+      title: 'Welcome! Start your first project',
+      description: 'Convert any image into a cross-stitch pattern, then track your progress as you stitch.',
+      ctaLabel: 'Create from image',
+      ctaAction: function() { imageInputRef.current && imageInputRef.current.click(); }
+    }) : h('div', { className: 'home-empty-state' }, 'No projects yet \u2014 start your first one above!')),
 
     // Stash alert bar
     stashAlerts && h('div', { className: 'home-stash-alert' },
