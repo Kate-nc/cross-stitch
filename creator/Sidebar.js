@@ -80,10 +80,51 @@ window.CreatorSidebar = function CreatorSidebar() {
     var isHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
     var isPaintMode = cv.activeTool === "paint" || cv.activeTool === "fill" || isHsTool;
     var selInfo = cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
+    // Brief D — compute per-thread stash status. `stashHas` flags whether the
+    // global stash has any data at all (graceful no-op when empty).
+    var stash = ctx.globalStash || {};
+    var stashHas = Object.keys(stash).length > 0;
+    var fabricCtForStash = ctx.fabricCt || 14;
+    // Brand-aware lookup: prefer DMC, fall back to Anchor. Mirrors the
+    // resolution used in ShoppingListModal.
+    function resolveBrand(id) {
+      if (typeof DMC !== 'undefined' && DMC.find(function(d){ return d.id === id; })) return 'dmc';
+      if (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; })) return 'anchor';
+      return 'dmc';
+    }
+    function stashStatusForChip(p) {
+      if (!stashHas) return null;
+      // Blend: status = worst component status.
+      var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
+        ? p.id.split('+').map(function(s){ return s.trim(); }).filter(Boolean)
+        : [p.id];
+      var worst = 'owned';
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        if (!id || id === '__skip__' || id === '__empty__') continue;
+        var brand = p.brand || resolveBrand(id);
+        var key = brand + ':' + id;
+        var entry = stash[key];
+        var owned = entry && entry.owned ? entry.owned : 0;
+        var needed = (typeof skeinEst === 'function' && p.count) ? skeinEst(p.count, fabricCtForStash) : 1;
+        var s = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
+        if (s === 'needed') return 'needed';
+        if (s === 'partial' && worst === 'owned') worst = 'partial';
+      }
+      return worst;
+    }
+    var STASH_DOT = { owned: '#16a34a', partial: '#f59e0b', needed: '#dc2626' };
+    var hiddenByFilter = 0;
     var chips = displayPal.map(function(p) {
       var ips = isPaintMode && cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
       var isUnused = ctx.isScratchMode && p.count === 0;
+      var stashStatus = stashStatusForChip(p);
+      // Brief D — when "limit to stash" filter is on, hide unowned chips.
+      if (ctx.creatorStashFilter && stashHas && stashStatus === 'needed') {
+        hiddenByFilter++;
+        return null;
+      }
       return h("div", {
         key: p.id,
         role: "button",
@@ -109,7 +150,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         },
         style: {
           display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
-          cursor:"pointer",fontSize:11,
+          cursor:"pointer",fontSize:11,position:"relative",
           border: ips ? "2px solid #0d9488" : ihs ? "2px solid #ea580c" : "0.5px solid #e2e8f0",
           background: ips ? "#f0fdfa" : ihs ? "#fff7ed" : "#fff",
           opacity: isUnused ? 0.6 : 1
@@ -121,9 +162,18 @@ window.CreatorSidebar = function CreatorSidebar() {
         isUnused && h("span", {
           onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
           style:{fontSize:9,color:"#94a3b8",cursor:"pointer",marginLeft:2,lineHeight:1}
-        }, "\xD7")
+        }, "\xD7"),
+        // Brief D — stash status dot (top-right corner). Hidden when stash empty.
+        stashStatus && h("span", {
+          title: stashStatus === 'owned' ? 'In your stash' : stashStatus === 'partial' ? 'May need more' : 'Not in stash',
+          "aria-label": "Stash status: " + stashStatus,
+          style: {
+            position:"absolute", top:-2, right:-2, width:6, height:6, borderRadius:"50%",
+            background: STASH_DOT[stashStatus], boxShadow:"0 0 0 1px #fff"
+          }
+        })
       );
-    });
+    }).filter(Boolean);
     return h("div", {style:{borderBottom:"0.5px solid var(--border)"}},
       h("div", {
         onClick:function(){setPalChipsOpen(function(o){return !o;});},
@@ -136,6 +186,32 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
+      // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
+      stashHas && h("div", {
+        style:{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11,color:"#475569",flexWrap:"wrap"}
+      },
+        h("label", {style:{display:"flex",alignItems:"center",gap:5,cursor:"pointer",userSelect:"none"}},
+          h("input", {
+            type:"checkbox",
+            checked: !!ctx.creatorStashFilter,
+            onChange: function(e) { if (typeof ctx.setCreatorStashFilter === 'function') ctx.setCreatorStashFilter(e.target.checked); },
+            style:{margin:0}
+          }),
+          h("span", null, "Only show threads I own")
+        ),
+        h("button", {
+          onClick: function() { if (typeof app.setModal === 'function') app.setModal('shopping_list'); },
+          title: "What do I need to buy?",
+          style:{marginLeft:"auto",fontSize:10,padding:"2px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}
+        }, typeof Icons !== 'undefined' && Icons.cart ? Icons.cart() : null, "Shopping list")
+      ),
+      // Brief D — banner when filter hides chips, or stash empty.
+      ctx.creatorStashFilter && stashHas && hiddenByFilter > 0 && h("div", {
+        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#fffbeb",border:"0.5px solid #fde68a",fontSize:10,color:"#92400e"}
+      }, hiddenByFilter + " unowned colour" + (hiddenByFilter !== 1 ? "s" : "") + " hidden \u2014 turn off the filter to see all."),
+      ctx.creatorStashFilter && !stashHas && h("div", {
+        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#fef2f2",border:"0.5px solid #fecaca",fontSize:10,color:"#991b1b"}
+      }, "Your stash is empty \u2014 turn off this filter, or add threads in the Stash Manager."),
       isPaintMode && h("div", {
         style:{
           marginBottom:8,padding:"5px 8px",borderRadius:7,
@@ -235,10 +311,21 @@ window.CreatorSidebar = function CreatorSidebar() {
   var _blMode = React.useState(false); var blendMode = _blMode[0], setBlendMode = _blMode[1];
 
   var blendFiltered = React.useMemo(function() {
-    if (!blendSearch.trim()) return DMC;
+    var base = DMC;
+    // Brief D — when "limit to stash" is on, restrict to owned threads.
+    // Blends are DMC-only today (no Anchor blend picker), so the 'dmc:'
+    // key here is intentional. If the blend picker grows Anchor support,
+    // switch to the brand-aware resolver used above.
+    if (ctx.creatorStashFilter && ctx.globalStash && Object.keys(ctx.globalStash).length > 0) {
+      base = DMC.filter(function(d) {
+        var entry = ctx.globalStash['dmc:' + d.id];
+        return entry && (entry.owned || 0) > 0;
+      });
+    }
+    if (!blendSearch.trim()) return base;
     var q = blendSearch.toLowerCase();
-    return DMC.filter(function(d) { return d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q); });
-  }, [blendSearch]);
+    return base.filter(function(d) { return d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q); });
+  }, [blendSearch, ctx.creatorStashFilter, ctx.globalStash]);
 
   function addBlend() {
     if (!blendThread1 || !blendThread2 || blendThread1.id === blendThread2.id) return;
@@ -1085,6 +1172,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       gen.hasGenerated && h("button", {
         "aria-label":"Continue to Edit mode",
         onClick:function(){
+          // Brief D — flush the freshly-generated pattern to IndexedDB now,
+          // so leaving Creator immediately doesn't lose the pattern and the
+          // Stash Manager pattern library + shopping list pick it up. The
+          // flush calls ProjectStorage.save() which in turn fires
+          // StashBridge.syncProjectToLibrary().
+          if (typeof window.__flushProjectToIDB === 'function') {
+            try { window.__flushProjectToIDB(); } catch (e) {}
+          }
           app.setAppMode("edit");
           app.setSidebarTab("palette");
           if(window.__switchToEdit) window.__switchToEdit();

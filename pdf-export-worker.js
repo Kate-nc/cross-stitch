@@ -108,8 +108,19 @@ async function buildPdf(project, options, reqId) {
   if (self.fontkit) pdfDoc.registerFontkit(self.fontkit);
 
   // Embed the symbol font once, no subsetting (Pattern Keeper needs the full cmap).
+  // M9: Surface a clear error if the font bytes failed to load — otherwise
+  // pdf-lib will throw a cryptic base64 decode error and Pattern Keeper
+  // silently rejects the resulting file.
+  if (!FONT_B64 || typeof FONT_B64 !== 'string' || FONT_B64.length < 1000) {
+    throw new Error("Symbol font missing — the Cross Stitch symbol font failed to load. Please reload the page and try again.");
+  }
   var fontBytes = base64ToUint8(FONT_B64);
-  var symbolFont = await pdfDoc.embedFont(fontBytes, { subset: false });
+  var symbolFont;
+  try {
+    symbolFont = await pdfDoc.embedFont(fontBytes, { subset: false });
+  } catch (fontErr) {
+    throw new Error("Symbol font failed to embed: " + (fontErr && fontErr.message ? fontErr.message : String(fontErr)));
+  }
   var helvetica = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
   var helveticaBold = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
 

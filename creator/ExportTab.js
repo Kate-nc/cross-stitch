@@ -141,7 +141,15 @@ window.CreatorExportTab = function CreatorExportTab() {
     }).catch(function (err) {
       if (runningRef.current !== tag) return;
       setProgress(null); runningRef.current = null;
-      setError(err.message || "Export failed");
+      var msg = err.message || "Export failed";
+      setError(msg);
+      // M9: Surface font-missing errors as a toast so users notice even
+      // if the Export tab is scrolled away.
+      try {
+        if (typeof Toast !== 'undefined' && Toast.show && /symbol font/i.test(msg)) {
+          Toast.show({ message: 'PDF export failed \u2014 symbol font missing. Please reload and try again.', type: 'error', duration: 6000 });
+        }
+      } catch (_) { /* best-effort */ }
     });
   }
   function cancelExport() {

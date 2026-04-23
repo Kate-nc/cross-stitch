@@ -146,8 +146,14 @@
           heading: "Tracker canvas",
           bullets: [
             ["Click / drag", "Mark or unmark stitches."],
-            ["Space", "Toggle Track ↔ Navigate mode."],
-            ["+/-", "Zoom in/out."]
+            ["T", "Switch to Track mode."],
+            ["N", "Switch to Navigate mode (place crosshair / parking markers)."],
+            ["V", "Cycle stitch view (symbol → colour → highlight)."],
+            ["D", "Toggle the Colours drawer."],
+            ["P", "Pause / resume the live session timer."],
+            ["Space (hold)", "Hold to temporarily pan the canvas."],
+            ["+/-", "Zoom in/out."],
+            ["0", "Fit pattern to view."]
           ]
         }
       ]
@@ -328,14 +334,29 @@
           }
         },
           h("span", { style: { fontSize: 12, color: "#64748b" } }, "Need a refresher?"),
-          h("button", {
-            onClick: handleReplayWelcome,
-            style: {
-              padding: "6px 12px", fontSize: 12, borderRadius: 6,
-              border: "1px solid #99f6e4", background: "#fff", color: "#0d9488",
-              cursor: "pointer", fontWeight: 600, fontFamily: "inherit"
-            }
-          }, "Show welcome tour again")
+          h("div", { style: { display: "flex", gap: 8 } },
+            window.OnboardingTour && h("button", {
+              onClick: function () {
+                try { window.OnboardingTour.reset(); } catch (_) {}
+                if (typeof props.onClose === "function") props.onClose();
+                // Reload so the welcome modal can re-mount on a clean slate.
+                setTimeout(function () { window.location.reload(); }, 100);
+              },
+              style: {
+                padding: "6px 12px", fontSize: 12, borderRadius: 6,
+                border: "1px solid #cbd5e1", background: "#fff", color: "#475569",
+                cursor: "pointer", fontWeight: 600, fontFamily: "inherit"
+              }
+            }, "Reset onboarding tour"),
+            h("button", {
+              onClick: handleReplayWelcome,
+              style: {
+                padding: "6px 12px", fontSize: 12, borderRadius: 6,
+                border: "1px solid #99f6e4", background: "#fff", color: "#0d9488",
+                cursor: "pointer", fontWeight: 600, fontFamily: "inherit"
+              }
+            }, "Show welcome tour again")
+          )
         )
       )
     );

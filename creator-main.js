@@ -265,6 +265,47 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return()=>window.removeEventListener('cs:openHelpDesign',h);
   },[state.setModal]);
 
+  // Command Palette → Shortcuts modal (Creator design mode).
+  React.useEffect(()=>{
+    const h=()=>{ if(typeof state.setModal==='function') state.setModal('shortcuts'); };
+    window.addEventListener('cs:openShortcuts',h);
+    return()=>window.removeEventListener('cs:openShortcuts',h);
+  },[state.setModal]);
+
+  // Register Creator-specific palette actions.
+  React.useEffect(()=>{
+    if (!window.CommandPalette) return;
+    window.CommandPalette.registerPage('creator', [
+      {
+        id: 'cre_save_project', label: 'Save Project', section: 'action',
+        keywords: ['save', 'project'],
+        action: () => { if (_ioRef.current) _ioRef.current.saveProject(); }
+      },
+      {
+        id: 'cre_shopping_list', label: 'What do I need to buy?', section: 'action',
+        keywords: ['shopping', 'buy', 'cart', 'stash', 'list', 'threads'],
+        action: () => { if (typeof state.setModal === 'function') state.setModal('shopping_list'); }
+      }
+    ]);
+    return () => { if (window.CommandPalette) window.CommandPalette.registerPage('creator', []); };
+  },[state.setModal]);
+
+  // Brief D — load global stash from manager DB on mount, and refresh whenever
+  // the tab becomes visible again (covers the "edit in another tab" case).
+  React.useEffect(() => {
+    if (typeof window.StashBridge === 'undefined' || !window.StashBridge.getGlobalStash) return;
+    let cancelled = false;
+    const fetchStash = () => {
+      window.StashBridge.getGlobalStash()
+        .then(s => { if (!cancelled && typeof state.setGlobalStash === 'function') state.setGlobalStash(s || {}); })
+        .catch(() => {});
+    };
+    fetchStash();
+    const onVis = () => { if (document.visibilityState === 'visible') fetchStash(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { cancelled = true; document.removeEventListener('visibilitychange', onVis); };
+  }, [state.setGlobalStash]);
+
   // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
   // Handler identity is stabilised via a ref; the ref is updated synchronously on
   // each render so the latest function is always called despite the empty dep list.
@@ -583,6 +624,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     globalStash: state.globalStash, setGlobalStash: state.setGlobalStash,
     kittingResult: state.kittingResult, setKittingResult: state.setKittingResult,
     altOpen: state.altOpen, setAltOpen: state.setAltOpen,
+    creatorStashFilter: state.creatorStashFilter, setCreatorStashFilter: state.setCreatorStashFilter,
     substituteModalOpen: state.substituteModalOpen, setSubstituteModalOpen: state.setSubstituteModalOpen,
     substituteProposal: state.substituteProposal, setSubstituteProposal: state.setSubstituteProposal,
     substituteModalKey: state.substituteModalKey, setSubstituteModalKey: state.setSubstituteModalKey,
@@ -615,6 +657,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.kittingResult, state.altOpen,
     state.substituteModalOpen, state.substituteProposal,
     state.substituteModalKey, state.substituteMaxDeltaE,
+    state.creatorStashFilter,
     state.displayPal, state.totalStitchable,
     state.skeinData, state.totalSkeins,
     state.blendCount, state.difficulty,
@@ -831,6 +874,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         {state.modal==="help"&&<SharedModals.Help defaultTab="creator" onClose={()=>state.setModal(null)} />}
         {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}
         {state.modal==="shortcuts"&&<SharedModals.Shortcuts onClose={()=>state.setModal(null)} page="creator" />}
+        {state.modal==="shopping_list"&&window.CreatorShoppingListModal&&<window.CreatorShoppingListModal onClose={()=>state.setModal(null)} />}
       </div>
       {state.busy&&<div style={{
         position:"fixed",top:0,left:0,right:0,bottom:0,

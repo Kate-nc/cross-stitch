@@ -73,6 +73,35 @@ function ManagerApp() {
     window.addEventListener("cs:openHelp", h);
     return () => window.removeEventListener("cs:openHelp", h);
   }, []);
+  // Command Palette → Keyboard Shortcuts modal.
+  useEffect(() => {
+    const h = () => setModal("shortcuts");
+    window.addEventListener("cs:openShortcuts", h);
+    return () => window.removeEventListener("cs:openShortcuts", h);
+  }, []);
+  // Command Palette → Bulk Add Threads bridge.
+  useEffect(() => {
+    const h = () => setBulkAddOpen(true);
+    window.addEventListener("cs:openBulkAdd", h);
+    return () => window.removeEventListener("cs:openBulkAdd", h);
+  }, []);
+  // Register manager-specific palette actions.
+  useEffect(() => {
+    if (!window.CommandPalette) return;
+    window.CommandPalette.registerPage('manager', [
+      {
+        id: 'mgr_bulk_add', label: 'Bulk Add Threads', section: 'action',
+        keywords: ['bulk', 'add', 'thread', 'inventory', 'stash'],
+        action: () => setBulkAddOpen(true)
+      },
+      {
+        id: 'mgr_preferences', label: 'Open Preferences', section: 'settings',
+        keywords: ['preferences', 'settings', 'profile'],
+        action: () => setPreferencesOpen(true)
+      }
+    ]);
+    return () => { if (window.CommandPalette) window.CommandPalette.registerPage('manager', []); };
+  }, []);
 
   // Global "B" shortcut → open Bulk Add Threads from anywhere on the Manager
   // page. Skipped while typing in inputs / with any modifier key held so we
@@ -589,19 +618,28 @@ function ManagerApp() {
   };
 
   const deletePattern = (id) => {
-    if (confirm("Are you sure you want to delete this pattern?")) {
-      setPatterns(prev => {
-        const updated = prev.filter(p => p.id !== id);
-        // Write immediately so navigation before the debounced auto-save cannot lose the deletion
-        openManagerDB().then(db => {
-          const tx = db.transaction(["manager_state"], "readwrite");
-          tx.objectStore("manager_state").put(updated, "patterns");
-        }).catch(err => console.error("Immediate pattern delete save failed:", err));
-        return updated;
+    // Capture the pattern before removal so Undo can restore it.
+    const deletedPattern = patterns.find(p => p.id === id);
+    if (!deletedPattern) return;
+    const wasViewing = viewingPattern && viewingPattern.id === id;
+    setPatterns(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      // Write immediately so navigation before the debounced auto-save cannot lose the deletion
+      openManagerDB().then(db => {
+        const tx = db.transaction(["manager_state"], "readwrite");
+        tx.objectStore("manager_state").put(updated, "patterns");
+      }).catch(err => console.error("Immediate pattern delete save failed:", err));
+      return updated;
+    });
+    if (wasViewing) setViewingPattern(null);
+    if (window.Toast) {
+      window.Toast.show({
+        message: `\"${deletedPattern.title || "Pattern"}\" deleted`,
+        type: "info",
+        undoAction: () => {
+          setPatterns(prev => prev.some(p => p.id === deletedPattern.id) ? prev : [...prev, deletedPattern]);
+        }
       });
-      if (viewingPattern && viewingPattern.id === id) {
-          setViewingPattern(null);
-      }
     }
   };
 
@@ -797,11 +835,21 @@ function ManagerApp() {
                 );
               })}
               {filteredThreads.length === 0 && (
-                <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 20px", color: "#475569", fontSize: 14 }}>
-                  {threadFilter === 'remnants' ? "Threads marked as remnants will appear here. You can change a thread's status from its entry in the All tab." :
-                   threadFilter === 'usedup' ? "Threads marked as used up will appear here." :
-                   "No threads found."}
-                </div>
+                totalOwnedCount === 0 && threadFilter === 'all' && window.EmptyState
+                  ? <div style={{ gridColumn: "1 / -1", padding: "20px 0" }}>
+                      {React.createElement(window.EmptyState, {
+                        icon: Icons.thread(),
+                        title: "Your stash is empty",
+                        description: "Track which DMC and Anchor threads you own so you can plan projects and see what you still need.",
+                        ctaLabel: "Bulk add threads",
+                        ctaAction: () => setBulkAddOpen(true)
+                      })}
+                    </div>
+                  : <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 20px", color: "#475569", fontSize: 14 }}>
+                      {threadFilter === 'remnants' ? "Threads marked as remnants will appear here. You can change a thread's status from its entry in the All tab." :
+                       threadFilter === 'usedup' ? "Threads marked as used up will appear here." :
+                       "No threads found."}
+                    </div>
               )}
             </div>
           </div>
@@ -883,7 +931,27 @@ function ManagerApp() {
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => updateThread(selectedThread, "tobuy", !state.tobuy)}>
                       {state.tobuy ? <>{Icons.check()} On shopping list</> : <>{Icons.cart()} Add to shopping list</>}
                     </button>
-                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { if(confirm(`Remove ${brandLabel} ${d.id} from your stash?`)) { updateThread(selectedThread, "owned", 0); updateThread(selectedThread, "partialStatus", null); updateThread(selectedThread, "tobuy", false); } }}>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => {
+                      // Capture current values so Undo can restore them.
+                      const prevOwned = state.owned;
+                      const prevPartial = state.partialStatus;
+                      const prevTobuy = state.tobuy;
+                      const threadKey = selectedThread;
+                      updateThread(threadKey, "owned", 0);
+                      updateThread(threadKey, "partialStatus", null);
+                      updateThread(threadKey, "tobuy", false);
+                      if (window.Toast) {
+                        window.Toast.show({
+                          message: `${brandLabel} ${d.id} removed from stash`,
+                          type: "info",
+                          undoAction: () => {
+                            updateThread(threadKey, "owned", prevOwned);
+                            updateThread(threadKey, "partialStatus", prevPartial);
+                            updateThread(threadKey, "tobuy", prevTobuy);
+                          }
+                        });
+                      }
+                    }}>
                       {Icons.trash()} Remove from stash
                     </button>
                   </div>
@@ -1100,26 +1168,68 @@ function ManagerApp() {
                             style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, background: "#ea580c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}
                           >Track</button>
                           <button
-                            onClick={() => {
-                              if (confirm(`Delete "${p.name}"? This cannot be undone.`)) {
-                                const activeProjectId = ProjectStorage.getActiveProjectId();
-                                ProjectStorage.delete(p.id).then(() => {
-                                  if (activeProjectId === p.id) {
-                                    ProjectStorage.clearActiveProject();
-                                  }
-                                  setStoredProjects(prev => prev.filter(x => x.id !== p.id));
-                                  // Remove any linked pattern library entry so the deleted project
-                                  // doesn't leave an orphan in the pattern library
-                                  setPatterns(prev => {
-                                    const updated = prev.filter(pat => pat.linkedProjectId !== p.id);
-                                    if (updated.length !== prev.length) {
-                                      openManagerDB().then(db => {
-                                        const tx = db.transaction(["manager_state"], "readwrite");
-                                        tx.objectStore("manager_state").put(updated, "patterns");
-                                      }).catch(err => console.error("Cascade pattern library cleanup failed:", err));
+                            onClick={async () => {
+                              const activeProjectId = ProjectStorage.getActiveProjectId();
+                              const wasActive = activeProjectId === p.id;
+                              // Capture full project data + any linked pattern library entries
+                              // so Undo can fully restore both IndexedDB and React state.
+                              let fullProject = null;
+                              try { fullProject = await ProjectStorage.get(p.id); } catch (err) { console.error("Capture before delete failed:", err); }
+                              const removedPatterns = patterns.filter(pat => pat.linkedProjectId === p.id);
+                              const projectName = p.name;
+                              try {
+                                await ProjectStorage.delete(p.id);
+                              } catch (err) {
+                                console.error("Project delete failed:", err);
+                                return;
+                              }
+                              if (wasActive) ProjectStorage.clearActiveProject();
+                              setStoredProjects(prev => prev.filter(x => x.id !== p.id));
+                              setPatterns(prev => {
+                                const updated = prev.filter(pat => pat.linkedProjectId !== p.id);
+                                if (updated.length !== prev.length) {
+                                  openManagerDB().then(db => {
+                                    const tx = db.transaction(["manager_state"], "readwrite");
+                                    tx.objectStore("manager_state").put(updated, "patterns");
+                                  }).catch(err => console.error("Cascade pattern library cleanup failed:", err));
+                                }
+                                return updated;
+                              });
+                              if (window.Toast) {
+                                window.Toast.show({
+                                  message: `\"${projectName}\" deleted`,
+                                  type: "info",
+                                  undoAction: async () => {
+                                    if (!fullProject) return;
+                                    try {
+                                      // Reverse the deletion-guard so the auto-save layer accepts the restore.
+                                      // _deletedIds is intentionally cleared here because Undo legitimately
+                                      // needs to revive a project that was deleted in this session.
+                                      if (ProjectStorage._deletedIds && typeof ProjectStorage._deletedIds.delete === "function") {
+                                        ProjectStorage._deletedIds.delete(fullProject.id);
+                                      }
+                                      await ProjectStorage.save(fullProject);
+                                      const meta = await ProjectStorage.listProjects();
+                                      const restored = meta.find(m => m.id === fullProject.id);
+                                      if (restored) {
+                                        setStoredProjects(prev => prev.some(x => x.id === restored.id) ? prev : [...prev, restored]);
+                                      }
+                                      if (removedPatterns.length) {
+                                        setPatterns(prev => {
+                                          const have = new Set(prev.map(x => x.id));
+                                          const merged = prev.concat(removedPatterns.filter(x => !have.has(x.id)));
+                                          openManagerDB().then(db => {
+                                            const tx = db.transaction(["manager_state"], "readwrite");
+                                            tx.objectStore("manager_state").put(merged, "patterns");
+                                          }).catch(err => console.error("Pattern restore save failed:", err));
+                                          return merged;
+                                        });
+                                      }
+                                      if (wasActive) ProjectStorage.setActiveProject(fullProject.id);
+                                    } catch (err) {
+                                      console.error("Undo project delete failed:", err);
                                     }
-                                    return updated;
-                                  });
+                                  }
                                 });
                               }
                             }}
@@ -1150,9 +1260,19 @@ function ManagerApp() {
                 cards above (see the cardExtras callback on ProjectLibrary).
                 If no patterns exist yet, surface an empty-state nudge. */}
             {filteredPatterns.length === 0 && (
-              <div style={{ textAlign: "center", padding: "30px 20px", color: "#475569", fontSize: 13, background: "#fafafa", border: "1px dashed #cbd5e1", borderRadius: 8 }}>
-                No patterns yet. Click "+ Add Pattern" to start your library, or generate one in the Pattern Creator.
-              </div>
+              patterns.length === 0 && patternFilter === 'all' && window.EmptyState
+                ? React.createElement(window.EmptyState, {
+                    icon: Icons.clipboard(),
+                    title: "No patterns yet",
+                    description: "Build your library by adding patterns you own, want to stitch, or have completed.",
+                    ctaLabel: "Add your first pattern",
+                    ctaAction: () => setEditingPattern({})
+                  })
+                : <div style={{ textAlign: "center", padding: "30px 20px", color: "#475569", fontSize: 13, background: "#fafafa", border: "1px dashed #cbd5e1", borderRadius: 8 }}>
+                    {patterns.length === 0
+                      ? 'No patterns yet. Click "+ Add Pattern" to start your library, or generate one in the Pattern Creator.'
+                      : "No patterns match your filters."}
+                  </div>
             )}
           </div>
 

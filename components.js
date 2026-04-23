@@ -2150,3 +2150,39 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
     React.createElement('div', {className: 'stats-container-body'}, content)
   );
 }
+
+
+// --- EmptyState — shared coaching empty-state card ---------------------
+// Used on Manager (Patterns/Threads), Home (no projects), and Stats (no data).
+// Props: { icon, title, description, ctaLabel, ctaAction, secondaryLabel?, secondaryAction? }
+function EmptyState(props) {
+  var h = React.createElement;
+  var icon = props.icon || null;
+  return h('div', {
+    className: 'cs-empty-state',
+    style: {
+      textAlign: 'center', padding: '48px 24px',
+      border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-xl)',
+      background: 'var(--surface)'
+    }
+  },
+    icon && h('div', {
+      style: { fontSize: 32, lineHeight: 1, color: 'var(--text-tertiary)', marginBottom: 12, display: 'flex', justifyContent: 'center' },
+      'aria-hidden': 'true'
+    }, icon),
+    props.title && h('div', {
+      style: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }
+    }, props.title),
+    props.description && h('div', {
+      style: { fontSize: 13, color: 'var(--text-secondary)', maxWidth: 320, margin: '0 auto 16px' }
+    }, props.description),
+    props.ctaLabel && h('button', {
+      className: 'home-btn home-btn--primary',
+      onClick: props.ctaAction
+    }, props.ctaLabel),
+    props.secondaryLabel && h('div', { style: { marginTop: 10 } },
+      h('button', { className: 'home-view-all', onClick: props.secondaryAction }, props.secondaryLabel)
+    )
+  );
+}
+window.EmptyState = EmptyState;

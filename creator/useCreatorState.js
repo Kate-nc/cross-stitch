@@ -5,6 +5,17 @@
    skeinEst, calcDifficulty, DMC, SYMS, FABRIC_COUNTS, A4W, A4H,
    DEFAULT_SKEIN_PRICE, runGenerationPipeline, STRENGTH_MAP. */
 
+// Composite stash keys are 'dmc:310' / 'anchor:403'. Pre-migration data may use
+// bare ids ('310'). Returns the bare DMC id, or null when the key belongs to
+// another brand. Centralised so future C1-style mismatches are caught in one place.
+function _extractDmcId(key) {
+  if (typeof key !== 'string') return null;
+  var idx = key.indexOf(':');
+  if (idx < 0) return key;
+  if (key.slice(0, idx).toLowerCase() !== 'dmc') return null;
+  return key.slice(idx + 1);
+}
+
 window.useCreatorState = function useCreatorState() {
   var useState    = React.useState;
   var useRef      = React.useRef;
@@ -179,6 +190,11 @@ window.useCreatorState = function useCreatorState() {
   var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
   var substituteMaxDeltaE = _subMaxDE[0];
   function setSubstituteMaxDeltaE(v) { _subMaxDE[1](v); try { localStorage.setItem("cs_subMaxDE", v); } catch(_) {} }
+  // Brief D — runtime "limit palette/picker to my stash" filter (independent of the
+  // generation-time stashConstrained switch). Persisted under cs_creator_stash_filter.
+  var _csFilt = useState(function() { try { return localStorage.getItem("cs_creator_stash_filter") === "true"; } catch(_) { return false; } });
+  var creatorStashFilter = _csFilt[0];
+  function setCreatorStashFilter(v) { _csFilt[1](v); try { localStorage.setItem("cs_creator_stash_filter", v ? "true" : "false"); } catch(_) {} }
 
   // Preview
   var _prevUrl  = useState(null);    var previewUrl = _prevUrl[0], setPreviewUrl = _prevUrl[1];
@@ -663,11 +679,12 @@ window.useCreatorState = function useCreatorState() {
         allowedPalette = _subset;
       } else {
         allowedPalette = [];
-        Object.keys(globalStash).forEach(function(id) {
-          if ((globalStash[id].owned || 0) > 0) {
-            var dmcEntry = DMC.find(function(d) { return d.id === id; });
-            if (dmcEntry) allowedPalette.push(dmcEntry);
-          }
+        Object.keys(globalStash).forEach(function(key) {
+          if ((globalStash[key].owned || 0) <= 0) return;
+          var bareId = _extractDmcId(key);
+          if (!bareId) return;
+          var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+          if (dmcEntry) allowedPalette.push(dmcEntry);
         });
       }
       if (!allowedPalette || allowedPalette.length === 0) {
@@ -749,8 +766,12 @@ window.useCreatorState = function useCreatorState() {
     if (!stashConstrained || !img) return;
     var newSeed = ((Math.random() * 0xFFFFFFFE) + 1) >>> 0;
     var pool = [];
-    Object.keys(globalStash || {}).forEach(function(id) {
-      if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
+    Object.keys(globalStash || {}).forEach(function(key) {
+      if ((globalStash[key].owned || 0) <= 0) return;
+      var bareId = _extractDmcId(key);
+      if (!bareId) return;
+      var d = DMC.find(function(e) { return e.id === bareId; });
+      if (d) pool.push(d);
     });
     if (!pool.length) return;
     var effN = Math.min(maxC, pool.length);
@@ -794,8 +815,12 @@ window.useCreatorState = function useCreatorState() {
     if (!img || !stashConstrained) return;
     var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
     var pool = [];
-    Object.keys(globalStash || {}).forEach(function(id) {
-      if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
+    Object.keys(globalStash || {}).forEach(function(key) {
+      if ((globalStash[key].owned || 0) <= 0) return;
+      var bareId = _extractDmcId(key);
+      if (!bareId) return;
+      var d = DMC.find(function(e) { return e.id === bareId; });
+      if (d) pool.push(d);
     });
     if (!pool.length) return;
     setGallerySlots(newSeeds.map(function(s) { return {seed: s, loading: true, url: null, threadCount: 0, subset: null}; }));
@@ -860,9 +885,11 @@ window.useCreatorState = function useCreatorState() {
   useEffect(function() {
     if (!stashConstrained || !img || !img.src) { setCoverageGaps(null); return; }
     var stashPal = [];
-    Object.keys(globalStash || {}).forEach(function(id) {
-      if ((globalStash[id].owned || 0) <= 0) return;
-      var d = DMC.find(function(e) { return e.id === id; });
+    Object.keys(globalStash || {}).forEach(function(key) {
+      if ((globalStash[key].owned || 0) <= 0) return;
+      var bareId = _extractDmcId(key);
+      if (!bareId) return;
+      var d = DMC.find(function(e) { return e.id === bareId; });
       if (d) stashPal.push(d);
     });
     if (!stashPal.length) { setCoverageGaps(null); return; }
@@ -987,6 +1014,7 @@ window.useCreatorState = function useCreatorState() {
     substituteModalKey, setSubstituteModalKey,
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
     stashConstrained, setStashConstrained,
+    creatorStashFilter, setCreatorStashFilter,
     coverageGaps, setCoverageGaps,
     variationSeed, setVariationSeed,
     variationSubset, setVariationSubset,
@@ -1016,24 +1044,32 @@ window.useCreatorState = function useCreatorState() {
     stashThreadCount: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
       var count = 0;
-      Object.keys(globalStash).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      Object.keys(globalStash).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        if (_extractDmcId(key)) count++;
+      });
       return count;
     }, [stashConstrained, globalStash]),
 
     effectiveMaxC: useMemo(function() {
       if (!stashConstrained) return maxC;
       var count = 0;
-      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      Object.keys(globalStash || {}).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        if (_extractDmcId(key)) count++;
+      });
       return count === 0 ? maxC : Math.min(maxC, count);
     }, [stashConstrained, globalStash, maxC]),
 
     stashPalette: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
       var entries = [];
-      Object.keys(globalStash).forEach(function(id) {
-        if ((globalStash[id].owned || 0) <= 0) return;
-        var dmcEntry = DMC.find(function(d) { return d.id === id; });
-        if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[id].owned });
+      Object.keys(globalStash).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        var bareId = _extractDmcId(key);
+        if (!bareId) return;
+        var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+        if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[key].owned });
       });
       entries.sort(function(a, b) {
         var hA = (typeof hueFromRgb !== 'undefined') ? hueFromRgb(a.rgb) : 0;
@@ -1046,14 +1082,20 @@ window.useCreatorState = function useCreatorState() {
     blendsAutoDisabled: useMemo(function() {
       if (!stashConstrained) return false;
       var count = 0;
-      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      Object.keys(globalStash || {}).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        if (_extractDmcId(key)) count++;
+      });
       return count < 6;
     }, [stashConstrained, globalStash]),
 
     effectiveAllowBlends: useMemo(function() {
       if (!stashConstrained) return allowBlends;
       var count = 0;
-      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      Object.keys(globalStash || {}).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        if (_extractDmcId(key)) count++;
+      });
       if (count < 6) return false;
       return allowBlends;
     }, [stashConstrained, globalStash, allowBlends]),

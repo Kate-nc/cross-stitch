@@ -1078,6 +1078,17 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
     return runExport(project, opts).then(function (bytes) {
       downloadBytes(bytes, (project.name || "pattern").replace(/[^\w\-]+/g, "_") + ".pdf");
       return bytes;
+    }).catch(function (err) {
+      // M9: Surface font-missing errors via Toast for legacy callers
+      // (Tracker PDF export, File menu) that don't otherwise render the
+      // error message.
+      try {
+        var msg = (err && err.message) || String(err);
+        if (typeof Toast !== 'undefined' && Toast.show && /symbol font/i.test(msg)) {
+          Toast.show({ message: 'PDF export failed \u2014 symbol font missing. Please reload and try again.', type: 'error', duration: 6000 });
+        }
+      } catch (_) { /* best-effort */ }
+      throw err;
     });
   }
 
@@ -3967,6 +3978,17 @@ window.useLassoSelect = function useLassoSelect(state) {
    skeinEst, calcDifficulty, DMC, SYMS, FABRIC_COUNTS, A4W, A4H,
    DEFAULT_SKEIN_PRICE, runGenerationPipeline, STRENGTH_MAP. */
 
+// Composite stash keys are 'dmc:310' / 'anchor:403'. Pre-migration data may use
+// bare ids ('310'). Returns the bare DMC id, or null when the key belongs to
+// another brand. Centralised so future C1-style mismatches are caught in one place.
+function _extractDmcId(key) {
+  if (typeof key !== 'string') return null;
+  var idx = key.indexOf(':');
+  if (idx < 0) return key;
+  if (key.slice(0, idx).toLowerCase() !== 'dmc') return null;
+  return key.slice(idx + 1);
+}
+
 window.useCreatorState = function useCreatorState() {
   var useState    = React.useState;
   var useRef      = React.useRef;
@@ -4141,6 +4163,11 @@ window.useCreatorState = function useCreatorState() {
   var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
   var substituteMaxDeltaE = _subMaxDE[0];
   function setSubstituteMaxDeltaE(v) { _subMaxDE[1](v); try { localStorage.setItem("cs_subMaxDE", v); } catch(_) {} }
+  // Brief D — runtime "limit palette/picker to my stash" filter (independent of the
+  // generation-time stashConstrained switch). Persisted under cs_creator_stash_filter.
+  var _csFilt = useState(function() { try { return localStorage.getItem("cs_creator_stash_filter") === "true"; } catch(_) { return false; } });
+  var creatorStashFilter = _csFilt[0];
+  function setCreatorStashFilter(v) { _csFilt[1](v); try { localStorage.setItem("cs_creator_stash_filter", v ? "true" : "false"); } catch(_) {} }
 
   // Preview
   var _prevUrl  = useState(null);    var previewUrl = _prevUrl[0], setPreviewUrl = _prevUrl[1];
@@ -4625,11 +4652,12 @@ window.useCreatorState = function useCreatorState() {
         allowedPalette = _subset;
       } else {
         allowedPalette = [];
-        Object.keys(globalStash).forEach(function(id) {
-          if ((globalStash[id].owned || 0) > 0) {
-            var dmcEntry = DMC.find(function(d) { return d.id === id; });
-            if (dmcEntry) allowedPalette.push(dmcEntry);
-          }
+        Object.keys(globalStash).forEach(function(key) {
+          if ((globalStash[key].owned || 0) <= 0) return;
+          var bareId = _extractDmcId(key);
+          if (!bareId) return;
+          var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+          if (dmcEntry) allowedPalette.push(dmcEntry);
         });
       }
       if (!allowedPalette || allowedPalette.length === 0) {
@@ -4711,8 +4739,12 @@ window.useCreatorState = function useCreatorState() {
     if (!stashConstrained || !img) return;
     var newSeed = ((Math.random() * 0xFFFFFFFE) + 1) >>> 0;
     var pool = [];
-    Object.keys(globalStash || {}).forEach(function(id) {
-      if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
+    Object.keys(globalStash || {}).forEach(function(key) {
+      if ((globalStash[key].owned || 0) <= 0) return;
+      var bareId = _extractDmcId(key);
+      if (!bareId) return;
+      var d = DMC.find(function(e) { return e.id === bareId; });
+      if (d) pool.push(d);
     });
     if (!pool.length) return;
     var effN = Math.min(maxC, pool.length);
@@ -4756,8 +4788,12 @@ window.useCreatorState = function useCreatorState() {
     if (!img || !stashConstrained) return;
     var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
     var pool = [];
-    Object.keys(globalStash || {}).forEach(function(id) {
-      if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
+    Object.keys(globalStash || {}).forEach(function(key) {
+      if ((globalStash[key].owned || 0) <= 0) return;
+      var bareId = _extractDmcId(key);
+      if (!bareId) return;
+      var d = DMC.find(function(e) { return e.id === bareId; });
+      if (d) pool.push(d);
     });
     if (!pool.length) return;
     setGallerySlots(newSeeds.map(function(s) { return {seed: s, loading: true, url: null, threadCount: 0, subset: null}; }));
@@ -4822,9 +4858,11 @@ window.useCreatorState = function useCreatorState() {
   useEffect(function() {
     if (!stashConstrained || !img || !img.src) { setCoverageGaps(null); return; }
     var stashPal = [];
-    Object.keys(globalStash || {}).forEach(function(id) {
-      if ((globalStash[id].owned || 0) <= 0) return;
-      var d = DMC.find(function(e) { return e.id === id; });
+    Object.keys(globalStash || {}).forEach(function(key) {
+      if ((globalStash[key].owned || 0) <= 0) return;
+      var bareId = _extractDmcId(key);
+      if (!bareId) return;
+      var d = DMC.find(function(e) { return e.id === bareId; });
       if (d) stashPal.push(d);
     });
     if (!stashPal.length) { setCoverageGaps(null); return; }
@@ -4949,6 +4987,7 @@ window.useCreatorState = function useCreatorState() {
     substituteModalKey, setSubstituteModalKey,
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
     stashConstrained, setStashConstrained,
+    creatorStashFilter, setCreatorStashFilter,
     coverageGaps, setCoverageGaps,
     variationSeed, setVariationSeed,
     variationSubset, setVariationSubset,
@@ -4978,24 +5017,32 @@ window.useCreatorState = function useCreatorState() {
     stashThreadCount: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
       var count = 0;
-      Object.keys(globalStash).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      Object.keys(globalStash).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        if (_extractDmcId(key)) count++;
+      });
       return count;
     }, [stashConstrained, globalStash]),
 
     effectiveMaxC: useMemo(function() {
       if (!stashConstrained) return maxC;
       var count = 0;
-      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      Object.keys(globalStash || {}).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        if (_extractDmcId(key)) count++;
+      });
       return count === 0 ? maxC : Math.min(maxC, count);
     }, [stashConstrained, globalStash, maxC]),
 
     stashPalette: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
       var entries = [];
-      Object.keys(globalStash).forEach(function(id) {
-        if ((globalStash[id].owned || 0) <= 0) return;
-        var dmcEntry = DMC.find(function(d) { return d.id === id; });
-        if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[id].owned });
+      Object.keys(globalStash).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        var bareId = _extractDmcId(key);
+        if (!bareId) return;
+        var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+        if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[key].owned });
       });
       entries.sort(function(a, b) {
         var hA = (typeof hueFromRgb !== 'undefined') ? hueFromRgb(a.rgb) : 0;
@@ -5008,14 +5055,20 @@ window.useCreatorState = function useCreatorState() {
     blendsAutoDisabled: useMemo(function() {
       if (!stashConstrained) return false;
       var count = 0;
-      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      Object.keys(globalStash || {}).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        if (_extractDmcId(key)) count++;
+      });
       return count < 6;
     }, [stashConstrained, globalStash]),
 
     effectiveAllowBlends: useMemo(function() {
       if (!stashConstrained) return allowBlends;
       var count = 0;
-      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      Object.keys(globalStash || {}).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        if (_extractDmcId(key)) count++;
+      });
       if (count < 6) return false;
       return allowBlends;
     }, [stashConstrained, globalStash, allowBlends]),
@@ -10408,10 +10461,51 @@ window.CreatorSidebar = function CreatorSidebar() {
     var isHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
     var isPaintMode = cv.activeTool === "paint" || cv.activeTool === "fill" || isHsTool;
     var selInfo = cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
+    // Brief D — compute per-thread stash status. `stashHas` flags whether the
+    // global stash has any data at all (graceful no-op when empty).
+    var stash = ctx.globalStash || {};
+    var stashHas = Object.keys(stash).length > 0;
+    var fabricCtForStash = ctx.fabricCt || 14;
+    // Brand-aware lookup: prefer DMC, fall back to Anchor. Mirrors the
+    // resolution used in ShoppingListModal.
+    function resolveBrand(id) {
+      if (typeof DMC !== 'undefined' && DMC.find(function(d){ return d.id === id; })) return 'dmc';
+      if (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; })) return 'anchor';
+      return 'dmc';
+    }
+    function stashStatusForChip(p) {
+      if (!stashHas) return null;
+      // Blend: status = worst component status.
+      var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
+        ? p.id.split('+').map(function(s){ return s.trim(); }).filter(Boolean)
+        : [p.id];
+      var worst = 'owned';
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        if (!id || id === '__skip__' || id === '__empty__') continue;
+        var brand = p.brand || resolveBrand(id);
+        var key = brand + ':' + id;
+        var entry = stash[key];
+        var owned = entry && entry.owned ? entry.owned : 0;
+        var needed = (typeof skeinEst === 'function' && p.count) ? skeinEst(p.count, fabricCtForStash) : 1;
+        var s = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
+        if (s === 'needed') return 'needed';
+        if (s === 'partial' && worst === 'owned') worst = 'partial';
+      }
+      return worst;
+    }
+    var STASH_DOT = { owned: '#16a34a', partial: '#f59e0b', needed: '#dc2626' };
+    var hiddenByFilter = 0;
     var chips = displayPal.map(function(p) {
       var ips = isPaintMode && cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
       var isUnused = ctx.isScratchMode && p.count === 0;
+      var stashStatus = stashStatusForChip(p);
+      // Brief D — when "limit to stash" filter is on, hide unowned chips.
+      if (ctx.creatorStashFilter && stashHas && stashStatus === 'needed') {
+        hiddenByFilter++;
+        return null;
+      }
       return h("div", {
         key: p.id,
         role: "button",
@@ -10437,7 +10531,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         },
         style: {
           display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
-          cursor:"pointer",fontSize:11,
+          cursor:"pointer",fontSize:11,position:"relative",
           border: ips ? "2px solid #0d9488" : ihs ? "2px solid #ea580c" : "0.5px solid #e2e8f0",
           background: ips ? "#f0fdfa" : ihs ? "#fff7ed" : "#fff",
           opacity: isUnused ? 0.6 : 1
@@ -10449,9 +10543,18 @@ window.CreatorSidebar = function CreatorSidebar() {
         isUnused && h("span", {
           onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
           style:{fontSize:9,color:"#94a3b8",cursor:"pointer",marginLeft:2,lineHeight:1}
-        }, "\xD7")
+        }, "\xD7"),
+        // Brief D — stash status dot (top-right corner). Hidden when stash empty.
+        stashStatus && h("span", {
+          title: stashStatus === 'owned' ? 'In your stash' : stashStatus === 'partial' ? 'May need more' : 'Not in stash',
+          "aria-label": "Stash status: " + stashStatus,
+          style: {
+            position:"absolute", top:-2, right:-2, width:6, height:6, borderRadius:"50%",
+            background: STASH_DOT[stashStatus], boxShadow:"0 0 0 1px #fff"
+          }
+        })
       );
-    });
+    }).filter(Boolean);
     return h("div", {style:{borderBottom:"0.5px solid var(--border)"}},
       h("div", {
         onClick:function(){setPalChipsOpen(function(o){return !o;});},
@@ -10464,6 +10567,32 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
+      // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
+      stashHas && h("div", {
+        style:{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11,color:"#475569",flexWrap:"wrap"}
+      },
+        h("label", {style:{display:"flex",alignItems:"center",gap:5,cursor:"pointer",userSelect:"none"}},
+          h("input", {
+            type:"checkbox",
+            checked: !!ctx.creatorStashFilter,
+            onChange: function(e) { if (typeof ctx.setCreatorStashFilter === 'function') ctx.setCreatorStashFilter(e.target.checked); },
+            style:{margin:0}
+          }),
+          h("span", null, "Only show threads I own")
+        ),
+        h("button", {
+          onClick: function() { if (typeof app.setModal === 'function') app.setModal('shopping_list'); },
+          title: "What do I need to buy?",
+          style:{marginLeft:"auto",fontSize:10,padding:"2px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}
+        }, typeof Icons !== 'undefined' && Icons.cart ? Icons.cart() : null, "Shopping list")
+      ),
+      // Brief D — banner when filter hides chips, or stash empty.
+      ctx.creatorStashFilter && stashHas && hiddenByFilter > 0 && h("div", {
+        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#fffbeb",border:"0.5px solid #fde68a",fontSize:10,color:"#92400e"}
+      }, hiddenByFilter + " unowned colour" + (hiddenByFilter !== 1 ? "s" : "") + " hidden \u2014 turn off the filter to see all."),
+      ctx.creatorStashFilter && !stashHas && h("div", {
+        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#fef2f2",border:"0.5px solid #fecaca",fontSize:10,color:"#991b1b"}
+      }, "Your stash is empty \u2014 turn off this filter, or add threads in the Stash Manager."),
       isPaintMode && h("div", {
         style:{
           marginBottom:8,padding:"5px 8px",borderRadius:7,
@@ -10563,10 +10692,21 @@ window.CreatorSidebar = function CreatorSidebar() {
   var _blMode = React.useState(false); var blendMode = _blMode[0], setBlendMode = _blMode[1];
 
   var blendFiltered = React.useMemo(function() {
-    if (!blendSearch.trim()) return DMC;
+    var base = DMC;
+    // Brief D — when "limit to stash" is on, restrict to owned threads.
+    // Blends are DMC-only today (no Anchor blend picker), so the 'dmc:'
+    // key here is intentional. If the blend picker grows Anchor support,
+    // switch to the brand-aware resolver used above.
+    if (ctx.creatorStashFilter && ctx.globalStash && Object.keys(ctx.globalStash).length > 0) {
+      base = DMC.filter(function(d) {
+        var entry = ctx.globalStash['dmc:' + d.id];
+        return entry && (entry.owned || 0) > 0;
+      });
+    }
+    if (!blendSearch.trim()) return base;
     var q = blendSearch.toLowerCase();
-    return DMC.filter(function(d) { return d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q); });
-  }, [blendSearch]);
+    return base.filter(function(d) { return d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q); });
+  }, [blendSearch, ctx.creatorStashFilter, ctx.globalStash]);
 
   function addBlend() {
     if (!blendThread1 || !blendThread2 || blendThread1.id === blendThread2.id) return;
@@ -11413,6 +11553,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       gen.hasGenerated && h("button", {
         "aria-label":"Continue to Edit mode",
         onClick:function(){
+          // Brief D — flush the freshly-generated pattern to IndexedDB now,
+          // so leaving Creator immediately doesn't lose the pattern and the
+          // Stash Manager pattern library + shopping list pick it up. The
+          // flush calls ProjectStorage.save() which in turn fires
+          // StashBridge.syncProjectToLibrary().
+          if (typeof window.__flushProjectToIDB === 'function') {
+            try { window.__flushProjectToIDB(); } catch (e) {}
+          }
           app.setAppMode("edit");
           app.setSidebarTab("palette");
           if(window.__switchToEdit) window.__switchToEdit();
@@ -13585,7 +13733,15 @@ window.CreatorExportTab = function CreatorExportTab() {
     }).catch(function (err) {
       if (runningRef.current !== tag) return;
       setProgress(null); runningRef.current = null;
-      setError(err.message || "Export failed");
+      var msg = err.message || "Export failed";
+      setError(msg);
+      // M9: Surface font-missing errors as a toast so users notice even
+      // if the Export tab is scrolled away.
+      try {
+        if (typeof Toast !== 'undefined' && Toast.show && /symbol font/i.test(msg)) {
+          Toast.show({ message: 'PDF export failed \u2014 symbol font missing. Please reload and try again.', type: 'error', duration: 6000 });
+        }
+      } catch (_) { /* best-effort */ }
     });
   }
   function cancelExport() {
@@ -13771,3 +13927,229 @@ window.CreatorExportTab = function CreatorExportTab() {
     errorState[0] && h("div", { style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, fontSize: 12, color: "#b91c1c" } }, errorState[0])
   );
 };
+
+
+/* ─── ShoppingListModal.js ─── */
+/* creator/ShoppingListModal.js — Brief D (3c)
+   Modal listing threads-you-have vs threads-you-need-to-buy for the current Creator pattern.
+   Mirrors the manager ShoppingListModal copy/share format for consistency.
+   Reads from CreatorContext (PatternData + App contexts) and StashBridge (for userProfile fallback).
+   Loaded as a plain <script> (concatenated into creator/bundle.js). */
+
+(function () {
+  if (typeof window === 'undefined' || !window.React) return;
+
+  function CreatorShoppingListModal(props) {
+    var React = window.React;
+    var h = React.createElement;
+    var ctx = window.usePatternData();
+    var useState = React.useState;
+    var useMemo = React.useMemo;
+    var useEffect = React.useEffect;
+    var onClose = props.onClose;
+
+    if (typeof window.useEscape === 'function') window.useEscape(onClose);
+
+    var _profile = useState(null);
+    var profile = _profile[0], setProfile = _profile[1];
+    var _copied = useState(false);
+    var copied = _copied[0], setCopied = _copied[1];
+
+    // Read user profile (for strands/waste) from manager DB. Defaults if unavailable.
+    useEffect(function () {
+      var cancelled = false;
+      function fallback() { if (!cancelled) setProfile({ fabric_count: ctx.fabricCt || 14, strands_used: 2, waste_factor: 0.20, thread_brand: 'DMC' }); }
+      try {
+        var req = indexedDB.open('stitch_manager_db');
+        req.onsuccess = function () {
+          var db = req.result;
+          if (!db.objectStoreNames.contains('manager_state')) { fallback(); return; }
+          var tx = db.transaction('manager_state', 'readonly');
+          var store = tx.objectStore('manager_state');
+          var g = store.get('userProfile');
+          g.onsuccess = function () {
+            if (cancelled) return;
+            setProfile(g.result || { fabric_count: ctx.fabricCt || 14, strands_used: 2, waste_factor: 0.20, thread_brand: 'DMC' });
+          };
+          g.onerror = fallback;
+        };
+        req.onerror = fallback;
+      } catch (_) { fallback(); }
+      return function () { cancelled = true; };
+    }, [ctx.fabricCt]);
+
+    var stash = ctx.globalStash || {};
+    var fabricCt = (profile && profile.fabric_count) || ctx.fabricCt || 14;
+    var strandsUsed = (profile && profile.strands_used) || 2;
+    var wasteFactor = (profile && profile.waste_factor) || 0.20;
+
+    // Build per-component shopping rows. Blends contribute half-stitches to each
+    // component, summed across all palette entries that include that component.
+    var rows = useMemo(function () {
+      if (!(ctx.pat && ctx.pal)) return [];
+      var perId = {};   // id -> { stitches, isBlendOnly }
+      ctx.pal.forEach(function (p) {
+        if (!p || p.id === '__skip__' || p.id === '__empty__') return;
+        var stitches = p.count || 0;
+        var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
+          ? p.id.split('+').map(function (s) { return s.trim(); }).filter(Boolean)
+          : [p.id];
+        ids.forEach(function (id) {
+          if (!perId[id]) perId[id] = { stitches: 0, fromBlend: ids.length > 1 };
+          // Blends use roughly half the thread of each component.
+          perId[id].stitches += ids.length > 1 ? stitches / 2 : stitches;
+        });
+      });
+      return Object.keys(perId).map(function (id) {
+        var stitches = Math.round(perId[id].stitches);
+        var needed = 1;
+        if (typeof stitchesToSkeins === 'function') {
+          var r = stitchesToSkeins({
+            stitchCount: stitches, fabricCount: fabricCt,
+            strandsUsed: strandsUsed, wasteFactor: wasteFactor
+          });
+          needed = Math.max(1, r.skeinsToBuy || 0);
+        }
+        // Brand resolution: try DMC first, then Anchor. The matching brand's
+        // composite stash key is used to look up owned counts.
+        var info = null, brand = 'dmc';
+        if (typeof DMC !== 'undefined') info = DMC.find(function (d) { return d.id === id; });
+        if (!info && typeof ANCHOR !== 'undefined') {
+          info = ANCHOR.find(function (d) { return d.id === id; });
+          if (info) brand = 'anchor';
+        }
+        var entry = stash[brand + ':' + id] || {};
+        var owned = entry.owned || 0;
+        var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
+        return {
+          id: id,
+          brand: brand,
+          brandLabel: brand === 'anchor' ? 'Anchor' : 'DMC',
+          name: info ? info.name : id,
+          rgb: info ? info.rgb : [128, 128, 128],
+          stitches: stitches,
+          needed: needed,
+          owned: owned,
+          status: status,
+          missing: Math.max(0, needed - owned)
+        };
+      }).sort(function (a, b) {
+        var an = /^\d+$/.test(a.id) ? Number(a.id) : Infinity;
+        var bn = /^\d+$/.test(b.id) ? Number(b.id) : Infinity;
+        if (an !== bn) return an - bn;
+        return String(a.id).localeCompare(String(b.id));
+      });
+    }, [ctx.pat, ctx.pal, stash, fabricCt, strandsUsed, wasteFactor]);
+
+    var ownedRows = rows.filter(function (r) { return r.status === 'owned'; });
+    var buyRows = rows.filter(function (r) { return r.status !== 'owned'; });
+    var totalNeedSkeins = buyRows.reduce(function (acc, r) { return acc + r.missing; }, 0);
+
+    function copyText() {
+      var name = (ctx.projectName || 'Cross stitch pattern');
+      var lines = ['Shopping List \u2014 ' + name, ''];
+      if (buyRows.length > 0) {
+        lines.push('Need to buy:');
+        buyRows.forEach(function (r) {
+          var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
+          lines.push('\u25cb ' + r.brandLabel + ' ' + r.id + ' ' + r.name + ' \u2014 need ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
+        });
+        lines.push('');
+      }
+      if (ownedRows.length > 0) {
+        lines.push('Already in stash:');
+        ownedRows.forEach(function (r) {
+          lines.push('\u2713 ' + r.brandLabel + ' ' + r.id + ' ' + r.name + ' \u2014 own ' + r.owned + ', need ' + r.needed);
+        });
+        lines.push('');
+      }
+      lines.push('Total: ' + ownedRows.length + ' of ' + rows.length + ' colours owned. Need ' + buyRows.length + ' colour' + (buyRows.length !== 1 ? 's' : '') + ' (~' + totalNeedSkeins + ' skein' + (totalNeedSkeins !== 1 ? 's' : '') + ').');
+      var text = lines.join('\n');
+      function done() { setCopied(true); setTimeout(function () { setCopied(false); }, 2000); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function () {});
+        return;
+      }
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta); done();
+      } catch (_) {}
+    }
+
+    var sectionLabel = function (text, color) {
+      return h('div', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.04, color: color, margin: '12px 0 6px' } }, text);
+    };
+    var rowEl = function (r, kind) {
+      var bg = kind === 'owned' ? '#f0fdf4' : '#fef2f2';
+      var border = kind === 'owned' ? '#bbf7d0' : '#fecaca';
+      var note = kind === 'owned'
+        ? 'own ' + r.owned + ', need ~' + r.needed
+        : 'need ~' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + (r.owned > 0 ? ' (own ' + r.owned + ')' : '');
+      return h('div', {
+        key: r.id,
+        style: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: bg, borderRadius: 6, border: '1px solid ' + border, marginBottom: 4 }
+      },
+        h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid #cbd5e1', flexShrink: 0 } }),
+        h('div', { style: { width: 38, fontWeight: 700, fontSize: 12, flexShrink: 0 } }, r.id),
+        h('div', { style: { flex: 1, fontSize: 12, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name),
+        h('div', { style: { fontSize: 11, color: kind === 'owned' ? '#15803d' : '#b91c1c', fontWeight: 500, flexShrink: 0 } }, note)
+      );
+    };
+
+    return h('div', { className: 'modal-overlay', onClick: onClose, style: { zIndex: 1000 } },
+      h('div', {
+        className: 'modal-content',
+        onClick: function (e) { e.stopPropagation(); },
+        style: { maxWidth: 540, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }
+      },
+        h('div', { style: { padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+          h('h2', { style: { margin: 0, fontSize: 18 } }, 'What do I need to buy?'),
+          h('button', {
+            onClick: onClose,
+            style: { background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#94a3b8' }
+          }, '\u00D7')
+        ),
+        h('div', {
+          style: {
+            padding: '10px 20px', background: buyRows.length === 0 ? '#f0fdf4' : '#fffbeb',
+            borderBottom: '1px solid #e2e8f0', fontSize: 12,
+            color: buyRows.length === 0 ? '#15803d' : '#92400e', fontWeight: 600
+          }
+        },
+          buyRows.length === 0
+            ? '\u2713 You have all ' + rows.length + ' colours \u2014 ready to stitch!'
+            : 'You have ' + ownedRows.length + ' of ' + rows.length + ' colours. Need to buy ' + buyRows.length + ' thread' + (buyRows.length !== 1 ? 's' : '') + ' (~' + totalNeedSkeins + ' skein' + (totalNeedSkeins !== 1 ? 's' : '') + ' total).'
+        ),
+        h('div', { style: { padding: '12px 20px', overflowY: 'auto', flex: 1 } },
+          rows.length === 0
+            ? h('div', { style: { padding: 30, textAlign: 'center', color: '#94a3b8' } }, 'No threads in this pattern yet.')
+            : h(React.Fragment, null,
+                buyRows.length > 0 && sectionLabel('Need to buy (' + buyRows.length + ')', '#dc2626'),
+                buyRows.map(function (r) { return rowEl(r, 'needed'); }),
+                ownedRows.length > 0 && sectionLabel('Already in your stash (' + ownedRows.length + ')', '#16a34a'),
+                ownedRows.map(function (r) { return rowEl(r, 'owned'); })
+              )
+        ),
+        h('div', {
+          style: { padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8f9fa', gap: 8, flexWrap: 'wrap' }
+        },
+          h('span', { style: { fontSize: 12, color: '#16a34a', fontWeight: 600, opacity: copied ? 1 : 0, transition: 'opacity 0.2s' } }, 'Copied!'),
+          h('div', { style: { display: 'flex', gap: 8, marginLeft: 'auto' } },
+            h('a', {
+              href: 'manager.html',
+              style: { padding: '7px 14px', borderRadius: 8, border: '0.5px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13, textDecoration: 'none', color: '#475569' }
+            }, 'Open in Stash Manager'),
+            rows.length > 0 && h('button', {
+              onClick: copyText,
+              style: { padding: '7px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13 }
+            }, 'Copy list')
+          )
+        )
+      )
+    );
+  }
+
+  window.CreatorShoppingListModal = CreatorShoppingListModal;
+})();

@@ -318,6 +318,30 @@ const StashBridge = (() => {
       }
     },
 
+    // Brief D — remove the auto-synced pattern library entry linked to a deleted project.
+    // No-op when nothing is linked. Safe to call on every project delete.
+    async unlinkProjectFromLibrary(projectId) {
+      try {
+        const db = await openManagerDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readwrite");
+          const store = tx.objectStore("manager_state");
+          const req = store.get("patterns");
+          req.onsuccess = () => {
+            const patterns = req.result || [];
+            const filtered = patterns.filter(p => p.linkedProjectId !== projectId);
+            if (filtered.length !== patterns.length) {
+              store.put(filtered, "patterns");
+            }
+            tx.oncomplete = () => resolve();
+          };
+          req.onerror = () => reject(req.error);
+        });
+      } catch (e) {
+        console.error("StashBridge.unlinkProjectFromLibrary failed:", e);
+      }
+    },
+
     // Detects conflicts: threads where total demand across active patterns > owned supply.
     // Returns [ { id, name, rgb, owned, totalNeeded, patterns: [{title, qty}] } ]
     async detectConflicts() {
@@ -601,6 +625,6 @@ const StashBridge = (() => {
 })();
 
 // Auto-run migrations on script load (best-effort; errors are swallowed internally).
-StashBridge.migrateSchemaToV2().then(function() {
-  StashBridge.migrateSchemaToV3();
-});
+StashBridge.migrateSchemaToV2()
+  .then(function() { return StashBridge.migrateSchemaToV3(); })
+  .catch(function() { /* migrations log internally */ });
