@@ -198,6 +198,15 @@ const ProjectStorage = (() => {
             if (typeof SyncEngine !== "undefined" && SyncEngine.triggerAutoExport) {
               try { SyncEngine.triggerAutoExport(); } catch (e) {}
             }
+            // Notify listeners (Home dashboard, Manager pattern library, etc.) that
+            // the project list changed so they can refresh without a page reload.
+            try {
+              if (typeof window !== "undefined" && window.dispatchEvent) {
+                window.dispatchEvent(new CustomEvent("cs:projectsChanged", {
+                  detail: { reason: "save", id: project.id }
+                }));
+              }
+            } catch (e) {}
             resolve(project.id);
           };
           tx.onerror = () => reject(tx.error);
@@ -290,7 +299,18 @@ const ProjectStorage = (() => {
             if (autoSave && autoSave.id === id) store.delete("auto_save");
           };
           autoSaveReq.onerror = () => reject(autoSaveReq.error);
-          tx.oncomplete = () => resolve();
+          tx.oncomplete = () => {
+            // Notify listeners (Home dashboard, Manager pattern library, etc.) that
+            // the project list changed so they can refresh without a page reload.
+            try {
+              if (typeof window !== "undefined" && window.dispatchEvent) {
+                window.dispatchEvent(new CustomEvent("cs:projectsChanged", {
+                  detail: { reason: "delete", id: id }
+                }));
+              }
+            } catch (e) {}
+            resolve();
+          };
           tx.onerror = () => reject(tx.error);
         });
       } catch (err) {

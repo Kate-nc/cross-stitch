@@ -1,10 +1,6 @@
 const SharedModals = {
   Help: ({ onClose }) => {
-    React.useEffect(function() {
-      var handler = function(e) { if (e.key === "Escape") onClose(); };
-      document.addEventListener("keydown", handler);
-      return function() { document.removeEventListener("keydown", handler); };
-    }, [onClose]);
+    window.useEscape(onClose);
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
       React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 600, maxHeight: "80vh", overflowY: "auto" } },
         React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
@@ -54,11 +50,7 @@ const SharedModals = {
   },
 
   About: ({ onClose }) => {
-    React.useEffect(function() {
-      var handler = function(e) { if (e.key === "Escape") onClose(); };
-      document.addEventListener("keydown", handler);
-      return function() { document.removeEventListener("keydown", handler); };
-    }, [onClose]);
+    window.useEscape(onClose);
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
       React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500 } },
         React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
@@ -298,6 +290,10 @@ function NamePromptModal({ defaultName, onConfirm, onCancel }) {
   const inputRef = React.useRef(null);
   React.useEffect(() => { if (inputRef.current) inputRef.current.select(); }, []);
   const handleSubmit = () => { const trimmed = name.trim(); onConfirm(trimmed || defaultName || 'cross-stitch-project'); };
+  // Use the global ESC stack so this modal closes on top of any other open
+  // modal without conflicting with their handlers. skipWhenEditingTextField
+  // is disabled because the only focusable element here is the name input.
+  window.useEscape(onCancel, { skipWhenEditingTextField: false });
   return React.createElement('div', { className: 'modal-overlay', onClick: onCancel },
     React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 400 } },
       React.createElement('button', { className: 'modal-close', onClick: onCancel }, '×'),
@@ -306,7 +302,7 @@ function NamePromptModal({ defaultName, onConfirm, onCancel }) {
       React.createElement('input', {
         ref: inputRef, type: 'text', maxLength: 60, value: name,
         onChange: e => setName(e.target.value),
-        onKeyDown: e => { if (e.key === 'Enter') handleSubmit(); if (e.key === 'Escape') onCancel(); },
+        onKeyDown: e => { if (e.key === 'Enter') handleSubmit(); },
         placeholder: 'e.g. Rose Garden',
         style: { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 14, boxSizing: 'border-box' }
       }),
@@ -332,11 +328,8 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
   var _applying = React.useState(false);
   var applying = _applying[0], setApplying = _applying[1];
 
-  React.useEffect(function() {
-    var handler = function(e) { if (e.key === 'Escape' && !applying) onCancel(); };
-    document.addEventListener('keydown', handler);
-    return function() { document.removeEventListener('keydown', handler); };
-  }, [onCancel, applying]);
+  // Block ESC during apply so the user can't dismiss mid-import.
+  window.useEscape(function() { if (!applying) onCancel(); });
 
   function setResolution(id, val) {
     setResolutions(function(prev) {

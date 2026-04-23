@@ -156,6 +156,12 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg }) {
           pct + '%'
         )
       ),
+      // Stash-Manager-only badge — surfaced on entries that exist in the
+      // Manager pattern library but have no linked Creator/Tracker project.
+      proj.managerOnly && h('div', { className: 'mpd-card-badge mpd-card-badge--manager-only',
+        title: 'This entry was added directly in the Stash Manager and has no Creator/Tracker project linked.',
+        style: { display: 'inline-block', fontSize: 10, padding: '2px 8px', borderRadius: 10, background: '#fef3c7', color: '#92400e', fontWeight: 600, marginBottom: 6 } },
+        'Stash Manager only'),
       // Progress bar
       h('div', { className: 'mpd-card-progress-track', role: 'progressbar', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100 },
         h('div', { className: 'mpd-card-progress-fill', style: { width: Math.min(100, pct) + '%' } })
@@ -236,6 +242,11 @@ function CompactProjectRow({ proj, state, onOpen, onChangeState }) {
     ),
     h('div', { className: 'mpd-compact-info', onClick: function() { onOpen(proj, state === 'design' ? 'creator' : 'tracker'); } },
       h('span', { className: 'mpd-compact-name' }, proj.name || 'Untitled'),
+      proj.managerOnly && h('span', {
+        className: 'mpd-compact-badge',
+        title: 'Stash Manager only',
+        style: { fontSize: 10, padding: '1px 6px', borderRadius: 8, background: '#fef3c7', color: '#92400e', fontWeight: 600, marginLeft: 6 }
+      }, 'Stash Manager only'),
       detail && h('span', { className: 'mpd-compact-detail' }, detail)
     ),
     h('button', {
@@ -652,6 +663,25 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     return function() { window.removeEventListener('sync-plan-ready', handler); };
   }, []);
 
+  // Live-refresh project list on backup restore, project save/delete elsewhere,
+  // and tab visibility return. Without these the Home dashboard would show stale
+  // data after the user restored a backup or worked on the Tracker in another tab.
+  useEffect(function() {
+    function reload() {
+      if (typeof ProjectStorage === 'undefined') return;
+      ProjectStorage.listProjects().then(function(p) { setProjects(p || []); }).catch(function() {});
+    }
+    function onVisibility() { if (document.visibilityState === 'visible') reload(); }
+    window.addEventListener('cs:projectsChanged', reload);
+    window.addEventListener('cs:backupRestored', reload);
+    document.addEventListener('visibilitychange', onVisibility);
+    return function() {
+      window.removeEventListener('cs:projectsChanged', reload);
+      window.removeEventListener('cs:backupRestored', reload);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+
   // Sync handlers
   function handleExportSync() {
     if (typeof SyncEngine === 'undefined') return;
@@ -962,7 +992,12 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     ),
 
     // ── Multi-project dashboard (>1 project) ──
-    showDashboard && h(MultiProjectDashboard, {
+    // Routed through ProjectLibrary so Home and the Stash Manager share one
+    // source of truth for the rich card UI. We pass `projects` as a prop
+    // because HomeScreen also uses the list for stats/hero cards, so a second
+    // IndexedDB load inside the hook would be wasteful.
+    showDashboard && h(window.ProjectLibrary || MultiProjectDashboard, {
+      mode: 'home',
       projects: projects,
       stash: stash,
       onOpenProject: onOpenProject,
@@ -1329,4 +1364,13 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       onCancel: function() { setSyncPlan(null); }
     })
   );
+}
+
+// Expose components for project-library.js (shared between Home + Manager)
+if (typeof window !== 'undefined') {
+  window.MultiProjectDashboard = MultiProjectDashboard;
+  window.ProjectCard = ProjectCard;
+  window.CompactProjectRow = CompactProjectRow;
+  window.StateChangeMenu = StateChangeMenu;
+  window.HomeProjectHelpers = { daysBetween, inferProjectState, getProjectState, estimateRemainingHours, fmtHours, getSuggestion };
 }

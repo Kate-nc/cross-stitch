@@ -909,6 +909,33 @@ function ManagerApp() {
                 + Add Pattern
               </button>
             </div>
+            {/* Unified Project Library — same card view as Home dashboard so users
+                see one consistent picture of their work across pages. */}
+            {window.ProjectLibrary && (
+              <div className="mgr-project-library" style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 12, background: "#fafafa" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#3f3f46" }}>Your Projects</div>
+                  <div style={{ fontSize: 11, color: "#71717a" }}>Linked Creator/Tracker projects + Stash Manager-only entries</div>
+                </div>
+                {React.createElement(window.ProjectLibrary, {
+                  mode: "manager",
+                  onOpenProject: (proj, target) => {
+                    if (!proj || !proj.id || proj.managerOnly) return;
+                    try { ProjectStorage.setActiveProject(proj.id); } catch (e) {}
+                    window.location.href = (target === "creator" ? "index.html" : "stitch.html") + "?source=manager";
+                  },
+                  onAddNew: () => { window.location.href = "index.html"; },
+                  onOpenGlobalStats: () => { window.location.href = "index.html?stats=1"; },
+                  onOpenManagerOnly: (proj) => {
+                    // Scroll to the matching pattern card in the grid below.
+                    const realId = proj && proj._managerPatternId;
+                    if (!realId) return;
+                    const match = patterns.find(p => p.id === realId);
+                    if (match) setViewingPattern(match);
+                  }
+                })}
+              </div>
+            )}
             {activeProject && (
               <div className="alert-card success" style={{ marginBottom: 12 }}>
                 <div className="at">{Icons.dot()} Currently Tracking</div>

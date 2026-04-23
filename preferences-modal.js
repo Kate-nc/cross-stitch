@@ -243,11 +243,7 @@
       }, label);
     }
 
-    React.useEffect(function () {
-      function onKey(e) { if (e.key === "Escape") onClose && onClose(); }
-      window.addEventListener("keydown", onKey);
-      return function () { window.removeEventListener("keydown", onKey); };
-    }, [onClose]);
+    window.useEscape(function () { onClose && onClose(); });
 
     return h("div", {
       onClick: onClose,
