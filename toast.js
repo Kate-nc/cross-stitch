@@ -104,6 +104,7 @@
       var undoBtn = document.createElement("button");
       undoBtn.type = "button";
       undoBtn.textContent = undoLabel;
+      undoBtn.setAttribute("aria-label", undoLabel);
       undoBtn.style.cssText = [
         "font-weight:600",
         "color:var(--accent, #0d9488)",

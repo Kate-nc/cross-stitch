@@ -237,6 +237,21 @@
     }
     return max > 0 ? peak : null;
   }
+  // Returns {dow, hr, count} for the hottest cell in a 7x24 rhythm grid
+  // produced by buildRhythmMatrix, or null if the grid is empty.
+  function getPeakCell(grid) {
+    if (!Array.isArray(grid) || grid.length === 0) return null;
+    var best = null;
+    for (var d = 0; d < grid.length; d++) {
+      var row = grid[d] || [];
+      for (var h = 0; h < row.length; h++) {
+        if (row[h] > 0 && (!best || row[h] > best.count)) {
+          best = { dow: d, hr: h, count: row[h] };
+        }
+      }
+    }
+    return best;
+  }
   function fmtHour(h) {
     if (h == null) return '';
     if (h === 0) return '12am';
@@ -408,6 +423,7 @@
     computeWeeklyStreak: computeWeeklyStreak,
     buildRhythmMatrix: buildRhythmMatrix,
     getPeakHour: getPeakHour,
+    getPeakCell: getPeakCell,
     fmtHour: fmtHour
   };
 

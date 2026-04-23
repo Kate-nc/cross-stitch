@@ -78,12 +78,21 @@
           });
           needed = Math.max(1, r.skeinsToBuy || 0);
         }
-        var entry = stash['dmc:' + id] || {};
+        // Brand resolution: try DMC first, then Anchor. The matching brand's
+        // composite stash key is used to look up owned counts.
+        var info = null, brand = 'dmc';
+        if (typeof DMC !== 'undefined') info = DMC.find(function (d) { return d.id === id; });
+        if (!info && typeof ANCHOR !== 'undefined') {
+          info = ANCHOR.find(function (d) { return d.id === id; });
+          if (info) brand = 'anchor';
+        }
+        var entry = stash[brand + ':' + id] || {};
         var owned = entry.owned || 0;
-        var info = (typeof DMC !== 'undefined') ? DMC.find(function (d) { return d.id === id; }) : null;
         var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
         return {
           id: id,
+          brand: brand,
+          brandLabel: brand === 'anchor' ? 'Anchor' : 'DMC',
           name: info ? info.name : id,
           rgb: info ? info.rgb : [128, 128, 128],
           stitches: stitches,
@@ -111,14 +120,14 @@
         lines.push('Need to buy:');
         buyRows.forEach(function (r) {
           var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
-          lines.push('\u25cb DMC ' + r.id + ' ' + r.name + ' \u2014 need ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
+          lines.push('\u25cb ' + r.brandLabel + ' ' + r.id + ' ' + r.name + ' \u2014 need ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
         });
         lines.push('');
       }
       if (ownedRows.length > 0) {
         lines.push('Already in stash:');
         ownedRows.forEach(function (r) {
-          lines.push('\u2713 DMC ' + r.id + ' ' + r.name + ' \u2014 own ' + r.owned + ', need ' + r.needed);
+          lines.push('\u2713 ' + r.brandLabel + ' ' + r.id + ' ' + r.name + ' \u2014 own ' + r.owned + ', need ' + r.needed);
         });
         lines.push('');
       }

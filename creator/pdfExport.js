@@ -260,6 +260,17 @@
     return runExport(project, opts).then(function (bytes) {
       downloadBytes(bytes, (project.name || "pattern").replace(/[^\w\-]+/g, "_") + ".pdf");
       return bytes;
+    }).catch(function (err) {
+      // M9: Surface font-missing errors via Toast for legacy callers
+      // (Tracker PDF export, File menu) that don't otherwise render the
+      // error message.
+      try {
+        var msg = (err && err.message) || String(err);
+        if (typeof Toast !== 'undefined' && Toast.show && /symbol font/i.test(msg)) {
+          Toast.show({ message: 'PDF export failed \u2014 symbol font missing. Please reload and try again.', type: 'error', duration: 6000 });
+        }
+      } catch (_) { /* best-effort */ }
+      throw err;
     });
   }
 

@@ -625,6 +625,6 @@ const StashBridge = (() => {
 })();
 
 // Auto-run migrations on script load (best-effort; errors are swallowed internally).
-StashBridge.migrateSchemaToV2().then(function() {
-  StashBridge.migrateSchemaToV3();
-});
+StashBridge.migrateSchemaToV2()
+  .then(function() { return StashBridge.migrateSchemaToV3(); })
+  .catch(function() { /* migrations log internally */ });

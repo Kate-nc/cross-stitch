@@ -204,6 +204,50 @@ const BackupRestore = (() => {
         }
       }
 
+      // M12: Imported data may be from an older schema. Clear the
+      // localStorage migration markers so the next page load (or the
+      // explicit calls below) re-runs migrations against the restored
+      // databases. The schema_version inside stitch_manager_db reflects
+      // the imported state, so StashBridge.migrateSchemaToV3 is idempotent.
+      // M5: Skip the re-run when the backup already claims current-schema
+      // data — migrations are idempotent but walking every project is slow
+      // on large libraries.
+      let stashIsV3 = false, projectsAreV3 = false;
+      try {
+        const mdb = backup.databases && backup.databases.stitch_manager_db;
+        if (mdb && mdb.manager_state) {
+          const sv = mdb.manager_state.find(e => e.key === 'schema_version');
+          stashIsV3 = sv && Number(sv.value) >= 3;
+        }
+        const csdb = backup.databases && backup.databases.CrossStitchDB;
+        if (csdb && Array.isArray(csdb.projects) && csdb.projects.length > 0) {
+          // Representative check: any proj_ entry that already has finishStatus
+          // means the export was taken after the v3 project migration.
+          projectsAreV3 = csdb.projects.some(e =>
+            e && e.key && String(e.key).startsWith('proj_') && e.value && e.value.finishStatus
+          );
+        }
+      } catch (_) { /* fall through to force-migrate */ }
+      try { localStorage.removeItem('cs_projects_v3_migrated'); } catch (_) {}
+      if (!stashIsV3) {
+        try {
+          if (typeof StashBridge !== 'undefined' && StashBridge.migrateSchemaToV3) {
+            await StashBridge.migrateSchemaToV3();
+          }
+        } catch (e) { console.warn('Post-restore stash migration failed:', e); }
+      }
+      if (!projectsAreV3) {
+        try {
+          if (typeof ProjectStorage !== 'undefined' && ProjectStorage.migrateProjectsToV3) {
+            await ProjectStorage.migrateProjectsToV3();
+          }
+        } catch (e) { console.warn('Post-restore project migration failed:', e); }
+      } else {
+        // Projects are already v3 — mark the migration flag so subsequent
+        // page loads don't re-run unnecessarily.
+        try { localStorage.setItem('cs_projects_v3_migrated', '1'); } catch (_) {}
+      }
+
       // Notify other tabs/components (e.g. Stash Manager pattern library) so they
       // can re-read their state and reconcile after a restore.
       try {

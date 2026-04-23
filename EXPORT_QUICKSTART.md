@@ -1,6 +1,17 @@
 # PDF Export — Quick-start guide
 
-The Pattern Creator's **Export** tab now produces fully Pattern Keeper–compatible PDFs from your finished cross-stitch design. This guide walks a first-time user through the workflow.
+The Pattern Creator's **Export** tab produces cross-stitch chart PDFs in
+two flavours:
+
+1. **Pattern Keeper–compatible** PDFs that load cleanly in the
+   [Pattern Keeper](https://patternkeeper.app/) app (symbols embedded
+   via the bundled CrossStitchSymbols font).
+2. **Standard image-symbol** PDFs for home printing — colour blocks,
+   symbols on white, or both, with no special font requirements.
+
+Both are produced by the same pipeline; your choice of **chart mode**
+and **preset** determines which you end up with. This guide walks a
+first-time user through the workflow.
 
 ---
 

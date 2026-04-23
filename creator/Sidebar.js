@@ -85,6 +85,13 @@ window.CreatorSidebar = function CreatorSidebar() {
     var stash = ctx.globalStash || {};
     var stashHas = Object.keys(stash).length > 0;
     var fabricCtForStash = ctx.fabricCt || 14;
+    // Brand-aware lookup: prefer DMC, fall back to Anchor. Mirrors the
+    // resolution used in ShoppingListModal.
+    function resolveBrand(id) {
+      if (typeof DMC !== 'undefined' && DMC.find(function(d){ return d.id === id; })) return 'dmc';
+      if (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; })) return 'anchor';
+      return 'dmc';
+    }
     function stashStatusForChip(p) {
       if (!stashHas) return null;
       // Blend: status = worst component status.
@@ -95,7 +102,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       for (var i = 0; i < ids.length; i++) {
         var id = ids[i];
         if (!id || id === '__skip__' || id === '__empty__') continue;
-        var key = 'dmc:' + id;
+        var brand = p.brand || resolveBrand(id);
+        var key = brand + ':' + id;
         var entry = stash[key];
         var owned = entry && entry.owned ? entry.owned : 0;
         var needed = (typeof skeinEst === 'function' && p.count) ? skeinEst(p.count, fabricCtForStash) : 1;
@@ -305,6 +313,9 @@ window.CreatorSidebar = function CreatorSidebar() {
   var blendFiltered = React.useMemo(function() {
     var base = DMC;
     // Brief D — when "limit to stash" is on, restrict to owned threads.
+    // Blends are DMC-only today (no Anchor blend picker), so the 'dmc:'
+    // key here is intentional. If the blend picker grows Anchor support,
+    // switch to the brand-aware resolver used above.
     if (ctx.creatorStashFilter && ctx.globalStash && Object.keys(ctx.globalStash).length > 0) {
       base = DMC.filter(function(d) {
         var entry = ctx.globalStash['dmc:' + d.id];

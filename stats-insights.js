@@ -19,6 +19,7 @@
     nudge: '#8b5cf6'
   };
   const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const DAY_LABELS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function fmtNum(n) { return (n || 0).toLocaleString('en-GB'); }
@@ -232,22 +233,39 @@
     }
     const visible = expanded ? mostUsed : mostUsed.slice(0, 50);
     const max = Math.max.apply(null, mostUsed.map(c => c.count));
+    // Blend ids look like "310+550"; treat as owned only if every component is in stash.
+    function isOwned(id) {
+      if (!stash) return false;
+      const ids = String(id).indexOf('+') !== -1
+        ? String(id).split('+').map(s => s.trim()).filter(Boolean)
+        : [id];
+      return ids.length > 0 && ids.every(sub => stash['dmc:' + sub] && (stash['dmc:' + sub].owned || 0) > 0);
+    }
     return h('div', null,
       h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
         visible.map(c => {
           const opacity = 0.15 + 0.85 * (c.count / Math.max(1, max));
-          const owned = stash && stash['dmc:' + c.id] && (stash['dmc:' + c.id].owned || 0) > 0;
+          const owned = isOwned(c.id);
+          const labelPrefix = String(c.id).indexOf('+') !== -1 ? 'Blend ' : 'DMC ';
           return h('div', {
             key: c.id,
-            title: 'DMC ' + c.id + ' \u2014 ' + c.name + ' \u2014 ' + fmtNum(c.count) + ' stitches (' + c.pct + '%)' + (stash ? (owned ? ' \u2014 in stash' : ' \u2014 not in stash') : ''),
+            title: labelPrefix + c.id + ' \u2014 ' + c.name + ' \u2014 ' + fmtNum(c.count) + ' stitches (' + c.pct + '%)' + (stash ? (owned ? ' \u2014 in stash' : ' \u2014 not in stash') : ''),
+            'aria-label': labelPrefix + c.id + ', ' + c.name + ', ' + fmtNum(c.count) + ' stitches' + (stash ? (owned ? ', in stash' : ', not in stash') : ''),
             style: {
+              position: 'relative',
               width: 24, height: 24, borderRadius: 4,
               background: 'rgb(' + c.rgb.join(',') + ')',
               opacity: opacity,
               border: stash ? (owned ? '2px solid #16a34a' : '1px solid var(--border)') : '1px solid var(--border)',
               cursor: 'help', boxSizing: 'border-box'
             }
-          });
+          },
+          // Redundant non-colour cue for owned threads (M5 a11y).
+          stash && owned && h('span', {
+            'aria-hidden': 'true',
+            style: { position: 'absolute', top: -4, right: -4, fontSize: 10, lineHeight: '12px', width: 12, height: 12, background: '#16a34a', color: '#fff', borderRadius: '50%', textAlign: 'center', fontWeight: 700, pointerEvents: 'none' }
+          }, '\u2713')
+          );
         })
       ),
       mostUsed.length >= 50 && totalColours > mostUsed.length && !expanded &&
@@ -274,7 +292,16 @@
     }
     const cellSize = 14;
     const gap = 2;
-    return h('div', { style: { overflowX: 'auto' } },
+    // Build a screen-reader summary for the heatmap using the engine's
+    // getPeakCell helper.
+    let peak = null;
+    if (typeof InsightsEngine !== 'undefined' && InsightsEngine.getPeakCell) {
+      peak = InsightsEngine.getPeakCell(data.grid);
+    }
+    const ariaSummary = peak
+      ? 'Stitching rhythm heatmap. Peak time: ' + DAY_LABELS_FULL[peak.dow] + ' at ' + fmtHour(peak.hr) + ', ' + fmtNum(peak.count) + ' stitches.'
+      : 'Stitching rhythm heatmap covering 7 days and 24 hours.';
+    return h('div', { style: { overflowX: 'auto' }, role: 'img', 'aria-label': ariaSummary },
       h('div', { style: { display: 'inline-block', minWidth: 24 * (cellSize + gap) + 30 } },
         // Hour labels
         h('div', { style: { display: 'flex', gap: gap, marginLeft: 22, marginBottom: 2 } },
@@ -288,10 +315,11 @@
           key: dow,
           style: { display: 'flex', alignItems: 'center', gap: gap, marginBottom: gap }
         },
-          h('div', { style: { width: 18, fontSize: 10, color: 'var(--text-tertiary)', textAlign: 'right', marginRight: 4 } }, DAY_LABELS[dow]),
+          h('div', { style: { width: 18, fontSize: 10, color: 'var(--text-tertiary)', textAlign: 'right', marginRight: 4 }, 'aria-hidden': 'true' }, DAY_LABELS[dow]),
           row.map((count, hr) => h('div', {
             key: hr,
-            title: DAY_LABELS[dow] + ' ' + fmtHour(hr) + ' \u2014 ' + fmtNum(count) + ' stitches',
+            title: DAY_LABELS_FULL[dow] + ' ' + fmtHour(hr) + ' \u2014 ' + fmtNum(count) + ' stitches',
+            'aria-label': count > 0 ? DAY_LABELS_FULL[dow] + ' ' + fmtHour(hr) + ', ' + fmtNum(count) + ' stitches' : null,
             style: {
               width: cellSize, height: cellSize, borderRadius: 2,
               background: heatmapColor(count, data.max),
@@ -353,13 +381,15 @@
     const isEmpty = (data.allSessions || []).length === 0 && (data.summaries || []).length === 0;
     if (isEmpty) {
       const lampIcon = window.Icons && window.Icons.lightbulb ? window.Icons.lightbulb() : null;
+      // With zero projects AND zero sessions, the useful next step is to
+      // create a pattern \u2014 not open an empty Tracker.
       if (window.EmptyState) {
         return h(window.EmptyState, {
           icon: lampIcon,
-          title: 'No insights yet',
-          description: 'Open a project in the Stitch Tracker and mark a few stitches \u2014 your insights will start appearing here.',
-          ctaLabel: 'Open the tracker',
-          ctaAction: () => { window.location.href = 'stitch.html'; }
+          title: 'Create your first pattern',
+          description: 'Design a pattern in the Creator, then start stitching \u2014 your insights will appear here as you make progress.',
+          ctaLabel: 'Open the creator',
+          ctaAction: () => { window.location.href = 'index.html'; }
         });
       }
       return h('div', { style: { padding: '40px 20px', textAlign: 'center', color: 'var(--text-secondary)' } },
@@ -392,6 +422,7 @@
           ),
       dismissedCount > 0 && h('button', {
         onClick: resetDismissed,
+        title: 'Hidden insights reappear after 30 days. Click to show them now.',
         style: { fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, marginBottom: 16 }
       }, 'Show all insights (' + dismissedCount + ' hidden)'),
 

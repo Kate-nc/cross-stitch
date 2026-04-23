@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node serve.js",
     "test": "jest",
+    "test:silent": "jest --runInBand --silent",
     "test:e2e": "playwright test",
     "lint:terminology": "node scripts/lint-terminology.js",
     "build:creator": "node build-creator-bundle.js",

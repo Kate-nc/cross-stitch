@@ -33,7 +33,13 @@
   if (window.CommandPalette) return; // double-load guard
 
   // ── Page detection ─────────────────────────────────────────────────────
+  // Pages that need to override the pathname heuristic (e.g. when served
+  // from file:// with a renamed copy) can set window.__csPageKind to
+  // 'creator' | 'tracker' | 'manager' before this script runs.
   function pageKind() {
+    if (window.__csPageKind === 'creator' || window.__csPageKind === 'tracker' || window.__csPageKind === 'manager') {
+      return window.__csPageKind;
+    }
     var p = (location.pathname || '').toLowerCase();
     if (p.indexOf('manager') !== -1) return 'manager';
     if (p.indexOf('stitch') !== -1) return 'tracker';
@@ -147,9 +153,10 @@
         id: 'act_help', label: 'Help', section: 'action',
         keywords: ['help', 'guide', 'faq'], icon: '?',
         action: function () {
-          // Each page wires whichever event matches its modal plumbing.
-          window.dispatchEvent(new CustomEvent('cs:openHelp'));
-          window.dispatchEvent(new CustomEvent('cs:openHelpDesign'));
+          // Dispatch the event matching the active page's modal plumbing.
+          var kind = pageKind();
+          var evtName = (kind === 'creator') ? 'cs:openHelpDesign' : 'cs:openHelp';
+          window.dispatchEvent(new CustomEvent(evtName));
         }
       },
       {
@@ -310,6 +317,8 @@
 
     var list = document.createElement('div');
     list.className = 'cs-cmdp-list';
+    list.setAttribute('role', 'listbox');
+    list.setAttribute('aria-label', 'Available actions');
 
     var hint = document.createElement('div');
     hint.className = 'cs-cmdp-hint';
@@ -331,6 +340,13 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       closePalette();
+      return;
+    }
+    if (e.key === 'Tab') {
+      // Focus trap: there is only one focusable element in the dialog (the
+      // input), so Tab and Shift+Tab both keep focus on the input itself.
+      e.preventDefault();
+      try { inputEl.focus(); } catch (_) {}
       return;
     }
     if (e.key === 'ArrowDown') {
@@ -446,9 +462,13 @@
 
   // Recent project actions are async; we fetch them on open and inject when ready.
   var currentRecentActions = [];
+  // Element that had focus before the palette opened. Restored on close.
+  var lastActiveElement = null;
 
   function openPalette() {
     if (overlayEl && overlayEl.parentNode) return; // already open
+    // Capture focus for restoration on close.
+    try { lastActiveElement = document.activeElement; } catch (_) { lastActiveElement = null; }
     injectStyles();
     if (!overlayEl) buildOverlay();
     document.body.appendChild(overlayEl);
@@ -468,6 +488,20 @@
 
   function closePalette() {
     if (overlayEl && overlayEl.parentNode) overlayEl.parentNode.removeChild(overlayEl);
+    // Restore focus to whatever had it before we opened. Defer one tick
+    // so any modal the action just opened gets its autofocus first (M7).
+    var toFocus = lastActiveElement;
+    lastActiveElement = null;
+    if (toFocus && typeof toFocus.focus === 'function') {
+      setTimeout(function () {
+        // Only restore if nothing else took focus in the meantime.
+        try {
+          if (document.activeElement === document.body || document.activeElement === null) {
+            toFocus.focus();
+          }
+        } catch (_) {}
+      }, 0);
+    }
   }
 
   function togglePalette() {
@@ -487,6 +521,24 @@
     e.stopPropagation();
     togglePalette();
   }, true);
+
+  // M10: Global "?" → open Help, but only on pages that have not bound
+  // their own "?" handler. Tracker and Creator already bind "?" in their
+  // React keydown handlers — registering a second listener here would
+  // double-fire. Manager is the only page that needs this fallback.
+  document.addEventListener('keydown', function (e) {
+    if (e.defaultPrevented) return;
+    if (e.key !== '?') return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (pageKind() !== 'manager') return;
+    // Skip when typing in any editable surface.
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable || t.tagName === 'SELECT')) return;
+    // Skip when palette is open — input swallows keys there.
+    if (overlayEl && overlayEl.parentNode) return;
+    e.preventDefault();
+    window.dispatchEvent(new CustomEvent('cs:openHelp'));
+  });
 
   // ── Public API ─────────────────────────────────────────────────────────
   window.CommandPalette = {

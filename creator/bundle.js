@@ -1078,6 +1078,17 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
     return runExport(project, opts).then(function (bytes) {
       downloadBytes(bytes, (project.name || "pattern").replace(/[^\w\-]+/g, "_") + ".pdf");
       return bytes;
+    }).catch(function (err) {
+      // M9: Surface font-missing errors via Toast for legacy callers
+      // (Tracker PDF export, File menu) that don't otherwise render the
+      // error message.
+      try {
+        var msg = (err && err.message) || String(err);
+        if (typeof Toast !== 'undefined' && Toast.show && /symbol font/i.test(msg)) {
+          Toast.show({ message: 'PDF export failed \u2014 symbol font missing. Please reload and try again.', type: 'error', duration: 6000 });
+        }
+      } catch (_) { /* best-effort */ }
+      throw err;
     });
   }
 
@@ -3967,6 +3978,17 @@ window.useLassoSelect = function useLassoSelect(state) {
    skeinEst, calcDifficulty, DMC, SYMS, FABRIC_COUNTS, A4W, A4H,
    DEFAULT_SKEIN_PRICE, runGenerationPipeline, STRENGTH_MAP. */
 
+// Composite stash keys are 'dmc:310' / 'anchor:403'. Pre-migration data may use
+// bare ids ('310'). Returns the bare DMC id, or null when the key belongs to
+// another brand. Centralised so future C1-style mismatches are caught in one place.
+function _extractDmcId(key) {
+  if (typeof key !== 'string') return null;
+  var idx = key.indexOf(':');
+  if (idx < 0) return key;
+  if (key.slice(0, idx).toLowerCase() !== 'dmc') return null;
+  return key.slice(idx + 1);
+}
+
 window.useCreatorState = function useCreatorState() {
   var useState    = React.useState;
   var useRef      = React.useRef;
@@ -4630,11 +4652,12 @@ window.useCreatorState = function useCreatorState() {
         allowedPalette = _subset;
       } else {
         allowedPalette = [];
-        Object.keys(globalStash).forEach(function(id) {
-          if ((globalStash[id].owned || 0) > 0) {
-            var dmcEntry = DMC.find(function(d) { return d.id === id; });
-            if (dmcEntry) allowedPalette.push(dmcEntry);
-          }
+        Object.keys(globalStash).forEach(function(key) {
+          if ((globalStash[key].owned || 0) <= 0) return;
+          var bareId = _extractDmcId(key);
+          if (!bareId) return;
+          var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+          if (dmcEntry) allowedPalette.push(dmcEntry);
         });
       }
       if (!allowedPalette || allowedPalette.length === 0) {
@@ -4716,8 +4739,12 @@ window.useCreatorState = function useCreatorState() {
     if (!stashConstrained || !img) return;
     var newSeed = ((Math.random() * 0xFFFFFFFE) + 1) >>> 0;
     var pool = [];
-    Object.keys(globalStash || {}).forEach(function(id) {
-      if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
+    Object.keys(globalStash || {}).forEach(function(key) {
+      if ((globalStash[key].owned || 0) <= 0) return;
+      var bareId = _extractDmcId(key);
+      if (!bareId) return;
+      var d = DMC.find(function(e) { return e.id === bareId; });
+      if (d) pool.push(d);
     });
     if (!pool.length) return;
     var effN = Math.min(maxC, pool.length);
@@ -4761,8 +4788,12 @@ window.useCreatorState = function useCreatorState() {
     if (!img || !stashConstrained) return;
     var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
     var pool = [];
-    Object.keys(globalStash || {}).forEach(function(id) {
-      if ((globalStash[id].owned || 0) > 0) { var d = DMC.find(function(e) { return e.id === id; }); if (d) pool.push(d); }
+    Object.keys(globalStash || {}).forEach(function(key) {
+      if ((globalStash[key].owned || 0) <= 0) return;
+      var bareId = _extractDmcId(key);
+      if (!bareId) return;
+      var d = DMC.find(function(e) { return e.id === bareId; });
+      if (d) pool.push(d);
     });
     if (!pool.length) return;
     setGallerySlots(newSeeds.map(function(s) { return {seed: s, loading: true, url: null, threadCount: 0, subset: null}; }));
@@ -4827,9 +4858,11 @@ window.useCreatorState = function useCreatorState() {
   useEffect(function() {
     if (!stashConstrained || !img || !img.src) { setCoverageGaps(null); return; }
     var stashPal = [];
-    Object.keys(globalStash || {}).forEach(function(id) {
-      if ((globalStash[id].owned || 0) <= 0) return;
-      var d = DMC.find(function(e) { return e.id === id; });
+    Object.keys(globalStash || {}).forEach(function(key) {
+      if ((globalStash[key].owned || 0) <= 0) return;
+      var bareId = _extractDmcId(key);
+      if (!bareId) return;
+      var d = DMC.find(function(e) { return e.id === bareId; });
       if (d) stashPal.push(d);
     });
     if (!stashPal.length) { setCoverageGaps(null); return; }
@@ -4984,24 +5017,32 @@ window.useCreatorState = function useCreatorState() {
     stashThreadCount: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
       var count = 0;
-      Object.keys(globalStash).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      Object.keys(globalStash).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        if (_extractDmcId(key)) count++;
+      });
       return count;
     }, [stashConstrained, globalStash]),
 
     effectiveMaxC: useMemo(function() {
       if (!stashConstrained) return maxC;
       var count = 0;
-      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      Object.keys(globalStash || {}).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        if (_extractDmcId(key)) count++;
+      });
       return count === 0 ? maxC : Math.min(maxC, count);
     }, [stashConstrained, globalStash, maxC]),
 
     stashPalette: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
       var entries = [];
-      Object.keys(globalStash).forEach(function(id) {
-        if ((globalStash[id].owned || 0) <= 0) return;
-        var dmcEntry = DMC.find(function(d) { return d.id === id; });
-        if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[id].owned });
+      Object.keys(globalStash).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        var bareId = _extractDmcId(key);
+        if (!bareId) return;
+        var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+        if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[key].owned });
       });
       entries.sort(function(a, b) {
         var hA = (typeof hueFromRgb !== 'undefined') ? hueFromRgb(a.rgb) : 0;
@@ -5014,14 +5055,20 @@ window.useCreatorState = function useCreatorState() {
     blendsAutoDisabled: useMemo(function() {
       if (!stashConstrained) return false;
       var count = 0;
-      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      Object.keys(globalStash || {}).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        if (_extractDmcId(key)) count++;
+      });
       return count < 6;
     }, [stashConstrained, globalStash]),
 
     effectiveAllowBlends: useMemo(function() {
       if (!stashConstrained) return allowBlends;
       var count = 0;
-      Object.keys(globalStash || {}).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) count++; });
+      Object.keys(globalStash || {}).forEach(function(key) {
+        if ((globalStash[key].owned || 0) <= 0) return;
+        if (_extractDmcId(key)) count++;
+      });
       if (count < 6) return false;
       return allowBlends;
     }, [stashConstrained, globalStash, allowBlends]),
@@ -10419,6 +10466,13 @@ window.CreatorSidebar = function CreatorSidebar() {
     var stash = ctx.globalStash || {};
     var stashHas = Object.keys(stash).length > 0;
     var fabricCtForStash = ctx.fabricCt || 14;
+    // Brand-aware lookup: prefer DMC, fall back to Anchor. Mirrors the
+    // resolution used in ShoppingListModal.
+    function resolveBrand(id) {
+      if (typeof DMC !== 'undefined' && DMC.find(function(d){ return d.id === id; })) return 'dmc';
+      if (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; })) return 'anchor';
+      return 'dmc';
+    }
     function stashStatusForChip(p) {
       if (!stashHas) return null;
       // Blend: status = worst component status.
@@ -10429,7 +10483,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       for (var i = 0; i < ids.length; i++) {
         var id = ids[i];
         if (!id || id === '__skip__' || id === '__empty__') continue;
-        var key = 'dmc:' + id;
+        var brand = p.brand || resolveBrand(id);
+        var key = brand + ':' + id;
         var entry = stash[key];
         var owned = entry && entry.owned ? entry.owned : 0;
         var needed = (typeof skeinEst === 'function' && p.count) ? skeinEst(p.count, fabricCtForStash) : 1;
@@ -10639,6 +10694,9 @@ window.CreatorSidebar = function CreatorSidebar() {
   var blendFiltered = React.useMemo(function() {
     var base = DMC;
     // Brief D — when "limit to stash" is on, restrict to owned threads.
+    // Blends are DMC-only today (no Anchor blend picker), so the 'dmc:'
+    // key here is intentional. If the blend picker grows Anchor support,
+    // switch to the brand-aware resolver used above.
     if (ctx.creatorStashFilter && ctx.globalStash && Object.keys(ctx.globalStash).length > 0) {
       base = DMC.filter(function(d) {
         var entry = ctx.globalStash['dmc:' + d.id];
@@ -13675,7 +13733,15 @@ window.CreatorExportTab = function CreatorExportTab() {
     }).catch(function (err) {
       if (runningRef.current !== tag) return;
       setProgress(null); runningRef.current = null;
-      setError(err.message || "Export failed");
+      var msg = err.message || "Export failed";
+      setError(msg);
+      // M9: Surface font-missing errors as a toast so users notice even
+      // if the Export tab is scrolled away.
+      try {
+        if (typeof Toast !== 'undefined' && Toast.show && /symbol font/i.test(msg)) {
+          Toast.show({ message: 'PDF export failed \u2014 symbol font missing. Please reload and try again.', type: 'error', duration: 6000 });
+        }
+      } catch (_) { /* best-effort */ }
     });
   }
   function cancelExport() {
@@ -13944,12 +14010,21 @@ window.CreatorExportTab = function CreatorExportTab() {
           });
           needed = Math.max(1, r.skeinsToBuy || 0);
         }
-        var entry = stash['dmc:' + id] || {};
+        // Brand resolution: try DMC first, then Anchor. The matching brand's
+        // composite stash key is used to look up owned counts.
+        var info = null, brand = 'dmc';
+        if (typeof DMC !== 'undefined') info = DMC.find(function (d) { return d.id === id; });
+        if (!info && typeof ANCHOR !== 'undefined') {
+          info = ANCHOR.find(function (d) { return d.id === id; });
+          if (info) brand = 'anchor';
+        }
+        var entry = stash[brand + ':' + id] || {};
         var owned = entry.owned || 0;
-        var info = (typeof DMC !== 'undefined') ? DMC.find(function (d) { return d.id === id; }) : null;
         var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
         return {
           id: id,
+          brand: brand,
+          brandLabel: brand === 'anchor' ? 'Anchor' : 'DMC',
           name: info ? info.name : id,
           rgb: info ? info.rgb : [128, 128, 128],
           stitches: stitches,
@@ -13977,14 +14052,14 @@ window.CreatorExportTab = function CreatorExportTab() {
         lines.push('Need to buy:');
         buyRows.forEach(function (r) {
           var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
-          lines.push('\u25cb DMC ' + r.id + ' ' + r.name + ' \u2014 need ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
+          lines.push('\u25cb ' + r.brandLabel + ' ' + r.id + ' ' + r.name + ' \u2014 need ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
         });
         lines.push('');
       }
       if (ownedRows.length > 0) {
         lines.push('Already in stash:');
         ownedRows.forEach(function (r) {
-          lines.push('\u2713 DMC ' + r.id + ' ' + r.name + ' \u2014 own ' + r.owned + ', need ' + r.needed);
+          lines.push('\u2713 ' + r.brandLabel + ' ' + r.id + ' ' + r.name + ' \u2014 own ' + r.owned + ', need ' + r.needed);
         });
         lines.push('');
       }

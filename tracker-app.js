@@ -429,6 +429,19 @@ useEffect(()=>{const h=()=>setModal("help");window.addEventListener("cs:openHelp
 useEffect(()=>{const h=()=>setModal("shortcuts");window.addEventListener("cs:openShortcuts",h);return()=>window.removeEventListener("cs:openShortcuts",h);},[]);
 // "Show welcome tour again" from HelpCentre → re-open the wizard.
 useEffect(()=>{const h=(e)=>{if(!e||!e.detail||e.detail.page==='tracker')setWelcomeOpen(true);};window.addEventListener("cs:showWelcome",h);return()=>window.removeEventListener("cs:showWelcome",h);},[]);
+// Register Tracker-specific Command Palette actions (M9).
+useEffect(()=>{
+  if(!window.CommandPalette||!window.CommandPalette.registerPage)return;
+  window.CommandPalette.registerPage('tracker',[
+    { id:'trk_save_project', label:'Save Project', section:'action', keywords:['save','project'],
+      action:()=>{ try{ if(typeof saveProject==='function') saveProject(); }catch(_){} } },
+    { id:'trk_export_pdf', label:'Export Pattern Keeper PDF', section:'action', keywords:['pdf','export','print','pattern','keeper'],
+      action:()=>setModal('pdf_export') },
+    { id:'trk_show_welcome', label:'Show Welcome Tour', section:'action', keywords:['welcome','tour','onboarding','intro'],
+      action:()=>setWelcomeOpen(true) }
+  ]);
+  return()=>{ if(window.CommandPalette) window.CommandPalette.registerPage('tracker',[]); };
+},[]);
 const[projectPickerOpen,setProjectPickerOpen]=useState(false);
 const[projectPickerList,setProjectPickerList]=useState([]);
 const[preferencesOpen,setPreferencesOpen]=useState(false);

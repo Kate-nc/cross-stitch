@@ -646,21 +646,63 @@ const ProjectStorage = (() => {
     },
 
     // Return most-used colours approximated from stitchLog + pattern palette ratios.
+    // Blend cells (id "310+550") credit each component; halfStitches contribute
+    // half-weight to their fwd/bck thread ids.
+    // M4: Results are memoised per (project count, latest updatedAt, limit)
+    // on window.__csMostUsedCache. The key includes max(updatedAt) so any
+    // save naturally busts the cache on the next call.
     async getMostUsedColours(limit) {
       limit = limit || 10;
       try {
         const projects = await this.listProjects();
+        // Build cache key from project count and latest updatedAt — any
+        // save bumps updatedAt so this detects changes cheaply.
+        let latest = 0;
+        for (const m of projects) {
+          const t = Date.parse(m.updatedAt || m.createdAt || 0) || 0;
+          if (t > latest) latest = t;
+        }
+        const cacheKey = projects.length + ':' + latest + ':' + limit;
+        if (typeof window !== 'undefined') {
+          const cache = window.__csMostUsedCache;
+          if (cache && cache.key === cacheKey && Array.isArray(cache.result)) {
+            return cache.result;
+          }
+        }
         const colourTotals = {}; // { threadKey: { count, name, rgb, id } }
         for (const meta of projects) {
           const proj = await this.get(meta.id);
           if (!proj || !proj.stitchLog || !proj.pattern) continue;
-          // Calculate per-thread ratios from the pattern
+          // Calculate per-thread ratios from the pattern. Blends are split: a
+          // "310+550" cell contributes 0.5 to "310" and 0.5 to "550".
           const threadCounts = {};
           let totalStitchable = 0;
           for (const cell of proj.pattern) {
             if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
-            threadCounts[cell.id] = (threadCounts[cell.id] || 0) + 1;
+            const ids = (typeof cell.id === 'string' && cell.id.indexOf('+') !== -1)
+              ? cell.id.split('+').map(s => s.trim()).filter(Boolean)
+              : [cell.id];
+            const share = ids.length > 1 ? 1 / ids.length : 1;
+            for (const tid of ids) {
+              threadCounts[tid] = (threadCounts[tid] || 0) + share;
+            }
             totalStitchable++;
+          }
+          // Add halfStitches contribution. The shape is [[idx, {fwd, bck}], ...]
+          // serialised from a Map. Each half adds 0.5 weight to its thread.
+          if (Array.isArray(proj.halfStitches)) {
+            for (const entry of proj.halfStitches) {
+              if (!entry || !Array.isArray(entry) || entry.length < 2) continue;
+              const hs = entry[1];
+              if (hs && hs.fwd && hs.fwd.id) {
+                threadCounts[hs.fwd.id] = (threadCounts[hs.fwd.id] || 0) + 0.5;
+                totalStitchable += 0.5;
+              }
+              if (hs && hs.bck && hs.bck.id) {
+                threadCounts[hs.bck.id] = (threadCounts[hs.bck.id] || 0) + 0.5;
+                totalStitchable += 0.5;
+              }
+            }
           }
           if (totalStitchable === 0) continue;
           // Distribute stitchLog counts across threads proportionally
@@ -678,11 +720,16 @@ const ProjectStorage = (() => {
         }
         const sorted = Object.values(colourTotals).sort((a, b) => b.count - a.count);
         const totalAll = sorted.reduce((s, c) => s + c.count, 0);
-        return sorted.slice(0, limit).map(c => ({
+        const result = sorted.slice(0, limit).map(c => ({
           id: c.id, name: c.name, rgb: c.rgb,
           count: Math.round(c.count),
+          // pct is per-cent (0..100), one decimal place.
           pct: totalAll > 0 ? Math.round(c.count / totalAll * 1000) / 10 : 0
         }));
+        if (typeof window !== 'undefined') {
+          window.__csMostUsedCache = { key: cacheKey, result: result };
+        }
+        return result;
       } catch (e) { return []; }
     },
 
