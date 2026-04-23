@@ -624,6 +624,10 @@ function SubstituteFromStashModalInner(props) {
     ctx.setSubstituteProposal(null);
   }
 
+  // Stack-aware ESC support — defined after closeModal so the callback is
+  // already available when registering with the global useEscape stack.
+  if (typeof window !== "undefined" && window.useEscape) window.useEscape(closeModal);
+
   // ─── Render helpers ───────────────────────────────────────────────────────────
   function swatch(rgb, size) {
     size = size || 14;

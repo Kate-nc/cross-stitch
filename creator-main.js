@@ -821,7 +821,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           </div>}
           </>}
         </div>}
-        {state.modal==="help"&&<SharedModals.Help onClose={()=>state.setModal(null)} />}
+        {state.modal==="help"&&<SharedModals.Help defaultTab="creator" onClose={()=>state.setModal(null)} />}
         {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}
         {state.modal==="shortcuts"&&<SharedModals.Shortcuts onClose={()=>state.setModal(null)} page="creator" />}
       </div>
@@ -1016,6 +1016,10 @@ function UnifiedApp(){
 
   const[homeModal,setHomeModal]=React.useState(null);
   const[homePrefsOpen,setHomePrefsOpen]=React.useState(false);
+  // First-visit welcome wizard. Shows once on the Creator home screen.
+  const[welcomeOpen,setWelcomeOpen]=React.useState(()=>{
+    try{return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('creator'));}catch(_){return false;}
+  });
 
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
   return <>
@@ -1034,7 +1038,8 @@ function UnifiedApp(){
         onOpenGlobalStats={switchToStats}
         onOpenShowcase={switchToShowcase}
       />
-      {homeModal==='help'&&<SharedModals.Help onClose={()=>setHomeModal(null)} />}
+      {homeModal==='help'&&<SharedModals.Help defaultTab="creator" onClose={()=>setHomeModal(null)} />}
+      {welcomeOpen&&mode==='home'&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{page:'creator',onClose:()=>setWelcomeOpen(false)})}
     </div>}
     <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
       <CreatorErrorBoundary><CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/></CreatorErrorBoundary>

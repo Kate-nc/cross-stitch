@@ -184,7 +184,7 @@ function StatCard({ title, children, id, onClick, style }) {
 
 // ── Customise modal ──────────────────────────────────────────────
 function CustomiseModal({ visibility, onChange, onClose }) {
-  useEffect(() => {
+  if (window.useEscape) window.useEscape(onClose); else useEffect(() => {
     const handler = e => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
@@ -212,7 +212,7 @@ function ShareCardModal({ lifetimeStitches, onClose }) {
   const canvasRef = useRef(null);
   const [rendered, setRendered] = useState(false);
 
-  useEffect(() => {
+  if (window.useEscape) window.useEscape(onClose); else useEffect(() => {
     const handler = e => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
@@ -444,7 +444,7 @@ function ShowcaseShareModal({ title, drawFn, onClose }) {
   const closeBtnRef = useRef(null);
   const [rendered, setRendered] = useState(false);
   const [copied, setCopied] = useState(false);
-  useEffect(() => {
+  if (window.useEscape) window.useEscape(onClose); else useEffect(() => {
     const handler = e => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);

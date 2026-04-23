@@ -153,6 +153,7 @@ window.ConvertPaletteModal = (function () {
   }
 
   function ConvertPaletteModal({ onClose, onApply }) {
+    if (typeof window !== 'undefined' && window.useEscape) window.useEscape(onClose);
     var pd = typeof usePatternData === 'function' ? usePatternData() : null;
     var pattern = pd ? pd.pattern : [];
     var [targetBrand, setTargetBrand] = useState('anchor');

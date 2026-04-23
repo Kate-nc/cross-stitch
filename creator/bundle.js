@@ -9340,6 +9340,10 @@ function SubstituteFromStashModalInner(props) {
     ctx.setSubstituteProposal(null);
   }
 
+  // Stack-aware ESC support — defined after closeModal so the callback is
+  // already available when registering with the global useEscape stack.
+  if (typeof window !== "undefined" && window.useEscape) window.useEscape(closeModal);
+
   // ─── Render helpers ───────────────────────────────────────────────────────────
   function swatch(rgb, size) {
     size = size || 14;
@@ -9863,6 +9867,7 @@ window.ConvertPaletteModal = (function () {
   }
 
   function ConvertPaletteModal({ onClose, onApply }) {
+    if (typeof window !== 'undefined' && window.useEscape) window.useEscape(onClose);
     var pd = typeof usePatternData === 'function' ? usePatternData() : null;
     var pattern = pd ? pd.pattern : [];
     var [targetBrand, setTargetBrand] = useState('anchor');
@@ -10093,6 +10098,7 @@ window.BulkAddModal = (function () {
   // ─── Main modal ─────────────────────────────────────────────────────────────
 
   function BulkAddModal({ onClose }) {
+    if (typeof window !== 'undefined' && window.useEscape) window.useEscape(onClose);
     var [activeTab, setActiveTab] = useState('paste');  // 'paste' | 'kit'
     var [brand, setBrand] = useState('dmc');
     var [pasteText, setPasteText] = useState('');
@@ -11546,19 +11552,20 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   var h = React.createElement;
   var menu = cv.contextMenu;
 
-  // Close menu on outside click or Escape.
-  // Must be declared before any early returns (Rules of Hooks).
+  // Close menu on outside click. ESC handling is delegated to the global
+  // useEscape stack so a context menu open on top of an open modal correctly
+  // takes priority.
   React.useEffect(function() {
     if (!menu) return;
     function close() { cv.setContextMenu(null); }
-    function onKey(e) { if (e.key === "Escape") close(); }
     document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", onKey);
     return function() {
       document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", onKey);
     };
   }, [menu]);
+  if (typeof window !== "undefined" && window.useEscape) {
+    window.useEscape(function() { if (menu) cv.setContextMenu(null); });
+  }
 
   if (!menu) return null;
 

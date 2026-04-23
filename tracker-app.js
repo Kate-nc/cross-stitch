@@ -4847,7 +4847,7 @@ return(
     </div>
   </div>}
 
-  {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
+  {modal==="help"&&<SharedModals.Help defaultTab="tracker" onClose={()=>setModal(null)} />}
   {styleOnboardingOpen&&<StitchingStyleOnboarding startCorner={startCorner} onDone={result=>{
     setStyleOnboardingOpen(false);
     if(result){

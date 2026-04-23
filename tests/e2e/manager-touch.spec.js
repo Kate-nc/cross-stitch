@@ -3,7 +3,7 @@ const { test, expect } = require('@playwright/test');
 test.describe('Manager Touch Automation', function() {
   test('supports touch taps for inventory toggles and pattern-library creation', async function({ page }) {
     await page.goto('/manager.html');
-    await expect(page.getByRole('button', { name: /Thread Inventory/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Thread Stash/i })).toBeVisible();
 
     const toBuyButton = page.locator('button[title="Add to to-buy list"]').first();
     await expect(toBuyButton).toBeVisible();

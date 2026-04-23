@@ -63,6 +63,10 @@ function ManagerApp() {
   const [backupStatus, setBackupStatus] = useState(null); // { type: 'success'|'error'|'confirm', message, summary?, onConfirm? }
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  // First-visit welcome wizard. Use lazy initialiser so it only runs once.
+  const [welcomeOpen, setWelcomeOpen] = useState(() => {
+    try { return !!(window.WelcomeWizard && window.WelcomeWizard.shouldShow('manager')); } catch (_) { return false; }
+  });
   const lowStockThreshold = 1;
   const formatBrandLabel = (brand) => {
     const b = (brand || "dmc").toString().toLowerCase();
@@ -612,7 +616,7 @@ function ManagerApp() {
       <div className="mgr-tab-bar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex" }}>
           <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
-            <span className="icon">{Icons.thread()}</span> Thread Inventory <span className="cnt">{totalOwnedCount}</span>
+            <span className="icon">{Icons.thread()}</span> Thread Stash <span className="cnt">{totalOwnedCount}</span>
           </button>
           <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
             <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
@@ -794,7 +798,7 @@ function ManagerApp() {
                   </div>
                 </div>
                 <div className="rp-s">
-                  <div className="rp-h">Inventory</div>
+                  <div className="rp-h">Stash</div>
                   <div className="td-row">
                     <span className="lbl">Full skeins</span>
                     <div className="qty-ctrl">
@@ -849,8 +853,8 @@ function ManagerApp() {
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => updateThread(selectedThread, "tobuy", !state.tobuy)}>
                       {state.tobuy ? <>{Icons.check()} On shopping list</> : <>{Icons.cart()} Add to shopping list</>}
                     </button>
-                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { if(confirm(`Remove ${brandLabel} ${d.id} from inventory?`)) { updateThread(selectedThread, "owned", 0); updateThread(selectedThread, "partialStatus", null); updateThread(selectedThread, "tobuy", false); } }}>
-                      {Icons.trash()} Remove from inventory
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { if(confirm(`Remove ${brandLabel} ${d.id} from your stash?`)) { updateThread(selectedThread, "owned", 0); updateThread(selectedThread, "partialStatus", null); updateThread(selectedThread, "tobuy", false); } }}>
+                      {Icons.trash()} Remove from stash
                     </button>
                   </div>
                 </div>
@@ -1035,6 +1039,14 @@ function ManagerApp() {
               </div>
             </div>
 
+            {/* Detailed grid view — shows per-pattern thread coverage and the
+                shopping-list checkboxes. The cards above (Your Projects) are a
+                navigation-focused view; this grid is for planning purchases
+                and inspecting requirements. */}
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "4px 2px 8px" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#3f3f46" }}>Pattern details &amp; shopping list</div>
+              <div style={{ fontSize: 11, color: "#94a3b8" }}>Tick a pattern to add its missing threads to the shopping list</div>
+            </div>
             <div className="pat-grid">
               {filteredPatterns.map(p => {
                 const isSelected = selectedPatternsForList.has(p.id);
@@ -1176,7 +1188,8 @@ function ManagerApp() {
         />
       )}
       {bulkAddOpen && window.BulkAddModal && React.createElement(window.BulkAddModal, {onClose: () => setBulkAddOpen(false)})}
-      {modal === "help" && <SharedModals.Help onClose={() => setModal(null)} />}
+      {modal === "help" && <SharedModals.Help defaultTab="manager" onClose={() => setModal(null)} />}
+      {welcomeOpen && window.WelcomeWizard && <window.WelcomeWizard page="manager" onClose={() => setWelcomeOpen(false)} />}
       {modal === "about" && <SharedModals.About onClose={() => setModal(null)} />}
 
     </>
