@@ -4052,7 +4052,21 @@ return(
   list={projectPickerList}
   currentId={projectIdRef.current}
   onClose={()=>setProjectPickerOpen(false)}
-  onPick={(meta)=>{ProjectStorage.get(meta.id).then(p=>{if(p&&p.pattern&&p.settings){processLoadedProject(p);ProjectStorage.setActiveProject(p.id).catch(()=>{});setProjectPickerOpen(false);}}).catch(err=>{alert("Failed to load project: "+err.message);});}}
+  onPick={(meta)=>{
+    // Close the modal immediately so the loading state doesn't appear stuck.
+    setProjectPickerOpen(false);
+    ProjectStorage.get(meta.id).then(p=>{
+      if(p&&p.pattern&&p.settings){
+        processLoadedProject(p);
+        // Note: setActiveProject is synchronous (writes localStorage); do NOT chain .catch().
+        try { ProjectStorage.setActiveProject(p.id); } catch(_) {}
+      } else {
+        alert("That project is empty or could not be loaded.");
+      }
+    }).catch(err=>{
+      alert("Failed to load project: "+(err && err.message ? err.message : err));
+    });
+  }}
 />}
 {preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>setPreferencesOpen(false)})}
 {namePromptOpen&&<NamePromptModal
@@ -4259,7 +4273,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&project.pattern&&project.settings){processLoadedProject(project);ProjectStorage.setActiveProject(project.id).catch(()=>{});setStatsView(false);}}).catch(()=>{});}}/>}
+  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&project.pattern&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
 
   {trackerPreviewOpen&&pat&&<TrackerPreviewModal pat={pat} cmap={cmap} sW={sW} sH={sH} fabricCt={fabricCt} level={trackerPreviewLevel} onLevelChange={setTrackerPreviewLevel} onClose={()=>setTrackerPreviewOpen(false)}/>}
 

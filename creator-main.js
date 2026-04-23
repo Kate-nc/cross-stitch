@@ -1010,11 +1010,14 @@ function UnifiedApp(){
   },[]);
 
   const[homeModal,setHomeModal]=React.useState(null);
+  const[homePrefsOpen,setHomePrefsOpen]=React.useState(false);
 
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
   return <>
     {mode==='home'&&<div>
-      <Header page="home" tab="" onPageChange={()=>{}} setModal={setHomeModal} />
+      <Header page="home" tab="" onPageChange={()=>{}} setModal={setHomeModal}
+        onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setHomePrefsOpen(true):undefined} />
+      {homePrefsOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>setHomePrefsOpen(false)})}
       <HomeScreen
         key={homeKey}
         onOpenCreatorWithImage={handleHomeOpenCreatorWithImage}

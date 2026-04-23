@@ -6228,6 +6228,12 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
 window.useProjectIO = function useProjectIO(state, history, options) {
   var onSwitchToTrack = options && options.onSwitchToTrack;
   var creatorSnapshotRef = React.useRef(null);
+  // Tracks whether we have already performed an initial (no-debounce) save for the
+  // current pattern. Reset whenever pat/projectId changes so a freshly generated
+  // pattern is persisted to IndexedDB and the Stash Manager library immediately,
+  // not after the 1 s debounce. This avoids the "I created a pattern but it's not
+  // in my stash" bug when the user navigates away within the debounce window.
+  var firstSaveDoneRef = React.useRef(null);
 
   // ─── doSaveProject ───────────────────────────────────────────────────────────
   function doSaveProject(finalName) {
@@ -6322,6 +6328,21 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (onSwitchToTrack) {
       saveProjectToDB(project).catch(function() {});
       ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function() {});
+      // Belt-and-braces stash sync: the debounced auto-save may not have fired yet
+      // (e.g. if the user generated and immediately clicked "Open in Tracker"). Without
+      // this the pattern would not appear in the Stash Manager library until the
+      // Tracker's own auto-save runs.
+      if (typeof StashBridge !== "undefined" && state.skeinData && state.skeinData.length) {
+        try {
+          StashBridge.syncProjectToLibrary(
+            projectIdRef.current,
+            projectName || (state.sW + "\xD7" + state.sH + " pattern"),
+            state.skeinData,
+            "inprogress",
+            state.fabricCt
+          );
+        } catch (_) {}
+      }
       if (state.addToast) state.addToast("Opening in Stitch Tracker\u2026", {type:"info", duration:2000});
       onSwitchToTrack({ project: project, key: Date.now() });
       return;
@@ -6751,7 +6772,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // Skip IDB writes when Creator is not the active view — the Tracker's auto-save
     // owns persistence while it is active and has fresher tracker-specific fields.
     if (!state.isActive) return;
-    var saveTimer = setTimeout(function() {
+    // First save for this project — fire immediately (no debounce) so the pattern
+    // appears in the Stash Manager library and IndexedDB the moment generation
+    // finishes, even if the user navigates away within 1 s.
+    var isFirstSave = firstSaveDoneRef.current !== state.projectIdRef.current;
+    function persistAll() {
       saveProjectToDB(project5).catch(function(err) { console.error("Auto-save failed:", err); });
       ProjectStorage.save(project5)
         .then(function(id) { ProjectStorage.setActiveProject(id); })
@@ -6765,7 +6790,13 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.fabricCt
         );
       }
-    }, 1000);
+      firstSaveDoneRef.current = state.projectIdRef.current;
+    }
+    if (isFirstSave) {
+      persistAll();
+      return;
+    }
+    var saveTimer = setTimeout(persistAll, 1000);
     return function() { clearTimeout(saveTimer); };
   }, [
     state.pat, state.pal, state.sW, state.sH, state.maxC,
@@ -6828,6 +6859,19 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       if (!p || !state.isActive) return;
       try { ProjectStorage.save(p); } catch (_) {}
       try { saveProjectToDB(p); } catch (_) {}
+      // Belt-and-braces: also sync to the Stash Manager library so a generated
+      // pattern is never lost from stash even if unload happens during the debounce.
+      if (typeof StashBridge !== "undefined" && state.skeinData && state.skeinData.length) {
+        try {
+          StashBridge.syncProjectToLibrary(
+            state.projectIdRef.current,
+            state.projectName || (state.sW + "\xD7" + state.sH + " pattern"),
+            state.skeinData,
+            "inprogress",
+            state.fabricCt
+          );
+        } catch (_) {}
+      }
     }
     window.addEventListener("beforeunload", handleBeforeUnload);
     return function() { window.removeEventListener("beforeunload", handleBeforeUnload); };
@@ -7165,7 +7209,7 @@ window.PatternCanvas = function PatternCanvas() {
       if (!canvas) return;
       canvas.width  = snap.sW * snap.cs + G + 2;
       canvas.height = snap.sH * snap.cs + G + 2;
-      var context = canvas.getContext("2d");
+      var context = canvas.getContext("2d", { willReadFrequently: true });
       drawPatternBaseOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
       baseCacheRef.current = context.getImageData(0, 0, canvas.width, canvas.height);
       drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
@@ -7192,7 +7236,7 @@ window.PatternCanvas = function PatternCanvas() {
     // must not overwrite those uncommitted pixels with the stale cached image.
     if (cv.isDraggingRef && cv.isDraggingRef.current) return;
     var canvas = app.pcRef.current;
-    var context = canvas.getContext("2d");
+    var context = canvas.getContext("2d", { willReadFrequently: true });
     context.putImageData(baseCacheRef.current, 0, 0);
     drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, cv.cs, G, ctxRef.current);
   }, [

@@ -117,6 +117,29 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   max-width: min(90vw, 400px);
   box-shadow: var(--shadow-md);
 }
+/* .modal-box, .modal-header, .modal-title — used by ConvertPaletteModal and other
+   class-based modals. Without these the modal renders transparent and unstyled. */
+.modal-box {
+  background: var(--surface, #fff);
+  border-radius: var(--radius-xl, 12px);
+  border: 1px solid var(--border, #e2e8f0);
+  box-shadow: var(--shadow-md, 0 20px 60px rgba(0,0,0,0.3));
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  background: var(--surface, #fff);
+}
+.modal-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+}
 .modal-close {
   float: right;
   border: none;

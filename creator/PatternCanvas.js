@@ -96,7 +96,7 @@ window.PatternCanvas = function PatternCanvas() {
       if (!canvas) return;
       canvas.width  = snap.sW * snap.cs + G + 2;
       canvas.height = snap.sH * snap.cs + G + 2;
-      var context = canvas.getContext("2d");
+      var context = canvas.getContext("2d", { willReadFrequently: true });
       drawPatternBaseOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
       baseCacheRef.current = context.getImageData(0, 0, canvas.width, canvas.height);
       drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
@@ -123,7 +123,7 @@ window.PatternCanvas = function PatternCanvas() {
     // must not overwrite those uncommitted pixels with the stale cached image.
     if (cv.isDraggingRef && cv.isDraggingRef.current) return;
     var canvas = app.pcRef.current;
-    var context = canvas.getContext("2d");
+    var context = canvas.getContext("2d", { willReadFrequently: true });
     context.putImageData(baseCacheRef.current, 0, 0);
     drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, cv.cs, G, ctxRef.current);
   }, [
