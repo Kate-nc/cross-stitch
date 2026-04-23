@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v6';
+var CACHE_NAME = 'cross-stitch-cache-v7';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -119,16 +119,18 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  // Local assets and CDN scripts/styles: cache-first, network fallback
+  // CDN scripts/styles (version-pinned URLs): cache-first, network fallback.
+  // Local same-origin assets: stale-while-revalidate so new deployments are
+  // picked up on the next page load instead of being pinned forever to the
+  // copy that was cached when CACHE_NAME was last bumped.
   var isCDN = url.hostname === 'cdnjs.cloudflare.com';
   var isLocalAsset = url.origin === self.location.origin;
 
-  if (isCDN || isLocalAsset) {
+  if (isCDN) {
     event.respondWith(
       caches.match(event.request).then(function (cached) {
         if (cached) return cached;
         return fetch(event.request).then(function (response) {
-          // Cache successful responses for future offline use
           if (response.ok && event.request.method === 'GET') {
             var clone = response.clone();
             caches.open(CACHE_NAME).then(function (cache) {
@@ -138,8 +140,32 @@ self.addEventListener('fetch', function (event) {
           return response;
         });
       }).catch(function () {
-        // Both cache and network failed — return empty response rather than a hard error
         return new Response('', { status: 503, statusText: 'Offline' });
+      })
+    );
+    return;
+  }
+
+  if (isLocalAsset) {
+    // Don't intercept the service worker script itself — let the browser handle
+    // it normally so updates aren't masked by Cache Storage.
+    if (url.pathname.endsWith('/sw.js') || url.pathname === '/sw.js') return;
+
+    event.respondWith(
+      caches.open(CACHE_NAME).then(function (cache) {
+        return cache.match(event.request).then(function (cached) {
+          var networkFetch = fetch(event.request).then(function (response) {
+            if (response.ok && event.request.method === 'GET') {
+              cache.put(event.request, response.clone());
+            }
+            return response;
+          }).catch(function () {
+            return cached || new Response('', { status: 503, statusText: 'Offline' });
+          });
+          // Serve cached copy immediately if present (fast), refresh in background.
+          // If not cached, wait for the network.
+          return cached || networkFetch;
+        });
       })
     );
     return;
