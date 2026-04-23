@@ -966,11 +966,23 @@ function ManagerApp() {
                       return !((threads[k] || {}).owned > 0);
                     });
                     const isSel = selectedPatternsForList.has(pat.id);
-                    const total = pat.totalStitches || 0;
-                    const completed = pat.completedStitches || 0;
+                    // Pull progress + weekly sparkline data from the linked
+                    // ProjectStorage meta (the auto-synced manager pattern row
+                    // itself doesn't carry these fields).
+                    const meta = pat.linkedProjectId
+                      ? storedProjects.find(s => s.id === pat.linkedProjectId)
+                      : null;
+                    const total = (meta && meta.totalStitches) || pat.totalStitches || 0;
+                    const completed = (meta && meta.completedStitches) || pat.completedStitches || 0;
                     const pct = total > 0 ? Math.round(completed / total * 100) : null;
                     const pctBg = pct === null ? null : (pct >= 100 ? "#dcfce7" : pct > 0 ? "#dbeafe" : "#f1f5f9");
                     const pctFg = pct === null ? null : (pct >= 100 ? "#15803d" : pct > 0 ? "#1d4ed8" : "#64748b");
+                    // 7-day sparkline (oldest → newest, ending today). Only
+                    // rendered when there's actual activity to show.
+                    const weekly = (meta && Array.isArray(meta.weeklyStitches)) ? meta.weeklyStitches : null;
+                    const weeklyMax = weekly ? Math.max.apply(null, weekly) : 0;
+                    const weeklyTotal = weekly ? weekly.reduce((a, b) => a + b, 0) : 0;
+                    const SPARK_W = 56, SPARK_H = 16, BAR_W = 6, GAP = 2;
                     return (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11 }}>
                         <label
@@ -988,6 +1000,18 @@ function ManagerApp() {
                         </label>
                         {pct !== null && (
                           <span style={{ padding: "2px 8px", borderRadius: 12, background: pctBg, color: pctFg, fontWeight: 700 }} title={completed.toLocaleString() + " of " + total.toLocaleString() + " stitches"}>{pct}% stitched</span>
+                        )}
+                        {weekly && weeklyTotal > 0 && (
+                          <span
+                            title={"Last 7 days: " + weeklyTotal.toLocaleString() + " stitches"}
+                            style={{ display: "inline-flex", alignItems: "flex-end", height: SPARK_H, gap: GAP, padding: "2px 6px", borderRadius: 8, background: "#f1f5f9" }}
+                          >
+                            {weekly.map((v, i) => {
+                              const ratio = weeklyMax > 0 ? v / weeklyMax : 0;
+                              const h = Math.max(2, Math.round(ratio * SPARK_H));
+                              return <span key={i} style={{ width: BAR_W, height: h, background: v > 0 ? "#0d9488" : "#cbd5e1", borderRadius: 1, display: "inline-block" }} />;
+                            })}
+                          </span>
                         )}
                         {reqThreads.length > 0 && (
                           missing.length === 0

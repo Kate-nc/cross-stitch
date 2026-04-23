@@ -39,8 +39,11 @@
       },
       {
         title: "1. Upload an image",
-        body: "Drag-and-drop a photo onto the canvas or click 'Open image…'. The Creator will quantise it to a DMC palette.",
-        tip: "Tip: smaller images give you a clearer pattern. Aim for 300\u20131000 px on the long edge."
+        body: "Drag-and-drop a photo onto the canvas or click 'From image'. The Creator will quantise it to a DMC palette.",
+        tip: "Click the highlighted 'From image' button to continue. Smaller images give a clearer pattern — aim for 300–1000 px on the long edge.",
+        target: "[data-onboard=\"home-from-image\"]",
+        placement: "right",
+        requireClick: true
       },
       {
         title: "2. Tune the palette",
@@ -120,7 +123,13 @@
 
   function WelcomeWizard(props) {
     var page = props.page || "creator";
-    var steps = STEPS[page] || [];
+    // Steps are the page's built-in steps plus any caller-supplied extraSteps.
+    // extraSteps lets pages append domain-specific steps (e.g. Tracker's
+    // stitching-style picker) without mutating the shared STEPS table. Each
+    // entry may be either a regular { title, body, ... } step or a custom step
+    // { customComponent: Fn, hideDefaultNav: true|undefined, onCommit: fn }.
+    var extraSteps = Array.isArray(props.extraSteps) ? props.extraSteps : [];
+    var steps = (STEPS[page] || []).concat(extraSteps);
     var _idx = React.useState(0);
     var idx = _idx[0], setIdx = _idx[1];
     // Position of the popover relative to the target element. Recomputed on
@@ -255,6 +264,16 @@
     }
 
     var primaryDisabled = !!(step.requireClick && !clicked && !isLast);
+
+    // Custom-component step: hand off rendering to caller-supplied component.
+    // The wizard still renders the close button + step indicator and the
+    // a11y wrapper, but skips title/body/Next-button.
+    var isCustom = typeof step.customComponent === "function";
+    function advanceCustom(payload) {
+      if (typeof step.onCommit === "function") { try { step.onCommit(payload); } catch (_) {} }
+      if (isLast) handleLast(); else setIdx(idx + 1);
+    }
+
     var children = [
         h("button", { key: "close", className: "modal-close onboarding-focusable", onClick: function () { handleClose(false); }, "aria-label": "Close" }, "\u00d7"),
         // Step indicator
@@ -272,16 +291,30 @@
         ),
         // Live region — announces step title + body to screen readers on change.
         h("div", { key: "live", "aria-live": "polite", "aria-atomic": "true" },
-          h("h3", { id: titleId, style: { margin: "0 0 10px 0", fontSize: 19, color: "#1e293b" } }, step.title),
-          h("p", { style: { margin: "0 0 12px 0", fontSize: 14, lineHeight: 1.55, color: "#475569" } }, step.body),
-          step.tip && h("div", {
-            style: {
-              padding: "8px 12px", background: "#f0fdfa", border: "1px solid #99f6e4",
-              borderRadius: 6, fontSize: 12, color: "#065f46", marginBottom: 12
-            }
-          }, h("strong", null, "Tip: "), step.tip)
+          isCustom
+            ? h(step.customComponent, {
+                key: "custom",
+                onComplete: advanceCustom,
+                onBack: idx > 0 ? function () { setIdx(idx - 1); } : null,
+                onSkip: function () { handleClose(false); },
+                isLast: isLast,
+                idx: idx,
+                titleId: titleId
+              })
+            : [
+                h("h3", { key: "t", id: titleId, style: { margin: "0 0 10px 0", fontSize: 19, color: "#1e293b" } }, step.title),
+                h("p", { key: "b", style: { margin: "0 0 12px 0", fontSize: 14, lineHeight: 1.55, color: "#475569" } }, step.body),
+                step.tip && h("div", {
+                  key: "tip",
+                  style: {
+                    padding: "8px 12px", background: "#f0fdfa", border: "1px solid #99f6e4",
+                    borderRadius: 6, fontSize: 12, color: "#065f46", marginBottom: 12
+                  }
+                }, h("strong", null, "Tip: "), step.tip)
+              ]
         ),
-        h("div", { key: "nav", style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 } },
+        // Custom steps render their own controls, so we skip the default nav row.
+        !isCustom && h("div", { key: "nav", style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 } },
           h("button", {
             onClick: function () { handleClose(false); },
             className: "onboarding-focusable",

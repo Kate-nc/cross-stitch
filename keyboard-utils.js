@@ -111,22 +111,67 @@
   // dismissal in localStorage under "cs_help_hint_dismissed". Pages mount
   // <window.HelpHintBanner /> once at the root of their tree.
   var HINT_KEY = "cs_help_hint_dismissed";
-  var HINT_DELAY_MS = 30000; // Show after ~30 s on first visit so it doesn't intrude immediately.
+  // Show after ~30 s of true idleness on first visit so it doesn't intrude
+  // immediately and so it doesn't pop up while the user is actively engaged.
+  var HINT_IDLE_MS = 30000;
+  var IDLE_EVENTS = ["keydown", "mousemove", "click", "touchstart", "scroll", "wheel"];
+  function isTypingTarget(el) {
+    if (!el) return false;
+    var tag = el.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+    if (el.isContentEditable) return true;
+    return false;
+  }
   function HelpHintBanner() {
     var _v = React.useState(false);
     var visible = _v[0], setVisible = _v[1];
+    var _t = React.useState(function () {
+      try { return isTypingTarget(document.activeElement); } catch (_) { return false; }
+    });
+    var typing = _t[0], setTyping = _t[1];
+    // True-idle trigger: any user input resets a 30s countdown. Only after
+    // the countdown elapses without further input do we surface the hint.
     React.useEffect(function () {
       var dismissed = false;
       try { dismissed = !!localStorage.getItem(HINT_KEY); } catch (_) {}
       if (dismissed) return;
-      var t = setTimeout(function () {
-        // Re-check at fire time in case another tab dismissed it.
-        try { if (localStorage.getItem(HINT_KEY)) return; } catch (_) {}
-        setVisible(true);
-      }, HINT_DELAY_MS);
-      return function () { clearTimeout(t); };
+      var t = null;
+      function scheduleShow() {
+        if (t) clearTimeout(t);
+        t = setTimeout(function () {
+          // Re-check at fire time in case another tab dismissed it.
+          try { if (localStorage.getItem(HINT_KEY)) return; } catch (_) {}
+          setVisible(true);
+        }, HINT_IDLE_MS);
+      }
+      function onActivity() {
+        // Once visible, further activity does not re-hide the banner; the
+        // user dismisses it explicitly.
+        if (visible) return;
+        scheduleShow();
+      }
+      IDLE_EVENTS.forEach(function (e) { window.addEventListener(e, onActivity, { passive: true, capture: true }); });
+      scheduleShow();
+      return function () {
+        if (t) clearTimeout(t);
+        IDLE_EVENTS.forEach(function (e) { window.removeEventListener(e, onActivity, { capture: true }); });
+      };
+    }, [visible]);
+    // Focus-aware: hide while the user is typing in any input/textarea/
+    // contenteditable. Returning focus elsewhere reveals the banner again
+    // (provided it has already become visible via the idle timer).
+    React.useEffect(function () {
+      function check() {
+        try { setTyping(isTypingTarget(document.activeElement)); } catch (_) {}
+      }
+      document.addEventListener("focusin", check, true);
+      document.addEventListener("focusout", check, true);
+      return function () {
+        document.removeEventListener("focusin", check, true);
+        document.removeEventListener("focusout", check, true);
+      };
     }, []);
-    if (!visible) return null;
+    if (!visible || typing) return null;
     function dismiss() {
       setVisible(false);
       try { localStorage.setItem(HINT_KEY, "1"); } catch (_) {}

@@ -60,9 +60,22 @@ const ProjectStorage = (() => {
     const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow);
     const weekStartStr = weekStart.toISOString().slice(0, 10);
     let stitchesThisWeek = 0, stitchesThisMonth = 0;
+    // Per-day breakdown for the most recent 7 days (oldest → newest, ending
+    // today). Drives the sparkline rendered on Manager pattern cards.
+    const weeklyStitches = [0, 0, 0, 0, 0, 0, 0];
+    const dayKeys = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      dayKeys.push(d.toISOString().slice(0, 10));
+    }
     for (const s2 of sessions) {
       if (s2.date >= weekStartStr) stitchesThisWeek += (s2.netStitches || 0);
       if (s2.date && s2.date.slice(0, 7) === monthStr) stitchesThisMonth += (s2.netStitches || 0);
+      if (s2.date) {
+        const idx = dayKeys.indexOf(s2.date);
+        if (idx >= 0) weeklyStitches[idx] += (s2.netStitches || 0);
+      }
     }
     return {
       id: p.id,
@@ -83,6 +96,7 @@ const ProjectStorage = (() => {
       lastSessionStitches: lastSession ? (lastSession.netStitches || 0) : 0,
       stitchesThisWeek,
       stitchesThisMonth,
+      weeklyStitches,
       thumbnail: p.thumbnail || null,
       fabricCt: s.fabricCt || 14,
     };

@@ -222,60 +222,79 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
   );
 }
 
-// ── Stitching Style Onboarding Modal ──
-function StitchingStyleOnboarding({onDone,startCorner:initCorner}){
+// ── Stitching Style picker body ──
+// StitchingStyleStepBody renders the 3-screen flow without any modal chrome.
+// It is reused by:
+//   - StitchingStyleOnboarding (legacy modal launcher used by the toolbar
+//     "change style" affordance), which wraps this body in modal-overlay.
+//   - The first-visit WelcomeWizard, which renders this as a customComponent
+//     step so the welcome + style picker present as a single wizard rather
+//     than two stacked modals.
+// Props: { onComplete({style,blockW,blockH,startCorner}), onBack?, onSkip?, startCorner }
+function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner}){
   const[screen,setScreen]=useState(1);
   const[style,setStyle]=useState(null);
   const[bw,setBw]=useState(10),[bh,setBh]=useState(10);
   const[customW,setCustomW]=useState(10),[customH,setCustomH]=useState(10);
   const[showCustom,setShowCustom]=useState(false);
   const[corner,setCorner]=useState(initCorner||"TL");
-  const commit=(s,w,h,c)=>{try{localStorage.setItem("cs_styleOnboardingDone","1");}catch(_){}onDone({style:s,blockW:w,blockH:h,startCorner:c});};
+  const commit=(s,w,h,c)=>{try{localStorage.setItem("cs_styleOnboardingDone","1");}catch(_){}onComplete({style:s,blockW:w,blockH:h,startCorner:c});};
+  // Screen 1 — pick general working style.
   if(screen===1)return(
-    <div className="modal-overlay">
-      <div className="modal-content" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
-        <h3 style={{marginTop:0,fontSize:17}}>How do you usually work through a pattern?</h3>
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
-          <button className="modal-choice-btn" onClick={()=>{setStyle("block");setScreen(2);}}>One section at a time</button>
-          <button className="modal-choice-btn" onClick={()=>{setStyle("crosscountry");setScreen(3);}}>One colour at a time</button>
-          <button className="modal-choice-btn" onClick={()=>{setStyle("freestyle");setScreen(3);}}>I don't have a fixed method</button>
-        </div>
-        {/* Skip-for-now removed: Phase 4 requires an active selection so users
-            don't accidentally bypass the picker and lose the helpful defaults. */}
+    <div>
+      <h3 style={{marginTop:0,fontSize:17}}>How do you usually work through a pattern?</h3>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
+        <button className="modal-choice-btn" onClick={()=>{setStyle("block");setScreen(2);}}>One section at a time</button>
+        <button className="modal-choice-btn" onClick={()=>{setStyle("crosscountry");setScreen(3);}}>One colour at a time</button>
+        <button className="modal-choice-btn" onClick={()=>{setStyle("freestyle");setScreen(3);}}>I don't have a fixed method</button>
       </div>
+      {/* Skip-for-now removed: Phase 4 requires an active selection so users
+          don't accidentally bypass the picker and lose the helpful defaults. */}
     </div>
   );
+  // Screen 2 — block-shape picker (only for "block" style).
   if(screen===2)return(
-    <div className="modal-overlay">
-      <div className="modal-content" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
-        <h3 style={{marginTop:0,fontSize:17}}>What shape are your sections?</h3>
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
-          <button className="modal-choice-btn" onClick={()=>{setStyle("block");setBw(10);setBh(10);setScreen(3);}}>10×10 blocks</button>
-          <button className="modal-choice-btn" onClick={()=>{setStyle("royal");setBw(10);setBh(20);setScreen(3);}}>Tall towers (10 wide × 20 tall)</button>
-          <button className="modal-choice-btn" onClick={()=>{setStyle("block");setBw(20);setBh(20);setScreen(3);}}>Larger blocks (20×20)</button>
-          <button className="modal-choice-btn" onClick={()=>setShowCustom(v=>!v)}>Other size…</button>
-          {showCustom&&<div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 12px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
-            <label style={{fontSize:12,fontWeight:600}}>W:</label>
-            <input type="number" value={customW} onChange={e=>setCustomW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
-            <label style={{fontSize:12,fontWeight:600}}>H:</label>
-            <input type="number" value={customH} onChange={e=>setCustomH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
-            <button onClick={()=>{setStyle("block");setBw(customW);setBh(customH);setScreen(3);}} style={{padding:"4px 10px",borderRadius:4,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}>OK</button>
-          </div>}
-          {showCustom&&(customW%10!==0||customH%10!==0)&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>Custom sizes may not align with the 10-stitch grid lines.</div>}
-        </div>
-        <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>setScreen(1)}>← Back</button>
+    <div>
+      <h3 style={{marginTop:0,fontSize:17}}>What shape are your sections?</h3>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
+        <button className="modal-choice-btn" onClick={()=>{setStyle("block");setBw(10);setBh(10);setScreen(3);}}>10×10 blocks</button>
+        <button className="modal-choice-btn" onClick={()=>{setStyle("royal");setBw(10);setBh(20);setScreen(3);}}>Tall towers (10 wide × 20 tall)</button>
+        <button className="modal-choice-btn" onClick={()=>{setStyle("block");setBw(20);setBh(20);setScreen(3);}}>Larger blocks (20×20)</button>
+        <button className="modal-choice-btn" onClick={()=>setShowCustom(v=>!v)}>Other size…</button>
+        {showCustom&&<div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 12px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
+          <label style={{fontSize:12,fontWeight:600}}>W:</label>
+          <input type="number" value={customW} onChange={e=>setCustomW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
+          <label style={{fontSize:12,fontWeight:600}}>H:</label>
+          <input type="number" value={customH} onChange={e=>setCustomH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
+          <button onClick={()=>{setStyle("block");setBw(customW);setBh(customH);setScreen(3);}} style={{padding:"4px 10px",borderRadius:4,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}>OK</button>
+        </div>}
+        {showCustom&&(customW%10!==0||customH%10!==0)&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>Custom sizes may not align with the 10-stitch grid lines.</div>}
       </div>
+      <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>setScreen(1)}>← Back</button>
     </div>
   );
+  // Screen 3 — start-corner picker; commits on selection.
   const CORNERS=[["TL","Top-left"],["TR","Top-right"],["C","Centre"],["BL","Bottom-left"],["BR","Bottom-right"]];
+  return(
+    <div>
+      <h3 style={{marginTop:0,fontSize:17}}>Where do you usually start?</h3>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
+        {CORNERS.map(([k,l])=><button key={k} className={"modal-choice-btn"+(corner===k?" modal-choice-btn--on":"")} onClick={()=>commit(style||"block",bw,bh,k)}>{l}</button>)}
+      </div>
+      <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>setScreen(style==="block"||style==="royal"?2:1)}>← Back</button>
+    </div>
+  );
+}
+
+// ── Stitching Style Onboarding Modal ──
+// Used by the toolbar "Stitching style: …" affordance to re-open the picker
+// after the first visit. The first-visit picker is now embedded as a step in
+// the WelcomeWizard (see UnifiedApp / TrackerApp welcome mount).
+function StitchingStyleOnboarding({onDone,startCorner:initCorner}){
   return(
     <div className="modal-overlay">
       <div className="modal-content" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
-        <h3 style={{marginTop:0,fontSize:17}}>Where do you usually start?</h3>
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
-          {CORNERS.map(([k,l])=><button key={k} className={"modal-choice-btn"+(corner===k?" modal-choice-btn--on":"")} onClick={()=>commit(style||"block",bw,bh,k)}>{l}</button>)}
-        </div>
-        <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>setScreen(style==="block"||style==="royal"?2:1)}>← Back</button>
+        <StitchingStyleStepBody onComplete={onDone} startCorner={initCorner} />
       </div>
     </div>
   );
@@ -4864,11 +4883,30 @@ return(
   </div>}
 
   {modal==="help"&&<SharedModals.Help defaultTab="tracker" onClose={()=>setModal(null)} />}
-  {welcomeOpen&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{page:"tracker",lastStepLabel:"Pick a stitching style \u2192",onLastStep:()=>{ try{ if(!localStorage.getItem("cs_styleOnboardingDone")&&!localStorage.getItem("cs_stitchStyle")) setStyleOnboardingOpen(true); }catch(_){} },onClose:()=>{
-    setWelcomeOpen(false);
-    // Skip-tour also chains into the style picker if not yet completed.
-    try{ if(!localStorage.getItem("cs_styleOnboardingDone")&&!localStorage.getItem("cs_stitchStyle")) setStyleOnboardingOpen(true); }catch(_){}
-  }})}
+  {welcomeOpen&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{
+    page:"tracker",
+    // Phase 5: the Stitching-Style picker is now an extra wizard step rather
+    // than a separate modal stacked after the welcome. Both tutorial flags
+    // get marked done together when the user finishes the wizard.
+    extraSteps:[{
+      customComponent:StitchingStyleStepBody,
+      onCommit:result=>{
+        if(!result)return;
+        setStitchingStyle(result.style);
+        setBlockW(result.blockW);setBlockH(result.blockH);
+        setStartCorner(result.startCorner);
+        if(!focusBlock){setFocusBlock(_getStartBlock());}
+        if(result.style!=="crosscountry")setFocusEnabled(true);
+      }
+    }],
+    onClose:()=>{
+      setWelcomeOpen(false);
+      // Skip-tour exits the wizard without committing a style choice; if the
+      // user has never picked a style, fall back to the standalone modal so
+      // the helpful defaults still get applied.
+      try{ if(!localStorage.getItem("cs_styleOnboardingDone")&&!localStorage.getItem("cs_stitchStyle")) setStyleOnboardingOpen(true); }catch(_){}
+    }
+  })}
   {styleOnboardingOpen&&<StitchingStyleOnboarding startCorner={startCorner} onDone={result=>{
     setStyleOnboardingOpen(false);
     if(result){

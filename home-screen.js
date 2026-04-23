@@ -600,6 +600,25 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var openFileInputRef = React.useRef(null);
   var importInputRef = React.useRef(null);
 
+  // Phase 5: keyboard shortcut "B" opens Bulk Add Threads from anywhere on
+  // the home screen, provided no input/textarea/contenteditable is focused
+  // and no modifier key is held (so it doesn't intercept browser shortcuts).
+  useEffect(function() {
+    if (typeof onBulkAddThreads !== 'function') return;
+    function onKey(e) {
+      if (e.defaultPrevented) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      var key = (e.key || '').toLowerCase();
+      if (key !== 'b') return;
+      var t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      e.preventDefault();
+      onBulkAddThreads();
+    }
+    window.addEventListener('keydown', onKey);
+    return function() { window.removeEventListener('keydown', onKey); };
+  }, [onBulkAddThreads]);
+
   useEffect(function() {
     var cancelled = false;
     Promise.all([
@@ -1100,6 +1119,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         h('div', { className: 'home-panel-list' },
           h('button', {
             className: 'home-action-row',
+            'data-onboard': 'home-from-image',
             onClick: function() { imageInputRef.current.click(); }
           },
             h('span', { className: 'home-action-icon', 'aria-hidden': 'true' },
@@ -1210,7 +1230,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       h('div', { className: 'home-panel-header' }, 'STASH'),
       h('div', { className: 'home-panel-body', style: { padding: 14, display: 'flex', flexDirection: 'column', gap: 10 } },
         (function() {
-          var owned = 0, brands = {};
+          var owned = 0, brands = {}, wishlist = 0;
           if (stash && typeof stash === 'object') {
             Object.keys(stash).forEach(function(k) {
               var v = stash[k];
@@ -1220,20 +1240,58 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
                 var brand = (k.indexOf(':') > -1 ? k.split(':')[0] : 'dmc');
                 brands[brand] = true;
               }
+              // Wishlist = threads marked tobuy that the user does not yet own.
+              if (v.tobuy && !((v.owned || 0) > 0)) wishlist++;
             });
           }
           var brandCount = Object.keys(brands).length;
-          return h('div', { style: { fontSize: 13, color: '#475569' } },
-            h('strong', { style: { color: '#0f172a' } }, owned.toLocaleString() + ' threads owned'),
-            brandCount > 0 && h('span', { style: { color: '#94a3b8', marginLeft: 8 } }, '\u00B7 ' + brandCount + ' brand' + (brandCount === 1 ? '' : 's'))
+          // Donut metrics: ratio of owned to (owned + wishlist). When neither
+          // figure is set, the donut collapses to a single grey ring so the
+          // panel still has a visual anchor.
+          var totalRatio = owned + wishlist;
+          var ownedFrac = totalRatio > 0 ? owned / totalRatio : 0;
+          var DONUT_SIZE = 56, STROKE = 9, R = (DONUT_SIZE - STROKE) / 2;
+          var CIRC = 2 * Math.PI * R;
+          var ownedDash = ownedFrac * CIRC;
+          return h('div', { style: { display: 'flex', alignItems: 'center', gap: 14 } },
+            h('svg', {
+              width: DONUT_SIZE, height: DONUT_SIZE, viewBox: '0 0 ' + DONUT_SIZE + ' ' + DONUT_SIZE,
+              role: 'img',
+              'aria-label': owned + ' threads owned, ' + wishlist + ' on wishlist'
+            },
+              h('circle', {
+                cx: DONUT_SIZE/2, cy: DONUT_SIZE/2, r: R,
+                fill: 'none', stroke: '#e2e8f0', strokeWidth: STROKE
+              }),
+              totalRatio > 0 && h('circle', {
+                cx: DONUT_SIZE/2, cy: DONUT_SIZE/2, r: R,
+                fill: 'none', stroke: '#0d9488', strokeWidth: STROKE,
+                strokeDasharray: ownedDash + ' ' + (CIRC - ownedDash),
+                strokeDashoffset: CIRC / 4,
+                transform: 'rotate(-90 ' + (DONUT_SIZE/2) + ' ' + (DONUT_SIZE/2) + ')'
+              }),
+              h('text', {
+                x: DONUT_SIZE/2, y: DONUT_SIZE/2 + 4,
+                textAnchor: 'middle', fontSize: 13, fontWeight: 700, fill: '#0f172a'
+              }, totalRatio > 0 ? Math.round(ownedFrac * 100) + '%' : '–')
+            ),
+            h('div', { style: { fontSize: 13, color: '#475569', lineHeight: 1.45 } },
+              h('div', null, h('strong', { style: { color: '#0f172a' } }, owned.toLocaleString() + ' threads owned'),
+                brandCount > 0 && h('span', { style: { color: '#94a3b8', marginLeft: 8 } }, '\u00B7 ' + brandCount + ' brand' + (brandCount === 1 ? '' : 's'))
+              ),
+              wishlist > 0
+                ? h('div', { style: { fontSize: 11, color: '#b45309', marginTop: 2 } }, wishlist.toLocaleString() + ' on wishlist (still to buy)')
+                : owned > 0 && h('div', { style: { fontSize: 11, color: '#16a34a', marginTop: 2 } }, 'No outstanding wishlist')
+            )
           );
         })(),
         h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
           onBulkAddThreads && h('button', {
             onClick: onBulkAddThreads,
+            'data-onboard': 'home-bulk-add',
             style: { padding: '8px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
-            title: 'Paste a list of DMC/Anchor IDs to add to your stash'
-          }, '+ Bulk Add Threads'),
+            title: 'Paste a list of DMC/Anchor IDs to add to your stash (shortcut: B)'
+          }, '+ Bulk Add Threads ', h('kbd', { style: { background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '1px 5px', borderRadius: 3, fontSize: 10, marginLeft: 4 } }, 'B')),
           h('button', {
             onClick: onNavigateToStash,
             style: { padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer' }

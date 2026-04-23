@@ -151,9 +151,55 @@
     try { localStorage.setItem(PREFIX_PVIEW + id, JSON.stringify(viewState)); } catch (_) {}
   }
 
+  // ─── Persisted-state schema migration ──────────────────────────────────
+  // STATE_SCHEMA_VERSION is bumped whenever a code change makes existing
+  // localStorage values invalid (e.g. a renamed key, a new field that older
+  // entries lack and that breaks read paths, or a hashing scheme change).
+  // SCHEMA_BREAKS describes, per version, which keys (or key prefixes ending
+  // in `*`) should be wiped when migrating. Entries are processed in order;
+  // a fresh install gets the latest version stamped without any wipes.
+  //
+  // To declare a future break:
+  //   1. Bump STATE_SCHEMA_VERSION to N.
+  //   2. Add SCHEMA_BREAKS[N] = { wipe: ['cs_pview_*', 'cs_pref_someKey'] }.
+  //   3. Document the reason in the same commit so users can see a changelog.
+  var STATE_SCHEMA_VERSION = 1;
+  var SCHEMA_VERSION_KEY = 'cs_state_schema_version';
+  var SCHEMA_BREAKS = {
+    // Example placeholder — future break would look like:
+    // 2: { wipe: ['cs_pview_*'], reason: 'pview shape changed in vNext' }
+  };
+
+  function migrateState() {
+    try {
+      var raw = localStorage.getItem(SCHEMA_VERSION_KEY);
+      var stored = raw == null ? 0 : (parseInt(raw, 10) || 0);
+      if (stored >= STATE_SCHEMA_VERSION) return;
+      for (var v = stored + 1; v <= STATE_SCHEMA_VERSION; v++) {
+        var brk = SCHEMA_BREAKS[v];
+        if (!brk || !Array.isArray(brk.wipe)) continue;
+        brk.wipe.forEach(function (pattern) {
+          var isPrefix = pattern.charAt(pattern.length - 1) === '*';
+          var prefix = isPrefix ? pattern.slice(0, -1) : pattern;
+          for (var i = localStorage.length - 1; i >= 0; i--) {
+            var k = localStorage.key(i);
+            if (!k) continue;
+            if (isPrefix ? k.indexOf(prefix) === 0 : k === pattern) {
+              try { localStorage.removeItem(k); } catch (_) {}
+            }
+          }
+        });
+      }
+      localStorage.setItem(SCHEMA_VERSION_KEY, String(STATE_SCHEMA_VERSION));
+    } catch (_) {}
+  }
+  migrateState();
+
   window.UserPrefs = {
     DEFAULTS: DEFAULTS,
     PVIEW_DEFAULTS: PVIEW_DEFAULTS,
+    STATE_SCHEMA_VERSION: STATE_SCHEMA_VERSION,
+    SCHEMA_BREAKS: SCHEMA_BREAKS,
     loadAll: loadAll,
     get: get,
     set: set,
@@ -162,5 +208,19 @@
     getPatternState: getPatternState,
     savePatternState: savePatternState,
     savePatternStateNow: savePatternStateNow,
+    // Lists every per-pattern view-state entry as { id, key }. Used by the
+    // Tutorials tab to display a name preview before bulk-clearing.
+    listPatternStateIds: function () {
+      var out = [];
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && k.indexOf(PREFIX_PVIEW) === 0) {
+            out.push({ id: k.slice(PREFIX_PVIEW.length), key: k });
+          }
+        }
+      } catch (_) {}
+      return out;
+    },
   };
 })();

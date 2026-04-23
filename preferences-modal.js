@@ -242,6 +242,34 @@
       return n;
     }
     var _pv = useState(countPviewKeys); var pviewCount = _pv[0], setPviewCount = _pv[1];
+    // Resolved name preview for the per-pattern view-state keys. Async-loaded
+    // from ProjectStorage so users can see what they're about to clear instead
+    // of staring at an opaque count.
+    var _pvNames = useState([]); var pviewNames = _pvNames[0], setPviewNames = _pvNames[1];
+    var _showPv = useState(false); var showPviewList = _showPv[0], setShowPviewList = _showPv[1];
+    React.useEffect(function () {
+      if (typeof window === "undefined") return;
+      if (!window.UserPrefs || typeof window.UserPrefs.listPatternStateIds !== "function") return;
+      var ids = window.UserPrefs.listPatternStateIds();
+      if (!ids.length) { setPviewNames([]); return; }
+      // Fast path: if ProjectStorage isn't available, surface raw IDs.
+      if (typeof ProjectStorage === "undefined" || typeof ProjectStorage.listProjects !== "function") {
+        setPviewNames(ids.map(function (e) { return { id: e.id, name: e.id }; }));
+        return;
+      }
+      var cancelled = false;
+      ProjectStorage.listProjects().then(function (meta) {
+        if (cancelled) return;
+        var byId = {};
+        (meta || []).forEach(function (m) { if (m && m.id) byId[m.id] = m.name || "Untitled"; });
+        setPviewNames(ids.map(function (e) {
+          return { id: e.id, name: byId[e.id] || "(deleted) " + e.id };
+        }));
+      }).catch(function () {
+        if (!cancelled) setPviewNames(ids.map(function (e) { return { id: e.id, name: e.id }; }));
+      });
+      return function () { cancelled = true; };
+    }, [pviewCount]);
     var _hint = useState(function () {
       try { return !!localStorage.getItem("cs_help_hint_dismissed"); } catch (_) { return false; }
     });
@@ -267,6 +295,8 @@
         toDel.forEach(function (k) { localStorage.removeItem(k); });
       } catch (_) {}
       setPviewCount(0);
+      setPviewNames([]);
+      setShowPviewList(false);
       setMsg("Cleared per-pattern view preferences. Defaults will apply next time you open a pattern.");
     }
     function clearHint() {
@@ -299,7 +329,21 @@
       ),
       h("div", { style: rowStyle },
         h("span", null, "Per-pattern view preferences ", h("em", { style: { color: "#94a3b8", fontStyle: "normal", fontSize: 11 } }, "(" + pviewCount + " saved)")),
-        h("button", { style: pviewCount > 0 ? btn : btnDis, disabled: pviewCount === 0, onClick: clearPviews }, "Clear")
+        h("div", { style: { display: "flex", gap: 6, alignItems: "center" } },
+          pviewCount > 0 && h("button", {
+            style: Object.assign({}, btn, { padding: "4px 10px" }),
+            onClick: function () { setShowPviewList(function (v) { return !v; }); }
+          }, showPviewList ? "Hide" : "Preview"),
+          h("button", { style: pviewCount > 0 ? btn : btnDis, disabled: pviewCount === 0, onClick: clearPviews }, "Clear")
+        )
+      ),
+      // Inline preview list — collapsed by default so the panel stays compact.
+      showPviewList && pviewNames.length > 0 && h("ul", {
+        style: { margin: "4px 0 8px", padding: "8px 12px 8px 28px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 11, color: "#475569", maxHeight: 160, overflowY: "auto" }
+      },
+        pviewNames.map(function (e) {
+          return h("li", { key: e.id, style: { padding: "1px 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }, title: e.id }, e.name);
+        })
       ),
       h("div", { style: { marginTop: 14 } },
         h("button", {
