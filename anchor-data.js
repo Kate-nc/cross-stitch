@@ -749,7 +749,10 @@ const ANCHOR = ANCHOR_RAW.map(function(d) {
 });
 
 if (_ANCHOR_CONTESTED_IDS.length > 0) {
-  console.warn(
+  // Demoted to console.info so this data-quality notice doesn't appear as a
+  // browser-warning every page load. The information is still available via
+  // window.ANCHOR for tooling and dev review.
+  console.info(
     "[anchor-data] " + _ANCHOR_CONTESTED_IDS.length + " Anchor colour(s) have contested RGB values " +
     "(pairwise ΔE > 5 across reconciliation sources). Human review recommended for IDs: " +
     _ANCHOR_CONTESTED_IDS.join(", ")

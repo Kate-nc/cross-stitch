@@ -1,0 +1,23 @@
+#!/bin/sh
+# Cross-Stitch repo pre-commit hook.
+# Runs the terminology lint so violations fail commits locally
+# (mirrors the CI check). To install for a fresh clone, run:
+#     git config core.hooksPath .githooks
+# (or `npm install`, which configures this automatically via the
+# `prepare` script in package.json).
+
+# Only run if there are staged JS files that the linter watches.
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(js|jsx|md|html)$' || true)
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+if ! node scripts/lint-terminology.js; then
+  echo ""
+  echo "✗ Pre-commit blocked: terminology lint failed."
+  echo "  Fix the listed file:line entries (or add '// terminology-lint-allow' to the line"
+  echo "  if the term is intentional) and try again. To bypass once, use git commit --no-verify."
+  exit 1
+fi
+
+exit 0

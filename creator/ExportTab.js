@@ -36,6 +36,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var miniLegend   = React.useState(readPref("exportMiniLegend",      true));
   var settingsOpen = React.useState(false);
   var brandingOpen = React.useState(false);
+  var exportFormat = React.useState("pdf"); // "pdf" | "png"
 
   function bind(pair, prefKey) {
     return function (v) { pair[1](v); if (prefKey) writePref(prefKey, v); };
@@ -105,16 +106,25 @@ window.CreatorExportTab = function CreatorExportTab() {
   function doExport() {
     setError(null);
     if (!modesArr.length) { setError("Pick at least one chart mode (B&W or Colour)."); return; }
-    var project = window.PdfExport.buildExportProject(ctx);
+    // Merge app-level project metadata (name/designer/description live on AppContext, not PatternData).
+    var exportCtx = Object.assign({}, ctx, {
+      projectName: app.projectName,
+      projectDesigner: app.projectDesigner,
+      projectDescription: app.projectDescription,
+    });
+    var project = window.PdfExport.buildExportProject(exportCtx);
     if (!project) { setError("No pattern to export."); return; }
     project.coverPreviewJpeg = window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
+    var branding = window.PdfExport.readBranding();
+    // Per-project designer overrides global designer branding when set.
+    if (app.projectDesigner) branding = Object.assign({}, branding, { designerName: app.projectDesigner });
     var opts = {
       pageSize: pageSize[0], marginsMm: marginsMm[0],
       stitchesPerPage: stPerPg[0], customCols: customCols[0], customRows: customRows[0],
       chartModes: modesArr, overlap: overlap[0],
       includeCover: includeCover[0], includeInfo: includeInfo[0],
       includeIndex: includeIndex[0], miniLegend: miniLegend[0],
-      branding: window.PdfExport.readBranding(),
+      branding: branding,
       locale: navigator.language || "en-GB",
     };
     setProgress({ stage: "init", current: 0, total: totalPagesPreview || 1 });
@@ -139,6 +149,39 @@ window.CreatorExportTab = function CreatorExportTab() {
     runningRef.current = null;
     window.PdfExport.cancelAll();
     setProgress(null);
+  }
+
+  function doExportPng() {
+    setError(null);
+    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("No pattern to export."); return; }
+    var CELL = 10;
+    var c = document.createElement("canvas");
+    c.width = ctx.sW * CELL;
+    c.height = ctx.sH * CELL;
+    var g = c.getContext("2d");
+    g.fillStyle = "#ffffff";
+    g.fillRect(0, 0, c.width, c.height);
+    for (var y = 0; y < ctx.sH; y++) {
+      for (var x = 0; x < ctx.sW; x++) {
+        var cell = ctx.pat[y * ctx.sW + x];
+        if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+        var rgb = cell.rgb;
+        if (!rgb || rgb.length < 3) continue;
+        g.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+        g.fillRect(x * CELL, y * CELL, CELL, CELL);
+      }
+    }
+    c.toBlob(function (blob) {
+      if (!blob) { setError("Failed to create PNG."); return; }
+      var name = ((app.projectName || "pattern") + "").replace(/[^\w\-]+/g, "_") + ".png";
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    }, "image/png");
   }
 
   if (!(ctx && ctx.pat && ctx.pal)) return null;
@@ -185,12 +228,10 @@ window.CreatorExportTab = function CreatorExportTab() {
 
         h("div", { style: { marginBottom: 14 } },
           h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 6 } }, "Format"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12 } },
-            h("input", { type: "radio", checked: true, readOnly: true }), "PDF"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, opacity: 0.5 } },
-            h("input", { type: "radio", disabled: true }), "PNG (coming soon)"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.5 } },
-            h("input", { type: "radio", disabled: true }), "OXS (coming soon)")
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "pdf", onChange: function () { exportFormat[1]("pdf"); } }), "PDF"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "png", onChange: function () { exportFormat[1]("png"); } }), "PNG")
         ),
 
         h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 } },
@@ -262,12 +303,10 @@ window.CreatorExportTab = function CreatorExportTab() {
       )
     ),
 
-    h("div", null,
-      h("button", { onClick: function () { setBrandingOpen(!brandingOpen[0]); }, style: sectionToggle },
-        h("span", null, "Designer branding"),
-        h("span", { style: { color: "#64748b" } }, brandingOpen[0] ? "▲" : "▼")
-      ),
-      brandingOpen[0] && window.CreatorDesignerBrandingSection && h(window.CreatorDesignerBrandingSection)
+    h("div", { style: { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#475569" } },
+      "Designer branding (name, logo, copyright) is now in ",
+      h("strong", null, "File → Preferences"),
+      ". Settings there apply to every PDF you export."
     ),
 
     progressState[0] ? h("div", { style: { background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 10, padding: 16 } },
@@ -280,21 +319,11 @@ window.CreatorExportTab = function CreatorExportTab() {
       ),
       h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize: 13, borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", cursor: "pointer", fontWeight: 600 } }, "Cancel")
     ) : h("button", {
-      onClick: doExport,
-      style: (modesArr.length === 0) ? disabledCta : ctaStyle,
-      disabled: modesArr.length === 0,
-    }, "Export PDF"),
+      onClick: exportFormat[0] === "png" ? doExportPng : doExport,
+      style: (exportFormat[0] === "pdf" && modesArr.length === 0) ? disabledCta : ctaStyle,
+      disabled: exportFormat[0] === "pdf" && modesArr.length === 0,
+    }, exportFormat[0] === "png" ? "Export PNG" : "Export PDF"),
 
-    errorState[0] && h("div", { style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, fontSize: 12, color: "#b91c1c" } }, errorState[0]),
-
-    h("div", { style: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14 } },
-      h("h4", { style: { margin: "0 0 8px", fontSize: 13, color: "#0f172a" } }, "Save / load project file"),
-      h("p", { style: { fontSize: 11, color: "#64748b", margin: "0 0 10px" } },
-        "Save the editable .json so you can re-open this pattern later or in Stitch Tracker."),
-      h("div", { style: { display: "flex", gap: 8 } },
-        h("button", { onClick: app.saveProject, style: { padding: "8px 16px", fontSize: 13, borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 } }, "Save (.json)"),
-        h("button", { onClick: function () { app.loadRef.current && app.loadRef.current.click(); }, style: { padding: "8px 16px", fontSize: 13, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", fontWeight: 500 } }, "Load")
-      )
-    )
+    errorState[0] && h("div", { style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, fontSize: 12, color: "#b91c1c" } }, errorState[0])
   );
 };

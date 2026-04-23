@@ -978,6 +978,8 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
 
     return {
       name: ctx.projectName || ctx.name || "Untitled pattern",
+      designer: ctx.projectDesigner || ctx.designer || "",
+      description: ctx.projectDescription || ctx.description || "",
       w: ctx.sW || ctx.w,
       h: ctx.sH || ctx.h,
       pattern: pattern,
@@ -4170,6 +4172,10 @@ window.useCreatorState = function useCreatorState() {
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
+  var _prefsOpen = useState(false); var preferencesOpen = _prefsOpen[0], setPreferencesOpen = _prefsOpen[1];
+  // Optional metadata users can fill in before/after generating
+  var _projDesigner = useState(""); var projectDesigner = _projDesigner[0], setProjectDesigner = _projDesigner[1];
+  var _projDesc     = useState(""); var projectDescription = _projDesc[0], setProjectDescription = _projDesc[1];
 
   // Eyedropper feedback
   var _edEmpty = useState(false);    var eyedropperEmpty = _edEmpty[0], setEyedropperEmpty = _edEmpty[1];
@@ -4954,7 +4960,10 @@ window.useCreatorState = function useCreatorState() {
     previewMapped, setPreviewMapped, previewColors, setPreviewColors,
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
     previewTimerRef, projectName, setProjectName,
+    projectDesigner, setProjectDesigner,
+    projectDescription, setProjectDescription,
     namePromptOpen, setNamePromptOpen,
+    preferencesOpen, setPreferencesOpen,
     cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
     pcRef, fRef, scrollRef, expRef, loadRef,
     prevSW, prevSH, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef, overflowRef,
@@ -6219,6 +6228,26 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
 window.useProjectIO = function useProjectIO(state, history, options) {
   var onSwitchToTrack = options && options.onSwitchToTrack;
   var creatorSnapshotRef = React.useRef(null);
+  // Tracks whether we have already performed an initial (no-debounce) save for the
+  // current pattern. Reset whenever pat/projectId changes so a freshly generated
+  // pattern is persisted to IndexedDB and the Stash Manager library immediately,
+  // not after the 1 s debounce. This avoids the "I created a pattern but it's not
+  // in my stash" bug when the user navigates away within the debounce window.
+  var firstSaveDoneRef = React.useRef(null);
+  // Mirrors the latest values needed by the beforeunload stash-sync handler.
+  // The handler effect deps only on isActive (we don't want to re-bind on every
+  // keystroke), so reading from this ref guarantees the unload sync uses
+  // current skeinData / projectName / fabricCt instead of the snapshot taken
+  // at mount time. Updated synchronously on every render below.
+  var stashSyncRef = React.useRef(null);
+  stashSyncRef.current = {
+    projectId: state.projectIdRef && state.projectIdRef.current,
+    projectName: state.projectName,
+    skeinData: state.skeinData,
+    fabricCt: state.fabricCt,
+    sW: state.sW,
+    sH: state.sH
+  };
 
   // ─── doSaveProject ───────────────────────────────────────────────────────────
   function doSaveProject(finalName) {
@@ -6239,7 +6268,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var zoom = state.zoom, scrollRef = state.scrollRef;
 
     if (!pat || !pal) return;
-    if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
+    if (!state.projectIdRef.current) state.projectIdRef.current = ProjectStorage.newId();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
     var psArr = [];
     partialStitches.forEach(function(v, k) {
@@ -6247,7 +6276,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       psArr.push([k, e]);
     });
     var project = Object.assign({}, state.trackerFieldsRef.current, {
-      version: 10, id: state.projectIdRef.current, page: "creator", name: finalName,
+      version: 11, id: state.projectIdRef.current, page: "creator", name: finalName,
+      designer: state.projectDesigner || "", description: state.projectDescription || "",
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
@@ -6276,7 +6306,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   }
 
   // ─── handleOpenInTracker ─────────────────────────────────────────────────────
-  function handleOpenInTracker() {
+  // Async because the standalone-navigation branch must wait for IndexedDB to
+  // commit before changing window.location — otherwise the Tracker could load
+  // before the new project row exists, leaving the active-project pointer
+  // dangling.
+  async function handleOpenInTracker() {
     var pat = state.pat, pal = state.pal;
     var sW = state.sW, sH = state.sH, maxC = state.maxC;
     var bri = state.bri, con = state.con, sat = state.sat;
@@ -6293,14 +6327,15 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var projectIdRef = state.projectIdRef, projectName = state.projectName;
 
     if (!pat || !pal) return;
-    if (!projectIdRef.current) projectIdRef.current = "proj_" + Date.now();
+    if (!projectIdRef.current) projectIdRef.current = ProjectStorage.newId();
     var psArr = [];
     partialStitches.forEach(function(v, k) {
       var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
       psArr.push([k, e]);
     });
     var project = Object.assign({}, state.trackerFieldsRef.current, {
-      version: 10, id: projectIdRef.current, page: "creator", name: projectName,
+      version: 11, id: projectIdRef.current, page: "creator", name: projectName,
+      designer: state.projectDesigner || "", description: state.projectDescription || "",
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
@@ -6311,26 +6346,79 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (onSwitchToTrack) {
       saveProjectToDB(project).catch(function() {});
       ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function() {});
+      // Belt-and-braces stash sync: the debounced auto-save may not have fired yet
+      // (e.g. if the user generated and immediately clicked "Open in Tracker"). Without
+      // this the pattern would not appear in the Stash Manager library until the
+      // Tracker's own auto-save runs.
+      if (typeof StashBridge !== "undefined" && state.skeinData && state.skeinData.length) {
+        try {
+          StashBridge.syncProjectToLibrary(
+            projectIdRef.current,
+            projectName || (state.sW + "\xD7" + state.sH + " pattern"),
+            state.skeinData,
+            "inprogress",
+            state.fabricCt
+          );
+        } catch (_) {}
+      }
       if (state.addToast) state.addToast("Opening in Stitch Tracker\u2026", {type:"info", duration:2000});
       onSwitchToTrack({ project: project, key: Date.now() });
       return;
     }
     ProjectStorage.setActiveProject(projectIdRef.current);
+    // Always persist to IndexedDB before navigating away. The Tracker can
+    // recover the project via the active-project pointer even when the inline
+    // handoff payload (localStorage / URL hash) is unavailable — but only if
+    // these writes have actually committed. AWAIT both before continuing,
+    // otherwise window.location.href can fire mid-transaction.
+    try { await ProjectStorage.save(project); } catch (_) {}
+    try { await saveProjectToDB(project); } catch (_) {}
+    // Preferred path: write the project to localStorage and let the Tracker pick
+    // it up via `crossstitch_handoff`. This works for any pattern size that fits
+    // in the localStorage quota (typically 5–10 MB), which is well above what
+    // the URL-hash fallback could ever carry. The hash fallback is kept only for
+    // browsers/sessions where localStorage write fails (private mode, full quota).
+    var savedHandoff = false;
     try {
       localStorage.setItem("crossstitch_handoff", JSON.stringify(project));
-      window.location.href = "stitch.html?source=creator";
+      savedHandoff = true;
     } catch (e) {
+      // localStorage write failed (quota or disabled). Try the URL-hash fallback.
       try {
         var str = JSON.stringify(project);
         var compressed = pako.deflate(str);
         var binaryStr = "";
         for (var i = 0; i < compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
         var b64 = btoa(binaryStr).replace(/\+/g, "-").replace(/\//g, "_");
-        if (b64.length > 8000) { alert("Pattern too large for link sharing. Please use Save Project (.json) instead."); return; }
-        window.location.href = "stitch.html#p=" + b64;
-      } catch (e2) {
-        alert("Pattern is too large for direct transfer. Please save the file and open it in the Tracker.");
+        if (b64.length <= 8000) {
+          window.location.href = "stitch.html#p=" + b64;
+          return;
+        }
+        // Pattern too large for the URL hash too. Fall back to a soft toast and
+        // navigate without the inline payload — the Tracker will load whatever
+        // copy is in IndexedDB (we already saved/auto-saved above) using the
+        // active-project pointer. No more loud `alert()`.
+        if (state.addToast) {
+          state.addToast(
+            "Pattern too large for inline transfer \u2014 opening from your saved copy.",
+            { type: "info", duration: 3500 }
+          );
+        }
+      } catch (_) {
+        if (state.addToast) {
+          state.addToast(
+            "Couldn't prepare the inline transfer \u2014 opening from your saved copy.",
+            { type: "warning", duration: 3500 }
+          );
+        }
       }
+    }
+    if (savedHandoff) {
+      window.location.href = "stitch.html?source=creator";
+    } else {
+      // No inline payload available. The Tracker will load via the active project
+      // pointer set above (and via the auto-saved IDB copy from this session).
+      window.location.href = "stitch.html?source=creator";
     }
   }
 
@@ -6406,6 +6494,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     }
     state.setPartialStitchTool(null);
     state.setProjectName(project.name || "");
+    state.setProjectDesigner(project.designer || "");
+    state.setProjectDescription(project.description || "");
+    // Clear pending-metadata localStorage so a stale pre-gen name can't bleed back in
+    try { localStorage.removeItem("cs_pend_meta"); } catch (_) {}
     state.projectIdRef.current = project.id || null;
     state.createdAtRef.current = project.createdAt || null;
 
@@ -6617,9 +6709,32 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     loadProjectFromDB().then(function(project4) {
       if (project4 && project4.pattern && project4.settings && !state.userActedRef.current) {
         processLoadedProject(project4);
+      } else if (!state.userActedRef.current) {
+        // No saved project — restore any pending metadata typed before generation
+        try {
+          var pend = localStorage.getItem("cs_pend_meta");
+          if (pend) {
+            var pm = JSON.parse(pend);
+            if (pm.n) state.setProjectName(pm.n);
+            if (pm.d) state.setProjectDesigner(pm.d);
+            if (pm.ds) state.setProjectDescription(pm.ds);
+          }
+        } catch (_) {}
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist name/designer/description to localStorage so they survive a refresh
+  // even before the first pattern is generated (when the full autosave is gated on pat/pal).
+  React.useEffect(function() {
+    try {
+      localStorage.setItem("cs_pend_meta", JSON.stringify({
+        n: state.projectName || "",
+        d: state.projectDesigner || "",
+        ds: state.projectDescription || ""
+      }));
+    } catch (_) {}
+  }, [state.projectName, state.projectDesigner, state.projectDescription]);
 
   // Stash sync on mount
   React.useEffect(function() {
@@ -6693,10 +6808,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
       psArr.push([k, e]);
     });
-    if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
+    if (!state.projectIdRef.current) state.projectIdRef.current = ProjectStorage.newId();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
     var project5 = Object.assign({}, state.trackerFieldsRef.current, {
-      version: 10, id: state.projectIdRef.current, page: "creator", name: state.projectName,
+      version: 11, id: state.projectIdRef.current, page: "creator", name: state.projectName,
+      designer: state.projectDesigner || "", description: state.projectDescription || "",
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
@@ -6712,7 +6828,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // Skip IDB writes when Creator is not the active view — the Tracker's auto-save
     // owns persistence while it is active and has fresher tracker-specific fields.
     if (!state.isActive) return;
-    var saveTimer = setTimeout(function() {
+    // First save for this project — fire immediately (no debounce) so the pattern
+    // appears in the Stash Manager library and IndexedDB the moment generation
+    // finishes, even if the user navigates away within 1 s.
+    var isFirstSave = firstSaveDoneRef.current !== state.projectIdRef.current;
+    function persistAll() {
       saveProjectToDB(project5).catch(function(err) { console.error("Auto-save failed:", err); });
       ProjectStorage.save(project5)
         .then(function(id) { ProjectStorage.setActiveProject(id); })
@@ -6726,7 +6846,13 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.fabricCt
         );
       }
-    }, 1000);
+      firstSaveDoneRef.current = state.projectIdRef.current;
+    }
+    if (isFirstSave) {
+      persistAll();
+      return;
+    }
+    var saveTimer = setTimeout(persistAll, 1000);
     return function() { clearTimeout(saveTimer); };
   }, [
     state.pat, state.pal, state.sW, state.sH, state.maxC,
@@ -6735,6 +6861,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
+    state.projectDesigner, state.projectDescription,
     state.isActive,
   ]);
 
@@ -6779,6 +6906,36 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       };
     };
   }, []);
+
+  // Flush pending autosave on page unload so name/metadata edits made within the
+  // 1 s debounce window aren't lost.
+  React.useEffect(function() {
+    function handleBeforeUnload() {
+      var p = creatorSnapshotRef.current;
+      if (!p || !state.isActive) return;
+      try { ProjectStorage.save(p); } catch (_) {}
+      try { saveProjectToDB(p); } catch (_) {}
+      // Belt-and-braces: also sync to the Stash Manager library so a generated
+      // pattern is never lost from stash even if unload happens during the debounce.
+      // Read from stashSyncRef (updated each render) so we use the latest
+      // skeinData / projectName / fabricCt rather than the values captured
+      // when this effect first ran.
+      var s = stashSyncRef.current;
+      if (s && typeof StashBridge !== "undefined" && s.skeinData && s.skeinData.length) {
+        try {
+          StashBridge.syncProjectToLibrary(
+            s.projectId,
+            s.projectName || (s.sW + "\xD7" + s.sH + " pattern"),
+            s.skeinData,
+            "inprogress",
+            s.fabricCt
+          );
+        } catch (_) {}
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return function() { window.removeEventListener("beforeunload", handleBeforeUnload); };
+  }, [state.isActive]);
 
   // Paste image handler
   React.useEffect(function() {
@@ -7112,7 +7269,7 @@ window.PatternCanvas = function PatternCanvas() {
       if (!canvas) return;
       canvas.width  = snap.sW * snap.cs + G + 2;
       canvas.height = snap.sH * snap.cs + G + 2;
-      var context = canvas.getContext("2d");
+      var context = canvas.getContext("2d", { willReadFrequently: true });
       drawPatternBaseOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
       baseCacheRef.current = context.getImageData(0, 0, canvas.width, canvas.height);
       drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
@@ -7139,7 +7296,7 @@ window.PatternCanvas = function PatternCanvas() {
     // must not overwrite those uncommitted pixels with the stale cached image.
     if (cv.isDraggingRef && cv.isDraggingRef.current) return;
     var canvas = app.pcRef.current;
-    var context = canvas.getContext("2d");
+    var context = canvas.getContext("2d", { willReadFrequently: true });
     context.putImageData(baseCacheRef.current, 0, 0);
     drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, cv.cs, G, ctxRef.current);
   }, [
@@ -9207,6 +9364,10 @@ function SubstituteFromStashModalInner(props) {
     ctx.setSubstituteProposal(null);
   }
 
+  // Stack-aware ESC support — defined after closeModal so the callback is
+  // already available when registering with the global useEscape stack.
+  if (typeof window !== "undefined" && window.useEscape) window.useEscape(closeModal);
+
   // ─── Render helpers ───────────────────────────────────────────────────────────
   function swatch(rgb, size) {
     size = size || 14;
@@ -9458,7 +9619,7 @@ function SubstituteFromStashModalInner(props) {
     },
       // ── Header ────────────────────────────────────────────────────────────────
       h("div", { style: { display: "flex", alignItems: "center", padding: "16px 20px 14px", borderBottom: "1px solid #f1f5f9", flexShrink: 0 } },
-        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1e293b", flex: 1 } }, "Substitute from Stash"),
+        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1e293b", flex: 1 } }, "Replace with Stash Threads"),
         h("button", {
           onClick: closeModal,
           style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8", padding: "0 4px", borderRadius: 6, lineHeight: 1 }
@@ -9730,6 +9891,7 @@ window.ConvertPaletteModal = (function () {
   }
 
   function ConvertPaletteModal({ onClose, onApply }) {
+    if (typeof window !== 'undefined' && window.useEscape) window.useEscape(onClose);
     var pd = typeof usePatternData === 'function' ? usePatternData() : null;
     var pattern = pd ? pd.pattern : [];
     var [targetBrand, setTargetBrand] = useState('anchor');
@@ -9790,7 +9952,7 @@ window.ConvertPaletteModal = (function () {
     return React.createElement('div', { className: 'modal-overlay', onClick: function (e) { if (e.target === e.currentTarget) onClose(); } },
       React.createElement('div', { className: 'modal-box', style: { maxWidth: 640, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' } },
         React.createElement('div', { className: 'modal-header' },
-          React.createElement('div', { className: 'modal-title' }, 'Convert Palette'),
+          React.createElement('div', { className: 'modal-title' }, 'Change Thread Brand'),
           React.createElement('button', { className: 'modal-close', onClick: onClose }, '×')
         ),
         React.createElement('div', { style: { padding: '12px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
@@ -9960,6 +10122,7 @@ window.BulkAddModal = (function () {
   // ─── Main modal ─────────────────────────────────────────────────────────────
 
   function BulkAddModal({ onClose }) {
+    if (typeof window !== 'undefined' && window.useEscape) window.useEscape(onClose);
     var [activeTab, setActiveTab] = useState('paste');  // 'paste' | 'kit'
     var [brand, setBrand] = useState('dmc');
     var [pasteText, setPasteText] = useState('');
@@ -11186,7 +11349,41 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ─── Create Mode Sidebar ─────────────────────────────────────────────────
   if (mode === "create") {
+    // Project info — name, designer, description. Always-visible at top so
+    // users can name a pattern before generating it.
+    var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
+      h("div", {style:{display:"flex",flexDirection:"column",gap:8,padding:"4px 0 2px"}},
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+          "Pattern name",
+          h("input", {
+            type:"text", value: app.projectName || "", maxLength:60,
+            placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
+            onChange: function(e) { app.setProjectName(e.target.value.slice(0,60)); },
+            style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+          })
+        ),
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+          "Designer (optional)",
+          h("input", {
+            type:"text", value: app.projectDesigner || "", maxLength:80,
+            placeholder: "Your name or studio",
+            onChange: function(e) { app.setProjectDesigner(e.target.value.slice(0,80)); },
+            style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+          })
+        ),
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+          "Description / notes (optional)",
+          h("textarea", {
+            value: app.projectDescription || "", maxLength:500, rows:3,
+            placeholder: "Source, copyright, stitching notes\u2026",
+            onChange: function(e) { app.setProjectDescription(e.target.value.slice(0,500)); },
+            style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+          })
+        )
+      )
+    );
     var settingsContent = h(React.Fragment, null,
+      projectInfoSection,
       imageCard,
       dimSection,
       palSection,
@@ -11379,19 +11576,20 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   var h = React.createElement;
   var menu = cv.contextMenu;
 
-  // Close menu on outside click or Escape.
-  // Must be declared before any early returns (Rules of Hooks).
+  // Close menu on outside click. ESC handling is delegated to the global
+  // useEscape stack so a context menu open on top of an open modal correctly
+  // takes priority.
   React.useEffect(function() {
     if (!menu) return;
     function close() { cv.setContextMenu(null); }
-    function onKey(e) { if (e.key === "Escape") close(); }
     document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", onKey);
     return function() {
       document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", onKey);
     };
   }, [menu]);
+  if (typeof window !== "undefined" && window.useEscape) {
+    window.useEscape(function() { if (menu) cv.setContextMenu(null); });
+  }
 
   if (!menu) return null;
 
@@ -12129,7 +12327,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               return 1;
             })()
           }
-        }, "Substitute from Stash"),
+        }, "Replace with Stash Threads"),
         h("button", {
           onClick: function() {
             if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
@@ -12152,7 +12350,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               title: "Convert this pattern's palette between DMC and Anchor thread brands",
               style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontWeight:600,
                 opacity:(!ctx.pat || !ctx.pal || ctx.pal.length === 0) ? 0.5 : 1}
-            }, "Convert Palette")
+            }, "Change Thread Brand")
           : null
       ),
       ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8f9fa",fontSize:12}},
@@ -12210,7 +12408,41 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     );
   }
 
+  // ── Project info (name, designer, description) ─────────────────────────────
+  var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
+    h("div", {style:{display:"flex",flexDirection:"column",gap:8,padding:"4px 0 2px"}},
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        "Pattern name",
+        h("input", {
+          type:"text", value: app.projectName || "", maxLength:60,
+          placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
+          onChange: function(e) { app.setProjectName(e.target.value.slice(0,60)); },
+          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+        })
+      ),
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        "Designer (optional)",
+        h("input", {
+          type:"text", value: app.projectDesigner || "", maxLength:80,
+          placeholder: "Your name or studio",
+          onChange: function(e) { app.setProjectDesigner(e.target.value.slice(0,80)); },
+          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+        })
+      ),
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        "Description / notes (optional)",
+        h("textarea", {
+          value: app.projectDescription || "", maxLength:500, rows:3,
+          placeholder: "Source, copyright, stitching notes\u2026",
+          onChange: function(e) { app.setProjectDescription(e.target.value.slice(0,500)); },
+          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+        })
+      )
+    )
+  );
+
   return h("div", {style:{display:"flex",flexDirection:"column",gap:12}},
+    projectInfoSection,
     renderPatternSummary(),
     renderTimeEstimate(),
     renderFinishedSize(),
@@ -13248,6 +13480,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var miniLegend   = React.useState(readPref("exportMiniLegend",      true));
   var settingsOpen = React.useState(false);
   var brandingOpen = React.useState(false);
+  var exportFormat = React.useState("pdf"); // "pdf" | "png"
 
   function bind(pair, prefKey) {
     return function (v) { pair[1](v); if (prefKey) writePref(prefKey, v); };
@@ -13317,16 +13550,25 @@ window.CreatorExportTab = function CreatorExportTab() {
   function doExport() {
     setError(null);
     if (!modesArr.length) { setError("Pick at least one chart mode (B&W or Colour)."); return; }
-    var project = window.PdfExport.buildExportProject(ctx);
+    // Merge app-level project metadata (name/designer/description live on AppContext, not PatternData).
+    var exportCtx = Object.assign({}, ctx, {
+      projectName: app.projectName,
+      projectDesigner: app.projectDesigner,
+      projectDescription: app.projectDescription,
+    });
+    var project = window.PdfExport.buildExportProject(exportCtx);
     if (!project) { setError("No pattern to export."); return; }
     project.coverPreviewJpeg = window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
+    var branding = window.PdfExport.readBranding();
+    // Per-project designer overrides global designer branding when set.
+    if (app.projectDesigner) branding = Object.assign({}, branding, { designerName: app.projectDesigner });
     var opts = {
       pageSize: pageSize[0], marginsMm: marginsMm[0],
       stitchesPerPage: stPerPg[0], customCols: customCols[0], customRows: customRows[0],
       chartModes: modesArr, overlap: overlap[0],
       includeCover: includeCover[0], includeInfo: includeInfo[0],
       includeIndex: includeIndex[0], miniLegend: miniLegend[0],
-      branding: window.PdfExport.readBranding(),
+      branding: branding,
       locale: navigator.language || "en-GB",
     };
     setProgress({ stage: "init", current: 0, total: totalPagesPreview || 1 });
@@ -13351,6 +13593,39 @@ window.CreatorExportTab = function CreatorExportTab() {
     runningRef.current = null;
     window.PdfExport.cancelAll();
     setProgress(null);
+  }
+
+  function doExportPng() {
+    setError(null);
+    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("No pattern to export."); return; }
+    var CELL = 10;
+    var c = document.createElement("canvas");
+    c.width = ctx.sW * CELL;
+    c.height = ctx.sH * CELL;
+    var g = c.getContext("2d");
+    g.fillStyle = "#ffffff";
+    g.fillRect(0, 0, c.width, c.height);
+    for (var y = 0; y < ctx.sH; y++) {
+      for (var x = 0; x < ctx.sW; x++) {
+        var cell = ctx.pat[y * ctx.sW + x];
+        if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+        var rgb = cell.rgb;
+        if (!rgb || rgb.length < 3) continue;
+        g.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+        g.fillRect(x * CELL, y * CELL, CELL, CELL);
+      }
+    }
+    c.toBlob(function (blob) {
+      if (!blob) { setError("Failed to create PNG."); return; }
+      var name = ((app.projectName || "pattern") + "").replace(/[^\w\-]+/g, "_") + ".png";
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    }, "image/png");
   }
 
   if (!(ctx && ctx.pat && ctx.pal)) return null;
@@ -13397,12 +13672,10 @@ window.CreatorExportTab = function CreatorExportTab() {
 
         h("div", { style: { marginBottom: 14 } },
           h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 6 } }, "Format"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12 } },
-            h("input", { type: "radio", checked: true, readOnly: true }), "PDF"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, opacity: 0.5 } },
-            h("input", { type: "radio", disabled: true }), "PNG (coming soon)"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.5 } },
-            h("input", { type: "radio", disabled: true }), "OXS (coming soon)")
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "pdf", onChange: function () { exportFormat[1]("pdf"); } }), "PDF"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+            h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "png", onChange: function () { exportFormat[1]("png"); } }), "PNG")
         ),
 
         h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 } },
@@ -13474,12 +13747,10 @@ window.CreatorExportTab = function CreatorExportTab() {
       )
     ),
 
-    h("div", null,
-      h("button", { onClick: function () { setBrandingOpen(!brandingOpen[0]); }, style: sectionToggle },
-        h("span", null, "Designer branding"),
-        h("span", { style: { color: "#64748b" } }, brandingOpen[0] ? "▲" : "▼")
-      ),
-      brandingOpen[0] && window.CreatorDesignerBrandingSection && h(window.CreatorDesignerBrandingSection)
+    h("div", { style: { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#475569" } },
+      "Designer branding (name, logo, copyright) is now in ",
+      h("strong", null, "File → Preferences"),
+      ". Settings there apply to every PDF you export."
     ),
 
     progressState[0] ? h("div", { style: { background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 10, padding: 16 } },
@@ -13492,21 +13763,11 @@ window.CreatorExportTab = function CreatorExportTab() {
       ),
       h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize: 13, borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", cursor: "pointer", fontWeight: 600 } }, "Cancel")
     ) : h("button", {
-      onClick: doExport,
-      style: (modesArr.length === 0) ? disabledCta : ctaStyle,
-      disabled: modesArr.length === 0,
-    }, "Export PDF"),
+      onClick: exportFormat[0] === "png" ? doExportPng : doExport,
+      style: (exportFormat[0] === "pdf" && modesArr.length === 0) ? disabledCta : ctaStyle,
+      disabled: exportFormat[0] === "pdf" && modesArr.length === 0,
+    }, exportFormat[0] === "png" ? "Export PNG" : "Export PDF"),
 
-    errorState[0] && h("div", { style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, fontSize: 12, color: "#b91c1c" } }, errorState[0]),
-
-    h("div", { style: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14 } },
-      h("h4", { style: { margin: "0 0 8px", fontSize: 13, color: "#0f172a" } }, "Save / load project file"),
-      h("p", { style: { fontSize: 11, color: "#64748b", margin: "0 0 10px" } },
-        "Save the editable .json so you can re-open this pattern later or in Stitch Tracker."),
-      h("div", { style: { display: "flex", gap: 8 } },
-        h("button", { onClick: app.saveProject, style: { padding: "8px 16px", fontSize: 13, borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 } }, "Save (.json)"),
-        h("button", { onClick: function () { app.loadRef.current && app.loadRef.current.click(); }, style: { padding: "8px 16px", fontSize: 13, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", fontWeight: 500 } }, "Load")
-      )
-    )
+    errorState[0] && h("div", { style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, fontSize: 12, color: "#b91c1c" } }, errorState[0])
   );
 };

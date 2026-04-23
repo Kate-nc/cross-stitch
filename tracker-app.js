@@ -222,59 +222,79 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
   );
 }
 
-// ── Stitching Style Onboarding Modal ──
-function StitchingStyleOnboarding({onDone,startCorner:initCorner}){
+// ── Stitching Style picker body ──
+// StitchingStyleStepBody renders the 3-screen flow without any modal chrome.
+// It is reused by:
+//   - StitchingStyleOnboarding (legacy modal launcher used by the toolbar
+//     "change style" affordance), which wraps this body in modal-overlay.
+//   - The first-visit WelcomeWizard, which renders this as a customComponent
+//     step so the welcome + style picker present as a single wizard rather
+//     than two stacked modals.
+// Props: { onComplete({style,blockW,blockH,startCorner}), onBack?, onSkip?, startCorner }
+function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner}){
   const[screen,setScreen]=useState(1);
   const[style,setStyle]=useState(null);
   const[bw,setBw]=useState(10),[bh,setBh]=useState(10);
   const[customW,setCustomW]=useState(10),[customH,setCustomH]=useState(10);
   const[showCustom,setShowCustom]=useState(false);
   const[corner,setCorner]=useState(initCorner||"TL");
-  const commit=(s,w,h,c)=>{try{localStorage.setItem("cs_styleOnboardingDone","1");}catch(_){}onDone({style:s,blockW:w,blockH:h,startCorner:c});};
+  const commit=(s,w,h,c)=>{try{localStorage.setItem("cs_styleOnboardingDone","1");}catch(_){}onComplete({style:s,blockW:w,blockH:h,startCorner:c});};
+  // Screen 1 — pick general working style.
   if(screen===1)return(
-    <div className="modal-overlay">
-      <div className="modal-content" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
-        <h3 style={{marginTop:0,fontSize:17}}>How do you usually work through a pattern?</h3>
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
-          <button className="modal-choice-btn" onClick={()=>{setStyle("block");setScreen(2);}}>One section at a time</button>
-          <button className="modal-choice-btn" onClick={()=>{setStyle("crosscountry");setScreen(3);}}>One colour at a time</button>
-          <button className="modal-choice-btn" onClick={()=>{setStyle("freestyle");setScreen(3);}}>I don't have a fixed method</button>
-        </div>
-        <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>{try{localStorage.setItem("cs_styleOnboardingDone","1");}catch(_){}onDone(null);}}>Skip for now</button>
+    <div>
+      <h3 style={{marginTop:0,fontSize:17}}>How do you usually work through a pattern?</h3>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
+        <button className="modal-choice-btn" onClick={()=>{setStyle("block");setScreen(2);}}>One section at a time</button>
+        <button className="modal-choice-btn" onClick={()=>{setStyle("crosscountry");setScreen(3);}}>One colour at a time</button>
+        <button className="modal-choice-btn" onClick={()=>{setStyle("freestyle");setScreen(3);}}>I don't have a fixed method</button>
       </div>
+      {/* Skip-for-now removed: Phase 4 requires an active selection so users
+          don't accidentally bypass the picker and lose the helpful defaults. */}
     </div>
   );
+  // Screen 2 — block-shape picker (only for "block" style).
   if(screen===2)return(
-    <div className="modal-overlay">
-      <div className="modal-content" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
-        <h3 style={{marginTop:0,fontSize:17}}>What shape are your sections?</h3>
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
-          <button className="modal-choice-btn" onClick={()=>{setStyle("block");setBw(10);setBh(10);setScreen(3);}}>10×10 blocks</button>
-          <button className="modal-choice-btn" onClick={()=>{setStyle("royal");setBw(10);setBh(20);setScreen(3);}}>Tall towers (10 wide × 20 tall)</button>
-          <button className="modal-choice-btn" onClick={()=>{setStyle("block");setBw(20);setBh(20);setScreen(3);}}>Larger blocks (20×20)</button>
-          <button className="modal-choice-btn" onClick={()=>setShowCustom(v=>!v)}>Other size…</button>
-          {showCustom&&<div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 12px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
-            <label style={{fontSize:12,fontWeight:600}}>W:</label>
-            <input type="number" value={customW} onChange={e=>setCustomW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
-            <label style={{fontSize:12,fontWeight:600}}>H:</label>
-            <input type="number" value={customH} onChange={e=>setCustomH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
-            <button onClick={()=>{setStyle("block");setBw(customW);setBh(customH);setScreen(3);}} style={{padding:"4px 10px",borderRadius:4,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}>OK</button>
-          </div>}
-          {showCustom&&(customW%10!==0||customH%10!==0)&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>Custom sizes may not align with the 10-stitch grid lines.</div>}
-        </div>
-        <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>setScreen(1)}>← Back</button>
+    <div>
+      <h3 style={{marginTop:0,fontSize:17}}>What shape are your sections?</h3>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
+        <button className="modal-choice-btn" onClick={()=>{setStyle("block");setBw(10);setBh(10);setScreen(3);}}>10×10 blocks</button>
+        <button className="modal-choice-btn" onClick={()=>{setStyle("royal");setBw(10);setBh(20);setScreen(3);}}>Tall towers (10 wide × 20 tall)</button>
+        <button className="modal-choice-btn" onClick={()=>{setStyle("block");setBw(20);setBh(20);setScreen(3);}}>Larger blocks (20×20)</button>
+        <button className="modal-choice-btn" onClick={()=>setShowCustom(v=>!v)}>Other size…</button>
+        {showCustom&&<div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 12px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
+          <label style={{fontSize:12,fontWeight:600}}>W:</label>
+          <input type="number" value={customW} onChange={e=>setCustomW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
+          <label style={{fontSize:12,fontWeight:600}}>H:</label>
+          <input type="number" value={customH} onChange={e=>setCustomH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
+          <button onClick={()=>{setStyle("block");setBw(customW);setBh(customH);setScreen(3);}} style={{padding:"4px 10px",borderRadius:4,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}>OK</button>
+        </div>}
+        {showCustom&&(customW%10!==0||customH%10!==0)&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>Custom sizes may not align with the 10-stitch grid lines.</div>}
       </div>
+      <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>setScreen(1)}>← Back</button>
     </div>
   );
+  // Screen 3 — start-corner picker; commits on selection.
   const CORNERS=[["TL","Top-left"],["TR","Top-right"],["C","Centre"],["BL","Bottom-left"],["BR","Bottom-right"]];
+  return(
+    <div>
+      <h3 style={{marginTop:0,fontSize:17}}>Where do you usually start?</h3>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
+        {CORNERS.map(([k,l])=><button key={k} className={"modal-choice-btn"+(corner===k?" modal-choice-btn--on":"")} onClick={()=>commit(style||"block",bw,bh,k)}>{l}</button>)}
+      </div>
+      <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>setScreen(style==="block"||style==="royal"?2:1)}>← Back</button>
+    </div>
+  );
+}
+
+// ── Stitching Style Onboarding Modal ──
+// Used by the toolbar "Stitching style: …" affordance to re-open the picker
+// after the first visit. The first-visit picker is now embedded as a step in
+// the WelcomeWizard (see UnifiedApp / TrackerApp welcome mount).
+function StitchingStyleOnboarding({onDone,startCorner:initCorner}){
   return(
     <div className="modal-overlay">
       <div className="modal-content" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
-        <h3 style={{marginTop:0,fontSize:17}}>Where do you usually start?</h3>
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
-          {CORNERS.map(([k,l])=><button key={k} className={"modal-choice-btn"+(corner===k?" modal-choice-btn--on":"")} onClick={()=>commit(style||"block",bw,bh,k)}>{l}</button>)}
-        </div>
-        <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>setScreen(style==="block"||style==="royal"?2:1)}>← Back</button>
+        <StitchingStyleStepBody onComplete={onDone} startCorner={initCorner} />
       </div>
     </div>
   );
@@ -335,6 +355,61 @@ function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,hasBreadcrumbs
   );
 }
 
+function TrackerProjectPicker({list,currentId,onPick,onClose}){
+  const sorted=[...(list||[])].sort((a,b)=>{
+    const ad=a.updatedAt?new Date(a.updatedAt).getTime():0;
+    const bd=b.updatedAt?new Date(b.updatedAt).getTime():0;
+    return bd-ad;
+  });
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.55)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:12,padding:20,maxWidth:560,width:"100%",maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <h3 style={{margin:0,fontSize:17,color:"#0f172a"}}>Switch project</h3>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b",padding:"0 4px"}}>×</button>
+        </div>
+        <p style={{margin:"0 0 12px",fontSize:12,color:"#64748b"}}>Pick another saved project to track. Your current progress is auto-saved.</p>
+        <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:8,paddingRight:4}}>
+          {sorted.length===0&&<div style={{padding:"24px 0",textAlign:"center",fontSize:13,color:"#94a3b8"}}>No saved projects yet.</div>}
+          {sorted.map(p=>{
+            const isActive=p.id===currentId;
+            const total=p.totalStitches||0;
+            const done=p.completedStitches||0;
+            const pct=total>0?Math.round(done/total*100):0;
+            return(
+              <button key={p.id} onClick={()=>!isActive&&onPick(p)} disabled={isActive} style={{
+                display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:8,
+                border:isActive?"2px solid #0d9488":"1px solid #e2e8f0",
+                background:isActive?"#f0fdfa":"#fff",
+                cursor:isActive?"default":"pointer",textAlign:"left",fontFamily:"inherit",
+                opacity:isActive?0.85:1
+              }}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:600,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {p.name||"Untitled"}
+                    {isActive&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:"#0d9488",background:"#ccfbf1",padding:"1px 6px",borderRadius:8,verticalAlign:"middle"}}>ACTIVE</span>}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
+                    <div style={{flex:1,height:5,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{width:pct+"%",height:"100%",background:pct===100?"#16a34a":"#0d9488"}}/>
+                    </div>
+                    <span style={{fontSize:11,color:"#64748b",fontVariantNumeric:"tabular-nums",minWidth:36,textAlign:"right"}}>{pct}%</span>
+                  </div>
+                  <div style={{fontSize:10,color:"#94a3b8",marginTop:3}}>
+                    {p.dimensions?(p.dimensions.width+"\u00D7"+p.dimensions.height+" \u00B7 "):""}
+                    {done.toLocaleString()+" / "+total.toLocaleString()+" stitches"}
+                    {p.updatedAt?(" \u00B7 updated "+new Date(p.updatedAt).toLocaleDateString()):""}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80),[sH,setSH]=useState(80);
 const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null);
@@ -345,6 +420,16 @@ const[stitchSpeed,setStitchSpeed]=useState(40);
 
 const[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
+// Generic Tracker welcome — fires once on first visit, before the existing
+// StitchingStyleOnboarding (which is domain-specific).
+const[welcomeOpen,setWelcomeOpen]=useState(()=>{try{return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('tracker'));}catch(_){return false;}});
+// Global "?" shortcut → open Help Centre.
+useEffect(()=>{const h=()=>setModal("help");window.addEventListener("cs:openHelp",h);return()=>window.removeEventListener("cs:openHelp",h);},[]);
+// "Show welcome tour again" from HelpCentre → re-open the wizard.
+useEffect(()=>{const h=(e)=>{if(!e||!e.detail||e.detail.page==='tracker')setWelcomeOpen(true);};window.addEventListener("cs:showWelcome",h);return()=>window.removeEventListener("cs:showWelcome",h);},[]);
+const[projectPickerOpen,setProjectPickerOpen]=useState(false);
+const[projectPickerList,setProjectPickerList]=useState([]);
+const[preferencesOpen,setPreferencesOpen]=useState(false);
 const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
 const [pdfSettings, setPdfSettings] = useState({ chartStyle: 'symbols', cellSize: 3, paper: 'a4', orientation: 'portrait', gridInterval: 10, gridNumbers: true, centerMarks: true, legendLocation: 'separate', legendColumns: 2, coverPage: true, progressOverlay: false, separateBackstitch: false });
 const showCtr=true;
@@ -485,7 +570,15 @@ const[focusBlock,setFocusBlock]=useState(null); // {bx,by} | null
 const[focusEnabled,setFocusEnabled]=useState(()=>{try{return localStorage.getItem("cs_focusEnabled")==="1";}catch(_){return false;}});
 const[colourSequence,setColourSequence]=useState(()=>{try{return localStorage.getItem("cs_colourSeq")||"fewest";}catch(_){return"fewest";}});
 const[startCorner,setStartCorner]=useState(()=>{try{return localStorage.getItem("cs_startCorner")||"TL";}catch(_){return"TL";}});
-const[styleOnboardingOpen,setStyleOnboardingOpen]=useState(()=>{try{return!localStorage.getItem("cs_styleOnboardingDone")&&!localStorage.getItem("cs_stitchStyle");}catch(_){return false;}});
+// Gate the style picker on the generic Welcome wizard so they appear
+// sequentially: Welcome first, style picker after dismissal. If the user has
+// already seen the Welcome wizard (or never needed it on this build), the
+// style picker shows immediately as before.
+const[styleOnboardingOpen,setStyleOnboardingOpen]=useState(()=>{try{
+  if(localStorage.getItem("cs_styleOnboardingDone")||localStorage.getItem("cs_stitchStyle"))return false;
+  if(window.WelcomeWizard&&window.WelcomeWizard.shouldShow("tracker"))return false; // wait for welcome
+  return true;
+}catch(_){return false;}});
 const[breadcrumbs,setBreadcrumbs]=useState([]);
 const[breadcrumbVisible,setBreadcrumbVisible]=useState(()=>{try{return localStorage.getItem("cs_bcVisible")!=="0";}catch(_){return true;}});
 useEffect(()=>{try{localStorage.setItem("cs_stitchStyle",stitchingStyle);}catch(_){}},[stitchingStyle]);
@@ -1572,7 +1665,7 @@ async function exportPDF(options={}){
   pdf.setTextColor(0);pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=10;
   pdf.setFontSize(9);pdf.setTextColor(80);
   pdf.text("Symbol",mg,ty);
-  pdf.text("Color",mg+15,ty);
+  pdf.text("Colour",mg+15,ty);
   pdf.text("DMC",mg+30,ty);
   pdf.text("Name",mg+45,ty);
   pdf.text("Stitches",mg+110,ty,{align:"right"});
@@ -2254,7 +2347,7 @@ function loadProject(e){
       try{
         let project=JSON.parse(ev.target.result);
         if(!project.pattern && !project.p)throw new Error("Invalid format");
-        if(!project.id) project.id = "proj_" + Date.now();
+        if(!project.id) project.id = ProjectStorage.newId();
         if(!project.createdAt) project.createdAt = new Date().toISOString();
         processLoadedProject(project);
         ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("JSON import save failed:", err));
@@ -2418,7 +2511,7 @@ const autoSaveDirtyRef = useRef(false);
 const buildSnapshotRef = useRef(null);
 const buildSnapshot = () => {
   if (!pat || !pal) return null;
-  if (!projectIdRef.current) projectIdRef.current = "proj_" + Date.now();
+  if (!projectIdRef.current) projectIdRef.current = ProjectStorage.newId();
   if (!createdAtRef.current) createdAtRef.current = new Date().toISOString();
   const sseArr = [...singleStitchEdits.entries()];
   const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
@@ -3874,7 +3967,7 @@ useEffect(()=>{
       if(drawer){setDrawer(false);return;}
       return;
     }
-    if(e.key==="?"){setModal(m=>m==="shortcuts"?null:"shortcuts");return;}
+    if(e.key==="?"){e.preventDefault();e.stopPropagation();setModal("help");return;}
     if(!isEditMode){
       if(e.key==="t"||e.key==="T"){setStitchMode("track");return;}
       if(e.key==="n"||e.key==="N"){setStitchMode("navigate");return;}
@@ -3989,7 +4082,28 @@ useEffect(()=>{
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>setProjectName(n)):undefined} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>setProjectName(n)):undefined} showAutosaved={!!(pat&&pal)} />
+{projectPickerOpen&&<TrackerProjectPicker
+  list={projectPickerList}
+  currentId={projectIdRef.current}
+  onClose={()=>setProjectPickerOpen(false)}
+  onPick={(meta)=>{
+    // Close the modal immediately so the loading state doesn't appear stuck.
+    setProjectPickerOpen(false);
+    ProjectStorage.get(meta.id).then(p=>{
+      if(p&&p.pattern&&p.settings){
+        processLoadedProject(p);
+        // Note: setActiveProject is synchronous (writes localStorage); do NOT chain .catch().
+        try { ProjectStorage.setActiveProject(p.id); } catch(_) {}
+      } else {
+        alert("That project is empty or could not be loaded.");
+      }
+    }).catch(err=>{
+      alert("Failed to load project: "+(err && err.message ? err.message : err));
+    });
+  }}
+/>}
+{preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>setPreferencesOpen(false)})}
 {namePromptOpen&&<NamePromptModal
   defaultName={projectName || (sW+'×'+sH+' pattern')}
   onConfirm={name=>{setProjectName(name);setNamePromptOpen(false);doSaveProject(name);}}
@@ -4194,7 +4308,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&project.pattern&&project.settings){processLoadedProject(project);ProjectStorage.setActiveProject(project.id).catch(()=>{});setStatsView(false);}}).catch(()=>{});}}/>}
+  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&project.pattern&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
 
   {trackerPreviewOpen&&pat&&<TrackerPreviewModal pat={pat} cmap={cmap} sW={sW} sH={sH} fabricCt={fabricCt} level={trackerPreviewLevel} onLevelChange={setTrackerPreviewLevel} onClose={()=>setTrackerPreviewOpen(false)}/>}
 
@@ -4749,7 +4863,7 @@ return(
             });
             const finalName = (importName || '').trim().slice(0, 60);
             let project = importResultToProject(result, importFabricCt, finalName);
-            project.id = "proj_" + Date.now();
+            project.id = ProjectStorage.newId();
             project.createdAt = project.createdAt || new Date().toISOString();
             processLoadedProject(project);
             ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Import save failed:", err));
@@ -4768,7 +4882,31 @@ return(
     </div>
   </div>}
 
-  {modal==="help"&&<SharedModals.Help onClose={()=>setModal(null)} />}
+  {modal==="help"&&<SharedModals.Help defaultTab="tracker" onClose={()=>setModal(null)} />}
+  {welcomeOpen&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{
+    page:"tracker",
+    // Phase 5: the Stitching-Style picker is now an extra wizard step rather
+    // than a separate modal stacked after the welcome. Both tutorial flags
+    // get marked done together when the user finishes the wizard.
+    extraSteps:[{
+      customComponent:StitchingStyleStepBody,
+      onCommit:result=>{
+        if(!result)return;
+        setStitchingStyle(result.style);
+        setBlockW(result.blockW);setBlockH(result.blockH);
+        setStartCorner(result.startCorner);
+        if(!focusBlock){setFocusBlock(_getStartBlock());}
+        if(result.style!=="crosscountry")setFocusEnabled(true);
+      }
+    }],
+    onClose:()=>{
+      setWelcomeOpen(false);
+      // Skip-tour exits the wizard without committing a style choice; if the
+      // user has never picked a style, fall back to the standalone modal so
+      // the helpful defaults still get applied.
+      try{ if(!localStorage.getItem("cs_styleOnboardingDone")&&!localStorage.getItem("cs_stitchStyle")) setStyleOnboardingOpen(true); }catch(_){}
+    }
+  })}
   {styleOnboardingOpen&&<StitchingStyleOnboarding startCorner={startCorner} onDone={result=>{
     setStyleOnboardingOpen(false);
     if(result){
@@ -4779,6 +4917,7 @@ return(
       if(result.style!=="crosscountry")setFocusEnabled(true);
     }
   }}/>}
+  {window.HelpHintBanner&&React.createElement(window.HelpHintBanner)}
   {sessionConfigOpen&&<SessionConfigModal liveAutoElapsed={liveAutoElapsed} liveAutoStitches={liveAutoStitches} onClose={()=>setSessionConfigOpen(false)} onStart={cfg=>{
     setExplicitSession({startTime:Date.now(),timeAvail:cfg.timeAvail,stitchGoal:cfg.stitchGoal,startStitches:doneCount,blocks:[]});
     setSessionConfigOpen(false);
@@ -4798,9 +4937,9 @@ return(
         <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6}}>
           Chart Mode:
           <select value={pdfSettings.chartStyle||"color_symbol"} onChange={e=>setPdfSettings({...pdfSettings,chartStyle:e.target.value})} style={{padding:"6px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:13,background:"#fff"}}>
-            <option value="color_symbol">Color + Symbols</option>
+            <option value="color_symbol">Colour + Symbols</option>
             <option value="symbol">Symbols Only</option>
-            <option value="color">Color Blocks Only</option>
+            <option value="color">Colour Blocks Only</option>
           </select>
         </label>
         <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6}}>

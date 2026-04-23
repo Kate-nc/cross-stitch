@@ -1,64 +1,22 @@
 const SharedModals = {
-  Help: ({ onClose }) => {
-    React.useEffect(function() {
-      var handler = function(e) { if (e.key === "Escape") onClose(); };
-      document.addEventListener("keydown", handler);
-      return function() { document.removeEventListener("keydown", handler); };
-    }, [onClose]);
+  Help: ({ onClose, defaultTab }) => {
+    window.useEscape(onClose);
+    // Delegate to the new tabbed Help Centre when available; fall back to a
+    // simple message if help-content.js failed to load (defensive).
+    if (window.HelpCentre) {
+      return React.createElement(window.HelpCentre, { onClose: onClose, defaultTab: defaultTab });
+    }
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
-      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 600, maxHeight: "80vh", overflowY: "auto" } },
-        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
-        React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 22, color: "#1e293b" } }, "Help & User Guide"),
-
-        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 20 } },
-          React.createElement("div", null,
-            React.createElement("h4", { style: { margin: "0 0 8px 0", color: "#1e293b", fontSize: 16 } }, "Pattern Creator"),
-            React.createElement("p", { style: { margin: "0 0 8px 0", color: "#475569", fontSize: 14, lineHeight: 1.5 } }, "Convert any image into a cross-stitch pattern. Adjust dimensions, color palette size, and apply filters to get the perfect design."),
-            React.createElement("ul", { style: { margin: 0, paddingLeft: 20, color: "#475569", fontSize: 13, lineHeight: 1.5 } },
-              React.createElement("li", null, React.createElement("strong", null, "Palette Control:"), " Limit the maximum number of colors to keep the project manageable."),
-              React.createElement("li", null, React.createElement("strong", null, "Min Stitches/Colour:"), " Remove colors that are only used for a few stitches (useful for cleaning up noise)."),
-              React.createElement("li", null, React.createElement("strong", null, "Skip Background:"), " Select a color from your image to be treated as empty canvas. Click 'Pick' and then click on your image.")
-            )
-          ),
-
-          React.createElement("div", null,
-            React.createElement("h4", { style: { margin: "0 0 8px 0", color: "#1e293b", fontSize: 16 } }, "Pattern Editing"),
-            React.createElement("p", { style: { margin: "0 0 8px 0", color: "#475569", fontSize: 14, lineHeight: 1.5 } }, "Once generated, you can manually edit the pattern:"),
-            React.createElement("ul", { style: { margin: 0, paddingLeft: 20, color: "#475569", fontSize: 13, lineHeight: 1.5 } },
-              React.createElement("li", null, React.createElement("strong", null, "Paint & Fill:"), " Select a color from the palette below the canvas, then use the Paint or Fill tools to modify individual stitches or areas."),
-              React.createElement("li", null, React.createElement("strong", null, "Backstitch:"), " Draw lines between grid corners. Use the 'Erase Line' tool to remove them.")
-            )
-          ),
-
-          React.createElement("div", null,
-            React.createElement("h4", { style: { margin: "0 0 8px 0", color: "#1e293b", fontSize: 16 } }, "Stitch Tracker"),
-            React.createElement("p", { style: { margin: "0 0 8px 0", color: "#475569", fontSize: 14, lineHeight: 1.5 } }, "Load a saved project to track your stitching progress interactively."),
-            React.createElement("ul", { style: { margin: 0, paddingLeft: 20, color: "#475569", fontSize: 13, lineHeight: 1.5 } },
-              React.createElement("li", null, React.createElement("strong", null, "Track Mode:"), " Click or drag across the pattern to mark stitches as complete. Use the timer to estimate your completion date."),
-              React.createElement("li", null, React.createElement("strong", null, "Navigate Mode:"), " Place a guide crosshair on the canvas. If you select a color, you can click to place parking markers."),
-              React.createElement("li", null, React.createElement("strong", null, "Colours Drawer:"), " Open the drawer at the bottom to see your progress per color. Click a color to highlight only those stitches on the canvas.")
-            )
-          ),
-
-          React.createElement("div", null,
-            React.createElement("h4", { style: { margin: "0 0 8px 0", color: "#1e293b", fontSize: 16 } }, "Saving & Exporting"),
-            React.createElement("ul", { style: { margin: 0, paddingLeft: 20, color: "#475569", fontSize: 13, lineHeight: 1.5 } },
-              React.createElement("li", null, React.createElement("strong", null, "Save Project (.json):"), " This is the recommended way to save. It keeps your generated pattern, edits, and tracking progress in one file. You can load this file in either the Creator or Tracker."),
-              React.createElement("li", null, React.createElement("strong", null, "Export PDF:"), " Generates a printable multi-page chart with a thread legend."),
-              React.createElement("li", null, React.createElement("strong", null, "Open in Stitch Tracker (Link):"), " Creates a sharable URL that opens the pattern directly in the Tracker without needing a file (only works for smaller patterns).")
-            )
-          )
-        )
+      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 480, padding: 20 } },
+        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "\u00d7"),
+        React.createElement("h3", { style: { marginTop: 0 } }, "Help"),
+        React.createElement("p", null, "Help content failed to load. Please reload the page.")
       )
     );
   },
 
   About: ({ onClose }) => {
-    React.useEffect(function() {
-      var handler = function(e) { if (e.key === "Escape") onClose(); };
-      document.addEventListener("keydown", handler);
-      return function() { document.removeEventListener("keydown", handler); };
-    }, [onClose]);
+    window.useEscape(onClose);
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
       React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500 } },
         React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
@@ -298,6 +256,10 @@ function NamePromptModal({ defaultName, onConfirm, onCancel }) {
   const inputRef = React.useRef(null);
   React.useEffect(() => { if (inputRef.current) inputRef.current.select(); }, []);
   const handleSubmit = () => { const trimmed = name.trim(); onConfirm(trimmed || defaultName || 'cross-stitch-project'); };
+  // Use the global ESC stack so this modal closes on top of any other open
+  // modal without conflicting with their handlers. skipWhenEditingTextField
+  // is disabled because the only focusable element here is the name input.
+  window.useEscape(onCancel, { skipWhenEditingTextField: false });
   return React.createElement('div', { className: 'modal-overlay', onClick: onCancel },
     React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 400 } },
       React.createElement('button', { className: 'modal-close', onClick: onCancel }, '×'),
@@ -306,7 +268,7 @@ function NamePromptModal({ defaultName, onConfirm, onCancel }) {
       React.createElement('input', {
         ref: inputRef, type: 'text', maxLength: 60, value: name,
         onChange: e => setName(e.target.value),
-        onKeyDown: e => { if (e.key === 'Enter') handleSubmit(); if (e.key === 'Escape') onCancel(); },
+        onKeyDown: e => { if (e.key === 'Enter') handleSubmit(); },
         placeholder: 'e.g. Rose Garden',
         style: { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 14, boxSizing: 'border-box' }
       }),
@@ -332,11 +294,8 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
   var _applying = React.useState(false);
   var applying = _applying[0], setApplying = _applying[1];
 
-  React.useEffect(function() {
-    var handler = function(e) { if (e.key === 'Escape' && !applying) onCancel(); };
-    document.addEventListener('keydown', handler);
-    return function() { document.removeEventListener('keydown', handler); };
-  }, [onCancel, applying]);
+  // Block ESC during apply so the user can't dismiss mid-import.
+  window.useEscape(function() { if (!applying) onCancel(); });
 
   function setResolution(id, val) {
     setResolutions(function(prev) {

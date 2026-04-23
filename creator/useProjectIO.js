@@ -6,6 +6,26 @@
 window.useProjectIO = function useProjectIO(state, history, options) {
   var onSwitchToTrack = options && options.onSwitchToTrack;
   var creatorSnapshotRef = React.useRef(null);
+  // Tracks whether we have already performed an initial (no-debounce) save for the
+  // current pattern. Reset whenever pat/projectId changes so a freshly generated
+  // pattern is persisted to IndexedDB and the Stash Manager library immediately,
+  // not after the 1 s debounce. This avoids the "I created a pattern but it's not
+  // in my stash" bug when the user navigates away within the debounce window.
+  var firstSaveDoneRef = React.useRef(null);
+  // Mirrors the latest values needed by the beforeunload stash-sync handler.
+  // The handler effect deps only on isActive (we don't want to re-bind on every
+  // keystroke), so reading from this ref guarantees the unload sync uses
+  // current skeinData / projectName / fabricCt instead of the snapshot taken
+  // at mount time. Updated synchronously on every render below.
+  var stashSyncRef = React.useRef(null);
+  stashSyncRef.current = {
+    projectId: state.projectIdRef && state.projectIdRef.current,
+    projectName: state.projectName,
+    skeinData: state.skeinData,
+    fabricCt: state.fabricCt,
+    sW: state.sW,
+    sH: state.sH
+  };
 
   // ─── doSaveProject ───────────────────────────────────────────────────────────
   function doSaveProject(finalName) {
@@ -26,7 +46,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var zoom = state.zoom, scrollRef = state.scrollRef;
 
     if (!pat || !pal) return;
-    if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
+    if (!state.projectIdRef.current) state.projectIdRef.current = ProjectStorage.newId();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
     var psArr = [];
     partialStitches.forEach(function(v, k) {
@@ -34,7 +54,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       psArr.push([k, e]);
     });
     var project = Object.assign({}, state.trackerFieldsRef.current, {
-      version: 10, id: state.projectIdRef.current, page: "creator", name: finalName,
+      version: 11, id: state.projectIdRef.current, page: "creator", name: finalName,
+      designer: state.projectDesigner || "", description: state.projectDescription || "",
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
@@ -63,7 +84,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   }
 
   // ─── handleOpenInTracker ─────────────────────────────────────────────────────
-  function handleOpenInTracker() {
+  // Async because the standalone-navigation branch must wait for IndexedDB to
+  // commit before changing window.location — otherwise the Tracker could load
+  // before the new project row exists, leaving the active-project pointer
+  // dangling.
+  async function handleOpenInTracker() {
     var pat = state.pat, pal = state.pal;
     var sW = state.sW, sH = state.sH, maxC = state.maxC;
     var bri = state.bri, con = state.con, sat = state.sat;
@@ -80,14 +105,15 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var projectIdRef = state.projectIdRef, projectName = state.projectName;
 
     if (!pat || !pal) return;
-    if (!projectIdRef.current) projectIdRef.current = "proj_" + Date.now();
+    if (!projectIdRef.current) projectIdRef.current = ProjectStorage.newId();
     var psArr = [];
     partialStitches.forEach(function(v, k) {
       var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
       psArr.push([k, e]);
     });
     var project = Object.assign({}, state.trackerFieldsRef.current, {
-      version: 10, id: projectIdRef.current, page: "creator", name: projectName,
+      version: 11, id: projectIdRef.current, page: "creator", name: projectName,
+      designer: state.projectDesigner || "", description: state.projectDescription || "",
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
       bsLines: bsLines, done: done ? Array.from(done) : null,
@@ -98,26 +124,79 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (onSwitchToTrack) {
       saveProjectToDB(project).catch(function() {});
       ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function() {});
+      // Belt-and-braces stash sync: the debounced auto-save may not have fired yet
+      // (e.g. if the user generated and immediately clicked "Open in Tracker"). Without
+      // this the pattern would not appear in the Stash Manager library until the
+      // Tracker's own auto-save runs.
+      if (typeof StashBridge !== "undefined" && state.skeinData && state.skeinData.length) {
+        try {
+          StashBridge.syncProjectToLibrary(
+            projectIdRef.current,
+            projectName || (state.sW + "\xD7" + state.sH + " pattern"),
+            state.skeinData,
+            "inprogress",
+            state.fabricCt
+          );
+        } catch (_) {}
+      }
       if (state.addToast) state.addToast("Opening in Stitch Tracker\u2026", {type:"info", duration:2000});
       onSwitchToTrack({ project: project, key: Date.now() });
       return;
     }
     ProjectStorage.setActiveProject(projectIdRef.current);
+    // Always persist to IndexedDB before navigating away. The Tracker can
+    // recover the project via the active-project pointer even when the inline
+    // handoff payload (localStorage / URL hash) is unavailable — but only if
+    // these writes have actually committed. AWAIT both before continuing,
+    // otherwise window.location.href can fire mid-transaction.
+    try { await ProjectStorage.save(project); } catch (_) {}
+    try { await saveProjectToDB(project); } catch (_) {}
+    // Preferred path: write the project to localStorage and let the Tracker pick
+    // it up via `crossstitch_handoff`. This works for any pattern size that fits
+    // in the localStorage quota (typically 5–10 MB), which is well above what
+    // the URL-hash fallback could ever carry. The hash fallback is kept only for
+    // browsers/sessions where localStorage write fails (private mode, full quota).
+    var savedHandoff = false;
     try {
       localStorage.setItem("crossstitch_handoff", JSON.stringify(project));
-      window.location.href = "stitch.html?source=creator";
+      savedHandoff = true;
     } catch (e) {
+      // localStorage write failed (quota or disabled). Try the URL-hash fallback.
       try {
         var str = JSON.stringify(project);
         var compressed = pako.deflate(str);
         var binaryStr = "";
         for (var i = 0; i < compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
         var b64 = btoa(binaryStr).replace(/\+/g, "-").replace(/\//g, "_");
-        if (b64.length > 8000) { alert("Pattern too large for link sharing. Please use Save Project (.json) instead."); return; }
-        window.location.href = "stitch.html#p=" + b64;
-      } catch (e2) {
-        alert("Pattern is too large for direct transfer. Please save the file and open it in the Tracker.");
+        if (b64.length <= 8000) {
+          window.location.href = "stitch.html#p=" + b64;
+          return;
+        }
+        // Pattern too large for the URL hash too. Fall back to a soft toast and
+        // navigate without the inline payload — the Tracker will load whatever
+        // copy is in IndexedDB (we already saved/auto-saved above) using the
+        // active-project pointer. No more loud `alert()`.
+        if (state.addToast) {
+          state.addToast(
+            "Pattern too large for inline transfer \u2014 opening from your saved copy.",
+            { type: "info", duration: 3500 }
+          );
+        }
+      } catch (_) {
+        if (state.addToast) {
+          state.addToast(
+            "Couldn't prepare the inline transfer \u2014 opening from your saved copy.",
+            { type: "warning", duration: 3500 }
+          );
+        }
       }
+    }
+    if (savedHandoff) {
+      window.location.href = "stitch.html?source=creator";
+    } else {
+      // No inline payload available. The Tracker will load via the active project
+      // pointer set above (and via the auto-saved IDB copy from this session).
+      window.location.href = "stitch.html?source=creator";
     }
   }
 
@@ -193,6 +272,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     }
     state.setPartialStitchTool(null);
     state.setProjectName(project.name || "");
+    state.setProjectDesigner(project.designer || "");
+    state.setProjectDescription(project.description || "");
+    // Clear pending-metadata localStorage so a stale pre-gen name can't bleed back in
+    try { localStorage.removeItem("cs_pend_meta"); } catch (_) {}
     state.projectIdRef.current = project.id || null;
     state.createdAtRef.current = project.createdAt || null;
 
@@ -404,9 +487,32 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     loadProjectFromDB().then(function(project4) {
       if (project4 && project4.pattern && project4.settings && !state.userActedRef.current) {
         processLoadedProject(project4);
+      } else if (!state.userActedRef.current) {
+        // No saved project — restore any pending metadata typed before generation
+        try {
+          var pend = localStorage.getItem("cs_pend_meta");
+          if (pend) {
+            var pm = JSON.parse(pend);
+            if (pm.n) state.setProjectName(pm.n);
+            if (pm.d) state.setProjectDesigner(pm.d);
+            if (pm.ds) state.setProjectDescription(pm.ds);
+          }
+        } catch (_) {}
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist name/designer/description to localStorage so they survive a refresh
+  // even before the first pattern is generated (when the full autosave is gated on pat/pal).
+  React.useEffect(function() {
+    try {
+      localStorage.setItem("cs_pend_meta", JSON.stringify({
+        n: state.projectName || "",
+        d: state.projectDesigner || "",
+        ds: state.projectDescription || ""
+      }));
+    } catch (_) {}
+  }, [state.projectName, state.projectDesigner, state.projectDescription]);
 
   // Stash sync on mount
   React.useEffect(function() {
@@ -480,10 +586,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
       psArr.push([k, e]);
     });
-    if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
+    if (!state.projectIdRef.current) state.projectIdRef.current = ProjectStorage.newId();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
     var project5 = Object.assign({}, state.trackerFieldsRef.current, {
-      version: 10, id: state.projectIdRef.current, page: "creator", name: state.projectName,
+      version: 11, id: state.projectIdRef.current, page: "creator", name: state.projectName,
+      designer: state.projectDesigner || "", description: state.projectDescription || "",
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
       pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
@@ -499,7 +606,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // Skip IDB writes when Creator is not the active view — the Tracker's auto-save
     // owns persistence while it is active and has fresher tracker-specific fields.
     if (!state.isActive) return;
-    var saveTimer = setTimeout(function() {
+    // First save for this project — fire immediately (no debounce) so the pattern
+    // appears in the Stash Manager library and IndexedDB the moment generation
+    // finishes, even if the user navigates away within 1 s.
+    var isFirstSave = firstSaveDoneRef.current !== state.projectIdRef.current;
+    function persistAll() {
       saveProjectToDB(project5).catch(function(err) { console.error("Auto-save failed:", err); });
       ProjectStorage.save(project5)
         .then(function(id) { ProjectStorage.setActiveProject(id); })
@@ -513,7 +624,13 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.fabricCt
         );
       }
-    }, 1000);
+      firstSaveDoneRef.current = state.projectIdRef.current;
+    }
+    if (isFirstSave) {
+      persistAll();
+      return;
+    }
+    var saveTimer = setTimeout(persistAll, 1000);
     return function() { clearTimeout(saveTimer); };
   }, [
     state.pat, state.pal, state.sW, state.sH, state.maxC,
@@ -522,6 +639,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
+    state.projectDesigner, state.projectDescription,
     state.isActive,
   ]);
 
@@ -566,6 +684,36 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       };
     };
   }, []);
+
+  // Flush pending autosave on page unload so name/metadata edits made within the
+  // 1 s debounce window aren't lost.
+  React.useEffect(function() {
+    function handleBeforeUnload() {
+      var p = creatorSnapshotRef.current;
+      if (!p || !state.isActive) return;
+      try { ProjectStorage.save(p); } catch (_) {}
+      try { saveProjectToDB(p); } catch (_) {}
+      // Belt-and-braces: also sync to the Stash Manager library so a generated
+      // pattern is never lost from stash even if unload happens during the debounce.
+      // Read from stashSyncRef (updated each render) so we use the latest
+      // skeinData / projectName / fabricCt rather than the values captured
+      // when this effect first ran.
+      var s = stashSyncRef.current;
+      if (s && typeof StashBridge !== "undefined" && s.skeinData && s.skeinData.length) {
+        try {
+          StashBridge.syncProjectToLibrary(
+            s.projectId,
+            s.projectName || (s.sW + "\xD7" + s.sH + " pattern"),
+            s.skeinData,
+            "inprogress",
+            s.fabricCt
+          );
+        } catch (_) {}
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return function() { window.removeEventListener("beforeunload", handleBeforeUnload); };
+  }, [state.isActive]);
 
   // Paste image handler
   React.useEffect(function() {

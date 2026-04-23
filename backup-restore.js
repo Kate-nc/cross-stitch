@@ -204,6 +204,12 @@ const BackupRestore = (() => {
         }
       }
 
+      // Notify other tabs/components (e.g. Stash Manager pattern library) so they
+      // can re-read their state and reconcile after a restore.
+      try {
+        window.dispatchEvent(new CustomEvent("cs:backupRestored", { detail: check.summary }));
+      } catch (_) { /* best-effort */ }
+
       return check.summary;
     }
   };

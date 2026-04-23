@@ -258,6 +258,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return()=>{delete window.__setCreatorAppMode;delete window.__setCreatorProjectName;delete window.__updateCreatorTrackerFields;};
   },[state.setAppMode,state.setProjectName]);
 
+  // Bridge global "?" → open Help Centre while in Creator design mode.
+  React.useEffect(()=>{
+    const h=()=>{ if(typeof state.setModal==='function') state.setModal('help'); };
+    window.addEventListener('cs:openHelpDesign',h);
+    return()=>window.removeEventListener('cs:openHelpDesign',h);
+  },[state.setModal]);
+
   // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
   // Handler identity is stabilised via a ref; the ref is updated synchronously on
   // each render so the latest function is always called despite the empty dep list.
@@ -395,6 +402,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     shortcutsHintDismissed: state.shortcutsHintDismissed, setShortcutsHintDismissed: state.setShortcutsHintDismissed,
     namePromptOpen: state.namePromptOpen, setNamePromptOpen: state.setNamePromptOpen,
     projectName: state.projectName, setProjectName: state.setProjectName,
+    projectDesigner: state.projectDesigner, setProjectDesigner: state.setProjectDesigner,
+    projectDescription: state.projectDescription, setProjectDescription: state.setProjectDescription,
     eyedropperEmpty: state.eyedropperEmpty, setEyedropperEmpty: state.setEyedropperEmpty,
     projectIdRef: state.projectIdRef, createdAtRef: state.createdAtRef, userActedRef: state.userActedRef,
     G: state.G,
@@ -429,6 +438,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage,
     state.toasts, state.overflowOpen, state.panelOpen, state.stripCollapsed,
     state.shortcutsHintDismissed, state.namePromptOpen, state.projectName,
+    state.projectDesigner, state.projectDescription,
     state.eyedropperEmpty, state.pxX, state.pxY, state.totPg,
     state.previewActive, state.previewShowGrid, state.previewFabricBg,
     state.previewMode, state.realisticLevel, state.coverageOverride,
@@ -639,20 +649,28 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     <window.AppContext.Provider value={appCtx}>
     <window.CanvasContext.Provider value={cvCtx}>
     <window.PatternDataContext.Provider value={pdCtx}>
-      <input ref={state.loadRef} type="file" accept=".json" onChange={io.loadProject} style={{display:"none"}}/>
+      <input ref={state.loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={io.loadProject} style={{display:"none"}}/>
       <Header page={state.appMode==='edit'?'editor':'creator'} tab={state.tab} onPageChange={state.setTab}
         onOpen={()=>state.loadRef.current.click()}
         onSave={state.pat&&state.pal?io.saveProject:null}
         onTrack={state.pat&&state.pal?io.handleOpenInTracker:null}
         onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData):null}
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
+        onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}
         setModal={state.setModal}
         projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):undefined}
-        onNameChange={state.pat&&state.pal?n=>state.setProjectName(n):undefined} />
+        onNameChange={state.pat&&state.pal?n=>state.setProjectName(n):undefined}
+        showAutosaved={!!(state.pat&&state.pal)} />
+      {state.preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>state.setPreferencesOpen(false)})}
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
         onConfirm={name=>{state.setProjectName(name);state.setNamePromptOpen(false);io.doSaveProject(name);}}
-        onCancel={()=>state.setNamePromptOpen(false)}
+        onCancel={()=>{
+          state.setNamePromptOpen(false);
+          // Tell the user why nothing happened — without this the modal just
+          // disappears with no feedback when they cancel a Download attempt.
+          if(state.addToast)state.addToast("Download cancelled \u2014 give your pattern a name to download a .json file.",{type:"info",duration:3500});
+        }}
       />}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
@@ -810,7 +828,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           </div>}
           </>}
         </div>}
-        {state.modal==="help"&&<SharedModals.Help onClose={()=>state.setModal(null)} />}
+        {state.modal==="help"&&<SharedModals.Help defaultTab="creator" onClose={()=>state.setModal(null)} />}
         {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}
         {state.modal==="shortcuts"&&<SharedModals.Shortcuts onClose={()=>state.setModal(null)} page="creator" />}
       </div>
@@ -1004,11 +1022,58 @@ function UnifiedApp(){
   },[]);
 
   const[homeModal,setHomeModal]=React.useState(null);
+  const[homePrefsOpen,setHomePrefsOpen]=React.useState(false);
+  const[homeBulkAddOpen,setHomeBulkAddOpen]=React.useState(false);
+  // First-visit welcome wizard. Shows once on the Creator home screen.
+  const[welcomeOpen,setWelcomeOpen]=React.useState(()=>{
+    try{return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('creator'));}catch(_){return false;}
+  });
+  // Global "?" shortcut → open Help Centre. Routes to home or design depending
+  // on which mode the user is currently viewing.
+  React.useEffect(()=>{
+    const h=()=>{
+      if(mode==='home'){setHomeModal('help');}
+      else if(mode==='track'&&typeof T==='function'){/* Tracker has its own listener */}
+      else{
+        // In design mode, dispatch via state.setModal if available.
+        try{ window.dispatchEvent(new CustomEvent('cs:openHelpDesign')); }catch(_){}
+      }
+    };
+    window.addEventListener('cs:openHelp',h);
+    return()=>window.removeEventListener('cs:openHelp',h);
+  },[mode]);
+  // "Show welcome tour again" from HelpCentre → re-open the wizard.
+  React.useEffect(()=>{
+    const h=(e)=>{ if(!e||!e.detail||e.detail.page==='creator') setWelcomeOpen(true); };
+    window.addEventListener('cs:showWelcome',h);
+    return()=>window.removeEventListener('cs:showWelcome',h);
+  },[]);
+
+  // Global "B" shortcut → open Bulk Add Threads from anywhere in the Creator
+  // page (home, design, track). Skipped while typing in inputs / with any
+  // modifier key held so we never intercept browser shortcuts (Ctrl+B etc).
+  React.useEffect(()=>{
+    if(typeof window.BulkAddModal==='undefined')return;
+    const onKey=(e)=>{
+      if(e.defaultPrevented)return;
+      if(e.ctrlKey||e.metaKey||e.altKey)return;
+      if((e.key||'').toLowerCase()!=='b')return;
+      const t=e.target;
+      if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable))return;
+      e.preventDefault();
+      setHomeBulkAddOpen(true);
+    };
+    window.addEventListener('keydown',onKey);
+    return()=>window.removeEventListener('keydown',onKey);
+  },[]);
 
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
   return <>
     {mode==='home'&&<div>
-      <Header page="home" tab="" onPageChange={()=>{}} setModal={setHomeModal} />
+      <Header page="home" tab="" onPageChange={()=>{}} setModal={setHomeModal}
+        onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setHomePrefsOpen(true):undefined} />
+      {homePrefsOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>setHomePrefsOpen(false)})}
+      {homeBulkAddOpen&&typeof window.BulkAddModal!=='undefined'&&React.createElement(window.BulkAddModal,{onClose:()=>setHomeBulkAddOpen(false)})}
       <HomeScreen
         key={homeKey}
         onOpenCreatorWithImage={handleHomeOpenCreatorWithImage}
@@ -1017,10 +1082,12 @@ function UnifiedApp(){
         onImportPattern={handleHomeImportPattern}
         onOpenProject={handleHomeOpenProject}
         onNavigateToStash={handleHomeNavigateToStash}
+        onBulkAddThreads={typeof window.BulkAddModal!=='undefined'?()=>setHomeBulkAddOpen(true):undefined}
         onOpenGlobalStats={switchToStats}
         onOpenShowcase={switchToShowcase}
       />
-      {homeModal==='help'&&<SharedModals.Help onClose={()=>setHomeModal(null)} />}
+      {homeModal==='help'&&<SharedModals.Help defaultTab="creator" onClose={()=>setHomeModal(null)} />}
+      {welcomeOpen&&mode==='home'&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{page:'creator',onClose:()=>setWelcomeOpen(false)})}
     </div>}
     <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
       <CreatorErrorBoundary><CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/></CreatorErrorBoundary>
@@ -1045,6 +1112,7 @@ function UnifiedApp(){
         ?<window.StatsPage onClose={closeStats} onNavigateToProject={(id)=>{switchToTrack({id})}} onNavigateToStash={()=>{window.location.href='manager.html';}} />
         :<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh'}}><span style={{opacity:0.5}}>Loading stats…</span></div>}
     </div>}
+    {window.HelpHintBanner&&<window.HelpHintBanner/>}
   </>;
 }
 

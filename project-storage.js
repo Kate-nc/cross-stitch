@@ -60,13 +60,28 @@ const ProjectStorage = (() => {
     const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow);
     const weekStartStr = weekStart.toISOString().slice(0, 10);
     let stitchesThisWeek = 0, stitchesThisMonth = 0;
+    // Per-day breakdown for the most recent 7 days (oldest → newest, ending
+    // today). Drives the sparkline rendered on Manager pattern cards.
+    const weeklyStitches = [0, 0, 0, 0, 0, 0, 0];
+    const dayKeys = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      dayKeys.push(d.toISOString().slice(0, 10));
+    }
     for (const s2 of sessions) {
       if (s2.date >= weekStartStr) stitchesThisWeek += (s2.netStitches || 0);
       if (s2.date && s2.date.slice(0, 7) === monthStr) stitchesThisMonth += (s2.netStitches || 0);
+      if (s2.date) {
+        const idx = dayKeys.indexOf(s2.date);
+        if (idx >= 0) weeklyStitches[idx] += (s2.netStitches || 0);
+      }
     }
     return {
       id: p.id,
       name: p.name || `${s.sW || "?"}×${s.sH || "?"} pattern`,
+      designer: p.designer || "",
+      description: p.description || "",
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
       dimensions: { width: s.sW || 0, height: s.sH || 0 },
@@ -81,6 +96,7 @@ const ProjectStorage = (() => {
       lastSessionStitches: lastSession ? (lastSession.netStitches || 0) : 0,
       stitchesThisWeek,
       stitchesThisMonth,
+      weeklyStitches,
       thumbnail: p.thumbnail || null,
       fabricCt: s.fabricCt || 14,
     };
@@ -168,7 +184,7 @@ const ProjectStorage = (() => {
     // Returns a Promise<string> of the saved project ID.
     async save(project) {
       if (!project.id) {
-        project.id = "proj_" + Date.now();
+        project.id = this.newId();
         project.createdAt = new Date().toISOString();
       }
       // Refuse to save a project that was deleted during this page session.
@@ -196,6 +212,15 @@ const ProjectStorage = (() => {
             if (typeof SyncEngine !== "undefined" && SyncEngine.triggerAutoExport) {
               try { SyncEngine.triggerAutoExport(); } catch (e) {}
             }
+            // Notify listeners (Home dashboard, Manager pattern library, etc.) that
+            // the project list changed so they can refresh without a page reload.
+            try {
+              if (typeof window !== "undefined" && window.dispatchEvent) {
+                window.dispatchEvent(new CustomEvent("cs:projectsChanged", {
+                  detail: { reason: "save", id: project.id }
+                }));
+              }
+            } catch (e) {}
             resolve(project.id);
           };
           tx.onerror = () => reject(tx.error);
@@ -288,7 +313,18 @@ const ProjectStorage = (() => {
             if (autoSave && autoSave.id === id) store.delete("auto_save");
           };
           autoSaveReq.onerror = () => reject(autoSaveReq.error);
-          tx.oncomplete = () => resolve();
+          tx.oncomplete = () => {
+            // Notify listeners (Home dashboard, Manager pattern library, etc.) that
+            // the project list changed so they can refresh without a page reload.
+            try {
+              if (typeof window !== "undefined" && window.dispatchEvent) {
+                window.dispatchEvent(new CustomEvent("cs:projectsChanged", {
+                  detail: { reason: "delete", id: id }
+                }));
+              }
+            } catch (e) {}
+            resolve();
+          };
           tx.onerror = () => reject(tx.error);
         });
       } catch (err) {
@@ -304,6 +340,16 @@ const ProjectStorage = (() => {
 
     // Internal set of project IDs deleted during this page session.
     _deletedIds: new Set(),
+
+    // Generate a new unique project ID. Single canonical source — every callsite
+    // (Creator, Tracker, importers) should use this rather than re-implementing
+    // `"proj_" + Date.now()`. The random suffix prevents the (rare) collision
+    // when two projects are created within the same millisecond, e.g. a fast
+    // double-click on "Generate" or two simultaneous file imports.
+    newId() {
+      var rand = Math.random().toString(36).slice(2, 7);
+      return "proj_" + Date.now() + "_" + rand;
+    },
 
     // Mark a project as the currently active one (stored in localStorage as a pointer).
     setActiveProject(id) {

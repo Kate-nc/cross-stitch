@@ -216,11 +216,18 @@ function ShareModal({ title, drawFn, onClose }) {
   const [rendered, setRendered] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    const handler = e => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+  // Use the global ESC stack so this share modal cooperates with any nested
+  // dialog that might open above it. Falls back to the inline listener if
+  // keyboard-utils.js wasn't loaded.
+  if (window.useEscape) {
+    window.useEscape(onClose);
+  } else {
+    useEffect(() => {
+      const handler = e => { if (e.key === 'Escape') onClose(); };
+      document.addEventListener('keydown', handler);
+      return () => document.removeEventListener('keydown', handler);
+    }, [onClose]);
+  }
 
   useEffect(() => {
     if (closeBtnRef.current) closeBtnRef.current.focus();

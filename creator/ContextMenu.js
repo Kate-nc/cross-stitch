@@ -8,19 +8,20 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   var h = React.createElement;
   var menu = cv.contextMenu;
 
-  // Close menu on outside click or Escape.
-  // Must be declared before any early returns (Rules of Hooks).
+  // Close menu on outside click. ESC handling is delegated to the global
+  // useEscape stack so a context menu open on top of an open modal correctly
+  // takes priority.
   React.useEffect(function() {
     if (!menu) return;
     function close() { cv.setContextMenu(null); }
-    function onKey(e) { if (e.key === "Escape") close(); }
     document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", onKey);
     return function() {
       document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", onKey);
     };
   }, [menu]);
+  if (typeof window !== "undefined" && window.useEscape) {
+    window.useEscape(function() { if (menu) cv.setContextMenu(null); });
+  }
 
   if (!menu) return null;
 

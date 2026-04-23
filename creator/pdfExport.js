@@ -160,6 +160,8 @@
 
     return {
       name: ctx.projectName || ctx.name || "Untitled pattern",
+      designer: ctx.projectDesigner || ctx.designer || "",
+      description: ctx.projectDescription || ctx.description || "",
       w: ctx.sW || ctx.w,
       h: ctx.sH || ctx.h,
       pattern: pattern,

@@ -320,7 +320,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               return 1;
             })()
           }
-        }, "Substitute from Stash"),
+        }, "Replace with Stash Threads"),
         h("button", {
           onClick: function() {
             if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
@@ -343,7 +343,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               title: "Convert this pattern's palette between DMC and Anchor thread brands",
               style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontWeight:600,
                 opacity:(!ctx.pat || !ctx.pal || ctx.pal.length === 0) ? 0.5 : 1}
-            }, "Convert Palette")
+            }, "Change Thread Brand")
           : null
       ),
       ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8f9fa",fontSize:12}},
@@ -401,7 +401,41 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     );
   }
 
+  // ── Project info (name, designer, description) ─────────────────────────────
+  var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
+    h("div", {style:{display:"flex",flexDirection:"column",gap:8,padding:"4px 0 2px"}},
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        "Pattern name",
+        h("input", {
+          type:"text", value: app.projectName || "", maxLength:60,
+          placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
+          onChange: function(e) { app.setProjectName(e.target.value.slice(0,60)); },
+          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+        })
+      ),
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        "Designer (optional)",
+        h("input", {
+          type:"text", value: app.projectDesigner || "", maxLength:80,
+          placeholder: "Your name or studio",
+          onChange: function(e) { app.setProjectDesigner(e.target.value.slice(0,80)); },
+          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+        })
+      ),
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        "Description / notes (optional)",
+        h("textarea", {
+          value: app.projectDescription || "", maxLength:500, rows:3,
+          placeholder: "Source, copyright, stitching notes\u2026",
+          onChange: function(e) { app.setProjectDescription(e.target.value.slice(0,500)); },
+          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+        })
+      )
+    )
+  );
+
   return h("div", {style:{display:"flex",flexDirection:"column",gap:12}},
+    projectInfoSection,
     renderPatternSummary(),
     renderTimeEstimate(),
     renderFinishedSize(),

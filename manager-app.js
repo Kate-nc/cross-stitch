@@ -61,7 +61,42 @@ function ManagerApp() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null); // { type: 'success'|'error'|'confirm', message, summary?, onConfirm? }
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  // First-visit welcome wizard. Use lazy initialiser so it only runs once.
+  const [welcomeOpen, setWelcomeOpen] = useState(() => {
+    try { return !!(window.WelcomeWizard && window.WelcomeWizard.shouldShow('manager')); } catch (_) { return false; }
+  });
+  // Global "?" shortcut → open Help Centre.
+  useEffect(() => {
+    const h = () => setModal("help");
+    window.addEventListener("cs:openHelp", h);
+    return () => window.removeEventListener("cs:openHelp", h);
+  }, []);
+
+  // Global "B" shortcut → open Bulk Add Threads from anywhere on the Manager
+  // page. Skipped while typing in inputs / with any modifier key held so we
+  // never intercept browser shortcuts (Ctrl+B etc).
+  useEffect(() => {
+    if (typeof window.BulkAddModal === 'undefined') return;
+    const onKey = (e) => {
+      if (e.defaultPrevented) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if ((e.key || '').toLowerCase() !== 'b') return;
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      e.preventDefault();
+      setBulkAddOpen(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  // "Show welcome tour again" from HelpCentre → re-open the wizard.
+  useEffect(() => {
+    const h = (e) => { if (!e || !e.detail || e.detail.page === "manager") setWelcomeOpen(true); };
+    window.addEventListener("cs:showWelcome", h);
+    return () => window.removeEventListener("cs:showWelcome", h);
+  }, []);
   const lowStockThreshold = 1;
   const formatBrandLabel = (brand) => {
     const b = (brand || "dmc").toString().toLowerCase();
@@ -292,7 +327,19 @@ function ManagerApp() {
       }).catch(() => {});
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+
+    // After a backup restore, the underlying IndexedDB stores have been replaced.
+    // Re-load threads and patterns so the UI doesn't keep showing stale state.
+    const handleBackupRestored = () => {
+      loadManagerData();
+      loadActiveProject();
+      ProjectStorage.listProjects().then(setStoredProjects).catch(() => {});
+    };
+    window.addEventListener('cs:backupRestored', handleBackupRestored);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('cs:backupRestored', handleBackupRestored);
+    };
   }, []);
 
   // Auto-save Manager Data
@@ -574,7 +621,8 @@ function ManagerApp() {
 
   return (
     <>
-      <Header page="manager" setModal={setModal} onBackupDownload={handleBackupDownload} onRestoreFile={handleRestoreFile} storageUsage={storageUsage} />
+      <Header page="manager" setModal={setModal} onBackupDownload={handleBackupDownload} onRestoreFile={handleRestoreFile} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} storageUsage={storageUsage} />
+      {preferencesOpen && typeof window.PreferencesModal!=='undefined' && React.createElement(window.PreferencesModal,{onClose:()=>setPreferencesOpen(false)})}
       {backupStatus && (
         <div style={{ padding: "8px 20px 0" }}>
           <div style={{ padding: "10px 14px", borderRadius: 8, fontSize: 12, background: backupStatus.type === "error" ? "#fef2f2" : backupStatus.type === "confirm" ? "#fffbeb" : "#f0fdf4", border: `1px solid ${backupStatus.type === "error" ? "#fecaca" : backupStatus.type === "confirm" ? "#fde68a" : "#bbf7d0"}`, color: backupStatus.type === "error" ? "#dc2626" : backupStatus.type === "confirm" ? "#92400e" : "#15803d" }}>
@@ -597,10 +645,10 @@ function ManagerApp() {
       {/* Sub-tab bar */}
       <div className="mgr-tab-bar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex" }}>
-          <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
-            <span className="icon">{Icons.thread()}</span> Thread Inventory <span className="cnt">{totalOwnedCount}</span>
+          <button data-onboard="mgr-stash-tab" className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
+            <span className="icon">{Icons.thread()}</span> Thread Stash <span className="cnt">{totalOwnedCount}</span>
           </button>
-          <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
+          <button data-onboard="mgr-patterns-tab" className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
             <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
           </button>
         </div>
@@ -780,7 +828,7 @@ function ManagerApp() {
                   </div>
                 </div>
                 <div className="rp-s">
-                  <div className="rp-h">Inventory</div>
+                  <div className="rp-h">Stash</div>
                   <div className="td-row">
                     <span className="lbl">Full skeins</span>
                     <div className="qty-ctrl">
@@ -835,8 +883,8 @@ function ManagerApp() {
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => updateThread(selectedThread, "tobuy", !state.tobuy)}>
                       {state.tobuy ? <>{Icons.check()} On shopping list</> : <>{Icons.cart()} Add to shopping list</>}
                     </button>
-                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { if(confirm(`Remove ${brandLabel} ${d.id} from inventory?`)) { updateThread(selectedThread, "owned", 0); updateThread(selectedThread, "partialStatus", null); updateThread(selectedThread, "tobuy", false); } }}>
-                      {Icons.trash()} Remove from inventory
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { if(confirm(`Remove ${brandLabel} ${d.id} from your stash?`)) { updateThread(selectedThread, "owned", 0); updateThread(selectedThread, "partialStatus", null); updateThread(selectedThread, "tobuy", false); } }}>
+                      {Icons.trash()} Remove from stash
                     </button>
                   </div>
                 </div>
@@ -895,6 +943,109 @@ function ManagerApp() {
                 + Add Pattern
               </button>
             </div>
+            {/* Unified Project Library — same card view as Home dashboard so users
+                see one consistent picture of their work across pages. */}
+            {window.ProjectLibrary && (
+              <div className="mgr-project-library" style={{ marginBottom: 16, padding: 12, border: "1px solid #e2e8f0", borderRadius: 12, background: "#fafafa" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#3f3f46" }}>Your Projects</div>
+                  <div style={{ fontSize: 11, color: "#71717a" }}>Linked Creator/Tracker projects + Stash Manager-only entries</div>
+                </div>
+                {React.createElement(window.ProjectLibrary, {
+                  mode: "manager",
+                  onOpenProject: (proj, target) => {
+                    if (!proj || !proj.id || proj.managerOnly) return;
+                    try { ProjectStorage.setActiveProject(proj.id); } catch (e) {}
+                    window.location.href = (target === "creator" ? "index.html" : "stitch.html") + "?source=manager";
+                  },
+                  onAddNew: () => { window.location.href = "index.html"; },
+                  onOpenGlobalStats: () => { window.location.href = "index.html?stats=1"; },
+                  onOpenManagerOnly: (proj) => {
+                    // Scroll to the matching pattern card in the grid below.
+                    const realId = proj && proj._managerPatternId;
+                    if (!realId) return;
+                    const match = patterns.find(p => p.id === realId);
+                    if (match) setViewingPattern(match);
+                  },
+                  // Per-card extras: shopping-list checkbox + missing-thread badge
+                  // so the legacy detail grid is no longer required.
+                  cardExtras: (proj) => {
+                    // Resolve the matching Manager pattern row for this project.
+                    let pat = null;
+                    if (proj.managerOnly && proj._managerPatternId) {
+                      pat = patterns.find(p => p.id === proj._managerPatternId);
+                    } else if (proj.id) {
+                      pat = patterns.find(p => p.linkedProjectId === proj.id);
+                    }
+                    if (!pat) return null;
+                    const reqThreads = pat.threads || [];
+                    const missing = reqThreads.filter(t => {
+                      const k = t.id.indexOf(":") < 0 ? "dmc:" + t.id : t.id;
+                      return !((threads[k] || {}).owned > 0);
+                    });
+                    const isSel = selectedPatternsForList.has(pat.id);
+                    // Pull progress + weekly sparkline data from the linked
+                    // ProjectStorage meta (the auto-synced manager pattern row
+                    // itself doesn't carry these fields).
+                    const meta = pat.linkedProjectId
+                      ? storedProjects.find(s => s.id === pat.linkedProjectId)
+                      : null;
+                    const total = (meta && meta.totalStitches) || pat.totalStitches || 0;
+                    const completed = (meta && meta.completedStitches) || pat.completedStitches || 0;
+                    const pct = total > 0 ? Math.round(completed / total * 100) : null;
+                    const pctBg = pct === null ? null : (pct >= 100 ? "#dcfce7" : pct > 0 ? "#dbeafe" : "#f1f5f9");
+                    const pctFg = pct === null ? null : (pct >= 100 ? "#15803d" : pct > 0 ? "#1d4ed8" : "#64748b");
+                    // 7-day sparkline (oldest → newest, ending today). Only
+                    // rendered when there's actual activity to show.
+                    const weekly = (meta && Array.isArray(meta.weeklyStitches)) ? meta.weeklyStitches : null;
+                    const weeklyMax = weekly ? Math.max.apply(null, weekly) : 0;
+                    const weeklyTotal = weekly ? weekly.reduce((a, b) => a + b, 0) : 0;
+                    const SPARK_W = 56, SPARK_H = 16, BAR_W = 6, GAP = 2;
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11 }}>
+                        <label
+                          onClick={e => e.stopPropagation()}
+                          style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", border: "1px solid " + (isSel ? "#16a34a" : "#cbd5e1"), borderRadius: 12, background: isSel ? "#f0fdf4" : "#fff", color: isSel ? "#15803d" : "#475569", cursor: "pointer", fontWeight: 600 }}
+                          title="Tick to add this pattern to the shopping list"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSel}
+                            onChange={e => { e.stopPropagation(); togglePatternSelection(pat.id); }}
+                            style={{ margin: 0 }}
+                          />
+                          Shopping list
+                        </label>
+                        {pct !== null && (
+                          <span style={{ padding: "2px 8px", borderRadius: 12, background: pctBg, color: pctFg, fontWeight: 700 }} title={completed.toLocaleString() + " of " + total.toLocaleString() + " stitches"}>{pct}% stitched</span>
+                        )}
+                        {weekly && weeklyTotal > 0 && (
+                          <span
+                            title={"Last 7 days: " + weeklyTotal.toLocaleString() + " stitches"}
+                            style={{ display: "inline-flex", alignItems: "flex-end", height: SPARK_H, gap: GAP, padding: "2px 6px", borderRadius: 8, background: "#f1f5f9" }}
+                          >
+                            {weekly.map((v, i) => {
+                              const ratio = weeklyMax > 0 ? v / weeklyMax : 0;
+                              const h = Math.max(2, Math.round(ratio * SPARK_H));
+                              return <span key={i} style={{ width: BAR_W, height: h, background: v > 0 ? "#0d9488" : "#cbd5e1", borderRadius: 1, display: "inline-block" }} />;
+                            })}
+                          </span>
+                        )}
+                        {reqThreads.length > 0 && (
+                          missing.length === 0
+                            ? <span style={{ padding: "2px 8px", borderRadius: 12, background: "#dcfce7", color: "#15803d", fontWeight: 700 }} title="All required threads are in your stash">✓ Fully kitted</span>
+                            : <span
+                                onClick={e => { e.stopPropagation(); setViewingPattern(pat); setPanelOpen(true); }}
+                                style={{ padding: "2px 8px", borderRadius: 12, background: "#fff7ed", color: "#c2410c", fontWeight: 700, cursor: "pointer" }}
+                                title={"Missing: " + missing.map(t => t.id).join(", ")}
+                              >{missing.length} threads needed</span>
+                        )}
+                      </div>
+                    );
+                  }
+                })}
+              </div>
+            )}
             {activeProject && (
               <div className="alert-card success" style={{ marginBottom: 12 }}>
                 <div className="at">{Icons.dot()} Currently Tracking</div>
@@ -994,47 +1145,15 @@ function ManagerApp() {
               </div>
             </div>
 
-            <div className="pat-grid">
-              {filteredPatterns.map(p => {
-                const isSelected = selectedPatternsForList.has(p.id);
-                return (
-                  <div key={p.id} className={"pcard" + (viewingPattern && viewingPattern.id === p.id ? " on" : "")} onClick={() => { const next = viewingPattern && viewingPattern.id === p.id ? null : p; setViewingPattern(next); if (next) setPanelOpen(true); }}>
-                    <div className="ptitle">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={(e) => { e.stopPropagation(); togglePatternSelection(p.id); }}
-                        onClick={e => e.stopPropagation()}
-                        style={{ cursor: "pointer" }}
-                      />
-                      {p.title || "Untitled"}
-                      <span className={"status " + (p.status || "wishlist")} style={{ marginLeft: "auto" }}>
-                        {statusColors[p.status] ? statusColors[p.status].label : p.status}
-                      </span>
-                    </div>
-                    {p.designer && <div className="pdesigner">by {p.designer}</div>}
-                    {p.tags && p.tags.length > 0 && (
-                      <div className="ptags">
-                        {p.tags.filter(tag => tag !== "auto-synced").map(tag => (
-                          <span key={tag} className="tag">{tag}</span>
-                        ))}
-                        {(p.tags.includes("auto-synced") || p.linkedProjectId) && (
-                          <span className="tag" style={{ background: "#f0fdfa", color: "#0d9488", fontWeight: 600 }}>Auto-synced</span>
-                        )}
-                      </div>
-                    )}
-                    <div className="pmeta">
-                      <span>{p.threads ? p.threads.length : 0} threads required</span>
-                    </div>
-                  </div>
-                );
-              })}
-              {filteredPatterns.length === 0 && (
-                <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "60px 20px", color: "#475569", fontSize: 14 }}>
-                  No patterns found. Click "+ Add Pattern" to start your library.
-                </div>
-              )}
-            </div>
+            {/* Detailed pattern grid removed — shopping-list checkboxes and
+                missing-thread badges now live on the unified "Your Projects"
+                cards above (see the cardExtras callback on ProjectLibrary).
+                If no patterns exist yet, surface an empty-state nudge. */}
+            {filteredPatterns.length === 0 && (
+              <div style={{ textAlign: "center", padding: "30px 20px", color: "#475569", fontSize: 13, background: "#fafafa", border: "1px dashed #cbd5e1", borderRadius: 8 }}>
+                No patterns yet. Click "+ Add Pattern" to start your library, or generate one in the Pattern Creator.
+              </div>
+            )}
           </div>
 
           {/* Right Panel — Pattern Detail */}
@@ -1132,7 +1251,9 @@ function ManagerApp() {
         />
       )}
       {bulkAddOpen && window.BulkAddModal && React.createElement(window.BulkAddModal, {onClose: () => setBulkAddOpen(false)})}
-      {modal === "help" && <SharedModals.Help onClose={() => setModal(null)} />}
+      {modal === "help" && <SharedModals.Help defaultTab="manager" onClose={() => setModal(null)} />}
+      {welcomeOpen && window.WelcomeWizard && <window.WelcomeWizard page="manager" onClose={() => setWelcomeOpen(false)} />}
+      {window.HelpHintBanner && <window.HelpHintBanner />}
       {modal === "about" && <SharedModals.About onClose={() => setModal(null)} />}
 
     </>
@@ -1304,7 +1425,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
                     onChange={e => { setThreadInput(e.target.value); setShowAutocomplete(true); }}
                     onFocus={() => setShowAutocomplete(true)}
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e2e8f0", fontSize: 13 }}
-                    placeholder="Color code or name..."
+                    placeholder="Colour code or name..."
                     required
                   />
                   {showAutocomplete && autocompleteResults.length > 0 && (

@@ -624,6 +624,10 @@ function SubstituteFromStashModalInner(props) {
     ctx.setSubstituteProposal(null);
   }
 
+  // Stack-aware ESC support — defined after closeModal so the callback is
+  // already available when registering with the global useEscape stack.
+  if (typeof window !== "undefined" && window.useEscape) window.useEscape(closeModal);
+
   // ─── Render helpers ───────────────────────────────────────────────────────────
   function swatch(rgb, size) {
     size = size || 14;
@@ -875,7 +879,7 @@ function SubstituteFromStashModalInner(props) {
     },
       // ── Header ────────────────────────────────────────────────────────────────
       h("div", { style: { display: "flex", alignItems: "center", padding: "16px 20px 14px", borderBottom: "1px solid #f1f5f9", flexShrink: 0 } },
-        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1e293b", flex: 1 } }, "Substitute from Stash"),
+        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1e293b", flex: 1 } }, "Replace with Stash Threads"),
         h("button", {
           onClick: closeModal,
           style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8", padding: "0 4px", borderRadius: 6, lineHeight: 1 }
