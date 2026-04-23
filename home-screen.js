@@ -337,7 +337,7 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     var streak = 0;
     try {
       var streakData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.globalStreak) || 'null');
-      if (streakData && streakData.current) streak = streakData.current;
+      if (streakData && typeof streakData === 'object' && typeof streakData.current === 'number' && streakData.current > 0) streak = streakData.current;
     } catch(e) {}
     var activeCount = projects.filter(function(p) { return getProjectState(p, states) === 'active'; }).length;
     return { activeCount: activeCount, monthStitches: monthSt, streak: streak };

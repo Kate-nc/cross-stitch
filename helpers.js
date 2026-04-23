@@ -1124,6 +1124,8 @@ if(typeof window!=='undefined')window.threadKey=threadKey;
 
 // parseThreadKey('dmc:310') → {brand:'dmc',id:'310'}
 // parseThreadKey('310')     → {brand:'dmc',id:'310'}  ← legacy bare key falls back to DMC
+// Note: non-string keys are coerced to strings as a defensive fallback for legacy
+// data (numeric ids); callers should pass strings.
 function parseThreadKey(key){
   if(typeof key!=='string')return{brand:'dmc',id:String(key)};
   var i=key.indexOf(':');

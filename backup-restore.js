@@ -224,7 +224,7 @@ const BackupRestore = (() => {
           // Representative check: any proj_ entry that already has finishStatus
           // means the export was taken after the v3 project migration.
           projectsAreV3 = csdb.projects.some(e =>
-            e && e.key && String(e.key).startsWith('proj_') && e.value && e.value.finishStatus
+            e && typeof e.key === 'string' && e.key.startsWith('proj_') && e.value && e.value.finishStatus
           );
         }
       } catch (_) { /* fall through to force-migrate */ }

@@ -11,9 +11,11 @@ const StashBridge = (() => {
   }
 
   function _getOwnedCount(threadsData, key, fallbackId) {
-    const byKey = (threadsData[key] || {}).owned || 0;
+    var entry = threadsData[key];
+    var byKey = (entry && typeof entry === 'object' && typeof entry.owned === 'number') ? entry.owned : 0;
     if (byKey > 0) return byKey;
-    return (threadsData[fallbackId] || {}).owned || 0;
+    var fallback = threadsData[fallbackId];
+    return (fallback && typeof fallback === 'object' && typeof fallback.owned === 'number') ? fallback.owned : 0;
   }
 
   function _parseThreadKey(key) {

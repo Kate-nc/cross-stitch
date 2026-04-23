@@ -625,9 +625,9 @@ function DailyGoalSetting({currentGoal, avgPerDay, remaining, onSet}){
         onChange:function(e){ setValue(e.target.value); },
         placeholder:"e.g. 300", className:"goal-input"}),
       React.createElement("button", {className:"goal-set-btn", onClick:function(){
-        var v = parseInt(value);
+        var v = parseInt(value, 10);
         onSet(v > 0 ? v : null);
-      }}, value && parseInt(value) > 0 ? 'Set goal' : 'Clear goal')
+      }}, value && parseInt(value, 10) > 0 ? 'Set goal' : 'Clear goal')
     ),
     presets.length > 0 && React.createElement("div", {className:"goal-presets"},
       presets.map(function(p){ return React.createElement("button", {key:p.label, className:"goal-preset-btn" + (currentGoal === p.value ? ' active' : ''), onClick:function(){ setValue(String(p.value)); onSet(p.value); }}, p.label + ' (' + p.value + ')'); })
