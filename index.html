@@ -84,7 +84,7 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_v16';
+var TRACKER_CACHE_KEY = 'babel_tracker_5c2f561ea5';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -141,7 +141,7 @@ window.loadCreatorMain = function() {
   });
 };/* Loads stats-activity.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var ACTIVITY_CACHE_KEY = 'babel_activity_v1';
+var ACTIVITY_CACHE_KEY = 'babel_activity_40fcd9db71';
 window.loadStatsActivity = function() {
   if (window.__statsActivityLoading || window.__statsActivityLoaded) return;
   window.__statsActivityLoading = true;
@@ -165,7 +165,7 @@ window.loadStatsActivity = function() {
   });
 };/* Loads stats-insights.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. (Brief E) */
-var INSIGHTS_CACHE_KEY = 'babel_insights_v1';
+var INSIGHTS_CACHE_KEY = 'babel_insights_44ff81259f';
 window.loadStatsInsights = function() {
   if (window.__statsInsightsLoading || window.__statsInsightsLoaded) return;
   window.__statsInsightsLoading = true;
@@ -189,7 +189,7 @@ window.loadStatsInsights = function() {
   });
 };/* Loads stats-page.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var STATS_CACHE_KEY = 'babel_stats_v5';
+var STATS_CACHE_KEY = 'babel_stats_075b0e14a2';
 window.loadStatsPage = function() {
   if (window.__statsPageLoading || window.__statsPageLoaded) return;
   window.__statsPageLoading = true;
@@ -223,8 +223,12 @@ window.loadStatsPage = function() {
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('SW registered, scope:', reg.scope))
+      navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+        .then(reg => {
+          console.log('SW registered, scope:', reg.scope);
+          // Periodically check for a new SW so users on long-lived tabs pick up deploys.
+          setInterval(() => { reg.update().catch(() => {}); }, 60 * 60 * 1000);
+        })
         .catch(err => console.error('SW registration failed:', err));
     });
   }

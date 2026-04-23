@@ -90,3 +90,49 @@ try {
 } catch (e) {
   console.warn('Auto-bump of CREATOR_CACHE_KEY failed:', e.message);
 }
+
+// Auto-bump the other Babel-cache keys in index.html based on a hash of the
+// source file each one caches. Without this, edits to tracker-app.js,
+// stats-activity.js, stats-insights.js or stats-page.js are invisible to any
+// browser that already has the previous compiled output in localStorage —
+// which is the most common cause of "the deploy looks like it didn't take
+// effect" reports. Mapping is { CACHE_KEY_NAME: [sourceFilesToHash], prefix }.
+try {
+  const indexPath = 'index.html';
+  if (fs.existsSync(indexPath)) {
+    let html = fs.readFileSync(indexPath, 'utf8');
+    const OTHER_KEYS = [
+      { varName: 'TRACKER_CACHE_KEY',  prefix: 'babel_tracker_',  files: ['tracker-app.js'] },
+      { varName: 'ACTIVITY_CACHE_KEY', prefix: 'babel_activity_', files: ['stats-activity.js'] },
+      { varName: 'INSIGHTS_CACHE_KEY', prefix: 'babel_insights_', files: ['stats-insights.js'] },
+      { varName: 'STATS_CACHE_KEY',    prefix: 'babel_stats_',    files: ['stats-page.js'] },
+    ];
+    let changed = false;
+    for (const entry of OTHER_KEYS) {
+      const missing = entry.files.filter(f => !fs.existsSync(f));
+      if (missing.length) {
+        console.warn(`Auto-bump skipped for ${entry.varName}: missing ${missing.join(', ')}`);
+        continue;
+      }
+      const h = crypto.createHash('sha256');
+      for (const f of entry.files) h.update(fs.readFileSync(f));
+      const newKey = `${entry.prefix}${h.digest('hex').slice(0, 10)}`;
+      const re = new RegExp(`var\\s+${entry.varName}\\s*=\\s*['"][^'"]+['"]`);
+      if (!re.test(html)) {
+        console.warn(`index.html: ${entry.varName} declaration not found — skipped`);
+        continue;
+      }
+      const updated = html.replace(re, `var ${entry.varName} = '${newKey}'`);
+      if (updated !== html) {
+        html = updated;
+        changed = true;
+        console.log(`index.html ${entry.varName} → ${newKey}`);
+      } else {
+        console.log(`index.html ${entry.varName} unchanged (${newKey})`);
+      }
+    }
+    if (changed) fs.writeFileSync(indexPath, html, 'utf8');
+  }
+} catch (e) {
+  console.warn('Auto-bump of secondary Babel cache keys failed:', e.message);
+}
