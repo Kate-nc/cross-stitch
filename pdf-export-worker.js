@@ -228,45 +228,52 @@ function countPalette(project) {
   return counts;
 }
 
-function legendPageCount(palette, codepoints) {
-  if (!palette) return 0;
-  var n = 0;
+function filterValidPaletteEntries(palette) {
+  if (!palette) return [];
+  var out = [];
   for (var i = 0; i < palette.length; i++) {
     var p = palette[i];
-    if (p && p.id && p.id !== "__skip__" && p.id !== "__empty__") n++;
+    if (p && p.id && p.id !== "__skip__" && p.id !== "__empty__") out.push(p);
   }
+  return out;
+}
+
+function legendPageCount(palette, codepoints) {
+  var n = filterValidPaletteEntries(palette).length;
   if (!n) return 0;
   return Math.max(1, Math.ceil(n / 32));   // 32 rows per legend page
 }
 
 // ─── cover page ──────────────────────────────────────────────────────────
+function computeLogoPosition(branding, marginPt, pageW, pageH, logoW, logoH) {
+  if (branding.designerLogoPosition === "top-left") {
+    return { x: marginPt, y: pageH - marginPt - logoH };
+  }
+  return { x: pageW - marginPt - logoW, y: pageH - marginPt - logoH };
+}
+
+async function embedAndPlaceLogoImage(pdfDoc, page, branding, marginPt, pageW, pageH) {
+  if (!branding.designerLogo) return;
+  try {
+    var d = dataUrlToBytes(branding.designerLogo);
+    if (!d) return;
+    var img = /png/i.test(d.mime) ? await pdfDoc.embedPng(d.bytes) : await pdfDoc.embedJpg(d.bytes);
+    var maxLogoMm = 28;
+    var ratio = img.width / img.height;
+    var logoH = Layout.mmToPt(maxLogoMm);
+    var logoW = logoH * ratio;
+    var pos = computeLogoPosition(branding, marginPt, pageW, pageH, logoW, logoH);
+    page.drawImage(img, { x: pos.x, y: pos.y, width: logoW, height: logoH });
+  } catch (_) { /* logo failures shouldn't kill the export */ }
+}
+
 async function drawCoverPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pageH, geom) {
   var page = pdfDoc.addPage([pageW, pageH]);
   var marginPt = Layout.mmToPt(geom.marginMm);
   var branding = options.branding || {};
 
   // Designer logo
-  if (branding.designerLogo) {
-    try {
-      var d = dataUrlToBytes(branding.designerLogo);
-      if (d) {
-        var img;
-        if (/png/i.test(d.mime)) img = await pdfDoc.embedPng(d.bytes);
-        else                    img = await pdfDoc.embedJpg(d.bytes);
-        var maxLogoMm = 28;
-        var ratio = img.width / img.height;
-        var logoH = Layout.mmToPt(maxLogoMm);
-        var logoW = logoH * ratio;
-        var lx, ly;
-        if (branding.designerLogoPosition === "top-left") {
-          lx = marginPt; ly = pageH - marginPt - logoH;
-        } else {
-          lx = pageW - marginPt - logoW; ly = pageH - marginPt - logoH;
-        }
-        page.drawImage(img, { x: lx, y: ly, width: logoW, height: logoH });
-      }
-    } catch (_) { /* logo failures shouldn't kill the export */ }
-  }
+  await embedAndPlaceLogoImage(pdfDoc, page, branding, marginPt, pageW, pageH);
 
   // Title
   var titleSize = 28;

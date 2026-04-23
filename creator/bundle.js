@@ -1244,6 +1244,52 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds };
 };
 
+// Collect the unique set of thread ids referenced by a mapped pattern.
+// Blend cells expand to their constituent thread ids.
+function collectPaletteIds(mapped) {
+  var ids = new Set();
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i];
+    if (m.id === "__skip__") continue;
+    if (m.type === "blend" && m.threads) m.threads.forEach(function(t) { ids.add(t.id); });
+    else ids.add(m.id);
+  }
+  return ids;
+}
+
+// Build an id → usage-count map for a mapped pattern.
+function buildPaletteUsageMap(mapped) {
+  var tu = {};
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i];
+    if (m.id === "__skip__") continue;
+    if (m.type === "blend" && m.threads) m.threads.forEach(function(t) { tu[t.id] = (tu[t.id] || 0) + 1; });
+    else tu[m.id] = (tu[m.id] || 0) + 1;
+  }
+  return tu;
+}
+
+// Pick the top `maxC` thread ids by usage. Returns a Set of id strings.
+function findTopThreads(usageMap, maxC) {
+  var sorted = Object.entries(usageMap).sort(function(a, b) { return b[1] - a[1]; });
+  return new Set(sorted.slice(0, maxC).map(function(e) { return e[0]; }));
+}
+
+// In-place: rewrite any cell whose colour isn't in `keptIds` to its nearest
+// solid in `keptPalette`. Mutates `mapped`.
+function migrateNonKeptColors(mapped, keptIds, keptPalette, raw) {
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i];
+    if (m.id === "__skip__") continue;
+    var notRetained = m.type === "blend" && m.threads
+      ? m.threads.some(function(t) { return !keptIds.has(t.id); })
+      : !keptIds.has(m.id);
+    if (notRetained) {
+      mapped[i] = findSolid(m.lab || rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), keptPalette);
+    }
+  }
+}
+
 /**
  * Run the full image-to-pattern generation pipeline.
  *
@@ -1311,33 +1357,13 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
 
   // Safety check: enforce maxC
   for (var safe = 0; safe < 5; safe++) {
-    var ids = new Set();
-    for (var k = 0; k < mapped.length; k++) {
-      var m = mapped[k];
-      if (m.id === "__skip__") continue;
-      if (m.type === "blend" && m.threads) m.threads.forEach(function(t) { ids.add(t.id); });
-      else ids.add(m.id);
-    }
+    var ids = collectPaletteIds(mapped);
     if (ids.size <= maxC) break;
-    var tu = {};
-    for (var k2 = 0; k2 < mapped.length; k2++) {
-      var m2 = mapped[k2];
-      if (m2.id === "__skip__") continue;
-      if (m2.type === "blend" && m2.threads) m2.threads.forEach(function(t) { tu[t.id] = (tu[t.id] || 0) + 1; });
-      else tu[m2.id] = (tu[m2.id] || 0) + 1;
-    }
-    var sorted = Object.entries(tu).sort(function(a, b) { return b[1] - a[1]; });
-    var ks = new Set(sorted.slice(0, maxC).map(function(e) { return e[0]; }));
+    var tu = buildPaletteUsageMap(mapped);
+    var ks = findTopThreads(tu, maxC);
     var kp = p.filter(function(t) { return ks.has(t.id); });
     if (!kp.length) break;
-    for (var k3 = 0; k3 < mapped.length; k3++) {
-      var m3 = mapped[k3];
-      if (m3.id === "__skip__") continue;
-      var nr = m3.type === "blend" && m3.threads
-        ? m3.threads.some(function(t) { return !ks.has(t.id); })
-        : !ks.has(m3.id);
-      if (nr) mapped[k3] = findSolid(m3.lab || rgbToLab(raw[k3 * 4], raw[k3 * 4 + 1], raw[k3 * 4 + 2]), kp);
-    }
+    migrateNonKeptColors(mapped, ks, kp, raw);
   }
 
   var palResult = buildPalette(mapped);
@@ -4000,6 +4026,16 @@ function _extractDmcId(key) {
   return key.slice(idx + 1);
 }
 
+// Plain helper (not a hook) — safe to call inside useState lazy initializers.
+// Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
+// (e.g. SSR or test environments) never throws during render.
+function loadUserPref(key, fallback) {
+  try {
+    if (typeof UserPrefs === "undefined") return fallback;
+    return UserPrefs.get(key);
+  } catch (_) { return fallback; }
+}
+
 window.useCreatorState = function useCreatorState() {
   var useState    = React.useState;
   var useRef      = React.useRef;
@@ -4073,13 +4109,13 @@ window.useCreatorState = function useCreatorState() {
   var _covOvr     = useState(null);      var coverageOverride = _covOvr[0], setCoverageOverride = _covOvr[1];
 
   // Split-pane state — loaded from UserPrefs on init
-  var _spEn = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneEnabled") : false; } catch(_) { return false; } });
+  var _spEn = useState(function() { return loadUserPref("splitPaneEnabled", false); });
   var splitPaneEnabled = _spEn[0], setSplitPaneEnabled = _spEn[1];
-  var _spRatio = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneRatio") : 0.5; } catch(_) { return 0.5; } });
+  var _spRatio = useState(function() { return loadUserPref("splitPaneRatio", 0.5); });
   var splitPaneRatio = _spRatio[0], setSplitPaneRatio = _spRatio[1];
-  var _spSync = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneSyncEnabled") : true; } catch(_) { return true; } });
+  var _spSync = useState(function() { return loadUserPref("splitPaneSyncEnabled", true); });
   var splitPaneSyncEnabled = _spSync[0], setSplitPaneSyncEnabled = _spSync[1];
-  var _rpMode = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("rightPaneMode") : "level2"; } catch(_) { return "level2"; } });
+  var _rpMode = useState(function() { return loadUserPref("rightPaneMode", "level2"); });
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
   // Section open states

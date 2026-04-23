@@ -52,6 +52,31 @@ function detectImportFormat(file) {
   return "unknown";
 }
 
+function _oxsExtractDimension(doc, chart, sizeEls, attrPair) {
+  const props = doc.querySelector("properties") || chart;
+  let value = null;
+  for (const a of attrPair.props) {
+    value = value || props.getAttribute(a);
+  }
+  for (const a of attrPair.chart) {
+    value = value || chart.getAttribute(a);
+  }
+  if (!value) {
+    for (const sel of sizeEls) {
+      const el = doc.querySelector(sel);
+      if (!el) continue;
+      for (const a of attrPair.fallback) {
+        value = value || el.getAttribute(a);
+      }
+      if (value) break;
+    }
+  }
+  const parsed = parseInt(value);
+  if (isNaN(parsed) || parsed <= 0) return null;
+  if (parsed > 5000) return { tooLarge: true, value: parsed };
+  return { value: parsed };
+}
+
 function parseOXS(xmlString) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlString, "application/xml");
@@ -63,35 +88,22 @@ function parseOXS(xmlString) {
   const chart = doc.querySelector("chart") || doc.documentElement;
   if (!chart) throw new Error("Could not find chart element");
 
-  // Extract dimensions
-  let width = null;
-  let height = null;
+  const sizeEls = ['format', 'size', 'grid'];
+  const wResult = _oxsExtractDimension(doc, chart, sizeEls, {
+    props: ["chartwidth", "width"], chart: ["width", "w"], fallback: ["width", "w"]
+  });
+  const hResult = _oxsExtractDimension(doc, chart, sizeEls, {
+    props: ["chartheight", "height"], chart: ["height", "h"], fallback: ["height", "h"]
+  });
 
-  const props = doc.querySelector("properties") || chart;
-  width = props.getAttribute("chartwidth") || props.getAttribute("width") || chart.getAttribute("width") || chart.getAttribute("w");
-  height = props.getAttribute("chartheight") || props.getAttribute("height") || chart.getAttribute("height") || chart.getAttribute("h");
-
-  if (!width || !height) {
-    const sizeEls = ['format', 'size', 'grid'];
-    for (const sel of sizeEls) {
-      const el = doc.querySelector(sel);
-      if (el) {
-        width = width || el.getAttribute("width") || el.getAttribute("w");
-        height = height || el.getAttribute("height") || el.getAttribute("h");
-      }
-    }
-  }
-
-  width = parseInt(width);
-  height = parseInt(height);
-
-  if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
+  if (!wResult || !hResult) {
     throw new Error("Could not determine chart dimensions");
   }
-
-  if (width > 5000 || height > 5000) {
-    throw new Error("Chart dimensions too large (max 5000×5000): " + width + "×" + height);
+  if (wResult.tooLarge || hResult.tooLarge) {
+    throw new Error("Chart dimensions too large (max 5000×5000): " + (wResult.value || '?') + "×" + (hResult.value || '?'));
   }
+  let width = wResult.value;
+  let height = hResult.value;
 
   // Parse palette
   const paletteMap = {};

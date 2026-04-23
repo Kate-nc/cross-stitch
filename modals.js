@@ -60,6 +60,83 @@ const SharedModals = {
       );
     }, [search]);
 
+    function renderSwapBanner() {
+      if (!swapCandidate) return null;
+      return React.createElement("div", { style: { margin: "0 0 12px 0", padding: "12px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8 } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 8 } },
+          `DMC ${swapCandidate.id} is already assigned to another symbol.`
+        ),
+        React.createElement("div", { style: { fontSize: 12, color: "#475569", marginBottom: 10 } },
+          `Swap the two symbols' colour assignments? Both symbols will keep their shapes — only their thread colours will exchange.`
+        ),
+        React.createElement("div", { style: { display: "flex", gap: 8 } },
+          React.createElement("button", {
+            onClick: () => {
+              if (onSwap && pal) {
+                const conflictingPalEntry = pal.find(p => p.id === swapCandidate.id);
+                if (conflictingPalEntry) onSwap(conflictingPalEntry);
+              }
+            },
+            style: { padding: "7px 14px", fontSize: 13, background: "#d97706", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }
+          }, "Swap Colours"),
+          React.createElement("button", {
+            onClick: () => setSwapCandidate(null),
+            style: { padding: "7px 14px", fontSize: 13, background: "#fff", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer" }
+          }, "Cancel")
+        )
+      );
+    }
+
+    function renderEmptyThreadList() {
+      return React.createElement("div", { style: { padding: 20, textAlign: "center" } },
+        React.createElement("div", { style: { color: "#475569", fontSize: 14, marginBottom: 12 } }, "No threads found."),
+        search.trim() !== "" ? React.createElement("button", {
+          onClick: () => {
+            if (usedThreads.includes(search.trim())) {
+              alert(`Thread ${search.trim()} is already assigned to another symbol.`);
+              return;
+            }
+            onSelect({
+              id: search.trim(),
+              name: "Unknown Thread",
+              rgb: [200, 200, 200],
+              lab: [80, 0, 0]
+            });
+          },
+          style: { padding: "8px 16px", fontSize: 13, background: "#0d9488", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 }
+        }, `Use "${search.trim()}" anyway`) : null
+      );
+    }
+
+    function renderThreadListItem(t) {
+      const isCurrent = t.id === currentThreadId;
+      const isUsed = usedThreads.includes(t.id) && !isCurrent;
+      const isSwapCandidate = swapCandidate && swapCandidate.id === t.id;
+      return React.createElement("div", {
+        key: t.id,
+        onClick: () => {
+          if (isUsed) {
+            setSwapCandidate(t);
+            return;
+          }
+          onSelect(t);
+        },
+        style: {
+          display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #f1f5f9",
+          background: isCurrent ? "#f0fdfa" : isSwapCandidate ? "#fffbeb" : (isUsed ? "#f8f9fa" : "#fff"),
+          cursor: isUsed ? "pointer" : "pointer",
+          opacity: 1
+        }
+      },
+        React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 } }),
+        React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "#1e293b" } }, "DMC " + t.id),
+        React.createElement("div", { style: { fontSize: 13, color: "#475569", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
+        isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#0d9488", background: "#ccfbf1", padding: "2px 8px", borderRadius: 10 } }, "Current"),
+        isUsed && !isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 } }, "In Use — tap to swap"),
+        isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fde68a", padding: "2px 8px", borderRadius: 10 } }, "Swap?")
+      );
+    }
+
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
       React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "80vh" } },
         React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
@@ -79,80 +156,10 @@ const SharedModals = {
           })
         ),
 
-        // Swap confirmation banner — shown when user clicks an "In Use" thread
-        swapCandidate && React.createElement("div", { style: { margin: "0 0 12px 0", padding: "12px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8 } },
-          React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 8 } },
-            `DMC ${swapCandidate.id} is already assigned to another symbol.`
-          ),
-          React.createElement("div", { style: { fontSize: 12, color: "#475569", marginBottom: 10 } },
-            `Swap the two symbols' colour assignments? Both symbols will keep their shapes — only their thread colours will exchange.`
-          ),
-          React.createElement("div", { style: { display: "flex", gap: 8 } },
-            React.createElement("button", {
-              onClick: () => {
-                if (onSwap && pal) {
-                  // Find the palette entry that holds swapCandidate.id (the conflicting symbol)
-                  const conflictingPalEntry = pal.find(p => p.id === swapCandidate.id);
-                  if (conflictingPalEntry) onSwap(conflictingPalEntry);
-                }
-              },
-              style: { padding: "7px 14px", fontSize: 13, background: "#d97706", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }
-            }, "Swap Colours"),
-            React.createElement("button", {
-              onClick: () => setSwapCandidate(null),
-              style: { padding: "7px 14px", fontSize: 13, background: "#fff", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer" }
-            }, "Cancel")
-          )
-        ),
+        renderSwapBanner(),
 
         React.createElement("div", { style: { flex: 1, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 8 } },
-          filteredThreads.length === 0 ? React.createElement("div", { style: { padding: 20, textAlign: "center" } },
-            React.createElement("div", { style: { color: "#475569", fontSize: 14, marginBottom: 12 } }, "No threads found."),
-            search.trim() !== "" ? React.createElement("button", {
-              onClick: () => {
-                if (usedThreads.includes(search.trim())) {
-                  alert(`Thread ${search.trim()} is already assigned to another symbol.`);
-                  return;
-                }
-                onSelect({
-                  id: search.trim(),
-                  name: "Unknown Thread",
-                  rgb: [200, 200, 200],
-                  lab: [80, 0, 0]
-                });
-              },
-              style: { padding: "8px 16px", fontSize: 13, background: "#0d9488", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 }
-            }, `Use "${search.trim()}" anyway`) : null
-          ) :
-          filteredThreads.map(t => {
-            const isCurrent = t.id === currentThreadId;
-            const isUsed = usedThreads.includes(t.id) && !isCurrent;
-            const isSwapCandidate = swapCandidate && swapCandidate.id === t.id;
-            return React.createElement("div", {
-              key: t.id,
-              onClick: () => {
-                if (isUsed) {
-                  // Offer swap instead of blocking with an alert
-                  setSwapCandidate(t);
-                  return;
-                }
-                onSelect(t);
-              },
-              style: {
-                display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #f1f5f9",
-                background: isCurrent ? "#f0fdfa" : isSwapCandidate ? "#fffbeb" : (isUsed ? "#f8f9fa" : "#fff"),
-                cursor: isUsed ? "pointer" : "pointer",
-                opacity: 1
-              }
-            },
-              React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 } }),
-              React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "#1e293b" } }, "DMC " + t.id),
-              React.createElement("div", { style: { fontSize: 13, color: "#475569", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
-              isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#0d9488", background: "#ccfbf1", padding: "2px 8px", borderRadius: 10 } }, "Current"),
-              isUsed && !isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 } }, "In Use — tap to swap"),
-              isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fde68a", padding: "2px 8px", borderRadius: 10 } }, "Swap?")
-            );
-          })
+          filteredThreads.length === 0 ? renderEmptyThreadList() : filteredThreads.map(renderThreadListItem)
         )
       )
     );

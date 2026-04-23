@@ -16,6 +16,16 @@ function _extractDmcId(key) {
   return key.slice(idx + 1);
 }
 
+// Plain helper (not a hook) — safe to call inside useState lazy initializers.
+// Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
+// (e.g. SSR or test environments) never throws during render.
+function loadUserPref(key, fallback) {
+  try {
+    if (typeof UserPrefs === "undefined") return fallback;
+    return UserPrefs.get(key);
+  } catch (_) { return fallback; }
+}
+
 window.useCreatorState = function useCreatorState() {
   var useState    = React.useState;
   var useRef      = React.useRef;
@@ -89,13 +99,13 @@ window.useCreatorState = function useCreatorState() {
   var _covOvr     = useState(null);      var coverageOverride = _covOvr[0], setCoverageOverride = _covOvr[1];
 
   // Split-pane state — loaded from UserPrefs on init
-  var _spEn = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneEnabled") : false; } catch(_) { return false; } });
+  var _spEn = useState(function() { return loadUserPref("splitPaneEnabled", false); });
   var splitPaneEnabled = _spEn[0], setSplitPaneEnabled = _spEn[1];
-  var _spRatio = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneRatio") : 0.5; } catch(_) { return 0.5; } });
+  var _spRatio = useState(function() { return loadUserPref("splitPaneRatio", 0.5); });
   var splitPaneRatio = _spRatio[0], setSplitPaneRatio = _spRatio[1];
-  var _spSync = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneSyncEnabled") : true; } catch(_) { return true; } });
+  var _spSync = useState(function() { return loadUserPref("splitPaneSyncEnabled", true); });
   var splitPaneSyncEnabled = _spSync[0], setSplitPaneSyncEnabled = _spSync[1];
-  var _rpMode = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("rightPaneMode") : "level2"; } catch(_) { return "level2"; } });
+  var _rpMode = useState(function() { return loadUserPref("rightPaneMode", "level2"); });
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
   // Section open states

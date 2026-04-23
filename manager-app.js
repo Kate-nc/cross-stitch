@@ -169,10 +169,16 @@ function ManagerApp() {
     );
     const unlinked = allMeta.filter(m => !linkedIdxMap.has(m.id));
 
-    // For each project that already has a library entry, check whether its name has
+    // For each project that already has a library entry, check whether its name
     // changed (e.g. renamed on another device via sync). If so, update title only —
-    // leave user-set fields (designer, tags, status) untouched. Threads are managed
-    // exclusively by syncProjectToLibrary (auto-save) so we don't re-compute them here.
+    // leave user-set fields (designer, tags, status) untouched.
+    let reconciled = updateTitleIfChanged(basePatterns, allMeta, linkedIdxMap);
+
+    if (unlinked.length === 0) return reconciled;
+    return await addUnlinkedPatterns(reconciled, basePatterns, unlinked);
+  }, []);
+
+  function updateTitleIfChanged(basePatterns, allMeta, linkedIdxMap) {
     let reconciled = basePatterns;
     for (const meta of allMeta) {
       const idx = linkedIdxMap.get(meta.id);
@@ -184,9 +190,10 @@ function ManagerApp() {
         reconciled[idx] = { ...reconciled[idx], title: expectedTitle };
       }
     }
+    return reconciled;
+  }
 
-    if (unlinked.length === 0) return reconciled;
-
+  async function addUnlinkedPatterns(reconciled, basePatterns, unlinked) {
     for (const meta of unlinked) {
       try {
         const full = await ProjectStorage.get(meta.id);
@@ -200,7 +207,8 @@ function ManagerApp() {
       }
     }
     return reconciled;
-  }, []);
+  }
+
 
   // Storage initialization
   useEffect(() => {
@@ -422,21 +430,34 @@ function ManagerApp() {
     StashBridge.whatCanIStart().then(setReadyToStart).catch(e => console.warn('whatCanIStart failed:', e));
     // Low-stock: threads where owned > 0 but below min_stock (explicit), or below the
     // global lowStockThreshold (1 skein) when no per-thread minimum has been set.
-    const alerts = [];
-    for (const [compositeKey, t] of Object.entries(threads)) {
-      if (!t.owned || t.owned <= 0) continue; // completely missing threads handled by pattern detail
-      const minStock = t.min_stock || 0;
-      const effectiveMin = minStock > 0 ? minStock : lowStockThreshold;
-      if (t.owned < effectiveMin) {
-        const brand = compositeKey.indexOf(':') < 0 ? 'dmc' : compositeKey.split(':')[0];
-        const bareId = compositeKey.indexOf(':') < 0 ? compositeKey : compositeKey.split(':').slice(1).join(':');
+    const alerts = Object.entries(threads)
+      .filter(([, t]) => t.owned && t.owned > 0)
+      .filter(([compositeKey, t]) => isThreadLowStock(t, lowStockThreshold))
+      .map(([compositeKey, t]) => {
+        const { brand, bareId } = extractBrandAndId(compositeKey);
+        const effectiveMin = calculateEffectiveMinStock(t, lowStockThreshold);
         const info = typeof getThreadByKey === 'function' ? getThreadByKey(compositeKey) : findThreadInCatalog('dmc', bareId);
-        alerts.push({ id: compositeKey, brand, bareId, name: info ? info.name : bareId, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: effectiveMin });
-      }
-    }
+        return { id: compositeKey, brand, bareId, name: info ? info.name : bareId, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: effectiveMin };
+      });
     alerts.sort((a, b) => (a.min_stock - a.owned) - (b.min_stock - b.owned));
     setLowStockAlerts(alerts);
   }, [threads, patterns]);
+
+  function extractBrandAndId(compositeKey) {
+    if (compositeKey.indexOf(':') < 0) return { brand: 'dmc', bareId: compositeKey };
+    const parts = compositeKey.split(':');
+    return { brand: parts[0], bareId: parts.slice(1).join(':') };
+  }
+
+  function calculateEffectiveMinStock(thread, lowStockThreshold) {
+    const minStock = thread.min_stock || 0;
+    return minStock > 0 ? minStock : lowStockThreshold;
+  }
+
+  function isThreadLowStock(thread, lowStockThreshold) {
+    return thread.owned < calculateEffectiveMinStock(thread, lowStockThreshold);
+  }
+
 
   // Split low-stock alerts into those needed by active projects vs. not
   const { lowStockNeeded, lowStockNotNeeded } = useMemo(() => {
@@ -548,16 +569,20 @@ function ManagerApp() {
 
     return searched.filter(d => {
       if (d.compositeKey === expandedThread) return true;
-
       const t = threads[d.compositeKey] || { owned: 0, tobuy: false, partialStatus: null };
-      if (threadFilter === 'owned') return t.owned > 0 || ["mostly-full", "about-half", "remnant"].includes(t.partialStatus);
-      if (threadFilter === 'tobuy') return t.tobuy;
-      if (threadFilter === 'lowstock') return (t.owned > 0 && t.owned <= lowStockThreshold) || (t.owned === 0 && ["about-half", "remnant"].includes(t.partialStatus));
-      if (threadFilter === 'remnants') return t.partialStatus === "remnant";
-      if (threadFilter === 'usedup') return t.partialStatus === "used-up" && t.owned === 0;
-      return true;
+      return matchesThreadFilter(t, threadFilter, lowStockThreshold);
     });
   }, [searchQuery, threads, threadFilter, brandFilter, expandedThread]);
+
+  function matchesThreadFilter(t, filter, lowStockThreshold) {
+    if (filter === 'owned') return t.owned > 0 || ["mostly-full", "about-half", "remnant"].includes(t.partialStatus);
+    if (filter === 'tobuy') return t.tobuy;
+    if (filter === 'lowstock') return (t.owned > 0 && t.owned <= lowStockThreshold) || (t.owned === 0 && ["about-half", "remnant"].includes(t.partialStatus));
+    if (filter === 'remnants') return t.partialStatus === "remnant";
+    if (filter === 'usedup') return t.partialStatus === "used-up" && t.owned === 0;
+    return true;
+  }
+
 
   const totalOwnedCount = useMemo(() => {
     return Object.values(threads).reduce((sum, t) => sum + (t.owned || 0), 0);
@@ -572,35 +597,39 @@ function ManagerApp() {
   }, [patterns]);
 
   const filteredPatterns = useMemo(() => {
-    const statusOrder = { wishlist: 0, owned: 1, inprogress: 2, completed: 3 };
-
-    let result = patterns.filter(p => {
-      const q = searchQuery.toLowerCase();
-      const matchesSearch = p.title.toLowerCase().includes(q) ||
-                            (p.designer && p.designer.toLowerCase().includes(q)) ||
-                            (p.tags && p.tags.some(tag => tag.toLowerCase().includes(q)));
-
-      const matchesFilter = patternFilter === "all" || p.status === patternFilter;
-
-      return matchesSearch && matchesFilter;
-    });
-
-    result.sort((a, b) => {
-      if (patternSort === "date_desc") return (b.id || 0) - (a.id || 0); // Using ID as timestamp
-      if (patternSort === "date_asc") return (a.id || 0) - (b.id || 0);
-      if (patternSort === "title_asc") return (a.title || "").localeCompare(b.title || "");
-      if (patternSort === "designer_asc") return (a.designer || "").localeCompare(b.designer || "");
-      if (patternSort === "status") {
-        if (statusOrder[a.status] !== statusOrder[b.status]) {
-            return statusOrder[a.status] - statusOrder[b.status];
-        }
-        return (a.title || "").localeCompare(b.title || "");
-      }
-      return 0;
-    });
-
-    return result;
+    const q = searchQuery.toLowerCase();
+    return patterns
+      .filter(p => matchesSearch(p, q))
+      .filter(p => matchesPatternFilter(p, patternFilter))
+      .sort((a, b) => comparePatterns(a, b, patternSort));
   }, [patterns, searchQuery, patternFilter, patternSort]);
+
+  function matchesSearch(p, q) {
+    if (!q) return true;
+    return p.title.toLowerCase().includes(q) ||
+      (p.designer && p.designer.toLowerCase().includes(q)) ||
+      (p.tags && p.tags.some(tag => tag.toLowerCase().includes(q)));
+  }
+
+  function matchesPatternFilter(p, filter) {
+    return filter === "all" || p.status === filter;
+  }
+
+  function comparePatterns(a, b, sortKey) {
+    const statusOrder = { wishlist: 0, owned: 1, inprogress: 2, completed: 3 };
+    if (sortKey === "date_desc") return (b.id || 0) - (a.id || 0);
+    if (sortKey === "date_asc") return (a.id || 0) - (b.id || 0);
+    if (sortKey === "title_asc") return (a.title || "").localeCompare(b.title || "");
+    if (sortKey === "designer_asc") return (a.designer || "").localeCompare(b.designer || "");
+    if (sortKey === "status") {
+      if (statusOrder[a.status] !== statusOrder[b.status]) {
+        return statusOrder[a.status] - statusOrder[b.status];
+      }
+      return (a.title || "").localeCompare(b.title || "");
+    }
+    return 0;
+  }
+
 
   const addOrUpdatePattern = (patt) => {
     setPatterns(prev => {

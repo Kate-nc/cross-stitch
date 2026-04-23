@@ -2065,6 +2065,27 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
   );
 }
 
+// StatsErrorBoundary: prevents a single broken chart from crashing the
+// whole stats modal. Required because the per-chart try/catch wrappers were
+// removed in favour of a proper error boundary (code-quality-07 follow-up).
+class StatsErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error: error }; }
+  componentDidCatch(error, info) { try { console.error('Stats render error:', error, info); } catch (_) {} }
+  render() {
+    if (this.state.error) {
+      return React.createElement('div', {
+        style: {padding: '20px', textAlign: 'center', color: '#dc2626', fontSize: 13, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, margin: '12px'}
+      },
+        React.createElement('div', {style: {fontWeight: 600, marginBottom: 6}}, 'Stats failed to render'),
+        React.createElement('div', {style: {fontSize: 11, color: '#7f1d1d'}}, String(this.state.error && this.state.error.message || this.state.error || 'Unknown error'))
+      );
+    }
+    return this.props.children;
+  }
+}
+if (typeof window !== 'undefined') window.StatsErrorBoundary = StatsErrorBoundary;
+
 // StatsContainer: tab bar wrapping GlobalStatsDashboard or per-project StatsDashboard
 function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, statsSessions, statsSettings, onUpdateSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, projectName, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, onOpenProject}) {
   var _projects = React.useState([]);
@@ -2135,7 +2156,9 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
 
   return React.createElement('div', {className: 'stats-container'},
     tabBar,
-    React.createElement('div', {className: 'stats-container-body'}, content)
+    React.createElement('div', {className: 'stats-container-body'},
+      React.createElement(StatsErrorBoundary, null, content)
+    )
   );
 }
 
