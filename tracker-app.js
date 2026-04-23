@@ -773,6 +773,11 @@ useEffect(()=>{try{localStorage.setItem('cs_bsThickness',String(bsThickness));}c
 // ── Zoom-adaptive detail level ──
 const[lockDetailLevel,setLockDetailLevel]=useState(()=>{try{return !!JSON.parse(localStorage.getItem('cs_lockDetail')||'false');}catch(e){console.warn('cs_lockDetail corrupted, resetting:',e);try{localStorage.removeItem('cs_lockDetail');}catch(_){}return false;}});
 useEffect(()=>{try{localStorage.setItem('cs_lockDetail',String(lockDetailLevel));}catch(_){}},[lockDetailLevel]);
+// Tier 1 (zoomed-out) fade strength for un-stitched cells. 0 = off (full colour),
+// 0.15 = subtle, 0.55 = strong (legacy behaviour). Default 0 keeps the colour
+// view at full saturation when zoomed out.
+const[lowZoomFade,setLowZoomFade]=useState(()=>{try{const v=parseFloat(localStorage.getItem('cs_lowZoomFade')||'0');return Number.isFinite(v)?Math.max(0,Math.min(0.9,v)):0;}catch(_){return 0;}});
+useEffect(()=>{try{localStorage.setItem('cs_lowZoomFade',String(lowZoomFade));}catch(_){}},[lowZoomFade]);
 // tierRef: current render tier (1–4) with hysteresis; default zoom=1→scs=20→Tier 3
 const tierRef=useRef(3);
 const tierFadeRef=useRef({symbolOpacity:1.0,bsHsOpacity:1.0,animRafId:null});
@@ -2894,8 +2899,8 @@ function drawStitch(ctx,cSz,viewportRect){
       // ── Tier 1 fast path: flat color blocks, no symbols, no cell borders ──
       if(tier===1){
         if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle="#f0f4f8";ctx.fillRect(px,py,cSz,cSz);continue;}
-        if(isDn){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-        else{const r2=Math.round(m.rgb[0]*0.45+255*0.55),g2=Math.round(m.rgb[1]*0.45+255*0.55),b2=Math.round(m.rgb[2]*0.45+255*0.55);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
+        if(isDn||lowZoomFade<=0){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+        else{const f=lowZoomFade,inv=1-f,r2=Math.round(m.rgb[0]*inv+255*f),g2=Math.round(m.rgb[1]*inv+255*f),b2=Math.round(m.rgb[2]*inv+255*f);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
         continue;
       }
 
@@ -3049,7 +3054,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade]);
 useEffect(()=>renderStitch(),[renderStitch]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
@@ -4669,7 +4674,15 @@ return(
             <button key={k} className={stitchView===k?"on":""} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>
           )}
         </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",marginBottom:4}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:10,marginBottom:4}}>
+          <label title="Fade un-stitched cells when zoomed out so completed cells stand out. Off keeps the chart at full colour." style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:lockDetailLevel?"#cbd5e1":(lowZoomFade>0?"#0d9488":"#94a3b8"),userSelect:"none",cursor:lockDetailLevel?"not-allowed":"pointer"}}>
+            <span>Zoomed-out fade</span>
+            <select value={String(lowZoomFade)} disabled={lockDetailLevel} onChange={e=>setLowZoomFade(parseFloat(e.target.value))} style={{fontSize:10,padding:"1px 2px",border:"1px solid #e2e8f0",borderRadius:3,background:lockDetailLevel?"#f1f5f9":"#fff",cursor:lockDetailLevel?"not-allowed":"pointer"}}>
+              <option value="0">Off</option>
+              <option value="0.15">Subtle</option>
+              <option value="0.55">Strong</option>
+            </select>
+          </label>
           <label title="Disable zoom-adaptive rendering — always use Tier 3 (Detail) regardless of zoom level" style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:lockDetailLevel?"#0d9488":"#94a3b8",cursor:"pointer",userSelect:"none"}}>
             <input type="checkbox" checked={lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>Lock detail
           </label>
