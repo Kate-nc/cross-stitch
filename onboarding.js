@@ -511,8 +511,8 @@
       };
       if (style === 'parking') return {
         message: _expand(
-          'Switch to Navigate mode (press Space). Pick a colour from the palette, then click the next chart cell where it appears to drop a parking marker.',
-          'Tip: parking markers show where each thread is "waiting" so you can stop and start without re-threading.')
+          'Press N to switch to Navigate mode. Pick a colour from the palette, then click the next chart cell where it appears to drop a parking marker.',
+          'Tip: parking markers show where each thread is "waiting" so you can stop and start without re-threading. Press T to return to Track mode.')
       };
       // freestyle (default)
       return {
@@ -524,7 +524,7 @@
     if (step === 'parking_marker_set') {
       return {
         message: _expand(
-          'Marker placed. Switch back to Track mode and finish the highlighted 10×10 block — your "parked" thread is waiting at the marker.',
+          'Marker placed. Press T to return to Track mode and finish the highlighted 10×10 block — your "parked" thread is waiting at the marker.',
           'Tip: in a real chart you\u2019d drop a marker for every colour you\u2019re leaving behind.')
       };
     }

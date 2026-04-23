@@ -60,6 +60,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="user-prefs.js"></script>
 <script src="toast.js"></script>
 <script src="onboarding.js"></script>
+<script src="command-palette.js"></script>
 <script src="preferences-modal.js"></script>
 <script src="assets/fonts/CrossStitchSymbols.base64.js"></script>
 <script src="creator/bundle.js"></script>
@@ -113,7 +114,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_4a6a677fa1';
+var CREATOR_CACHE_KEY = 'babel_creator_e2294dcc18';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

@@ -73,6 +73,35 @@ function ManagerApp() {
     window.addEventListener("cs:openHelp", h);
     return () => window.removeEventListener("cs:openHelp", h);
   }, []);
+  // Command Palette → Keyboard Shortcuts modal.
+  useEffect(() => {
+    const h = () => setModal("shortcuts");
+    window.addEventListener("cs:openShortcuts", h);
+    return () => window.removeEventListener("cs:openShortcuts", h);
+  }, []);
+  // Command Palette → Bulk Add Threads bridge.
+  useEffect(() => {
+    const h = () => setBulkAddOpen(true);
+    window.addEventListener("cs:openBulkAdd", h);
+    return () => window.removeEventListener("cs:openBulkAdd", h);
+  }, []);
+  // Register manager-specific palette actions.
+  useEffect(() => {
+    if (!window.CommandPalette) return;
+    window.CommandPalette.registerPage('manager', [
+      {
+        id: 'mgr_bulk_add', label: 'Bulk Add Threads', section: 'action',
+        keywords: ['bulk', 'add', 'thread', 'inventory', 'stash'],
+        action: () => setBulkAddOpen(true)
+      },
+      {
+        id: 'mgr_preferences', label: 'Open Preferences', section: 'settings',
+        keywords: ['preferences', 'settings', 'profile'],
+        action: () => setPreferencesOpen(true)
+      }
+    ]);
+    return () => { if (window.CommandPalette) window.CommandPalette.registerPage('manager', []); };
+  }, []);
 
   // Global "B" shortcut → open Bulk Add Threads from anywhere on the Manager
   // page. Skipped while typing in inputs / with any modifier key held so we

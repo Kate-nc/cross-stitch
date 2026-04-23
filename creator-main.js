@@ -265,6 +265,26 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return()=>window.removeEventListener('cs:openHelpDesign',h);
   },[state.setModal]);
 
+  // Command Palette → Shortcuts modal (Creator design mode).
+  React.useEffect(()=>{
+    const h=()=>{ if(typeof state.setModal==='function') state.setModal('shortcuts'); };
+    window.addEventListener('cs:openShortcuts',h);
+    return()=>window.removeEventListener('cs:openShortcuts',h);
+  },[state.setModal]);
+
+  // Register Creator-specific palette actions.
+  React.useEffect(()=>{
+    if (!window.CommandPalette) return;
+    window.CommandPalette.registerPage('creator', [
+      {
+        id: 'cre_save_project', label: 'Save Project', section: 'action',
+        keywords: ['save', 'project'],
+        action: () => { if (_ioRef.current) _ioRef.current.saveProject(); }
+      }
+    ]);
+    return () => { if (window.CommandPalette) window.CommandPalette.registerPage('creator', []); };
+  },[]);
+
   // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
   // Handler identity is stabilised via a ref; the ref is updated synchronously on
   // each render so the latest function is always called despite the empty dep list.

@@ -146,8 +146,14 @@
           heading: "Tracker canvas",
           bullets: [
             ["Click / drag", "Mark or unmark stitches."],
-            ["Space", "Toggle Track ↔ Navigate mode."],
-            ["+/-", "Zoom in/out."]
+            ["T", "Switch to Track mode."],
+            ["N", "Switch to Navigate mode (place crosshair / parking markers)."],
+            ["V", "Cycle stitch view (symbol → colour → highlight)."],
+            ["D", "Toggle the Colours drawer."],
+            ["P", "Pause / resume the live session timer."],
+            ["Space (hold)", "Hold to temporarily pan the canvas."],
+            ["+/-", "Zoom in/out."],
+            ["0", "Fit pattern to view."]
           ]
         }
       ]

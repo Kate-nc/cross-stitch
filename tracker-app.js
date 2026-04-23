@@ -425,6 +425,8 @@ const[modal,setModal]=useState(null);
 const[welcomeOpen,setWelcomeOpen]=useState(()=>{try{return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('tracker'));}catch(_){return false;}});
 // Global "?" shortcut → open Help Centre.
 useEffect(()=>{const h=()=>setModal("help");window.addEventListener("cs:openHelp",h);return()=>window.removeEventListener("cs:openHelp",h);},[]);
+// Command Palette → Shortcuts modal.
+useEffect(()=>{const h=()=>setModal("shortcuts");window.addEventListener("cs:openShortcuts",h);return()=>window.removeEventListener("cs:openShortcuts",h);},[]);
 // "Show welcome tour again" from HelpCentre → re-open the wizard.
 useEffect(()=>{const h=(e)=>{if(!e||!e.detail||e.detail.page==='tracker')setWelcomeOpen(true);};window.addEventListener("cs:showWelcome",h);return()=>window.removeEventListener("cs:showWelcome",h);},[]);
 const[projectPickerOpen,setProjectPickerOpen]=useState(false);
