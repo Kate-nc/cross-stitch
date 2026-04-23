@@ -389,16 +389,21 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
 
   var stashForMap = stash ? {} : null;
 
-  // Most recently touched active project (excluding deleted/manager-only) for
-  // the sticky "Continue stitching" bar above the dashboard summary.
-  var continueProj = null;
-  for (var ci = 0; ci < categorised.active.length; ci++) {
-    var cp = categorised.active[ci];
-    if (!cp || cp.managerOnly) continue;
-    if (typeof ProjectStorage !== 'undefined' && ProjectStorage.isDeleted && ProjectStorage.isDeleted(cp.id)) continue;
-    continueProj = cp;
-    break;
+  // Most recently touched non-complete project for the sticky "Continue
+  // stitching" bar. Prefer 'active' (in-progress) projects, but fall back to
+  // queued/design so a brand-new sample project still surfaces here.
+  function _continueCandidate(list) {
+    for (var i = 0; i < list.length; i++) {
+      var cp = list[i];
+      if (!cp || cp.managerOnly) continue;
+      if (typeof ProjectStorage !== 'undefined' && ProjectStorage.isDeleted && ProjectStorage.isDeleted(cp.id)) continue;
+      return cp;
+    }
+    return null;
   }
+  var continueProj = _continueCandidate(categorised.active)
+    || _continueCandidate(categorised.queued || [])
+    || _continueCandidate(categorised.design || []);
   var continuePct = continueProj && continueProj.totalStitches > 0
     ? Math.round((continueProj.completedStitches || 0) / continueProj.totalStitches * 100)
     : 0;

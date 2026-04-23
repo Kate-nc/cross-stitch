@@ -87,9 +87,12 @@
       }
     }
     return {
-      v: 8,
+      // Tracker treats v===8 as the compressed [id,typeCode] array format,
+      // so we use the same `version: 11` shape that the Creator saves.
+      version: 11,
       id: SAMPLE_PROJECT_ID,
       name: 'Welcome heart (sample)',
+      page: 'creator',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       w: W, h: H,
@@ -122,9 +125,10 @@
   }
 
   function navigateToTracker() {
-    if (typeof window.__switchToTrack === 'function') {
-      try { window.__switchToTrack(); return; } catch (_) {}
-    }
+    // Always navigate via window.location so the welcome modal (mounted on a
+    // separate root in the same document) is torn down with the page. Calling
+    // window.__switchToTrack() in-place leaves the modal-overlay covering the
+    // tracker view, which makes the UI appear frozen.
     window.location.href = 'stitch.html';
   }
 
@@ -174,10 +178,14 @@
         if (ok) {
           setStep('sample_loaded');
           showToast("Sample project loaded \u2014 let's stitch!", { type: 'success' });
+          // Close the modal first so the modal-overlay is removed from the DOM
+          // before we navigate (also helps if the navigation is blocked).
+          if (typeof props.onClose === 'function') props.onClose();
           setTimeout(navigateToTracker, 250);
         } else {
           // Sample failed (e.g. no IndexedDB). Bail gracefully.
           setStep('complete');
+          setBusy(false);
           if (typeof props.onClose === 'function') props.onClose();
         }
       });
