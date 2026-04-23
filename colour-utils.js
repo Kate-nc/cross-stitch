@@ -139,6 +139,7 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
   const N = w * h;
 
   // Pre-compute blend table once for the whole dithering pass
+  // precomputeBlends is attached lazily on first use
   if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
 
   // Working buffer in float so error diffusion doesn't clip

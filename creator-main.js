@@ -260,14 +260,14 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
 
   // Bridge global "?" → open Help Centre while in Creator design mode.
   React.useEffect(()=>{
-    const h=()=>{ if(typeof state.setModal==='function') state.setModal('help'); };
+    const h=()=>{ state.setModal('help'); };
     window.addEventListener('cs:openHelpDesign',h);
     return()=>window.removeEventListener('cs:openHelpDesign',h);
   },[state.setModal]);
 
   // Command Palette → Shortcuts modal (Creator design mode).
   React.useEffect(()=>{
-    const h=()=>{ if(typeof state.setModal==='function') state.setModal('shortcuts'); };
+    const h=()=>{ state.setModal('shortcuts'); };
     window.addEventListener('cs:openShortcuts',h);
     return()=>window.removeEventListener('cs:openShortcuts',h);
   },[state.setModal]);
@@ -284,7 +284,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       {
         id: 'cre_shopping_list', label: 'What do I need to buy?', section: 'action',
         keywords: ['shopping', 'buy', 'cart', 'stash', 'list', 'threads'],
-        action: () => { if (typeof state.setModal === 'function') state.setModal('shopping_list'); }
+        action: () => { state.setModal('shopping_list'); }
       }
     ]);
     return () => { if (window.CommandPalette) window.CommandPalette.registerPage('creator', []); };
@@ -297,8 +297,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     let cancelled = false;
     const fetchStash = () => {
       window.StashBridge.getGlobalStash()
-        .then(s => { if (!cancelled && typeof state.setGlobalStash === 'function') state.setGlobalStash(s || {}); })
-        .catch(() => {});
+        .then(s => { if (!cancelled) state.setGlobalStash(s || {}); })
+        .catch(e => console.warn('getGlobalStash failed:', e));
     };
     fetchStash();
     const onVis = () => { if (document.visibilityState === 'visible') fetchStash(); };
@@ -917,6 +917,7 @@ function UnifiedApp(){
 
   React.useEffect(()=>{
     if(trackerReady)return;
+    // loadTrackerApp is defined by index.html but Babel-compiled async, so the typeof guard avoids a race on first mode switch.
     if((mode==='track'||mode==='stats')&&typeof window.loadTrackerApp==='function') window.loadTrackerApp();
     const poll=setInterval(()=>{if(typeof window.TrackerApp!=='undefined'){setTrackerReady(true);clearInterval(poll);}},50);
     return()=>clearInterval(poll);
@@ -1070,7 +1071,7 @@ function UnifiedApp(){
   const[homeBulkAddOpen,setHomeBulkAddOpen]=React.useState(false);
   // First-visit welcome wizard. Shows once on the Creator home screen.
   const[welcomeOpen,setWelcomeOpen]=React.useState(()=>{
-    try{return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('creator'));}catch(_){return false;}
+    return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('creator'));
   });
   // Global "?" shortcut → open Help Centre. Routes to home or design depending
   // on which mode the user is currently viewing.

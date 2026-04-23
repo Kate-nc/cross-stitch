@@ -669,7 +669,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     var cancelled = false;
     Promise.all([
       typeof ProjectStorage !== 'undefined' ? ProjectStorage.listProjects() : Promise.resolve([]),
-      typeof StashBridge !== 'undefined' ? StashBridge.getGlobalStash().catch(function() { return null; }) : Promise.resolve(null),
+      typeof StashBridge !== 'undefined' ? StashBridge.getGlobalStash().catch(function(e) { console.warn('home-screen: getGlobalStash failed:', e); return null; }) : Promise.resolve(null),
       typeof StashBridge !== 'undefined' ? (function() {
         // Try to get patterns from stash manager DB
         return new Promise(function(resolve) {

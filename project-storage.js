@@ -746,7 +746,8 @@ const ProjectStorage = (() => {
     // States: 'active' | 'queued' | 'paused' | 'complete' | 'design'
     // Stored in localStorage so it's fast to read without loading full project data.
     getProjectStates() {
-      try { return JSON.parse(localStorage.getItem('cs_projectStates') || '{}'); } catch(e) { return {}; }
+      try { return JSON.parse(localStorage.getItem('cs_projectStates') || '{}'); }
+      catch(e) { console.warn('cs_projectStates corrupted, resetting:', e); try { localStorage.removeItem('cs_projectStates'); } catch(_) {} return {}; }
     },
 
     setProjectState(id, state) {

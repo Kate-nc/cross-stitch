@@ -703,7 +703,7 @@ const SyncEngine = (() => {
         var tx = db.transaction("sync_state", "readonly");
         var req = tx.objectStore("sync_state").get("watchDirHandle");
         req.onsuccess = function () { resolve(req.result || null); };
-        req.onerror = function () { resolve(null); };
+        req.onerror = function () { console.warn('SyncEngine: read watchDirHandle failed:', req.error); resolve(null); };
         tx.oncomplete = function () { db.close(); };
       });
       _watchDirHandle = handle;

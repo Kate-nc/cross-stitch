@@ -93,7 +93,7 @@ const BackupRestore = (() => {
         try {
           const val = localStorage.getItem(key);
           if (val !== null) backup.localStorage[key] = val;
-        } catch (e) {}
+        } catch (e) { console.warn("Backup: failed to read localStorage key", key, e); }
       });
 
       return backup;
@@ -167,7 +167,7 @@ const BackupRestore = (() => {
             summary.patternCount = patternsEntry.value.length;
           }
         }
-      } catch (e) {}
+      } catch (e) { console.warn("Backup: failed to summarise backup contents", e); }
       return { valid: true, summary };
     },
 
@@ -217,7 +217,7 @@ const BackupRestore = (() => {
         for (const [key, val] of Object.entries(backup.localStorage)) {
           // Only restore known safe keys
           if (LS_KEYS.includes(key)) {
-            try { localStorage.setItem(key, val); } catch (e) {}
+            try { localStorage.setItem(key, val); } catch (e) { console.warn("Restore: failed to write localStorage key", key, e); }
           }
         }
       }
@@ -252,14 +252,28 @@ const BackupRestore = (() => {
           if (typeof StashBridge !== 'undefined' && StashBridge.migrateSchemaToV3) {
             await StashBridge.migrateSchemaToV3();
           }
-        } catch (e) { console.warn('Post-restore stash migration failed:', e); }
+        } catch (e) {
+          console.warn('Post-restore stash migration failed:', e);
+          try {
+            if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+              window.Toast.show({ message: "Restore: stash migration failed \u2014 some thread data may need a manual refresh.", type: "error" });
+            }
+          } catch (_) {}
+        }
       }
       if (!projectsAreV3) {
         try {
           if (typeof ProjectStorage !== 'undefined' && ProjectStorage.migrateProjectsToV3) {
             await ProjectStorage.migrateProjectsToV3();
           }
-        } catch (e) { console.warn('Post-restore project migration failed:', e); }
+        } catch (e) {
+          console.warn('Post-restore project migration failed:', e);
+          try {
+            if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+              window.Toast.show({ message: "Restore: project migration failed \u2014 some projects may need a manual refresh.", type: "error" });
+            }
+          } catch (_) {}
+        }
       } else {
         // Projects are already v3 — mark the migration flag so subsequent
         // page loads don't re-run unnecessarily.

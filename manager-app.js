@@ -320,7 +320,7 @@ function ManagerApp() {
     // Await loadManagerData so ensurePersistence() has settled before we read the
     // storage estimate — otherwise the persistent flag races and shows false.
     loadManagerData().then(() => {
-      ProjectStorage.getStorageEstimate().then(setStorageUsage).catch(() => {});
+      ProjectStorage.getStorageEstimate().then(setStorageUsage).catch(e => console.warn('getStorageEstimate failed:', e));
     });
     loadActiveProject();
     ProjectStorage.listProjects().then(setStoredProjects).catch(err => console.error("Failed to list projects:", err));
@@ -363,7 +363,7 @@ function ManagerApp() {
     const handleBackupRestored = () => {
       loadManagerData();
       loadActiveProject();
-      ProjectStorage.listProjects().then(setStoredProjects).catch(() => {});
+      ProjectStorage.listProjects().then(setStoredProjects).catch(e => console.warn('listProjects failed:', e));
     };
     window.addEventListener('cs:backupRestored', handleBackupRestored);
     return () => {
@@ -418,8 +418,8 @@ function ManagerApp() {
   // Smart Stash Hub: refresh conflicts, ready-to-start, and low-stock alerts
   useEffect(() => {
     if (typeof StashBridge === "undefined") return;
-    StashBridge.detectConflicts().then(setConflicts).catch(() => {});
-    StashBridge.whatCanIStart().then(setReadyToStart).catch(() => {});
+    StashBridge.detectConflicts().then(setConflicts).catch(e => console.warn('detectConflicts failed:', e));
+    StashBridge.whatCanIStart().then(setReadyToStart).catch(e => console.warn('whatCanIStart failed:', e));
     // Low-stock: threads where owned > 0 but below min_stock (explicit), or below the
     // global lowStockThreshold (1 skein) when no per-thread minimum has been set.
     const alerts = [];
@@ -1175,7 +1175,11 @@ function ManagerApp() {
                               // Capture full project data + any linked pattern library entries
                               // so Undo can fully restore both IndexedDB and React state.
                               let fullProject = null;
-                              try { fullProject = await ProjectStorage.get(p.id); } catch (err) { console.error("Capture before delete failed:", err); }
+                              try { fullProject = await ProjectStorage.get(p.id); } catch (err) {
+                                console.error("Capture before delete failed:", err);
+                                try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not capture project before delete \u2014 aborting.', type: 'error'}); } catch(_){}
+                                return;
+                              }
                               const removedPatterns = patterns.filter(pat => pat.linkedProjectId === p.id);
                               const projectName = p.name;
                               try {

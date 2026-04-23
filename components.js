@@ -97,7 +97,6 @@ var ProgressRing=React.memo(function ProgressRing({percent, size}){
 });
 
 var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettings, onOpenStats, currentAutoSession}){
-  try {
     var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
     var todayStitches = getStatsTodayStitches(statsSessions || [], dayEndHour);
     var todaySeconds = getStatsTodaySeconds(statsSessions || [], dayEndHour);
@@ -151,7 +150,6 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
         )
       )
     );
-  } catch(e) { console.warn('Stats: MiniStatsBar render error', e); return null; }
 });
 
 var OverviewCards=React.memo(function OverviewCards({statsSessions, totalCompleted, totalStitches, halfStitchCounts, useActiveDays}){
@@ -196,7 +194,6 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
   var showAll = showSt[0], setShowAll = showSt[1];
   var editSt = React.useState(null);
   var editingId = editSt[0], setEditingId = editSt[1];
-  try {
   var colourMap = {};
   if (palette) { for (var pi = 0; pi < palette.length; pi++) { var pc = palette[pi]; if (pc.id && pc.rgb) colourMap[pc.id] = pc; } }
   var grouped = groupSessionsByDate(sessions || []);
@@ -250,13 +247,11 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
     React.createElement("div", {className:"timeline-track"}, timelineEntries),
     !showAll && sessions && sessions.length > 10 && React.createElement("button", {className:"timeline-show-all", onClick:function(){ setShowAll(true); }}, "View all " + sessions.length + " sessions")
   );
-  } catch(e) { console.warn('Stats: SessionTimeline render error', e); return React.createElement("p", {style:{color:'#94a3b8',fontSize:13}}, "Could not load timeline."); }
 }
 
 // ═══ Phase B: Charts & Milestones ═══
 
 var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches, targetDate, whatIfPace}){
-  try {
   var data = getCumulativeProgressData(sessions);
   if (data.length < 2) return React.createElement("p", {className:"stats-empty"}, "Start stitching to see your progress chart");
   var width = 600, height = 130;
@@ -323,11 +318,9 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
       wiLine ? React.createElement("span", null, React.createElement("span", {className:"legend-line dashed", style:{borderColor:'#f59e0b'}}), "What-if") : null
     )
   );
-  } catch(e) { console.warn('Stats: CumulativeChart render error', e); return null; }
 });
 
 var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysToShow, dayEndHour}){
-  try {
   daysToShow = daysToShow || 14;
   var data = getDailyStitchData(sessions, daysToShow, dayEndHour);
   var maxVal = 1;
@@ -369,13 +362,11 @@ var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysTo
       React.createElement("span", null, "Today")
     )
   );
-  } catch(e) { console.warn('Stats: DailyBarChart render error', e); return null; }
 });
 
 // ═══ Phase E: Speed Trend Chart ═══
 
 var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
-  try {
   var raw = getSpeedTrendData(sessions);
   if (raw.length < 3) return React.createElement("p", {className:"stats-empty"}, "Need more sessions (≥10 min each) to show speed trend");
   var data = getRollingAverage(raw);
@@ -421,13 +412,11 @@ var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
       React.createElement("span", null, React.createElement("span", {className:"legend-line solid", style:{borderColor:'#0d9488'}}), "7-session avg")
     )
   );
-  } catch(e) { console.warn('Stats: SpeedTrendChart render error', e); return null; }
 });
 
 // ═══ Phase E: Colour Timeline ═══
 
 var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colourDoneCounts}){
-  try {
   var timeline = getColourTimeline(sessions);
   if (!palette || palette.length === 0) return null;
   var hasAnyData = false;
@@ -468,7 +457,6 @@ var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colour
     !hasAnyData && React.createElement("p", {className:"stats-empty", style:{marginTop:8}}, "Colour tracking data will appear as you stitch"),
     React.createElement("div", {className:"colour-tl-list"}, rows)
   );
-  } catch(e) { console.warn('Stats: ColourTimeline render error', e); return null; }
 });
 
 // ═══ Phase E: Monthly Calendar view ═══
@@ -793,7 +781,6 @@ function MilestoneCelebration({milestone, onDismiss}){
 }
 
 function ColourProgress({palette, colourDoneCounts, sessions}){
-  try {
     if (!palette || palette.length === 0) return null;
     var colourStats = [];
     var coloursComplete = 0;
@@ -843,7 +830,6 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
         })
       )
     );
-  } catch(e) { console.warn('Stats: ColourProgress render error', e); return null; }
 }
 
 // ═══ Visual Progress: Section completion grid ═══
@@ -1045,7 +1031,10 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
         return[...labelled,...autos];
       });
       setLabelText('');
-    }catch(e){console.warn('Snapshot save error',e);}
+    }catch(e){
+      console.warn('Snapshot save error',e);
+      try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save snapshot \u2014 try again.', type: 'error'}); } catch(_){}
+    }
   }
 
   var snapDone=snap?decompressSnap(snap.data):null;
@@ -1385,7 +1374,6 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       ProjectStorage.listProjects().then(function(list) { setHasMultiProjects(list.length >= 2); }).catch(function(){});
     }
   }, []);
-  try {
   var useActiveDays = statsSettings && statsSettings.useActiveDays !== false;
   var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches, useActiveDays);
   var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.avgPerDay);
@@ -1534,7 +1522,6 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       React.createElement("p", {style:{fontSize:11, color:'#94a3b8', margin:'4px 0 0'}}, "Affects average stitches/day calculation")
     )
   );
-  } catch(e) { console.warn('Stats: StatsDashboard render error', e); return React.createElement("p", {style:{color:'#dc2626',fontSize:13}}, "Stats error \u2014 see console."); }
 }
 
 const pill=a=>({padding:"5px 14px",fontSize:12,borderRadius:8,cursor:"pointer",border:a?"1px solid #99f6e4":"0.5px solid #e2e8f0",background:a?"#f0fdfa":"#fff",fontWeight:a?600:400,color:a?"#0d9488":"#475569"});
@@ -1672,26 +1659,23 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
           return;
         }
         ProjectStorage.buildAllStatsSummaries().then(function(built) {
-          setProjectSummaries(Array.isArray(built) ? built : []);
+          setProjectSummaries(built);
           setLoading(false);
         }).catch(function() {
           setProjectSummaries([]);
           setLoading(false);
         });
       };
-      if (typeof ProjectStorage.getAllStatsSummaries === 'function') {
-        ProjectStorage.getAllStatsSummaries().then(function(summaries) {
-          if (Array.isArray(summaries) && summaries.length) {
-            setProjectSummaries(summaries);
-            setLoading(false);
-            return;
-          }
-          rebuild();
-        }).catch(rebuild);
-        return;
-      }
-      rebuild();
+      ProjectStorage.getAllStatsSummaries().then(function(summaries) {
+        if (Array.isArray(summaries) && summaries.length) {
+          setProjectSummaries(summaries);
+          setLoading(false);
+          return;
+        }
+        rebuild();
+      }).catch(rebuild);
     };
+    // __flushProjectToIDB is only present on tracker/stats page
     if (typeof window.__flushProjectToIDB === 'function') {
       window.__flushProjectToIDB().then(doLoad).catch(doLoad);
     } else {
@@ -1902,6 +1886,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
             }).catch(function() { setLoading(false); });
           };
           if (typeof window.__flushProjectToIDB === 'function') {
+            // only present on tracker/stats page
             window.__flushProjectToIDB().then(doRefresh).catch(doRefresh);
           } else { doRefresh(); }
         }, style: {fontSize: 13, padding: '4px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '↻ Refresh'),

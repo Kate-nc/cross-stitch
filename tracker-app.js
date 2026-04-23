@@ -766,7 +766,7 @@ useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfSti
 useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_layerVis_'+pid,JSON.stringify(layerVis));}catch(_){}},[layerVis]);
 useEffect(()=>{try{localStorage.setItem('cs_bsThickness',String(bsThickness));}catch(_){}},[bsThickness]);
 // ── Zoom-adaptive detail level ──
-const[lockDetailLevel,setLockDetailLevel]=useState(()=>{try{return !!JSON.parse(localStorage.getItem('cs_lockDetail')||'false');}catch(_){return false;}});
+const[lockDetailLevel,setLockDetailLevel]=useState(()=>{try{return !!JSON.parse(localStorage.getItem('cs_lockDetail')||'false');}catch(e){console.warn('cs_lockDetail corrupted, resetting:',e);try{localStorage.removeItem('cs_lockDetail');}catch(_){}return false;}});
 useEffect(()=>{try{localStorage.setItem('cs_lockDetail',String(lockDetailLevel));}catch(_){}},[lockDetailLevel]);
 // tierRef: current render tier (1–4) with hysteresis; default zoom=1→scs=20→Tier 3
 const tierRef=useRef(3);
@@ -841,7 +841,7 @@ const skeinData=useMemo(()=>{
 },[pal,fabricCt]);
 
 useEffect(()=>{
-  if(typeof StashBridge!=="undefined"){StashBridge.getGlobalStash().then(setGlobalStash).catch(()=>{});}
+  if(typeof StashBridge!=="undefined"){StashBridge.getGlobalStash().then(setGlobalStash).catch(e=>console.warn('getGlobalStash failed:',e));}
 },[]);
 
 // Detect project completion and offer stash deduction
@@ -2026,8 +2026,8 @@ function handleEditInCreator(){
     const project=buildSnapshot();
     if(project){
       lastSnapshotRef.current=project;
-      saveProjectToDB(project).catch(()=>{});
-      ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(()=>{});
+      saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
+      ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
       // Push ALL tracker-specific fields to Creator so its auto-save doesn't overwrite them
       try{
         if(typeof window.__updateCreatorTrackerFields==='function'){
@@ -2699,7 +2699,7 @@ useEffect(() => {
       const project = lastSnapshotRef.current;
       if (project) {
         await ProjectStorage.save(project);
-        await saveProjectToDB(project).catch(() => {});
+        await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
       }
       return;
     }
@@ -2726,7 +2726,7 @@ useEffect(() => {
     };
     lastSnapshotRef.current = project;
     await ProjectStorage.save(project);
-    await saveProjectToDB(project).catch(() => {});
+    await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
   };
   return () => {
     // Replace with a snapshot-based fallback rather than deleting outright.
@@ -2736,7 +2736,7 @@ useEffect(() => {
     window.__flushProjectToIDB = async function() {
       if (last) {
         await ProjectStorage.save(last);
-        await saveProjectToDB(last).catch(() => {});
+        await saveProjectToDB(last).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
       }
     };
   };
