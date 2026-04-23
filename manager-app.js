@@ -63,14 +63,6 @@ function ManagerApp() {
   const [backupStatus, setBackupStatus] = useState(null); // { type: 'success'|'error'|'confirm', message, summary?, onConfirm? }
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
-  // Detailed (legacy) pattern grid is now collapsed by default — the unified
-  // "Your Projects" cards above are the primary view. Persisted per user.
-  const [showDetailGrid, setShowDetailGrid] = useState(() => {
-    try { return localStorage.getItem("mgr_show_detail_grid") === "1"; } catch (_) { return false; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem("mgr_show_detail_grid", showDetailGrid ? "1" : "0"); } catch (_) {}
-  }, [showDetailGrid]);
   // First-visit welcome wizard. Use lazy initialiser so it only runs once.
   const [welcomeOpen, setWelcomeOpen] = useState(() => {
     try { return !!(window.WelcomeWizard && window.WelcomeWizard.shouldShow('manager')); } catch (_) { return false; }
@@ -956,6 +948,50 @@ function ManagerApp() {
                     if (!realId) return;
                     const match = patterns.find(p => p.id === realId);
                     if (match) setViewingPattern(match);
+                  },
+                  // Per-card extras: shopping-list checkbox + missing-thread badge
+                  // so the legacy detail grid is no longer required.
+                  cardExtras: (proj) => {
+                    // Resolve the matching Manager pattern row for this project.
+                    let pat = null;
+                    if (proj.managerOnly && proj._managerPatternId) {
+                      pat = patterns.find(p => p.id === proj._managerPatternId);
+                    } else if (proj.id) {
+                      pat = patterns.find(p => p.linkedProjectId === proj.id);
+                    }
+                    if (!pat) return null;
+                    const reqThreads = pat.threads || [];
+                    const missing = reqThreads.filter(t => {
+                      const k = t.id.indexOf(":") < 0 ? "dmc:" + t.id : t.id;
+                      return !((threads[k] || {}).owned > 0);
+                    });
+                    const isSel = selectedPatternsForList.has(pat.id);
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11 }}>
+                        <label
+                          onClick={e => e.stopPropagation()}
+                          style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", border: "1px solid " + (isSel ? "#16a34a" : "#cbd5e1"), borderRadius: 12, background: isSel ? "#f0fdf4" : "#fff", color: isSel ? "#15803d" : "#475569", cursor: "pointer", fontWeight: 600 }}
+                          title="Tick to add this pattern to the shopping list"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSel}
+                            onChange={e => { e.stopPropagation(); togglePatternSelection(pat.id); }}
+                            style={{ margin: 0 }}
+                          />
+                          Shopping list
+                        </label>
+                        {reqThreads.length > 0 && (
+                          missing.length === 0
+                            ? <span style={{ padding: "2px 8px", borderRadius: 12, background: "#dcfce7", color: "#15803d", fontWeight: 700 }} title="All required threads are in your stash">✓ Fully kitted</span>
+                            : <span
+                                onClick={e => { e.stopPropagation(); setViewingPattern(pat); setPanelOpen(true); }}
+                                style={{ padding: "2px 8px", borderRadius: 12, background: "#fff7ed", color: "#c2410c", fontWeight: 700, cursor: "pointer" }}
+                                title={"Missing: " + missing.map(t => t.id).join(", ")}
+                              >{missing.length} threads needed</span>
+                        )}
+                      </div>
+                    );
                   }
                 })}
               </div>
@@ -1059,69 +1095,14 @@ function ManagerApp() {
               </div>
             </div>
 
-            {/* Detailed grid view — shows per-pattern thread coverage and the
-                shopping-list checkboxes. Hidden by default; the unified
-                "Your Projects" cards above are the primary view for most users. */}
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "4px 2px 8px" }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#3f3f46" }}>Pattern details &amp; shopping list</div>
-              <button
-                onClick={() => setShowDetailGrid(v => !v)}
-                style={{ padding: "4px 10px", fontSize: 11, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", color: "#475569", fontFamily: "inherit" }}
-                title={showDetailGrid ? "Hide the detailed pattern grid" : "Show the detailed pattern grid (per-pattern thread coverage + checkboxes)"}
-              >
-                {showDetailGrid ? "Hide detailed grid" : "Show detailed grid"}
-              </button>
-            </div>
-            {!showDetailGrid && (
-              <div style={{ padding: "10px 14px", marginBottom: 12, background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: 8, fontSize: 12, color: "#64748b" }}>
-                Use the cards above to open patterns. Tap <strong>Show detailed grid</strong> when you need per-pattern checkboxes for shopping-list selection.
+            {/* Detailed pattern grid removed — shopping-list checkboxes and
+                missing-thread badges now live on the unified "Your Projects"
+                cards above (see the cardExtras callback on ProjectLibrary).
+                If no patterns exist yet, surface an empty-state nudge. */}
+            {filteredPatterns.length === 0 && (
+              <div style={{ textAlign: "center", padding: "30px 20px", color: "#475569", fontSize: 13, background: "#fafafa", border: "1px dashed #cbd5e1", borderRadius: 8 }}>
+                No patterns yet. Click "+ Add Pattern" to start your library, or generate one in the Pattern Creator.
               </div>
-            )}
-            {showDetailGrid && (
-            <div className="pat-grid">
-              {filteredPatterns.map(p => {
-                const isSelected = selectedPatternsForList.has(p.id);
-                return (
-                  <div key={p.id} className={"pcard" + (viewingPattern && viewingPattern.id === p.id ? " on" : "")} onClick={() => { const next = viewingPattern && viewingPattern.id === p.id ? null : p; setViewingPattern(next); if (next) setPanelOpen(true); }}>
-                    <div className="ptitle">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={(e) => { e.stopPropagation(); togglePatternSelection(p.id); }}
-                        onClick={e => e.stopPropagation()}
-                        style={{ cursor: "pointer" }}
-                      />
-                      {p.title || "Untitled"}
-                      <span className={"status " + (p.status || "wishlist")} style={{ marginLeft: "auto" }}>
-                        {statusColors[p.status] ? statusColors[p.status].label : p.status}
-                      </span>
-                    </div>
-                    {p.designer && <div className="pdesigner">by {p.designer}</div>}
-                    {((p.tags && p.tags.length > 0) || !p.linkedProjectId) && (
-                      <div className="ptags">
-                        {(p.tags || []).filter(tag => tag !== "auto-synced").map(tag => (
-                          <span key={tag} className="tag">{tag}</span>
-                        ))}
-                        {((p.tags && p.tags.includes("auto-synced")) || p.linkedProjectId) && (
-                          <span className="tag" style={{ background: "#f0fdfa", color: "#0d9488", fontWeight: 600 }}>Auto-synced</span>
-                        )}
-                        {!p.linkedProjectId && (
-                          <span className="tag" style={{ background: "#fef3c7", color: "#92400e", fontWeight: 600 }} title="This pattern was added manually here and isn't linked to a generated project.">Stash Manager only</span>
-                        )}
-                      </div>
-                    )}
-                    <div className="pmeta">
-                      <span>{p.threads ? p.threads.length : 0} threads required</span>
-                    </div>
-                  </div>
-                );
-              })}
-              {filteredPatterns.length === 0 && (
-                <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "60px 20px", color: "#475569", fontSize: 14 }}>
-                  No patterns found. Click "+ Add Pattern" to start your library.
-                </div>
-              )}
-            </div>
             )}
           </div>
 
@@ -1222,6 +1203,7 @@ function ManagerApp() {
       {bulkAddOpen && window.BulkAddModal && React.createElement(window.BulkAddModal, {onClose: () => setBulkAddOpen(false)})}
       {modal === "help" && <SharedModals.Help defaultTab="manager" onClose={() => setModal(null)} />}
       {welcomeOpen && window.WelcomeWizard && <window.WelcomeWizard page="manager" onClose={() => setWelcomeOpen(false)} />}
+      {window.HelpHintBanner && <window.HelpHintBanner />}
       {modal === "about" && <SharedModals.About onClose={() => setModal(null)} />}
 
     </>
@@ -1393,7 +1375,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
                     onChange={e => { setThreadInput(e.target.value); setShowAutocomplete(true); }}
                     onFocus={() => setShowAutocomplete(true)}
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid #e2e8f0", fontSize: 13 }}
-                    placeholder="Color code or name..."
+                    placeholder="Colour code or name..."
                     required
                   />
                   {showAutocomplete && autocompleteResults.length > 0 && (

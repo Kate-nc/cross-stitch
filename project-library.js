@@ -149,6 +149,7 @@
     return h(Dashboard, {
       projects: projects,
       stash: data.stash,
+      cardExtras: props.cardExtras,
       onOpenProject: function (proj, target) {
         if (proj && proj.managerOnly) {
           // Manager-only entries can't be opened in Creator/Tracker — surface

@@ -9,7 +9,8 @@
   "scripts": {
     "start": "node serve.js",
     "test": "jest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "lint:terminology": "node scripts/lint-terminology.js"
   },
   "jest": {
     "testPathIgnorePatterns": [

@@ -90,7 +90,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
   );
 }
 
-function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, onOpenProject, onPreferences, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved }) {
+function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, onOpenProject, onPreferences, onBulkAddThreads, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
 
@@ -367,6 +367,12 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               className: 'tb-page-dropdown-item',
               onClick: () => { onExportPDF(); setFileMenuOpen(false); }
             }, 'Export PDF…'),
+            // Bulk Add Threads — quick access to the same modal as the Stash Manager.
+            onBulkAddThreads && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => { onBulkAddThreads(); setFileMenuOpen(false); },
+              title: 'Paste a list of DMC/Anchor IDs to add to your stash'
+            }, 'Bulk Add Threads…'),
             // Separator before backup/restore
             !!(onNewProject || onOpen || onSave || ((page === 'creator' || page === 'editor') && onTrack) || onExportPDF) &&
               React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),

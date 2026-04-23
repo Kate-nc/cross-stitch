@@ -104,4 +104,52 @@
     }, true);
   }
   if (typeof document !== "undefined") installHelpShortcut();
+
+  // ─── Help-discoverability hint banner ───────────────────────────────────
+  // window.HelpHintBanner — a tiny floating "Press ? for help" pill that
+  // appears bottom-right on first visit, dismissible, and remembers the
+  // dismissal in localStorage under "cs_help_hint_dismissed". Pages mount
+  // <window.HelpHintBanner /> once at the root of their tree.
+  var HINT_KEY = "cs_help_hint_dismissed";
+  function HelpHintBanner() {
+    var _v = React.useState(function () {
+      try { return !localStorage.getItem(HINT_KEY); } catch (_) { return false; }
+    });
+    var visible = _v[0], setVisible = _v[1];
+    if (!visible) return null;
+    function dismiss() {
+      setVisible(false);
+      try { localStorage.setItem(HINT_KEY, "1"); } catch (_) {}
+    }
+    function open() {
+      try { window.dispatchEvent(new CustomEvent("cs:openHelp")); } catch (_) {}
+      dismiss();
+    }
+    return React.createElement("div", {
+      role: "status",
+      style: {
+        position: "fixed", bottom: 16, right: 16, zIndex: 1200,
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "8px 10px 8px 14px", borderRadius: 999,
+        background: "#0f172a", color: "#fff", fontSize: 12,
+        boxShadow: "0 6px 20px rgba(15,23,42,0.25)", fontFamily: "inherit"
+      }
+    },
+      React.createElement("button", {
+        onClick: open,
+        title: "Open the Help Centre",
+        style: { background: "transparent", color: "#fff", border: "none", padding: 0, cursor: "pointer", fontSize: 12, fontWeight: 600 }
+      },
+        "Press ", React.createElement("kbd", { style: { background: "#1e293b", padding: "1px 6px", borderRadius: 4, fontFamily: "monospace", fontWeight: 700 } }, "?"), " for help"
+      ),
+      React.createElement("button", {
+        onClick: dismiss, "aria-label": "Dismiss help hint",
+        title: "Dismiss",
+        style: { background: "transparent", color: "#cbd5e1", border: "none", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }
+      }, "\u00d7")
+    );
+  }
+  HelpHintBanner.dismissed = function () { try { return !!localStorage.getItem(HINT_KEY); } catch (_) { return false; } };
+  HelpHintBanner.reset = function () { try { localStorage.removeItem(HINT_KEY); } catch (_) {} };
+  window.HelpHintBanner = HelpHintBanner;
 })();

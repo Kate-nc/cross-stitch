@@ -50,15 +50,18 @@
       {
         title: "1. Build your stash",
         body: "Switch to the Threads tab and tick the threads you own. Use 'Bulk Add' to paste a list of IDs in one go.",
+        tip: "Click the highlighted Threads tab to continue.",
         target: "[data-onboard=\"mgr-stash-tab\"]",
-        placement: "bottom"
+        placement: "bottom",
+        requireClick: true
       },
       {
         title: "2. Browse your patterns",
         body: "Patterns saved in the Creator/Tracker auto-sync here. You can also add patterns manually \u2014 these are flagged 'Stash Manager only'.",
-        tip: "Each card shows how many of its required threads you already own.",
+        tip: "Click the highlighted Patterns tab to continue.",
         target: "[data-onboard=\"mgr-patterns-tab\"]",
-        placement: "bottom"
+        placement: "bottom",
+        requireClick: true
       },
       {
         title: "3. Plan a shopping trip",
@@ -95,6 +98,15 @@
     try { localStorage.removeItem(flagKey(page)); } catch (_) {}
   }
 
+  // Clear ALL onboarding flags (every page's WelcomeWizard plus the Tracker
+  // StitchingStyleOnboarding). Used by Preferences → Restore tutorials.
+  function resetAll() {
+    try {
+      Object.keys(STEPS).forEach(function (p) { localStorage.removeItem(flagKey(p)); });
+      localStorage.removeItem("cs_styleOnboardingDone");
+    } catch (_) {}
+  }
+
   function WelcomeWizard(props) {
     var page = props.page || "creator";
     var steps = STEPS[page] || [];
@@ -105,6 +117,11 @@
     // step has no target or the target isn't in the DOM yet.
     var _anchor = React.useState(null);
     var anchor = _anchor[0], setAnchor = _anchor[1];
+    // When step.requireClick is true, the user must click the anchored target
+    // before the Next button enables. Reset to false on every step change.
+    var _clicked = React.useState(false);
+    var clicked = _clicked[0], setClicked = _clicked[1];
+    React.useEffect(function () { setClicked(false); }, [idx]);
 
     function handleClose(skipFlag) {
       if (!skipFlag) markDone(page);
@@ -133,11 +150,16 @@
       recompute();
       window.addEventListener("resize", recompute);
       window.addEventListener("scroll", recompute, true);
+      // For requireClick steps, listen for a click on the target and unlock Next.
+      var clickEl = step.requireClick && step.target ? document.querySelector(step.target) : null;
+      function onTargetClick() { setClicked(true); }
+      if (clickEl) clickEl.addEventListener("click", onTargetClick);
       return function () {
         window.removeEventListener("resize", recompute);
         window.removeEventListener("scroll", recompute, true);
+        if (clickEl) clickEl.removeEventListener("click", onTargetClick);
       };
-    }, [idx, step.target, step.placement]);
+    }, [idx, step.target, step.placement, step.requireClick]);
 
     // Compute the popover style — either floating near the anchor, or centred.
     var popoverStyle = { maxWidth: 420, padding: 22, position: "relative" };
@@ -216,8 +238,12 @@
             }, "Back"),
             h("button", {
               onClick: function () { if (isLast) handleClose(false); else setIdx(idx + 1); },
-              style: { padding: "8px 16px", fontSize: 13, borderRadius: 6, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 600 }
-            }, isLast ? "Get started" : "Next")
+              disabled: !!(step.requireClick && !clicked && !isLast),
+              style: { padding: "8px 16px", fontSize: 13, borderRadius: 6, border: "none",
+                background: (step.requireClick && !clicked && !isLast) ? "#94a3b8" : "#0d9488",
+                color: "#fff", cursor: (step.requireClick && !clicked && !isLast) ? "not-allowed" : "pointer", fontWeight: 600 },
+              title: (step.requireClick && !clicked && !isLast) ? "Complete the highlighted action to continue" : ""
+            }, isLast ? "Get started" : (step.requireClick && !clicked ? "Waiting…" : "Next"))
           )
         )
     ];
@@ -247,6 +273,7 @@
   WelcomeWizard.shouldShow = shouldShow;
   WelcomeWizard.markDone = markDone;
   WelcomeWizard.reset = reset;
+  WelcomeWizard.resetAll = resetAll;
   WelcomeWizard.STEPS = STEPS;
 
   window.WelcomeWizard = WelcomeWizard;

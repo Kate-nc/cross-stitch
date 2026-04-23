@@ -189,7 +189,7 @@
           heading: "Naming conventions",
           body: "British spellings throughout (colour, organiser, favourite). Brand names always capitalised: DMC, Anchor.",
           bullets: [
-            ["Use \"Stash\"", "Not \"Inventory\"."],
+            ["Use \"Stash\"", "Not \"Inventory\"."], // terminology-lint-allow
             ["Use \"Project\" vs. \"Pattern\"", "Project = the whole thing you stitch. Pattern = the chart only."],
             ["Use \"Download\" for files", "And \"Save\" for in-app autosave."]
           ]

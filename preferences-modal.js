@@ -226,11 +226,50 @@
   }
 
   // ─── Modal shell ──────────────────────────────────────────────────────
+  function TutorialsPanel() {
+    var _msg = useState(null);
+    var msg = _msg[0], setMsg = _msg[1];
+    function clearAll() {
+      try { if (window.WelcomeWizard && window.WelcomeWizard.resetAll) window.WelcomeWizard.resetAll(); } catch (_) {}
+      try { if (window.HelpHintBanner && window.HelpHintBanner.reset) window.HelpHintBanner.reset(); } catch (_) {}
+      setMsg("All tutorials reset. Refresh any open page to see the wizards again.");
+    }
+    function clearOne(page) {
+      try { if (window.WelcomeWizard && window.WelcomeWizard.reset) window.WelcomeWizard.reset(page); } catch (_) {}
+      if (page === "tracker") { try { localStorage.removeItem("cs_styleOnboardingDone"); } catch (_) {} }
+      setMsg("Reset the " + page + " tutorial. Reload " + (page === "creator" ? "the home page" : page === "manager" ? "the Stash Manager" : "the Stitch Tracker") + " to see it again.");
+    }
+    var rowStyle = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f1f5f9" };
+    var btn = { padding: "4px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", color: "#475569", fontFamily: "inherit" };
+    return h("div", null,
+      h("h3", { style: sectionTitle }, "Restore tutorials"),
+      h("p", { style: { margin: "0 0 12px", fontSize: 12, color: "#64748b" } },
+        "Replay any first-visit walkthrough or the Stitching Style picker. Reset flags only \u2014 your project data is unaffected."),
+      h("div", { style: rowStyle },
+        h("span", null, "Pattern Creator welcome"),
+        h("button", { style: btn, onClick: function () { clearOne("creator"); } }, "Reset")
+      ),
+      h("div", { style: rowStyle },
+        h("span", null, "Stash Manager welcome"),
+        h("button", { style: btn, onClick: function () { clearOne("manager"); } }, "Reset")
+      ),
+      h("div", { style: rowStyle },
+        h("span", null, "Stitch Tracker welcome + style picker"),
+        h("button", { style: btn, onClick: function () { clearOne("tracker"); } }, "Reset")
+      ),
+      h("div", { style: { marginTop: 14 } },
+        h("button", {
+          onClick: clearAll,
+          style: { padding: "8px 16px", fontSize: 13, borderRadius: 6, border: "none", background: "#0d9488", color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }
+        }, "Reset all tutorials")
+      ),
+      msg && h("div", { style: { marginTop: 12, padding: "8px 12px", background: "#f0fdfa", border: "1px solid #99f6e4", borderRadius: 6, fontSize: 12, color: "#065f46" } }, msg)
+    );
+  }
+
   function PreferencesModal(props) {
     var onClose = props.onClose;
-    var _tab = useState("profile"); var tab = _tab[0], setTab = _tab[1];
-
-    function tabBtn(id, label) {
+    var _tab = useState("profile"); var tab = _tab[0], setTab = _tab[1];    function tabBtn(id, label) {
       var active = tab === id;
       return h("button", {
         onClick: function () { setTab(id); },
@@ -260,12 +299,14 @@
         h("div", { style: { display: "flex", gap: 4, padding: "8px 20px 0", borderBottom: "1px solid #e2e8f0" } },
           tabBtn("profile", "Your profile"),
           tabBtn("pdf", "PDF defaults"),
-          tabBtn("preview", "Preview defaults")
+          tabBtn("preview", "Preview defaults"),
+          tabBtn("tutorials", "Tutorials")
         ),
         h("div", { style: { padding: 20, overflowY: "auto", flex: 1 } },
           tab === "profile" ? h(ProfilePanel) :
           tab === "pdf"     ? h(PdfDefaultsPanel) :
-                              h(PreviewDefaultsPanel)
+          tab === "preview" ? h(PreviewDefaultsPanel) :
+                              h(TutorialsPanel)
         ),
         h("div", { style: { padding: "12px 20px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end", gap: 8 } },
           h("div", { style: { flex: 1, fontSize: 11, color: "#94a3b8", alignSelf: "center" } }, "Changes save automatically."),

@@ -550,7 +550,15 @@ const[focusBlock,setFocusBlock]=useState(null); // {bx,by} | null
 const[focusEnabled,setFocusEnabled]=useState(()=>{try{return localStorage.getItem("cs_focusEnabled")==="1";}catch(_){return false;}});
 const[colourSequence,setColourSequence]=useState(()=>{try{return localStorage.getItem("cs_colourSeq")||"fewest";}catch(_){return"fewest";}});
 const[startCorner,setStartCorner]=useState(()=>{try{return localStorage.getItem("cs_startCorner")||"TL";}catch(_){return"TL";}});
-const[styleOnboardingOpen,setStyleOnboardingOpen]=useState(()=>{try{return!localStorage.getItem("cs_styleOnboardingDone")&&!localStorage.getItem("cs_stitchStyle");}catch(_){return false;}});
+// Gate the style picker on the generic Welcome wizard so they appear
+// sequentially: Welcome first, style picker after dismissal. If the user has
+// already seen the Welcome wizard (or never needed it on this build), the
+// style picker shows immediately as before.
+const[styleOnboardingOpen,setStyleOnboardingOpen]=useState(()=>{try{
+  if(localStorage.getItem("cs_styleOnboardingDone")||localStorage.getItem("cs_stitchStyle"))return false;
+  if(window.WelcomeWizard&&window.WelcomeWizard.shouldShow("tracker"))return false; // wait for welcome
+  return true;
+}catch(_){return false;}});
 const[breadcrumbs,setBreadcrumbs]=useState([]);
 const[breadcrumbVisible,setBreadcrumbVisible]=useState(()=>{try{return localStorage.getItem("cs_bcVisible")!=="0";}catch(_){return true;}});
 useEffect(()=>{try{localStorage.setItem("cs_stitchStyle",stitchingStyle);}catch(_){}},[stitchingStyle]);
@@ -1637,7 +1645,7 @@ async function exportPDF(options={}){
   pdf.setTextColor(0);pdf.setFontSize(14);pdf.text("Thread Legend",mg,ty);ty+=10;
   pdf.setFontSize(9);pdf.setTextColor(80);
   pdf.text("Symbol",mg,ty);
-  pdf.text("Color",mg+15,ty);
+  pdf.text("Colour",mg+15,ty);
   pdf.text("DMC",mg+30,ty);
   pdf.text("Name",mg+45,ty);
   pdf.text("Stitches",mg+110,ty,{align:"right"});
@@ -4855,7 +4863,11 @@ return(
   </div>}
 
   {modal==="help"&&<SharedModals.Help defaultTab="tracker" onClose={()=>setModal(null)} />}
-  {welcomeOpen&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{page:"tracker",onClose:()=>setWelcomeOpen(false)})}
+  {welcomeOpen&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{page:"tracker",onClose:()=>{
+    setWelcomeOpen(false);
+    // Chain into the style picker if the user hasn't picked a style yet.
+    try{ if(!localStorage.getItem("cs_styleOnboardingDone")&&!localStorage.getItem("cs_stitchStyle")) setStyleOnboardingOpen(true); }catch(_){}
+  }})}
   {styleOnboardingOpen&&<StitchingStyleOnboarding startCorner={startCorner} onDone={result=>{
     setStyleOnboardingOpen(false);
     if(result){
@@ -4866,6 +4878,7 @@ return(
       if(result.style!=="crosscountry")setFocusEnabled(true);
     }
   }}/>}
+  {window.HelpHintBanner&&React.createElement(window.HelpHintBanner)}
   {sessionConfigOpen&&<SessionConfigModal liveAutoElapsed={liveAutoElapsed} liveAutoStitches={liveAutoStitches} onClose={()=>setSessionConfigOpen(false)} onStart={cfg=>{
     setExplicitSession({startTime:Date.now(),timeAvail:cfg.timeAvail,stitchGoal:cfg.stitchGoal,startStitches:doneCount,blocks:[]});
     setSessionConfigOpen(false);
@@ -4885,9 +4898,9 @@ return(
         <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6}}>
           Chart Mode:
           <select value={pdfSettings.chartStyle||"color_symbol"} onChange={e=>setPdfSettings({...pdfSettings,chartStyle:e.target.value})} style={{padding:"6px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:13,background:"#fff"}}>
-            <option value="color_symbol">Color + Symbols</option>
+            <option value="color_symbol">Colour + Symbols</option>
             <option value="symbol">Symbols Only</option>
-            <option value="color">Color Blocks Only</option>
+            <option value="color">Colour Blocks Only</option>
           </select>
         </label>
         <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6}}>

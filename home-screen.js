@@ -123,7 +123,7 @@ function getSuggestion(activeProjects, stashMap) {
 // ─────────────────────────────────────────────────────────────────
 // ProjectCard
 // ─────────────────────────────────────────────────────────────────
-function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg }) {
+function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtras }) {
   var h = React.createElement;
   var cs = proj.completedStitches || 0;
   var ts = proj.totalStitches || 0;
@@ -162,6 +162,9 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg }) {
         title: 'This entry was added directly in the Stash Manager and has no Creator/Tracker project linked.',
         style: { display: 'inline-block', fontSize: 10, padding: '2px 8px', borderRadius: 10, background: '#fef3c7', color: '#92400e', fontWeight: 600, marginBottom: 6 } },
         'Stash Manager only'),
+      // Optional per-card extras supplied by the parent (e.g. Manager
+      // shopping-list checkbox + missing-thread badge).
+      cardExtras ? h('div', { className: 'mpd-card-extras', style: { marginBottom: 8 } }, cardExtras(proj)) : null,
       // Progress bar
       h('div', { className: 'mpd-card-progress-track', role: 'progressbar', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100 },
         h('div', { className: 'mpd-card-progress-fill', style: { width: Math.min(100, pct) + '%' } })
@@ -291,7 +294,7 @@ function StateChangeMenu({ proj, currentState, onSelect, onClose }) {
 // ─────────────────────────────────────────────────────────────────
 // MultiProjectDashboard — shown on home screen when >1 project exists
 // ─────────────────────────────────────────────────────────────────
-function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalStats, onAddNew }) {
+function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalStats, onAddNew, cardExtras }) {
   var h = React.createElement;
   var useState = React.useState;
   var useEffect = React.useEffect;
@@ -415,7 +418,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
                 onOpen: handleOpenProject,
                 onChangeState: openMenu,
                 stashOk: stashReadiness[proj.id],
-                stashMsg: stashReadiness[proj.id] === true ? 'Ready (all in stash)' : stashReadiness[proj.id] === false ? 'Need threads' : null
+                stashMsg: stashReadiness[proj.id] === true ? 'Ready (all in stash)' : stashReadiness[proj.id] === false ? 'Need threads' : null,
+                cardExtras: cardExtras
               }),
               menuProj === proj.id && h(StateChangeMenu, {
                 proj: proj,
