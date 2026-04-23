@@ -179,6 +179,11 @@ window.useCreatorState = function useCreatorState() {
   var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
   var substituteMaxDeltaE = _subMaxDE[0];
   function setSubstituteMaxDeltaE(v) { _subMaxDE[1](v); try { localStorage.setItem("cs_subMaxDE", v); } catch(_) {} }
+  // Brief D — runtime "limit palette/picker to my stash" filter (independent of the
+  // generation-time stashConstrained switch). Persisted under cs_creator_stash_filter.
+  var _csFilt = useState(function() { try { return localStorage.getItem("cs_creator_stash_filter") === "true"; } catch(_) { return false; } });
+  var creatorStashFilter = _csFilt[0];
+  function setCreatorStashFilter(v) { _csFilt[1](v); try { localStorage.setItem("cs_creator_stash_filter", v ? "true" : "false"); } catch(_) {} }
 
   // Preview
   var _prevUrl  = useState(null);    var previewUrl = _prevUrl[0], setPreviewUrl = _prevUrl[1];
@@ -987,6 +992,7 @@ window.useCreatorState = function useCreatorState() {
     substituteModalKey, setSubstituteModalKey,
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
     stashConstrained, setStashConstrained,
+    creatorStashFilter, setCreatorStashFilter,
     coverageGaps, setCoverageGaps,
     variationSeed, setVariationSeed,
     variationSubset, setVariationSubset,

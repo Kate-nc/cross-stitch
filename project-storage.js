@@ -212,6 +212,35 @@ const ProjectStorage = (() => {
             if (typeof SyncEngine !== "undefined" && SyncEngine.triggerAutoExport) {
               try { SyncEngine.triggerAutoExport(); } catch (e) {}
             }
+            // Brief D — sync this project's thread requirements into the
+            // Stash Manager's pattern library so the inventory & shopping
+            // list views stay current without visiting the Manager page.
+            // Only sync named projects (proj_*) — skips "auto_save" and
+            // similar transient keys.
+            if (typeof StashBridge !== "undefined" && StashBridge.syncProjectToLibrary
+                && project.id && project.id.startsWith("proj_") && project.pattern) {
+              try {
+                const counts = {};
+                for (const cell of project.pattern) {
+                  if (!cell || !cell.id || cell.id === "__skip__" || cell.id === "__empty__") continue;
+                  counts[cell.id] = (counts[cell.id] || 0) + 1;
+                }
+                const fc = (project.settings && project.settings.fabricCt) || 14;
+                const skeinData = Object.entries(counts).map(([id, stitches]) => {
+                  const dmcEntry = typeof DMC !== "undefined" ? DMC.find(d => d.id === id) : null;
+                  return {
+                    id,
+                    name: dmcEntry ? dmcEntry.name : id,
+                    stitches,
+                    skeins: typeof skeinEst === "function" ? skeinEst(stitches, fc) : 1,
+                    rgb: dmcEntry ? dmcEntry.rgb : [128, 128, 128]
+                  };
+                });
+                StashBridge.syncProjectToLibrary(
+                  project.id, project.name || "Untitled pattern", skeinData, "inprogress", fc
+                ).catch(() => {});
+              } catch (e) { /* never block save on sync errors */ }
+            }
             // Notify listeners (Home dashboard, Manager pattern library, etc.) that
             // the project list changed so they can refresh without a page reload.
             try {
@@ -314,6 +343,11 @@ const ProjectStorage = (() => {
           };
           autoSaveReq.onerror = () => reject(autoSaveReq.error);
           tx.oncomplete = () => {
+            // Brief D — remove any auto-synced Manager pattern entry that was
+            // linked to this project so the library doesn't show stale entries.
+            if (typeof StashBridge !== "undefined" && StashBridge.unlinkProjectFromLibrary) {
+              try { StashBridge.unlinkProjectFromLibrary(id).catch(() => {}); } catch (e) {}
+            }
             // Notify listeners (Home dashboard, Manager pattern library, etc.) that
             // the project list changed so they can refresh without a page reload.
             try {

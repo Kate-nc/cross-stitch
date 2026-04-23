@@ -43,6 +43,7 @@ const ORDER = [
   'PrepareTab.js',
   'DesignerBrandingSection.js',
   'ExportTab.js',
+  'ShoppingListModal.js',
 ];
 
 const parts = ORDER.map(name => {
