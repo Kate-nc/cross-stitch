@@ -30,8 +30,16 @@ describe('Creator → Tracker large-pattern handoff', () => {
   });
 
   test('handoff persists to IndexedDB before navigating', () => {
-    expect(src).toMatch(/ProjectStorage\.setActiveProject\(projectIdRef\.current\);[\s\S]{0,400}ProjectStorage\.save\(project\)/);
-    expect(src).toMatch(/ProjectStorage\.setActiveProject\(projectIdRef\.current\);[\s\S]{0,400}saveProjectToDB\(project\)/);
+    expect(src).toMatch(/ProjectStorage\.setActiveProject\(projectIdRef\.current\);[\s\S]{0,800}ProjectStorage\.save\(project\)/);
+    expect(src).toMatch(/ProjectStorage\.setActiveProject\(projectIdRef\.current\);[\s\S]{0,800}saveProjectToDB\(project\)/);
+  });
+
+  test('handoff awaits the IndexedDB save before navigating', () => {
+    // Regression: previously these were fire-and-forget calls, which let
+    // window.location.href fire mid-transaction. The standalone branch must
+    // await both writes so the Tracker always finds the saved project.
+    expect(src).toMatch(/await ProjectStorage\.save\(project\)/);
+    expect(src).toMatch(/await saveProjectToDB\(project\)/);
   });
 
   test('handoff falls back to a toast on overflow rather than aborting', () => {

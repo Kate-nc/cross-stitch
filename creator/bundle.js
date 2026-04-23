@@ -6234,6 +6234,20 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   // not after the 1 s debounce. This avoids the "I created a pattern but it's not
   // in my stash" bug when the user navigates away within the debounce window.
   var firstSaveDoneRef = React.useRef(null);
+  // Mirrors the latest values needed by the beforeunload stash-sync handler.
+  // The handler effect deps only on isActive (we don't want to re-bind on every
+  // keystroke), so reading from this ref guarantees the unload sync uses
+  // current skeinData / projectName / fabricCt instead of the snapshot taken
+  // at mount time. Updated synchronously on every render below.
+  var stashSyncRef = React.useRef(null);
+  stashSyncRef.current = {
+    projectId: state.projectIdRef && state.projectIdRef.current,
+    projectName: state.projectName,
+    skeinData: state.skeinData,
+    fabricCt: state.fabricCt,
+    sW: state.sW,
+    sH: state.sH
+  };
 
   // ─── doSaveProject ───────────────────────────────────────────────────────────
   function doSaveProject(finalName) {
@@ -6292,7 +6306,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   }
 
   // ─── handleOpenInTracker ─────────────────────────────────────────────────────
-  function handleOpenInTracker() {
+  // Async because the standalone-navigation branch must wait for IndexedDB to
+  // commit before changing window.location — otherwise the Tracker could load
+  // before the new project row exists, leaving the active-project pointer
+  // dangling.
+  async function handleOpenInTracker() {
     var pat = state.pat, pal = state.pal;
     var sW = state.sW, sH = state.sH, maxC = state.maxC;
     var bri = state.bri, con = state.con, sat = state.sat;
@@ -6348,11 +6366,13 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       return;
     }
     ProjectStorage.setActiveProject(projectIdRef.current);
-    // Always persist to IndexedDB before navigating away. This guarantees the
-    // Tracker can recover the project via the active-project pointer even when
-    // the inline handoff payload (localStorage / URL hash) is unavailable.
-    try { ProjectStorage.save(project); } catch (_) {}
-    try { saveProjectToDB(project); } catch (_) {}
+    // Always persist to IndexedDB before navigating away. The Tracker can
+    // recover the project via the active-project pointer even when the inline
+    // handoff payload (localStorage / URL hash) is unavailable — but only if
+    // these writes have actually committed. AWAIT both before continuing,
+    // otherwise window.location.href can fire mid-transaction.
+    try { await ProjectStorage.save(project); } catch (_) {}
+    try { await saveProjectToDB(project); } catch (_) {}
     // Preferred path: write the project to localStorage and let the Tracker pick
     // it up via `crossstitch_handoff`. This works for any pattern size that fits
     // in the localStorage quota (typically 5–10 MB), which is well above what
@@ -6897,14 +6917,18 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       try { saveProjectToDB(p); } catch (_) {}
       // Belt-and-braces: also sync to the Stash Manager library so a generated
       // pattern is never lost from stash even if unload happens during the debounce.
-      if (typeof StashBridge !== "undefined" && state.skeinData && state.skeinData.length) {
+      // Read from stashSyncRef (updated each render) so we use the latest
+      // skeinData / projectName / fabricCt rather than the values captured
+      // when this effect first ran.
+      var s = stashSyncRef.current;
+      if (s && typeof StashBridge !== "undefined" && s.skeinData && s.skeinData.length) {
         try {
           StashBridge.syncProjectToLibrary(
-            state.projectIdRef.current,
-            state.projectName || (state.sW + "\xD7" + state.sH + " pattern"),
-            state.skeinData,
+            s.projectId,
+            s.projectName || (s.sW + "\xD7" + s.sH + " pattern"),
+            s.skeinData,
             "inprogress",
-            state.fabricCt
+            s.fabricCt
           );
         } catch (_) {}
       }

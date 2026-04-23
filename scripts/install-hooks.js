@@ -34,17 +34,29 @@ if (!isGitRepo()) {
   console.log('install-hooks: not inside a Git working tree — skipping hook install.');
   console.log('             To enable hooks later (after `git init`), run:');
   console.log(huskyAvailable()
-    ? '             npx husky'
+    ? `             git config core.hooksPath ${HUSKY_DIR}`
     : `             git config core.hooksPath ${FALLBACK_HOOK_PATH}`);
   process.exit(0);
 }
 
 // Prefer Husky when present so future hooks can be added under .husky/ and
-// share Husky's bypass / debugging conventions.
+// share Husky's bypass / debugging conventions. We don't actually need to run
+// the `husky` binary — its only job at install time is to set core.hooksPath
+// and chmod the hook scripts. Doing that ourselves avoids fragility around
+// Husky's CLI changing between versions (v8 used `husky install`, v9 changed
+// to a bare `husky` invocation, etc.).
 if (huskyAvailable() && fs.existsSync(HUSKY_DIR)) {
   try {
-    execSync('npx --no-install husky', { stdio: 'inherit' });
-    console.log('install-hooks: configured Husky (.husky/) for Git hooks');
+    execSync(`git config core.hooksPath ${HUSKY_DIR}`, { stdio: 'inherit' });
+    if (process.platform !== 'win32') {
+      fs.readdirSync(HUSKY_DIR).forEach(function (name) {
+        var p = path.join(HUSKY_DIR, name);
+        try {
+          if (fs.statSync(p).isFile()) fs.chmodSync(p, 0o755);
+        } catch (_) {}
+      });
+    }
+    console.log(`install-hooks: configured Git to use ${HUSKY_DIR}/ for hooks (Husky)`);
     process.exit(0);
   } catch (e) {
     console.warn('install-hooks: husky setup failed, falling back to .githooks/ —', e.message);
