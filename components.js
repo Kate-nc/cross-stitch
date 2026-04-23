@@ -881,7 +881,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
         var idx=y*sW+x;
         var cell=pat[idx];
         if(!cell||cell.id==='__skip__'||cell.id==='__empty__')continue;
-        var ids=cell.type==='blend'?cell.id.split('+'):[cell.id];
+        var ids=cell.type==='blend'?splitBlendId(cell.id):[cell.id];
         ids.forEach(function(cid){
           if(!counts[cid])counts[cid]={total:0,doneCount:0};
           counts[cid].total++;
@@ -1607,8 +1607,8 @@ function InsightIcon({type}) {
   return React.createElement('span', {style: {display: 'inline-flex', alignItems: 'center', fontSize: 16}}, icon);
 }
 
-var CS_GLOBAL_GOALS_KEY = 'cs_global_goals';
-var CS_GLOBAL_GOALS_COMPAT_KEY = 'cs_stats_settings';
+var CS_GLOBAL_GOALS_KEY = (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.globalGoals : 'cs_global_goals';
+var CS_GLOBAL_GOALS_COMPAT_KEY = (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.globalGoalsCompat : 'cs_stats_settings';
 function normaliseGlobalGoals(goals) {
   goals = goals && typeof goals === 'object' ? goals : {};
   return {
@@ -2152,7 +2152,7 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
 }
 
 
-// --- EmptyState — shared coaching empty-state card ---------------------
+// --- EmptyState ï¿½ shared coaching empty-state card ---------------------
 // Used on Manager (Patterns/Threads), Home (no projects), and Stats (no data).
 // Props: { icon, title, description, ctaLabel, ctaAction, secondaryLabel?, secondaryAction? }
 function EmptyState(props) {

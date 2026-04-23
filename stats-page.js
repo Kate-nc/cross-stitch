@@ -900,7 +900,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           for (const tid of threadIds) {
             totalThreads++;
             // Check if this thread (or a close substitute) is in the stash
-            const compositeKey = tid.indexOf(':') >= 0 ? tid : 'dmc:' + tid;
+            const compositeKey = normaliseStashKey(tid);
             const entry = stashData[compositeKey];
             if (entry && entry.owned > 0) { coveredThreads++; continue; }
             // Check cross-brand substitutes
@@ -944,7 +944,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           if (proj.finishStatus === 'planned') continue;
           for (const cell of proj.pattern) {
             if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
-            const normalized = cell.id.indexOf(':') >= 0 ? cell.id : 'dmc:' + cell.id;
+            const normalized = normaliseStashKey(cell.id);
             usedKeys.add(normalized);
             usedKeys.add(cell.id.indexOf(':') >= 0 ? cell.id.split(':').slice(1).join(':') : cell.id);
           }
@@ -966,9 +966,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           const colon = key.indexOf(':');
           const brand = colon >= 0 ? key.slice(0, colon) : 'dmc';
           const id = colon >= 0 ? key.slice(colon + 1) : key;
-          let info = null;
-          if (brand === 'anchor' && typeof ANCHOR !== 'undefined') info = ANCHOR.find(d => d.id === id);
-          else if (typeof DMC !== 'undefined') info = DMC.find(d => d.id === id);
+          const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(brand, id) : null;
           return { key, brand, id, name: info ? info.name : id, rgb: info ? info.rgb : [128, 128, 128] };
         });
         if (!cancelled) setNeverUsedData({ count: neverUsed.length + legacyCount, trackedCount: neverUsed.length, legacyCount, samples });
@@ -1073,9 +1071,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     for (const [key, entry] of Object.entries(stash)) {
       if (!entry.owned || entry.owned <= 0) continue;
       const parsed = key.indexOf(':') >= 0 ? { brand: key.split(':')[0], id: key.split(':').slice(1).join(':') } : { brand: 'dmc', id: key };
-      let info = null;
-      if (parsed.brand === 'anchor' && typeof ANCHOR !== 'undefined') info = ANCHOR.find(d => d.id === parsed.id);
-      else if (typeof DMC !== 'undefined') info = DMC.find(d => d.id === parsed.id);
+      const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(parsed.brand, parsed.id) : null;
       if (!info) continue;
       const lab = info.lab || (typeof rgbToLab === 'function' ? rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]) : null);
       if (!lab) continue;
@@ -1114,9 +1110,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       const adds = entry.history.filter(h => h.delta > 0).map(h => new Date(h.date).getTime()).sort((a, b) => a - b);
       if (adds.length >= 2 && (adds[adds.length - 1] - adds[0]) > THIRTY_DAYS) {
         const parsed = key.indexOf(':') >= 0 ? { brand: key.split(':')[0], id: key.split(':').slice(1).join(':') } : { brand: 'dmc', id: key };
-        let info = null;
-        if (parsed.brand === 'anchor' && typeof ANCHOR !== 'undefined') info = ANCHOR.find(d => d.id === parsed.id);
-        else if (typeof DMC !== 'undefined') info = DMC.find(d => d.id === parsed.id);
+        const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(parsed.brand, parsed.id) : null;
         results.push({
           key, brand: parsed.brand, id: parsed.id,
           name: info ? info.name : parsed.id,
@@ -1138,8 +1132,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         // Get colour info for both
         const getInfo = (k) => {
           const p = k.indexOf(':') >= 0 ? { brand: k.split(':')[0], id: k.split(':').slice(1).join(':') } : { brand: 'dmc', id: k };
-          if (p.brand === 'anchor' && typeof ANCHOR !== 'undefined') return ANCHOR.find(d => d.id === p.id);
-          return typeof DMC !== 'undefined' ? DMC.find(d => d.id === p.id) : null;
+          return (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(p.brand, p.id) : null;
         };
         const info1 = getInfo(k1), info2 = getInfo(k2);
         if (!info1 || !info2) continue;

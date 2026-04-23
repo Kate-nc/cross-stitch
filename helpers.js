@@ -1159,6 +1159,48 @@ function classifyMatch(deltaE,isOfficial){
 }
 if(typeof window!=='undefined')window.classifyMatch=classifyMatch;
 
+// ═══ Thread catalogue & blend helpers (cross-file consolidation) ═══════════
+// Single source of truth for catalogue lookup, brand resolution, blend
+// parsing and stash-key normalisation. See reports/code-quality-02-duplication.md.
+
+// Looks up a thread by brand+id in the appropriate catalogue (DMC or ANCHOR).
+// Returns the thread object or null. Uses the pre-indexed maps from helpers.js.
+function findThreadInCatalog(brand,id){
+  if(brand==='anchor'){var aMap=_getAnchorById();return aMap?(aMap[id]||null):null;}
+  var dMap=_getDmcById();return dMap?(dMap[id]||null):null;
+}
+if(typeof window!=='undefined')window.findThreadInCatalog=findThreadInCatalog;
+
+// Determines which brand a bare id belongs to. Tries DMC first, then ANCHOR.
+// Returns 'dmc' (default) or 'anchor'.
+function resolveBrandForId(id){
+  if(typeof DMC!=='undefined'){var dMap=_getDmcById();if(dMap&&dMap[id])return 'dmc';}
+  if(typeof ANCHOR!=='undefined'){var aMap=_getAnchorById();if(aMap&&aMap[id])return 'anchor';}
+  return 'dmc';
+}
+if(typeof window!=='undefined')window.resolveBrandForId=resolveBrandForId;
+
+// True if the id contains a '+' indicating a 2-thread blend (e.g. '310+550').
+function isBlendId(id){return typeof id==='string'&&id.indexOf('+')>=0;}
+if(typeof window!=='undefined')window.isBlendId=isBlendId;
+
+// Splits a blend id into its component base ids; returns [id] for non-blends.
+// Trims whitespace and drops empty parts so '310 + 550' → ['310','550'].
+function splitBlendId(id){
+  if(typeof id!=='string'||id.indexOf('+')<0)return[String(id||'')];
+  return id.split('+').map(function(s){return s.trim();}).filter(Boolean);
+}
+if(typeof window!=='undefined')window.splitBlendId=splitBlendId;
+
+// Normalises any thread reference (bare id or composite key) to a composite
+// stash key. Bare ids fall back to the 'dmc' brand. Returns null for null/undefined.
+function normaliseStashKey(idOrKey){
+  if(idOrKey==null)return null;
+  var s=String(idOrKey);
+  return s.indexOf(':')<0?('dmc:'+s):s;
+}
+if(typeof window!=='undefined')window.normaliseStashKey=normaliseStashKey;
+
 // ── Premium feature gate ─────────────────────────────────────────
 // Stub: always returns true. Flip this to add gating later.
 function isPremium(){return true;}

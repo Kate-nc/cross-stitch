@@ -29,7 +29,7 @@ window.usePreview = function usePreview(state) {
         allowedPalette = [];
         Object.keys(globalStash).forEach(function(id) {
           if ((globalStash[id].owned || 0) > 0) {
-            var dmcEntry = DMC.find(function(d) { return d.id === id; });
+            var dmcEntry = findThreadInCatalog('dmc', id);
             if (dmcEntry) allowedPalette.push(dmcEntry);
           }
         });

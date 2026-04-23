@@ -2413,7 +2413,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
       var rgb = cell.rgb;
       if (!rgb && cmap) {
         var lookupId = cell.id;
-        if (lookupId.indexOf("+") !== -1) lookupId = lookupId.split("+")[0];
+        if (isBlendId(lookupId)) lookupId = splitBlendId(lookupId)[0];
         var entry = cmap[lookupId];
         if (entry) rgb = entry.rgb;
       }
@@ -2917,7 +2917,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
 
       if (cell.id && cell.id.indexOf("+") !== -1) {
         // Blend cell: use each thread's individual colour for bottom/top leg respectively.
-        var blendParts = cell.id.split("+");
+        var blendParts = splitBlendId(cell.id);
         var e1 = cmap && cmap[blendParts[0]];
         var e2 = cmap && cmap[blendParts[1]];
         if (e1) rgb = e1.rgb;
@@ -3531,7 +3531,7 @@ window.useMagicWand = function useMagicWand(state) {
     }
     if (!newLines.length) return;
 
-    var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === colorId; }) : null;
+    var dmcEntry = findThreadInCatalog('dmc', colorId);
     var rgb = dmcEntry ? dmcEntry.rgb : [0, 0, 0];
     var coloredLines = newLines.map(function(l) {
       return { x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2, color: rgb };
@@ -4325,7 +4325,7 @@ window.useCreatorState = function useCreatorState() {
       .sort(function(a, b) { var na = parseInt(a[0]) || 0, nb = parseInt(b[0]) || 0; if (na && nb) return na - nb; return a[0].localeCompare(b[0]); })
       .map(function(e) {
         var id = e[0], ct = e[1];
-        var t = DMC.find(function(d) { return d.id === id; });
+        var t = findThreadInCatalog('dmc', id);
         return { id: id, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: ct, skeins: skeinEst(ct, fabricCt) };
       });
   }, [pal, fabricCt]);
@@ -4662,7 +4662,7 @@ window.useCreatorState = function useCreatorState() {
           if ((globalStash[key].owned || 0) <= 0) return;
           var bareId = _extractDmcId(key);
           if (!bareId) return;
-          var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+          var dmcEntry = findThreadInCatalog('dmc', bareId);
           if (dmcEntry) allowedPalette.push(dmcEntry);
         });
       }
@@ -4749,7 +4749,7 @@ window.useCreatorState = function useCreatorState() {
       if ((globalStash[key].owned || 0) <= 0) return;
       var bareId = _extractDmcId(key);
       if (!bareId) return;
-      var d = DMC.find(function(e) { return e.id === bareId; });
+      var d = findThreadInCatalog('dmc', bareId);
       if (d) pool.push(d);
     });
     if (!pool.length) return;
@@ -4798,7 +4798,7 @@ window.useCreatorState = function useCreatorState() {
       if ((globalStash[key].owned || 0) <= 0) return;
       var bareId = _extractDmcId(key);
       if (!bareId) return;
-      var d = DMC.find(function(e) { return e.id === bareId; });
+      var d = findThreadInCatalog('dmc', bareId);
       if (d) pool.push(d);
     });
     if (!pool.length) return;
@@ -4868,7 +4868,7 @@ window.useCreatorState = function useCreatorState() {
       if ((globalStash[key].owned || 0) <= 0) return;
       var bareId = _extractDmcId(key);
       if (!bareId) return;
-      var d = DMC.find(function(e) { return e.id === bareId; });
+      var d = findThreadInCatalog('dmc', bareId);
       if (d) stashPal.push(d);
     });
     if (!stashPal.length) { setCoverageGaps(null); return; }
@@ -5047,7 +5047,7 @@ window.useCreatorState = function useCreatorState() {
         if ((globalStash[key].owned || 0) <= 0) return;
         var bareId = _extractDmcId(key);
         if (!bareId) return;
-        var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+        var dmcEntry = findThreadInCatalog('dmc', bareId);
         if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[key].owned });
       });
       entries.sort(function(a, b) {
@@ -7058,7 +7058,7 @@ window.usePreview = function usePreview(state) {
         allowedPalette = [];
         Object.keys(globalStash).forEach(function(id) {
           if ((globalStash[id].owned || 0) > 0) {
-            var dmcEntry = DMC.find(function(d) { return d.id === id; });
+            var dmcEntry = findThreadInCatalog('dmc', id);
             if (dmcEntry) allowedPalette.push(dmcEntry);
           }
         });
@@ -8771,14 +8771,14 @@ window.MagicWandPanel = function MagicWandPanel() {
       })
     ),
     (function() {
-      var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === cv.outlineColor; }) : null;
+      var dmcEntry = findThreadInCatalog('dmc', cv.outlineColor);
       return dmcEntry ? h("span", { style: { display: "flex", alignItems: "center", gap: 3 } },
         swatch(dmcEntry.rgb), h("span", { style: { color: "#334155" } }, dmcEntry.name)
       ) : h("span", { style: { color: "#ef4444" } }, "Unknown DMC");
     })(),
     btn("Generate", cv.applyOutlineGeneration, {
       green: true,
-      disabled: !(typeof DMC !== "undefined" && DMC.find(function(d) { return d.id === cv.outlineColor; })),
+      disabled: !findThreadInCatalog('dmc', cv.outlineColor),
       style: { fontSize: 10 }
     }),
     btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
@@ -9296,7 +9296,7 @@ function SubstituteFromStashModalInner(props) {
       localProposal.substitutions.forEach(function(sub) {
         if (enabledMap[makeKey(sub)] === false) return;
         var target = overrides[makeKey(sub)] || sub.selectedTarget;
-        var dmcEntry = DMC.find(function(d) { return d.id === target.id; });
+        var dmcEntry = findThreadInCatalog('dmc', target.id);
         if (dmcEntry) remap[sub.sourceId] = dmcEntry;
       });
       setSubstitutedThumb(renderSubstitutionPreview(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches, remap));
@@ -9854,7 +9854,7 @@ window.ConvertPaletteModal = (function () {
     palette.forEach(function (cell) {
       if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') return;
       // Strip blend IDs (e.g. "310+550") — take first component
-      var id = cell.id.indexOf('+') >= 0 ? cell.id.split('+')[0] : cell.id;
+      var id = isBlendId(cell.id) ? splitBlendId(cell.id)[0] : cell.id;
       if (!seenIds[id]) { seenIds[id] = true; sourceIds.push(id); }
     });
 
@@ -10483,7 +10483,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     // Brand-aware lookup: prefer DMC, fall back to Anchor. Mirrors the
     // resolution used in ShoppingListModal.
     function resolveBrand(id) {
-      if (typeof DMC !== 'undefined' && DMC.find(function(d){ return d.id === id; })) return 'dmc';
+      if (findThreadInCatalog('dmc', id)) return 'dmc';
       if (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; })) return 'anchor';
       return 'dmc';
     }
@@ -10491,7 +10491,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       if (!stashHas) return null;
       // Blend: status = worst component status.
       var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
-        ? p.id.split('+').map(function(s){ return s.trim(); }).filter(Boolean)
+        ? splitBlendId(p.id)
         : [p.id];
       var worst = 'owned';
       for (var i = 0; i < ids.length; i++) {
@@ -10942,16 +10942,16 @@ window.CreatorSidebar = function CreatorSidebar() {
             style:{flex:1,padding:"4px 8px",fontSize:12,borderRadius:6,border:"0.5px solid #e2e8f0",fontFamily:"inherit"}
           }),
           (function(){
-            var dmc = typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();});
+            var dmc = !!findThreadInCatalog('dmc', qaVal.trim());
             return dmc ? h(Tooltip, {text:"DMC " + dmc.id + " \u2014 " + dmc.name, width:160},
               h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
             ) : null;
           })(),
           h("button", {
-            disabled:qaLoading || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();})),
+            disabled:qaLoading || !findThreadInCatalog('dmc', qaVal.trim()),
             onClick:function(){
               var trimmed = qaVal.trim();
-              if (!trimmed || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === trimmed;}))) return;
+              if (!trimmed || !findThreadInCatalog('dmc', trimmed)) return;
               setQaLoading(true);
               StashBridge.addToStash(trimmed, 1).then(function(){
                 setQaVal(""); setQaLoading(false);
@@ -12721,7 +12721,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
         needed = (typeof skeinEst === "function") ? skeinEst(p.count, effectiveFabric) : Math.ceil(p.count / 800);
       }
       if (needed < 1) needed = 1;
-      var stashEntry = stash["dmc:" + p.id] || {};
+      var stashEntry = stash[threadKey('dmc', p.id)] || {};
       var owned      = stashEntry.owned || 0;
       var status     = owned >= needed ? "owned" : owned > 0 ? "partial" : "needed";
       var name = (p.type === "blend" && p.threads)
@@ -13110,7 +13110,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var rows = useMemo(function() {
     if (!(ctx.pat && ctx.pal)) return [];
     return ctx.pal.map(function(p) {
-      var key = 'dmc:' + p.id;
+      var key = threadKey('dmc', p.id);
       var stashEntry = stash[key] || {};
       var owned = stashEntry.owned || 0;
 
@@ -14025,7 +14025,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         if (!p || p.id === '__skip__' || p.id === '__empty__') return;
         var stitches = p.count || 0;
         var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
-          ? p.id.split('+').map(function (s) { return s.trim(); }).filter(Boolean)
+          ? splitBlendId(p.id)
           : [p.id];
         ids.forEach(function (id) {
           if (!perId[id]) perId[id] = { stitches: 0, fromBlend: ids.length > 1 };
@@ -14046,7 +14046,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         // Brand resolution: try DMC first, then Anchor. The matching brand's
         // composite stash key is used to look up owned counts.
         var info = null, brand = 'dmc';
-        if (typeof DMC !== 'undefined') info = DMC.find(function (d) { return d.id === id; });
+        info = findThreadInCatalog('dmc', id);
         if (!info && typeof ANCHOR !== 'undefined') {
           info = ANCHOR.find(function (d) { return d.id === id; });
           if (info) brand = 'anchor';

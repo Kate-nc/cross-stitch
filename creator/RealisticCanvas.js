@@ -402,7 +402,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
 
       if (cell.id && cell.id.indexOf("+") !== -1) {
         // Blend cell: use each thread's individual colour for bottom/top leg respectively.
-        var blendParts = cell.id.split("+");
+        var blendParts = splitBlendId(cell.id);
         var e1 = cmap && cmap[blendParts[0]];
         var e2 = cmap && cmap[blendParts[1]];
         if (e1) rgb = e1.rgb;

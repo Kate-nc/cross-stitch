@@ -346,7 +346,7 @@ window.useCreatorState = function useCreatorState() {
       .sort(function(a, b) { var na = parseInt(a[0]) || 0, nb = parseInt(b[0]) || 0; if (na && nb) return na - nb; return a[0].localeCompare(b[0]); })
       .map(function(e) {
         var id = e[0], ct = e[1];
-        var t = DMC.find(function(d) { return d.id === id; });
+        var t = findThreadInCatalog('dmc', id);
         return { id: id, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: ct, skeins: skeinEst(ct, fabricCt) };
       });
   }, [pal, fabricCt]);
@@ -683,7 +683,7 @@ window.useCreatorState = function useCreatorState() {
           if ((globalStash[key].owned || 0) <= 0) return;
           var bareId = _extractDmcId(key);
           if (!bareId) return;
-          var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+          var dmcEntry = findThreadInCatalog('dmc', bareId);
           if (dmcEntry) allowedPalette.push(dmcEntry);
         });
       }
@@ -770,7 +770,7 @@ window.useCreatorState = function useCreatorState() {
       if ((globalStash[key].owned || 0) <= 0) return;
       var bareId = _extractDmcId(key);
       if (!bareId) return;
-      var d = DMC.find(function(e) { return e.id === bareId; });
+      var d = findThreadInCatalog('dmc', bareId);
       if (d) pool.push(d);
     });
     if (!pool.length) return;
@@ -819,7 +819,7 @@ window.useCreatorState = function useCreatorState() {
       if ((globalStash[key].owned || 0) <= 0) return;
       var bareId = _extractDmcId(key);
       if (!bareId) return;
-      var d = DMC.find(function(e) { return e.id === bareId; });
+      var d = findThreadInCatalog('dmc', bareId);
       if (d) pool.push(d);
     });
     if (!pool.length) return;
@@ -889,7 +889,7 @@ window.useCreatorState = function useCreatorState() {
       if ((globalStash[key].owned || 0) <= 0) return;
       var bareId = _extractDmcId(key);
       if (!bareId) return;
-      var d = DMC.find(function(e) { return e.id === bareId; });
+      var d = findThreadInCatalog('dmc', bareId);
       if (d) stashPal.push(d);
     });
     if (!stashPal.length) { setCoverageGaps(null); return; }
@@ -1068,7 +1068,7 @@ window.useCreatorState = function useCreatorState() {
         if ((globalStash[key].owned || 0) <= 0) return;
         var bareId = _extractDmcId(key);
         if (!bareId) return;
-        var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+        var dmcEntry = findThreadInCatalog('dmc', bareId);
         if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[key].owned });
       });
       entries.sort(function(a, b) {

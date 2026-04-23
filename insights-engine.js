@@ -15,6 +15,13 @@
   // Hoisted: reused by fmtDate; avoids reallocating the options object per call.
   var DATE_FORMAT_OPTIONS = { day: 'numeric', month: 'short', year: 'numeric' };
 
+  // Single back-compat path for v1 (durationMinutes) and v2/v3 (durationSeconds)
+  // session schemas. See helpers.js getSessionSeconds() for the browser equivalent.
+  function getSessionDurationSeconds(s) {
+    if (!s) return 0;
+    return s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60;
+  }
+
   function ymd(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
@@ -158,7 +165,7 @@
       var activeDays = new Set(recentSessions.map(function (s) { return s.date; })).size;
       var recentStitches = recentSessions.reduce(function (a, s) { return a + (s.netStitches || 0); }, 0);
       var recentSeconds = recentSessions.reduce(function (a, s) {
-        return a + (s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60);
+        return a + getSessionDurationSeconds(s);
       }, 0);
       var stitchesPerHour = recentSeconds > 0 ? Math.round(recentStitches / (recentSeconds / 3600)) : 0;
       var pacePerDay = activeDays > 0 ? recentStitches / activeDays : 0;
@@ -302,7 +309,7 @@
       });
       function avgSpeed(arr) {
         var st = arr.reduce(function (a, s) { return a + (s.netStitches || 0); }, 0);
-        var sec = arr.reduce(function (a, s) { return a + (s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60); }, 0);
+        var sec = arr.reduce(function (a, s) { return a + getSessionDurationSeconds(s); }, 0);
         return sec > 0 ? st / (sec / 3600) : 0;
       }
       var first = avgSpeed(sorted.slice(0, 5));

@@ -813,7 +813,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>
                     {state.previewColors.map(function(pcol){
                       var sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
-                      var n=(typeof DMC!=='undefined'&&Array.isArray(DMC))?DMC.find(function(d){return d.id===pcol.id;}):null;
+                      var n=findThreadInCatalog('dmc',pcol.id);
                       return(
                         <div key={pcol.id}
                           style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",borderRadius:4,cursor:"default"}}

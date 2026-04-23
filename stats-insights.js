@@ -237,7 +237,7 @@
     function isOwned(id) {
       if (!stash) return false;
       const ids = String(id).indexOf('+') !== -1
-        ? String(id).split('+').map(s => s.trim()).filter(Boolean)
+        ? splitBlendId(id)
         : [id];
       return ids.length > 0 && ids.every(sub => stash['dmc:' + sub] && (stash['dmc:' + sub].owned || 0) > 0);
     }

@@ -149,7 +149,7 @@ function ManagerApp() {
       counts[cell.id] = (counts[cell.id] || 0) + 1;
     }
     const threadList = Object.entries(counts).map(([id, stitches]) => {
-      const dmcEntry = typeof DMC !== 'undefined' ? DMC.find(d => d.id === id) : null;
+      const dmcEntry = typeof findThreadInCatalog === 'function' ? findThreadInCatalog('dmc', id) : null;
       return { id, name: dmcEntry ? dmcEntry.name : id, qty: stitches, unit: 'stitches', brand: 'DMC' };
     });
     return {
@@ -250,11 +250,11 @@ function ManagerApp() {
         } else if (!threadsData) {
           finalThreads = {};
           DMC.forEach(d => {
-              finalThreads['dmc:' + d.id] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
+              finalThreads[threadKey('dmc', d.id)] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
           });
           if (typeof ANCHOR !== 'undefined') {
             ANCHOR.forEach(a => {
-              finalThreads['anchor:' + a.id] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
+              finalThreads[threadKey('anchor', a.id)] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
             });
           }
           store.put(finalThreads, "threads");
@@ -265,11 +265,11 @@ function ManagerApp() {
         if (threadsData && versionData === 3) {
           const migrated = {};
           for (const [key, val] of Object.entries(finalThreads)) {
-            migrated[key.indexOf(':') < 0 ? 'dmc:' + key : key] = val;
+            migrated[normaliseStashKey(key)] = val;
           }
           if (typeof ANCHOR !== 'undefined') {
             ANCHOR.forEach(a => {
-              const aKey = 'anchor:' + a.id;
+              const aKey = threadKey('anchor', a.id);
               if (!migrated[aKey]) migrated[aKey] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
             });
           }
@@ -430,7 +430,7 @@ function ManagerApp() {
       if (t.owned < effectiveMin) {
         const brand = compositeKey.indexOf(':') < 0 ? 'dmc' : compositeKey.split(':')[0];
         const bareId = compositeKey.indexOf(':') < 0 ? compositeKey : compositeKey.split(':').slice(1).join(':');
-        const info = typeof getThreadByKey === 'function' ? getThreadByKey(compositeKey) : DMC.find(d => d.id === bareId);
+        const info = typeof getThreadByKey === 'function' ? getThreadByKey(compositeKey) : findThreadInCatalog('dmc', bareId);
         alerts.push({ id: compositeKey, brand, bareId, name: info ? info.name : bareId, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: effectiveMin });
       }
     }
@@ -537,8 +537,8 @@ function ManagerApp() {
   };
 
   const filteredThreads = useMemo(() => {
-    const dmcItems = DMC.map(d => ({ ...d, brand: 'dmc', compositeKey: 'dmc:' + d.id }));
-    const anchorItems = typeof ANCHOR !== 'undefined' ? ANCHOR.map(a => ({ ...a, brand: 'anchor', compositeKey: 'anchor:' + a.id })) : [];
+    const dmcItems = DMC.map(d => ({ ...d, brand: 'dmc', compositeKey: threadKey('dmc', d.id) }));
+    const anchorItems = typeof ANCHOR !== 'undefined' ? ANCHOR.map(a => ({ ...a, brand: 'anchor', compositeKey: threadKey('anchor', a.id) })) : [];
     const allItems = brandFilter === 'dmc' ? dmcItems
       : brandFilter === 'anchor' ? anchorItems
       : [...dmcItems, ...anchorItems];
@@ -863,7 +863,7 @@ function ManagerApp() {
               <span style={{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}>{selectedThread ? "Thread Detail" : "Thread Detail"}</span>
             </div>
             {selectedThread ? (() => {
-              const d = typeof getThreadByKey === 'function' ? getThreadByKey(selectedThread) : DMC.find(x => x.id === selectedThread);
+              const d = typeof getThreadByKey === 'function' ? getThreadByKey(selectedThread) : findThreadInCatalog('dmc', selectedThread);
               if (!d) return <div className="rp-s" style={{ color: "#94a3b8", textAlign: "center", padding: 20 }}>Thread not found</div>;
               const selBrand = selectedThread.indexOf(':') < 0 ? 'dmc' : selectedThread.split(':')[0];
               const brandLabel = selBrand === 'anchor' ? 'Anchor' : 'DMC';
@@ -1049,7 +1049,7 @@ function ManagerApp() {
                     if (!pat) return null;
                     const reqThreads = pat.threads || [];
                     const missing = reqThreads.filter(t => {
-                      const k = t.id.indexOf(":") < 0 ? "dmc:" + t.id : t.id;
+                      const k = normaliseStashKey(t.id);
                       return !((threads[k] || {}).owned > 0);
                     });
                     const isSel = selectedPatternsForList.has(pat.id);
@@ -1287,9 +1287,9 @@ function ManagerApp() {
             {viewingPattern ? (() => {
               const p = viewingPattern;
               const coverage = p.threads && p.threads.length > 0
-                ? Math.round(p.threads.filter(t => { const k = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id; return (threads[k] || {}).owned > 0; }).length / p.threads.length * 100)
+                ? Math.round(p.threads.filter(t => { const k = normaliseStashKey(t.id); return (threads[k] || {}).owned > 0; }).length / p.threads.length * 100)
                 : 0;
-              const missingThreads = p.threads ? p.threads.filter(t => { const k = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id; return !(threads[k] || {}).owned; }) : [];
+              const missingThreads = p.threads ? p.threads.filter(t => { const k = normaliseStashKey(t.id); return !(threads[k] || {}).owned; }) : [];
               return <>
                 <div className="rp-s">
                   <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 2 }}>{p.title || "Untitled"}</div>
@@ -1310,7 +1310,7 @@ function ManagerApp() {
                   <div style={{ height: 6, background: "#f1f5f9", borderRadius: 3, overflow: "hidden", border: "1px solid #e2e8f0", marginBottom: 8 }}>
                     <div style={{ height: "100%", width: coverage + "%", background: "#0d9488", borderRadius: 3 }} />
                   </div>
-                  <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.threads ? p.threads.filter(t => { const k = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id; return (threads[k] || {}).owned > 0; }).length : 0} of {p.threads ? p.threads.length : 0} threads in your stash. {missingThreads.length} missing.</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.threads ? p.threads.filter(t => { const k = normaliseStashKey(t.id); return (threads[k] || {}).owned > 0; }).length : 0} of {p.threads ? p.threads.length : 0} threads in your stash. {missingThreads.length} missing.</div>
                 </div>
                 {missingThreads.length > 0 && (
                   <div className="rp-s">
@@ -1318,7 +1318,7 @@ function ManagerApp() {
                     <div className="used-in">
                       {missingThreads.map(t => {
                         const dmc = DMC.find(x => x.id === t.id);
-                        const compositeKey = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id;
+                        const compositeKey = normaliseStashKey(t.id);
                         return (
                           <div key={t.id} className="ui-row" style={{ cursor: "pointer" }} title={"Open thread card for DMC " + t.id}
                             onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(compositeKey); }}>
@@ -1638,7 +1638,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 250, overflowY: "auto" }}>
               {edited.threads.map((t, idx) => {
-                const info = DMC.find(d => d.id === t.id);
+                const info = findThreadInCatalog('dmc', t.id);
                 // Backward compatibility for old format
                 const unit = t.unit || "skeins";
                 const displayUnit = unit === "stitches" ? "st" : "sk";
@@ -1703,7 +1703,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
     };
 
     return pattern.threads.map(t => {
-       const info = DMC.find(d => d.id === t.id);
+       const info = findThreadInCatalog('dmc', t.id);
        let skExact = 0;
        let skToBuy = 0;
        let skBExact = 0;
@@ -1975,7 +1975,7 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
       };
       p.threads.forEach(t => {
         const blendParts = typeof t.id === "string" && t.id.includes("+")
-          ? t.id.split("+").map(part => part.trim()).filter(Boolean)
+          ? splitBlendId(t.id)
           : null;
         const isBlend = !!t.is_blended || (blendParts && blendParts.length === 2);
         let qtyA = 0, qtyB = 0;
@@ -2006,10 +2006,10 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
       });
     });
     return Object.entries(required).map(([id, totalNeeded]) => {
-      const k = id.indexOf(':') < 0 ? 'dmc:' + id : id;
+      const k = normaliseStashKey(id);
       const invState = inventoryThreads[k] || inventoryThreads[id] || { owned: 0 };
       const owned = invState.owned || 0;
-      const info = DMC.find(d => d.id === id);
+      const info = findThreadInCatalog('dmc', id);
       const status = owned >= totalNeeded ? 'owned' : owned > 0 ? 'partial' : 'needed';
       return { id, name: info ? info.name : "", rgb: info ? info.rgb : [128,128,128],
                needed: totalNeeded, owned, status, missing: Math.max(0, totalNeeded - owned) };

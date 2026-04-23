@@ -15,7 +15,7 @@ const SyncEngine = (() => {
 
   // localStorage keys to include in sync (same safe set as backup-restore)
   const SYNC_LS_KEYS = [
-    "crossstitch_active_project",
+    (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.activeProject : "crossstitch_active_project",
     "crossstitch_custom_palettes"
   ];
 

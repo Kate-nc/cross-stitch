@@ -170,7 +170,7 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
         var cellX=cellCol*CELL_SIZE,cellY=cellRow*CELL_SIZE;
         var rgb=cell.rgb,rgb2=null;
         if(cell.id&&cell.id.indexOf("+")!==-1){
-          var blendParts=cell.id.split("+");
+          var blendParts=splitBlendId(cell.id);
           var e1=cmap&&cmap[blendParts[0]];var e2=cmap&&cmap[blendParts[1]];
           if(e1)rgb=e1.rgb;if(e2)rgb2=e2.rgb;
         }
@@ -835,7 +835,7 @@ const skeinData=useMemo(()=>{
     if(p.type==="solid"){map[p.id]=(map[p.id]||0)+p.count;}
     else if(p.type==="blend"&&p.threads){p.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+p.count;});}
   });
-  return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{let t=DMC.find(d=>d.id===id);return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
+  return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{let t=findThreadInCatalog('dmc',id);return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
 },[pal,fabricCt]);
 
 useEffect(()=>{

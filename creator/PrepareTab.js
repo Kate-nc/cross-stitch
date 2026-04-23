@@ -31,7 +31,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var rows = useMemo(function() {
     if (!(ctx.pat && ctx.pal)) return [];
     return ctx.pal.map(function(p) {
-      var key = 'dmc:' + p.id;
+      var key = threadKey('dmc', p.id);
       var stashEntry = stash[key] || {};
       var owned = stashEntry.owned || 0;
 

@@ -40,11 +40,11 @@ const BackupRestore = (() => {
 
   // LocalStorage keys worth backing up (excludes Babel caches & temp handoffs)
   const LS_KEYS = [
-    "crossstitch_active_project",
+    LOCAL_STORAGE_KEYS.activeProject,
     "crossstitch_custom_palettes",
-    "shortcuts_hint_dismissed",
-    "cs_global_goals",
-    "cs_stats_settings"
+    LOCAL_STORAGE_KEYS.shortcutsHint,
+    LOCAL_STORAGE_KEYS.globalGoals,
+    LOCAL_STORAGE_KEYS.globalGoalsCompat
   ];
 
   return {

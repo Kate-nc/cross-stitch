@@ -57,7 +57,7 @@ window.ConvertPaletteModal = (function () {
     palette.forEach(function (cell) {
       if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') return;
       // Strip blend IDs (e.g. "310+550") — take first component
-      var id = cell.id.indexOf('+') >= 0 ? cell.id.split('+')[0] : cell.id;
+      var id = isBlendId(cell.id) ? splitBlendId(cell.id)[0] : cell.id;
       if (!seenIds[id]) { seenIds[id] = true; sourceIds.push(id); }
     });
 
