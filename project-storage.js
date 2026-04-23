@@ -170,7 +170,7 @@ const ProjectStorage = (() => {
     // Returns a Promise<string> of the saved project ID.
     async save(project) {
       if (!project.id) {
-        project.id = "proj_" + Date.now();
+        project.id = this.newId();
         project.createdAt = new Date().toISOString();
       }
       // Refuse to save a project that was deleted during this page session.
@@ -306,6 +306,16 @@ const ProjectStorage = (() => {
 
     // Internal set of project IDs deleted during this page session.
     _deletedIds: new Set(),
+
+    // Generate a new unique project ID. Single canonical source — every callsite
+    // (Creator, Tracker, importers) should use this rather than re-implementing
+    // `"proj_" + Date.now()`. The random suffix prevents the (rare) collision
+    // when two projects are created within the same millisecond, e.g. a fast
+    // double-click on "Generate" or two simultaneous file imports.
+    newId() {
+      var rand = Math.random().toString(36).slice(2, 7);
+      return "proj_" + Date.now() + "_" + rand;
+    },
 
     // Mark a project as the currently active one (stored in localStorage as a pointer).
     setActiveProject(id) {

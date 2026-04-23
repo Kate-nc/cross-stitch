@@ -658,7 +658,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
         onConfirm={name=>{state.setProjectName(name);state.setNamePromptOpen(false);io.doSaveProject(name);}}
-        onCancel={()=>state.setNamePromptOpen(false)}
+        onCancel={()=>{
+          state.setNamePromptOpen(false);
+          // Tell the user why nothing happened — without this the modal just
+          // disappears with no feedback when they cancel a Download attempt.
+          if(state.addToast)state.addToast("Download cancelled \u2014 give your pattern a name to download a .json file.",{type:"info",duration:3500});
+        }}
       />}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">

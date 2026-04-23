@@ -2312,7 +2312,7 @@ function loadProject(e){
       try{
         let project=JSON.parse(ev.target.result);
         if(!project.pattern && !project.p)throw new Error("Invalid format");
-        if(!project.id) project.id = "proj_" + Date.now();
+        if(!project.id) project.id = ProjectStorage.newId();
         if(!project.createdAt) project.createdAt = new Date().toISOString();
         processLoadedProject(project);
         ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("JSON import save failed:", err));
@@ -2476,7 +2476,7 @@ const autoSaveDirtyRef = useRef(false);
 const buildSnapshotRef = useRef(null);
 const buildSnapshot = () => {
   if (!pat || !pal) return null;
-  if (!projectIdRef.current) projectIdRef.current = "proj_" + Date.now();
+  if (!projectIdRef.current) projectIdRef.current = ProjectStorage.newId();
   if (!createdAtRef.current) createdAtRef.current = new Date().toISOString();
   const sseArr = [...singleStitchEdits.entries()];
   const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
@@ -4828,7 +4828,7 @@ return(
             });
             const finalName = (importName || '').trim().slice(0, 60);
             let project = importResultToProject(result, importFabricCt, finalName);
-            project.id = "proj_" + Date.now();
+            project.id = ProjectStorage.newId();
             project.createdAt = project.createdAt || new Date().toISOString();
             processLoadedProject(project);
             ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Import save failed:", err));

@@ -6254,7 +6254,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var zoom = state.zoom, scrollRef = state.scrollRef;
 
     if (!pat || !pal) return;
-    if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
+    if (!state.projectIdRef.current) state.projectIdRef.current = ProjectStorage.newId();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
     var psArr = [];
     partialStitches.forEach(function(v, k) {
@@ -6309,7 +6309,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var projectIdRef = state.projectIdRef, projectName = state.projectName;
 
     if (!pat || !pal) return;
-    if (!projectIdRef.current) projectIdRef.current = "proj_" + Date.now();
+    if (!projectIdRef.current) projectIdRef.current = ProjectStorage.newId();
     var psArr = [];
     partialStitches.forEach(function(v, k) {
       var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
@@ -6348,21 +6348,57 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       return;
     }
     ProjectStorage.setActiveProject(projectIdRef.current);
+    // Always persist to IndexedDB before navigating away. This guarantees the
+    // Tracker can recover the project via the active-project pointer even when
+    // the inline handoff payload (localStorage / URL hash) is unavailable.
+    try { ProjectStorage.save(project); } catch (_) {}
+    try { saveProjectToDB(project); } catch (_) {}
+    // Preferred path: write the project to localStorage and let the Tracker pick
+    // it up via `crossstitch_handoff`. This works for any pattern size that fits
+    // in the localStorage quota (typically 5–10 MB), which is well above what
+    // the URL-hash fallback could ever carry. The hash fallback is kept only for
+    // browsers/sessions where localStorage write fails (private mode, full quota).
+    var savedHandoff = false;
     try {
       localStorage.setItem("crossstitch_handoff", JSON.stringify(project));
-      window.location.href = "stitch.html?source=creator";
+      savedHandoff = true;
     } catch (e) {
+      // localStorage write failed (quota or disabled). Try the URL-hash fallback.
       try {
         var str = JSON.stringify(project);
         var compressed = pako.deflate(str);
         var binaryStr = "";
         for (var i = 0; i < compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
         var b64 = btoa(binaryStr).replace(/\+/g, "-").replace(/\//g, "_");
-        if (b64.length > 8000) { alert("Pattern too large for link sharing. Please use Save Project (.json) instead."); return; }
-        window.location.href = "stitch.html#p=" + b64;
-      } catch (e2) {
-        alert("Pattern is too large for direct transfer. Please save the file and open it in the Tracker.");
+        if (b64.length <= 8000) {
+          window.location.href = "stitch.html#p=" + b64;
+          return;
+        }
+        // Pattern too large for the URL hash too. Fall back to a soft toast and
+        // navigate without the inline payload — the Tracker will load whatever
+        // copy is in IndexedDB (we already saved/auto-saved above) using the
+        // active-project pointer. No more loud `alert()`.
+        if (state.addToast) {
+          state.addToast(
+            "Pattern too large for inline transfer \u2014 opening from your saved copy.",
+            { type: "info", duration: 3500 }
+          );
+        }
+      } catch (_) {
+        if (state.addToast) {
+          state.addToast(
+            "Couldn't prepare the inline transfer \u2014 opening from your saved copy.",
+            { type: "warning", duration: 3500 }
+          );
+        }
       }
+    }
+    if (savedHandoff) {
+      window.location.href = "stitch.html?source=creator";
+    } else {
+      // No inline payload available. The Tracker will load via the active project
+      // pointer set above (and via the auto-saved IDB copy from this session).
+      window.location.href = "stitch.html?source=creator";
     }
   }
 
@@ -6752,7 +6788,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
       psArr.push([k, e]);
     });
-    if (!state.projectIdRef.current) state.projectIdRef.current = "proj_" + Date.now();
+    if (!state.projectIdRef.current) state.projectIdRef.current = ProjectStorage.newId();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
     var project5 = Object.assign({}, state.trackerFieldsRef.current, {
       version: 11, id: state.projectIdRef.current, page: "creator", name: state.projectName,
@@ -13608,9 +13644,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
             h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "pdf", onChange: function () { exportFormat[1]("pdf"); } }), "PDF"),
           h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
-            h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "png", onChange: function () { exportFormat[1]("png"); } }), "PNG"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.5 } },
-            h("input", { type: "radio", disabled: true }), "OXS (coming soon)")
+            h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "png", onChange: function () { exportFormat[1]("png"); } }), "PNG")
         ),
 
         h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 } },

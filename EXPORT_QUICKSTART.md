@@ -47,7 +47,7 @@ Tap a preset and the **Format & settings** controls update to match. You can sti
 
 Expand **Format & settings** for fine control:
 
-- **Format** — PDF (PNG and OXS are listed but coming in a later update).
+- **Format** — PDF (default) or PNG (single-image pattern, fixed 10 px per cell).
 - **Page size** — `Auto` (A4 outside US/CA, Letter inside), `A4`, or `US Letter`.
 - **Page margin** — millimetres (10–30 mm; 12 mm default).
 - **Stitches per page** — Small (~80×100, ~2 mm cells), Medium (~60×70, ~2.8 mm cells, ideal for PK), Large (~40×50, ~4 mm cells), or Custom (snapped to multiples of 10).
