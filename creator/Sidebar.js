@@ -1161,6 +1161,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       gen.hasGenerated && h("button", {
         "aria-label":"Continue to Edit mode",
         onClick:function(){
+          // Brief D — flush the freshly-generated pattern to IndexedDB now,
+          // so leaving Creator immediately doesn't lose the pattern and the
+          // Stash Manager pattern library + shopping list pick it up. The
+          // flush calls ProjectStorage.save() which in turn fires
+          // StashBridge.syncProjectToLibrary().
+          if (typeof window.__flushProjectToIDB === 'function') {
+            try { window.__flushProjectToIDB(); } catch (e) {}
+          }
           app.setAppMode("edit");
           app.setSidebarTab("palette");
           if(window.__switchToEdit) window.__switchToEdit();
