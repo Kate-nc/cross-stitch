@@ -19,6 +19,14 @@ function extractFn(source, name) {
   throw new Error(`Could not extract ${name}`);
 }
 
+// Module-scope regex constants hoisted out of parseBulkThreadList in BulkAddModal.js;
+// the test extracts only the function so we redeclare them here.
+const BULK_TOKEN_DELIM = /[\s,;\n]+/;
+const BULK_PREFIX_ANCHOR = /^anchor\s*/i;
+const BULK_PREFIX_ANCH = /^anch\.?\s*/i;
+const BULK_PREFIX_DMC = /^dmc\.?\s*/i;
+const BULK_PREFIX_HASH = /^#/;
+
 eval(extractFn(src, 'parseBulkThreadList')); // eslint-disable-line no-eval
 
 // ─── parseBulkThreadList ──────────────────────────────────────────────────────

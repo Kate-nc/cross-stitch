@@ -37,8 +37,11 @@ const mockGlobals = `
 `;
 
 const code = mockGlobals
+  + 'var _DMC_BY_ID=null,_ANCHOR_BY_ID=null;\n'
   + extractFn(helpersSource, 'threadKey') + '\n'
   + extractFn(helpersSource, 'parseThreadKey') + '\n'
+  + extractFn(helpersSource, '_getDmcById') + '\n'
+  + extractFn(helpersSource, '_getAnchorById') + '\n'
   + extractFn(helpersSource, 'getThreadByKey') + '\n'
   + extractFn(helpersSource, 'classifyMatch') + '\n';
 

@@ -12,6 +12,9 @@
   'use strict';
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+  // Hoisted: reused by fmtDate; avoids reallocating the options object per call.
+  var DATE_FORMAT_OPTIONS = { day: 'numeric', month: 'short', year: 'numeric' };
+
   function ymd(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
@@ -31,7 +34,7 @@
   }
   function fmtDate(d) {
     if (!(d instanceof Date) || isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString('en-GB', DATE_FORMAT_OPTIONS);
   }
 
   // ── Weekly summary ──────────────────────────────────────────────────────────

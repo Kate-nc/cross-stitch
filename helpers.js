@@ -13,6 +13,27 @@ function drawCk(ctx,x,y,s){
 function fmtTime(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?`${h}h ${m}m`:`${m}m`;}
 function fmtTimeL(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);if(h>0)return`${h} hr${h>1?"s":""} ${m} min`;return`${m} min`;}
 
+// Hoisted shared regexes (avoid recompiling per call).
+var CSV_QUOTE_RE=/"/g;
+var FILENAME_SAFE_RE=/[^a-zA-Z0-9]/g;
+
+// Lazily-built lookup maps for thread palettes; avoids O(n) Array.find per call.
+var _DMC_BY_ID=null,_ANCHOR_BY_ID=null;
+function _getDmcById(){
+  if(_DMC_BY_ID)return _DMC_BY_ID;
+  if(typeof DMC==='undefined')return null;
+  _DMC_BY_ID=Object.create(null);
+  for(var i=0;i<DMC.length;i++)_DMC_BY_ID[DMC[i].id]=DMC[i];
+  return _DMC_BY_ID;
+}
+function _getAnchorById(){
+  if(_ANCHOR_BY_ID)return _ANCHOR_BY_ID;
+  if(typeof ANCHOR==='undefined')return null;
+  _ANCHOR_BY_ID=Object.create(null);
+  for(var j=0;j<ANCHOR.length;j++)_ANCHOR_BY_ID[ANCHOR[j].id]=ANCHOR[j];
+  return _ANCHOR_BY_ID;
+}
+
 function skeinEst(stitchCount,fabricCt){if(typeof stitchesToSkeins==='function'){const result=stitchesToSkeins({stitchCount:stitchCount,fabricCount:fabricCt,strandsUsed:2,wasteFactor:0.20});return Math.max(1,result.skeinsToBuy);}return 1;}
 
 function confettiTier(pct){
@@ -876,7 +897,7 @@ function generateSessionCSV(sessions) {
     var s = sorted[i];
     var startT = new Date(s.startTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     var endT = new Date(s.endTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    var note = (s.note || '').replace(/"/g, '""');
+    var note = (s.note || '').replace(CSV_QUOTE_RE, '""');
     rows.push([
       s.date, startT, endT, s.durationMinutes,
       s.stitchesCompleted, s.stitchesUndone, s.netStitches,
@@ -892,7 +913,7 @@ function downloadCSV(sessions, projectName) {
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
-  var safeName = (projectName || 'cross-stitch').replace(/[^a-zA-Z0-9]/g, '_');
+  var safeName = (projectName || 'cross-stitch').replace(FILENAME_SAFE_RE, '_');
   a.download = safeName + '_sessions.csv';
   document.body.appendChild(a);
   a.click();
@@ -1115,15 +1136,11 @@ if(typeof window!=='undefined')window.parseThreadKey=parseThreadKey;
 function getThreadByKey(key){
   var p=parseThreadKey(key);
   if(p.brand==='anchor'){
-    if(typeof ANCHOR!=='undefined'){
-      return ANCHOR.find(function(t){return t.id===p.id;})||null;
-    }
-    return null;
+    var aMap=_getAnchorById();
+    return aMap?(aMap[p.id]||null):null;
   }
-  if(typeof DMC!=='undefined'){
-    return DMC.find(function(t){return t.id===p.id;})||null;
-  }
-  return null;
+  var dMap=_getDmcById();
+  return dMap?(dMap[p.id]||null):null;
 }
 if(typeof window!=='undefined')window.getThreadByKey=getThreadByKey;
 

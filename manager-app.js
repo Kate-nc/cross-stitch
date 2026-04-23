@@ -1,15 +1,16 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
-function PartialGauge({ status }) {
-  const segments = {
-    "null": { count: 0, color: "#e2e8f0", text: "No partial", textColor: "#94a3b8" },
-    "mostly-full": { count: 3, color: "#378ADD", text: "Mostly full", textColor: "#378ADD" },
-    "about-half": { count: 2, color: "#378ADD", text: "About half", textColor: "#378ADD" },
-    "remnant": { count: 1, color: "#EF9F27", text: "Remnant", textColor: "#EF9F27" },
-    "used-up": { count: 4, color: "#888780", text: "Used up", textColor: "#888780" }
-  };
+// Hoisted out of PartialGauge so the lookup table isn't reallocated each render.
+const PARTIAL_GAUGE_SEGMENTS = {
+  "null": { count: 0, color: "#e2e8f0", text: "No partial", textColor: "#94a3b8" },
+  "mostly-full": { count: 3, color: "#378ADD", text: "Mostly full", textColor: "#378ADD" },
+  "about-half": { count: 2, color: "#378ADD", text: "About half", textColor: "#378ADD" },
+  "remnant": { count: 1, color: "#EF9F27", text: "Remnant", textColor: "#EF9F27" },
+  "used-up": { count: 4, color: "#888780", text: "Used up", textColor: "#888780" }
+};
 
-  const current = segments[status || "null"];
+function PartialGauge({ status }) {
+  const current = PARTIAL_GAUGE_SEGMENTS[status || "null"];
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

@@ -251,17 +251,19 @@ function doMap(data, w, h, pal, allowBlends = true) {
 }
 
 function hueFromRgb(rgb){var r=rgb[0]/255,g=rgb[1]/255,b=rgb[2]/255;var max=Math.max(r,g,b),min=Math.min(r,g,b);if(max===min)return 0;var d=max-min,h;if(max===r)h=((g-b)/d+(g<b?6:0))/6;else if(max===g)h=((b-r)/d+2)/6;else h=((r-g)/d+4)/6;return h*360;}
+
+// Hoisted out of analyseColourCoverage so the bucket array isn't reallocated each call.
+var HUE_BUCKETS=[
+  {name:"Red",min:330,max:360,min2:0,max2:30},
+  {name:"Orange",min:30,max:60},
+  {name:"Yellow",min:60,max:90},
+  {name:"Green",min:90,max:170},
+  {name:"Cyan",min:170,max:200},
+  {name:"Blue",min:200,max:260},
+  {name:"Purple",min:260,max:330}
+];
 function analyseColourCoverage(img,palette,sampleSize){
   sampleSize=sampleSize||5000;
-  var HUE_BUCKETS=[
-    {name:"Red",min:330,max:360,min2:0,max2:30},
-    {name:"Orange",min:30,max:60},
-    {name:"Yellow",min:60,max:90},
-    {name:"Green",min:90,max:170},
-    {name:"Cyan",min:170,max:200},
-    {name:"Blue",min:200,max:260},
-    {name:"Purple",min:260,max:330}
-  ];
   function rgbToHsl(r,g,b){r/=255;g/=255;b/=255;var max=Math.max(r,g,b),min=Math.min(r,g,b),h,s,l=(max+min)/2;if(max===min){h=0;s=0;}else{var d=max-min;s=l>0.5?d/(2-max-min):d/(max+min);if(max===r)h=((g-b)/d+(g<b?6:0))/6;else if(max===g)h=((b-r)/d+2)/6;else h=((r-g)/d+4)/6;h*=360;}return{h:h,s:s,l:l};}
   function inBucket(hue,bucket){if(bucket.min2!==undefined)return(hue>=bucket.min&&hue<bucket.max)||(hue>=bucket.min2&&hue<bucket.max2);return hue>=bucket.min&&hue<bucket.max;}
   var c=document.createElement("canvas");

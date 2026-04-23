@@ -19,6 +19,9 @@
 (function () {
   "use strict";
 
+  // Hoisted: regex for sanitising filename characters; reused across runExport calls.
+  var UNSAFE_FILENAME_CHARS = /[^\w\-]+/g;
+
   var workerRef = null;
   var nextReqId = 1;
   var pending = {}; // reqId → { resolve, reject, onProgress, cancelled }
@@ -258,7 +261,7 @@
       locale: (typeof navigator !== "undefined" && navigator.language) || "en-GB",
     };
     return runExport(project, opts).then(function (bytes) {
-      downloadBytes(bytes, (project.name || "pattern").replace(/[^\w\-]+/g, "_") + ".pdf");
+      downloadBytes(bytes, (project.name || "pattern").replace(UNSAFE_FILENAME_CHARS, "_") + ".pdf");
       return bytes;
     }).catch(function (err) {
       // M9: Surface font-missing errors via Toast for legacy callers
@@ -334,7 +337,7 @@
       branding: readBranding(),
     });
     return runExport(project, opts).then(function (bytes) {
-      downloadBytes(bytes, (project.name || "pattern").replace(/[^\w\-]+/g, "_") + "_cover.pdf");
+      downloadBytes(bytes, (project.name || "pattern").replace(UNSAFE_FILENAME_CHARS, "_") + "_cover.pdf");
     });
   };
 })();

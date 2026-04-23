@@ -582,6 +582,9 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
 (function (root) {
   "use strict";
 
+  // Hoisted: leading-digits regex used for stable palette sort by numeric id prefix.
+  var LEADING_DIGITS = /^(\d+)/;
+
   // mm → PDF points (1pt = 1/72 inch, 25.4mm = 1in)
   function mmToPt(mm) { return mm * 72 / 25.4; }
   function ptToMm(pt) { return pt * 25.4 / 72; }
@@ -766,7 +769,7 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
       if (e.type === "blend") blends.push(e); else solids.push(e);
     });
     function numericKey(id) {
-      var m = String(id).match(/^(\d+)/);
+      var m = String(id).match(LEADING_DIGITS);
       return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
     }
     solids.sort(function (a, b) {
@@ -836,6 +839,9 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
  */
 (function () {
   "use strict";
+
+  // Hoisted: regex for sanitising filename characters; reused across runExport calls.
+  var UNSAFE_FILENAME_CHARS = /[^\w\-]+/g;
 
   var workerRef = null;
   var nextReqId = 1;
@@ -1076,7 +1082,7 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
       locale: (typeof navigator !== "undefined" && navigator.language) || "en-GB",
     };
     return runExport(project, opts).then(function (bytes) {
-      downloadBytes(bytes, (project.name || "pattern").replace(/[^\w\-]+/g, "_") + ".pdf");
+      downloadBytes(bytes, (project.name || "pattern").replace(UNSAFE_FILENAME_CHARS, "_") + ".pdf");
       return bytes;
     }).catch(function (err) {
       // M9: Surface font-missing errors via Toast for legacy callers
@@ -1152,7 +1158,7 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
       branding: readBranding(),
     });
     return runExport(project, opts).then(function (bytes) {
-      downloadBytes(bytes, (project.name || "pattern").replace(/[^\w\-]+/g, "_") + "_cover.pdf");
+      downloadBytes(bytes, (project.name || "pattern").replace(UNSAFE_FILENAME_CHARS, "_") + "_cover.pdf");
     });
   };
 })();
@@ -10102,6 +10108,14 @@ window.ConvertPaletteModal = (function () {
 window.BulkAddModal = (function () {
   const { useState, useMemo, useCallback } = React;
 
+  // Hoisted: regexes used per-token by parseBulkThreadList. Avoids recompiling
+  // five regexes for every token in the input.
+  const BULK_TOKEN_DELIM = /[\s,;\n]+/;
+  const BULK_PREFIX_ANCHOR = /^anchor\s*/i;
+  const BULK_PREFIX_ANCH = /^anch\.?\s*/i;
+  const BULK_PREFIX_DMC = /^dmc\.?\s*/i;
+  const BULK_PREFIX_HASH = /^#/;
+
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
   /**
@@ -10113,16 +10127,16 @@ window.BulkAddModal = (function () {
   function parseBulkThreadList(text, brand) {
     brand = brand || 'dmc';
     return text
-      .split(/[\s,;\n]+/)
+      .split(BULK_TOKEN_DELIM)
       .map(function (token) { return token.trim(); })
       .filter(function (token) { return token.length > 0; })
       .map(function (token) {
         // Strip brand prefix
         var clean = token
-          .replace(/^anchor\s*/i, '')
-          .replace(/^anch\.?\s*/i, '')
-          .replace(/^dmc\.?\s*/i, '')
-          .replace(/^#/, '');
+          .replace(BULK_PREFIX_ANCHOR, '')
+          .replace(BULK_PREFIX_ANCH, '')
+          .replace(BULK_PREFIX_DMC, '')
+          .replace(BULK_PREFIX_HASH, '');
         return { raw: token, normalised: clean };
       })
       .filter(function (r) { return r.normalised.length > 0; });
@@ -12350,6 +12364,16 @@ window.CreatorProjectTab = function CreatorProjectTab() {
 
   // ── Thread Organiser ────────────────────────────────────────────────────────
   function renderThreadOrganiser() {
+    // Cache: scanning the global stash is O(n) and was previously called 3x per render
+    // (disabled / title / opacity props on the substitute button below).
+    var hasOwnedStash = false;
+    if (ctx.globalStash) {
+      var _stashKeys = Object.keys(ctx.globalStash);
+      for (var _i = 0; _i < _stashKeys.length; _i++) {
+        var _e = ctx.globalStash[_stashKeys[_i]];
+        if (_e && _e.owned > 0) { hasOwnedStash = true; break; }
+      }
+    }
     return h(Section, {title:"Thread Organiser"},
       h("div", {style:{marginTop:8,display:"flex",gap:12,marginBottom:10}},
         h("div", {style:{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}},
@@ -12459,19 +12483,19 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             if (typeof StashBridge === "undefined") return true;
             if (!ctx.pat) return true;
             if (ctx.toBuyList.length === 0) return true;
-            return !Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; });
+            return !hasOwnedStash;
           })(),
           title: (function() {
             if (typeof StashBridge === "undefined") return "Stash bridge not available";
             if (!ctx.pat) return "No pattern loaded";
             if (ctx.toBuyList.length === 0) return "All threads are already marked as owned";
-            if (!Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; })) return "Add threads to your stash first";
+            if (!hasOwnedStash) return "Add threads to your stash first";
             return "Find stash alternatives for unowned threads";
           })(),
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600,
             opacity:(function() {
               if (typeof StashBridge === "undefined" || !ctx.pat || ctx.toBuyList.length === 0) return 0.5;
-              if (!Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; })) return 0.5;
+              if (!hasOwnedStash) return 0.5;
               return 1;
             })()
           }
@@ -13604,6 +13628,15 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
  *   window.UserPrefs          — pref persistence
  *   window.CreatorDesignerBrandingSection — branding component
  */
+
+// Module-scope hoisted values (regex / style objects).
+var EXPORT_UNSAFE_FILENAME_CHARS = /[^\w\-]+/g;
+var EXPORT_PRESET_CARD_BASE = { flex: 1, padding: 14, borderRadius: 10, border: "1.5px solid #cbd5e1", background: "#fff", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 };
+var EXPORT_PRESET_CARD_ACTIVE = { background: "#0d9488", color: "#fff", borderColor: "#0d9488" };
+var EXPORT_CTA_STYLE = { padding: "14px 22px", fontSize: 16, borderRadius: 10, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
+var EXPORT_DISABLED_CTA = Object.assign({}, EXPORT_CTA_STYLE, { background: "#94a3b8", cursor: "not-allowed" });
+var EXPORT_SECTION_TOGGLE = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "#0f172a" };
+
 window.CreatorExportTab = function CreatorExportTab() {
   var ctx = window.usePatternData();
   var app = window.useApp();
@@ -13728,7 +13761,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     }).then(function (bytes) {
       if (runningRef.current !== tag) return;
       setProgress(null); runningRef.current = null;
-      var fname = (project.name || "pattern").replace(/[^\w\-]+/g, "_") + ".pdf";
+      var fname = (project.name || "pattern").replace(EXPORT_UNSAFE_FILENAME_CHARS, "_") + ".pdf";
       window.PdfExport.downloadBytes(bytes, fname);
     }).catch(function (err) {
       if (runningRef.current !== tag) return;
@@ -13773,7 +13806,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     }
     c.toBlob(function (blob) {
       if (!blob) { setError("Failed to create PNG."); return; }
-      var name = ((app.projectName || "pattern") + "").replace(/[^\w\-]+/g, "_") + ".png";
+      var name = ((app.projectName || "pattern") + "").replace(EXPORT_UNSAFE_FILENAME_CHARS, "_") + ".png";
       var a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = name;
@@ -13787,11 +13820,11 @@ window.CreatorExportTab = function CreatorExportTab() {
   if (!(ctx && ctx.pat && ctx.pal)) return null;
   if (app.tab !== "export") return null;
 
-  var presetCardActive = { background: "#0d9488", color: "#fff", borderColor: "#0d9488" };
-  var presetCardBase = { flex: 1, padding: 14, borderRadius: 10, border: "1.5px solid #cbd5e1", background: "#fff", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 };
-  var ctaStyle = { padding: "14px 22px", fontSize: 16, borderRadius: 10, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
-  var disabledCta = Object.assign({}, ctaStyle, { background: "#94a3b8", cursor: "not-allowed" });
-  var sectionToggle = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "#0f172a" };
+  var presetCardActive = EXPORT_PRESET_CARD_ACTIVE;
+  var presetCardBase = EXPORT_PRESET_CARD_BASE;
+  var ctaStyle = EXPORT_CTA_STYLE;
+  var disabledCta = EXPORT_DISABLED_CTA;
+  var sectionToggle = EXPORT_SECTION_TOGGLE;
 
   return h("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
     app.copied && h("div", { style: { background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "#16a34a", fontWeight: 600 } }, "Copied!"),

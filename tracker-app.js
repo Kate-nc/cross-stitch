@@ -1,5 +1,13 @@
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
 
+// Hoisted module-scope constants (avoid per-render allocation).
+const START_CORNERS=[["TL","Top-left"],["TR","Top-right"],["C","Centre"],["BL","Bottom-left"],["BR","Bottom-right"]];
+const DEFAULT_PDF_SETTINGS={chartStyle:'symbols',cellSize:3,paper:'a4',orientation:'portrait',gridInterval:10,gridNumbers:true,centerMarks:true,legendLocation:'separate',legendColumns:2,coverPage:true,progressOverlay:false,separateBackstitch:false};
+const PDF_MODAL_LABEL_STYLE={fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6};
+const PDF_MODAL_SELECT_STYLE={padding:"6px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:13,background:"#fff"};
+const PDF_MODAL_CHECKBOX_LABEL_STYLE={fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"};
+const PDF_MODAL_EXPORT_BTN_STYLE={flex:1,padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer"};
+
 function uint8ToBase64(bytes){
   var CHUNK=0x8000,out='';
   for(var i=0;i<bytes.length;i+=CHUNK)out+=String.fromCharCode.apply(null,bytes.subarray(i,i+CHUNK));
@@ -274,7 +282,7 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
     </div>
   );
   // Screen 3 — start-corner picker; commits on selection.
-  const CORNERS=[["TL","Top-left"],["TR","Top-right"],["C","Centre"],["BL","Bottom-left"],["BR","Bottom-right"]];
+  const CORNERS=START_CORNERS;
   return(
     <div>
       <h3 style={{marginTop:0,fontSize:17}}>Where do you usually start?</h3>
@@ -446,7 +454,7 @@ const[projectPickerOpen,setProjectPickerOpen]=useState(false);
 const[projectPickerList,setProjectPickerList]=useState([]);
 const[preferencesOpen,setPreferencesOpen]=useState(false);
 const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
-const [pdfSettings, setPdfSettings] = useState({ chartStyle: 'symbols', cellSize: 3, paper: 'a4', orientation: 'portrait', gridInterval: 10, gridNumbers: true, centerMarks: true, legendLocation: 'separate', legendColumns: 2, coverPage: true, progressOverlay: false, separateBackstitch: false });
+const [pdfSettings, setPdfSettings] = useState(DEFAULT_PDF_SETTINGS);
 const showCtr=true;
 const[bsLines,setBsLines]=useState([]);
 
@@ -4949,27 +4957,27 @@ return(
       <button className="modal-close" onClick={()=>setModal(null)}>×</button>
       <h3 style={{marginTop:0,marginBottom:15}}>Export PDF</h3>
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6}}>
+        <label style={PDF_MODAL_LABEL_STYLE}>
           Chart Mode:
-          <select value={pdfSettings.chartStyle||"color_symbol"} onChange={e=>setPdfSettings({...pdfSettings,chartStyle:e.target.value})} style={{padding:"6px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:13,background:"#fff"}}>
+          <select value={pdfSettings.chartStyle||"color_symbol"} onChange={e=>setPdfSettings({...pdfSettings,chartStyle:e.target.value})} style={PDF_MODAL_SELECT_STYLE}>
             <option value="color_symbol">Colour + Symbols</option>
             <option value="symbol">Symbols Only</option>
             <option value="color">Colour Blocks Only</option>
           </select>
         </label>
-        <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6}}>
+        <label style={PDF_MODAL_LABEL_STYLE}>
           Cell Size:
-          <select value={pdfSettings.cellSize||3} onChange={e=>setPdfSettings({...pdfSettings,cellSize:Number(e.target.value)})} style={{padding:"6px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:13,background:"#fff"}}>
+          <select value={pdfSettings.cellSize||3} onChange={e=>setPdfSettings({...pdfSettings,cellSize:Number(e.target.value)})} style={PDF_MODAL_SELECT_STYLE}>
             <option value={2.5}>Small (2.5mm)</option>
             <option value={3}>Medium (3mm)</option>
             <option value={4.5}>Large (4.5mm)</option>
           </select>
         </label>
-        <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}>
+        <label style={PDF_MODAL_CHECKBOX_LABEL_STYLE}>
           <input type="checkbox" checked={pdfSettings.singlePage||false} onChange={e=>setPdfSettings({...pdfSettings,singlePage:e.target.checked})}/> Single Page
         </label>
         <div style={{display:"flex",gap:10,marginTop:8}}>
-          <button onClick={()=>{setModal(null);exportPDF({displayMode:pdfSettings.chartStyle||"color_symbol",cellSize:pdfSettings.cellSize||3,singlePage:pdfSettings.singlePage||false});}} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer"}}>Export PDF</button>
+          <button onClick={()=>{setModal(null);exportPDF({displayMode:pdfSettings.chartStyle||"color_symbol",cellSize:pdfSettings.cellSize||3,singlePage:pdfSettings.singlePage||false});}} style={PDF_MODAL_EXPORT_BTN_STYLE}>Export PDF</button>
         </div>
       </div>
     </div>

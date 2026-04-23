@@ -195,6 +195,16 @@ window.CreatorProjectTab = function CreatorProjectTab() {
 
   // ── Thread Organiser ────────────────────────────────────────────────────────
   function renderThreadOrganiser() {
+    // Cache: scanning the global stash is O(n) and was previously called 3x per render
+    // (disabled / title / opacity props on the substitute button below).
+    var hasOwnedStash = false;
+    if (ctx.globalStash) {
+      var _stashKeys = Object.keys(ctx.globalStash);
+      for (var _i = 0; _i < _stashKeys.length; _i++) {
+        var _e = ctx.globalStash[_stashKeys[_i]];
+        if (_e && _e.owned > 0) { hasOwnedStash = true; break; }
+      }
+    }
     return h(Section, {title:"Thread Organiser"},
       h("div", {style:{marginTop:8,display:"flex",gap:12,marginBottom:10}},
         h("div", {style:{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}},
@@ -304,19 +314,19 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             if (typeof StashBridge === "undefined") return true;
             if (!ctx.pat) return true;
             if (ctx.toBuyList.length === 0) return true;
-            return !Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; });
+            return !hasOwnedStash;
           })(),
           title: (function() {
             if (typeof StashBridge === "undefined") return "Stash bridge not available";
             if (!ctx.pat) return "No pattern loaded";
             if (ctx.toBuyList.length === 0) return "All threads are already marked as owned";
-            if (!Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; })) return "Add threads to your stash first";
+            if (!hasOwnedStash) return "Add threads to your stash first";
             return "Find stash alternatives for unowned threads";
           })(),
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600,
             opacity:(function() {
               if (typeof StashBridge === "undefined" || !ctx.pat || ctx.toBuyList.length === 0) return 0.5;
-              if (!Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; })) return 0.5;
+              if (!hasOwnedStash) return 0.5;
               return 1;
             })()
           }

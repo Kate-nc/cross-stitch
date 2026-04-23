@@ -49,6 +49,9 @@ var FONT_B64 = self.CROSS_STITCH_SYMBOL_FONT_B64;
 var FONT_SPEC = self.SYMBOL_FONT_SPEC;
 
 // ─── helpers ─────────────────────────────────────────────────────────────
+// Hoisted: data-URL parser regex (avoid recompiling per call).
+var DATA_URL_REGEX = /^data:([^;,]+)?(?:;charset=[^;,]+)?(;base64)?,(.*)$/;
+
 function base64ToUint8(b64) {
   var bin = atob(b64);
   var len = bin.length;
@@ -59,7 +62,7 @@ function base64ToUint8(b64) {
 
 function dataUrlToBytes(dataUrl) {
   if (!dataUrl) return null;
-  var m = /^data:([^;,]+)?(?:;charset=[^;,]+)?(;base64)?,(.*)$/.exec(dataUrl);
+  var m = DATA_URL_REGEX.exec(dataUrl);
   if (!m) return null;
   var isB64 = !!m[2];
   var data = m[3];
