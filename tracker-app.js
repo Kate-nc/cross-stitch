@@ -400,6 +400,13 @@ const[stitchSpeed,setStitchSpeed]=useState(40);
 
 const[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
+// Generic Tracker welcome — fires once on first visit, before the existing
+// StitchingStyleOnboarding (which is domain-specific).
+const[welcomeOpen,setWelcomeOpen]=useState(()=>{try{return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('tracker'));}catch(_){return false;}});
+// Global "?" shortcut → open Help Centre.
+useEffect(()=>{const h=()=>setModal("help");window.addEventListener("cs:openHelp",h);return()=>window.removeEventListener("cs:openHelp",h);},[]);
+// "Show welcome tour again" from HelpCentre → re-open the wizard.
+useEffect(()=>{const h=(e)=>{if(!e||!e.detail||e.detail.page==='tracker')setWelcomeOpen(true);};window.addEventListener("cs:showWelcome",h);return()=>window.removeEventListener("cs:showWelcome",h);},[]);
 const[projectPickerOpen,setProjectPickerOpen]=useState(false);
 const[projectPickerList,setProjectPickerList]=useState([]);
 const[preferencesOpen,setPreferencesOpen]=useState(false);
@@ -3932,7 +3939,7 @@ useEffect(()=>{
       if(drawer){setDrawer(false);return;}
       return;
     }
-    if(e.key==="?"){setModal(m=>m==="shortcuts"?null:"shortcuts");return;}
+    if(e.key==="?"){e.preventDefault();e.stopPropagation();setModal("help");return;}
     if(!isEditMode){
       if(e.key==="t"||e.key==="T"){setStitchMode("track");return;}
       if(e.key==="n"||e.key==="N"){setStitchMode("navigate");return;}
@@ -4848,6 +4855,7 @@ return(
   </div>}
 
   {modal==="help"&&<SharedModals.Help defaultTab="tracker" onClose={()=>setModal(null)} />}
+  {welcomeOpen&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{page:"tracker",onClose:()=>setWelcomeOpen(false)})}
   {styleOnboardingOpen&&<StitchingStyleOnboarding startCorner={startCorner} onDone={result=>{
     setStyleOnboardingOpen(false);
     if(result){

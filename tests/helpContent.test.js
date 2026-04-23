@@ -55,6 +55,17 @@ describe('help-content', () => {
     expect(ids).toEqual(expect.arrayContaining(['creator', 'tracker', 'manager']));
   });
 
+  test('glossary tab is present with Save/Stash terminology', () => {
+    const glossary = window.HELP_TOPICS.find(t => t.id === 'glossary');
+    expect(glossary).toBeTruthy();
+    const flat = JSON.stringify(glossary).toLowerCase();
+    expect(flat).toContain('stash');
+    expect(flat).toContain('save');
+    expect(flat).toContain('download');
+    expect(flat).toContain('project');
+    expect(flat).toContain('pattern');
+  });
+
   test('exposes HelpCentre as a function', () => {
     expect(typeof window.HelpCentre).toBe('function');
   });

@@ -49,12 +49,16 @@
       },
       {
         title: "1. Build your stash",
-        body: "Switch to the Threads tab and tick the threads you own. Use 'Bulk Add' to paste a list of IDs in one go."
+        body: "Switch to the Threads tab and tick the threads you own. Use 'Bulk Add' to paste a list of IDs in one go.",
+        target: "[data-onboard=\"mgr-stash-tab\"]",
+        placement: "bottom"
       },
       {
         title: "2. Browse your patterns",
         body: "Patterns saved in the Creator/Tracker auto-sync here. You can also add patterns manually \u2014 these are flagged 'Stash Manager only'.",
-        tip: "Each card shows how many of its required threads you already own."
+        tip: "Each card shows how many of its required threads you already own.",
+        target: "[data-onboard=\"mgr-patterns-tab\"]",
+        placement: "bottom"
       },
       {
         title: "3. Plan a shopping trip",
@@ -96,6 +100,11 @@
     var steps = STEPS[page] || [];
     var _idx = React.useState(0);
     var idx = _idx[0], setIdx = _idx[1];
+    // Position of the popover relative to the target element. Recomputed on
+    // step change, window resize, and scroll. Falls back to centred when the
+    // step has no target or the target isn't in the DOM yet.
+    var _anchor = React.useState(null);
+    var anchor = _anchor[0], setAnchor = _anchor[1];
 
     function handleClose(skipFlag) {
       if (!skipFlag) markDone(page);
@@ -108,15 +117,73 @@
     var step = steps[Math.min(idx, steps.length - 1)];
     var isLast = idx >= steps.length - 1;
 
-    return h("div", { className: "modal-overlay", onClick: function () { handleClose(false); } },
-      h("div", {
-        className: "modal-content onboarding-content",
-        onClick: function (e) { e.stopPropagation(); },
-        style: { maxWidth: 460, padding: 24 }
-      },
-        h("button", { className: "modal-close", onClick: function () { handleClose(false); }, "aria-label": "Close" }, "\u00d7"),
+    // Recompute anchor rect whenever the step (or viewport) changes.
+    React.useEffect(function () {
+      function recompute() {
+        if (!step.target) { setAnchor(null); return; }
+        var el = document.querySelector(step.target);
+        if (!el) { setAnchor(null); return; }
+        var r = el.getBoundingClientRect();
+        setAnchor({
+          top: r.top, left: r.left, right: r.right, bottom: r.bottom,
+          width: r.width, height: r.height,
+          placement: step.placement || "bottom"
+        });
+      }
+      recompute();
+      window.addEventListener("resize", recompute);
+      window.addEventListener("scroll", recompute, true);
+      return function () {
+        window.removeEventListener("resize", recompute);
+        window.removeEventListener("scroll", recompute, true);
+      };
+    }, [idx, step.target, step.placement]);
+
+    // Compute the popover style — either floating near the anchor, or centred.
+    var popoverStyle = { maxWidth: 420, padding: 22, position: "relative" };
+    var overlayStyle = null;        // when targeted, dim background but cut hole
+    var arrowStyle = null;
+    if (anchor) {
+      var pad = 12, gap = 14;
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var top, left;
+      if (anchor.placement === "right") {
+        top = anchor.top + anchor.height / 2 - 80;
+        left = anchor.right + gap;
+      } else if (anchor.placement === "left") {
+        top = anchor.top + anchor.height / 2 - 80;
+        left = anchor.left - 420 - gap;
+      } else if (anchor.placement === "top") {
+        top = anchor.top - 200 - gap;
+        left = anchor.left + anchor.width / 2 - 210;
+      } else { // bottom
+        top = anchor.bottom + gap;
+        left = anchor.left + anchor.width / 2 - 210;
+      }
+      // Clamp into viewport.
+      top = Math.max(pad, Math.min(top, vh - 200 - pad));
+      left = Math.max(pad, Math.min(left, vw - 420 - pad));
+      popoverStyle = Object.assign({}, popoverStyle, {
+        position: "fixed", top: top, left: left, margin: 0
+      });
+      // Highlight ring around the target.
+      overlayStyle = {
+        position: "fixed", inset: 0, pointerEvents: "none", zIndex: 1
+      };
+      arrowStyle = {
+        position: "fixed", top: anchor.top - 4, left: anchor.left - 4,
+        width: anchor.width + 8, height: anchor.height + 8,
+        border: "3px solid #0d9488", borderRadius: 8,
+        boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.45)",
+        pointerEvents: "none", zIndex: 2,
+        transition: "all 0.18s ease"
+      };
+    }
+
+    var children = [
+        h("button", { key: "close", className: "modal-close", onClick: function () { handleClose(false); }, "aria-label": "Close" }, "\u00d7"),
         // Step indicator
-        h("div", { style: { display: "flex", gap: 6, marginBottom: 16 } },
+        h("div", { key: "ind", style: { display: "flex", gap: 6, marginBottom: 16 } },
           steps.map(function (_, i) {
             return h("div", {
               key: i,
@@ -128,15 +195,16 @@
             });
           })
         ),
-        h("h3", { style: { margin: "0 0 10px 0", fontSize: 19, color: "#1e293b" } }, step.title),
-        h("p", { style: { margin: "0 0 12px 0", fontSize: 14, lineHeight: 1.55, color: "#475569" } }, step.body),
+        h("h3", { key: "title", style: { margin: "0 0 10px 0", fontSize: 19, color: "#1e293b" } }, step.title),
+        h("p", { key: "body", style: { margin: "0 0 12px 0", fontSize: 14, lineHeight: 1.55, color: "#475569" } }, step.body),
         step.tip && h("div", {
+          key: "tip",
           style: {
             padding: "8px 12px", background: "#f0fdfa", border: "1px solid #99f6e4",
             borderRadius: 6, fontSize: 12, color: "#065f46", marginBottom: 12
           }
         }, h("strong", null, "Tip: "), step.tip),
-        h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 } },
+        h("div", { key: "nav", style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 } },
           h("button", {
             onClick: function () { handleClose(false); },
             style: { padding: "6px 12px", fontSize: 12, color: "#64748b", background: "transparent", border: "none", cursor: "pointer" }
@@ -152,7 +220,27 @@
             }, isLast ? "Get started" : "Next")
           )
         )
-      )
+    ];
+
+    if (anchor) {
+      // Targeted popover: dim backdrop with a hole, place panel near anchor.
+      return h("div", { className: "onboarding-targeted-overlay", style: { position: "fixed", inset: 0, zIndex: 5000 } },
+        h("div", { style: arrowStyle }),
+        h("div", {
+          className: "modal-content onboarding-content",
+          onClick: function (e) { e.stopPropagation(); },
+          style: Object.assign({}, popoverStyle, { zIndex: 5001 })
+        }, children)
+      );
+    }
+
+    // Centred fallback.
+    return h("div", { className: "modal-overlay", onClick: function () { handleClose(false); } },
+      h("div", {
+        className: "modal-content onboarding-content",
+        onClick: function (e) { e.stopPropagation(); },
+        style: Object.assign({}, popoverStyle, { maxWidth: 460, padding: 24 })
+      }, children)
     );
   }
 

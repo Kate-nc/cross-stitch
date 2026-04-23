@@ -40,6 +40,9 @@
 <!-- home-screen.js provides MultiProjectDashboard + helpers consumed by project-library.js (see ProjectLibrary mode='manager'). -->
 <script src="home-screen.js"></script>
 <script src="project-library.js"></script>
+<!-- BulkAddModal is shared with the Creator bundle but the Manager needs it
+     standalone so the "+ Bulk Add" button on the Threads tab can mount. -->
+<script src="creator/BulkAddModal.js"></script>
 </head>
 <body>
 <div id="root"></div>

@@ -63,10 +63,30 @@ function ManagerApp() {
   const [backupStatus, setBackupStatus] = useState(null); // { type: 'success'|'error'|'confirm', message, summary?, onConfirm? }
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  // Detailed (legacy) pattern grid is now collapsed by default — the unified
+  // "Your Projects" cards above are the primary view. Persisted per user.
+  const [showDetailGrid, setShowDetailGrid] = useState(() => {
+    try { return localStorage.getItem("mgr_show_detail_grid") === "1"; } catch (_) { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("mgr_show_detail_grid", showDetailGrid ? "1" : "0"); } catch (_) {}
+  }, [showDetailGrid]);
   // First-visit welcome wizard. Use lazy initialiser so it only runs once.
   const [welcomeOpen, setWelcomeOpen] = useState(() => {
     try { return !!(window.WelcomeWizard && window.WelcomeWizard.shouldShow('manager')); } catch (_) { return false; }
   });
+  // Global "?" shortcut → open Help Centre.
+  useEffect(() => {
+    const h = () => setModal("help");
+    window.addEventListener("cs:openHelp", h);
+    return () => window.removeEventListener("cs:openHelp", h);
+  }, []);
+  // "Show welcome tour again" from HelpCentre → re-open the wizard.
+  useEffect(() => {
+    const h = (e) => { if (!e || !e.detail || e.detail.page === "manager") setWelcomeOpen(true); };
+    window.addEventListener("cs:showWelcome", h);
+    return () => window.removeEventListener("cs:showWelcome", h);
+  }, []);
   const lowStockThreshold = 1;
   const formatBrandLabel = (brand) => {
     const b = (brand || "dmc").toString().toLowerCase();
@@ -615,10 +635,10 @@ function ManagerApp() {
       {/* Sub-tab bar */}
       <div className="mgr-tab-bar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex" }}>
-          <button className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
+          <button data-onboard="mgr-stash-tab" className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
             <span className="icon">{Icons.thread()}</span> Thread Stash <span className="cnt">{totalOwnedCount}</span>
           </button>
-          <button className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
+          <button data-onboard="mgr-patterns-tab" className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
             <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
           </button>
         </div>
@@ -1040,13 +1060,24 @@ function ManagerApp() {
             </div>
 
             {/* Detailed grid view — shows per-pattern thread coverage and the
-                shopping-list checkboxes. The cards above (Your Projects) are a
-                navigation-focused view; this grid is for planning purchases
-                and inspecting requirements. */}
+                shopping-list checkboxes. Hidden by default; the unified
+                "Your Projects" cards above are the primary view for most users. */}
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "4px 2px 8px" }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#3f3f46" }}>Pattern details &amp; shopping list</div>
-              <div style={{ fontSize: 11, color: "#94a3b8" }}>Tick a pattern to add its missing threads to the shopping list</div>
+              <button
+                onClick={() => setShowDetailGrid(v => !v)}
+                style={{ padding: "4px 10px", fontSize: 11, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", color: "#475569", fontFamily: "inherit" }}
+                title={showDetailGrid ? "Hide the detailed pattern grid" : "Show the detailed pattern grid (per-pattern thread coverage + checkboxes)"}
+              >
+                {showDetailGrid ? "Hide detailed grid" : "Show detailed grid"}
+              </button>
             </div>
+            {!showDetailGrid && (
+              <div style={{ padding: "10px 14px", marginBottom: 12, background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: 8, fontSize: 12, color: "#64748b" }}>
+                Use the cards above to open patterns. Tap <strong>Show detailed grid</strong> when you need per-pattern checkboxes for shopping-list selection.
+              </div>
+            )}
+            {showDetailGrid && (
             <div className="pat-grid">
               {filteredPatterns.map(p => {
                 const isSelected = selectedPatternsForList.has(p.id);
@@ -1091,6 +1122,7 @@ function ManagerApp() {
                 </div>
               )}
             </div>
+            )}
           </div>
 
           {/* Right Panel — Pattern Detail */}

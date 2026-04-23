@@ -258,6 +258,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return()=>{delete window.__setCreatorAppMode;delete window.__setCreatorProjectName;delete window.__updateCreatorTrackerFields;};
   },[state.setAppMode,state.setProjectName]);
 
+  // Bridge global "?" → open Help Centre while in Creator design mode.
+  React.useEffect(()=>{
+    const h=()=>{ if(typeof state.setModal==='function') state.setModal('help'); };
+    window.addEventListener('cs:openHelpDesign',h);
+    return()=>window.removeEventListener('cs:openHelpDesign',h);
+  },[state.setModal]);
+
   // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
   // Handler identity is stabilised via a ref; the ref is updated synchronously on
   // each render so the latest function is always called despite the empty dep list.
@@ -1020,6 +1027,26 @@ function UnifiedApp(){
   const[welcomeOpen,setWelcomeOpen]=React.useState(()=>{
     try{return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('creator'));}catch(_){return false;}
   });
+  // Global "?" shortcut → open Help Centre. Routes to home or design depending
+  // on which mode the user is currently viewing.
+  React.useEffect(()=>{
+    const h=()=>{
+      if(mode==='home'){setHomeModal('help');}
+      else if(mode==='track'&&typeof T==='function'){/* Tracker has its own listener */}
+      else{
+        // In design mode, dispatch via state.setModal if available.
+        try{ window.dispatchEvent(new CustomEvent('cs:openHelpDesign')); }catch(_){}
+      }
+    };
+    window.addEventListener('cs:openHelp',h);
+    return()=>window.removeEventListener('cs:openHelp',h);
+  },[mode]);
+  // "Show welcome tour again" from HelpCentre → re-open the wizard.
+  React.useEffect(()=>{
+    const h=(e)=>{ if(!e||!e.detail||e.detail.page==='creator') setWelcomeOpen(true); };
+    window.addEventListener('cs:showWelcome',h);
+    return()=>window.removeEventListener('cs:showWelcome',h);
+  },[]);
 
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
   return <>

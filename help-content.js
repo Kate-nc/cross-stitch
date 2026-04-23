@@ -151,6 +151,50 @@
           ]
         }
       ]
+    },
+    {
+      id: "glossary",
+      label: "Glossary",
+      icon: "📖",
+      sections: [
+        {
+          heading: "Core concepts",
+          bullets: [
+            ["Project", "An end-to-end stitching effort: a pattern + progress + history. What you open and stitch."],
+            ["Pattern", "The chart/design itself. Lives inside a Project, or as a stand-alone entry in the Stash Manager library."],
+            ["Stash", "Your physical thread collection (DMC + Anchor). Tracked in the Stash Manager."],
+            ["Skein", "One physical bundle of thread (315 inches by default)."],
+            ["Active project", "The single project currently open in the Tracker (autosaves apply to this slot)."]
+          ]
+        },
+        {
+          heading: "Save vs. Download vs. Export",
+          bullets: [
+            ["Save", "Write to the app's internal storage (no file appears). Used for autosave and pattern edits."],
+            ["Download", "Write a file to your device (e.g. backup, JSON project)."],
+            ["Export", "Generate a share-ready artefact (PDF chart, OXS)."],
+            ["Open / Import", "Read from a file or URL into the app."],
+            ["Sync (folder)", "Optional incremental writes to a chosen folder for cross-device sync."]
+          ]
+        },
+        {
+          heading: "Surface names",
+          bullets: [
+            ["Pattern Creator", "The page where you generate and edit a pattern from an image."],
+            ["Stitch Tracker", "The page where you mark stitches done and log time."],
+            ["Stash Manager", "The page where you track threads and the pattern library."]
+          ]
+        },
+        {
+          heading: "Naming conventions",
+          body: "British spellings throughout (colour, organiser, favourite). Brand names always capitalised: DMC, Anchor.",
+          bullets: [
+            ["Use \"Stash\"", "Not \"Inventory\"."],
+            ["Use \"Project\" vs. \"Pattern\"", "Project = the whole thing you stitch. Pattern = the chart only."],
+            ["Use \"Download\" for files", "And \"Save\" for in-app autosave."]
+          ]
+        }
+      ]
     }
   ];
 
@@ -164,6 +208,19 @@
 
     var topics = HELP_TOPICS;
     var current = topics.find(function (t) { return t.id === tab; }) || topics[0];
+
+    // Determine which page we're on for the "Show welcome tour again" button.
+    // Falls back to defaultTab so each app gets its own welcome regardless of
+    // which tab the user is reading.
+    var welcomePage = props.welcomePage || defaultTab;
+    var canShowWelcome = !!(window.WelcomeWizard && window.WelcomeWizard.STEPS && window.WelcomeWizard.STEPS[welcomePage]);
+    function handleReplayWelcome() {
+      if (!canShowWelcome) return;
+      try { window.WelcomeWizard.reset(welcomePage); } catch (_) {}
+      // Fire a CustomEvent so the page-level app can re-mount its WelcomeWizard.
+      try { window.dispatchEvent(new CustomEvent("cs:showWelcome", { detail: { page: welcomePage } })); } catch (_) {}
+      if (typeof props.onClose === "function") props.onClose();
+    }
 
     // Search filter — when the user types, ignore tabs and surface a flat
     // list of matching sections across all topics.
@@ -259,7 +316,27 @@
               h("div", { style: { flex: 1, padding: "16px 20px", overflowY: "auto" } },
                 current.sections.map(renderSection)
               )
-            )
+            ),
+
+        // Footer with "Show welcome tour again" — only when a wizard exists
+        // for the current page (Creator/Manager/Tracker).
+        canShowWelcome && h("div", {
+          style: {
+            padding: "10px 20px", borderTop: "1px solid #e2e8f0",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            background: "#fafafa", flexShrink: 0
+          }
+        },
+          h("span", { style: { fontSize: 12, color: "#64748b" } }, "Need a refresher?"),
+          h("button", {
+            onClick: handleReplayWelcome,
+            style: {
+              padding: "6px 12px", fontSize: 12, borderRadius: 6,
+              border: "1px solid #99f6e4", background: "#fff", color: "#0d9488",
+              cursor: "pointer", fontWeight: 600, fontFamily: "inherit"
+            }
+          }, "Show welcome tour again")
+        )
       )
     );
   }

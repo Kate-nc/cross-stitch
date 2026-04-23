@@ -81,4 +81,27 @@
   useEscape._reset = function () { _stack = []; };
 
   window.useEscape = useEscape;
+
+  // ─── Global "?" shortcut → dispatch cs:openHelp ──────────────────────────
+  // Pressing "?" anywhere outside a text field dispatches a window CustomEvent
+  // 'cs:openHelp' that page-level apps listen for to open their Help modal.
+  // We do this via a lightweight document-level listener installed once.
+  var _helpInstalled = false;
+  function installHelpShortcut() {
+    if (_helpInstalled) return;
+    _helpInstalled = true;
+    document.addEventListener("keydown", function (e) {
+      // "?" on most layouts is Shift+/; e.key === '?' is the reliable signal.
+      if (e.key !== "?") return;
+      if (isTextInputFocused()) return;
+      // Don't fire when modifier-with-letter combos use ? as part of a chord.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      try {
+        window.dispatchEvent(new CustomEvent("cs:openHelp"));
+        e.preventDefault();
+        e.stopPropagation();
+      } catch (_) { /* ignore */ }
+    }, true);
+  }
+  if (typeof document !== "undefined") installHelpShortcut();
 })();
