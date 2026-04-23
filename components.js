@@ -1,3 +1,6 @@
+function calculateTooltipPosition(x, width){
+  return Math.max(width/2+8,Math.min(x,window.innerWidth-width/2-8));
+}
 function Tooltip({text,children,width=180}){
   const[show,setShow]=React.useState(false);
   const[pos,setPos]=React.useState({x:0,y:0});
@@ -16,7 +19,7 @@ function Tooltip({text,children,width=180}){
     children,
     show&&ReactDOM.createPortal(
       React.createElement("div",{style:{
-        position:"fixed",left:Math.max(width/2+8,Math.min(pos.x,window.innerWidth-width/2-8)),top:pos.y-10,
+        position:"fixed",left:calculateTooltipPosition(pos.x,width),top:pos.y-10,
         transform:"translate(-50%,-100%)",
         background:"#1e293b",color:"#fff",fontSize:11,lineHeight:"1.45",
         padding:"6px 10px",borderRadius:7,maxWidth:width,width:"max-content",

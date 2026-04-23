@@ -8,12 +8,6 @@ const PDF_MODAL_SELECT_STYLE={padding:"6px 8px",borderRadius:6,border:"1px solid
 const PDF_MODAL_CHECKBOX_LABEL_STYLE={fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"};
 const PDF_MODAL_EXPORT_BTN_STYLE={flex:1,padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer"};
 
-function uint8ToBase64(bytes){
-  var CHUNK=0x8000,out='';
-  for(var i=0;i<bytes.length;i+=CHUNK)out+=String.fromCharCode.apply(null,bytes.subarray(i,i+CHUNK));
-  return btoa(out);
-}
-
 // Standalone realistic preview modal for the tracker.
 // Adapted from creator/RealisticCanvas.js — no CreatorContext required.
 function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClose}){
@@ -56,8 +50,8 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
         oc.fillStyle=weavePattern||("rgb("+FR+","+FG+","+FB+")");
         oc.fillRect(0,0,canvasW,canvasH);
       }
-      var SC;var fc=fabricCt||14;
-      if(fc<=11){SC=3;}else if(fc<=17){SC=2;}else{SC=1;}
+      var fc=fabricCt||14;
+      var SC=fc<=11?3:(fc<=17?2:1);
       function _lerp(a,b,t){return a+(b-a)*t;}
       function _clamp01(v){return v<0?0:v>1?1:v;}
       var autoCoverage=_clamp01(_clamp01((fc-8)/24)*(SC/2));
@@ -419,14 +413,18 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
 }
 
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
-const[sW,setSW]=useState(80),[sH,setSH]=useState(80);
-const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null);
+const[sW,setSW]=useState(80);
+const[sH,setSH]=useState(80);
+const[pat,setPat]=useState(null);
+const[pal,setPal]=useState(null);
+const[cmap,setCmap]=useState(null);
 const incomingProjectRef=useRef(incomingProject);
 const[fabricCt,setFabricCt]=useState(14);
 const[skeinPrice,setSkeinPrice]=useState(DEFAULT_SKEIN_PRICE);
 const[stitchSpeed,setStitchSpeed]=useState(40);
 
-const[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
+const[loadError,setLoadError]=useState(null);
+const[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
 // Generic Tracker welcome — fires once on first visit, before the existing
 // StitchingStyleOnboarding (which is domain-specific).
@@ -545,7 +543,9 @@ const inactivityTimerRef = useRef(null);
 const inactivityPausedRef = useRef(false);
 const inactivityPauseTimeRef = useRef(null);
 
-const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
+const[stitchMode,setStitchMode]=useState("track");
+const[stitchView,setStitchView]=useState("symbol");
+const[stitchZoom,setStitchZoom]=useState(1);
 useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
 const[isEditMode,setIsEditMode]=useState(false);
 const[originalPaletteState,setOriginalPaletteState]=useState(null);
@@ -559,7 +559,8 @@ const[cellEditPopover,setCellEditPopover]=useState(null);
 const[sessionStartSnapshot,setSessionStartSnapshot]=useState(null);
 const[editModalColor,setEditModalColor]=useState(null);
 const[showExitEditModal,setShowExitEditModal]=useState(false);
-const[drawer,setDrawer]=useState(false),[focusColour,setFocusColour]=useState(null);
+const[drawer,setDrawer]=useState(false);
+const[focusColour,setFocusColour]=useState(null);
 const[showNavHelp,setShowNavHelp]=useState(false);
 const[highlightSkipDone,setHighlightSkipDone]=useState(true);
 const[onlyStarted,setOnlyStarted]=useState(false);
@@ -633,7 +634,8 @@ const[sessionGoalInput,setSessionGoalInput]=useState("");
 const[sessionSummaryData,setSessionSummaryData]=useState(null);
 const focusOverlayCanvasRef=useRef(null);
 const breadcrumbCanvasRef=useRef(null);
-const[hlRow,setHlRow]=useState(-1),[hlCol,setHlCol]=useState(-1);
+const[hlRow,setHlRow]=useState(-1);
+const[hlCol,setHlCol]=useState(-1);
 const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
 const scrollRafRef=useRef(null);
@@ -1088,7 +1090,7 @@ useEffect(()=>{
             date:lastSnapshotDateRef.current,
             label:'auto',
             doneCount:curDone,
-            data:uint8ToBase64(pako.deflate(done))
+            data:(function(b){var C=0x8000,o='';for(var i=0;i<b.length;i+=C)o+=String.fromCharCode.apply(null,b.subarray(i,i+C));return btoa(o);})(pako.deflate(done))
           };
           setDoneSnapshots(prev=>{
             const updated=[...prev,snapshot];
@@ -3172,7 +3174,7 @@ useEffect(()=>{
     const nbx=bx+dx,nby=by+dy;
     if(nbx<0||nbx>=bCols||nby<0||nby>=bRows)continue;
     let op=0.54; // default: raises from 6% to ~40%
-    if(stitchingStyle==="royal"){if(dx===0&&dy===1)op=0.88;else if(dx===1&&dy===0)op=0.81;else op=0.31;}
+    if(stitchingStyle==="royal"){const ROYAL_OP={"0,1":0.88,"1,0":0.81};op=ROYAL_OP[dx+","+dy]??0.31;}
     ctx.globalAlpha=op;ctx.fillStyle="black";
     const nx=G+nbx*blockW*scs,ny=G+nby*blockH*scs;
     const nw=Math.min(blockW,sW-nbx*blockW)*scs,nh=Math.min(blockH,sH-nby*blockH)*scs;

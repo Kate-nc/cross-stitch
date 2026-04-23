@@ -420,7 +420,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("input", {
           type:"text", value: app.projectName || "", maxLength:60,
           placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
-          onChange: function(e) { app.setProjectName(e.target.value.slice(0,60)); },
+          onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
           style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),
@@ -429,7 +429,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("input", {
           type:"text", value: app.projectDesigner || "", maxLength:80,
           placeholder: "Your name or studio",
-          onChange: function(e) { app.setProjectDesigner(e.target.value.slice(0,80)); },
+          onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
           style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),
@@ -438,7 +438,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("textarea", {
           value: app.projectDescription || "", maxLength:500, rows:3,
           placeholder: "Source, copyright, stitching notes\u2026",
-          onChange: function(e) { app.setProjectDescription(e.target.value.slice(0,500)); },
+          onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
           style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
         })
       )

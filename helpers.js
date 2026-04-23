@@ -572,14 +572,19 @@ function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useA
   };
 }
 
+// Shared helper: filter sessions by a date matcher and sum netStitches.
+function filterSessionsByDateRange(sessions, matcher) {
+  return (sessions || []).filter(matcher).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+}
+
 function getStatsTodayStitches(sessions, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
-  return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+  return filterSessionsByDateRange(sessions, function(s) { return s.date === today; });
 }
 
 function getStatsTodaySeconds(sessions, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
-  return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + getSessionSeconds(s); }, 0);
+  return (sessions || []).filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + getSessionSeconds(s); }, 0);
 }
 
 function getStatsThisWeekStitches(sessions, dayEndHour) {
@@ -590,13 +595,13 @@ function getStatsThisWeekStitches(sessions, dayEndHour) {
   var monday = new Date(today);
   monday.setDate(today.getDate() - mondayOffset);
   var mondayStr = formatLocalDateYYYYMMDD(monday);
-  return (sessions || []).filter(function(s) { return s.date >= mondayStr; }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+  return filterSessionsByDateRange(sessions, function(s) { return s.date >= mondayStr; });
 }
 
 function getStatsThisMonthStitches(sessions, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
   var monthPrefix = today.slice(0, 7);
-  return (sessions || []).filter(function(s) { return s.date && s.date.startsWith(monthPrefix); }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+  return filterSessionsByDateRange(sessions, function(s) { return s.date && s.date.startsWith(monthPrefix); });
 }
 
 function groupSessionsByDate(sessions) {
