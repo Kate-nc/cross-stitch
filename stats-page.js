@@ -783,13 +783,14 @@ function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
 
 // ── Main StatsPage component ─────────────────────────────────────
 function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
-  // Tab: 'stitching' | 'stash' | 'showcase' | 'activity'
+  // Tab: 'stitching' | 'stash' | 'showcase' | 'activity' | 'insights'
   const initialTab = useMemo(() => {
     const p = new URLSearchParams(window.location.search);
     const t = p.get('tab');
     if (t === 'stash') return 'stash';
     if (t === 'showcase') return 'showcase';
     if (t === 'activity') return 'activity';
+    if (t === 'insights') return 'insights';
     return 'stitching';
   }, []);
   const [tab, setTab] = useState(initialTab);
@@ -808,6 +809,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const [showShareCard, setShowShareCard] = useState(false);
   const [dismissedDupes, setDismissedDupes] = useState(loadDismissedDuplicates);
   const [activityLoaded, setActivityLoaded] = useState(() => typeof window.StatsActivity === 'function');
+  const [insightsLoaded, setInsightsLoaded] = useState(() => typeof window.StatsInsights === 'function');
   const [neverUsedData, setNeverUsedData] = useState(null);
   const [patternSourceData, setPatternSourceData] = useState(null);
 
@@ -1017,6 +1019,16 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     return () => clearInterval(timer);
   }, [tab, activityLoaded]);
 
+  // Lazy-load StatsInsights when insights tab is first selected (Brief E)
+  useEffect(() => {
+    if (tab !== 'insights' || insightsLoaded) return;
+    if (typeof window.loadStatsInsights === 'function') window.loadStatsInsights();
+    const timer = setInterval(() => {
+      if (typeof window.StatsInsights === 'function') { clearInterval(timer); setInsightsLoaded(true); }
+    }, 50);
+    return () => clearInterval(timer);
+  }, [tab, insightsLoaded]);
+
   // Parse URL params for highlighting
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const highlightSection = urlParams.get('highlight');
@@ -1184,9 +1196,23 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       h('button', { className: 'gsd-tab' + (tab === 'stitching' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stitching') }, 'Stitching'),
       h('button', { className: 'gsd-tab' + (tab === 'stash' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stash') }, 'Stash'),
       h('button', { className: 'gsd-tab' + (tab === 'showcase' ? ' gsd-tab--on' : ''), onClick: () => switchTab('showcase') }, '\u2736 Showcase'),
-      h('button', { className: 'gsd-tab' + (tab === 'activity' ? ' gsd-tab--on' : ''), onClick: () => switchTab('activity') }, '\u25ce Activity')
+      h('button', { className: 'gsd-tab' + (tab === 'activity' ? ' gsd-tab--on' : ''), onClick: () => switchTab('activity') }, '\u25ce Activity'),
+      h('button', { className: 'gsd-tab' + (tab === 'insights' ? ' gsd-tab--on' : ''), onClick: () => switchTab('insights') }, '\u2728 Insights')
     )
   );
+
+  // ── Insights tab (Brief E) ────────────────────────────────────
+  if (tab === 'insights') {
+    if (!insightsLoaded) {
+      return h('div', null, tabBar,
+        h('div', { style: { padding: '60px 0', textAlign: 'center', color: 'var(--text-tertiary)' } },
+          h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
+          'Loading insights\u2026'
+        )
+      );
+    }
+    return h('div', { className: 'gsd' }, tabBar, h(window.StatsInsights, null));
+  }
 
   // ── Activity tab ──────────────────────────────────────────────
   if (tab === 'activity') {
