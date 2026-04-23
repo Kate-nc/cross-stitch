@@ -28,17 +28,6 @@
 <body>
 <div id="root"></div>
 <script type="text/babel" src="embroidery.js"></script>
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
-        .then(reg => {
-          console.log('SW registered, scope:', reg.scope);
-          setInterval(() => { reg.update().catch(() => {}); }, 60 * 60 * 1000);
-        })
-        .catch(err => console.error('SW registration failed:', err));
-    });
-  }
-</script>
+<script src="./sw-register.js"></script>
 </body>
 </html>

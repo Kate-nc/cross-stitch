@@ -32,6 +32,7 @@ var PRECACHE_URLS = [
   './home-screen.js',
   './palette-swap.js',
   './user-prefs.js',
+  './sw-register.js',
 
   // Creator app bundle (compiled from creator/ sub-components)
   './creator/bundle.js',
@@ -133,9 +134,10 @@ self.addEventListener('fetch', function (event) {
         return fetch(event.request).then(function (response) {
           if (response.ok && event.request.method === 'GET') {
             var clone = response.clone();
-            caches.open(CACHE_NAME).then(function (cache) {
-              cache.put(event.request, clone);
+            var cacheWrite = caches.open(CACHE_NAME).then(function (cache) {
+              return cache.put(event.request, clone);
             });
+            event.waitUntil(cacheWrite);
           }
           return response;
         });
@@ -149,22 +151,25 @@ self.addEventListener('fetch', function (event) {
   if (isLocalAsset) {
     // Don't intercept the service worker script itself — let the browser handle
     // it normally so updates aren't masked by Cache Storage.
-    if (url.pathname.endsWith('/sw.js') || url.pathname === '/sw.js') return;
+    if (url.pathname.endsWith('/sw.js')) return;
 
     event.respondWith(
       caches.open(CACHE_NAME).then(function (cache) {
         return cache.match(event.request).then(function (cached) {
-          var networkFetch = fetch(event.request).then(function (response) {
+          var revalidationPromise = fetch(event.request).then(function (response) {
             if (response.ok && event.request.method === 'GET') {
-              cache.put(event.request, response.clone());
+              return cache.put(event.request, response.clone()).then(function () {
+                return response;
+              });
             }
             return response;
           }).catch(function () {
             return cached || new Response('', { status: 503, statusText: 'Offline' });
           });
+          event.waitUntil(revalidationPromise);
           // Serve cached copy immediately if present (fast), refresh in background.
           // If not cached, wait for the network.
-          return cached || networkFetch;
+          return cached || revalidationPromise;
         });
       })
     );
