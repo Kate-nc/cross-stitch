@@ -367,12 +367,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               className: 'tb-page-dropdown-item',
               onClick: () => { onExportPDF(); setFileMenuOpen(false); }
             }, 'Export PDF…'),
-            // Bulk Add Threads — quick access to the same modal as the Stash Manager.
-            onBulkAddThreads && React.createElement('button', {
-              className: 'tb-page-dropdown-item',
-              onClick: () => { onBulkAddThreads(); setFileMenuOpen(false); },
-              title: 'Paste a list of DMC/Anchor IDs to add to your stash'
-            }, 'Bulk Add Threads…'),
+            // Phase 4: Bulk Add Threads moved to the Home dashboard's STASH panel
+            // and the Stash Manager — no longer surfaced in the File menu.
             // Separator before backup/restore
             !!(onNewProject || onOpen || onSave || ((page === 'creator' || page === 'editor') && onTrack) || onExportPDF) &&
               React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),

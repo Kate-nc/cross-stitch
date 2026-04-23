@@ -556,7 +556,7 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
   );
 }
 
-function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, onImportPattern, onOpenProject, onNavigateToStash, onOpenGlobalStats, onOpenShowcase }) {
+function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, onImportPattern, onOpenProject, onNavigateToStash, onBulkAddThreads, onOpenGlobalStats, onOpenShowcase }) {
   var h = React.createElement;
   var useState = React.useState;
   var useEffect = React.useEffect;
@@ -1202,6 +1202,44 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         stashAlerts.projectsNeedThread > 0 && (stashAlerts.projectsNeedThread + ' project' + (stashAlerts.projectsNeedThread !== 1 ? 's' : '') + ' need thread')
       ),
       h('button', { className: 'home-stash-alert-link', onClick: onNavigateToStash }, 'Open stash manager \u2192')
+    ),
+
+    // STASH panel — quick access to Bulk Add + the full Stash Manager.
+    // Phase 4: Bulk Add lives here instead of the Header File menu.
+    h('div', { className: 'home-panel stash-panel' },
+      h('div', { className: 'home-panel-header' }, 'STASH'),
+      h('div', { className: 'home-panel-body', style: { padding: 14, display: 'flex', flexDirection: 'column', gap: 10 } },
+        (function() {
+          var owned = 0, brands = {};
+          if (stash && typeof stash === 'object') {
+            Object.keys(stash).forEach(function(k) {
+              var v = stash[k];
+              if (!v || typeof v !== 'object') return;
+              if ((v.owned || 0) > 0) {
+                owned++;
+                var brand = (k.indexOf(':') > -1 ? k.split(':')[0] : 'dmc');
+                brands[brand] = true;
+              }
+            });
+          }
+          var brandCount = Object.keys(brands).length;
+          return h('div', { style: { fontSize: 13, color: '#475569' } },
+            h('strong', { style: { color: '#0f172a' } }, owned.toLocaleString() + ' threads owned'),
+            brandCount > 0 && h('span', { style: { color: '#94a3b8', marginLeft: 8 } }, '\u00B7 ' + brandCount + ' brand' + (brandCount === 1 ? '' : 's'))
+          );
+        })(),
+        h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+          onBulkAddThreads && h('button', {
+            onClick: onBulkAddThreads,
+            style: { padding: '8px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+            title: 'Paste a list of DMC/Anchor IDs to add to your stash'
+          }, '+ Bulk Add Threads'),
+          h('button', {
+            onClick: onNavigateToStash,
+            style: { padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer' }
+          }, 'Open Stash Manager \u2192')
+        )
+      )
     ),
 
     // Sync section

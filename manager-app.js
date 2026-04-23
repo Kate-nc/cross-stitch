@@ -966,6 +966,11 @@ function ManagerApp() {
                       return !((threads[k] || {}).owned > 0);
                     });
                     const isSel = selectedPatternsForList.has(pat.id);
+                    const total = pat.totalStitches || 0;
+                    const completed = pat.completedStitches || 0;
+                    const pct = total > 0 ? Math.round(completed / total * 100) : null;
+                    const pctBg = pct === null ? null : (pct >= 100 ? "#dcfce7" : pct > 0 ? "#dbeafe" : "#f1f5f9");
+                    const pctFg = pct === null ? null : (pct >= 100 ? "#15803d" : pct > 0 ? "#1d4ed8" : "#64748b");
                     return (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11 }}>
                         <label
@@ -981,6 +986,9 @@ function ManagerApp() {
                           />
                           Shopping list
                         </label>
+                        {pct !== null && (
+                          <span style={{ padding: "2px 8px", borderRadius: 12, background: pctBg, color: pctFg, fontWeight: 700 }} title={completed.toLocaleString() + " of " + total.toLocaleString() + " stitches"}>{pct}% stitched</span>
+                        )}
                         {reqThreads.length > 0 && (
                           missing.length === 0
                             ? <span style={{ padding: "2px 8px", borderRadius: 12, background: "#dcfce7", color: "#15803d", fontWeight: 700 }} title="All required threads are in your stash">✓ Fully kitted</span>

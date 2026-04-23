@@ -111,11 +111,21 @@
   // dismissal in localStorage under "cs_help_hint_dismissed". Pages mount
   // <window.HelpHintBanner /> once at the root of their tree.
   var HINT_KEY = "cs_help_hint_dismissed";
+  var HINT_DELAY_MS = 30000; // Show after ~30 s on first visit so it doesn't intrude immediately.
   function HelpHintBanner() {
-    var _v = React.useState(function () {
-      try { return !localStorage.getItem(HINT_KEY); } catch (_) { return false; }
-    });
+    var _v = React.useState(false);
     var visible = _v[0], setVisible = _v[1];
+    React.useEffect(function () {
+      var dismissed = false;
+      try { dismissed = !!localStorage.getItem(HINT_KEY); } catch (_) {}
+      if (dismissed) return;
+      var t = setTimeout(function () {
+        // Re-check at fire time in case another tab dismissed it.
+        try { if (localStorage.getItem(HINT_KEY)) return; } catch (_) {}
+        setVisible(true);
+      }, HINT_DELAY_MS);
+      return function () { clearTimeout(t); };
+    }, []);
     if (!visible) return null;
     function dismiss() {
       setVisible(false);

@@ -240,7 +240,8 @@ function StitchingStyleOnboarding({onDone,startCorner:initCorner}){
           <button className="modal-choice-btn" onClick={()=>{setStyle("crosscountry");setScreen(3);}}>One colour at a time</button>
           <button className="modal-choice-btn" onClick={()=>{setStyle("freestyle");setScreen(3);}}>I don't have a fixed method</button>
         </div>
-        <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>{try{localStorage.setItem("cs_styleOnboardingDone","1");}catch(_){}onDone(null);}}>Skip for now</button>
+        {/* Skip-for-now removed: Phase 4 requires an active selection so users
+            don't accidentally bypass the picker and lose the helpful defaults. */}
       </div>
     </div>
   );
@@ -4863,9 +4864,9 @@ return(
   </div>}
 
   {modal==="help"&&<SharedModals.Help defaultTab="tracker" onClose={()=>setModal(null)} />}
-  {welcomeOpen&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{page:"tracker",onClose:()=>{
+  {welcomeOpen&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{page:"tracker",lastStepLabel:"Pick a stitching style \u2192",onLastStep:()=>{ try{ if(!localStorage.getItem("cs_styleOnboardingDone")&&!localStorage.getItem("cs_stitchStyle")) setStyleOnboardingOpen(true); }catch(_){} },onClose:()=>{
     setWelcomeOpen(false);
-    // Chain into the style picker if the user hasn't picked a style yet.
+    // Skip-tour also chains into the style picker if not yet completed.
     try{ if(!localStorage.getItem("cs_styleOnboardingDone")&&!localStorage.getItem("cs_stitchStyle")) setStyleOnboardingOpen(true); }catch(_){}
   }})}
   {styleOnboardingOpen&&<StitchingStyleOnboarding startCorner={startCorner} onDone={result=>{

@@ -238,8 +238,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const state = useCreatorStateHook();
   const history = useEditHistoryHook(state);
   const canvas = useCanvasInteractionHook(state, history);
-  // Local state for the Bulk Add Threads modal launched from the File menu.
-  const [bulkAddOpen, setBulkAddOpen] = React.useState(false);
   const io = useProjectIOHook(state, history, {onSwitchToTrack});
   usePreviewHook(state);
   useKeyboardShortcutsHook(Object.assign({}, state, {isActive: isActive}), history, io);
@@ -659,13 +657,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData):null}
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}
-        onBulkAddThreads={typeof window.BulkAddModal!=='undefined'?()=>setBulkAddOpen(true):undefined}
         setModal={state.setModal}
         projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):undefined}
         onNameChange={state.pat&&state.pal?n=>state.setProjectName(n):undefined}
         showAutosaved={!!(state.pat&&state.pal)} />
       {state.preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>state.setPreferencesOpen(false)})}
-      {bulkAddOpen&&typeof window.BulkAddModal!=='undefined'&&React.createElement(window.BulkAddModal,{onClose:()=>setBulkAddOpen(false)})}
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
         onConfirm={name=>{state.setProjectName(name);state.setNamePromptOpen(false);io.doSaveProject(name);}}
@@ -1057,8 +1053,7 @@ function UnifiedApp(){
   return <>
     {mode==='home'&&<div>
       <Header page="home" tab="" onPageChange={()=>{}} setModal={setHomeModal}
-        onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setHomePrefsOpen(true):undefined}
-        onBulkAddThreads={typeof window.BulkAddModal!=='undefined'?()=>setHomeBulkAddOpen(true):undefined} />
+        onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setHomePrefsOpen(true):undefined} />
       {homePrefsOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>setHomePrefsOpen(false)})}
       {homeBulkAddOpen&&typeof window.BulkAddModal!=='undefined'&&React.createElement(window.BulkAddModal,{onClose:()=>setHomeBulkAddOpen(false)})}
       <HomeScreen
@@ -1069,6 +1064,7 @@ function UnifiedApp(){
         onImportPattern={handleHomeImportPattern}
         onOpenProject={handleHomeOpenProject}
         onNavigateToStash={handleHomeNavigateToStash}
+        onBulkAddThreads={typeof window.BulkAddModal!=='undefined'?()=>setHomeBulkAddOpen(true):undefined}
         onOpenGlobalStats={switchToStats}
         onOpenShowcase={switchToShowcase}
       />

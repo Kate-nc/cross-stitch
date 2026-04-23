@@ -3,11 +3,12 @@
 // Run: node build-creator-bundle.js
 // Outputs: creator/bundle.js
 //
-// After regenerating the bundle, users' browsers will serve the new file on the
-// next visit. Bump CREATOR_CACHE_KEY in index.html (e.g. babel_creator_v2) if
-// creator-main.js also needs refreshing (forces localStorage cache invalidation).
+// Phase 4: also auto-bumps CREATOR_CACHE_KEY in index.html based on the
+// content hash of bundle.js + creator-main.js, so users automatically get
+// fresh JS in their browsers without a manual version edit.
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const ORDER = [
   'context.js',
@@ -57,3 +58,34 @@ fs.writeFileSync(path.join('creator', 'bundle.js'), bundle, 'utf8');
 
 const kb = (bundle.length / 1024).toFixed(1);
 console.log(`creator/bundle.js written — ${bundle.length} bytes (${kb} KB), ${ORDER.length} files merged`);
+
+// Auto-bump CREATOR_CACHE_KEY in index.html so the in-browser babel cache for
+// creator-main.js invalidates whenever the bundle or creator-main.js change.
+try {
+  const indexPath = 'index.html';
+  const creatorMainPath = 'creator-main.js';
+  if (fs.existsSync(indexPath) && fs.existsSync(creatorMainPath)) {
+    const creatorMain = fs.readFileSync(creatorMainPath);
+    const hash = crypto.createHash('sha256')
+      .update(bundle)
+      .update(creatorMain)
+      .digest('hex')
+      .slice(0, 10);
+    const newKey = `babel_creator_${hash}`;
+    let html = fs.readFileSync(indexPath, 'utf8');
+    const re = /var\s+CREATOR_CACHE_KEY\s*=\s*['"][^'"]+['"]/;
+    if (re.test(html)) {
+      const updated = html.replace(re, `var CREATOR_CACHE_KEY = '${newKey}'`);
+      if (updated !== html) {
+        fs.writeFileSync(indexPath, updated, 'utf8');
+        console.log(`index.html CREATOR_CACHE_KEY → ${newKey}`);
+      } else {
+        console.log(`index.html CREATOR_CACHE_KEY unchanged (${newKey})`);
+      }
+    } else {
+      console.warn('index.html: CREATOR_CACHE_KEY declaration not found — skipped auto-bump');
+    }
+  }
+} catch (e) {
+  console.warn('Auto-bump of CREATOR_CACHE_KEY failed:', e.message);
+}

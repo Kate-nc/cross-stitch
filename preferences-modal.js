@@ -229,9 +229,27 @@
   function TutorialsPanel() {
     var _msg = useState(null);
     var msg = _msg[0], setMsg = _msg[1];
+    // Count per-pattern view-state preferences (cs_pview_*) — these are
+    // dismissible UI state that some users may want to clear in bulk.
+    function countPviewKeys() {
+      var n = 0;
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && k.indexOf("cs_pview_") === 0) n++;
+        }
+      } catch (_) {}
+      return n;
+    }
+    var _pv = useState(countPviewKeys); var pviewCount = _pv[0], setPviewCount = _pv[1];
+    var _hint = useState(function () {
+      try { return !!localStorage.getItem("cs_help_hint_dismissed"); } catch (_) { return false; }
+    });
+    var hintDismissed = _hint[0], setHintDismissed = _hint[1];
     function clearAll() {
       try { if (window.WelcomeWizard && window.WelcomeWizard.resetAll) window.WelcomeWizard.resetAll(); } catch (_) {}
       try { if (window.HelpHintBanner && window.HelpHintBanner.reset) window.HelpHintBanner.reset(); } catch (_) {}
+      setHintDismissed(false);
       setMsg("All tutorials reset. Refresh any open page to see the wizards again.");
     }
     function clearOne(page) {
@@ -239,8 +257,26 @@
       if (page === "tracker") { try { localStorage.removeItem("cs_styleOnboardingDone"); } catch (_) {} }
       setMsg("Reset the " + page + " tutorial. Reload " + (page === "creator" ? "the home page" : page === "manager" ? "the Stash Manager" : "the Stitch Tracker") + " to see it again.");
     }
+    function clearPviews() {
+      try {
+        var toDel = [];
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && k.indexOf("cs_pview_") === 0) toDel.push(k);
+        }
+        toDel.forEach(function (k) { localStorage.removeItem(k); });
+      } catch (_) {}
+      setPviewCount(0);
+      setMsg("Cleared per-pattern view preferences. Defaults will apply next time you open a pattern.");
+    }
+    function clearHint() {
+      try { if (window.HelpHintBanner && window.HelpHintBanner.reset) window.HelpHintBanner.reset(); } catch (_) {}
+      setHintDismissed(false);
+      setMsg("Help hint reset. It will reappear on your next visit.");
+    }
     var rowStyle = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f1f5f9" };
     var btn = { padding: "4px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", color: "#475569", fontFamily: "inherit" };
+    var btnDis = Object.assign({}, btn, { color: "#94a3b8", cursor: "not-allowed" });
     return h("div", null,
       h("h3", { style: sectionTitle }, "Restore tutorials"),
       h("p", { style: { margin: "0 0 12px", fontSize: 12, color: "#64748b" } },
@@ -256,6 +292,14 @@
       h("div", { style: rowStyle },
         h("span", null, "Stitch Tracker welcome + style picker"),
         h("button", { style: btn, onClick: function () { clearOne("tracker"); } }, "Reset")
+      ),
+      h("div", { style: rowStyle },
+        h("span", null, "Help-hint banner ", h("em", { style: { color: "#94a3b8", fontStyle: "normal", fontSize: 11 } }, hintDismissed ? "(dismissed)" : "(visible)")),
+        h("button", { style: hintDismissed ? btn : btnDis, disabled: !hintDismissed, onClick: clearHint }, "Reset")
+      ),
+      h("div", { style: rowStyle },
+        h("span", null, "Per-pattern view preferences ", h("em", { style: { color: "#94a3b8", fontStyle: "normal", fontSize: 11 } }, "(" + pviewCount + " saved)")),
+        h("button", { style: pviewCount > 0 ? btn : btnDis, disabled: pviewCount === 0, onClick: clearPviews }, "Clear")
       ),
       h("div", { style: { marginTop: 14 } },
         h("button", {

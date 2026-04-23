@@ -10,7 +10,9 @@
     "start": "node serve.js",
     "test": "jest",
     "test:e2e": "playwright test",
-    "lint:terminology": "node scripts/lint-terminology.js"
+    "lint:terminology": "node scripts/lint-terminology.js",
+    "build:creator": "node build-creator-bundle.js",
+    "prepare": "node scripts/install-hooks.js"
   },
   "jest": {
     "testPathIgnorePatterns": [

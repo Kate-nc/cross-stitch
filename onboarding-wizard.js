@@ -18,6 +18,17 @@
   if (typeof window === "undefined" || typeof React === "undefined") return;
   var h = React.createElement;
 
+  // Inject a small stylesheet once for visible-focus outlines on the wizard
+  // controls (a11y improvement so keyboard users can see where focus is).
+  try {
+    if (typeof document !== "undefined" && !document.getElementById("ob-wiz-styles")) {
+      var s = document.createElement("style");
+      s.id = "ob-wiz-styles";
+      s.textContent = ".onboarding-focusable:focus-visible{outline:3px solid #14b8a6;outline-offset:2px;border-radius:6px}";
+      document.head.appendChild(s);
+    }
+  } catch (_) {}
+
   // ─── Step content per page ───────────────────────────────────────────────
   var STEPS = {
     creator: [
@@ -123,9 +134,26 @@
     var clicked = _clicked[0], setClicked = _clicked[1];
     React.useEffect(function () { setClicked(false); }, [idx]);
 
+    // Focus-trap container ref + initial-focus management for a11y.
+    var contentRef = React.useRef(null);
+    var titleId = React.useMemo(function () { return "ob-title-" + Math.random().toString(36).slice(2, 8); }, []);
+
     function handleClose(skipFlag) {
       if (!skipFlag) markDone(page);
       if (typeof props.onClose === "function") props.onClose();
+    }
+
+    function handleLast() {
+      // Final-step button: mark done, then either chain into onLastStep
+      // (used by Tracker to launch StitchingStyleOnboarding seamlessly) or
+      // simply close.
+      markDone(page);
+      if (typeof props.onLastStep === "function") {
+        if (typeof props.onClose === "function") props.onClose();
+        props.onLastStep();
+      } else {
+        if (typeof props.onClose === "function") props.onClose();
+      }
     }
 
     if (window.useEscape) window.useEscape(function () { handleClose(false); });
@@ -133,6 +161,30 @@
     if (!steps.length) return null;
     var step = steps[Math.min(idx, steps.length - 1)];
     var isLast = idx >= steps.length - 1;
+    var lastLabel = isLast ? (props.lastStepLabel || "Get started") : null;
+
+    // Focus trap: keep Tab/Shift+Tab inside the popover. Set initial focus
+    // to the primary action when the step changes.
+    React.useEffect(function () {
+      var node = contentRef.current;
+      if (!node) return;
+      // Move focus to the primary action button on each step change.
+      var primary = node.querySelector("[data-ob-primary]") || node.querySelector("button");
+      if (primary && typeof primary.focus === "function") {
+        try { primary.focus({ preventScroll: true }); } catch (_) { primary.focus(); }
+      }
+      function trap(e) {
+        if (e.key !== "Tab") return;
+        var focusables = node.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
+        focusables = Array.prototype.filter.call(focusables, function (el) { return !el.disabled && el.offsetParent !== null; });
+        if (!focusables.length) return;
+        var first = focusables[0], last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+      node.addEventListener("keydown", trap);
+      return function () { node.removeEventListener("keydown", trap); };
+    }, [idx]);
 
     // Recompute anchor rect whenever the step (or viewport) changes.
     React.useEffect(function () {
@@ -202,10 +254,11 @@
       };
     }
 
+    var primaryDisabled = !!(step.requireClick && !clicked && !isLast);
     var children = [
-        h("button", { key: "close", className: "modal-close", onClick: function () { handleClose(false); }, "aria-label": "Close" }, "\u00d7"),
+        h("button", { key: "close", className: "modal-close onboarding-focusable", onClick: function () { handleClose(false); }, "aria-label": "Close" }, "\u00d7"),
         // Step indicator
-        h("div", { key: "ind", style: { display: "flex", gap: 6, marginBottom: 16 } },
+        h("div", { key: "ind", style: { display: "flex", gap: 6, marginBottom: 16 }, "aria-hidden": "true" },
           steps.map(function (_, i) {
             return h("div", {
               key: i,
@@ -217,56 +270,66 @@
             });
           })
         ),
-        h("h3", { key: "title", style: { margin: "0 0 10px 0", fontSize: 19, color: "#1e293b" } }, step.title),
-        h("p", { key: "body", style: { margin: "0 0 12px 0", fontSize: 14, lineHeight: 1.55, color: "#475569" } }, step.body),
-        step.tip && h("div", {
-          key: "tip",
-          style: {
-            padding: "8px 12px", background: "#f0fdfa", border: "1px solid #99f6e4",
-            borderRadius: 6, fontSize: 12, color: "#065f46", marginBottom: 12
-          }
-        }, h("strong", null, "Tip: "), step.tip),
+        // Live region — announces step title + body to screen readers on change.
+        h("div", { key: "live", "aria-live": "polite", "aria-atomic": "true" },
+          h("h3", { id: titleId, style: { margin: "0 0 10px 0", fontSize: 19, color: "#1e293b" } }, step.title),
+          h("p", { style: { margin: "0 0 12px 0", fontSize: 14, lineHeight: 1.55, color: "#475569" } }, step.body),
+          step.tip && h("div", {
+            style: {
+              padding: "8px 12px", background: "#f0fdfa", border: "1px solid #99f6e4",
+              borderRadius: 6, fontSize: 12, color: "#065f46", marginBottom: 12
+            }
+          }, h("strong", null, "Tip: "), step.tip)
+        ),
         h("div", { key: "nav", style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 } },
           h("button", {
             onClick: function () { handleClose(false); },
+            className: "onboarding-focusable",
             style: { padding: "6px 12px", fontSize: 12, color: "#64748b", background: "transparent", border: "none", cursor: "pointer" }
           }, "Skip tour"),
           h("div", { style: { display: "flex", gap: 8 } },
             idx > 0 && h("button", {
               onClick: function () { setIdx(idx - 1); },
+              className: "onboarding-focusable",
               style: { padding: "8px 14px", fontSize: 13, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", color: "#475569" }
             }, "Back"),
             h("button", {
-              onClick: function () { if (isLast) handleClose(false); else setIdx(idx + 1); },
-              disabled: !!(step.requireClick && !clicked && !isLast),
+              "data-ob-primary": true,
+              onClick: function () { if (isLast) handleLast(); else setIdx(idx + 1); },
+              disabled: primaryDisabled,
+              className: "onboarding-focusable",
               style: { padding: "8px 16px", fontSize: 13, borderRadius: 6, border: "none",
-                background: (step.requireClick && !clicked && !isLast) ? "#94a3b8" : "#0d9488",
-                color: "#fff", cursor: (step.requireClick && !clicked && !isLast) ? "not-allowed" : "pointer", fontWeight: 600 },
-              title: (step.requireClick && !clicked && !isLast) ? "Complete the highlighted action to continue" : ""
-            }, isLast ? "Get started" : (step.requireClick && !clicked ? "Waiting…" : "Next"))
+                background: primaryDisabled ? "#94a3b8" : "#0d9488",
+                color: "#fff", cursor: primaryDisabled ? "not-allowed" : "pointer", fontWeight: 600 },
+              title: primaryDisabled ? "Complete the highlighted action to continue" : ""
+            }, isLast ? lastLabel : (step.requireClick && !clicked ? "Waiting…" : "Next"))
           )
         )
     ];
+
+    var dialogProps = { role: "dialog", "aria-modal": "true", "aria-labelledby": titleId };
 
     if (anchor) {
       // Targeted popover: dim backdrop with a hole, place panel near anchor.
       return h("div", { className: "onboarding-targeted-overlay", style: { position: "fixed", inset: 0, zIndex: 5000 } },
         h("div", { style: arrowStyle }),
-        h("div", {
+        h("div", Object.assign({}, dialogProps, {
+          ref: contentRef,
           className: "modal-content onboarding-content",
           onClick: function (e) { e.stopPropagation(); },
           style: Object.assign({}, popoverStyle, { zIndex: 5001 })
-        }, children)
+        }), children)
       );
     }
 
     // Centred fallback.
     return h("div", { className: "modal-overlay", onClick: function () { handleClose(false); } },
-      h("div", {
+      h("div", Object.assign({}, dialogProps, {
+        ref: contentRef,
         className: "modal-content onboarding-content",
         onClick: function (e) { e.stopPropagation(); },
         style: Object.assign({}, popoverStyle, { maxWidth: 460, padding: 24 })
-      }, children)
+      }), children)
     );
   }
 
