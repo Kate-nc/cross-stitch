@@ -420,6 +420,74 @@ const[stitchSpeed,setStitchSpeed]=useState(40);
 
 const[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
+// ── Mobile: bottom action bar + colour quick-switcher state ──
+// `quickColourOpen` toggles a dedicated bottom drawer that lets the user pick
+// the focus colour with one tap. It's only used on touch / narrow viewports.
+const[quickColourOpen,setQuickColourOpen]=useState(false);
+// Tag the document body with `tracker-mobile` while the Tracker is mounted on a
+// touch / narrow viewport. CSS scopes the new bottom action bar and quick-
+// switcher drawer to this class so desktop layout is untouched.
+useEffect(()=>{
+  if(typeof window==='undefined'||!window.matchMedia)return;
+  const mql=window.matchMedia('(pointer: coarse), (max-width: 899px)');
+  const apply=()=>{document.body.classList.toggle('tracker-mobile',mql.matches);};
+  apply();
+  // Modern + legacy listener API
+  if(mql.addEventListener)mql.addEventListener('change',apply);
+  else if(mql.addListener)mql.addListener(apply);
+  return()=>{
+    document.body.classList.remove('tracker-mobile');
+    document.body.classList.remove('tracker-immersive');
+    if(mql.removeEventListener)mql.removeEventListener('change',apply);
+    else if(mql.removeListener)mql.removeListener(apply);
+  };
+},[]);
+// ── Mobile immersive mode ──
+// While actively scrolling the pattern, slide the topbar + toolbar off-screen
+// so the canvas can use almost the full viewport. On any upward scroll the
+// chrome reappears immediately. Only active on touch / narrow viewports.
+useEffect(()=>{
+  if(typeof window==='undefined'||!window.matchMedia)return;
+  const mql=window.matchMedia('(pointer: coarse), (max-width: 899px)');
+  if(!mql.matches)return;
+  // Canvas scroll container is created later — poll briefly until it exists.
+  let lastY=0,raf=0;
+  function handleScroll(target){
+    const y=target.scrollTop;
+    if(raf)return;
+    raf=requestAnimationFrame(()=>{
+      raf=0;
+      const goingDown=y>lastY;
+      if(goingDown&&y>50){document.body.classList.add('tracker-immersive');}
+      else if(!goingDown){document.body.classList.remove('tracker-immersive');}
+      lastY=y;
+    });
+  }
+  let attached=null;
+  function attach(){
+    const el=document.querySelector('.canvas-area');
+    if(!el)return false;
+    const fn=(e)=>handleScroll(e.target);
+    el.addEventListener('scroll',fn,{passive:true});
+    attached={el,fn};
+    return true;
+  }
+  // Try immediately and again after a short delay to let React mount.
+  if(!attach()){
+    const tries=[100,300,800,1500].map(d=>setTimeout(()=>{if(!attached)attach();},d));
+    return()=>{
+      tries.forEach(clearTimeout);
+      if(attached)attached.el.removeEventListener('scroll',attached.fn);
+      if(raf)cancelAnimationFrame(raf);
+      document.body.classList.remove('tracker-immersive');
+    };
+  }
+  return()=>{
+    if(attached)attached.el.removeEventListener('scroll',attached.fn);
+    if(raf)cancelAnimationFrame(raf);
+    document.body.classList.remove('tracker-immersive');
+  };
+},[]);
 // Generic Tracker welcome — fires once on first visit, before the existing
 // StitchingStyleOnboarding (which is domain-specific).
 const[welcomeOpen,setWelcomeOpen]=useState(()=>{try{return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('tracker'));}catch(_){return false;}});
@@ -4248,7 +4316,15 @@ return(
     </button>
   )}
 </div></div>
-{!isEditMode&&<div className="info-strip" aria-live="polite">
+{!isEditMode&&<div className="info-strip" aria-live="polite" onClick={()=>{
+  // Mobile-only: tapping the info strip opens the per-project stats view.
+  // On desktop the click is harmless because cursor:pointer is only set on
+  // touch / narrow viewports via CSS.
+  if(typeof window==='undefined'||!window.matchMedia)return;
+  if(!window.matchMedia('(pointer: coarse), (max-width: 899px)').matches)return;
+  setStatsTab(projectIdRef.current||'all');
+  setStatsView(true);
+}}>
   <div className="info-strip-bar">
     {progressPct>=100&&<div className="info-strip-fill info-strip-fill--done" style={{width:"100%"}}/>}
     {progressPct<100&&prevBarPct>0&&<div className="info-strip-fill" style={{width:prevBarPct+"%"}}/>}
@@ -4258,7 +4334,8 @@ return(
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
     {todayStitchesForBar>0&&<span className="info-strip-today-count">Today: {todayStitchesForBar}</span>}
     {liveAutoStitches>0&&<span className="info-strip-timer">{liveAutoIsPaused?"⏸":"⏱"} {fmtTime(liveAutoElapsed)}</span>}
-    {!isEditMode&&<button onClick={()=>{
+    {!isEditMode&&<button onClick={(e)=>{
+      e.stopPropagation();
       if(explicitSession){
         const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
         const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
@@ -4805,6 +4882,118 @@ return(
       </div>{/* end rp-tab-content */}
     </div>{/* end rpanel */}
   </div>{/* end cs-main */}
+  {/* ═══ MOBILE BOTTOM ACTION BAR ═══
+       Visibility scoped via CSS (`body.tracker-mobile`). Renders on every
+       page load but is `display:none` on desktop. Only shown in track mode. */}
+  {!isEditMode&&!statsView&&stitchMode==="track"&&(()=>{
+    const focusInfo=focusColour&&cmap?cmap[focusColour]:null;
+    const undoDisabled=!trackHistory.length;
+    return <>
+      <div className="tracker-action-bar" role="toolbar" aria-label="Stitch tracker actions">
+        <button
+          className={"colour-indicator"+(focusInfo?"":" colour-indicator--empty")}
+          onClick={()=>{
+            // If no focus colour yet, ensure highlight view is on so a pick is meaningful.
+            if(stitchView!=="highlight")setStitchView("highlight");
+            setQuickColourOpen(o=>!o);
+          }}
+          aria-label="Choose focus colour"
+          aria-expanded={quickColourOpen}
+        >
+          {focusInfo?<>
+            <span className="ci-sw" style={{background:`rgb(${focusInfo.rgb})`}}/>
+            <span className="ci-text">
+              <span className="ci-id">DMC {focusInfo.id}</span>
+              <span className="ci-name">{focusInfo.name||""}</span>
+            </span>
+            <span className="ci-chev">{quickColourOpen?"▼":"▲"}</span>
+          </>:<>
+            <span style={{display:"inline-flex",alignItems:"center",gap:8}}>
+              🎨 Pick a colour
+              <span className="ci-chev">{quickColourOpen?"▼":"▲"}</span>
+            </span>
+          </>}
+        </button>
+        <button
+          className="action-btn action-btn--undo"
+          onClick={undoTrack}
+          onContextMenu={e=>{e.preventDefault();if(redoStack.length)redoTrack();}}
+          disabled={undoDisabled}
+          aria-label="Undo last stitch"
+          title={undoDisabled?"Nothing to undo":"Tap to undo · Long-press for redo"}
+        >↩</button>
+        <button
+          className="action-btn action-btn--mark"
+          onClick={()=>{
+            // Mark/unmark the cell currently under the navigation crosshair if
+            // it's available. Otherwise, just centre the canvas hint.
+            if(done&&hlRow!=null&&hlCol!=null&&hlRow>=0&&hlRow<sH&&hlCol>=0&&hlCol<sW){
+              const idx=hlRow*sW+hlCol;
+              const cell=pat[idx];
+              if(cell&&cell.id!=="__skip__"&&cell.id!=="__empty__"){
+                if(isColourLocked&&isColourLocked()&&!fullStitchMatchesFocus(idx))return;
+                const nv=done[idx]?0:1;
+                const nd=new Uint8Array(done);
+                nd[idx]=nv;
+                pushTrackHistory([{idx,oldVal:done[idx]}]);
+                applyDoneCountsDelta([{idx,oldVal:done[idx]}],pat,nd);
+                setDone(nd);
+                drawCellDirectly(idx,nv);
+                return;
+              }
+            }
+            // No crosshair target → toast hint to use canvas tap.
+            try{if(window.Toast&&window.Toast.show)window.Toast.show("Tap a stitch on the canvas, or use Navigate mode to place a crosshair.");}catch(_){}
+          }}
+          aria-label="Mark stitch at crosshair"
+          title="Mark/unmark the stitch under the crosshair (Navigate mode)"
+        >✓</button>
+      </div>
+      {/* Colour quick-switcher backdrop + drawer */}
+      {quickColourOpen&&<div className="colour-quick-backdrop" onClick={()=>setQuickColourOpen(false)} aria-hidden="true"/>}
+      <div className={"colour-quick-drawer"+(quickColourOpen?" colour-quick-drawer--open":"")} role="dialog" aria-label="Choose focus colour" aria-hidden={!quickColourOpen}>
+        <div className="cqd-handle" onClick={()=>setQuickColourOpen(false)}>
+          <div className="rpanel-handle-bar"/>
+        </div>
+        <div className="cqd-grid">
+          {(()=>{
+            // Sort: incomplete first by stitches remaining (desc), completed last.
+            const sorted=[...pal].map(p=>{
+              const dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
+              const totalWithHalf=dc.total+dc.halfTotal*0.5;
+              const doneWithHalf=dc.done+dc.halfDone*0.5;
+              const remaining=Math.max(0,totalWithHalf-doneWithHalf);
+              const pct=totalWithHalf>0?Math.round(doneWithHalf/totalWithHalf*100):0;
+              const complete=remaining<=0&&totalWithHalf>0;
+              return{p,remaining,pct,complete};
+            });
+            sorted.sort((a,b)=>{
+              if(a.complete!==b.complete)return a.complete?1:-1;
+              return b.remaining-a.remaining;
+            });
+            return sorted.map(({p,pct,complete})=>{
+              const isFocused=focusColour===p.id;
+              return <button
+                key={p.id}
+                className={"cqd-tile"+(isFocused?" cqd-tile--on":"")+(complete?" cqd-tile--done":"")}
+                onClick={()=>{
+                  if(stitchView!=="highlight")setStitchView("highlight");
+                  setFocusColour(p.id);
+                  setQuickColourOpen(false);
+                }}
+                aria-label={"DMC "+p.id+(p.name?(" "+p.name):"")+", "+pct+" percent complete"}
+                aria-pressed={isFocused}
+              >
+                <span className="cqd-sw" style={{background:`rgb(${p.rgb})`}}/>
+                <span className="cqd-id">{p.id}</span>
+                <span className="cqd-pct">{pct}%</span>
+              </button>;
+            });
+          })()}
+        </div>
+      </div>
+    </>;
+  })()}
   </>}
 
   {importDialog==="image"&&importImage&&<div className="modal-overlay" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
