@@ -1,4 +1,6 @@
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
+// deepClone: prefer structuredClone (faster) with JSON fallback for older browsers.
+const deepClone=typeof structuredClone==='function'?structuredClone:(x)=>JSON.parse(JSON.stringify(x));
 
 // Hoisted module-scope constants (avoid per-render allocation).
 const START_CORNERS=[["TL","Top-left"],["TR","Top-right"],["C","Centre"],["BL","Bottom-left"],["BR","Bottom-right"]];
@@ -2094,8 +2096,8 @@ function handleSymbolReassignment(oldColorId, newThread) {
   if (!pat || !pal || !cmap) return;
 
   // 1. Snapshot for undo — V2 single-level undoSnapshot
-  const currentPalState = structuredClone(pal); // PERF (perf-6 #5): structuredClone > JSON round-trip
-  const currentThreadOwnedState = structuredClone(threadOwned); // PERF (perf-6 #5)
+  const currentPalState = deepClone(pal); // PERF (perf-6 #5): deepClone > JSON round-trip
+  const currentThreadOwnedState = deepClone(threadOwned); // PERF (perf-6 #5)
   setUndoSnapshot({ type:"bulk_reassignment", pal: currentPalState, threadOwned: currentThreadOwnedState, oldId: oldColorId, newId: newThread.id });
 
   // 2. Map grid values
@@ -2186,7 +2188,7 @@ function processLoadedProject(project){
   if (project.originalPaletteState) {
     setOriginalPaletteState(project.originalPaletteState);
   } else {
-    setOriginalPaletteState(structuredClone(newPal)); // PERF (perf-6 #5)
+    setOriginalPaletteState(deepClone(newPal)); // PERF (perf-6 #5)
   }
   // V2: restore sparse diff of single-stitch edits
   if (project.singleStitchEdits && project.singleStitchEdits.length > 0) {
@@ -4219,7 +4221,7 @@ return(
         <div className="tb-ovf-sep"/>
       </>}
       {!isEditMode&&<><button className="tb-ovf-item" style={{color:"#475569"}} onClick={()=>{
-        setSessionStartSnapshot({pat:[...pat],pal:structuredClone(pal),threadOwned:structuredClone(threadOwned),singleStitchEdits:new Map(singleStitchEdits)}); // PERF (perf-6 #5)
+        setSessionStartSnapshot({pat:[...pat],pal:deepClone(pal),threadOwned:deepClone(threadOwned),singleStitchEdits:new Map(singleStitchEdits)}); // PERF (perf-6 #5)
         setStitchMode("navigate");setFocusColour(null);setHoverInfo(null);setIsEditMode(true);setDrawer(true);setTOverflowOpen(false);
       }} title="Correct individual stitch colours — for imported patterns">Correct pattern colours…</button><div className="tb-ovf-sep"/></>
       }

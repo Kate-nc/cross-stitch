@@ -938,9 +938,11 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       try {
         const metas = await ProjectStorage.listProjects();
         const usedKeys = new Set();
-        // PERF (perf-5 #7): parallel fetch.
-        const fulls = await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
-        for (const proj of fulls) {
+        // Load projects sequentially to avoid retaining all large pattern arrays in
+        // memory at once (peak-memory concern on mobile / large libraries).
+        for (const m of metas) {
+          let proj = null;
+          try { proj = await ProjectStorage.get(m.id); } catch (_) { proj = null; }
           if (!proj || !proj.pattern) continue;
           if (proj.finishStatus === 'planned') continue;
           for (const cell of proj.pattern) {

@@ -7,6 +7,9 @@ const SyncEngine = (() => {
   const SYNC_FORMAT = "cross-stitch-sync";
   const SYNC_VERSION = 1;
 
+  // Prefer structuredClone (faster) but fall back to JSON round-trip for older browsers.
+  var _clone = typeof structuredClone === 'function' ? structuredClone : function(x) { return JSON.parse(JSON.stringify(x)); };
+
   // localStorage keys for sync state
   const LS_LAST_EXPORT = "cs_sync_lastExportAt";
   const LS_LAST_IMPORT = "cs_sync_lastImportAt";
@@ -394,10 +397,10 @@ const SyncEngine = (() => {
     var merged = Object.assign({}, local);
     // PERF (perf-6 #5): structuredClone is ~2-5x faster than JSON parse/stringify
     // for these merge buffers and avoids round-tripping through string form.
-    merged.halfDone = local.halfDone ? structuredClone(local.halfDone) : {};
-    merged.threadOwned = local.threadOwned ? structuredClone(local.threadOwned) : {};
-    merged.parkMarkers = local.parkMarkers ? structuredClone(local.parkMarkers) : [];
-    merged.achievedMilestones = local.achievedMilestones ? structuredClone(local.achievedMilestones) : [];
+    merged.halfDone = local.halfDone ? _clone(local.halfDone) : {};
+    merged.threadOwned = local.threadOwned ? _clone(local.threadOwned) : {};
+    merged.parkMarkers = local.parkMarkers ? _clone(local.parkMarkers) : [];
+    merged.achievedMilestones = local.achievedMilestones ? _clone(local.achievedMilestones) : [];
 
     // Merge done arrays (union — stitches completed on either device stay done)
     var patLen = (merged.pattern && merged.pattern.length) || 0;
@@ -629,7 +632,7 @@ const SyncEngine = (() => {
         await ProjectStorage.save(cEntry.remote.data);
       } else if (resolution === "keep-both") {
         // Keep local as-is; import remote as a new project via normal save logic
-        var remoteCopy = structuredClone(cEntry.remote.data); // PERF (perf-6 #5)
+        var remoteCopy = _clone(cEntry.remote.data); // PERF (perf-6 #5)
         delete remoteCopy.id;
         delete remoteCopy.createdAt;
         remoteCopy.name = (remoteCopy.name || "Untitled") + " (synced)";

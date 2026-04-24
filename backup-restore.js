@@ -76,12 +76,12 @@ const BackupRestore = (() => {
       // Build a binary string from the byte array, then base64-encode it.
       // Chunk to keep the String.fromCharCode call from blowing the stack on
       // very large patterns (~1 MB+ deflated).
-      let bin = '';
+      const binChunks = [];
       const CHUNK = 0x8000;
       for (let i = 0; i < bytes.length; i += CHUNK) {
-        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+        binChunks.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK)));
       }
-      const b64 = btoa(bin);
+      const b64 = btoa(binChunks.join(''));
       return { text: _BACKUP_MAGIC + b64, format: 'compressed', extension: 'csb' };
     } catch (err) {
       console.warn('Backup: compression failed, falling back to JSON', err);
@@ -116,6 +116,20 @@ const BackupRestore = (() => {
   return {
     serializeBackupFile,
     parseBackupText,
+    // Reads a File/Blob, parses (supports both .json and .csb), validates and restores.
+    async restoreBackup(file) {
+      if (!file) throw new Error("No backup file selected.");
+      const text = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error("Failed to read backup file."));
+        reader.readAsText(file);
+      });
+      const backup = parseBackupText(text);
+      const check = this.validate(backup);
+      if (!check.valid) throw new Error(check.error);
+      return this.restore(backup);
+    },
     // Creates a full backup JSON object
     async createBackup() {
       // Flush any in-flight React state to IndexedDB before reading
