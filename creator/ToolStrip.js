@@ -646,9 +646,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
   );
   var splitBtn = h("button", {
-    className: "tb-btn" + (app.splitPaneEnabled ? " tb-btn--on" : ""),
-    title: app.splitPaneEnabled ? "Exit split view (\\)" : "Split view: chart + preview (\\)",
-    "aria-label": app.splitPaneEnabled ? "Exit split view" : "Enter split view",
+    className: "tb-btn tb-btn--compare" + (app.splitPaneEnabled ? " tb-btn--on" : ""),
+    title: app.splitPaneEnabled
+      ? "Exit compare view (\\)"
+      : "Compare chart vs realistic preview (\\)",
+    "aria-label": app.splitPaneEnabled ? "Exit compare view" : "Compare chart vs realistic preview",
+    "aria-pressed": app.splitPaneEnabled ? "true" : "false",
     disabled: !(ctx.pat && ctx.pal),
     onClick: function() {
       var next = !app.splitPaneEnabled;
@@ -656,7 +659,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", next);
     },
     style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
-  }, svgSplit, !sc.bs ? " Split" : null);
+  }, svgSplit, !sc.bs ? " Compare" : null);
 
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},

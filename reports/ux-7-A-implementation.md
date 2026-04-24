@@ -360,3 +360,172 @@ user-facing UI).
 ### Test status
 
 - `npm test -- --runInBand`: 783 passed (up from 773 before A6).
+
+---
+
+## A7 — Compare button in toolstrip
+
+**Roadmap line:** C6 (preview discoverability).
+
+**Wireframe:** [reports/wireframes/a-creator-toolstrip.html](wireframes/a-creator-toolstrip.html)
+
+### What shipped
+
+- Re-labelled the existing split-view toolbar button in
+  [creator/ToolStrip.js](../creator/ToolStrip.js) from "Split" to
+  "Compare" so the affordance reads like the wireframe and matches the
+  user's mental model ("compare what I designed against what it'll
+  look like stitched up"). The icon (vertical-pair SVG) is unchanged
+  because it already conveys the split metaphor.
+- Tooltip now reads `Compare chart vs realistic preview (\)` (and
+  `Exit compare view (\)` when active), naming the keyboard shortcut
+  inline so the button doubles as a discovery surface for the `\` key.
+- Added `aria-pressed="true|false"` so screen readers announce the
+  toggle state. The `aria-label` mirrors the visible label.
+- New CSS hook `tb-btn--compare` is added but currently empty — kept
+  in the markup so a future polish PR can theme just this button
+  without touching the generic `.tb-btn` class.
+
+### Honesty notes
+
+- The roadmap mentioned a `⫴` glyph in the wireframe button copy. That
+  Unicode character is a vertical four-bar separator that renders
+  inconsistently across operating systems (Windows fonts substitute it
+  with a fallback box on most installs). The existing inline SVG
+  `svgSplit` icon is already the canonical split affordance in this
+  toolbar, so the button keeps that and adds only the new label.
+- Because the toolbar already had a working split-pane toggle wired to
+  the `\` shortcut, A7 collapsed to a label / tooltip / accessibility
+  refresh rather than new state plumbing. The keyboard shortcut path in
+  [creator/useKeyboardShortcuts.js](../creator/useKeyboardShortcuts.js)
+  is untouched and covered by the new test for regression safety.
+
+### Files touched
+
+- [creator/ToolStrip.js](../creator/ToolStrip.js) — relabel + tooltip +
+  aria attributes on the split-pane button.
+- [creator/bundle.js](../creator/bundle.js) — regenerated via
+  `node build-creator-bundle.js`.
+- [tests/toolstripCompare.test.js](../tests/toolstripCompare.test.js) —
+  6 source-content cases covering label, tooltip with shortcut,
+  aria-pressed wiring, click handler, UserPrefs persistence, and the
+  unchanged `\` shortcut behaviour.
+
+### Test status
+
+- `npm test -- --runInBand`: 789 passed (up from 783 before A7).
+
+---
+
+## User-test plan (manual QA for A1–A7)
+
+> Replaces the originally-planned two-week measurement gate. Run the
+> sequence below in a fresh browser profile (or after clearing
+> IndexedDB + `localStorage`) to exercise every ticket. Each step lists
+> the **action**, the **observed pass criterion**, and the **regression
+> guard** to spot-check while you're there. Run on at least one
+> desktop viewport (≥ 1280 wide) and one mobile viewport (≤ 480 wide).
+
+### Setup
+
+1. Run `npm test -- --runInBand` from the repo root and confirm 789
+   tests pass.
+2. Start `node serve.js`, browse to `http://localhost:8000/index.html`.
+3. Open DevTools → Application → Storage and **Clear site data** to
+   land on a true empty state.
+
+### A1 · Limit to stash warning + Substitute CTA
+
+- **Action:** Generate a new pattern from any image. In the right
+  sidebar tick **Limit to stash** when stash is empty.
+- **Pass:** Inline warning surfaces with text "Stash is empty —
+  every colour will be substituted" and the **Substitute from stash**
+  CTA opens the corresponding modal.
+- **Regression guard:** Untick the box and confirm the warning
+  disappears and the palette returns to the un-filtered set.
+
+### A2 · Edit-mode strip + Mark/Modify relabel
+
+- **Action:** In the Tracker, open any project and toggle **Edit
+  mode** on.
+- **Pass:** Bold red strip appears across the top of the canvas with
+  copy "Editing pattern — finish to keep stitching". Toolbar buttons
+  read "Modify" and "Mark" instead of "Edit" / "Stitch".
+- **Regression guard:** Untoggle Edit mode → strip disappears, button
+  copy reverts.
+
+### A3 · Resume recap modal
+
+- **Action:** Mark 20+ stitches in the Tracker, end the session via
+  the Pause button, close the project. Re-open the same project from
+  Home.
+- **Pass:** Modal appears titled "Welcome back to {project name}",
+  shows last-stitched-N-days-ago, three stat cards (count, time,
+  speed), and three actions: **Switch project**, **View stats**,
+  **Continue stitching** (autofocused).
+- **Regression guard:** Open another project on the same browser
+  session — the modal must not appear twice for the same project ID.
+
+### A4 · Touch-target floor + persistent saved tag
+
+- **Action:** Open Home on mobile viewport. Try tapping every button
+  on Home, the Tracker tab strip, the Manager tab strip, and the
+  Creator overflow menu.
+- **Pass:** Each interactive control measures ≥ 44 × 44 pt (use
+  DevTools "Inspect" → measure box). Project badge in the header
+  reads "All changes saved" with a check icon (no raw "✓" glyph).
+- **Regression guard:** Resize back to desktop — the badge still
+  reads "All changes saved" and uses the SVG check.
+
+### A5 · Sample row on empty Home
+
+- **Action:** With Site data cleared, land on Home. Click **Try a
+  sample pattern**.
+- **Pass:** Browser navigates to `stitch.html` with a 16 × 16 red
+  heart project ("Sample heart") loaded and ready to stitch. Mark a
+  few stitches, return to Home → the sample now shows in the project
+  list.
+- **Regression guard:** Click **Create from image** instead and
+  confirm the original first-run image upload still works.
+
+### A6 · Dashboard de-dup + emoji removal
+
+- **Action:** Create three projects, mark stitches in one of them so
+  it becomes the most recent. Open Home (multi-project dashboard
+  view).
+- **Pass:** The sticky Continue bar pins that project at the top.
+  The Suggestion card below either proposes a *different* project or
+  is hidden entirely. No emoji glyphs (🔥 💡 📊 ✦ ⚠) appear anywhere
+  on the page — every status indicator uses an SVG icon.
+- **Regression guard:** Open the global stats link, the Showcase
+  link, and the stash alert (force one with a low-thread project) —
+  each still works and shows its icon to the left of the label.
+
+### A7 · Compare button in toolstrip
+
+- **Action:** Open the Creator on a generated pattern. Locate the
+  **Compare** button in the toolbar (right cluster). Hover for the
+  tooltip; click it; press the `\` key.
+- **Pass:** Hover tooltip reads "Compare chart vs realistic preview
+  (\)". Click toggles split-pane on (button gains the
+  `tb-btn--on` style and `aria-pressed="true"`). Pressing `\`
+  toggles it off again. Screen reader announces "Compare chart vs
+  realistic preview, toggle button, pressed/not pressed".
+- **Regression guard:** Resize the canvas pane below 560 px — the
+  split layout switches to stacked mode (the existing SplitPane
+  narrow branch). Toggle off and confirm the chart canvas returns to
+  full width.
+
+### Cross-page regression sweep
+
+After running A1–A7, do a quick sweep of the three HTML entry points:
+
+- `index.html` (Creator) — generate, save, export to PNG.
+- `stitch.html` (Tracker) — open the sample heart, mark all stitches,
+  hit "Mark complete", verify completion confetti is icon-based (no
+  emoji 🎉).
+- `manager.html` (Stash Manager) — add a thread to stash, then revisit
+  the Tracker and confirm "Threads needed" updates.
+
+If any step fails, capture the browser console + IndexedDB dump and
+file an issue against the corresponding ticket.
