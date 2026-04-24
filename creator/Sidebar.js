@@ -547,7 +547,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             style:{flex:1,padding:"4px 8px",fontSize:12,borderRadius:6,border:"0.5px solid #e2e8f0",fontFamily:"inherit"}
           }),
           (function(){
-            var dmc = !!findThreadInCatalog('dmc', qaVal.trim());
+            var dmc = findThreadInCatalog('dmc', qaVal.trim());
             return dmc ? h(Tooltip, {text:"DMC " + dmc.id + " \u2014 " + dmc.name, width:160},
               h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
             ) : null;

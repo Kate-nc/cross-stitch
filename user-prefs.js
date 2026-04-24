@@ -110,12 +110,6 @@
     autoLibraryLink:        true,
     appAccentColour:        "#0d9488",
 
-    // ─── Preview hidden defaults (existing programmatic prefs) ──────────
-    preferredMockupType:    "hoop",
-    preferredHoopStyle:     "light-maple",
-    preferredFrameStyle:    "slim-black",
-    preferredMountColour:   "#FFFFFF",
-
     // ─── Advanced ───────────────────────────────────────────────────────
     commandPaletteHotkey:     "ctrl+k",         // ctrl+k | ctrl+/ | off
     flagExperimentalPreview:  false,

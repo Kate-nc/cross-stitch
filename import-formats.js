@@ -71,7 +71,7 @@ function _oxsExtractDimension(doc, chart, sizeEls, attrPair) {
       if (value) break;
     }
   }
-  const parsed = parseInt(value);
+  const parsed = parseInt(value, 10);
   if (isNaN(parsed) || parsed <= 0) return null;
   if (parsed > 5000) return { tooLarge: true, value: parsed };
   return { value: parsed };
