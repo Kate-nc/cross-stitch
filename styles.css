@@ -3643,32 +3643,111 @@ html.pref-dark a { color: #5eead4; }
 /* B4 — Materials hub + Manager shopping */
 .materials-hub { display:flex; flex-direction:column; min-height:300px; }
 
-/* fix-3.2 — sub-tab strip differentiation. Strip is indented inside a soft
-   surface band with a small "View:" leading label so it doesn't read as a
-   second top-level navigation row. */
+/* C4 — sub-tab strip nests visually under the parent Sidebar tab strip:
+   - inset wrap with surface-2 fill and a 2px accent left border
+   - "View:" caption + breadcrumb micro-label sit above the pill rail
+   - pills are outline-style at rest, accent-filled when active, so they
+     read as "filter" rather than "page". */
 .mh-subtabs-wrap {
-  display:flex; align-items:center; gap:8px;
-  padding:6px 10px 6px 16px;
+  display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+  padding:8px 12px 8px 22px;
   background:var(--surface-2, #f1f5f9);
   border-bottom:1px solid var(--border);
+  border-left:2px solid color-mix(in srgb, var(--accent) 35%, transparent);
   flex-shrink:0;
   position:relative;
 }
+.mh-breadcrumb {
+  flex-basis:100%;
+  display:flex; align-items:center; gap:4px;
+  font-size:11px; line-height:1.2;
+  color:var(--text-tertiary);
+  min-width:0;
+  margin-bottom:2px;
+}
+.mh-breadcrumb-root {
+  font-weight:500;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  max-width:60%;
+}
+.mh-breadcrumb-sep {
+  display:inline-flex; align-items:center;
+  font-size:10px; color:var(--text-tertiary); opacity:0.7;
+  flex-shrink:0;
+}
+.mh-breadcrumb-current {
+  font-weight:600; color:var(--text-primary);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  flex:0 1 auto;
+}
 .mh-subtabs-label {
   display:inline-flex; align-items:center; gap:4px;
-  font-size:11px; font-weight:600; text-transform:uppercase;
-  letter-spacing:0.4px; color:var(--text-tertiary);
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:0.6px; color:var(--text-tertiary);
   flex-shrink:0; padding-right:4px;
 }
 .mh-subtabs-label-icon { display:inline-flex; align-items:center; }
-.mh-subtabs { display:flex; gap:4px; flex:1; min-width:0; }
-.mh-subtab { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; min-height:36px; font-size:12px; font-weight:500; color:var(--text-secondary); background:transparent; border:none; border-radius:8px; cursor:pointer; font-family:inherit; transition:background 0.12s, color 0.12s; }
-.mh-subtab:hover { background:var(--surface-tertiary); color:var(--text-primary); }
-.mh-subtab.on { background:var(--accent); color:#fff; font-weight:600; }
+.mh-subtabs { display:flex; gap:6px; flex:1; min-width:0; }
+.mh-subtab {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 12px; min-height:32px;
+  font-size:11.5px; font-weight:500;
+  color:var(--text-secondary);
+  background:transparent;
+  border:1px solid var(--border);
+  border-radius:999px;
+  cursor:pointer; font-family:inherit;
+  transition:background 0.12s, color 0.12s, border-color 0.12s;
+}
+.mh-subtab:hover { background:var(--surface-tertiary); color:var(--text-primary); border-color:var(--text-tertiary); }
+.mh-subtab.on {
+  background:var(--accent);
+  color:#fff;
+  font-weight:550;
+  border-color:var(--accent);
+}
+.mh-subtab:focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
 .mh-subtab-icon { display:inline-flex; align-items:center; }
-.mh-body { flex:1; overflow-y:auto; padding:14px 16px; }
+.mh-body {
+  flex:1; overflow-y:auto;
+  padding:14px 16px;
+  background:var(--surface-1, #fff);
+  border-radius:0 0 12px 12px;
+}
 .mh-shopping-list { border:1px solid var(--border); border-radius:8px; overflow:hidden; }
 .mh-shopping-row:last-child { border-bottom:none !important; }
+
+/* C4 — shared empty-state layout (centred icon + headline + body + action). */
+.mh-empty {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; gap:8px;
+  padding:32px 16px;
+  color:var(--text-secondary);
+}
+.mh-empty-icon {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:32px; height:32px; font-size:32px;
+  color:var(--text-tertiary);
+  margin-bottom:4px;
+}
+.mh-empty-headline {
+  margin:0; font-size:14px; font-weight:600; line-height:1.3;
+  color:var(--text-primary);
+}
+.mh-empty-body {
+  margin:0; font-size:12px; color:var(--text-tertiary); line-height:1.4;
+  max-width:42ch;
+}
+.mh-empty-action {
+  margin-top:8px; padding:8px 14px;
+  font-size:12px; font-weight:600; font-family:inherit;
+  background:var(--accent); color:#fff;
+  border:none; border-radius:8px; cursor:pointer; min-height:36px;
+}
+.mh-empty-action:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 
 .mgr-shopping-list { border-top:1px solid var(--border); }
 .mgr-shopping-row:last-child { border-bottom:none !important; }
@@ -3686,15 +3765,20 @@ html.pref-dark a { color: #5eead4; }
 .mgr-shopping-sources-list li button:hover { text-decoration:underline; }
 
 @media (max-width: 480px) {
-  .mh-subtabs-wrap { padding-left:12px; }
+  .mh-subtabs-wrap { padding-left:14px; padding-right:8px; }
+  .mh-breadcrumb { font-size:10.5px; }
+  .mh-breadcrumb-root { max-width:40%; }
   .mh-subtabs {
     overflow-x:auto; flex-wrap:nowrap;
     /* fix-3.2 — fade the right edge so users see there's more content. */
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
             mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    scrollbar-width:none;
   }
+  .mh-subtabs::-webkit-scrollbar { display:none; }
   /* fix-3.2 — guarantee 44x44 mobile touch target on each sub-tab. */
   .mh-subtab { flex-shrink:0; min-height:44px; min-width:44px; padding:10px 14px; }
+  .mh-empty { padding:20px 12px; }
   .mgr-shopping-row { grid-template-columns: 24px 1fr auto !important; }
 }
 

@@ -363,6 +363,10 @@ window.Icons = (function() {
     chevronDown: function() {
       return svg(pl('6 9 12 15 18 9'));
     },
+    // Chevron right — replaces ▶ ›
+    chevronRight: function() {
+      return svg(pl('9 6 15 12 9 18'));
+    },
     // Help — question-mark in a circle. Used by the Header help affordance.
     help: function() {
       return svg(

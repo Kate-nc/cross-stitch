@@ -32,6 +32,10 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <!-- pako needed at startup (project data uses deflate/inflate) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<!-- JSZip (C6 bundle export) — loaded eagerly on the Creator page so the
+     "Download bundle" action is available without a CDN round-trip on click.
+     Pinned to 3.10.1 (immutable on cdnjs). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <!-- pdf-lib (export), pdf.js (import) and pdf-importer are lazy-loaded on first use -->
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
@@ -119,7 +123,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_03ab059ccf';
+var CREATOR_CACHE_KEY = 'babel_creator_bdd820b46c';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

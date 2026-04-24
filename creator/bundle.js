@@ -14625,10 +14625,12 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
   var h   = React.createElement;
   var useMemo = React.useMemo;
   var useState = React.useState;
+  var useRef = React.useRef;
 
   // ── Hooks BEFORE any conditional returns ────────────────────────────────
   var _bulkBusy = useState(false);
   var bulkBusy = _bulkBusy[0], setBulkBusy = _bulkBusy[1];
+  var tablistRef = useRef(null);
 
   // Aggregate deficits: which threads in this project are not fully owned.
   var deficits = useMemo(function () {
@@ -14681,14 +14683,40 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
     { id: 'output',   label: 'Output',   icon: window.Icons && Icons.download   ? Icons.download()   : null },
   ];
   var activeSub = app.materialsTab || 'threads';
+  var activeIdx = 0;
+  for (var si = 0; si < SUBTABS.length; si++) {
+    if (SUBTABS[si].id === activeSub) { activeIdx = si; break; }
+  }
+  var activeLabel = SUBTABS[activeIdx] ? SUBTABS[activeIdx].label : 'Threads';
 
-  function tabBtn(t) {
+  function focusTabByIndex(idx) {
+    if (!tablistRef.current) return;
+    var btns = tablistRef.current.querySelectorAll('button[role="tab"]');
+    if (btns && btns[idx]) { btns[idx].focus(); }
+  }
+
+  function onTablistKeyDown(e) {
+    var key = e.key;
+    if (key !== 'ArrowRight' && key !== 'ArrowLeft' && key !== 'Home' && key !== 'End') return;
+    e.preventDefault();
+    var n = SUBTABS.length;
+    var nextIdx = activeIdx;
+    if (key === 'ArrowRight') nextIdx = (activeIdx + 1) % n;
+    else if (key === 'ArrowLeft') nextIdx = (activeIdx - 1 + n) % n;
+    else if (key === 'Home') nextIdx = 0;
+    else if (key === 'End') nextIdx = n - 1;
+    app.setMaterialsTab(SUBTABS[nextIdx].id);
+    setTimeout(function () { focusTabByIndex(nextIdx); }, 0);
+  }
+
+  function tabBtn(t, idx) {
     var on = activeSub === t.id;
     return h('button', {
       key: t.id,
       type: 'button',
       role: 'tab',
       'aria-selected': on,
+      tabIndex: on ? 0 : -1,
       className: 'mh-subtab' + (on ? ' on' : ''),
       onClick: function () { app.setMaterialsTab(t.id); },
     },
@@ -14697,14 +14725,29 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
     );
   }
 
+  // Shared empty-state renderer for sub-tab panels (centred icon, headline,
+  // optional helper paragraph, optional primary action). Uses SVG icons from
+  // icons.js — never emoji.
+  function emptyState(opts) {
+    return h('div', { className: 'mh-empty', role: 'status' },
+      opts.icon && h('div', { className: 'mh-empty-icon', 'aria-hidden': 'true' }, opts.icon),
+      h('h4', { className: 'mh-empty-headline' }, opts.headline),
+      opts.body && h('p', { className: 'mh-empty-body' }, opts.body),
+      opts.action && h('button', {
+        type: 'button', className: 'mh-empty-action',
+        onClick: opts.action.onClick,
+      }, opts.action.label)
+    );
+  }
+
   // Shopping sub-tab content — only mounted when active to avoid extra work.
   function shoppingPanel() {
     if (deficits.length === 0) {
-      return h('div', { className: 'mh-shopping-empty', style: { padding: '32px 16px', textAlign: 'center', color: 'var(--text-secondary)' } },
-        h('div', { className: 'mh-shopping-caption', style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-tertiary)', marginBottom: 8 } }, 'Shopping for this pattern'),
-        h('div', { style: { fontSize: 14, fontWeight: 500, marginBottom: 4 } }, 'No deficits to shop for.'),
-        h('div', { style: { fontSize: 12, color: 'var(--text-tertiary)' } }, 'Your stash already covers every thread in this project.')
-      );
+      return emptyState({
+        icon: window.Icons && Icons.shoppingCart ? Icons.shoppingCart() : (window.Icons && Icons.cart ? Icons.cart() : null),
+        headline: 'Your stash already covers every thread.',
+        body: 'When you\u2019re short of a colour, the deficit will appear here.'
+      });
     }
     var totalDeficitSkeins = deficits.reduce(function (s, r) { return s + r.deficit; }, 0);
     return h('div', { className: 'mh-shopping' },
@@ -14758,11 +14801,24 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
 
   return h('div', { className: 'materials-hub', role: 'tabpanel', 'aria-label': 'Materials and Output' },
     h('div', { className: 'mh-subtabs-wrap' },
+      h('div', { className: 'mh-breadcrumb', 'aria-hidden': 'true' },
+        h('span', { className: 'mh-breadcrumb-root' }, 'Materials & Output'),
+        h('span', { className: 'mh-breadcrumb-sep' },
+          window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null
+        ),
+        h('span', { className: 'mh-breadcrumb-current' }, activeLabel)
+      ),
       h('span', { className: 'mh-subtabs-label', 'aria-hidden': 'true' },
         window.Icons && window.Icons.layers ? h('span', { className: 'mh-subtabs-label-icon' }, window.Icons.layers()) : null,
         h('span', null, 'View:')
       ),
-      h('nav', { className: 'mh-subtabs', role: 'tablist', 'aria-label': 'Materials sections' },
+      h('nav', {
+        className: 'mh-subtabs',
+        role: 'tablist',
+        'aria-label': 'Materials sections',
+        ref: tablistRef,
+        onKeyDown: onTablistKeyDown,
+      },
         SUBTABS.map(tabBtn)
       )
     ),
