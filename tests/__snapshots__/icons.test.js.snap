@@ -45,5 +45,6 @@ exports[`Icons object used icon set matches snapshot 1`] = `
   "unlock",
   "wand",
   "warning",
+  "x",
 ]
 `;

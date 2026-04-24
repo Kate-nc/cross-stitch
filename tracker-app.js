@@ -723,6 +723,10 @@ const[sessionConfigOpen,setSessionConfigOpen]=useState(false);
 const[sessionTimeChoice,setSessionTimeChoice]=useState(null);
 const[sessionGoalInput,setSessionGoalInput]=useState("");
 const[sessionSummaryData,setSessionSummaryData]=useState(null);
+// A3 (UX Phase 5) — Resume recap modal shown once per project load when the
+// project already has stitching sessions. Cleared via Continue/Stats/Switch/Close.
+const[resumeRecap,setResumeRecap]=useState(null);
+const resumeRecapShownRef=useRef(new Set());
 const focusOverlayCanvasRef=useRef(null);
 const breadcrumbCanvasRef=useRef(null);
 const[hlRow,setHlRow]=useState(-1);
@@ -2403,6 +2407,28 @@ function processLoadedProject(project){
     sorted.forEach(function(s){running+=(s.netStitches||0);if(s.totalAtEnd==null)s.totalAtEnd=Math.min(Math.max(0,running),totalStitchCount);});
   }
   setStatsSessions(rawStatsSessions);
+  // A3: fire the resume recap modal once per project load when there is at
+  // least one prior session. Skipped on a fresh project (sessions empty) and
+  // on the same project re-loading inside one mounted Tracker instance.
+  try{
+    var _pid=project.id||'__unsaved__';
+    if(rawStatsSessions.length>0&&!resumeRecapShownRef.current.has(_pid)){
+      resumeRecapShownRef.current.add(_pid);
+      var _summary=(typeof lastSessionSummary==='function')?lastSessionSummary({statsSessions:rawStatsSessions}):null;
+      if(_summary){
+        var _last=rawStatsSessions[rawStatsSessions.length-1];
+        var _totalSt=(project.pattern||[]).filter(function(c){return c&&c.id!=='__skip__'&&c.id!=='__empty__';}).length;
+        var _doneSt=project.done?Array.from(project.done).filter(function(v){return v===1;}).length:0;
+        setResumeRecap({
+          projectName:project.name||'Untitled',
+          summary:_summary,
+          lastDate:_last&&(_last.date||_last.startTime)||null,
+          totalSt:_totalSt,
+          doneSt:_doneSt
+        });
+      }
+    }
+  }catch(_e){}
   setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true,sectionCols:50,sectionRows:50},project.statsSettings||{}));
   setStatsView(false);
   setCelebration(null);
@@ -5337,6 +5363,75 @@ return(
     const sessionBreadcrumbs=(breadcrumbs||[]).filter(b=>b&&b.sessionIdx===activeSessionIdx);
     const firstSessionBreadcrumb=sessionBreadcrumbs.length>0?sessionBreadcrumbs[0]:null;
     return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.stitchesCompleted||0),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const cx=G+b.bx*blockW*scs+blockW*scs/2;const cy=G+b.by*blockH*scs+blockH*scs/2;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
+  })()}
+  {resumeRecap&&(()=>{
+    // A3: Resume recap modal — fires once per project load when prior sessions exist.
+    const r=resumeRecap;
+    const sm=r.summary||{};
+    const dismiss=()=>setResumeRecap(null);
+    let lastStr='';
+    if(r.lastDate){
+      try{
+        const d=new Date(r.lastDate);
+        if(!Number.isNaN(d.getTime())){
+          const days=Math.floor((Date.now()-d.getTime())/86400000);
+          if(days<=0)lastStr='Last stitched today';
+          else if(days===1)lastStr='Last stitched yesterday';
+          else if(days<7)lastStr='Last stitched '+days+' days ago';
+          else lastStr='Last stitched '+d.toLocaleDateString();
+        }
+      }catch(_){}
+    }
+    const pct=r.totalSt>0?Math.round(r.doneSt/r.totalSt*100):0;
+    const minutes=Math.max(0,Math.round((sm.ms||0)/60000));
+    let speedNote=null;
+    if(sm.perHour!=null&&sm.perHourAvg!=null){
+      const diff=sm.perHour-sm.perHourAvg;
+      if(diff>=5)speedNote=(sm.perHour-sm.perHourAvg)+' / hr faster than your average';
+      else if(diff<=-5)speedNote=Math.abs(diff)+' / hr slower than your average';
+    }
+    return <div className="modal-overlay resume-recap-overlay" role="dialog" aria-modal="true" aria-labelledby="resume-recap-title" onClick={dismiss}>
+      <div className="modal-content resume-recap-modal" onClick={e=>e.stopPropagation()}>
+        <div className="resume-recap-header">
+          <div>
+            <h3 id="resume-recap-title" className="resume-recap-title">Welcome back to {r.projectName}</h3>
+            {lastStr&&<div className="resume-recap-sub">{lastStr}</div>}
+          </div>
+          <button className="resume-recap-close" onClick={dismiss} aria-label="Close">{Icons.x()}</button>
+        </div>
+        <div className="resume-recap-body">
+          <div className="resume-recap-progress">
+            <div className="resume-recap-progress-row">
+              <span className="resume-recap-progress-label">Overall progress</span>
+              <span className="resume-recap-progress-pct">{pct}%</span>
+            </div>
+            <div className="resume-recap-bar"><div className="resume-recap-bar-fill" style={{width:pct+'%'}}/></div>
+            <div className="resume-recap-progress-meta">{r.doneSt.toLocaleString()} / {r.totalSt.toLocaleString()} stitches</div>
+          </div>
+          <div className="resume-recap-section-label">Your last session</div>
+          <div className="resume-recap-grid">
+            <div className="resume-recap-card">
+              <div className="resume-recap-card-num">{(sm.count||0).toLocaleString()}</div>
+              <div className="resume-recap-card-lbl">stitches</div>
+            </div>
+            <div className="resume-recap-card">
+              <div className="resume-recap-card-num">{minutes} m</div>
+              <div className="resume-recap-card-lbl">stitch time</div>
+            </div>
+            <div className="resume-recap-card">
+              <div className="resume-recap-card-num">{sm.perHour!=null?sm.perHour:'—'}</div>
+              <div className="resume-recap-card-lbl">stitches / hr</div>
+            </div>
+          </div>
+          {speedNote&&<div className="resume-recap-note">{speedNote}</div>}
+        </div>
+        <div className="resume-recap-footer">
+          <button className="resume-recap-btn" onClick={()=>{dismiss();if(typeof onGoHome==='function')onGoHome();}}>Switch project</button>
+          <button className="resume-recap-btn" onClick={()=>{dismiss();setStatsView(true);}}>Stats</button>
+          <button className="resume-recap-btn resume-recap-btn--primary" onClick={dismiss} autoFocus>Continue stitching</button>
+        </div>
+      </div>
+    </div>;
   })()}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
   {modal==="pdf_export"&&<div className="modal-overlay" onClick={()=>setModal(null)}>

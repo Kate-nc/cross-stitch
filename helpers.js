@@ -13,6 +13,70 @@ function drawCk(ctx,x,y,s){
 function fmtTime(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?`${h}h ${m}m`:`${m}m`;}
 function fmtTimeL(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);if(h>0)return`${h} hr${h>1?"s":""} ${m} min`;return`${m} min`;}
 
+// A3 (UX Phase 5) — pure helper used by the Tracker resume modal recap.
+// Returns a short summary of the most recent stitching session, or null when
+// no sessions exist. Pure: takes a project object, touches no globals.
+//
+// Returned shape (or null when project.statsSessions is empty / missing):
+//   {
+//     count:                 stitches in the last session (number, may be 0),
+//     ms:                    duration of the last session in ms,
+//     perHour:               stitches per hour for the last session, or null
+//                            when duration is zero,
+//     perHourAvg:            stitches-per-hour averaged across all recorded
+//                            sessions (excluding the last one) — null when
+//                            fewer than 3 prior sessions exist,
+//     dominantThreadId:      always null today (per-stitch thread tracking is
+//                            not stored; reserved for a future schema bump),
+//     dominantThreadCount:   always null today.
+//   }
+//
+// Sessions array shape (compatible with both Tracker `statsSessions` and
+// older `sessions` arrays): { netStitches?, stitchesCompleted?,
+// durationSeconds?, durationMinutes?, ... }.
+function lastSessionSummary(project) {
+  if (!project || typeof project !== 'object') return null;
+  var sessions = project.statsSessions || project.sessions;
+  if (!Array.isArray(sessions) || sessions.length === 0) return null;
+  function _sessionStitches(s) {
+    if (!s || typeof s !== 'object') return 0;
+    if (typeof s.netStitches === 'number') return s.netStitches;
+    if (typeof s.stitchesCompleted === 'number') return s.stitchesCompleted;
+    return 0;
+  }
+  function _sessionSeconds(s) {
+    if (!s || typeof s !== 'object') return 0;
+    if (typeof s.durationSeconds === 'number') return s.durationSeconds;
+    if (typeof s.durationMinutes === 'number') return s.durationMinutes * 60;
+    return 0;
+  }
+  var last = sessions[sessions.length - 1];
+  var count = _sessionStitches(last);
+  var seconds = _sessionSeconds(last);
+  var ms = Math.round(seconds * 1000);
+  var perHour = (seconds > 0 && count > 0) ? Math.round(count / (seconds / 3600)) : null;
+  var perHourAvg = null;
+  // Only meaningful when there are at least 3 prior sessions to average over,
+  // matching the spec ("omit comparison when fewer than 3 sessions").
+  if (sessions.length >= 4) {
+    var prior = sessions.slice(0, -1);
+    var sumSt = 0, sumSec = 0;
+    for (var i = 0; i < prior.length; i++) {
+      sumSt += _sessionStitches(prior[i]);
+      sumSec += _sessionSeconds(prior[i]);
+    }
+    if (sumSec > 0 && sumSt > 0) perHourAvg = Math.round(sumSt / (sumSec / 3600));
+  }
+  return {
+    count: count,
+    ms: ms,
+    perHour: perHour,
+    perHourAvg: perHourAvg,
+    dominantThreadId: null,
+    dominantThreadCount: null
+  };
+}
+
 // Hoisted shared regexes (avoid recompiling per call).
 var CSV_QUOTE_RE=/"/g;
 var FILENAME_SAFE_RE=/[^a-zA-Z0-9]/g;

@@ -3273,3 +3273,156 @@ html.pref-dark a { color: #5eead4; }
   .edit-mode-strip { flex-wrap: wrap; padding: 8px 12px; }
   .edit-mode-strip__hint { display: none; }
 }
+
+/* A3 (UX Phase 5) — Tracker resume recap modal */
+
+/* A3 (UX Phase 5) — Tracker resume recap modal
+   Fires once per project load when the project has prior stitching sessions.
+   Mobile: full-screen below 480px (addresses G6). */
+.resume-recap-overlay {
+  z-index: 1100;
+}
+.resume-recap-modal {
+  max-width: 540px;
+  width: 100%;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.resume-recap-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.resume-recap-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.3;
+}
+.resume-recap-sub {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+.resume-recap-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+.resume-recap-close:hover { background: #f1f5f9; color: #0f172a; }
+.resume-recap-body { padding: 16px; }
+.resume-recap-progress { margin-bottom: 18px; }
+.resume-recap-progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+.resume-recap-progress-pct {
+  font-weight: 600;
+  color: #0d9488;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.resume-recap-bar {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.resume-recap-bar-fill {
+  height: 100%;
+  background: #0d9488;
+  transition: width 0.3s ease;
+}
+.resume-recap-progress-meta {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.resume-recap-section-label {
+  font-weight: 600;
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 8px;
+}
+.resume-recap-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.resume-recap-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+}
+.resume-recap-card-num {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.resume-recap-card-lbl {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+.resume-recap-note {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 8px;
+  font-style: italic;
+}
+.resume-recap-footer {
+  padding: 12px 16px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.resume-recap-btn {
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  font-weight: 500;
+}
+.resume-recap-btn:hover { background: #f8fafc; color: #0f172a; }
+.resume-recap-btn--primary {
+  background: #0d9488;
+  color: #fff;
+  border-color: #0d9488;
+  font-weight: 600;
+}
+.resume-recap-btn--primary:hover { background: #0f766e; color: #fff; }
+@media (max-width: 480px) {
+  .resume-recap-overlay { padding: 0; align-items: stretch; }
+  .resume-recap-modal {
+    max-width: none;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+  .resume-recap-body { flex: 1; overflow-y: auto; }
+  .resume-recap-footer { flex-direction: column-reverse; }
+  .resume-recap-btn { width: 100%; padding: 12px 14px; }
+}

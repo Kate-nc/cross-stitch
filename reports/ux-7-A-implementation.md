@@ -129,3 +129,71 @@
 
 ---
 
+
+
+## A3 — Tracker resume modal with last-session recap
+
+**Roadmap line:** D2 (resume recap), F-4.5 (pace context).
+
+**Wireframe:** [reports/wireframes/a-tracker-resume.html](wireframes/a-tracker-resume.html)
+
+### What shipped
+
+- New pure helper `lastSessionSummary(project)` in
+  [helpers.js](../helpers.js). Returns `{count, ms, perHour, perHourAvg,
+  dominantThreadId, dominantThreadCount} | null`. `perHourAvg` is computed
+  only when =3 prior sessions exist (matches spec: omit pace context when too
+  few data points). `dominantThread*` is wired as `null` for now — per-stitch
+  thread tracking is not stored on the project; reserving the field keeps the
+  modal copy honest and lets a future schema bump fill it without an API
+  change.
+- New `resumeRecap` state + `resumeRecapShownRef` one-shot guard in
+  [tracker-app.js](../tracker-app.js). The recap fires inside the project
+  loader, immediately after `setStatsSessions(rawStatsSessions)`, when
+  `rawStatsSessions.length > 0` and the same project ID has not already been
+  shown in this mounted Tracker instance.
+- New modal component (inline JSX) renders:
+  - "Welcome back to {projectName}" + "Last stitched N days ago" header.
+  - Overall progress bar (% / done / total stitches).
+  - Three stat cards: stitches, stitch time (m), stitches per hour.
+  - Optional pace note ("X / hr faster/slower than your average") only when
+    `perHourAvg` is available and the delta is = 5 / hr (avoids wobbly
+    "0 / hr faster" copy).
+  - Footer actions: Switch project (calls `onGoHome`), Stats (opens stats
+    view), Continue stitching (primary, autofocus).
+- Modal is keyboard-accessible: `role="dialog"`, `aria-modal="true"`,
+  `aria-labelledby` on the title, focus lands on the primary CTA, overlay
+  click + close button dismiss.
+- CSS in [styles.css](../styles.css) (`.resume-recap-*` rules). Below 480px
+  the modal becomes full-screen with stacked footer buttons (G6 mobile fix).
+
+### Honesty notes
+
+- "Where you left off · Block 4/16 · row 23, col 41 · DMC 733" from the
+  wireframe is **not** shipped this round. Block / row / col come from
+  `breadcrumbs[]` and the dominant-thread inference needs per-cell session
+  attribution that the project schema does not currently store. Recording the
+  recap stats is the truthful subset; the spatial recap can land once
+  `breadcrumbs[]` carries `lastIdx` per session.
+
+### Files touched
+
+- [helpers.js](../helpers.js) — added `lastSessionSummary`.
+- [tracker-app.js](../tracker-app.js) — state, trigger, modal JSX.
+- [styles.css](../styles.css) — `.resume-recap-*` rules + mobile breakpoint.
+- [tests/lastSessionSummary.test.js](../tests/lastSessionSummary.test.js) —
+  pure-helper tests (8 cases covering null project, empty sessions, single
+  session, fallback shape, latest-session selection, zero-duration, the 3+
+  prior-session threshold for `perHourAvg`, degenerate session, reserved
+  thread fields).
+- [tests/resumeRecapModal.test.js](../tests/resumeRecapModal.test.js) —
+  source-content assertions for state declaration, trigger wiring, modal
+  copy, accessibility attributes, icon usage, and the CSS grid + mobile
+  full-screen rule.
+- [tests/__snapshots__/icons.test.js.snap](../tests/__snapshots__/icons.test.js.snap)
+  — updated to include `Icons.x` (now used by the modal close button).
+
+### Test status
+
+- `npm test -- --runInBand`: 760 passed (up from 751 before A3).
+
