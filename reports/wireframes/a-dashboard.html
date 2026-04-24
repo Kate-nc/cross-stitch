@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wireframe A · Dashboard — de-dup &amp; emoji removal</title>
+<link rel="stylesheet" href="_wf.css">
+</head>
+<body>
+<h1 class="wf-title">Proposal A · Dashboard — de-duplicate &amp; remove emoji</h1>
+<p class="wf-subtitle">Hide Suggestion when it equals the Sticky Continue project. Replace 🔥 / 💡 / 📊 / ✦ with the corresponding <code>Icons.*</code>.</p>
+
+<div class="wf-frame">
+  <div class="wf-frame-label">Desktop · 1024 px</div>
+  <div style="padding: 16px;">
+    <!-- header simulation -->
+    <div class="gb-row" style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; margin: -16px -16px 16px;">
+      <div style="font-weight:700;">×∕× Cross Stitch</div>
+      <div class="tab tab--active">Create</div>
+      <div class="tab">Edit</div>
+      <div class="tab">Track</div>
+      <div class="tab">Stash</div>
+      <div class="tab">Stats</div>
+      <div style="flex:1"></div>
+      <div class="btn btn--ghost btn--sm">File ▾</div>
+      <div class="btn btn--ghost btn--sm">⚙</div>
+      <div class="btn btn--ghost btn--sm">?</div>
+    </div>
+
+    <h2 style="font: 600 18px/1.2 inherit; margin: 8px 0 16px;">Good evening, stitcher <span aria-hidden="true" style="opacity: .6;">★</span></h2>
+
+    <!-- continue bar -->
+    <div class="gb-strong" style="padding: 10px 14px; display: flex; gap: 12px; align-items: center; background: #f0fdfa; border-color: #99f6e4; margin-bottom: 16px;">
+      <div class="gb-strong" style="width: 36px; height: 36px;"></div>
+      <div style="flex:1;">
+        <div style="font-weight: 600; font-size: 13px;">Wildflower Meadow</div>
+        <div style="font-size: 11px; color: #64748b;">38% complete · 3 days ago</div>
+      </div>
+      <span class="btn btn--primary btn--sm">Continue →</span>
+    </div>
+
+    <!-- summary bar with Icons replacing emoji -->
+    <div style="display: flex; gap: 14px; font-size: 12px; color: #475569; margin-bottom: 16px;">
+      <span><strong>3</strong> active projects</span>
+      <span>· <strong>1 247</strong> stitches this month</span>
+      <span style="display: inline-flex; gap: 4px; align-items: center;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 22c4-2 6-5 6-9 0-3-2-5-3-7-1 2-2 3-3 3-1-2-1-4 0-6-4 1-7 5-7 10 0 4 3 9 7 9z"/></svg>
+        <strong>5-day</strong> streak
+      </span>
+    </div>
+
+    <!-- NO suggestion card here because it equals the Continue project -->
+
+    <!-- active cards -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
+      <div class="gb" style="padding: 12px;">
+        <div class="gb-strong" style="height: 100px; margin-bottom: 8px;"></div>
+        <div style="font-weight: 600; font-size: 13px;">Wildflower Meadow</div>
+        <div class="bar" style="margin: 6px 0;"><i style="width: 38%"></i></div>
+        <div style="font-size: 10px; color: #64748b;">3 days ago · ~12 hrs left</div>
+        <span class="btn btn--primary btn--sm" style="margin-top: 8px;">Continue</span>
+      </div>
+      <div class="gb" style="padding: 12px;">
+        <div class="gb-strong" style="height: 100px; margin-bottom: 8px;"></div>
+        <div style="font-weight: 600; font-size: 13px;">Mountain View</div>
+        <div class="bar" style="margin: 6px 0;"><i style="width: 12%"></i></div>
+        <div style="font-size: 10px; color: #64748b;">11 days ago · ~64 hrs left</div>
+        <span class="btn btn--sm" style="margin-top: 8px;">Continue</span>
+      </div>
+      <div class="gb" style="padding: 12px;">
+        <div class="gb-strong" style="height: 100px; margin-bottom: 8px;"></div>
+        <div style="font-weight: 600; font-size: 13px;">Tiny Sampler</div>
+        <div class="bar" style="margin: 6px 0;"><i style="width: 88%"></i></div>
+        <div style="font-size: 10px; color: #64748b;">today · ~1 hr left</div>
+        <span class="btn btn--sm" style="margin-top: 8px;">Continue</span>
+      </div>
+    </div>
+
+    <!-- up next -->
+    <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center;">
+      Up next <span class="tag" style="margin-left: 6px;">2</span>
+      <span style="flex:1"></span>
+      <span class="btn btn--sm">+ Add</span>
+    </div>
+    <div class="gb" style="padding: 8px 12px; display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+      <div class="gb-strong" style="width: 32px; height: 32px;"></div>
+      <div style="flex:1; font-size: 12px;">Holiday Sampler · 80×80</div>
+      <span class="btn btn--ghost btn--sm">⋯</span>
+    </div>
+    <div class="gb" style="padding: 8px 12px; display: flex; align-items: center; gap: 10px;">
+      <div class="gb-strong" style="width: 32px; height: 32px;"></div>
+      <div style="flex:1; font-size: 12px;">Birthday Card · 50×70</div>
+      <span class="btn btn--ghost btn--sm">⋯</span>
+    </div>
+
+    <div style="margin-top: 16px; font-size: 12px; color: #475569; display: flex; align-items: center; gap: 6px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 17V11M12 17V7M16 17V14"/></svg>
+      <a href="#" style="color: var(--accent, #0d9488); text-decoration: none;">View detailed stats across all projects →</a>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  Addresses <strong>D-1</strong> (de-dup), <strong>D-2/D-3</strong> (emoji), <strong>D-7</strong> (the per-card thread badge — only rendered when actually computed).
+</div>
+</body>
+</html>

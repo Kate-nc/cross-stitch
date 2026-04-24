@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wireframe A · Tracker — resume modal with last-session recap</title>
+<link rel="stylesheet" href="_wf.css">
+</head>
+<body>
+<h1 class="wf-title">Proposal A · Tracker — Resume modal with last-session recap</h1>
+<p class="wf-subtitle">The resume modal already shows "where" — it now also shows "what you did last time".</p>
+
+<div class="wf-frame" style="max-width: 540px;">
+  <div class="wf-frame-label">Modal — desktop &amp; mobile (modal full-width on phones)</div>
+  <div style="padding: 0;">
+    <div style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center;">
+      <div>
+        <div style="font: 600 15px/1.3 inherit;">Welcome back to Wildflower Meadow</div>
+        <div style="font-size: 11px; color: #64748b;">Last stitched 3 days ago</div>
+      </div>
+      <div style="flex:1"></div>
+      <div class="btn btn--ghost btn--sm">✕</div>
+    </div>
+    <div style="padding: 16px;">
+      <div style="display: grid; grid-template-columns: 96px 1fr; gap: 16px;">
+        <div class="gb-strong" style="height: 96px;"></div>
+        <div>
+          <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">Where you left off</div>
+          <div style="font-size: 13px; margin-bottom: 8px;">Block 4 / 16 · row 23, col 41 · DMC <strong>733</strong></div>
+          <div class="bar"><i style="width: 38%"></i></div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 4px;">38% complete · 4 020 of 10 580 stitches</div>
+        </div>
+      </div>
+
+      <div style="margin: 18px 0 8px; font-weight: 600; font-size: 12px;">Your last session</div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+        <div class="gb" style="padding: 10px;">
+          <div style="font-size: 18px; font-weight: 600;">247</div>
+          <div style="font-size: 11px; color: #64748b;">stitches</div>
+        </div>
+        <div class="gb" style="padding: 10px;">
+          <div style="font-size: 18px; font-weight: 600;">32 m</div>
+          <div style="font-size: 11px; color: #64748b;">stitch time</div>
+        </div>
+        <div class="gb" style="padding: 10px;">
+          <div style="font-size: 18px; font-weight: 600;">7 / hr</div>
+          <div style="font-size: 11px; color: #64748b;">faster than avg</div>
+        </div>
+      </div>
+      <div style="font-size: 11px; color: #64748b; margin-top: 8px;">
+        You worked on the centre flower cluster (DMC 733, 471, 471).
+      </div>
+    </div>
+    <div style="padding: 12px 16px; border-top: 1px solid #e5e7eb; display: flex; gap: 8px; justify-content: flex-end;">
+      <span class="btn">Switch project</span>
+      <span class="btn">Stats</span>
+      <span class="btn btn--primary">Continue stitching</span>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Annotations.</strong>
+  <ul style="margin: 4px 0 0 20px;">
+    <li>"Last session" stats come from <code>sessions[]</code> on the project; only render when at least one session exists.</li>
+    <li>"Worked on the centre flower cluster" is generated from the last session's stitch positions clustered to a thread name.</li>
+    <li>On phones, the modal becomes full-screen (addresses <strong>G6</strong>).</li>
+    <li>Inputs use <code>inputMode</code> hints where applicable (no inputs here).</li>
+    <li>Addresses <strong>D2</strong> (resume recap), <strong>F-4.5</strong>.</li>
+  </ul>
+</div>
+</body>
+</html>

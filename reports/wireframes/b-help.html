@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wireframe B · Help &amp; Shortcuts merged drawer</title>
+<link rel="stylesheet" href="_wf.css">
+</head>
+<body>
+<h1 class="wf-title">Proposal B · Help &amp; Shortcuts merged into one drawer</h1>
+<p class="wf-subtitle">Side drawer (not modal) with two tabs. Reachable from <span class="kbd">?</span> globally, plus a contextual <span class="kbd">?</span> button on each major surface that pre-selects the relevant Topic.</p>
+
+<div class="wf-frame">
+  <div class="wf-frame-label">Desktop · drawer over the Creator</div>
+  <div style="position: relative;">
+    <div class="gb-canvas" style="margin: 0; height: 480px; border-radius: 0; opacity: .4;"></div>
+    <div style="position: absolute; top: 0; right: 0; width: 420px; height: 100%; background: #fff; border-left: 1px solid #cbd5e1; box-shadow: -8px 0 16px rgba(0,0,0,.06);">
+      <div style="padding: 12px 14px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center;">
+        <div style="font-weight: 600; font-size: 14px;">Help</div>
+        <div style="flex:1"></div>
+        <span class="btn btn--ghost btn--sm">✕</span>
+      </div>
+      <div class="gb-row" style="padding: 0 14px; border-bottom: 1px solid #e5e7eb;">
+        <span class="tab tab--active">Topics</span>
+        <span class="tab">Shortcuts</span>
+        <span style="flex:1"></span>
+        <input type="text" placeholder="Search help…" style="border: 1px solid #e5e7eb; border-radius: 4px; padding: 4px 8px; font-size: 12px; align-self: center;">
+      </div>
+      <div style="padding: 14px;">
+        <div style="font-size: 11px; color: #64748b; margin-bottom: 4px;">Suggested for this screen</div>
+        <div class="gb" style="padding: 10px; margin-bottom: 8px;">
+          <strong style="font-size: 13px;">Painting and filling stitches</strong><br>
+          <span style="font-size: 11px; color: #64748b;">Click a colour, then click cells. Drag to paint multiple. Use Fill to flood a region. Press <span class="kbd">Z</span> to undo.</span>
+        </div>
+        <div class="gb" style="padding: 10px; margin-bottom: 8px;">
+          <strong style="font-size: 13px;">The Compare panel</strong><br>
+          <span style="font-size: 11px; color: #64748b;">Press <span class="kbd">⫴ Compare</span> to split the canvas into chart + realistic preview. Drag the divider to resize.</span>
+        </div>
+        <div style="font-size: 11px; color: #64748b; margin: 14px 0 4px;">All topics</div>
+        <div style="font-size: 12px; line-height: 1.8;">
+          · Designing a pattern from scratch<br>
+          · Importing an image and adapting<br>
+          · Substituting threads from your stash<br>
+          · Exporting for Pattern Keeper<br>
+          · Tracking on your phone<br>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  Help and Shortcuts now live behind one entry point. Per-screen "?" buttons deep-link to a topic. Addresses <strong>F5</strong>, <strong>F-X.9</strong>.
+</div>
+</body>
+</html>

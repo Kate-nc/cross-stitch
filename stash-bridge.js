@@ -539,6 +539,95 @@ const StashBridge = (() => {
       }
     },
 
+    // A1 (UX Phase 5) — batched tobuy flag update. Accepts an array of
+    // composite keys or bare legacy IDs and flips the tobuy flag on each in a
+    // single transaction. Returns the number of entries actually changed
+    // (i.e. ones whose tobuy flag was different from `toBuy` beforehand) so
+    // callers can show "X added, Y already on the list" style toasts.
+    async markManyToBuy(keysOrIds, toBuy) {
+      if (!Array.isArray(keysOrIds) || keysOrIds.length === 0) return 0;
+      const flag = !!toBuy;
+      const keys = keysOrIds.map(_normaliseKey);
+      try {
+        const db = await openManagerDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readwrite");
+          const store = tx.objectStore("manager_state");
+          const req = store.get("threads");
+          req.onsuccess = () => {
+            const threads = req.result || {};
+            let changed = 0;
+            for (const key of keys) {
+              if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
+              if (!!threads[key].tobuy !== flag) {
+                threads[key].tobuy = flag;
+                changed++;
+              }
+            }
+            store.put(threads, "threads");
+            tx.oncomplete = () => resolve(changed);
+          };
+          req.onerror = () => reject(req.error);
+        });
+      } catch (e) {
+        console.error("StashBridge.markManyToBuy failed:", e);
+        return 0;
+      }
+    },
+
+    // A1 (UX Phase 5) — pure helper. Given a Creator displayPal (palette
+    // entries with `.id`, `.type`, `.count`) and the current globalStash dict,
+    // returns the composite keys of palette threads that are NOT sufficiently
+    // owned (status === 'needed'). Mirrors the per-chip logic in
+    // creator/Sidebar.js so the warning panel and the chip dots agree.
+    //
+    // Pure (no IndexedDB, no DOM). Safe to unit test. Caller supplies the
+    // catalog lookups so this can be exercised under Node without DMC/ANCHOR
+    // globals.
+    //
+    // options:
+    //   fabricCt (number)             — defaults to 14
+    //   skeinEst(stitches, fabricCt)  — defaults to a Math.ceil(stitches/1800) fallback
+    //   resolveBrand(id)              — required: returns 'dmc' | 'anchor' for a given id
+    //   splitBlendId(id)              — required: returns [a,b] for a 'A+B' blend id
+    computeUnownedPaletteIds(displayPal, globalStash, options) {
+      if (!Array.isArray(displayPal) || displayPal.length === 0) return [];
+      const stash = globalStash || {};
+      const opts = options || {};
+      const fabricCt = opts.fabricCt || 14;
+      const estimator = typeof opts.skeinEst === 'function'
+        ? opts.skeinEst
+        : function(stitches) { return Math.max(1, Math.ceil((stitches || 0) / 1800)); };
+      const resolveBrand = typeof opts.resolveBrand === 'function'
+        ? opts.resolveBrand
+        : function() { return 'dmc'; };
+      const splitBlend = typeof opts.splitBlendId === 'function'
+        ? opts.splitBlendId
+        : function(id) { return String(id || '').split('+'); };
+      const unowned = [];
+      const seen = Object.create(null);
+      for (const p of displayPal) {
+        if (!p || !p.id || p.id === '__skip__' || p.id === '__empty__') continue;
+        const ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
+          ? splitBlend(p.id)
+          : [p.id];
+        for (const id of ids) {
+          if (!id || id === '__skip__' || id === '__empty__') continue;
+          const brand = p.brand || resolveBrand(id);
+          const key = brand + ':' + id;
+          if (seen[key]) continue;
+          const entry = stash[key];
+          const owned = entry && entry.owned ? entry.owned : 0;
+          const needed = (p.count != null) ? estimator(p.count, fabricCt) : 1;
+          if (owned < needed) {
+            seen[key] = true;
+            unowned.push(key);
+          }
+        }
+      }
+      return unowned;
+    },
+
     // Returns stash age distribution for the age chart.
     // Buckets: under1Yr, 1to3Yr, 3to5Yr, over5Yr, legacy (before tracking).
     async getStashAgeDistribution() {

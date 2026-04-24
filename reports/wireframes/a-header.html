@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wireframe A · Header — touch targets &amp; visual unify</title>
+<link rel="stylesheet" href="_wf.css">
+</head>
+<body>
+<h1 class="wf-title">Proposal A · Header — touch targets &amp; visual unify</h1>
+<p class="wf-subtitle">Same nav model. Bigger tap targets on coarse-pointer devices. Sub-page becomes an explicit second strip with an "in {Project}" prefix.</p>
+
+<div class="wf-frame">
+  <div class="wf-frame-label">Desktop · 1280 px — after</div>
+  <div>
+    <div class="gb-row" style="padding: 10px 14px; border-bottom: 1px solid #e5e7eb;">
+      <div style="font-weight:700; font-size: 14px;">×∕× Cross Stitch</div>
+      <div style="margin-left: 18px; display: flex; gap: 4px;">
+        <div class="tab" style="padding: 10px 14px;">Create</div>
+        <div class="tab tab--active" style="padding: 10px 14px;">Edit</div>
+        <div class="tab" style="padding: 10px 14px;">Track</div>
+        <div class="tab" style="padding: 10px 14px;">Stash</div>
+        <div class="tab" style="padding: 10px 14px;">Stats</div>
+      </div>
+      <div style="flex:1"></div>
+      <div class="btn btn--ghost">File ▾</div>
+      <div class="btn btn--ghost">⚙ Settings</div>
+      <div class="btn btn--ghost">? Help</div>
+    </div>
+    <div class="gb-row" style="padding: 6px 14px; border-bottom: 1px solid #e5e7eb; background: #f9fafb;">
+      <div style="font-size: 11px; color: #64748b;">in</div>
+      <div style="font-weight: 600; font-size: 13px;">Wildflower Meadow <span style="opacity:.6;">✎</span></div>
+      <div style="font-size: 11px; color: #64748b;">· 80×80 · 47 colours · <span class="tag tag--ok">All changes saved</span></div>
+      <div style="margin-left: 24px; display: flex; gap: 4px;">
+        <div class="tab tab--active" style="padding: 6px 10px;">Pattern</div>
+        <div class="tab" style="padding: 6px 10px;">Project</div>
+        <div class="tab" style="padding: 6px 10px;">Materials</div>
+        <div class="tab" style="padding: 6px 10px;">Export</div>
+      </div>
+      <div style="flex:1"></div>
+      <div class="btn btn--sm">Track ›</div>
+    </div>
+  </div>
+</div>
+
+<div class="wf-frame" style="max-width: 380px;">
+  <div class="wf-frame-label">Mobile · 360 px — after</div>
+  <div>
+    <div class="gb-row" style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; min-height: 48px;">
+      <div style="font-weight:700; font-size: 13px;">×∕×</div>
+      <div style="flex:1"></div>
+      <div class="btn btn--ghost btn--sm" style="min-height: 44px; min-width: 44px; justify-content: center;">⚙</div>
+      <div class="btn btn--ghost btn--sm" style="min-height: 44px; min-width: 44px; justify-content: center;">?</div>
+      <div class="btn btn--ghost btn--sm" style="min-height: 44px; min-width: 44px; justify-content: center;">⋮</div>
+    </div>
+    <!-- mode tabs as a horizontal scroll bar with bigger pill targets -->
+    <div style="display: flex; gap: 4px; padding: 8px 8px; overflow-x: auto; border-bottom: 1px solid #e5e7eb;">
+      <span class="btn btn--sm" style="min-height: 36px;">Create</span>
+      <span class="btn btn--sm btn--primary" style="min-height: 36px;">Edit</span>
+      <span class="btn btn--sm" style="min-height: 36px;">Track</span>
+      <span class="btn btn--sm" style="min-height: 36px;">Stash</span>
+      <span class="btn btn--sm" style="min-height: 36px;">Stats</span>
+    </div>
+    <div style="padding: 8px 12px; font-size: 11px; color: #64748b; border-bottom: 1px solid #e5e7eb;">
+      Wildflower Meadow · <span class="tag tag--ok">Saved</span>
+    </div>
+    <div style="display: flex; gap: 4px; padding: 6px 8px; overflow-x: auto; background: #f9fafb;">
+      <span class="btn btn--sm">Pattern</span>
+      <span class="btn btn--sm">Project</span>
+      <span class="btn btn--sm">Materials</span>
+      <span class="btn btn--sm">Export</span>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Annotations.</strong>
+  <ul style="margin: 4px 0 0 20px;">
+    <li>Touch targets ≥ 44 × 44 px on coarse pointer (currently 22 px). Addresses <strong>G1</strong>.</li>
+    <li>Sub-page tabs become a true secondary nav strip rather than a single dropdown — the relationship is now visible. Addresses <strong>A1</strong> partially, <strong>B6</strong>.</li>
+    <li>"All changes saved" tag persists rather than flashing. Addresses <strong>D9</strong>.</li>
+    <li>Project name remains inline-editable; pencil is decorative.</li>
+  </ul>
+</div>
+</body>
+</html>
