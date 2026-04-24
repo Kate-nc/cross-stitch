@@ -319,9 +319,10 @@ function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
   const[timeChoice,setTimeChoice]=useState(null);
   const[goalStitches,setGoalStitches]=useState("");
   return(
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>×</button>
+    <div className="modal-overlay modal-overlay--sheet" onClick={onClose}>
+      <div className="modal-content modal-content--sheet" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
+        <div className="sheet-handle" aria-hidden="true"/>
+        <button className="modal-close" onClick={onClose} aria-label="Close" title="Close">{Icons.x?Icons.x():"\u00D7"}</button>
         <h3 style={{marginTop:0,fontSize:17}}>Start Session</h3>
         <div style={{marginBottom:16}}>
           <div style={{fontWeight:600,fontSize:12,color:"#475569",marginBottom:8}}>Time available</div>
@@ -790,6 +791,41 @@ const[recShowMore,setRecShowMore]=useState(false);
 const[recEnabled,setRecEnabled]=useState(()=>{try{return localStorage.getItem("cs_recEnabled")!=="0";}catch(_){return true;}});
 const[rpanelTab,setRpanelTab]=useState("colours");
 const[mobileDrawerOpen,setMobileDrawerOpen]=useState(false);
+
+// ─── Tracker left sidebar (toolbar-rework phase 1) ─────────────────────
+// Replaces the scattered Highlight / View / Session controls in the
+// toolbar pill and right-panel "More" tab with a tabbed left sidebar.
+// State persists via window.UserPrefs (keys: trackerLeftSidebarOpen,
+// trackerLeftSidebarTab). Default closed; user opts in via hamburger.
+const[leftSidebarOpen,setLeftSidebarOpen]=useState(()=>{
+  try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarOpen");return !!p;}catch(_){return false;}
+});
+const[leftSidebarTab,setLeftSidebarTab]=useState(()=>{
+  try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarTab");return p||"highlight";}catch(_){return"highlight";}
+});
+useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarOpen",!!leftSidebarOpen);}catch(_){}},[leftSidebarOpen]);
+useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarTab",leftSidebarTab);}catch(_){}},[leftSidebarTab]);
+
+// Phase 4: palette-legend sort key persisted via UserPrefs.
+const[legendSort,setLegendSort]=useState(()=>{
+  try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLegendSort");return p||"id";}catch(_){return"id";}
+});
+useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLegendSort",legendSort);}catch(_){}},[legendSort]);
+
+// Phase 5: ESC closes the mobile lpanel drawer. Desktop ignores it
+// (the panel is sticky / persistent and ESC could clobber other modal
+// dismiss semantics).
+useEffect(()=>{
+  if(!leftSidebarOpen)return;
+  const onKey=e=>{
+    if(e.key!=="Escape")return;
+    if(typeof window==='undefined'||!window.matchMedia)return;
+    if(!window.matchMedia("(max-width: 899px)").matches)return;
+    setLeftSidebarOpen(false);
+  };
+  window.addEventListener("keydown",onKey);
+  return()=>window.removeEventListener("keydown",onKey);
+},[leftSidebarOpen]);
 
 const [importDialog, setImportDialog] = useState(null);
 const [importImage, setImportImage] = useState(null);
@@ -4469,6 +4505,14 @@ return(
 </div>}
 {/* ═══ TRACKER PILL TOOLBAR ═══ */}
 <div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")}><div className="pill-row" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
+  <button
+    type="button"
+    className="tracker-hamburger"
+    onClick={()=>setLeftSidebarOpen(o=>!o)}
+    aria-label="Toggle sidebar"
+    aria-expanded={leftSidebarOpen}
+    title="Sidebar (Highlight, View, Session)"
+  >{Icons.menu()}</button>
   <div ref={tStripRef} className={"pill"+(isEditMode?" pill--edit":"")}>
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
     <button className={"tb-btn"+(stitchMode==="track"?(isEditMode?" tb-btn--red":" tb-btn--green"):"")} onClick={()=>{setStitchMode("track");}} title={isEditMode?"Modify stitches (T)":"Mark stitch (T)"}>
@@ -4478,22 +4522,9 @@ return(
     {/* C3: range-mode toolbar button removed; long-press + shift+click own range via useDragMark. */}
   </div>
   <div className="tb-sdiv"/>
-  <div className={"tb-grp"+(tStripCollapsed.view?" tb-hidden":"")}>
-    {[['symbol','Sym'],['colour','Col+Sym'],['highlight','HL']].map(([k,l])=><button key={k} className={"tb-btn"+(stitchView===k?" tb-btn--on":"")} title="Cycle view (V)" onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>)}
-  </div>
-  {stitchView==="highlight"&&<>
-    <button className="tb-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} title="Previous colour (])">◀</button>
-    <button className="tb-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} title="Next colour ([)">▶</button>
-    <button className={"tb-btn"+(countingAidsEnabled?" tb-btn--on":"")} onClick={()=>setCountingAidsEnabled(v=>!v)} title="Toggle counting aids (C)" style={{fontSize:12,padding:"0 6px"}}>⊞</button>
-  </>}
-  {stitchingStyle!=="crosscountry"&&<button
-    className={"tb-btn"+(focusEnabled?" tb-btn--on":"")}
-    onClick={()=>{const next=!focusEnabled;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());}}
-    title={"Spotlight focus area (F)"+(focusEnabled?" — Alt+click to move, Alt+Arrow to step":"")}
-    aria-pressed={focusEnabled}
-    aria-label="Toggle spotlight focus area"
-    style={{padding:"0 6px"}}
-  >{Icons.eye()}</button>}
+  {/* Phase 2/5: View mode pill, highlight cycle, counting aids and Focus
+      area button removed — now live in the left sidebar's View / Highlight
+      / Tools tabs. The Sidebar opens via the hamburger button to the left. */}
   <div className="tb-flex"/>
   <div className="tb-zoom-grp tb-desktop-only">
     <span className="tb-zoom-lbl">Zoom</span>
@@ -4544,17 +4575,17 @@ return(
       <button className="tb-ovf-item" onClick={()=>{setShowNavHelp(h=>!h);setTOverflowOpen(false);}}>{showNavHelp?"Hide":"Show"} controls help</button>
       <div className="tb-ovf-sep"/>
       <span className="tb-ovf-lbl">Tools</span>
-      <button className={"tb-ovf-item"+(trackerPreviewOpen?" tb-ovf-item--on":"")} onClick={()=>{setTrackerPreviewOpen(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Realistic preview{trackerPreviewOpen?" ✓":""}</button>
-      <button className={"tb-ovf-item"+(threadUsageMode?" tb-ovf-item--on":"")} onClick={()=>{setThreadUsageMode(m=>m?null:"cluster");setTOverflowOpen(false);}}>Thread usage{threadUsageMode?" ✓":""}</button>
+      <button className={"tb-ovf-item"+(trackerPreviewOpen?" tb-ovf-item--on":"")} onClick={()=>{setTrackerPreviewOpen(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Realistic preview{trackerPreviewOpen?" ":""}{trackerPreviewOpen?Icons.check():null}</button>
+      <button className={"tb-ovf-item"+(threadUsageMode?" tb-ovf-item--on":"")} onClick={()=>{setThreadUsageMode(m=>m?null:"cluster");setTOverflowOpen(false);}}>Thread usage{threadUsageMode?" ":""}{threadUsageMode?Icons.check():null}</button>
       <button className={"tb-ovf-item"+(countingAidsEnabled?" tb-ovf-item--on":"")} onClick={()=>{setCountingAidsEnabled(v=>!v);setTOverflowOpen(false);}}>{Icons.barChart()} Counting aids{countingAidsEnabled?" ":""}{countingAidsEnabled?Icons.check():null}</button>
-      <button className={"tb-ovf-item"} onClick={()=>{setRpanelTab("more");setMobileDrawerOpen(true);setTOverflowOpen(false);}}>Layers{!Object.values(layerVis).every(Boolean)?" (filtered)":""}</button>
+      <button className={"tb-ovf-item"} onClick={()=>{setLeftSidebarTab("view");setLeftSidebarOpen(true);setTOverflowOpen(false);}}>Layers{!Object.values(layerVis).every(Boolean)?" (filtered)":""}</button>
       <button className={"tb-ovf-item"+(statsView?" tb-ovf-item--on":"")} onClick={()=>{setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);setTOverflowOpen(false);}}>{Icons.barChart()} Stats{statsView?" ":""}{statsView?Icons.check():null}</button>
       <div className="tb-ovf-sep"/>
       <span className="tb-ovf-lbl">Focus Area</span>
       <button className={"tb-ovf-item"+(focusEnabled?" tb-ovf-item--on":"")} onClick={()=>{const next=!focusEnabled;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());setTOverflowOpen(false);}}>{Icons.eye()} Spotlight{focusEnabled?" ":""}{focusEnabled?Icons.check():null}</button>
       {focusEnabled&&!focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(_getStartBlock());setTOverflowOpen(false);}}>Set focus to start block</button>}
       {focusEnabled&&focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(null);setTOverflowOpen(false);}}>Clear focus block</button>}
-      <button className={"tb-ovf-item"+(breadcrumbVisible?" tb-ovf-item--on":"")} onClick={()=>{setBreadcrumbVisible(v=>!v);setTOverflowOpen(false);}}>Breadcrumbs{breadcrumbVisible?" ✓":""}</button>
+      <button className={"tb-ovf-item"+(breadcrumbVisible?" tb-ovf-item--on":"")} onClick={()=>{setBreadcrumbVisible(v=>!v);setTOverflowOpen(false);}}>Breadcrumbs{breadcrumbVisible?" ":""}{breadcrumbVisible?Icons.check():null}</button>
       <button className="tb-ovf-item" onClick={()=>{setStyleOnboardingOpen(true);setTOverflowOpen(false);}}>Stitching style: {({block:"Block",royal:"Royal Rows",crosscountry:"Cross Country",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle}</button>
       {stitchingStyle!=="crosscountry"&&stitchingStyle!=="freestyle"&&<div style={{padding:"4px 14px 6px",fontSize:11,color:"#475569"}}>Block size: {blockW}×{blockH}
         <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}>
@@ -4578,36 +4609,27 @@ return(
 </div>
   {liveAutoStitches > 0 && (
     <button className={"session-chip" + (liveAutoIsPaused||manuallyPaused ? " session-chip--paused" : "") + (inactivityPausedRef.current&&!manuallyPaused ? " session-chip--idle" : "")}
-      title={manuallyPaused ? "Tap to resume tracking" : inactivityPausedRef.current ? "Auto-paused (idle) — tap to resume" : "Tap to pause tracking"}
+      title="Open session controls"
       onClick={() => {
-        if(!currentAutoSessionRef.current) return;
-        if(manuallyPaused){
-          const pausedMs=Date.now()-manualPauseTimeRef.current;
-          currentAutoSessionRef.current.totalPausedMs=(currentAutoSessionRef.current.totalPausedMs||0)+pausedMs;
-          manualPauseTimeRef.current=null;
-          setManuallyPaused(false);
-          setLiveAutoIsPaused(document.hidden||inactivityPausedRef.current);
-        }else{
-          clearTimeout(inactivityTimerRef.current);
-          manualPauseTimeRef.current=Date.now();
-          setManuallyPaused(true);
-          setLiveAutoIsPaused(true);
-        }
+        // Phase 3/5: chip is now glanceable only; click opens the
+        // Session tab in the left sidebar where pause / resume / end
+        // session live alongside the goal + thread-usage controls.
+        setLeftSidebarTab("session");
+        setLeftSidebarOpen(true);
       }}>
       <span className="dot"/>
-      {manuallyPaused ? `⏸ Paused · ${liveAutoStitches} st` : inactivityPausedRef.current ? `⏸ Idle · ${liveAutoStitches} st` : liveAutoIsPaused ? '⏸ Paused' : `▶ ${fmtTime(liveAutoElapsed)} · ${liveAutoStitches} st`}
+      <span className="session-chip-icon" aria-hidden="true">{(manuallyPaused||inactivityPausedRef.current||liveAutoIsPaused)?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span>
+      {manuallyPaused ? `Paused · ${liveAutoStitches} st` : inactivityPausedRef.current ? `Idle · ${liveAutoStitches} st` : liveAutoIsPaused ? 'Paused' : `${fmtTime(liveAutoElapsed)} · ${liveAutoStitches} st`}
     </button>
   )}
 </div></div>
-{!isEditMode&&<div className="info-strip" aria-live="polite" onClick={()=>{
-  // Mobile-only: tapping the info strip opens the per-project stats view.
-  // On desktop the click is harmless because cursor:pointer is only set on
-  // touch / narrow viewports via CSS.
-  if(typeof window==='undefined'||!window.matchMedia)return;
-  if(!window.matchMedia('(pointer: coarse), (max-width: 899px)').matches)return;
-  setStatsTab(projectIdRef.current||'all');
-  setStatsView(true);
-}}>
+{!isEditMode&&<div className="info-strip" aria-live="polite" role="button" tabIndex={0} title="Open session controls" onClick={()=>{
+  // Phase 3/5: tapping the live progress strip opens the left
+  // sidebar Session tab so all start/stop/configure actions live in
+  // one place. The strip itself remains glanceable.
+  setLeftSidebarTab("session");
+  setLeftSidebarOpen(true);
+}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setLeftSidebarTab("session");setLeftSidebarOpen(true);}}}>
   <div className="info-strip-bar">
     {progressPct>=100&&<div className="info-strip-fill info-strip-fill--done" style={{width:"100%"}}/>}
     {progressPct<100&&prevBarPct>0&&<div className="info-strip-fill" style={{width:prevBarPct+"%"}}/>}
@@ -4616,20 +4638,9 @@ return(
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
     {todayStitchesForBar>0&&<span className="info-strip-today-count">Today: {todayStitchesForBar}</span>}
-    {liveAutoStitches>0&&<span className="info-strip-timer">{liveAutoIsPaused?"⏸":"⏱"} {fmtTime(liveAutoElapsed)}</span>}
-    {!isEditMode&&<button onClick={(e)=>{
-      e.stopPropagation();
-      if(explicitSession){
-        const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
-        const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
-        setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[]});
-        setExplicitSession(null);
-      }else{
-        setExplicitSession({startTime:Date.now(),timeAvail:null,stitchGoal:null});
-        setRpanelTab("session");
-        setMobileDrawerOpen(true);
-      }
-    }} title={explicitSession?"End session":"Start session"} style={{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",fontSize:14,color:explicitSession?"#dc2626":"#0d9488",padding:"0 4px",lineHeight:1,flexShrink:0,fontWeight:700}}>{explicitSession?"⏹":"▶"}</button>}
+    {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.clock?Icons.clock():null)}</span> {fmtTime(liveAutoElapsed)}</span>}
+    {/* Phase 3/5: explicit-session start/stop button removed; lives in
+        the left sidebar Session tab. Tap the strip itself to open it. */}
   </div>
 </div>}
 {hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:6,padding:"6px 10px",fontSize:11,color:"#1d4ed8",marginBottom:4,gap:8}}>
@@ -4728,6 +4739,389 @@ return(
   </div>}
 
   {!statsView&&pat&&pal&&<><div className="cs-main">
+    {/* Phase 5: backdrop scrim — only visible on mobile while the
+        drawer is open. Tap to close. CSS controls visibility (hidden
+        on >=900px) so desktop layout is untouched. */}
+    {leftSidebarOpen&&<div className="lpanel-backdrop" onClick={()=>setLeftSidebarOpen(false)} aria-hidden="true"/>}
+    {/* ═══ LEFT SIDEBAR (toolbar-rework phase 1) ═══
+        Mirrors Highlight / View / Session controls so the toolbar pill
+        and the rpanel "More" tab can be trimmed in later phases. The
+        old controls remain wired during phase 1 to avoid disrupting
+        in-flight sessions during the migration. */}
+    {leftSidebarOpen&&<div className={"lpanel"+(leftSidebarOpen?" lpanel--open":"")} role="complementary" aria-label="Tracker sidebar">
+      {(()=>{
+        const leftSidebarTabs=[["highlight","Highlight"],["view","View"],["session","Session"],["tools","Tools"],["notes","Notes"],["legend","Legend"]];
+        const handleLeftSidebarTabKeyDown=(e,currentKey)=>{
+          let nextKey=null;
+          const currentIndex=leftSidebarTabs.findIndex(([k])=>k===currentKey);
+          if(e.key==="ArrowLeft"){
+            e.preventDefault();
+            nextKey=leftSidebarTabs[(currentIndex<=0?leftSidebarTabs.length:currentIndex)-1][0];
+          }else if(e.key==="ArrowRight"){
+            e.preventDefault();
+            nextKey=leftSidebarTabs[(currentIndex+1)%leftSidebarTabs.length][0];
+          }else if(e.key==="Home"){
+            e.preventDefault();
+            nextKey=leftSidebarTabs[0][0];
+          }else if(e.key==="End"){
+            e.preventDefault();
+            nextKey=leftSidebarTabs[leftSidebarTabs.length-1][0];
+          }
+          if(!nextKey||nextKey===currentKey)return;
+          setLeftSidebarTab(nextKey);
+          const tablist=e.currentTarget.closest('[role="tablist"]');
+          if(!tablist)return;
+          const nextTab=tablist.querySelector('[role="tab"][data-lp-tab="'+(typeof CSS!=="undefined"&&CSS.escape?CSS.escape(nextKey):nextKey)+'"]');
+          if(nextTab&&typeof nextTab.focus==="function")nextTab.focus();
+        };
+        return <div className="lp-tabs" role="tablist" aria-label="Tracker sidebar sections">
+          {leftSidebarTabs.map(([k,l])=>
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              data-lp-tab={k}
+              aria-selected={leftSidebarTab===k}
+              tabIndex={leftSidebarTab===k?0:-1}
+              className={"lp-tab"+(leftSidebarTab===k?" lp-tab--on":"")+(k==="legend"?" lp-tab--mobile-only":"")}
+              onClick={()=>setLeftSidebarTab(k)}
+              onKeyDown={(e)=>handleLeftSidebarTabKeyDown(e,k)}
+            >{l}</button>
+          )}
+          <button type="button" className="lp-close" onClick={()=>setLeftSidebarOpen(false)} aria-label="Close sidebar" title="Close sidebar">{Icons.x?Icons.x():"\u00D7"}</button>
+        </div>;
+      })()}
+      <div className="lp-tab-content">
+
+      {/* ── Tab: Highlight ── */}
+      {leftSidebarTab==="highlight"&&<div className="lp-section">
+        <div className="lp-heading">Colour focus</div>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+          <button className="lp-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];if(stitchView!=="highlight")setStitchView("highlight");setFocusColour(prev.id);}} title="Previous colour ([)" aria-label="Previous colour">{Icons.chevronLeft?Icons.chevronLeft():"<"}</button>
+          <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:6}}>
+            {focusColour&&cmap&&cmap[focusColour]?(()=>{const cp=cmap[focusColour];return(
+              <>
+                <span style={{width:14,height:14,borderRadius:3,background:`rgb(${cp.rgb})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
+                <span style={{fontSize:12,fontWeight:700}}>DMC {focusColour}</span>
+                <span style={{fontSize:11,color:"#64748b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cp.name||""}</span>
+              </>
+            );})():<span style={{fontSize:11,color:"#94a3b8"}}>No focus</span>}
+          </div>
+          <button className="lp-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];if(stitchView!=="highlight")setStitchView("highlight");setFocusColour(next.id);}} title="Next colour (])" aria-label="Next colour">{Icons.chevronRight?Icons.chevronRight():">"}</button>
+          {focusColour&&<button className="lp-btn lp-btn--ghost" onClick={()=>setFocusColour(null)} title="Clear focus" aria-label="Clear focus">{Icons.x?Icons.x():"\u00D7"}</button>}
+        </div>
+
+        <div className="lp-heading">Mode</div>
+        <div className="lp-segmented" style={{marginBottom:10}}>
+          {[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(([m,l])=>
+            <button key={m} className={"lp-seg"+(highlightMode===m?" lp-seg--on":"")} onClick={()=>{ensureFocusColour();setHighlightMode(m);}}>{l}</button>
+          )}
+        </div>
+
+        {highlightMode==="isolate"&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11}}>
+          <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Visibility</span>
+          <input type="range" min={0} max={60} value={Math.round(trackerDimLevel*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTrackerDimLevel(v);try{localStorage.setItem("cs_trDimLv",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
+          <span style={{width:34,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(trackerDimLevel*100)}%</span>
+        </div>}
+        {highlightMode==="tint"&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11}}>
+          <input type="color" value={tintColor} onChange={e=>{setTintColor(e.target.value);try{localStorage.setItem("cs_tintColor",e.target.value);}catch(_){}}} style={{width:28,height:22,padding:0,border:"1px solid #e2e8f0",borderRadius:4,cursor:"pointer"}} aria-label="Tint colour"/>
+          <input type="range" min={10} max={80} value={Math.round(tintOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTintOpacity(v);try{localStorage.setItem("cs_tintOp",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}} aria-label="Tint opacity"/>
+          <span style={{width:34,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(tintOpacity*100)}%</span>
+        </div>}
+        {highlightMode==="spotlight"&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11}}>
+          <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Dim</span>
+          <input type="range" min={5} max={50} value={Math.round(spotDimOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setSpotDimOpacity(v);try{localStorage.setItem("cs_spotDimOp",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
+          <span style={{width:34,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(spotDimOpacity*100)}%</span>
+        </div>}
+
+        <div className="lp-heading" style={{marginTop:10}}>Counting aids</div>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,fontSize:11,cursor:"pointer"}}>
+          <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+          <span>Show counting aids</span>
+        </label>
+        {countingAidsEnabled&&<>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,fontSize:11}}>
+            <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Runs</span>
+            <div className="lp-segmented" style={{flex:1}}>
+              {[[0,"Off"],[1,"All"],[3,"3+"],[5,"5+"],[10,"10+"]].map(([v,l])=>
+                <button key={v} className={"lp-seg"+(countRunMin===v?" lp-seg--on":"")} onClick={()=>setCountRunMin(v)}>{l}</button>
+              )}
+            </div>
+          </div>
+          {countRunMin>0&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,fontSize:11}}>
+            <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Direction</span>
+            <div className="lp-segmented" style={{flex:1}}>
+              {[["h","Horizontal"],["v","Vertical"],["both","Both"]].map(([v,l])=>
+                <button key={v} className={"lp-seg"+(countRunDir===v?" lp-seg--on":"")} onClick={()=>setCountRunDir(v)}>{l}</button>
+              )}
+            </div>
+          </div>}
+          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,cursor:"pointer"}}>
+            <input type="checkbox" checked={countNinjaEnabled} onChange={e=>setCountNinjaEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#ea580c"}}/>
+            <span>Highlight ninja stitches</span>
+          </label>
+        </>}
+
+        <div className="lp-heading" style={{marginTop:10}}>Skip</div>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:11,cursor:"pointer"}}>
+          <input type="checkbox" checked={highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+          <span>Skip completed colours when cycling</span>
+        </label>
+        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,cursor:"pointer"}}>
+          <input type="checkbox" checked={onlyStarted} onChange={e=>setOnlyStarted(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+          <span>Only colours already started</span>
+        </label>
+      </div>}
+
+      {/* ── Tab: View ── */}
+      {leftSidebarTab==="view"&&<div className="lp-section">
+        <div className="lp-heading">Mode</div>
+        <div className="lp-segmented" style={{marginBottom:10}}>
+          {[['symbol','Symbol'],['colour','Colour'],['highlight','Highlight']].map(([k,l])=>
+            <button key={k} className={"lp-seg"+(stitchView===k?" lp-seg--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>
+          )}
+        </div>
+
+        <div className="lp-heading">Zoom</div>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+          <button className="lp-btn" onClick={()=>setStitchZoom(z=>Math.max(0.1,+(z-0.25).toFixed(2)))} aria-label="Zoom out">−</button>
+          <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{flex:1,accentColor:"#0d9488"}} aria-label="Zoom level"/>
+          <button className="lp-btn" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in">+</button>
+          <span style={{minWidth:40,textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{Math.round(stitchZoom*100)}%</span>
+          <button className="lp-btn lp-btn--ghost" onClick={fitSZ}>Fit</button>
+        </div>
+
+        <div className="lp-heading">Rendering</div>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11,cursor:"pointer"}}>
+          <input type="checkbox" checked={lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+          <span>Lock detail tier</span>
+        </label>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,fontSize:11}}>
+          <span style={{color:"#475569",flexShrink:0,minWidth:80}}>Zoomed-out fade</span>
+          <select value={String(lowZoomFade)} disabled={lockDetailLevel} onChange={e=>setLowZoomFade(parseFloat(e.target.value))} style={{flex:1,padding:"3px 6px",borderRadius:4,border:"1px solid #e2e8f0",background:lockDetailLevel?"#f1f5f9":"#fff"}}>
+            <option value="0">Off</option>
+            <option value="0.15">Subtle</option>
+            <option value="0.55">Strong</option>
+          </select>
+        </div>
+
+        <div className="lp-heading">Layers</div>
+        {STITCH_LAYERS.map(layer=>{
+          const count=layerCounts[layer.id];
+          const vis=layerVis[layer.id];
+          return <label key={layer.id} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",fontSize:11,cursor:"pointer",opacity:count>0?1:0.4}}>
+            <input type="checkbox" checked={vis} onChange={()=>{setSoloPreState(null);setLayerVis(v=>({...v,[layer.id]:!v[layer.id]}));}} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+            <span style={{flex:1}}>{layer.label}</span>
+            <span style={{fontSize:10,color:"#94a3b8"}}>{count.toLocaleString()}</span>
+          </label>;
+        })}
+      </div>}
+
+      {/* ── Tab: Session ── */}
+      {leftSidebarTab==="session"&&<div className="lp-section">
+        <div className="lp-heading">Session {liveAutoStitches>0&&<span className="badge">Live</span>}</div>
+        {explicitSession?(()=>{
+          const elapsed=Math.floor((Date.now()-explicitSession.startTime)/1000);
+          const stitchesDone=liveAutoStitches;
+          const timeRemaining=explicitSession.timeAvail?Math.max(0,explicitSession.timeAvail-elapsed):null;
+          const goalReached=(explicitSession.stitchGoal&&stitchesDone>=explicitSession.stitchGoal)||(explicitSession.timeAvail&&elapsed>=explicitSession.timeAvail);
+          return(<>
+            <div className="sess-card" style={{borderColor:"#99f6e4",background:"#f0fdfa"}}>
+              <div className="row"><span className="lbl">{timeRemaining!==null?"Remaining":"Elapsed"}</span><span className="val" style={{fontWeight:700,color:"#0d9488"}}>{fmtTime(timeRemaining!==null?timeRemaining:elapsed)}</span></div>
+              <div className="row"><span className="lbl">Stitches</span><span className="val">{stitchesDone}{explicitSession.stitchGoal?` / ${explicitSession.stitchGoal}`:""}</span></div>
+              {stitchesDone>0&&elapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(stitchesDone/(elapsed/3600)).toFixed(0)} st/hr</span></div>}
+            </div>
+            {goalReached&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 10px",borderRadius:6,marginTop:6,textAlign:"center",fontWeight:600}}>Goal reached!</div>}
+            <button className="lp-btn lp-btn--danger" style={{marginTop:8,width:"100%"}} onClick={()=>{
+              const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
+              const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
+              setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[]});
+              setExplicitSession(null);
+            }}>End session</button>
+          </>);
+        })():<>
+          <div className="sess-card">
+            <div className="row"><span className="lbl">Time</span><span className="val">{fmtTime(liveAutoElapsed)}</span></div>
+            <div className="row"><span className="lbl">Stitches</span><span className="val">{liveAutoStitches}</span></div>
+            {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
+            <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
+          </div>
+          <button className="lp-btn lp-btn--primary" style={{marginTop:8,width:"100%"}} onClick={()=>setSessionConfigOpen(true)}>Start session</button>
+        </>}
+        <button className="lp-btn lp-btn--ghost" style={{marginTop:8,width:'100%'}} onClick={()=>{if(!statsView){setStatsTab(projectIdRef.current||'all');}setStatsView(v=>!v);}}>{statsView?"Hide":"View"} full stats</button>
+      </div>}
+
+      {/* ── Tab: Tools (phase 4) ──
+          Houses the heavy "look at the canvas differently" controls:
+          realistic preview, thread-usage analysis, focus-area / spotlight
+          and the optional suggestions feed. These were previously
+          scattered across the toolbar overflow and the rpanel "More"
+          tab. */}
+      {leftSidebarTab==="tools"&&<div className="lp-section">
+        <div className="lp-heading">Realistic preview</div>
+        <button className={"lp-btn"+(trackerPreviewOpen?" lp-btn--primary":"")} style={{width:"100%",marginBottom:10}} onClick={()=>setTrackerPreviewOpen(v=>!v)}>
+          {Icons.eye?Icons.eye():null}{" "}{trackerPreviewOpen?"Close preview":"Open realistic preview"}
+        </button>
+
+        <div className="lp-heading" style={{marginTop:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>Thread usage</span>
+          {threadUsageMode&&<button className="lp-btn lp-btn--ghost" style={{padding:"2px 8px",minHeight:0,fontSize:10}} onClick={()=>setThreadUsageMode(null)} title="Hide thread usage overlay">{Icons.x?Icons.x():"\u00D7"}</button>}
+        </div>
+        <div className="lp-segmented" style={{marginBottom:8,width:"100%"}}>
+          {[["cluster","Cluster"],["distance","Isolation"]].map(([m,l])=>
+            <button key={m} className={"lp-seg"+(threadUsageMode===m?" lp-seg--on":"")} onClick={()=>setThreadUsageMode(m)}>{l}</button>
+          )}
+        </div>
+        {threadUsageSummary&&<div style={{padding:"8px 10px",borderRadius:8,background:"#f8fafc",border:"1px solid #e2e8f0",fontSize:11,marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#475569"}}>Confetti</span><span style={{fontWeight:700,color:"#dc2626"}}>{threadUsageSummary.isolated.toLocaleString()} ({threadUsageSummary.total>0?((threadUsageSummary.isolated/threadUsageSummary.total)*100).toFixed(1):0}%)</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#475569"}}>Small (2–4)</span><span style={{fontWeight:600,color:"#b45309"}}>{threadUsageSummary.small.toLocaleString()}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#475569"}}>Medium (5–19)</span><span style={{fontWeight:600,color:"#475569"}}>{threadUsageSummary.medium.toLocaleString()}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:"#475569"}}>Large (20+)</span><span style={{fontWeight:600,color:"#16a34a"}}>{threadUsageSummary.large.toLocaleString()}</span></div>
+          {threadUsageSummary.estChanges>0&&<div style={{display:"flex",justifyContent:"space-between",paddingTop:5,borderTop:"0.5px solid #e2e8f0"}}><span style={{color:"#475569"}}>Est. thread changes</span><span style={{fontWeight:700}}>~{threadUsageSummary.estChanges.toLocaleString()}</span></div>}
+        </div>}
+
+        <div className="lp-heading" style={{marginTop:6}}>Focus area</div>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11,cursor:"pointer"}}>
+          <input type="checkbox" checked={focusEnabled} onChange={e=>{const next=e.target.checked;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());}} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+          <span>Spotlight focus block</span>
+        </label>
+        {stitchingStyle!=="crosscountry"&&stitchingStyle!=="freestyle"&&<>
+          <div style={{fontSize:11,color:"#475569",marginBottom:4}}>Block size: {blockW}×{blockH}</div>
+          <div style={{display:"flex",gap:4,marginBottom:8,flexWrap:"wrap"}}>
+            {[[10,10,"10×10"],[20,20,"20×20"]].map(([w,h,l])=>
+              <button key={l} className={"lp-btn"+(blockW===w&&blockH===h?" lp-btn--primary":"")} style={{padding:"3px 8px",minHeight:0,fontSize:10}} onClick={()=>{setBlockW(w);setBlockH(h);}}>{l}</button>
+            )}
+            <input type="number" inputMode="numeric" aria-label="Custom block width" placeholder="W" value={blockW} onChange={e=>setBlockW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:42,padding:"3px 5px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:11}} min={5} max={100}/>
+            <span style={{fontSize:11,lineHeight:"24px",color:"#94a3b8"}}>×</span>
+            <input type="number" inputMode="numeric" aria-label="Custom block height" placeholder="H" value={blockH} onChange={e=>setBlockH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:42,padding:"3px 5px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:11}} min={5} max={100}/>
+          </div>
+        </>}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,fontSize:11}}>
+          <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Style</span>
+          <button className="lp-btn lp-btn--ghost" style={{flex:1,justifyContent:"flex-start"}} onClick={()=>setStyleOnboardingOpen(true)} title="Change stitching style">
+            {({block:"Block",royal:"Royal Rows",crosscountry:"Cross Country",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle}
+          </button>
+        </div>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,fontSize:11,cursor:"pointer"}}>
+          <input type="checkbox" checked={breadcrumbVisible} onChange={e=>setBreadcrumbVisible(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+          <span>Show breadcrumbs</span>
+        </label>
+
+        <div className="lp-heading" style={{marginTop:6}}>Suggestions</div>
+        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,cursor:"pointer"}}>
+          <input type="checkbox" checked={recEnabled} onChange={e=>{const v=e.target.checked;setRecEnabled(v);try{localStorage.setItem("cs_recEnabled",v?"1":"0");}catch(_){}}} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+          <span>Surface next-block suggestions</span>
+        </label>
+        {recEnabled&&recommendations&&recommendations.top.length>0&&<div style={{marginTop:8,fontSize:11,color:"#64748b"}}>
+          {recommendations.top.length} block{recommendations.top.length===1?"":"s"} suggested · top: row {Math.floor(recommendations.top[0].idx/(analysisResult.regionCols||1))*(analysisResult.regionSize||10)+1}, col {(recommendations.top[0].idx%(analysisResult.regionCols||1))*(analysisResult.regionSize||10)+1}
+        </div>}
+      </div>}
+
+      {/* ── Tab: Notes (phase 4) ──
+          Project metadata + at-a-glance time totals. Designer and
+          description are inline-editable; saves debounce through the
+          existing project-storage path. */}
+      {leftSidebarTab==="notes"&&<div className="lp-section">
+        <div className="lp-heading">Designer</div>
+        <input type="text" value={projectDesigner} onChange={e=>setProjectDesigner(e.target.value)} placeholder="e.g. Satsuma Street" maxLength={120} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:12,fontFamily:"inherit",marginBottom:10}}/>
+
+        <div className="lp-heading">Description</div>
+        <textarea value={projectDescription} onChange={e=>setProjectDescription(e.target.value)} placeholder="Notes about this project…" maxLength={2000} rows={4} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:12,fontFamily:"inherit",marginBottom:10,resize:"vertical"}}/>
+
+        <div className="lp-heading">Project info</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 16px",fontSize:11,marginBottom:10}}>
+          <div>
+            <div style={{color:"#94a3b8",fontWeight:600,marginBottom:1}}>Started</div>
+            <div style={{fontWeight:600,color:"#1e293b"}}>{createdAtRef.current?new Date(createdAtRef.current).toLocaleDateString():"—"}</div>
+          </div>
+          <div>
+            <div style={{color:"#94a3b8",fontWeight:600,marginBottom:1}}>Pattern size</div>
+            <div style={{fontWeight:600,color:"#1e293b"}}>{sW} × {sH}</div>
+          </div>
+          <div>
+            <div style={{color:"#94a3b8",fontWeight:600,marginBottom:1}}>Stitchable</div>
+            <div style={{fontWeight:600,color:"#1e293b"}}>{totalStitchable.toLocaleString()}</div>
+          </div>
+          <div>
+            <div style={{color:"#94a3b8",fontWeight:600,marginBottom:1}}>Colours</div>
+            <div style={{fontWeight:600,color:"#1e293b"}}>{pal.length}</div>
+          </div>
+        </div>
+
+        <div className="lp-heading">Time</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 16px",fontSize:11,marginBottom:10}}>
+          <div>
+            <div style={{color:"#94a3b8",fontWeight:600,marginBottom:1}}>Total logged</div>
+            <div style={{fontWeight:600,color:"#1e293b"}}>{fmtTime(totalTime+liveAutoElapsed)}</div>
+          </div>
+          <div>
+            <div style={{color:"#94a3b8",fontWeight:600,marginBottom:1}}>Est. remaining</div>
+            <div style={{fontWeight:600,color:"#1e293b"}}>{estCompletion?fmtTime(estCompletion):"—"}</div>
+          </div>
+        </div>
+
+        <div style={{display:"flex",gap:6,marginTop:6}}>
+          <button className="lp-btn" style={{flex:1}} onClick={()=>copyProgressSummary()}>{Icons.clipboard?Icons.clipboard():null}{" "}Copy summary</button>
+          <button className="lp-btn" style={{flex:1}} onClick={handleEditInCreator}>{Icons.pencil?Icons.pencil():null}{" "}Edit in Creator</button>
+        </div>
+      </div>}
+
+      {/* ── Tab: Legend (phase 5, mobile only) ──
+          On <=899px the rpanel is hidden (CSS) and the palette legend
+          folds into the left drawer as its own tab. The tab button is
+          also CSS-hidden on desktop, so the tab is unreachable in the
+          desktop layout where the rpanel is already showing the same
+          list. */}
+      {leftSidebarTab==="legend"&&<div className="lp-section lp-section--mobile-only" style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <span className="lp-heading" style={{margin:0}}>Palette legend <span className="badge">{pal.length}</span></span>
+          <label style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:"var(--text-tertiary)"}}>
+            <span>Sort</span>
+            <select value={legendSort} onChange={e=>setLegendSort(e.target.value)} style={{fontSize:11,padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontFamily:"inherit"}} aria-label="Sort palette legend">
+              <option value="id">DMC ID</option>
+              <option value="done">% done</option>
+              <option value="count">Stitch count</option>
+            </select>
+          </label>
+        </div>
+        <div className="col-list" style={{maxHeight:"none",flex:1,overflowY:"auto"}}>
+          {(()=>{
+            const rows=pal.map(p=>{
+              const dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
+              const totalWithHalf=dc.total+dc.halfTotal*0.5;
+              const doneWithHalf=dc.done+dc.halfDone*0.5;
+              const pct=totalWithHalf>0?Math.round(doneWithHalf/totalWithHalf*100):0;
+              return {p,dc,pct,total:dc.total,complete:doneWithHalf>=totalWithHalf&&totalWithHalf>0};
+            });
+            if(legendSort==="done"){rows.sort((a,b)=>b.pct-a.pct);}
+            else if(legendSort==="count"){rows.sort((a,b)=>b.total-a.total);}
+            else{rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});}
+            return rows.map(({p,dc,pct,complete})=>{
+              const isFocused=focusColour===p.id;
+              return <div key={p.id} className={"col-row"+(isFocused?" focus":"")} style={{opacity:complete&&!isFocused?0.55:1}} onClick={()=>{
+                if(isEditMode){setEditModalColor(p);return;}
+                setStitchView("highlight");
+                setFocusColour(p.id);
+                setLeftSidebarTab("highlight");
+              }} title={"Focus DMC "+p.id+" and open Highlight tab"}>
+                <div className="sw" style={{background:`rgb(${p.rgb})`}}/>
+                <span className="sym">{p.symbol}</span>
+                <span className="cid" style={{color:isFocused?"#0d9488":complete?"#16a34a":"inherit"}}>{p.id}</span>
+                <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
+                {!isEditMode&&<>
+                  <div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
+                  <span className="ct">{dc.done}/{dc.total}</span>
+                  <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
+                </>}
+              </div>;
+            });
+          })()}
+        </div>
+      </div>}
+
+      </div>{/* end lp-tab-content */}
+    </div>}
+
     <div className="canvas-area" style={{padding:"12px 16px"}}>
     {showNavHelp&&!isEditMode&&(()=>{const isTouch=hasTouchRef.current;return(
     <div style={{marginBottom:8,padding:"14px 16px",background:"#fff",border:"1px solid #a5b4fc",borderRadius:10,fontSize:12}}>
@@ -4743,7 +5137,7 @@ return(
           ["Mark a stitch",isTouch?"Tap a cell":"Click a cell"],
           ["Mark multiple",isTouch?"Tap, then drag across cells":"Click + drag across cells — all set to same state"],
           ["Undo last marks","↩ Undo button (top right)"],
-          stitchView==="highlight"?["Cycle colours",isTouch?"Tap ◀ ▶ arrows in the toolbar":"[ or ] keys  ·  or ← → arrow keys"]:null,
+          stitchView==="highlight"?["Cycle colours",isTouch?"Open the Highlight tab in the sidebar":"[ or ] keys"]:null,
           stitchView==="highlight"?["Clear focus","Tap the colour pill to show all colours"]:null,
           stitchMode==="navigate"?["Place crosshair","Click on any cell to drop a guide"]:null,
           stitchMode==="navigate"?["Park marker","Select a colour, then click to place a marker"]:null,
@@ -4894,307 +5288,67 @@ return(
 
     </div>{/* end canvas-area */}
 
-    {/* ═══ RIGHT PANEL ═══ */}
+    {/* ═══ RIGHT PANEL — PALETTE LEGEND (phase 4) ═══
+        Replaces the old Colours / Session / More tabs. Session lives in
+        the lpanel Session tab; the Layers / Project Info / Quick
+        Actions content from the old "More" tab has been folded into
+        the lpanel Notes and View tabs. The right panel is now a
+        single sortable legend; tapping a row sets the focus colour
+        AND opens the Highlight tab on the left. */}
     <div className={"rpanel"+(mobileDrawerOpen?" rpanel--drawer-open":"")}>
-      <div className="rp-tabs">
-        {[["colours","Colours"],["session","Session"],["more","More"]].map(([k,l])=>
-          <button key={k} className={"rp-tab"+(rpanelTab===k?" rp-tab--on":"")} onClick={()=>{const isMobile=window.matchMedia&&window.matchMedia("(max-width: 899px)").matches;if(isMobile){if(rpanelTab===k&&mobileDrawerOpen){setMobileDrawerOpen(false);}else{setRpanelTab(k);setMobileDrawerOpen(true);}}else{setRpanelTab(k);}}}>{l}</button>
-        )}
+      <div className="rp-tabs" style={{paddingLeft:10,paddingRight:6,gap:6,alignItems:"center"}}>
+        <span style={{flex:1,fontSize:11,fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",color:"var(--text-tertiary)"}}>Palette legend <span className="badge">{pal.length}</span></span>
+        <label style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,color:"var(--text-tertiary)"}}>
+          <span>Sort</span>
+          <select value={legendSort} onChange={e=>setLegendSort(e.target.value)} style={{fontSize:10,padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontFamily:"inherit"}} aria-label="Sort palette legend">
+            <option value="id">DMC ID</option>
+            <option value="done">% done</option>
+            <option value="count">Stitch count</option>
+          </select>
+        </label>
       </div>
       <div className="rp-tab-content">
-      {/* ── Suggestions ── */}
-      {rpanelTab==="more"&&recEnabled&&recommendations&&recommendations.top.length>0&&<div className="rp-section">
-        <div className="rp-heading" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span>Suggested <span className="badge">{recommendations.top.length}</span></span>
-          <button onClick={()=>{setRecEnabled(false);try{localStorage.setItem("cs_recEnabled","0");}catch(_){}}} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12,padding:0}} title="Turn off suggestions">✕</button>
+      {/* Palette legend (sortable). Single list — focus + highlight in one tap. */}
+      <div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+        <div className="col-list" style={{maxHeight:"none",flex:1}}>
+          {(()=>{
+            const rows=pal.map(p=>{
+              const dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
+              const totalWithHalf=dc.total+dc.halfTotal*0.5;
+              const doneWithHalf=dc.done+dc.halfDone*0.5;
+              const pct=totalWithHalf>0?Math.round(doneWithHalf/totalWithHalf*100):0;
+              return {p,dc,pct,total:dc.total,doneWithHalf,totalWithHalf,complete:doneWithHalf>=totalWithHalf&&totalWithHalf>0};
+            });
+            if(legendSort==="done"){rows.sort((a,b)=>b.pct-a.pct);}
+            else if(legendSort==="count"){rows.sort((a,b)=>b.total-a.total);}
+            else{rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});}
+            return rows.map(({p,dc,pct,complete})=>{
+              const isFocused=focusColour===p.id;
+              return <div key={p.id} className={"col-row"+(isFocused?" focus":"")} style={{opacity:complete&&!isFocused?0.55:1}} onClick={()=>{
+                if(isEditMode){setEditModalColor(p);return;}
+                // Single tap: set focus AND open the Highlight tab in the
+                // left sidebar. This is the primary "show me this colour"
+                // affordance now that the toolbar pill is trimmed.
+                setStitchView("highlight");
+                setFocusColour(p.id);
+                setLeftSidebarTab("highlight");
+                setLeftSidebarOpen(true);
+              }} title={"Focus DMC "+p.id+" and open Highlight tab"}>
+                <div className="sw" style={{background:`rgb(${p.rgb})`}}/>
+                <span className="sym">{p.symbol}</span>
+                <span className="cid" style={{color:isFocused?"#0d9488":complete?"#16a34a":"inherit"}}>{p.id}</span>
+                <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
+                {!isEditMode&&<>
+                  <div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
+                  <span className="ct">{dc.done}/{dc.total}</span>
+                  <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
+                </>}
+                {isEditMode&&<span style={{fontSize:10,color:"#d97706",fontWeight:600}} aria-label="Edit colour">{Icons.pencil?Icons.pencil():"\u270E"}</span>}
+              </div>;
+            });
+          })()}
         </div>
-        {recommendations.top.slice(0,recShowMore?3:1).map((rec,rank)=>{
-          const RS=analysisResult.regionSize||10;const RC=analysisResult.regionCols||1;
-          const rCol=rec.idx%RC,rRow=Math.floor(rec.idx/RC);
-          const remSt=rec.reg.totalStitches-rec.reg.completedStitches;
-          const pctDone=Math.round(rec.reg.completionPercentage*100);
-          const label=`Row ${rRow*RS+1}–${(rRow+1)*RS}, Col ${rCol*RS+1}–${(rCol+1)*RS}`;
-          return <div key={rec.idx} style={{padding:"7px 10px",marginBottom:4,borderRadius:8,border:"1px solid "+(rank===0?"#99f6e4":"#e2e8f0"),background:rank===0?"#f0fdfa":"#fafafa",cursor:"pointer"}} onClick={()=>{
-            if(!stitchScrollRef.current)return;
-            const RS2=analysisResult.regionSize||10;const RC2=analysisResult.regionCols||1;
-            const rC2=rec.idx%RC2,rR2=Math.floor(rec.idx/RC2);
-            const cx=(rC2+0.5)*RS2*scs+G,cy=(rR2+0.5)*RS2*scs+G;
-            const el=stitchScrollRef.current;
-            el.scrollLeft=cx-el.clientWidth/2;el.scrollTop=cy-el.clientHeight/2;
-          }}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-              <span style={{fontWeight:700,fontSize:12,color:rank===0?"#0d9488":"#475569"}}>{rank===0?"⭐":rank===1?"●":"○"} {label}</span>
-              <button onClick={e=>{e.stopPropagation();setRecDismissed(prev=>{const n=new Set(prev);n.add(rec.idx);return n;});}} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:11,padding:"0 2px"}} title="Dismiss">✕</button>
-            </div>
-            <div style={{fontSize:11,color:"#475569"}}>{pctDone}% complete · {remSt} stitches left</div>
-            {rank===0&&rec.reg.dominantColour&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>Dominant: DMC {rec.reg.dominantColour}</div>}
-          </div>;
-        })}
-        {recommendations.top.length>1&&<button onClick={()=>setRecShowMore(v=>!v)} style={{fontSize:10,color:"#0d9488",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontWeight:600}}>{recShowMore?"Fewer suggestions":"More suggestions"}</button>}
-        {recommendations.quickWins.length>0&&<div style={{marginTop:8,paddingTop:8,borderTop:"0.5px solid #e2e8f0"}}>
-          <div style={{fontWeight:600,fontSize:11,color:"#475569",marginBottom:4}}>🎨 Quick wins</div>
-          {recommendations.quickWins.map(c=>{
-            const hasStash=globalStash&&globalStash[c.id];
-            return <div key={c.id} style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,cursor:"pointer",padding:"3px 4px",borderRadius:5,background:"#fff",border:"0.5px solid #e2e8f0"}} onClick={()=>{setStitchView("highlight");setFocusColour(c.id);}}>
-              {analysisResult.perColour[c.id]&&pat&&(()=>{const rgb=pat.find(p=>p&&p.id===c.id);return rgb?<span style={{width:10,height:10,borderRadius:2,background:`rgb(${rgb.rgb[0]},${rgb.rgb[1]},${rgb.rgb[2]})`,flexShrink:0,border:"1px solid #cbd5e1"}}/>:null;})()}
-              <span style={{fontWeight:700,fontSize:11,minWidth:32}}>DMC {c.id}</span>
-              <span style={{fontSize:10,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name||""}</span>
-              <span style={{fontSize:10,color:"#16a34a",fontWeight:700}}>{c.remaining}↑</span>
-            </div>;
-          })}
-        </div>}
-      </div>}
-      {/* Restore suggestions if hidden */}
-      {rpanelTab==="more"&&!recEnabled&&<div className="rp-section">
-        <button onClick={()=>{setRecEnabled(true);try{localStorage.setItem("cs_recEnabled","1");}catch(_){}}} style={{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#fff",color:"#94a3b8",cursor:"pointer",width:"100%"}}>Enable suggestions</button>
-      </div>}
-      {/* Thread usage section (when enabled) */}
-      {rpanelTab==="more"&&threadUsageMode&&threadUsageSummary&&<div className="rp-section">
-        <div className="rp-heading" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span>Thread usage</span>
-          <div style={{display:"flex",gap:4}}>
-            {[["cluster","Cluster"],["distance","Isolation"]].map(([m,l])=>(
-              <button key={m} onClick={()=>setThreadUsageMode(m)} style={{fontSize:10,padding:"2px 7px",borderRadius:5,border:"1px solid "+(threadUsageMode===m?"#99f6e4":"#e2e8f0"),background:threadUsageMode===m?"#f0fdfa":"#fff",color:threadUsageMode===m?"#0d9488":"#64748b",cursor:"pointer",fontWeight:600}}>{l}</button>
-            ))}
-            <button onClick={()=>setThreadUsageMode(null)} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12,padding:"0 2px"}}>✕</button>
-          </div>
-        </div>
-        <div style={{fontSize:11,marginBottom:6}}>
-          {threadUsageMode==="cluster"?(
-            <div className="thread-usage-legend">
-              <div><span className="tul-swatch" style={{background:"rgba(220,40,40,0.4)"}}/><span>Single isolated (confetti)</span></div>
-              <div><span className="tul-swatch" style={{background:"rgba(255,200,0,0.35)"}}/><span>Small cluster (2–4)</span></div>
-              <div><span className="tul-swatch" style={{background:"rgba(100,150,255,0.25)"}}/><span>Medium cluster (5–19)</span></div>
-              <div><span className="tul-swatch" style={{background:"transparent",border:"1px solid #e2e8f0"}}/><span>Large cluster (20+)</span></div>
-            </div>
-          ):(
-            <div className="thread-usage-legend">
-              <div><span className="tul-swatch" style={{background:"rgba(220,40,40,0.4)"}}/><span>Highly isolated (15+ stitches away)</span></div>
-              <div><span className="tul-swatch" style={{background:"rgba(255,120,0,0.35)"}}/><span>Moderately isolated (5–15)</span></div>
-              <div><span className="tul-swatch" style={{background:"rgba(255,200,0,0.25)"}}/><span>Mildly isolated (1.4–5)</span></div>
-              <div><span className="tul-swatch" style={{background:"transparent",border:"1px solid #e2e8f0"}}/><span>Clustered (no overlay)</span></div>
-            </div>
-          )}
-        </div>
-        <div style={{padding:"8px 10px",borderRadius:8,background:"#f8fafc",border:"1px solid #e2e8f0",fontSize:11}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#475569"}}>Confetti (isolated):</span><span style={{fontWeight:700,color:"#dc2626"}}>{threadUsageSummary.isolated.toLocaleString()} ({threadUsageSummary.total>0?((threadUsageSummary.isolated/threadUsageSummary.total)*100).toFixed(1):0}%)</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#475569"}}>Small clusters (2–4):</span><span style={{fontWeight:600,color:"#b45309"}}>{threadUsageSummary.small.toLocaleString()}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#475569"}}>Medium (5–19):</span><span style={{fontWeight:600,color:"#475569"}}>{threadUsageSummary.medium.toLocaleString()}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:"#475569"}}>Large (20+):</span><span style={{fontWeight:600,color:"#16a34a"}}>{threadUsageSummary.large.toLocaleString()}</span></div>
-          {threadUsageSummary.estChanges>0&&<div style={{display:"flex",justifyContent:"space-between",paddingTop:5,borderTop:"0.5px solid #e2e8f0",marginTop:2}}><span style={{color:"#475569"}}>Est. thread changes:</span><span style={{fontWeight:700}}>~{threadUsageSummary.estChanges.toLocaleString()}</span></div>}
-          {threadUsageSummary.mostScattered&&threadUsageSummary.mostScattered.confettiCount>0&&<div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>Most scattered: DMC {threadUsageSummary.mostScattered.id} — {threadUsageSummary.mostScattered.confettiCount} isolated</div>}
-          {threadUsageSummary.mostClustered&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>Most clustered: DMC {threadUsageSummary.mostClustered.id} — cluster size {threadUsageSummary.mostClustered.largestClusterSize}</div>}
-        </div>
-      </div>}
-      {rpanelTab==="session"&&<div className="rp-section">
-        <div className="rp-heading">Session {liveAutoStitches>0&&<span className="badge">Live</span>}</div>
-        {explicitSession?(()=>{
-          const elapsed=Math.floor((Date.now()-explicitSession.startTime)/1000);
-          const stitchesDone=liveAutoStitches;
-          const timeRemaining=explicitSession.timeAvail?Math.max(0,explicitSession.timeAvail-elapsed):null;
-          const bksDone=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
-          const goalReached=(explicitSession.stitchGoal&&stitchesDone>=explicitSession.stitchGoal)||(explicitSession.timeAvail&&elapsed>=explicitSession.timeAvail);
-          return(<>
-            <div className="sess-card" style={{borderColor:"#99f6e4",background:"#f0fdfa"}}>
-              <div className="row"><span className="lbl">{timeRemaining!==null?"Remaining":"Elapsed"}</span><span className="val" style={{fontWeight:700,color:"#0d9488"}}>{fmtTime(timeRemaining!==null?timeRemaining:elapsed)}</span></div>
-              <div className="row"><span className="lbl">Stitches</span><span className="val">{stitchesDone}{explicitSession.stitchGoal?` / ${explicitSession.stitchGoal}`:""}</span></div>
-              {stitchesDone>0&&elapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(stitchesDone/(elapsed/3600)).toFixed(0)} st/hr</span></div>}
-              {bksDone>0&&<div className="row"><span className="lbl">Blocks</span><span className="val">{bksDone}</span></div>}
-            </div>
-            {goalReached&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 10px",borderRadius:6,marginTop:6,textAlign:"center",fontWeight:600}}>Goal reached!</div>}
-            <button style={{marginTop:8,width:"100%",padding:"6px 0",borderRadius:6,border:"none",background:"#dc2626",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>{
-              const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
-              const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
-              setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[]});
-              setExplicitSession(null);
-            }}>End session</button>
-          </>);
-        })():<>
-          <div className="sess-card">
-            <div className="row"><span className="lbl">Time</span><span className="val">{fmtTime(liveAutoElapsed)}</span></div>
-            <div className="row"><span className="lbl">Stitches</span><span className="val">{liveAutoStitches}</span></div>
-            {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
-            <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
-          </div>
-          <button style={{marginTop:8,width:"100%",padding:"6px 0",borderRadius:6,border:"1px solid #0d9488",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>setSessionConfigOpen(true)}>▶ Start session</button>
-        </>}
-        <button style={{marginTop:8,width:'100%',padding:"6px 0",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#475569",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>{if(!statsView){setStatsTab(projectIdRef.current||'all');}setStatsView(v=>!v);}}>📊 {statsView?"Hide":"View"} full stats</button>
-      </div>}
-
-      {/* View Mode */}
-      {rpanelTab==="more"&&<div className="rp-section">
-        <div className="rp-heading">View</div>
-        <div className="rp-pill-toggle" style={{marginBottom:8}}>
-          {[['symbol','Symbol'],['colour','Colour'],['highlight','Highlight']].map(([k,l])=>
-            <button key={k} className={stitchView===k?"on":""} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>
-          )}
-        </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:10,marginBottom:4}}>
-          <label title="Fade un-stitched cells when zoomed out so completed cells stand out. Off keeps the chart at full colour." style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:lockDetailLevel?"#cbd5e1":(lowZoomFade>0?"#0d9488":"#94a3b8"),userSelect:"none",cursor:lockDetailLevel?"not-allowed":"pointer"}}>
-            <span>Zoomed-out fade</span>
-            <select value={String(lowZoomFade)} disabled={lockDetailLevel} onChange={e=>setLowZoomFade(parseFloat(e.target.value))} style={{fontSize:10,padding:"1px 2px",border:"1px solid #e2e8f0",borderRadius:3,background:lockDetailLevel?"#f1f5f9":"#fff",cursor:lockDetailLevel?"not-allowed":"pointer"}}>
-              <option value="0">Off</option>
-              <option value="0.15">Subtle</option>
-              <option value="0.55">Strong</option>
-            </select>
-          </label>
-          <label title="Disable zoom-adaptive rendering — always use Tier 3 (Detail) regardless of zoom level" style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:lockDetailLevel?"#0d9488":"#94a3b8",cursor:"pointer",userSelect:"none"}}>
-            <input type="checkbox" checked={lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>Lock detail
-          </label>
-        </div>
-        {stitchView==="highlight"&&<div style={{fontSize:11,color:"#475569"}}>Focus one colour at a time. ◀ ▶ or <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #cbd5e1",borderRadius:3,background:"#f1f5f9"}}>[ ]</kbd> to cycle.</div>}
-        {stitchView==="highlight"&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:6}}>
-          <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#f8f9fa",cursor:"pointer",lineHeight:1}}>◀</button>
-          {focusColour&&cmap&&cmap[focusColour]&&(()=>{const p=cmap[focusColour];return(
-            <span style={{fontSize:11,display:"flex",alignItems:"center",gap:3,flex:1}} onClick={()=>setFocusColour(null)} title="Click to clear">
-              <span style={{width:10,height:10,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
-              <span style={{fontWeight:700}}>{focusColour}</span>
-            </span>);})()}
-          <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#f8f9fa",cursor:"pointer",lineHeight:1}}>▶</button>
-          <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#475569",cursor:"pointer",whiteSpace:"nowrap",userSelect:"none",marginLeft:4}}>
-            <input type="checkbox" checked={highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{cursor:"pointer"}}/>Skip done
-          </label>
-          <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#475569",cursor:"pointer",whiteSpace:"nowrap",userSelect:"none",marginLeft:4}}>
-            <input type="checkbox" checked={onlyStarted} onChange={e=>setOnlyStarted(e.target.checked)} style={{cursor:"pointer"}}/>Started
-          </label>
-        </div>}
-        {stitchView==="highlight"&&focusColour&&<div style={{marginTop:6}}>
-          <div style={{display:"flex",gap:0,borderRadius:6,overflow:"hidden",border:"1px solid #e2e8f0",marginBottom:4}}>
-            {[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spot"]].map(([m,l])=>(
-              <button key={m} onClick={()=>setHighlightMode(m)} style={{flex:1,padding:"3px 0",fontSize:10,fontWeight:highlightMode===m?700:500,border:"none",borderRight:"1px solid #e2e8f0",background:highlightMode===m?"#0d9488":"#f8fafc",color:highlightMode===m?"#fff":"#475569",cursor:"pointer"}}>{l}</button>
-            ))}
-          </div>
-          {highlightMode==="isolate"&&<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,marginBottom:2}}>
-            <span style={{color:"#475569",flexShrink:0}}>Visibility</span>
-            <input type="range" min={0} max={60} value={Math.round(trackerDimLevel*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTrackerDimLevel(v);try{localStorage.setItem("cs_trDimLv",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
-            <span style={{width:22,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(trackerDimLevel*100)}%</span>
-          </div>}
-          {highlightMode==="tint"&&<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10}}>
-            <input type="color" value={tintColor} onChange={e=>{setTintColor(e.target.value);try{localStorage.setItem("cs_tintColor",e.target.value);}catch(_){}}} style={{width:22,height:18,padding:0,border:"1px solid #e2e8f0",borderRadius:3,cursor:"pointer"}}/>
-            <input type="range" min={10} max={80} value={Math.round(tintOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTintOpacity(v);try{localStorage.setItem("cs_tintOp",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
-            <span style={{width:28,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(tintOpacity*100)}%</span>
-          </div>}
-          {highlightMode==="spotlight"&&<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10}}>
-            <span style={{color:"#475569",flexShrink:0}}>Dim</span>
-            <input type="range" min={5} max={50} value={Math.round(spotDimOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setSpotDimOpacity(v);try{localStorage.setItem("cs_spotDimOp",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
-            <span style={{width:28,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(spotDimOpacity*100)}%</span>
-          </div>}
-        </div>}
-        {stitchView==="highlight"&&focusColour&&<div style={{marginTop:8,paddingTop:8,borderTop:"0.5px solid #e2e8f0"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <span style={{fontSize:11,fontWeight:600,color:"#475569"}}>Counting aids</span>
-            <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#475569",cursor:"pointer"}}>
-              <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>Show
-            </label>
-          </div>
-          {countingAidsEnabled&&<>
-            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:10}}>
-              <span style={{color:"#475569",flexShrink:0}}>Runs</span>
-              <div style={{display:"flex",gap:0,borderRadius:5,overflow:"hidden",border:"1px solid #e2e8f0"}}>
-                {[[0,"Off"],[1,"All"],[3,"3+"],[5,"5+"],[10,"10+"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>setCountRunMin(v)} style={{padding:"2px 7px",fontSize:10,border:"none",borderRight:"1px solid #e2e8f0",background:countRunMin===v?"#0d9488":"#f8fafc",color:countRunMin===v?"#fff":"#475569",cursor:"pointer",fontWeight:countRunMin===v?600:400}}>{l}</button>
-                ))}
-              </div>
-            </div>
-            {countRunMin>0&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:10}}>
-              <span style={{color:"#475569",flexShrink:0}}>Direction</span>
-              <div style={{display:"flex",gap:0,borderRadius:5,overflow:"hidden",border:"1px solid #e2e8f0"}}>
-                {[["h","Horiz"],["v","Vert"],["both","Both"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>setCountRunDir(v)} style={{padding:"2px 7px",fontSize:10,border:"none",borderRight:"1px solid #e2e8f0",background:countRunDir===v?"#0d9488":"#f8fafc",color:countRunDir===v?"#fff":"#475569",cursor:"pointer",fontWeight:countRunDir===v?600:400}}>{l}</button>
-                ))}
-              </div>
-            </div>}
-            <label style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#475569",cursor:"pointer"}}>
-              <input type="checkbox" checked={countNinjaEnabled} onChange={e=>setCountNinjaEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#ea580c"}}/>🥷 Ninja stitch warnings
-            </label>
-          </>}
-        </div>}
-      </div>}
-
-      {/* Colours List */}
-      {rpanelTab==="colours"&&<div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-        <div className="rp-heading">Colours <span className="badge">{pal.length}</span></div>
-        {stitchView==="highlight"&&focusColour&&<div style={{paddingBottom:8,borderBottom:"0.5px solid #f1f5f9",marginBottom:6}}>
-          <div style={{display:"flex",gap:0,borderRadius:6,overflow:"hidden",border:"1px solid #e2e8f0",marginBottom:5}}>
-            {[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spot"]].map(([m,l])=>(
-              <button key={m} onClick={()=>setHighlightMode(m)} style={{flex:1,padding:"4px 0",fontSize:10,fontWeight:highlightMode===m?700:500,border:"none",borderRight:"1px solid #e2e8f0",background:highlightMode===m?"#0d9488":"#f8fafc",color:highlightMode===m?"#fff":"#475569",cursor:"pointer"}}>{l}</button>
-            ))}
-          </div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:10,color:"#64748b"}}>
-            <span>Counting aids</span>
-            <label style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none"}}>
-              <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>Show
-            </label>
-          </div>
-        </div>}
-        <div className="col-list">
-          {pal.map(p=>{let dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
-            let totalWithHalf=dc.total+dc.halfTotal*0.5;
-            let doneWithHalf=dc.done+dc.halfDone*0.5;
-            let pct=totalWithHalf>0?Math.round(doneWithHalf/totalWithHalf*100):0;
-            let complete=doneWithHalf>=totalWithHalf&&totalWithHalf>0;
-            let isFocused=focusColour===p.id;
-            return <div key={p.id} className={"col-row"+(isFocused?" focus":"")} style={{opacity:complete&&!isFocused?0.5:1}} onClick={()=>{
-              if(isEditMode){setEditModalColor(p);}
-              else if(stitchView==="highlight"){setFocusColour(focusColour===p.id?null:p.id);}
-              else{setStitchView("highlight");setFocusColour(p.id);}
-            }}>
-              <div className="sw" style={{background:`rgb(${p.rgb})`}}/>
-              <span className="sym">{p.symbol}</span>
-              <span className="cid" style={{color:isFocused?"#0d9488":complete?"#16a34a":"inherit"}}>{p.id}</span>
-              <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
-              {!isEditMode&&<><div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
-              <span className="ct">{dc.done}/{dc.total}</span>
-              <button onClick={e2=>{e2.stopPropagation();if(!complete){let unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{complete?"Undo":"✓"}</button></>}
-              {isEditMode&&<span style={{fontSize:10,color:"#d97706",fontWeight:600}}>✎</span>}
-            </div>;
-          })}
-        </div>
-      </div>}
-
-      {/* Quick Actions */}
-      {rpanelTab==="more"&&<div className="rp-section">
-        <div className="rp-heading">Actions</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-          <button className="g-btn" style={{flex:1,justifyContent:"center",fontSize:10,padding:"5px 8px",display:"inline-flex",alignItems:"center",gap:5,border:"1px solid #e2e8f0",background:"#fff",borderRadius:8,cursor:"pointer",color:"#475569",fontWeight:600,fontFamily:"inherit"}} onClick={()=>{copyProgressSummary();}}>{Icons.clipboard()} Summary</button>
-          <button className="g-btn" style={{flex:1,justifyContent:"center",fontSize:10,padding:"5px 8px",display:"inline-flex",alignItems:"center",gap:5,border:"1px solid #e2e8f0",background:"#fff",borderRadius:8,cursor:"pointer",color:"#475569",fontWeight:600,fontFamily:"inherit"}} onClick={handleEditInCreator}>{Icons.pencil()} Edit</button>
-        </div>
-
-        {/* Project Info (moved from below-canvas) */}
-        <div style={{marginTop:12}}>
-          <div className="rp-heading">Project Info</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 16px",fontSize:11}}>
-            {[["Pattern size",sW+" × "+sH],["Stitchable",totalStitchable.toLocaleString()],["Colours",pal.length+""],["Skeins needed",totalSkeins+""]].map(function([l,v],i){return React.createElement("div",{key:i},React.createElement("div",{style:{color:"#94a3b8",fontWeight:600,marginBottom:1}},l),React.createElement("div",{style:{fontWeight:600,color:"#1e293b"}},v));})}
-          </div>
-        </div>
-
-        {/* Layers */}
-        <div style={{marginTop:12}}>
-          <div className="rp-heading" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span>Layers</span>
-            <div style={{display:"flex",gap:4}}>
-              <button onClick={()=>{setSoloPreState(null);setLayerVis(ALL_LAYERS_VISIBLE);}} style={{fontSize:10,padding:"2px 7px",borderRadius:5,border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",color:"#475569",fontWeight:600}}>All</button>
-              <button onClick={()=>{setSoloPreState(null);setLayerVis(Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,false])));}} style={{fontSize:10,padding:"2px 7px",borderRadius:5,border:"1px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",color:"#475569",fontWeight:600}}>None</button>
-            </div>
-          </div>
-          {STITCH_LAYERS.map(layer=>{
-            const count=layerCounts[layer.id];
-            const vis=layerVis[layer.id];
-            return <div key={layer.id} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",opacity:count>0?1:0.4}}>
-              <button onClick={()=>{setSoloPreState(null);setLayerVis(v=>({...v,[layer.id]:!v[layer.id]}));}} style={{width:22,height:22,border:"none",borderRadius:4,background:vis?"#f0fdfa":"#f1f5f9",cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                {vis?<svg width="12" height="9" viewBox="0 0 16 11" fill="none"><ellipse cx="8" cy="5.5" rx="7" ry="4.5" stroke="#0d9488" strokeWidth="1.5"/><circle cx="8" cy="5.5" r="2.5" fill="#0d9488"/></svg>:<svg width="12" height="9" viewBox="0 0 16 11" fill="none"><ellipse cx="8" cy="5.5" rx="7" ry="4.5" stroke="#94a3b8" strokeWidth="1.5"/><line x1="2" y1="1" x2="14" y2="10" stroke="#94a3b8" strokeWidth="1.5"/></svg>}
-              </button>
-              <span style={{flex:1,fontSize:11,color:vis?"#1e293b":"#94a3b8"}}>{layer.label}</span>
-              <span style={{fontSize:10,color:"#94a3b8"}}>{count.toLocaleString()}</span>
-              {layer.id==='backstitch'&&<select value={bsThickness} onChange={e=>setBsThickness(parseInt(e.target.value))} style={{fontSize:10,padding:"1px 3px",borderRadius:4,border:"1px solid #e2e8f0",maxWidth:42,cursor:"pointer"}}><option value={1}>1px</option><option value={2}>2px</option><option value={3}>3px</option></select>}
-            </div>;
-          })}
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:4,paddingTop:4,borderTop:"0.5px solid #e2e8f0"}}>
-            <span style={{fontSize:10,color:"#64748b"}}>Count</span>
-            <button onClick={()=>setStatsCountMode(m=>m==='visible'?'all':'visible')} style={{fontSize:10,padding:"2px 8px",borderRadius:5,border:"1px solid #e2e8f0",background:statsCountMode==='all'?"#eff6ff":"#f8fafc",color:statsCountMode==='all'?"#1d4ed8":"#475569",cursor:"pointer",fontWeight:600}}>{statsCountMode==='visible'?'Visible layers only':'All layers'}</button>
-          </div>
-        </div>
-      </div>}
+      </div>
       </div>{/* end rp-tab-content */}
     </div>{/* end rpanel */}
   </div>{/* end cs-main */}

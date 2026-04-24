@@ -43,6 +43,21 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   box-shadow: var(--shadow-sm);
 }
 
+/* Background-pick mode: pulses the source-image card so the user knows
+   where to click. Paired with an in-card banner explaining the action. */
+.card--pickBg {
+  border-color: #fb923c;
+  box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.18), var(--shadow-sm);
+  animation: card-pickbg-pulse 1.6s ease-in-out infinite;
+}
+@keyframes card-pickbg-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.18), var(--shadow-sm); }
+  50%      { box-shadow: 0 0 0 6px rgba(251, 146, 60, 0.28), var(--shadow-sm); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card--pickBg { animation: none; }
+}
+
 .upload-area {
   border: 1.5px dashed var(--border);
   border-radius: var(--radius-xl);
@@ -118,6 +133,26 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   max-height: calc(100vh - 32px);
   overflow-y: auto;
   box-shadow: var(--shadow-md);
+}
+/* Phase 5 — bottom-sheet modal variant. Defaults to a normal centred
+   modal on desktop (so the styles are no-ops) and re-anchors to the
+   bottom of the viewport on mobile, with a small drag-handle bar.
+   Used by SessionConfigModal so "Start session" is reachable
+   one-handed on phones. */
+.sheet-handle{
+  width:36px;height:4px;border-radius:2px;background:var(--border);
+  margin:-8px auto 12px;
+}
+@media(max-width:899px){
+  .modal-overlay--sheet{align-items:flex-end;}
+  .modal-content--sheet{
+    width:100%;max-width:100%;
+    border-bottom-left-radius:0;border-bottom-right-radius:0;
+    border-bottom:none;
+    padding:16px 18px calc(20px + env(safe-area-inset-bottom,0px));
+    animation:sheet-slide-up 0.22s ease-out;
+  }
+  @keyframes sheet-slide-up{from{transform:translateY(100%);}to{transform:translateY(0);}}
 }
 /* .modal-box, .modal-header, .modal-title — used by ConvertPaletteModal and other
    class-based modals. Without these the modal renders transparent and unstyled. */
@@ -238,6 +273,100 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .rp-tab--on{color:var(--accent);border-bottom-color:var(--accent);}
 .rp-tab-content{flex:1;overflow-y:auto;}
 .fab-undo{display:none;}
+
+/* ── Tracker left sidebar (toolbar-rework phase 1) ──
+   Persistent panel on >=900px, drawer overlay on <900px (phase 5).
+   Mirrors .rpanel structure. */
+.tracker-hamburger{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:36px;height:32px;margin-right:8px;
+  border:1px solid var(--border);border-radius:8px;background:var(--surface);
+  color:var(--text-secondary);cursor:pointer;font-size:18px;
+  transition:background 0.15s ease,color 0.15s ease;
+  flex-shrink:0;
+}
+.tracker-hamburger:hover{background:#f1f5f9;color:var(--accent);}
+.tracker-hamburger[aria-expanded="true"]{background:#f0fdfa;color:var(--accent);border-color:#99f6e4;}
+
+.lpanel{
+  width:280px;background:var(--surface);border-right:1px solid var(--border);
+  flex-shrink:0;position:sticky;top:128px;max-height:calc(100vh - 128px);
+  overflow-y:auto;align-self:flex-start;display:flex;flex-direction:column;
+}
+.lp-tabs{
+  display:flex;border-bottom:1px solid var(--border);
+  position:sticky;top:0;background:var(--surface);z-index:10;
+}
+.lp-tab{
+  flex:1;padding:10px 0;font-size:12px;font-weight:600;
+  border:none;background:none;cursor:pointer;color:var(--text-tertiary);
+  border-bottom:2px solid transparent;font-family:inherit;
+}
+.lp-tab--on{color:var(--accent);border-bottom-color:var(--accent);}
+.lp-close{
+  width:36px;border:none;background:none;cursor:pointer;
+  color:var(--text-tertiary);font-size:18px;line-height:1;
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.lp-close:hover{color:var(--accent);}
+.lp-tab-content{flex:1;overflow-y:auto;}
+.lp-section{padding:12px 14px;border-bottom:1px solid var(--border-subtle);}
+.lp-heading{
+  font-size:11px;font-weight:700;letter-spacing:0.05em;
+  text-transform:uppercase;color:var(--text-tertiary);margin-bottom:6px;
+}
+.lp-btn{
+  padding:4px 10px;border:1px solid var(--border);border-radius:6px;
+  background:var(--surface);color:var(--text-secondary);cursor:pointer;
+  font-size:12px;font-weight:600;font-family:inherit;
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  min-height:28px;
+}
+.lp-btn:hover{background:#f8fafc;color:var(--accent);}
+.lp-btn--ghost{background:transparent;}
+.lp-btn--primary{background:#0d9488;color:#fff;border-color:#0d9488;}
+.lp-btn--primary:hover{background:#0b7d72;color:#fff;}
+.lp-btn--danger{background:#dc2626;color:#fff;border-color:#dc2626;}
+.lp-btn--danger:hover{background:#b91c1c;color:#fff;}
+.lp-segmented{
+  display:inline-flex;border:1px solid var(--border);border-radius:6px;
+  overflow:hidden;background:#f8fafc;
+}
+.lp-seg{
+  flex:1;padding:4px 8px;border:none;background:none;cursor:pointer;
+  font-size:11px;font-weight:600;color:var(--text-secondary);
+  font-family:inherit;border-right:1px solid var(--border);min-height:28px;
+}
+.lp-seg:last-child{border-right:none;}
+.lp-seg--on{background:var(--accent);color:#fff;}
+.lp-seg:hover:not(.lp-seg--on){background:#f1f5f9;}
+
+@media(max-width:899px){
+  .lpanel{
+    position:fixed;top:0;left:0;bottom:0;width:280px;max-width:85vw;
+    z-index:1000;border-right:1px solid var(--border);
+    box-shadow:2px 0 16px rgba(0,0,0,0.12);max-height:none;
+  }
+}
+/* Phase 5 — desktop hides the mobile-only Legend tab + section. */
+.lp-tab--mobile-only,.lp-section--mobile-only{display:none;}
+@media(max-width:899px){
+  /* Phase 5 — backdrop scrim behind the drawer. Tap to close. */
+  .lpanel-backdrop{
+    position:fixed;inset:0;z-index:999;background:rgba(15,23,42,0.45);
+    backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+    animation:lpanel-fade-in 0.18s ease-out;
+  }
+  @keyframes lpanel-fade-in{from{opacity:0;}to{opacity:1;}}
+  /* Phase 5 — show the Legend tab + section only on mobile. */
+  .lp-tab--mobile-only{display:inline-flex;}
+  .lp-section--mobile-only{display:flex;}
+  /* Phase 5 — palette legend lives in the lpanel on mobile, so the
+     standalone rpanel is redundant. Hide it entirely. */
+  .rpanel{display:none!important;}
+  /* Phase 5 — touch-friendly hit targets inside the lpanel. */
+  .lp-btn,.lp-tab,.lp-seg{min-height:44px;}
+}
 @media(pointer:coarse){.fab-undo{display:flex;position:fixed;bottom:60px;left:16px;width:48px;height:48px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:20px;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.2);z-index:400;cursor:pointer;touch-action:manipulation;}}
 .tb-btn{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;font-size:11px;font-weight:400;border:none;border-radius:5px;background:transparent;color:var(--text-secondary);cursor:pointer;white-space:nowrap;line-height:1.4;font-family:inherit;}
 .tb-btn:hover{filter:none;background:var(--surface-tertiary);color:var(--text-primary);}

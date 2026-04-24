@@ -79,6 +79,15 @@
     // `window.B2_DRAG_MARK_ENABLED = false` also disables the gesture.
     trackerDragMark:       true,
 
+    // ─── Tracker left sidebar (toolbar-rework) ──────────────────────────
+    // Persisted open/closed state and active tab for the new left sidebar
+    // that consolidates Highlight / View / Session / Tools / Notes
+    // controls. Default is closed — users opt in via the hamburger button.
+    trackerLeftSidebarOpen: false,
+    trackerLeftSidebarTab:  "highlight",
+    // Palette legend sort: id | done | count
+    trackerLegendSort:      "id",
+
     // ─── Stash Manager defaults ─────────────────────────────────────────
     stashDefaultBrand:        "DMC",            // DMC | Anchor | both
     stashLowStockThreshold:   1,

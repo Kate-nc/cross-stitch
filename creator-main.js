@@ -875,8 +875,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             {state.panelOpen&&<div className="rpanel-backdrop" onClick={()=>state.setPanelOpen(false)}/>}
             <div className={"rpanel"+(state.panelOpen?" rpanel--open":"")}>
             <window.CreatorSidebar/>
-            {!state.pat&&state.img&&<div className="card" style={{overflow:"hidden"}}>
+            {!state.pat&&state.img&&<div id="bg-pick-target" className={"card"+(state.pickBg?" card--pickBg":"")} style={{overflow:"hidden"}}>
               <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#475569"}}>Original Image</div>
+              {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#fff7ed",borderTop:"1px solid #fed7aa",borderBottom:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:8}}>
+                <span style={{flex:1}}>Click anywhere on the image to set the background colour.</span>
+                <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:10,padding:"2px 7px",border:"1px solid #fdba74",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}}>Cancel</button>
+              </div>}
               <div style={{position:"relative",touchAction:state.isCropping?"none":"auto"}} ref={state.cropRef} onPointerDown={canvas.handleCropPointerDown} onPointerMove={canvas.handleCropPointerMove} onPointerUp={canvas.handleCropPointerUp} onPointerCancel={canvas.handleCropPointerCancel}>
                 <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.isCropping?"crosshair":(state.pickBg?"crosshair":"default"),opacity:state.isCropping?0.7:1}} onClick={canvas.srcClick}/>
                 {state.isCropping&&state.cropRect&&<div style={{position:"absolute",left:state.cropRect.x,top:state.cropRect.y,width:state.cropRect.w,height:state.cropRect.h,border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
@@ -894,7 +898,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Change</button>
                 </div>
               </div>}
-              {state.pickBg&&<div style={{padding:"5px 10px",fontSize:10,color:"#ea580c",fontWeight:600,background:"#fff7ed"}}>Click to pick BG</div>}
             </div>}
           </div>}
           </>}

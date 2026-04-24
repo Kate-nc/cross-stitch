@@ -49,17 +49,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { document.removeEventListener("pointerdown", close); };
   }, [app.overflowOpen]);
 
-  // Preview dropdown local state — must be declared before early return (Rules of Hooks)
-  var previewWrapRef = React.useRef(null);
-  var _pm = React.useState(false); var previewMenuOpen = _pm[0], setPreviewMenuOpen = _pm[1];
-  React.useEffect(function() {
-    if (!previewMenuOpen) return;
-    function close(e) {
-      if (previewWrapRef.current && !previewWrapRef.current.contains(e.target)) setPreviewMenuOpen(false);
-    }
-    document.addEventListener("pointerdown", close);
-    return function() { document.removeEventListener("pointerdown", close); };
-  }, [previewMenuOpen]);
+  // (The Preview chart-mode dropdown that used to live here has moved into
+  // the Sidebar Preview tab — see creator/Sidebar.js previewPanel.)
 
   if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
 
@@ -80,21 +71,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
-          // Generate / Regenerate — first so always visible on narrow screens
-          h("button", {
-            className:"tb-btn tb-btn--green",
-            onClick:function(){ gen.generate(); },
-            disabled:gen.busy,
-            "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
-            title:gen.hasGenerated?"Regenerate pattern":"Generate pattern"
-          }, gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate"),
-          h("div", {className:"tb-sdiv"}),
-          // Overlay toggle
+          // Overlay toggle — quick-access duplicate of the canonical
+          // "Source overlay" control in the sidebar's Image tab. The
+          // sidebar version owns opacity; this one just toggles on/off.
           gen.img && h("button", {
             className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
             onClick:function(){ cv.setShowOverlay(!cv.showOverlay); },
             title:"Toggle source image overlay", "aria-label":"Toggle source image overlay"
-          }, "\uD83D\uDDBC\uFE0F Overlay"),
+          }, Icons.image(), " Overlay"),
           // Zoom
           createZoomGrp
         )
@@ -187,47 +171,16 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ];
 
-  // Stitch type dropdown — shown only when paint or fill is the active brush mode
-  var showStitchGrp = (cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase";
-
-  // Show the colour pill for paint/fill modes AND when the eyedropper is active
-  var showSwatchRow = (showStitchGrp || cv.activeTool==="eyedropper") && palData.length > 0;
-  var stitchMeta = {
-    "cross":         {icon:svgX,         label:"Cross",       cls:"tb-btn--green"},
-    "quarter":       {icon:svgQtr,       label:"\u00BC Stitch",  cls:"tb-btn--blue"},
-    "half-fwd":      {icon:svgFwd,       label:"Half /",       cls:"tb-btn--blue"},
-    "half-bck":      {icon:svgBck,       label:"Half \\",      cls:"tb-btn--blue"},
-    "three-quarter": {icon:svgThreeQtr,  label:"\u00BE Stitch",  cls:"tb-btn--blue"},
-    "backstitch":    {icon:null,         label:"Bs",           cls:"tb-btn--on"}
-  };
-  var activeSM = stitchMeta[cv.stitchType] || stitchMeta["cross"];
-  var stitchDrop = showStitchGrp ? [
-    h("div", {key:"sdiv-stitch", className:"tb-sdiv"}),
-    h("div", {key:"stitch-drop", className:"tb-drop-wrap" + (openDrop==="stitch"?" tb-drop-wrap--open":"")},
-      h("button", {
-        className:"tb-btn tb-drop-btn " + activeSM.cls,
-        title:"Stitch type",
-        "aria-label":"Stitch type menu",
-        "aria-haspopup":"menu",
-        "aria-expanded":openDrop==="stitch",
-        onClick:function(){setOpenDrop(openDrop==="stitch"?null:"stitch");}
-      }, activeSM.icon, activeSM.label, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
-      h("div", {className:"tb-dropdown", role:"menu"},
-        Object.keys(stitchMeta).map(function(k) {
-          var m = stitchMeta[k];
-          return h("button", {
-            key:k,
-            className:"tb-drop-item" + (cv.stitchType===k?" tb-drop-item--on":""),
-            onClick:function(){cv.selectStitchType(k);setOpenDrop(null);}
-          }, m.icon, m.label);
-        })
-      )
-    )
-  ] : null;
+  // Stitch type, brush size and backstitch-continuous toggle previously
+  // lived here; they have moved to the Sidebar Tools tab. The toolbar
+  // keeps Paint/Fill/Erase/Pick + Wand/Lasso primary buttons only.
+  // (Stitch type cycles with the T shortcut from the keyboard; sub-modes
+  // for the lasso are picked once in the Tools tab and remembered.)
 
   // Colour swatch strip — second toolbar row, sorted by usage, with expand
   var SWATCH_INIT = 20;
   var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
+  var showSwatchRow = ((cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase" || cv.activeTool==="eyedropper") && palData.length > 0;
   var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
@@ -269,132 +222,52 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     }, swatchExpanded ? "\u25B4" : "+"+( palData.length - SWATCH_INIT)+  " \u25BE")
   ) : null;
 
-  // Brush size group
-  var showBrushSize = (
-    ((cv.stitchType === "cross" || cv.stitchType === "half-fwd" || cv.stitchType === "half-bck") && cv.brushMode === "paint") ||
-    cv.stitchType === "erase"
-  ) && cv.activeTool !== "eyedropper";
-  var sizeGrp = showBrushSize ? [
-    h("div", {key:"sdiv-sz", className:"tb-sdiv"}),
-    h("div", {
-      key:"size-grp",
-      className:"tb-grp",
-      style:{display:"flex",alignItems:"center",gap:4,opacity:(cv.selectedColorId||cv.stitchType==="erase")?1:0.6}
-    },
-      h("span", {style:{fontSize:10,color:"#475569",textTransform:"uppercase",fontWeight:600}}, "Size"),
-      [1,2,3].map(function(sz) {
-        return h("button", {
-          key:sz,
-          className:"tb-btn"+(cv.brushSize===sz?" tb-btn--on":""),
-          onClick:function(){cv.setBrushSize(sz);},
-          style:{padding:"2px 6px",minWidth:24}
-        }, sz);
-      })
-    )
-  ] : null;
-
-  // Backstitch continuous
-  var bsCont = (cv.stitchType === "backstitch") ? [
-    h("div", {key:"sdiv-bs", className:"tb-sdiv"}),
-    h("label", {
-      key:"bs-cont",
-      style:{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#475569",flexShrink:0}
-    },
-      h("input", {
-        type:"checkbox", checked:cv.bsContinuous,
-        onChange:function(e){cv.setBsContinuous(e.target.checked); cv.setBsStart(null);}
-      }),
-      "Continuous"
-    )
-  ] : null;
-
-  // Selection tools dropdown
-  var isSelectActive = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
-  var selIcon = cv.activeTool === "magicWand" ? svgWand :
-                cv.activeTool === "lasso" && cv.lassoMode === "polygon" ? svgPolygon :
-                cv.activeTool === "lasso" && cv.lassoMode === "magnetic" ? svgMagnetic :
-                cv.activeTool === "lasso" ? svgFreehand : svgWand;
-  var selLabel = cv.activeTool === "magicWand" ? "Wand" :
-                 cv.activeTool === "lasso" ? (cv.lassoMode === "polygon" ? "Poly" : cv.lassoMode === "magnetic" ? "Mag" : "Lasso") :
-                 "Select";
-  var selectDrop = [
+  // Selection: simple Wand + Lasso primary buttons. Sub-modes
+  // (Freehand / Polygon / Magnetic) and the Clear-selection control now
+  // live in the Sidebar Tools tab.
+  var selectGrp = [
     h("div", {key:"sdiv-select", className:"tb-sdiv"}),
-    h("div", {key:"select-drop", className:"tb-drop-wrap" + (openDrop==="select"?" tb-drop-wrap--open":"")},
+    h("div", {key:"select-grp", className:"tb-grp"},
       h("button", {
-        className:"tb-btn tb-drop-btn" + (isSelectActive ? " tb-btn--on" : ""),
-        title:"Selection tools",
-        "aria-label":"Selection tools menu",
-        "aria-haspopup":"menu",
-        "aria-expanded":openDrop==="select",
-        onClick:function(){setOpenDrop(openDrop==="select"?null:"select");}
-      }, selIcon, selLabel, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
-      h("div", {className:"tb-dropdown", role:"menu", onClick:function(e){if(e.target.closest&&e.target.closest('.tb-drop-item'))setOpenDrop(null);}},
-        h("button", {
-          className:"tb-drop-item"+(cv.activeTool==="magicWand"?" tb-drop-item--on":""),
-          onClick:function(){
-            if (cv.activeTool==="magicWand") cv.setActiveTool(null);
-            else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
+        className:"tb-btn"+(cv.activeTool==="magicWand"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool==="magicWand") cv.setActiveTool(null);
+          else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
+        },
+        title:"Magic Wand (W)",
+        "aria-label":"Magic wand",
+        "aria-pressed": cv.activeTool==="magicWand" ? "true" : "false"
+      }, svgWand, " Wand"),
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="lasso"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool==="lasso") { if (cv.cancelLasso) cv.cancelLasso(); cv.setActiveTool(null); }
+          else {
+            cv.setActiveTool("lasso");
+            cv.setLassoMode(cv.lassoMode || "freehand");
+            ctx.setPartialStitchTool(null); cv.setBsStart(null);
           }
-        }, svgWand, "Magic Wand"),
-        h("button", {
-          className:"tb-drop-item"+(cv.activeTool==="lasso"&&cv.lassoMode==="freehand"?" tb-drop-item--on":""),
-          onClick:function(){
-            var same=cv.activeTool==="lasso"&&cv.lassoMode==="freehand";
-            if (same){cv.cancelLasso();cv.setActiveTool(null);cv.setLassoMode(null);}
-            else{cv.setActiveTool("lasso");cv.setLassoMode("freehand");ctx.setPartialStitchTool(null);cv.setBsStart(null);}
-          }
-        }, svgFreehand, "Freehand"),
-        h("button", {
-          className:"tb-drop-item"+(cv.activeTool==="lasso"&&cv.lassoMode==="polygon"?" tb-drop-item--on":""),
-          onClick:function(){
-            var same=cv.activeTool==="lasso"&&cv.lassoMode==="polygon";
-            if (same){cv.cancelLasso();cv.setActiveTool(null);cv.setLassoMode(null);}
-            else{cv.setActiveTool("lasso");cv.setLassoMode("polygon");ctx.setPartialStitchTool(null);cv.setBsStart(null);}
-          }
-        }, svgPolygon, "Polygon"),
-        h("button", {
-          className:"tb-drop-item"+(cv.activeTool==="lasso"&&cv.lassoMode==="magnetic"?" tb-drop-item--on":""),
-          onClick:function(){
-            var same=cv.activeTool==="lasso"&&cv.lassoMode==="magnetic";
-            if (same){cv.cancelLasso();cv.setActiveTool(null);cv.setLassoMode(null);}
-            else{cv.setActiveTool("lasso");cv.setLassoMode("magnetic");ctx.setPartialStitchTool(null);cv.setBsStart(null);}
-          }
-        }, svgMagnetic, "Magnetic"),
-        (cv.hasSelection || cv.lassoInProgress) && h("div", {style:{borderTop:"1px solid var(--border)",marginTop:3,paddingTop:3}},
-          h("button", {
-            className:"tb-drop-item",
-            onClick:function(){if(cv.cancelLasso)cv.cancelLasso();if(cv.clearSelection)cv.clearSelection();}
-          }, "\u2715 Clear (", (cv.selectionCount||0).toLocaleString(), ")")
-        )
-      )
-    ),
-    (cv.hasSelection || cv.lassoInProgress) && h("button", {
-      key:"select-clear",
-      className:"tb-btn",
-      onClick:function(){if(cv.cancelLasso)cv.cancelLasso();if(cv.clearSelection)cv.clearSelection();},
-      title:"Clear selection (Esc)",
-      "aria-label":"Clear selection",
-      style:{fontSize:9,padding:"2px 5px",color:"#475569"}
-    }, (cv.selectionCount||0).toLocaleString()+" sel")
+        },
+        title:"Lasso \u2014 mode in Tools tab",
+        "aria-label":"Lasso",
+        "aria-pressed": cv.activeTool==="lasso" ? "true" : "false"
+      },
+        cv.lassoMode === "polygon" ? svgPolygon :
+        cv.lassoMode === "magnetic" ? svgMagnetic : svgFreehand,
+        " Lasso"
+      ),
+      (cv.hasSelection || cv.lassoInProgress) && h("button", {
+        className:"tb-btn",
+        onClick:function(){ if(cv.cancelLasso) cv.cancelLasso(); if(cv.clearSelection) cv.clearSelection(); },
+        title:"Clear selection (Esc)",
+        "aria-label":"Clear selection",
+        style:{fontSize:10,padding:"2px 6px",color:"#475569"}
+      }, (cv.selectionCount||0).toLocaleString()+" sel ", window.Icons.x())
+    )
   ];
 
-  // Colour chip
-  var colChip = ((cv.stitchType==="cross"||cv.stitchType==="half-fwd"||cv.stitchType==="half-bck") &&
-    cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId]) ?
-    h("span", {
-      style:{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,
-        background:(cv.stitchType==="half-fwd"||cv.stitchType==="half-bck")?"#e0f2fe":"#f1f5f9",
-        flexShrink:0,
-        border:(cv.stitchType==="half-fwd"||cv.stitchType==="half-bck")?"1px solid #7dd3fc":"none"
-      }
-    },
-      h("span", {style:{width:10,height:10,borderRadius:2,
-        background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",
-        border:"1px solid #cbd5e1",display:"inline-block"}}),
-      cv.selectedColorId
-    ) : null;
-
-  // Active tool indicator badge
+  // Active tool indicator badge — tooltip surfaces the selected colour
+  // since the toolbar no longer carries a colour chip.
   var badgeLabel, badgeBg, badgeColor, badgeDot;
   if (cv.activeTool === "eyedropper") {
     badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#eab308";
@@ -419,7 +292,11 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else {
     badgeLabel = null;
   }
+  var badgeColourTip = (cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId])
+    ? (" \u2014 DMC " + cv.selectedColorId + (ctx.cmap[cv.selectedColorId].name ? " " + ctx.cmap[cv.selectedColorId].name : ""))
+    : "";
   var toolBadge = badgeLabel ? h("span", {
+    title: badgeLabel + badgeColourTip,
     style:{fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,
       padding:"2px 8px 2px 6px",borderRadius:10,background:badgeBg,color:badgeColor,
       flexShrink:0,letterSpacing:0.2,lineHeight:1.4,border:"1px solid " + badgeDot + "33"}
@@ -498,137 +375,28 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     brushItems
   ) : null;
 
-  // Preview dropdown — mode selector + options
-  function chkBox(active) {
-    return h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-      border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
-      background:active?"var(--accent)":"transparent"}});
-  }
-  function radioBtn(active) {
-    return h("span", {style:{width:14,height:14,borderRadius:"50%",flexShrink:0,display:"inline-block",
-      border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
-      background:active?"var(--accent)":"transparent"}});
-  }
-  var isPixel     = app.previewActive && app.previewMode === "pixel";
-  var isRealistic = app.previewActive && app.previewMode === "realistic";
-  var previewLabel = isPixel ? "Pixel \u25BE" : isRealistic ? "Realistic \u25BE" : "Preview \u25BE";
-  var previewDropWrap = h("div", {className:"tb-overflow-wrap", ref:previewWrapRef},
-    h("button", {
-      className:"tb-btn"+(app.previewActive?" tb-btn--on":""),
-      onClick:function(){setPreviewMenuOpen(function(o){return !o;});},
-      title:"Preview mode",
-      "aria-label":"Preview mode menu"
-    }, previewLabel),
-    previewMenuOpen && h("div", {className:"tb-overflow-menu", style:{minWidth:195,right:0}},
-      h("span", {className:"tb-ovf-lbl"}, "View"),
-      h("button", {
-        className:"tb-ovf-item"+(!app.previewActive?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewActive(false); setPreviewMenuOpen(false);}
-      }, radioBtn(!app.previewActive), " Chart"),
-      h("button", {
-        className:"tb-ovf-item"+(isPixel?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewActive(true); app.setPreviewMode("pixel"); setPreviewMenuOpen(false);}
-      }, radioBtn(isPixel), " Pixel preview"),
-      h("button", {
-        className:"tb-ovf-item"+(isRealistic?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewActive(true); app.setPreviewMode("realistic"); setPreviewMenuOpen(false);}
-      }, radioBtn(isRealistic), " Realistic"),
-      h("div", {className:"tb-ovf-sep"}),
-      h("span", {className:"tb-ovf-lbl"}, "Options"),
-      h("button", {
-        className:"tb-ovf-item"+(app.previewShowGrid?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewShowGrid(function(v){return !v;}); setPreviewMenuOpen(false);},
-        disabled:!app.previewActive,
-        style:{opacity:app.previewActive?1:0.4}
-      }, chkBox(app.previewShowGrid), " Grid overlay"),
-      h("button", {
-        className:"tb-ovf-item"+(app.previewFabricBg?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewFabricBg(function(v){return !v;}); setPreviewMenuOpen(false);},
-        disabled:!isPixel,
-        style:{opacity:isPixel?1:0.4}
-      }, chkBox(app.previewFabricBg), " Fabric background"),
-      h("div", {className:"tb-ovf-sep"}),
-      h("span", {className:"tb-ovf-lbl"}, "Realistic level"),
-      h("button", {
-        className:"tb-ovf-item"+(app.realisticLevel===1?" tb-ovf-item--on":""),
-        onClick:function(){app.setRealisticLevel(1); setPreviewMenuOpen(false);},
-        disabled:!isRealistic,
-        style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(app.realisticLevel===1), " Flat (Level 1)"),
-      h("button", {
-        className:"tb-ovf-item"+(app.realisticLevel===2?" tb-ovf-item--on":""),
-        onClick:function(){app.setRealisticLevel(2); setPreviewMenuOpen(false);},
-        disabled:!isRealistic,
-        style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(app.realisticLevel===2), " Shaded (Level 2)"),
-      h("button", {
-        className:"tb-ovf-item"+(app.realisticLevel===3?" tb-ovf-item--on":""),
-        onClick:function(){app.setRealisticLevel(3); setPreviewMenuOpen(false);},
-        disabled:!isRealistic,
-        style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(app.realisticLevel===3), " Detailed (Level 3)"),
-      h("button", {
-        className:"tb-ovf-item"+(app.realisticLevel===4?" tb-ovf-item--on":""),
-        onClick:function(){app.setRealisticLevel(4); setPreviewMenuOpen(false);},
-        disabled:!isRealistic,
-        style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(app.realisticLevel===4), " Detailed \u2014 Blend (3a)"),
-      h("div", {className:"tb-ovf-sep"}),
-      h("span", {className:"tb-ovf-lbl"}, "Thread coverage"),
-      // Coverage slider + auto/manual indicator
-      (function() {
-        var sFc = ctx.fabricCt || 14;
-        var sSC = sFc <= 11 ? 3 : sFc <= 17 ? 2 : 1;
-        var sAutoCov = Math.min(1, Math.max(0, Math.min(1, Math.max(0, (sFc - 8) / 24)) * (sSC / 2)));
-        var isManual = app.coverageOverride !== null && app.coverageOverride !== undefined;
-        var dispCov = isManual ? app.coverageOverride : sAutoCov;
-        var dispPct = Math.round(dispCov * 100);
-        return h("div", {style:{padding:"4px 14px 6px"}},
-          h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
-            h("input", {
-              type:"range", min:0, max:100, step:1,
-              value: dispPct,
-              disabled: !isRealistic,
-              onChange: function(e) {
-                app.setCoverageOverride(parseInt(e.target.value) / 100);
-              },
-              style:{flex:1, accentColor:"var(--accent)", opacity:isRealistic?1:0.4}
-            }),
-            h("span", {style:{width:32,textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums",flexShrink:0}}, dispPct + "%")
-          ),
-          h("div", {style:{display:"flex",alignItems:"center",gap:6}},
-            h("span", {style:{fontSize:10,color:isManual?"#ea580c":"var(--text-tertiary)",fontWeight:isManual?600:400}},
-              isManual ? "Manual" : "Auto (" + sFc + "-count, " + sSC + " strand" + (sSC!==1?"s":"") + ")"
-            ),
-            isManual && h("button", {
-              onClick: function(e) { e.stopPropagation(); app.setCoverageOverride(null); },
-              title: "Reset to auto",
-              style:{marginLeft:"auto",fontSize:10,padding:"2px 6px",border:"1px solid #fed7aa",borderRadius:4,
-                     background:"#fff7ed",color:"#c2410c",cursor:"pointer", lineHeight:1.2}
-            }, "\u21BA Auto"),
-            !isManual && h("span", {style:{marginLeft:"auto",fontSize:10,color:"#94a3b8"}},
-              Math.round(sAutoCov * 100) + "%"
-            )
-          ),
-          // Quick presets
-          h("div", {style:{display:"flex",gap:3,marginTop:5}},
-            [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
-              var active = isManual && Math.abs(app.coverageOverride - preset[1]) < 0.03;
-              return h("button", {
-                key: preset[0],
-                disabled: !isRealistic,
-                onClick: function(e) { e.stopPropagation(); app.setCoverageOverride(preset[1]); },
-                style:{flex:1,fontSize:9,padding:"3px 0",border:"1px solid "+(active?"var(--accent)":"#cbd5e1"),
-                       borderRadius:4,background:active?"var(--accent)":"transparent",
-                       color:active?"#fff":"var(--text-secondary)",cursor:isRealistic?"pointer":"default",
-                       opacity:isRealistic?1:0.4}
-              }, preset[0]);
-            })
-          )
-        );
-      })()
-    )
-  );
+  // (The Preview chart-mode dropdown formerly built here has been removed.
+  //  All preview controls — Chart/Pixel/Realistic, quality level, coverage,
+  //  grid overlay, fabric background — now live in the Sidebar Preview tab.)
+
+  // Source-image overlay toggle — replaces the old Preview dropdown in the top
+  // toolbar. The Preview chart-mode/coverage controls now live in the Sidebar
+  // Preview tab (less duplication, more room here for editing tools). The
+  // overlay is the one display affordance that's most useful while editing.
+  var overlayBtn = (gen.img && gen.img.src) ? h("button", {
+    className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
+    onClick:function(){ cv.setShowOverlay(function(v){return !v;}); },
+    title:"Toggle source image overlay (O)",
+    "aria-label":"Toggle source image overlay",
+    "aria-pressed": cv.showOverlay ? "true" : "false"
+  }, "Overlay") : null;
+  var overlayOpacityCtl = (gen.img && gen.img.src && cv.showOverlay) ? h("input", {
+    type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
+    onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
+    title:"Overlay opacity",
+    "aria-label":"Overlay opacity",
+    style:{width:60}
+  }) : null;
 
   var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:app.overflowRef},
     h("button", {
@@ -640,44 +408,18 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     overflowMenu
   );
 
-  // Split view toggle button
-  var svgSplit = h("svg", {width:14,height:12,viewBox:"0 0 14 12",fill:"none"},
-    h("rect",{x:"0.7",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"}),
-    h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
-  );
-  var splitBtn = h("button", {
-    className: "tb-btn tb-btn--compare" + (app.splitPaneEnabled ? " tb-btn--on" : ""),
-    title: app.splitPaneEnabled
-      ? "Exit compare view (\\)"
-      : "Compare chart vs realistic preview (\\)",
-    "aria-label": app.splitPaneEnabled ? "Exit compare view" : "Compare chart vs realistic preview",
-    "aria-pressed": app.splitPaneEnabled ? "true" : "false",
-    disabled: !(ctx.pat && ctx.pal),
-    onClick: function() {
-      var next = !app.splitPaneEnabled;
-      app.setSplitPaneEnabled(next);
-      if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", next);
-    },
-    style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
-  }, svgSplit, !sc.bs ? " Compare" : null);
-
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
           brushGrp,
-          stitchDrop,
-          sizeGrp,
-          bsCont,
-          selectDrop,
-          colChip,
+          selectGrp,
           toolBadge,
           zoomGrp,
           undoRedo,
-          h("div", {className:"tb-sdiv"}),
-          previewDropWrap,
-          h("div", {className:"tb-sdiv"}),
-          splitBtn,
+          overlayBtn && h("div", {className:"tb-sdiv"}),
+          overlayBtn,
+          overlayOpacityCtl,
           h("div", {className:"tb-sdiv"}),
           overflowWrap
         )

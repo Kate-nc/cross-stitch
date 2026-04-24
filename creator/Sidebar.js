@@ -333,7 +333,18 @@ window.CreatorSidebar = function CreatorSidebar() {
   })() : null;
 
   // ── Crop image card ──────────────────────────────────────────────────────────
-  var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {className:"card"},
+  // When pickBg is active the card grows a pulsing orange outline and a
+  // prominent banner so the user knows this is the click target. ESC cancels
+  // (wired in useKeyboardShortcuts.js).
+  var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {id:"bg-pick-target", className:"card"+(gen.pickBg?" card--pickBg":"")},
+    gen.pickBg && h("div", {style:{padding:"10px 12px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#fff7ed",borderBottom:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:8}},
+      h("span", {style:{flex:1}}, "Click anywhere on the image to set the background colour."),
+      h("button", {
+        onClick:function(){gen.setPickBg(false);},
+        title:"Cancel pick (Esc)",
+        style:{fontSize:11,padding:"3px 8px",border:"1px solid #fdba74",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}
+      }, "Cancel")
+    ),
     h("div", {
       style:{position:"relative",touchAction:"none",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none"}, ref:gen.cropRef,
       onPointerDown:gen.handleCropPointerDown,
@@ -383,10 +394,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Change")
           )
-        ),
-    gen.pickBg && h("div", {style:{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}},
-      "Click to pick BG"
-    )
+        )
   ) : null;
 
   // ── Colours section (scratch mode) ─────────────────────────────────────────
@@ -958,23 +966,54 @@ window.CreatorSidebar = function CreatorSidebar() {
   ) : null;
 
   // ── Background section (non-scratch) ───────────────────────────────────────
+  // The "Skip background" toggle auto-enters pick mode the first time it's
+  // turned on so the user is never left wondering what to click. Re-toggling
+  // off and on doesn't keep re-arming pick mode (only on the 0→1 transition
+  // when no bgCol has been customised).
   var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}) : null;
+  function armBgPick() {
+    // Switch the user to the Image tab so the pick target is visible.
+    if (app.appMode === "create" && app.setSidebarTab) app.setSidebarTab("image");
+    gen.setPickBg(true);
+    // Scroll the source-image card into view so users know where to click
+    // next. Defer twice so the tab switch + pickBg re-render have committed.
+    if (typeof window !== "undefined" && window.requestAnimationFrame) {
+      window.requestAnimationFrame(function(){
+        window.requestAnimationFrame(function(){
+          var el = document.getElementById("bg-pick-target");
+          if (el && el.scrollIntoView) {
+            try { el.scrollIntoView({behavior:"smooth", block:"center"}); }
+            catch (_) { el.scrollIntoView(); }
+          }
+        });
+      });
+    }
+  }
   var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:app.bgOpen, onToggle:app.setBgOpen, badge:bgBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}},
-      h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){gen.setSkipBg(e.target.checked);}}),
+      h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){
+        var on = e.target.checked;
+        gen.setSkipBg(on);
+        // Auto-arm pick mode on the first enable (0→1 when no custom colour
+        // has been chosen yet). Re-toggling after a pick skips auto-arming.
+        var isDefaultWhite = gen.bgCol[0]===255 && gen.bgCol[1]===255 && gen.bgCol[2]===255;
+        if (on && isDefaultWhite) armBgPick();
+        else if (!on && gen.pickBg) gen.setPickBg(false);
+      }}),
       h("span", null, "Skip background"),
       h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})
     ),
     gen.skipBg && h("div", {style:{marginTop:10}},
       h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
         h("div", {
-          onClick:function(){gen.setPickBg(true);},
+          onClick:armBgPick,
+          title:"Pick background colour from the source image",
           style:{width:24,height:24,borderRadius:6,background:"rgb("+gen.bgCol+")",border:"2px solid #e2e8f0",cursor:"pointer"}
         }),
         h("button", {
-          onClick:function(){gen.setPickBg(true);},
-          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa",cursor:"pointer"}
-        }, "Pick")
+          onClick:armBgPick,
+          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:gen.pickBg?"#fff7ed":"#f8f9fa",color:gen.pickBg?"#9a3412":"#1e293b",cursor:"pointer"}
+        }, gen.pickBg ? "Picking…" : "Pick")
       ),
       h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
         helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
@@ -1003,10 +1042,19 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ─── Mode-aware sidebar tab bar ────────────────────────────────────────────
   var mode = app.appMode || "edit";
-  var sTab = app.sidebarTab || "settings";
+  var rawTab = app.sidebarTab;
+  // Back-compat: legacy "settings" (single-Settings-accordion) → first new tab.
+  if (rawTab === "settings") rawTab = "image";
+  var sTab = rawTab || (mode === "create" ? "image" : "palette");
 
-  var createTabs = [["settings","Settings"],["preview","Preview"]];
-  var editTabs = [["palette","Palette"],["view","View"],["preview","Preview"],["more","More"]];
+  var createTabs = [
+    ["image","Image"],
+    ["dimensions","Dimensions"],
+    ["palette","Palette"],
+    ["preview","Preview"],
+    ["project","Project"]
+  ];
+  var editTabs = [["palette","Palette"],["tools","Tools"],["view","View"],["preview","Preview"],["more","More"]];
   var tabs = mode === "create" ? createTabs : editTabs;
 
   // Ensure sidebarTab is valid for current mode
@@ -1020,7 +1068,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {"aria-hidden":"true", className:"rpanel-handle-wrap", style:{paddingTop:6,paddingBottom:2,display:"flex",justifyContent:"center"}},
       h("div", {className:"rpanel-handle-bar"})
     ),
-    h("div", {style:{display:"flex",borderBottom:"1px solid var(--border)"}},
+    h("div", {style:{display:"flex",borderBottom:"1px solid var(--border)",overflowX:"auto",scrollbarWidth:"none"}},
       tabs.map(function(kl) {
         return h("button", {
           key:kl[0],
@@ -1043,9 +1091,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             }
           },
           style:{
-            flex:1,padding:"8px 2px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
+            flex:"1 1 0",minWidth:0,padding:"8px 4px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
             border:"none",borderBottom:sTab===kl[0]?"2px solid var(--accent)":"2px solid transparent",
-            cursor:"pointer",fontFamily:"inherit",
+            cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",
             background:"transparent",
             color:sTab===kl[0]?"var(--accent)":"var(--text-secondary)",
           }
@@ -1192,6 +1240,36 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
       h("input", {type:"checkbox",checked:app.previewFabricBg,onChange:function(){app.setPreviewFabricBg(!app.previewFabricBg);}}),
       "Fabric background"
+    ),
+    // ── Split / compare view (moved here from the top toolbar) ──────────
+    (ctx.pat && ctx.pal) && h("div", {style:{marginTop:14,paddingTop:10,borderTop:"1px solid var(--border)"}},
+      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:8}}, "Compare"),
+      h("button", {
+        onClick:function(){
+          var next = !app.splitPaneEnabled;
+          app.setSplitPaneEnabled(next);
+          if (typeof window.UserPrefs !== "undefined") window.UserPrefs.set("splitPaneEnabled", next);
+        },
+        "aria-pressed": app.splitPaneEnabled ? "true" : "false",
+        title: app.splitPaneEnabled ? "Exit compare view (\\)" : "Compare chart vs realistic preview (\\)",
+        style:{
+          width:"100%",padding:"8px 10px",fontSize:12,fontWeight:app.splitPaneEnabled?600:500,
+          border:"1px solid "+(app.splitPaneEnabled?"var(--accent)":"var(--border)"),
+          background:app.splitPaneEnabled?"var(--accent-light)":"transparent",
+          color:app.splitPaneEnabled?"var(--accent)":"var(--text-secondary)",
+          borderRadius:6,cursor:"pointer",fontFamily:"inherit",
+          display:"flex",alignItems:"center",justifyContent:"center",gap:6
+        }
+      },
+        h("svg", {width:14,height:12,viewBox:"0 0 14 12",fill:"none","aria-hidden":"true"},
+          h("rect",{x:"0.7",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"}),
+          h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
+        ),
+        app.splitPaneEnabled ? "Exit compare" : "Compare side-by-side"
+      ),
+      h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
+        "Shows the editable chart on the left and the realistic preview on the right."
+      )
     )
   );
 
@@ -1230,18 +1308,111 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       )
     );
-    var settingsContent = h(React.Fragment, null,
-      projectInfoSection,
+    // ── Image tab — file picker, source thumbnail (with Crop / Change),
+    //   plus the canonical Source-overlay toggle + opacity slider. The
+    //   toolbar overlay button still works as a quick toggle.
+    var overlayRow = h("div", {style:{padding:"12px",borderTop:ctx.pat&&gen.img?"1px solid var(--border)":"none"}},
+      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}, "Source overlay"),
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--text-secondary)",marginBottom:8,cursor:gen.img?"pointer":"not-allowed",opacity:gen.img?1:0.5}},
+        h("input", {type:"checkbox", disabled:!gen.img, checked:!!cv.showOverlay,
+          onChange:function(){cv.setShowOverlay(function(v){return !v;});}}),
+        h("span", null, "Show source image over chart")
+      ),
+      h("div", {style:{display:"flex",alignItems:"center",gap:8,opacity:(gen.img&&cv.showOverlay)?1:0.4}},
+        h("label", {style:{fontSize:11,color:"var(--text-secondary)",flexShrink:0}}, "Opacity"),
+        h("input", {type:"range",min:0,max:1,step:0.05,
+          value:cv.overlayOpacity!=null?cv.overlayOpacity:0.3,
+          disabled:!gen.img||!cv.showOverlay,
+          onChange:function(e){cv.setOverlayOpacity(Number(e.target.value));},
+          style:{flex:1}}),
+        h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:32,textAlign:"right",fontVariantNumeric:"tabular-nums"}},
+          Math.round((cv.overlayOpacity!=null?cv.overlayOpacity:0.3)*100)+"%")
+      ),
+      !gen.img && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6}},
+        "Load an image to enable the overlay.")
+    );
+    var imageContent = h(React.Fragment, null,
+      h("div", {style:{padding:"12px",display:"flex",flexDirection:"column",gap:8}},
+        h("button", {
+          onClick:function(){ if(gen.fRef && gen.fRef.current) gen.fRef.current.click(); },
+          style:{padding:"8px 14px",fontSize:12,fontWeight:600,border:"1px solid var(--border)",borderRadius:8,background:"var(--surface-tertiary)",color:"var(--text-primary)",cursor:"pointer",fontFamily:"inherit"}
+        }, gen.img ? "Change image\u2026" : "Choose image\u2026"),
+        !gen.img && h("div", {style:{fontSize:11,color:"var(--text-tertiary)"}},
+          "Pick a photo or drawing to convert into a cross-stitch chart.")
+      ),
       imageCard,
+      overlayRow
+    );
+
+    // ── Dimensions tab — size controls + image adjustments + fabric count.
+    var dimensionsContent = h(React.Fragment, null,
       dimSection,
+      adjSection,
+      fabSection
+    );
+
+    // ── Palette tab — palette source, quality cleanup, and palette swap.
+    //   Background-removal moved to the Preview tab so users can colocate
+    //   "what to skip" with the canvas they click on to pick the colour.
+    var paletteContent = h(React.Fragment, null,
       palSection,
       cleanupSection,
-      fabSection,
-      adjSection,
-      bgSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection
     );
+
+    // ── Preview tab — chart-mode controls + Background section first
+    //   because picking the BG colour means clicking the preview canvas.
+    var previewContent = h(React.Fragment, null,
+      bgSection,
+      previewPanel
+    );
+
+    // ── Project tab — name/designer/notes plus a live cost/size summary.
+    var projectSummary = (function() {
+      var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
+      var stitchable = ctx.totalStitchable || (ctx.pat ? (ctx.sW * ctx.sH) : 0);
+      var fabricCt = ctx.fabricCt || 14;
+      var finishedW = (ctx.sW / fabricCt).toFixed(1);
+      var finishedH = (ctx.sH / fabricCt).toFixed(1);
+      var skeins = (ctx.pat && typeof skeinEst === "function" && palLen > 0)
+        ? (ctx.displayPal || ctx.pal || []).reduce(function(t,p){ return t + (p && p.count ? skeinEst(p.count, fabricCt) : 0); }, 0)
+        : 0;
+      var cost = skeins * (ctx.skeinPrice || (typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 0.95));
+      function row(label, value) {
+        return h("div", {style:{display:"contents"}},
+          h("span", {style:{color:"var(--text-tertiary)"}}, label),
+          h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, value)
+        );
+      }
+      return h(Section, {title:"Live summary", defaultOpen:true},
+        h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:12,padding:"4px 0"}},
+          row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
+          row("Finished", finishedW + " \u00D7 " + finishedH + " in (" + fabricCt + "ct)"),
+          row("Colours", ctx.pat ? (palLen + " colour" + (palLen === 1 ? "" : "s")) : "\u2014"),
+          row("Stitches", ctx.pat ? stitchable.toLocaleString() : "\u2014"),
+          row("Skeins", ctx.pat && skeins > 0 ? ("\u2248 " + Math.ceil(skeins)) : "\u2014"),
+          row("Estimated cost", ctx.pat && cost > 0
+            ? ("\u2248 " + (typeof window.AppPrefs !== "undefined" && window.AppPrefs.formatCurrency
+                ? window.AppPrefs.formatCurrency(cost)
+                : ("\u00A3" + cost.toFixed(2))))
+            : "\u2014")
+        )
+      );
+    })();
+    var projectContent = h(React.Fragment, null,
+      projectInfoSection,
+      projectSummary
+    );
+
+    var tabContentMap = {
+      image: imageContent,
+      dimensions: dimensionsContent,
+      palette: paletteContent,
+      preview: previewContent,
+      project: projectContent
+    };
+    var activeContent = tabContentMap[sTab] || imageContent;
     // ── Create mode bottom action bar ─────────────────────────────────────
     var createActions = h("div", {style:{
       flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
@@ -1284,15 +1455,183 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
     return h(React.Fragment, null,
       tabBar,
-      h("div", {style:{overflowY:"auto",flex:1}},
-        sTab === "settings" && settingsContent,
-        sTab === "preview" && previewPanel
-      ),
+      h("div", {
+        id:"sidebar-panel-"+sTab,
+        role:"tabpanel",
+        "aria-label":"Create mode "+sTab+" panel",
+        style:{overflowY:"auto",flex:1}
+      }, activeContent),
       createActions
     );
   }
 
   // ─── Edit Mode Sidebar ────────────────────────────────────────────────────
+
+  // Tools tab — absorbs the stitch-type, brush-size, lasso-mode and
+  // backstitch-continuous controls that used to live in the top toolbar.
+  // The toolbar keeps Paint/Fill/Erase/Pick + Wand/Lasso primary buttons;
+  // every "what does my brush do" mode tweak lives here.
+  var stitchOpts = [
+    ["cross",         "Cross"],
+    ["quarter",       "\u00BC Stitch"],
+    ["half-fwd",      "Half /"],
+    ["half-bck",      "Half \\"],
+    ["three-quarter", "\u00BE Stitch"],
+    ["backstitch",    "Backstitch"]
+  ];
+  var curStitch = cv.stitchType || "cross";
+  var stitchTypeSection = h("div", {style:{padding:"12px"}},
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}},
+      "Stitch type"),
+    h("div", {role:"radiogroup", "aria-label":"Stitch type",
+      style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
+      stitchOpts.map(function(kl) {
+        var on = curStitch === kl[0];
+        return h("button", {
+          key:kl[0],
+          role:"radio",
+          "aria-checked": on ? "true" : "false",
+          onClick:function(){ cv.selectStitchType(kl[0]); },
+          style:{
+            padding:"7px 8px",fontSize:12,fontWeight:on?600:400,
+            border:"1px solid "+(on?"var(--accent)":"var(--border)"),
+            background:on?"var(--accent-light)":"transparent",
+            color:on?"var(--accent)":"var(--text-secondary)",
+            borderRadius:6,cursor:"pointer",fontFamily:"inherit",textAlign:"left"
+          }
+        }, kl[1]);
+      })
+    ),
+    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
+      "Shortcuts: 1\u20134 for Cross / Half\u2009/ / Half\u2009\\ / Backstitch \u00B7 T cycles, Shift+T reverses.")
+  );
+
+  var bsContSection = (curStitch === "backstitch") ? h("div", {
+    style:{padding:"0 12px 12px"}
+  },
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}},
+      "Backstitch options"),
+    h("label", {style:{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text-secondary)",cursor:"pointer"}},
+      h("input", {type:"checkbox", checked: !!cv.bsContinuous,
+        onChange:function(e){ cv.setBsContinuous(e.target.checked); cv.setBsStart(null); }}),
+      h("span", null, "Continuous mode \u2014 chain segments without re-clicking the start")
+    )
+  ) : null;
+
+  var brushSizeSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}},
+      "Brush size"),
+    h("div", {style:{display:"flex",alignItems:"center",gap:8}},
+      h("input", {type:"range", min:1, max:3, step:1, value:cv.brushSize||1,
+        onChange:function(e){ cv.setBrushSize(parseInt(e.target.value,10)); },
+        "aria-label":"Brush size",
+        style:{flex:1}}),
+      h("div", {style:{display:"flex",gap:3}},
+        [1,2,3].map(function(sz) {
+          var on = cv.brushSize === sz;
+          return h("button", {
+            key:sz,
+            onClick:function(){ cv.setBrushSize(sz); },
+            "aria-pressed": on ? "true" : "false",
+            style:{
+              minWidth:28,padding:"4px 8px",fontSize:12,fontWeight:on?600:400,
+              border:"1px solid "+(on?"var(--accent)":"var(--border)"),
+              background:on?"var(--accent-light)":"transparent",
+              color:on?"var(--accent)":"var(--text-secondary)",
+              borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+            }
+          }, sz);
+        })
+      )
+    ),
+    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
+      "Applies to Cross and Half stitches, and the Erase tool.")
+  );
+
+  var lassoModes = [["freehand","Freehand"],["polygon","Polygon"],["magnetic","Magnetic"]];
+  var curLasso = cv.lassoMode || "freehand";
+  var selectionSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}},
+      "Selection"),
+    h("div", {style:{display:"flex",gap:6,marginBottom:10}},
+      h("button", {
+        onClick:function(){
+          if (cv.activeTool === "magicWand") { cv.setActiveTool(null); }
+          else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
+        },
+        "aria-pressed": cv.activeTool === "magicWand" ? "true" : "false",
+        style:{
+          flex:1,padding:"6px 8px",fontSize:12,
+          fontWeight:cv.activeTool==="magicWand"?600:400,
+          border:"1px solid "+(cv.activeTool==="magicWand"?"var(--accent)":"var(--border)"),
+          background:cv.activeTool==="magicWand"?"var(--accent-light)":"transparent",
+          color:cv.activeTool==="magicWand"?"var(--accent)":"var(--text-secondary)",
+          borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+        }
+      }, "Magic Wand (W)"),
+      h("button", {
+        onClick:function(){
+          if (cv.activeTool === "lasso") { if (cv.cancelLasso) cv.cancelLasso(); cv.setActiveTool(null); }
+          else { cv.setActiveTool("lasso"); cv.setLassoMode(curLasso); ctx.setPartialStitchTool(null); cv.setBsStart(null); }
+        },
+        "aria-pressed": cv.activeTool === "lasso" ? "true" : "false",
+        style:{
+          flex:1,padding:"6px 8px",fontSize:12,
+          fontWeight:cv.activeTool==="lasso"?600:400,
+          border:"1px solid "+(cv.activeTool==="lasso"?"var(--accent)":"var(--border)"),
+          background:cv.activeTool==="lasso"?"var(--accent-light)":"transparent",
+          color:cv.activeTool==="lasso"?"var(--accent)":"var(--text-secondary)",
+          borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+        }
+      }, "Lasso")
+    ),
+    h("div", {style:{fontSize:10,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}},
+      "Lasso mode"),
+    h("div", {role:"radiogroup", "aria-label":"Lasso mode",
+      style:{display:"flex",gap:4,marginBottom:8}},
+      lassoModes.map(function(kl) {
+        var on = curLasso === kl[0];
+        return h("button", {
+          key:kl[0],
+          role:"radio",
+          "aria-checked": on ? "true" : "false",
+          onClick:function(){
+            cv.setLassoMode(kl[0]);
+            // If lasso isn't active yet, picking a mode here activates it.
+            if (cv.activeTool !== "lasso") {
+              cv.setActiveTool("lasso"); ctx.setPartialStitchTool(null); cv.setBsStart(null);
+            }
+          },
+          style:{
+            flex:1,padding:"5px 6px",fontSize:11,fontWeight:on?600:400,
+            border:"1px solid "+(on?"var(--accent)":"var(--border)"),
+            background:on?"var(--accent-light)":"transparent",
+            color:on?"var(--accent)":"var(--text-secondary)",
+            borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+          }
+        }, kl[1]);
+      })
+    ),
+    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",lineHeight:1.4}},
+      "Modifier hint: Shift = add to selection, Alt = subtract."),
+    (cv.hasSelection || cv.lassoInProgress) && h("button", {
+      onClick:function(){ if (cv.cancelLasso) cv.cancelLasso(); if (cv.clearSelection) cv.clearSelection(); },
+      style:{
+        marginTop:8,width:"100%",padding:"6px 8px",fontSize:11,
+        border:"1px solid var(--border)",borderRadius:6,
+        background:"var(--surface)",color:"var(--text-secondary)",
+        cursor:"pointer",fontFamily:"inherit"
+      }
+    }, "Clear selection (" + (cv.selectionCount || 0).toLocaleString() + ")")
+  );
+
+  var toolsContent = h(React.Fragment, null,
+    stitchTypeSection,
+    bsContSection,
+    brushSizeSection,
+    selectionSection
+  );
+
   var moreContent = h(React.Fragment, null,
     h(Section, {title:"Generation Settings",defaultOpen:false},
       imageCard,
@@ -1330,7 +1669,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       onClick:function(){
         if(cv.editHistory.length > 0 && !confirm("Switch to Create mode? Your edits are auto-saved.")) return;
         app.setAppMode("create");
-        app.setSidebarTab("settings");
+        app.setSidebarTab("image");
         if(window.__switchToCreate) window.__switchToCreate();
         app.addToast("Switched to Create mode", {type:"info", duration:2000});
       },
@@ -1379,6 +1718,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         palChipsSection,
         coloursSection
       ),
+      sTab === "tools" && toolsContent,
       sTab === "view" && h(React.Fragment, null,
         viewToggle,
         highlightControls

@@ -133,7 +133,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         dragCellsRef.current.add(idx);
 
         if (action === "paint" && np) {
-          if (np[idx].id === "__skip__") continue;
+          // Allow painting over both __empty__ (manually erased) and __skip__
+          // (background-removed) cells — users expect the brush to put a
+          // stitch back wherever they click, not silently skip it.
           if (!colorEntry) continue;
           var selMask = state.selectionMask;
           if (selMask && !selMask[idx]) continue;
@@ -229,13 +231,19 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
     var idx = gy * sW + gx;
     var cell = pat[idx];
+    // After a successful pick, switch to the Paint tool (with the just-picked
+    // colour) rather than returning to whatever was active before — that's
+    // the gesture users expect ("now I want to paint with this").
+    function activatePaintWithPick() {
+      if (typeof state.setBrushMode === "function") state.setBrushMode("paint");
+      state.setActiveTool("paint");
+      if (typeof state.setPartialStitchTool === "function") state.setPartialStitchTool(null);
+      if (typeof state.setBsStart === "function") state.setBsStart(null);
+      if (state.previousToolRef) state.previousToolRef.current = null;
+    }
     if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
       state.setSelectedColorId(cell.id);
-      // Auto-return to the previous tool after a successful pick
-      if (state.previousToolRef && state.previousToolRef.current) {
-        state.setActiveTool(state.previousToolRef.current);
-        state.previousToolRef.current = null;
-      }
+      activatePaintWithPick();
     } else {
       var ps = partialStitches.get(idx);
       if (ps) {
@@ -244,11 +252,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
           var qe = ps[qKeys[qi]];
           if (qe && cmap[qe.id]) {
             state.setSelectedColorId(qe.id);
-            // Auto-return to the previous tool after a successful pick
-            if (state.previousToolRef && state.previousToolRef.current) {
-              state.setActiveTool(state.previousToolRef.current);
-              state.previousToolRef.current = null;
-            }
+            activatePaintWithPick();
             return;
           }
         }
@@ -355,7 +359,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if ((activeTool === "paint" || activeTool === "fill") && selectedColorId && cmap) {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
       var idx2 = gy * sW + gx;
-      if (pat[idx2].id === "__skip__") return;
+      // Both __skip__ (background-removed) and __empty__ (manually erased)
+      // cells are paintable \u2014 the user expects to put a stitch back there.
       var pe = cmap[selectedColorId]; if (!pe) return;
       var np2 = pat.slice();
       if (activeTool === "fill") {
