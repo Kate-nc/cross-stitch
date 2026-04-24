@@ -1,4 +1,4 @@
-function findSolid(lab,p){if(!p||!p.length)return{type:"solid",id:"__empty__",name:"",rgb:[0,0,0],lab:[0,0,0],dist:Infinity};let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE2(lab,p[i].lab);if(d<bd){bd=d;b=p[i];}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:Math.sqrt(bd)};}
+function findSolid(lab,p){if(!p||!p.length)return{type:"solid",id:"__empty__",name:"",rgb:[0,0,0],lab:[0,0,0],dist:Infinity};let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE2(lab,p[i].lab);if(d<bd){bd=d;b=p[i];if(d===0)break;/* PERF (perf-7 #1): exact-match early exit avoids scanning the rest of the palette when the input lab is already in p */}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:Math.sqrt(bd)};}
 function findBest(lab, palette, allowBlends = true) {
   const solidMatch = findSolid(lab, palette);
   if (!allowBlends || !findBest._blends || findBest._blendPalette !== palette) return solidMatch;
