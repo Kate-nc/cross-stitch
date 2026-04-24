@@ -44,6 +44,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="keyboard-utils.js"></script>
 <script src="shortcuts.js"></script>
 <script src="icons.js"></script>
+<script src="useDragMark.js"></script>
 <script src="import-formats.js"></script>
 <script src="components.js"></script>
 <script src="components/PartialStitchThumb.js"></script>
@@ -87,7 +88,7 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_c60eeccf62';
+var TRACKER_CACHE_KEY = 'babel_tracker_b2dragmark1';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;

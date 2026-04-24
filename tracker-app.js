@@ -1427,6 +1427,14 @@ function copyProgressSummary(){
   copyText(lines.join("\n"),"progress");
 }
 
+// History entry shapes:
+//   • Legacy: bare array of {idx,oldVal} — single-cell or per-pixel drag.
+//   • B2 BULK_TOGGLE: {type:"BULK_TOGGLE", source:"drag"|"range", changes:[...]}
+//     One undo step covering the whole drag-mark or range-select gesture.
+// _historyChanges normalises both shapes for the undo/redo pipeline.
+function _historyChanges(entry){
+  return (entry && entry.type === "BULK_TOGGLE") ? entry.changes : entry;
+}
 function pushTrackHistory(changes){
   if(!changes||!changes.length)return;
   // Track colours for auto-session
@@ -1434,26 +1442,42 @@ function pushTrackHistory(changes){
   setTrackHistory(prev=>{let n=[...prev,changes];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
 }
+// B2: push a single tagged BULK_TOGGLE entry from useDragMark commits.
+function pushBulkToggleHistory(changes, source){
+  if(!changes||!changes.length)return;
+  if(pat){for(let i=0;i<changes.length;i++){const id=pat[changes[i].idx]&&pat[changes[i].idx].id;if(id&&id!=='__skip__'&&id!=='__empty__')pendingColoursRef.current.add(id);}}
+  const entry={type:"BULK_TOGGLE",source:source||"drag",changes:changes};
+  setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  setRedoStack([]);
+}
 function undoTrack(){
   if(!trackHistory.length||!done)return;
-  let last=trackHistory[trackHistory.length-1];
+  let lastEntry=trackHistory[trackHistory.length-1];
+  let last=_historyChanges(lastEntry);
   let nd=new Uint8Array(done);
-  let redoEntry=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
+  let redoChanges=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
-  applyDoneCountsDelta(redoEntry,pat,nd);
+  applyDoneCountsDelta(redoChanges,pat,nd);
   setDone(nd);
   setTrackHistory(prev=>prev.slice(0,-1));
+  let redoEntry=(lastEntry&&lastEntry.type==="BULK_TOGGLE")
+    ?{type:"BULK_TOGGLE",source:lastEntry.source,changes:redoChanges}
+    :redoChanges;
   setRedoStack(prev=>{let n=[...prev,redoEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
 }
 function redoTrack(){
   if(!redoStack.length||!done)return;
-  let last=redoStack[redoStack.length-1];
+  let lastEntry=redoStack[redoStack.length-1];
+  let last=_historyChanges(lastEntry);
   let nd=new Uint8Array(done);
-  let undoEntry=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
+  let undoChanges=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
-  applyDoneCountsDelta(undoEntry,pat,nd);
+  applyDoneCountsDelta(undoChanges,pat,nd);
   setDone(nd);
   setRedoStack(prev=>prev.slice(0,-1));
+  let undoEntry=(lastEntry&&lastEntry.type==="BULK_TOGGLE")
+    ?{type:"BULK_TOGGLE",source:lastEntry.source,changes:undoChanges}
+    :undoChanges;
   setTrackHistory(prev=>{let n=[...prev,undoEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
 }
 
@@ -4354,6 +4378,119 @@ useEffect(()=>{
   return()=>ro.disconnect();
 },[]);
 
+// ═══ B2: Drag-Mark + Long-Press Range Select ═══════════════════════════
+// useDragMark owns tap / drag / long-press routing for TOUCH input on the
+// canvas. Mouse input continues to flow through handleStitchMouseDown so
+// the existing pinch / pan / shift+click / range-mode pathways are intact.
+const _dragMarkCellAtPoint=useCallback(function(cx,cy){
+  if(!stitchRef.current||!pat)return -1;
+  const gc=gridCoord(stitchRef,{clientX:cx,clientY:cy},scs,G,false);
+  if(!gc)return -1;
+  if(gc.gx<0||gc.gx>=sW||gc.gy<0||gc.gy>=sH)return -1;
+  return gc.gy*sW+gc.gx;
+},[pat,sW,sH,scs]);
+
+const _pulseCells=useCallback(function(idxList){
+  // Briefly add a pulse class on overlay cells. The overlay re-renders from
+  // dragState; we mirror the just-committed indices into a transient ref.
+  if(!idxList||!idxList.length)return;
+  const pulse=new Set(idxList);
+  setDragMarkPulse(pulse);
+  setTimeout(function(){setDragMarkPulse(null);},250);
+},[]);
+
+const[dragMarkPulse,setDragMarkPulse]=useState(null);
+
+const _commitBulk=useCallback(function(set,intent,source){
+  if(!pat||!done||!set||!set.size)return;
+  const want=intent==='mark'?1:0;
+  const changes=[];
+  const nd=new Uint8Array(done);
+  set.forEach(function(idx){
+    if(idx<0||idx>=pat.length)return;
+    const cell=pat[idx];
+    if(!cell||cell.id==='__skip__'||cell.id==='__empty__')return;
+    if(typeof isColourLocked==='function'&&isColourLocked()
+       &&pat[idx].id!==focusColour)return;
+    if(nd[idx]!==want){
+      changes.push({idx:idx,oldVal:nd[idx]});
+      nd[idx]=want;
+    }
+  });
+  if(!changes.length)return;
+  pushBulkToggleHistory(changes,source);
+  applyDoneCountsDelta(changes,pat,nd);
+  setDone(nd);
+  if(typeof renderStitch==='function')renderStitch();
+  _pulseCells(changes.map(function(c){return c.idx;}));
+},[pat,done,focusColour,_pulseCells]);
+
+const _dragMarkOnToggle=useCallback(function(idx){
+  // Touch tap: delegate to the existing single-cell toggle path. We keep
+  // mouse on its own path; touch tap goes through here and uses the
+  // standard pushTrackHistory machinery for a single-cell undo step.
+  if(!pat||!done)return;
+  if(idx<0||idx>=pat.length)return;
+  const cell=pat[idx];
+  if(!cell||cell.id==='__skip__'||cell.id==='__empty__')return;
+  if(typeof isColourLocked==='function'&&isColourLocked()
+     &&pat[idx].id!==focusColour)return;
+  const oldVal=done[idx];
+  const nv=oldVal?0:1;
+  const nd=new Uint8Array(done);
+  nd[idx]=nv;
+  pushTrackHistory([{idx:idx,oldVal:oldVal}]);
+  applyDoneCountsDelta([{idx:idx,oldVal:oldVal}],pat,nd);
+  setDone(nd);
+  if(typeof renderStitch==='function')renderStitch();
+},[pat,done,focusColour]);
+
+const _dragMarkOnCommitDrag=useCallback(function(set,intent){
+  _commitBulk(set,intent,'drag');
+},[_commitBulk]);
+
+const _dragMarkOnCommitRange=useCallback(function(set,intent){
+  _commitBulk(set,intent,'range');
+},[_commitBulk]);
+
+// Hook itself — gated by edit mode + non-track stitchMode (returns idle).
+// Default-disabled via window.B2_DRAG_MARK_ENABLED to avoid double-handling
+// with the existing legacy touch pipeline (handleTouchStart / End own the
+// tap, pan, pinch, and range-mode flows). Set the flag to true to opt in;
+// a future PR can coordinate the legacy touch handlers with this hook and
+// remove the flag. Source assertions in tests/dragMark.test.js verify the
+// wiring regardless of the runtime flag.
+const _dragMarkFlag=(typeof window!=='undefined'&&window.B2_DRAG_MARK_ENABLED===true);
+const _dragMarkActive=_dragMarkFlag&&!isEditMode&&stitchMode==="track"&&!!pat&&!!done;
+const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
+  ?window.useDragMark({
+    w:sW,h:sH,pattern:pat,done:done,
+    cellAtPoint:_dragMarkCellAtPoint,
+    onToggleCell:_dragMarkOnToggle,
+    onCommitDrag:_dragMarkOnCommitDrag,
+    onCommitRange:_dragMarkOnCommitRange,
+    isEditMode:!_dragMarkActive,
+  })
+  :{handlers:{},dragState:{mode:'idle',path:new Set(),anchor:null,intent:null}};
+const dragMarkHandlers=_dragMark.handlers;
+const dragMarkState=_dragMark.dragState;
+
+// Touch-only wrapper: only forward pointer events whose pointerType is
+// 'touch' to the hook, so existing mouse handlers stay primary.
+const _touchOnlyHandlers=useMemo(function(){
+  function gate(h){return function(e){
+    if(!h)return;
+    if(e&&e.pointerType==='touch')h(e);
+  };}
+  return {
+    onPointerDown:gate(dragMarkHandlers.onPointerDown),
+    onPointerMove:gate(dragMarkHandlers.onPointerMove),
+    onPointerUp:gate(dragMarkHandlers.onPointerUp),
+    onPointerCancel:gate(dragMarkHandlers.onPointerCancel),
+    onContextMenu:dragMarkHandlers.onContextMenu||function(){},
+  };
+},[dragMarkHandlers]);
+
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
@@ -4750,7 +4887,31 @@ return(
           })}
         </div>
         <div style={{ position: 'relative' }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()} {..._touchOnlyHandlers}/>
+
+          {/* B2 — drag-mark / range-select visual overlay (touch) */}
+          {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(
+            <div className={"drag-mark-overlay drag-mark-overlay--"+(dragMarkState.intent||'mark')}
+                 style={{position:"absolute",top:-G,left:-G,zIndex:6,pointerEvents:"none",
+                         width:sW*scs+G,height:sH*scs+G}}>
+              {[...dragMarkState.path].map(function(idx){
+                var x=(idx%sW)*scs+G, y=Math.floor(idx/sW)*scs+G;
+                return <div key={"p"+idx} className="drag-mark-cell"
+                            style={{left:x,top:y,width:scs,height:scs}}/>;
+              })}
+              {dragMarkState.anchor!=null&&(function(){
+                var idx=dragMarkState.anchor;
+                var x=(idx%sW)*scs+G, y=Math.floor(idx/sW)*scs+G;
+                return <div key={"a"+idx} className="drag-mark-anchor"
+                            style={{left:x,top:y,width:scs,height:scs}}/>;
+              })()}
+              {dragMarkPulse&&[...dragMarkPulse].map(function(idx){
+                var x=(idx%sW)*scs+G, y=Math.floor(idx/sW)*scs+G;
+                return <div key={"x"+idx} className="drag-mark-pulse cell-pulse"
+                            style={{left:x,top:y,width:scs,height:scs}}/>;
+              })}
+            </div>
+          )}
 
           {/* Thread usage overlay */}
           {threadUsageMode&&<canvas ref={threadUsageCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:3,pointerEvents:"none"}}/>}
