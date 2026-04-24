@@ -2186,7 +2186,7 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .tcard .info .tid{font-weight:700;font-size:13px;}
 .tcard .info .tnm{font-size:11px;color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .tcard .owned{font-size:13px;font-weight:700;color:var(--text-primary);background:var(--surface-tertiary);width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;flex-shrink:0;}
-.pat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;}
+.pat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:10px;}
 .pcard{padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);cursor:pointer;transition:all 0.12s;}
 .pcard:hover{border-color:var(--border);box-shadow:var(--shadow-sm);}
 .pcard.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(13,148,136,0.3);background:var(--accent-light);}
@@ -2414,7 +2414,7 @@ kbd {
 }
 .comparison-insights {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
   gap: 10px;
   margin-top: 16px;
 }
@@ -2995,7 +2995,7 @@ kbd {
 /* Project cards grid */
 .mpd-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   gap: 14px;
 }
 
