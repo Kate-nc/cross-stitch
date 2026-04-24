@@ -147,6 +147,19 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
   // precomputeBlends is attached lazily on first use
   if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
 
+  // PERF (deferred-4): default-on feature flag for the secondBest id-map
+  // short-circuit. ON replaces the per-pixel O(palette) scan inside the
+  // confetti penalty loop with an O(4) id-map lookup; output is bit-exact
+  // equivalent. OFF restores the legacy palette scan byte-for-byte.
+  // See reports/deferred-4-dodither-secondbest-shortcircuit-analysis.md.
+  const _PF = (typeof window !== 'undefined' && window.PERF_FLAGS) || {};
+  const _useIdMap = _PF.dodither_secondBest_idmap !== false;
+  let _palIdMap = null;
+  if (_useIdMap) {
+    _palIdMap = new Map();
+    for (let pi = 0; pi < pal.length; pi++) _palIdMap.set(pal[pi].id, pal[pi]);
+  }
+
   // Working buffer in float so error diffusion doesn't clip
   const d = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
@@ -200,14 +213,35 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
           let secondBest = null;
           let secondBestDistSq = Infinity;
 
-          for (let pi = 0; pi < pal.length; pi++) {
-            const entry = pal[pi];
-            const eid = entry.id;
-            if (eid !== nb0 && eid !== nb1 && eid !== nb2 && eid !== nb3) continue;
-            const distSq = dE2(targetLab, entry.lab);
-            if (distSq < secondBestDistSq) {
-              secondBestDistSq = distSq;
-              secondBest = entry;
+          if (_useIdMap) {
+            // PERF (deferred-4): direct id-map lookup, O(unique neighbours) ≤ 4.
+            // Inline dedupe — at most 4 IDs, faster than a Set.
+            for (let nbi = 0; nbi < 4; nbi++) {
+              const nid = nbi === 0 ? nb0 : nbi === 1 ? nb1 : nbi === 2 ? nb2 : nb3;
+              if (!nid) continue;
+              // skip duplicate of an earlier slot
+              if (nbi > 0 && nid === nb0) continue;
+              if (nbi > 1 && nid === nb1) continue;
+              if (nbi > 2 && nid === nb2) continue;
+              const entry = _palIdMap.get(nid);
+              if (!entry) continue;
+              const distSq = dE2(targetLab, entry.lab);
+              if (distSq < secondBestDistSq) {
+                secondBestDistSq = distSq;
+                secondBest = entry;
+              }
+            }
+          } else {
+            // Legacy path: full palette scan.
+            for (let pi = 0; pi < pal.length; pi++) {
+              const entry = pal[pi];
+              const eid = entry.id;
+              if (eid !== nb0 && eid !== nb1 && eid !== nb2 && eid !== nb3) continue;
+              const distSq = dE2(targetLab, entry.lab);
+              if (distSq < secondBestDistSq) {
+                secondBestDistSq = distSq;
+                secondBest = entry;
+              }
             }
           }
 
