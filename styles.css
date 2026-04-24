@@ -329,6 +329,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tb-proj-badge-name--editable:hover{border-bottom-color:var(--accent);}
 .tb-proj-badge-input{font-size:11px;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 4px;outline:none;background:var(--surface);width:160px;max-width:30vw;font-family:inherit;}
 .tb-proj-badge-pct{font-size:10px;font-weight:500;color:#16a34a;flex-shrink:0;background:#dcfce7;padding:1px 5px;border-radius:8px;white-space:nowrap;}
+.tb-proj-badge-saved{background:transparent;color:#16a34a;font-weight:600;font-size:10px;padding:0 4px;display:inline-flex;align-items:center;gap:3px;}
 
 /* Stash status badges (Thread Organiser) */
 .stash-badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0;}

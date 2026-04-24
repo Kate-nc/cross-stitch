@@ -1123,13 +1123,11 @@ function ManagerApp() {
                             checked={isSel}
                             onChange={e => {
                               e.stopPropagation();
+                              togglePatternSelection(pat.id);
                               if (!isSel) {
-                                // Immediately open the shopping list modal for this pattern
+                                // When newly selected, immediately open the shopping list modal
                                 setSelectedPatternsForList(new Set([pat.id]));
                                 setShoppingListModalOpen(true);
-                              } else {
-                                // Already selected — uncheck to remove from selection
-                                togglePatternSelection(pat.id);
                               }
                             }}
                             style={{ margin: 0 }}

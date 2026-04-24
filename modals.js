@@ -4,6 +4,7 @@ const SharedModals = {
   // state so existing call sites (`{modal === 'help' && <SharedModals.Help/>}`)
   // route into the drawer with no further changes required.
   Help: ({ onClose, defaultTab }) => {
+    const [showFallback, setShowFallback] = React.useState(false);
     React.useEffect(() => {
       if (window.HelpDrawer && typeof window.HelpDrawer.open === "function") {
         var t = defaultTab;
@@ -13,11 +14,25 @@ const SharedModals = {
         else if (t === "tracker") { ctx = "tracker"; tab = "help"; }
         else if (t === "manager") { ctx = "manager"; tab = "help"; }
         window.HelpDrawer.open({ tab: tab, context: ctx });
+        if (typeof onClose === "function") onClose();
+      } else {
+        setShowFallback(true);
       }
-      if (typeof onClose === "function") onClose();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-    return null;
+    if (!showFallback) return null;
+    return React.createElement("div", { className: "modal-overlay", onClick: onClose },
+      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 460 } },
+        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
+        React.createElement("h3", { style: { marginTop: 0, marginBottom: 12, fontSize: 20, color: "#1e293b" } }, "Help"),
+        React.createElement("p", { style: { margin: 0, color: "#475569", fontSize: 14, lineHeight: 1.6 } },
+          "The help panel could not be opened. Please reload the page to restore full functionality."
+        ),
+        React.createElement("div", { style: { marginTop: 16, textAlign: "right" } },
+          React.createElement("button", { className: "btn btn-primary", onClick: onClose }, "Close")
+        )
+      )
+    );
   },
 
   About: ({ onClose }) => {

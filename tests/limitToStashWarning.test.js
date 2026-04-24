@@ -124,7 +124,7 @@ describe('computeUnownedPaletteIds', () => {
     expect(computeUnownedPaletteIds(pal, {}, opts())).toEqual(['anchor:403']);
   });
 
-  test('returns empty array when globalStash is null', () => {
+  test('treats null stash as owning nothing', () => {
     const pal = [{ id: '310', type: 'solid', count: 100 }];
     // No stash at all → every thread is unowned
     expect(computeUnownedPaletteIds(pal, null, opts())).toEqual(['dmc:310']);

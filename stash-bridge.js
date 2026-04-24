@@ -553,6 +553,11 @@ const StashBridge = (() => {
         return new Promise((resolve, reject) => {
           const tx = db.transaction("manager_state", "readwrite");
           const store = tx.objectStore("manager_state");
+          let settled = false;
+          function resolveOnce(val) { if (!settled) { settled = true; resolve(val); } }
+          function rejectOnce(err) { if (!settled) { settled = true; reject(err); } }
+          tx.onerror = () => rejectOnce(tx.error);
+          tx.onabort = () => rejectOnce(tx.error || new Error('Transaction aborted'));
           const req = store.get("threads");
           req.onsuccess = () => {
             const threads = req.result || {};
@@ -564,10 +569,11 @@ const StashBridge = (() => {
                 changed++;
               }
             }
-            store.put(threads, "threads");
-            tx.oncomplete = () => resolve(changed);
+            const putReq = store.put(threads, "threads");
+            putReq.onerror = () => rejectOnce(putReq.error);
+            tx.oncomplete = () => resolveOnce(changed);
           };
-          req.onerror = () => reject(req.error);
+          req.onerror = () => rejectOnce(req.error);
         });
       } catch (e) {
         console.error("StashBridge.markManyToBuy failed:", e);
@@ -604,26 +610,31 @@ const StashBridge = (() => {
       const splitBlend = typeof opts.splitBlendId === 'function'
         ? opts.splitBlendId
         : function(id) { return String(id || '').split('+'); };
-      const unowned = [];
-      const seen = Object.create(null);
+      const requiredByKey = Object.create(null);
+      const order = [];
       for (const p of displayPal) {
         if (!p || !p.id || p.id === '__skip__' || p.id === '__empty__') continue;
         const ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
           ? splitBlend(p.id)
           : [p.id];
+        const needed = (p.count != null) ? estimator(p.count, fabricCt) : 1;
         for (const id of ids) {
           if (!id || id === '__skip__' || id === '__empty__') continue;
           const brand = p.brand || resolveBrand(id);
           const key = brand + ':' + id;
-          if (seen[key]) continue;
-          const entry = stash[key];
-          const owned = entry && entry.owned ? entry.owned : 0;
-          const needed = (p.count != null) ? estimator(p.count, fabricCt) : 1;
-          if (owned < needed) {
-            seen[key] = true;
-            unowned.push(key);
+          if (requiredByKey[key] == null) {
+            requiredByKey[key] = 0;
+            order.push(key);
           }
+          requiredByKey[key] += needed;
         }
+      }
+      const unowned = [];
+      for (const key of order) {
+        const fallbackId = key.indexOf(':') >= 0 ? key.split(':').slice(1).join(':') : key;
+        const entry = stash[key] || stash[fallbackId];
+        const owned = entry && entry.owned ? entry.owned : 0;
+        if (owned < requiredByKey[key]) unowned.push(key);
       }
       return unowned;
     },
