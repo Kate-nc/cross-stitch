@@ -133,7 +133,7 @@
                      : SKIP;
     }
     return _projectShell('proj_onboarding_crosscountry',
-      'Welcome sample · One colour at a time', W, H, pat);
+      'Welcome sample · Cross-country (one colour at a time)', W, H, pat);
   }
 
   // Block sample — 20×20 with one colour per 10×10 quadrant. Each quadrant
@@ -156,7 +156,7 @@
     plus(4, 14, DMC.green);  // BL block
     plus(14, 14, DMC.yellow);// BR block
     return _projectShell('proj_onboarding_block',
-      'Welcome sample · Section by section', W, H, pat,
+      'Welcome sample · Block (work 10×10 squares)', W, H, pat,
       { focusBlock: { bx: 0, by: 0 } });
   }
 
@@ -178,7 +178,7 @@
       }
     }
     return _projectShell('proj_onboarding_parking',
-      'Welcome sample · Parking method', W, H, pat,
+      'Welcome sample · Parking (leave threads ready for next stitch)', W, H, pat,
       { focusBlock: { bx: 0, by: 0 } });
   }
 

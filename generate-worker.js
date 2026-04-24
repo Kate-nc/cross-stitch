@@ -69,7 +69,7 @@ self.onmessage = function(e) {
     var allowedPalette = settings.allowedPalette || null;
     var p = quantize(raw, width, height, maxC, allowedPalette, {seed: settings.seed});
     if (!p.length) {
-      self.postMessage({ type: 'error', message: 'Quantization produced no colours' });
+      self.postMessage({ type: 'error', message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
       return;
     }
 

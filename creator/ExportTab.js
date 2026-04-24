@@ -122,7 +122,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       projectDescription: app.projectDescription,
     });
     var project = window.PdfExport.buildExportProject(exportCtx);
-    if (!project) { setError("No pattern to export."); return; }
+    if (!project) { setError("Nothing to export yet — create or open a pattern first."); return; }
     project.coverPreviewJpeg = window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
     var branding = window.PdfExport.readBranding();
     // Per-project designer overrides global designer branding when set.
@@ -156,7 +156,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       // if the Export tab is scrolled away.
       try {
         if (typeof Toast !== 'undefined' && Toast.show && /symbol font/i.test(msg)) {
-          Toast.show({ message: 'PDF export failed \u2014 symbol font missing. Please reload and try again.', type: 'error', duration: 6000 });
+          Toast.show({ message: 'PDF export failed. Please refresh the page and try again.', type: 'error', duration: 6000 });
         }
       } catch (_) { /* best-effort */ }
     });
@@ -170,7 +170,7 @@ window.CreatorExportTab = function CreatorExportTab() {
 
   function doExportPng() {
     setError(null);
-    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("No pattern to export."); return; }
+    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("Nothing to export yet — create or open a pattern first."); return; }
     var CELL = 10;
     var c = document.createElement("canvas");
     c.width = ctx.sW * CELL;

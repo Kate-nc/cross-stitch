@@ -100,8 +100,8 @@ window.MagicWandPanel = function MagicWandPanel() {
       cv.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
       // Contiguous / Global toggle (wand only)
       cv.activeTool === "magicWand" && h("div", { className: "tb-grp" },
-        btn("Contiguous", function() { cv.setWandContiguous(true); }, { active: cv.wandContiguous, title: "Only select cells connected to the clicked cell" }),
-        btn("Global",     function() { cv.setWandContiguous(false); }, { active: !cv.wandContiguous, title: "Select all matching cells across the whole pattern" })
+        btn("Connected only", function() { cv.setWandContiguous(true); }, { active: cv.wandContiguous, title: "Only select stitches connected to the one you click" }),
+        btn("All matching",     function() { cv.setWandContiguous(false); }, { active: !cv.wandContiguous, title: "Select every stitch of this colour anywhere on the chart" })
       ),
       h("div", { className: "tb-sdiv" }),
       // Op mode buttons

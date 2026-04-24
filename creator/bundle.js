@@ -1091,7 +1091,7 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
       try {
         var msg = (err && err.message) || String(err);
         if (typeof Toast !== 'undefined' && Toast.show && /symbol font/i.test(msg)) {
-          Toast.show({ message: 'PDF export failed \u2014 symbol font missing. Please reload and try again.', type: 'error', duration: 6000 });
+          Toast.show({ message: 'PDF export failed. Please refresh the page and try again.', type: 'error', duration: 6000 });
         }
       } catch (_) { /* best-effort */ }
       throw err;
@@ -4052,21 +4052,26 @@ window.useCreatorState = function useCreatorState() {
   var _arLock = useState(true);       var arLock = _arLock[0], setArLock = _arLock[1];
   var _ar     = useState(1);          var ar     = _ar[0],     setAr     = _ar[1];
 
-  // Generation parameters
-  var _maxC   = useState(30);         var maxC   = _maxC[0],   setMaxC   = _maxC[1];
+  // Generation parameters (initial values come from Preferences › Pattern Creator)
+  var _maxC   = useState(function () { var v = loadUserPref("creatorDefaultPaletteSize", 30); return (typeof v === "number" && v > 0) ? v : 30; });
+  var maxC   = _maxC[0],   setMaxC   = _maxC[1];
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
   var _sat    = useState(0);          var sat    = _sat[0],    setSat    = _sat[1];
-  var _dith   = useState(false);      var dith   = _dith[0],   setDith   = _dith[1];
+  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); return v && v !== "off"; });
+  var dith   = _dith[0],   setDith   = _dith[1];
   var _skipBg = useState(false);      var skipBg = _skipBg[0], setSkipBg = _skipBg[1];
   var _bgTh   = useState(15);         var bgTh   = _bgTh[0],   setBgTh   = _bgTh[1];
   var _bgCol  = useState([255,255,255]); var bgCol = _bgCol[0], setBgCol = _bgCol[1];
   var _pickBg = useState(false);      var pickBg = _pickBg[0], setPickBg = _pickBg[1];
-  var _minSt  = useState(0);          var minSt  = _minSt[0],  setMinSt  = _minSt[1];
+  var _minSt  = useState(function () { var v = loadUserPref("creatorMinStitchesPerColour", 0); return (typeof v === "number" && v >= 0) ? v : 0; });
+  var minSt  = _minSt[0],  setMinSt  = _minSt[1];
   var _smooth = useState(0);          var smooth = _smooth[0], setSmooth = _smooth[1];
   var _sType  = useState("median");   var smoothType = _sType[0], setSmoothType = _sType[1];
-  var _orphans= useState(0);          var orphans = _orphans[0], setOrphans = _orphans[1];
-  var _blends = useState(true);       var allowBlends = _blends[0], setAllowBlends = _blends[1];
+  var _orphans= useState(function () { var v = loadUserPref("creatorOrphanRemovalStrength", 0); return (typeof v === "number" && v >= 0) ? v : 0; });
+  var orphans = _orphans[0], setOrphans = _orphans[1];
+  var _blends = useState(function () { var v = loadUserPref("creatorAllowBlends", true); return v !== false; });
+  var allowBlends = _blends[0], setAllowBlends = _blends[1];
 
   // Pattern data
   var _pat  = useState(null);         var pat  = _pat[0],  setPat  = _pat[1];
@@ -4077,8 +4082,13 @@ window.useCreatorState = function useCreatorState() {
   var _oH   = useState(0);            var origH = _oH[0],  setOrigH = _oH[1];
 
   // Fabric / floss settings
-  var _fabricCt    = useState(14);    var fabricCt = _fabricCt[0], setFabricCt = _fabricCt[1];
-  var _skeinPrice  = useState(typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 1.0);
+  var _fabricCt    = useState(function () { var v = loadUserPref("creatorDefaultFabricCount", 14); return (typeof v === "number" && v > 0) ? v : 14; });
+  var fabricCt = _fabricCt[0], setFabricCt = _fabricCt[1];
+  var _skeinPrice  = useState(function () {
+    var v = loadUserPref("skeinPriceDefault", undefined);
+    if (typeof v === "number" && isFinite(v) && v >= 0) return v;
+    return typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 1.0;
+  });
   var skeinPrice = _skeinPrice[0], setSkeinPrice = _skeinPrice[1];
   var _stitchSpeed = useState(40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
 
@@ -4094,12 +4104,14 @@ window.useCreatorState = function useCreatorState() {
   var _loadErr    = useState(null);      var loadError  = _loadErr[0],    setLoadError  = _loadErr[1];
   var _copied     = useState(null);      var copied     = _copied[0],     setCopied     = _copied[1];
   var _modal      = useState(null);      var modal      = _modal[0],      setModal      = _modal[1];
-  var _view       = useState("color");   var view       = _view[0],       setView       = _view[1];
+  var _view       = useState(function () { var v = loadUserPref("creatorDefaultViewMode", "colour"); return v === "colour" ? "color" : (v || "color"); });
+  var view       = _view[0],       setView       = _view[1];
   var _zoom       = useState(1);         var zoom       = _zoom[0],       setZoom       = _zoom[1];
   var _hiId       = useState(null);      var hiId       = _hiId[0],       setHiId       = _hiId[1];
   var _showCtr    = useState(true);      var showCtr    = _showCtr[0],    setShowCtr    = _showCtr[1];
   var _showOvl    = useState(false);     var showOverlay = _showOvl[0],   setShowOverlay = _showOvl[1];
-  var _ovlOp      = useState(0.3);       var overlayOpacity = _ovlOp[0], setOverlayOpacity = _ovlOp[1];
+  var _ovlOp      = useState(function () { var v = loadUserPref("creatorReferenceOpacity", 30); return (typeof v === "number" && v >= 0 && v <= 100) ? v / 100 : 0.3; });
+  var overlayOpacity = _ovlOp[0], setOverlayOpacity = _ovlOp[1];
   var _prevActive = useState(false);     var previewActive = _prevActive[0], setPreviewActive = _prevActive[1];
   var _prevGrid   = useState(false);     var previewShowGrid = _prevGrid[0], setPreviewShowGrid = _prevGrid[1];
   var _prevFabric = useState(false);     var previewFabricBg = _prevFabric[0], setPreviewFabricBg = _prevFabric[1];
@@ -4126,7 +4138,14 @@ window.useCreatorState = function useCreatorState() {
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
   var _clOpen   = useState(false);   var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
-  var _sc       = useState({enabled:true,strength:"balanced",protectDetails:true,smoothDithering:true});
+  var _sc       = useState(function () {
+    return {
+      enabled:        loadUserPref("creatorStitchCleanup", true) !== false,
+      strength:       "balanced",
+      protectDetails: loadUserPref("creatorProtectDetails", true) !== false,
+      smoothDithering:loadUserPref("creatorSmoothDithering", true) !== false
+    };
+  });
   var stitchCleanup = _sc[0], setStitchCleanup = _sc[1];
   var _hasGen   = useState(false);   var hasGenerated = _hasGen[0], setHasGenerated = _hasGen[1];
 
@@ -4201,7 +4220,14 @@ window.useCreatorState = function useCreatorState() {
   var _altOpen  = useState(null);    var altOpen = _altOpen[0], setAltOpen = _altOpen[1];
 
   // Substitute from stash
-  var _stashOnly = useState(function() { try { return localStorage.getItem("cs_stashConstrained") === "true"; } catch(_) { return false; } });
+  var _stashOnly = useState(function() {
+    try {
+      var ls = localStorage.getItem("cs_stashConstrained");
+      if (ls === "true") return true;
+      if (ls === "false") return false;
+    } catch(_) {}
+    return loadUserPref("creatorStashOnlyDefault", false) === true;
+  });
   var stashConstrained = _stashOnly[0];
   function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
   var _subOpen  = useState(false);   var substituteModalOpen = _subOpen[0], setSubstituteModalOpen = _subOpen[1];
@@ -8586,8 +8612,8 @@ window.MagicWandPanel = function MagicWandPanel() {
       cv.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
       // Contiguous / Global toggle (wand only)
       cv.activeTool === "magicWand" && h("div", { className: "tb-grp" },
-        btn("Contiguous", function() { cv.setWandContiguous(true); }, { active: cv.wandContiguous, title: "Only select cells connected to the clicked cell" }),
-        btn("Global",     function() { cv.setWandContiguous(false); }, { active: !cv.wandContiguous, title: "Select all matching cells across the whole pattern" })
+        btn("Connected only", function() { cv.setWandContiguous(true); }, { active: cv.wandContiguous, title: "Only select stitches connected to the one you click" }),
+        btn("All matching",     function() { cv.setWandContiguous(false); }, { active: !cv.wandContiguous, title: "Select every stitch of this colour anywhere on the chart" })
       ),
       h("div", { className: "tb-sdiv" }),
       // Op mode buttons
@@ -9986,10 +10012,10 @@ window.ConvertPaletteModal = (function () {
 
   function ConfidenceBadge({ confidence }) {
     var colours = {
-      official: { bg: '#dcfce7', text: '#166534', label: 'Official' },
-      reconciled: { bg: '#fef9c3', text: '#854d0e', label: 'Reconciled' },
-      'single-source': { bg: '#fef3c7', text: '#92400e', label: 'Single source' },
-      nearest: { bg: '#f1f5f9', text: '#475569', label: 'Nearest colour' },
+      official: { bg: '#dcfce7', text: '#166534', label: 'Exact match' },
+      reconciled: { bg: '#fef9c3', text: '#854d0e', label: 'Best match' },
+      'single-source': { bg: '#fef3c7', text: '#92400e', label: 'One source' },
+      nearest: { bg: '#f1f5f9', text: '#475569', label: 'Closest colour' },
     };
     var c = colours[confidence] || colours.nearest;
     return React.createElement('span', {
@@ -13310,8 +13336,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Status badge
   function statusBadge(status) {
     var map = {
-      owned: { label: 'In stash \u2713', bg: '#f0fdf4', color: '#16a34a' },
-      partial: { label: 'Partial', bg: '#fff7ed', color: '#ea580c' },
+      owned: { label: 'You own this', bg: '#f0fdf4', color: '#16a34a' },
+      partial: { label: 'Low stock', bg: '#fff7ed', color: '#ea580c' },
       needed: { label: 'Need to buy', bg: '#fef2f2', color: '#dc2626' }
     };
     var s = map[status] || map.needed;
@@ -13787,7 +13813,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       projectDescription: app.projectDescription,
     });
     var project = window.PdfExport.buildExportProject(exportCtx);
-    if (!project) { setError("No pattern to export."); return; }
+    if (!project) { setError("Nothing to export yet — create or open a pattern first."); return; }
     project.coverPreviewJpeg = window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
     var branding = window.PdfExport.readBranding();
     // Per-project designer overrides global designer branding when set.
@@ -13821,7 +13847,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       // if the Export tab is scrolled away.
       try {
         if (typeof Toast !== 'undefined' && Toast.show && /symbol font/i.test(msg)) {
-          Toast.show({ message: 'PDF export failed \u2014 symbol font missing. Please reload and try again.', type: 'error', duration: 6000 });
+          Toast.show({ message: 'PDF export failed. Please refresh the page and try again.', type: 'error', duration: 6000 });
         }
       } catch (_) { /* best-effort */ }
     });
@@ -13835,7 +13861,7 @@ window.CreatorExportTab = function CreatorExportTab() {
 
   function doExportPng() {
     setError(null);
-    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("No pattern to export."); return; }
+    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("Nothing to export yet — create or open a pattern first."); return; }
     var CELL = 10;
     var c = document.createElement("canvas");
     c.width = ctx.sW * CELL;

@@ -592,13 +592,13 @@ useEffect(()=>{manuallyPausedRef.current=manuallyPaused;},[manuallyPaused]);
 const[advanceToast,setAdvanceToast]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
 // ── Stitching Style & Spatial Focus Area ──
-const[stitchingStyle,setStitchingStyle]=useState(()=>{try{return localStorage.getItem("cs_stitchStyle")||"block";}catch(_){return"block";}});
-const[blockW,setBlockW]=useState(()=>{try{return Math.max(5,Math.min(100,parseInt(localStorage.getItem("cs_blockW")||"10")));}catch(_){return 10;}});
-const[blockH,setBlockH]=useState(()=>{try{return Math.max(5,Math.min(100,parseInt(localStorage.getItem("cs_blockH")||"10")));}catch(_){return 10;}});
+const[stitchingStyle,setStitchingStyle]=useState(()=>{try{var ls=localStorage.getItem("cs_stitchStyle");if(ls)return ls;var p=window.UserPrefs&&window.UserPrefs.get("trackerStitchingStyle");return p||"block";}catch(_){return"block";}});
+const[blockW,setBlockW]=useState(()=>{try{var ls=localStorage.getItem("cs_blockW");if(ls)return Math.max(5,Math.min(100,parseInt(ls)));var bs=(window.UserPrefs&&window.UserPrefs.get("trackerBlockShape"))||"10x10";var w=parseInt(String(bs).split("x")[0],10);return isFinite(w)?Math.max(5,Math.min(100,w)):10;}catch(_){return 10;}});
+const[blockH,setBlockH]=useState(()=>{try{var ls=localStorage.getItem("cs_blockH");if(ls)return Math.max(5,Math.min(100,parseInt(ls)));var bs=(window.UserPrefs&&window.UserPrefs.get("trackerBlockShape"))||"10x10";var hh=parseInt(String(bs).split("x")[1],10);return isFinite(hh)?Math.max(5,Math.min(100,hh)):10;}catch(_){return 10;}});
 const[focusBlock,setFocusBlock]=useState(null); // {bx,by} | null
 const[focusEnabled,setFocusEnabled]=useState(()=>{try{return localStorage.getItem("cs_focusEnabled")==="1";}catch(_){return false;}});
 const[colourSequence,setColourSequence]=useState(()=>{try{return localStorage.getItem("cs_colourSeq")||"fewest";}catch(_){return"fewest";}});
-const[startCorner,setStartCorner]=useState(()=>{try{return localStorage.getItem("cs_startCorner")||"TL";}catch(_){return"TL";}});
+const[startCorner,setStartCorner]=useState(()=>{try{var ls=localStorage.getItem("cs_startCorner");if(ls)return ls;var p=window.UserPrefs&&window.UserPrefs.get("trackerStartCorner");return p||"TL";}catch(_){return"TL";}});
 // Gate the style picker on the generic Welcome wizard so they appear
 // sequentially: Welcome first, style picker after dismissal. If the user has
 // already seen the Welcome wizard (or never needed it on this build), the

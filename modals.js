@@ -141,7 +141,7 @@ const SharedModals = {
       React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "80vh" } },
         React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
         React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 20, color: "#1e293b" } },
-          "Reassign Thread for ",
+          "Choose a different colour for ",
           React.createElement("span", { style: { fontFamily: "monospace", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, border: "1px solid #e2e8f0" } }, currentSymbol)
         ),
 

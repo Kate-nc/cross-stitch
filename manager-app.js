@@ -42,8 +42,9 @@ function ManagerApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [threadFilter, setThreadFilter] = useState("all"); // 'all', 'owned', 'tobuy', 'lowstock'
   const [brandFilter, setBrandFilter] = useState("all"); // 'all', 'dmc', 'anchor'
-  const [patternFilter, setPatternFilter] = useState("all"); // 'all', 'wishlist', 'owned', 'inprogress', 'completed'
-  const [patternSort, setPatternSort] = useState("date_desc"); // 'date_desc', 'date_asc', 'title_asc', 'designer_asc', 'status'
+  const _UP = (k, fb) => { try { return (window.UserPrefs && window.UserPrefs.get(k)) || fb; } catch (_) { return fb; } };
+  const [patternFilter, setPatternFilter] = useState(() => _UP("patternsDefaultFilter", "all")); // 'all', 'wishlist', 'owned', 'inprogress', 'completed'
+  const [patternSort, setPatternSort] = useState(() => _UP("patternsDefaultSort", "date_desc")); // 'date_desc', 'date_asc', 'title_asc', 'designer_asc', 'status'
   const [editingPattern, setEditingPattern] = useState(null); // Pattern object currently being added/edited
   const [viewingPattern, setViewingPattern] = useState(null); // Pattern object currently being viewed for details
   const [selectedPatternsForList, setSelectedPatternsForList] = useState(new Set());
@@ -53,11 +54,14 @@ function ManagerApp() {
   const [conflicts, setConflicts] = useState(null);
   const [readyToStart, setReadyToStart] = useState(null);
   const [lowStockAlerts, setLowStockAlerts] = useState(null);
-  const [userProfile, setUserProfile] = useState({
-    fabric_count: 14,
-    strands_used: 2,
-    thread_brand: "DMC",
-    waste_factor: 0.20
+  const [userProfile, setUserProfile] = useState(() => {
+    const get = (k, fb) => { try { var v = window.UserPrefs && window.UserPrefs.get(k); return (v == null) ? fb : v; } catch (_) { return fb; } };
+    return {
+      fabric_count: get("creatorDefaultFabricCount", 14),
+      strands_used: get("stitchStrandsUsed", 2),
+      thread_brand: get("stashDefaultBrand", "DMC"),
+      waste_factor: get("stitchWasteFactor", 0.20)
+    };
   });
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
@@ -127,7 +131,7 @@ function ManagerApp() {
     window.addEventListener("cs:showWelcome", h);
     return () => window.removeEventListener("cs:showWelcome", h);
   }, []);
-  const lowStockThreshold = 1;
+  const lowStockThreshold = (() => { try { var v = window.UserPrefs && window.UserPrefs.get("stashLowStockThreshold"); return (typeof v === "number" && v >= 0) ? v : 1; } catch (_) { return 1; } })();
   const formatBrandLabel = (brand) => {
     const b = (brand || "dmc").toString().toLowerCase();
     return b === "anchor" ? "Anchor" : b === "dmc" ? "DMC" : (brand || "DMC");

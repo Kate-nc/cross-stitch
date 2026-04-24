@@ -58,6 +58,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="project-library.js"></script>
 <script src="palette-swap.js"></script>
 <script src="user-prefs.js"></script>
+<script src="apply-prefs.js"></script>
 <script src="toast.js"></script>
 <script src="onboarding.js"></script>
 <script>window.__csPageKind = 'creator';</script>
@@ -84,7 +85,7 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_c945e557d8';
+var TRACKER_CACHE_KEY = 'babel_tracker_574d3be2ad';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -116,7 +117,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_1eb60dbe22';
+var CREATOR_CACHE_KEY = 'babel_creator_fec4790c6e';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

@@ -2998,3 +2998,56 @@ kbd {
 
 /* Card menu button */
 .mpd-card-menu-btn { min-width: 32px; text-align: center; padding: 4px 8px; }
+
+/* ───────────────────────────────────────────────────────────────────────
+   Accessibility & theme overrides driven by Preferences › Accessibility.
+   Classes are applied to <html> by apply-prefs.js.
+   ─────────────────────────────────────────────────────────────────────── */
+
+html.pref-font-s   { font-size: 14px; }
+html.pref-font-m   { font-size: 16px; } /* default */
+html.pref-font-l   { font-size: 18px; }
+html.pref-font-xl  { font-size: 20px; }
+
+html.pref-reduced-motion *,
+html.pref-reduced-motion *::before,
+html.pref-reduced-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+html.pref-high-contrast {
+  --line: #1e293b;
+  --line-2: #334155;
+}
+html.pref-high-contrast body,
+html.pref-high-contrast .card,
+html.pref-high-contrast button,
+html.pref-high-contrast input,
+html.pref-high-contrast select,
+html.pref-high-contrast textarea {
+  border-color: #1e293b !important;
+}
+html.pref-high-contrast,
+html.pref-high-contrast body { color: #000 !important; }
+
+/* Dark mode override (manual). Lightweight — inverts surface backgrounds and
+   keeps the teal accent. Per-page tweaks can refine this later. */
+html.pref-dark { background: #0b1220; color-scheme: dark; }
+html.pref-dark body { background: #0b1220; color: #e2e8f0; }
+html.pref-dark .card,
+html.pref-dark [data-card],
+html.pref-dark .panel,
+html.pref-dark .modal,
+html.pref-dark .toolbar,
+html.pref-dark .sidebar { background: #111827 !important; color: #e2e8f0 !important; border-color: #1f2937 !important; }
+html.pref-dark input,
+html.pref-dark select,
+html.pref-dark textarea,
+html.pref-dark button:not(.btn-primary):not([data-pref-modal] *) {
+  background: #1f2937 !important; color: #e5e7eb !important; border-color: #334155 !important;
+}
+html.pref-dark a { color: #5eead4; }
+
