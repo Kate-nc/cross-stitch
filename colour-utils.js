@@ -1,4 +1,4 @@
-function findSolid(lab,p){if(!p||!p.length)return{type:"solid",id:"__empty__",name:"",rgb:[0,0,0],lab:[0,0,0],dist:Infinity};let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE2(lab,p[i].lab);if(d<bd){bd=d;b=p[i];}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:Math.sqrt(bd)};}
+function findSolid(lab,p){if(!p||!p.length)return{type:"solid",id:"__empty__",name:"",rgb:[0,0,0],lab:[0,0,0],dist:Infinity};let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE2(lab,p[i].lab);if(d<bd){bd=d;b=p[i];if(d===0)break;/* PERF (perf-7 #1): exact-match early exit avoids scanning the rest of the palette when the input lab is already in p */}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:Math.sqrt(bd)};}
 function findBest(lab, palette, allowBlends = true) {
   const solidMatch = findSolid(lab, palette);
   if (!allowBlends || !findBest._blends || findBest._blendPalette !== palette) return solidMatch;
@@ -72,17 +72,22 @@ function quantize(data,w,h,n,allowedPalette,options){
       if(acc>=r){cs.push([px[i][0],px[i][1],px[i][2]]);break;}
     }
   }
+  // PERF (perf-1 #2): replaced per-iteration `cs.map(()=>[])` cluster arrays
+  // and 3× reduce() with reusable Float64Array sums + Uint32Array counts.
+  // Avoids ~N×iterations array allocations and per-pixel push() growth.
+  let _sumL=new Float64Array(cs.length),_sumA=new Float64Array(cs.length),_sumB=new Float64Array(cs.length),_cnt=new Uint32Array(cs.length);
   for(let it=0;it<20;it++){
-    let cl=cs.map(()=>[]);
+    _sumL.fill(0);_sumA.fill(0);_sumB.fill(0);_cnt.fill(0);
     for(let pi=0;pi<px.length;pi++){
       let md=1e9,mi=0;
+      let pL=px[pi][0],pA=px[pi][1],pB=px[pi][2];
       for(let c=0;c<cs.length;c++){let d=dE2(px[pi],cs[c]);if(d<md){md=d;mi=c;}}
-      cl[mi].push(px[pi]);
+      _sumL[mi]+=pL;_sumA[mi]+=pA;_sumB[mi]+=pB;_cnt[mi]++;
     }
     let mv=false;
     for(let c2=0;c2<cs.length;c2++){
-      if(!cl[c2].length)continue;
-      let nv=[cl[c2].reduce((s,q)=>s+q[0],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[1],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[2],0)/cl[c2].length];
+      if(!_cnt[c2])continue;
+      let nv=[_sumL[c2]/_cnt[c2],_sumA[c2]/_cnt[c2],_sumB[c2]/_cnt[c2]];
       if(dE2(nv,cs[c2])>0.25)mv=true;
       cs[c2]=nv;
     }
@@ -142,6 +147,19 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
   // precomputeBlends is attached lazily on first use
   if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
 
+  // PERF (deferred-4): default-on feature flag for the secondBest id-map
+  // short-circuit. ON replaces the per-pixel O(palette) scan inside the
+  // confetti penalty loop with an O(4) id-map lookup; output is bit-exact
+  // equivalent. OFF restores the legacy palette scan byte-for-byte.
+  // See reports/deferred-4-dodither-secondbest-shortcircuit-analysis.md.
+  const _PF = (typeof window !== 'undefined' && window.PERF_FLAGS) || {};
+  const _useIdMap = _PF.dodither_secondBest_idmap !== false;
+  let _palIdMap = null;
+  if (_useIdMap) {
+    _palIdMap = new Map();
+    for (let pi = 0; pi < pal.length; pi++) _palIdMap.set(pal[pi].id, pal[pi]);
+  }
+
   // Working buffer in float so error diffusion doesn't clip
   const d = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
@@ -176,29 +194,54 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
       let chosen = best;
 
       if (effectiveThreshold > 0) {
-        // Collect the up to 4 already-processed neighbors:
-        //   top-left (y-1, x-1), top (y-1, x), top-right (y-1, x+1), left (y, x-1)
-        const neighborIds = new Set();
+        // PERF (perf-1 #3): replaced per-pixel `new Set()` with a small 4-slot
+        // string array — at most 4 neighbours, linear scan beats Set churn.
+        let nb0=null,nb1=null,nb2=null,nb3=null;
         if (y > 0) {
-          if (x > 0)     neighborIds.add(r[idx - w - 1].id);
-                         neighborIds.add(r[idx - w].id);
-          if (x < w - 1) neighborIds.add(r[idx - w + 1].id);
+          if (x > 0)     nb0 = r[idx - w - 1].id;
+                         nb1 = r[idx - w].id;
+          if (x < w - 1) nb2 = r[idx - w + 1].id;
         }
-        if (x > 0)       neighborIds.add(r[idx - 1].id);
+        if (x > 0)       nb3 = r[idx - 1].id;
+
+        const bestId = best.id;
+        const bestNeighbour = (bestId === nb0 || bestId === nb1 || bestId === nb2 || bestId === nb3);
 
         // If the best color is already represented in a neighbor, no confetti risk.
-        if (!neighborIds.has(best.id)) {
+        if (!bestNeighbour) {
           // Find the closest palette color that shares a neighbor's ID.
           let secondBest = null;
           let secondBestDistSq = Infinity;
 
-          for (let pi = 0; pi < pal.length; pi++) {
-            const entry = pal[pi];
-            if (!neighborIds.has(entry.id)) continue;
-            const distSq = dE2(targetLab, entry.lab);
-            if (distSq < secondBestDistSq) {
-              secondBestDistSq = distSq;
-              secondBest = entry;
+          if (_useIdMap) {
+            // PERF (deferred-4): direct id-map lookup, O(unique neighbours) ≤ 4.
+            // Inline dedupe — at most 4 IDs, faster than a Set.
+            for (let nbi = 0; nbi < 4; nbi++) {
+              const nid = nbi === 0 ? nb0 : nbi === 1 ? nb1 : nbi === 2 ? nb2 : nb3;
+              if (!nid) continue;
+              // skip duplicate of an earlier slot
+              if (nbi > 0 && nid === nb0) continue;
+              if (nbi > 1 && nid === nb1) continue;
+              if (nbi > 2 && nid === nb2) continue;
+              const entry = _palIdMap.get(nid);
+              if (!entry) continue;
+              const distSq = dE2(targetLab, entry.lab);
+              if (distSq < secondBestDistSq) {
+                secondBestDistSq = distSq;
+                secondBest = entry;
+              }
+            }
+          } else {
+            // Legacy path: full palette scan.
+            for (let pi = 0; pi < pal.length; pi++) {
+              const entry = pal[pi];
+              const eid = entry.id;
+              if (eid !== nb0 && eid !== nb1 && eid !== nb2 && eid !== nb3) continue;
+              const distSq = dE2(targetLab, entry.lab);
+              if (distSq < secondBestDistSq) {
+                secondBestDistSq = distSq;
+                secondBest = entry;
+              }
             }
           }
 
@@ -1300,11 +1343,15 @@ function analyzeConfetti(mapped, w, h, precomputedLabels = null) {
 // Inputs: [L, a, b] arrays. Output: non-negative number.
 //
 // Cache key uses rounded values so we never miss due to float noise.
-const _de2000Cache = {};
+// PERF (perf-8 #4): use a Map and cap at 5000 entries to bound memory.
+// When full, the oldest insertion is evicted (Map iteration order = insertion order).
+const _de2000Cache = new Map();
+const _DE2000_CACHE_MAX = 5000;
 
 function dE2000(lab1, lab2) {
   const k = lab1[0].toFixed(2)+','+lab1[1].toFixed(2)+','+lab1[2].toFixed(2)+'-'+lab2[0].toFixed(2)+','+lab2[1].toFixed(2)+','+lab2[2].toFixed(2);
-  if (_de2000Cache[k] !== undefined) return _de2000Cache[k];
+  const cached = _de2000Cache.get(k);
+  if (cached !== undefined) return cached;
 
   const L1 = lab1[0], a1 = lab1[1], b1 = lab1[2];
   const L2 = lab2[0], a2 = lab2[1], b2 = lab2[2];
@@ -1382,7 +1429,12 @@ function dE2000(lab1, lab2) {
     RT * (dCp / (kC * SC)) * (dHp / (kH * SH))
   );
 
-  _de2000Cache[k] = result;
+  _de2000Cache.set(k, result);
+  // PERF (perf-8 #4): evict oldest entry if cache exceeds bound.
+  if (_de2000Cache.size > _DE2000_CACHE_MAX) {
+    const firstKey = _de2000Cache.keys().next().value;
+    if (firstKey !== undefined) _de2000Cache.delete(firstKey);
+  }
   return result;
 }
 // Assign to the global scope. globalThis works in browser, Web Worker, and Node.js.

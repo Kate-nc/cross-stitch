@@ -263,7 +263,7 @@ function CompactProjectRow({ proj, state, onOpen, onChangeState }) {
 // ─────────────────────────────────────────────────────────────────
 // StateChangeMenu — inline popover for moving a project to a new state
 // ─────────────────────────────────────────────────────────────────
-function StateChangeMenu({ proj, currentState, onSelect, onClose }) {
+function StateChangeMenu({ proj, currentState, onSelect, onClose, onEditDetails }) {
   var h = React.createElement;
   var options = [
     { value: 'active',   label: 'Mark as Active' },
@@ -280,6 +280,11 @@ function StateChangeMenu({ proj, currentState, onSelect, onClose }) {
   }, []);
 
   return h('div', { className: 'mpd-state-menu', onClick: function(e) { e.stopPropagation(); } },
+    onEditDetails && h('button', {
+      className: 'mpd-state-menu-item mpd-state-menu-item--edit',
+      onClick: function() { onClose(); onEditDetails(proj); }
+    }, Icons.pencil(), ' Edit details…'),
+    onEditDetails && h('div', { className: 'mpd-state-menu-sep' }),
     h('div', { className: 'mpd-state-menu-title' }, 'Move to\u2026'),
     options.map(function(o) {
       return h('button', {
@@ -308,6 +313,10 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
   // [{ proj, id }] for the state change popover
   var _menuProj = useState(null);
   var menuProj = _menuProj[0], setMenuProj = _menuProj[1];
+
+  // Project currently open in the Edit Details modal
+  var _editingProj = useState(null);
+  var editingProj = _editingProj[0], setEditingProj = _editingProj[1];
 
   // collapsed sections
   var _pausedOpen = useState(false);
@@ -381,6 +390,10 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
 
   function openMenu(proj) {
     setMenuProj(proj.id);
+  }
+
+  function openEditDetails(proj) {
+    setEditingProj(proj);
   }
 
   function handleOpenProject(proj, mode) {
@@ -471,7 +484,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
                 proj: proj,
                 currentState: getProjectState(proj, states),
                 onSelect: handleChangeState,
-                onClose: function() { setMenuProj(null); }
+                onClose: function() { setMenuProj(null); },
+                onEditDetails: openEditDetails
               })
             );
           })
@@ -500,7 +514,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
               menuProj === proj.id && h(StateChangeMenu, {
                 proj: proj, currentState: 'queued',
                 onSelect: handleChangeState,
-                onClose: function() { setMenuProj(null); }
+                onClose: function() { setMenuProj(null); },
+                onEditDetails: openEditDetails
               })
             );
           })
@@ -530,7 +545,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
           menuProj === proj.id && h(StateChangeMenu, {
             proj: proj, currentState: 'paused',
             onSelect: handleChangeState,
-            onClose: function() { setMenuProj(null); }
+            onClose: function() { setMenuProj(null); },
+            onEditDetails: openEditDetails
           })
         );
       })
@@ -560,7 +576,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
           menuProj === proj.id && h(StateChangeMenu, {
             proj: proj, currentState: 'complete',
             onSelect: handleChangeState,
-            onClose: function() { setMenuProj(null); }
+            onClose: function() { setMenuProj(null); },
+            onEditDetails: openEditDetails
           })
         );
       })
@@ -588,7 +605,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
           menuProj === proj.id && h(StateChangeMenu, {
             proj: proj, currentState: 'design',
             onSelect: handleChangeState,
-            onClose: function() { setMenuProj(null); }
+            onClose: function() { setMenuProj(null); },
+            onEditDetails: openEditDetails
           })
         );
       })
@@ -598,7 +616,22 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     onOpenGlobalStats && h('button', {
       className: 'mpd-stats-link',
       onClick: onOpenGlobalStats
-    }, '\uD83D\uDCCA View detailed stats across all projects \u2192')
+    }, '\uD83D\uDCCA View detailed stats across all projects \u2192'),
+
+    // ── Edit Project Details modal ──
+    editingProj && typeof EditProjectDetailsModal !== 'undefined' && h(EditProjectDetailsModal, {
+      projectId: editingProj.id,
+      name: editingProj.name || '',
+      designer: editingProj.designer || '',
+      description: editingProj.description || '',
+      onSave: function(updated) {
+        // Refresh the local project entry name so the card updates immediately
+        // (the cs:projectsChanged event from ProjectStorage.save will trigger
+        // a full reload shortly after, but this avoids a visible flash).
+        setEditingProj(null);
+      },
+      onClose: function() { setEditingProj(null); }
+    })
   );
 }
 

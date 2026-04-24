@@ -2,6 +2,17 @@
 // Full app backup & restore — exports both IndexedDB databases and relevant
 // localStorage keys into a single JSON file, and can restore from one.
 
+// PERF (deferred-2): compressed-backup feature flag. Default ON.
+// See reports/deferred-2-compressed-backups-analysis.md.
+if (typeof window !== 'undefined') {
+  window.PERF_FLAGS = window.PERF_FLAGS || {};
+  if (window.PERF_FLAGS.compressedBackups === undefined) window.PERF_FLAGS.compressedBackups = true;
+}
+
+// Magic header marks the deflate+base64 file format. The newline is the
+// boundary between the header and the base64 body so the body parses cleanly.
+const _BACKUP_MAGIC = 'CSB1\n';
+
 const BackupRestore = (() => {
   // Read all key-value pairs from an IndexedDB object store
   function readStore(db, storeName) {
@@ -47,7 +58,78 @@ const BackupRestore = (() => {
     LOCAL_STORAGE_KEYS.globalGoalsCompat
   ];
 
+  // PERF (deferred-2): serialise a backup object into a single text payload.
+  // When the flag is on we deflate the JSON and base64-encode the bytes so
+  // the file is still readable via FileReader.readAsText. On any error
+  // (e.g. pako missing or OOM) we fall back to uncompressed JSON.
+  // Returns { text, format: 'compressed' | 'json', extension }.
+  function serializeBackupFile(backup, opts) {
+    opts = opts || {};
+    const json = JSON.stringify(backup);
+    const flagOn = !(typeof window !== 'undefined' && window.PERF_FLAGS && window.PERF_FLAGS.compressedBackups === false);
+    const wantCompressed = opts.compressed != null ? !!opts.compressed : flagOn;
+    if (!wantCompressed || typeof pako === 'undefined' || !pako || !pako.deflate) {
+      return { text: json, format: 'json', extension: 'json' };
+    }
+    try {
+      const bytes = pako.deflate(json);
+      // Build a binary string from the byte array, then base64-encode it.
+      // Chunk to keep the String.fromCharCode call from blowing the stack on
+      // very large patterns (~1 MB+ deflated).
+      const binChunks = [];
+      const CHUNK = 0x8000;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binChunks.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK)));
+      }
+      const b64 = btoa(binChunks.join(''));
+      return { text: _BACKUP_MAGIC + b64, format: 'compressed', extension: 'csb' };
+    } catch (err) {
+      console.warn('Backup: compression failed, falling back to JSON', err);
+      return { text: json, format: 'json', extension: 'json' };
+    }
+  }
+
+  // PERF (deferred-2): parse a backup file's text. Detects the CSB1\n magic
+  // header at offset 0 and decompresses; otherwise treats the input as
+  // legacy uncompressed JSON. Throws on malformed input so callers' existing
+  // error toasts fire as before.
+  function parseBackupText(text) {
+    if (typeof text !== 'string') throw new Error('Backup file is empty.');
+    if (text.startsWith(_BACKUP_MAGIC)) {
+      if (typeof pako === 'undefined' || !pako || !pako.inflate) {
+        throw new Error('This backup is compressed but pako is not loaded.');
+      }
+      const body = text.slice(_BACKUP_MAGIC.length).trim();
+      let bin;
+      try { bin = atob(body); }
+      catch (e) { throw new Error('Compressed backup is corrupt (base64 decode failed).'); }
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      let inflated;
+      try { inflated = pako.inflate(bytes, { to: 'string' }); }
+      catch (e) { throw new Error('Compressed backup is corrupt (inflate failed).'); }
+      return JSON.parse(inflated);
+    }
+    return JSON.parse(text);
+  }
+
   return {
+    serializeBackupFile,
+    parseBackupText,
+    // Reads a File/Blob, parses (supports both .json and .csb), validates and restores.
+    async restoreBackup(file) {
+      if (!file) throw new Error("No backup file selected.");
+      const text = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error("Failed to read backup file."));
+        reader.readAsText(file);
+      });
+      const backup = parseBackupText(text);
+      const check = this.validate(backup);
+      if (!check.valid) throw new Error(check.error);
+      return this.restore(backup);
+    },
     // Creates a full backup JSON object
     async createBackup() {
       // Flush any in-flight React state to IndexedDB before reading
@@ -65,11 +147,14 @@ const BackupRestore = (() => {
       // 1. CrossStitchDB
       try {
         const db = await openDB("CrossStitchDB", 3, ["projects", "project_meta", "stats_summaries"]);
-        backup.databases.CrossStitchDB = {
-          projects: await readStore(db, "projects"),
-          project_meta: await readStore(db, "project_meta"),
-          stats_summaries: await readStore(db, "stats_summaries")
-        };
+        // PERF (perf-3 #4 / perf-5): read all three stores in parallel rather
+        // than awaiting them sequentially.
+        const [projects, project_meta, stats_summaries] = await Promise.all([
+          readStore(db, "projects"),
+          readStore(db, "project_meta"),
+          readStore(db, "stats_summaries")
+        ]);
+        backup.databases.CrossStitchDB = { projects, project_meta, stats_summaries };
         db.close();
       } catch (e) {
         console.warn("Backup: could not read CrossStitchDB:", e);
@@ -99,17 +184,19 @@ const BackupRestore = (() => {
       return backup;
     },
 
-    // Downloads the backup as a .json file
+    // Downloads the backup as a .json file (or .csb when compression is on)
     async downloadBackup() {
       const backup = await this.createBackup();
       let url = null;
       try {
-        const json = JSON.stringify(backup);
-        const blob = new Blob([json], { type: "application/json" });
+        // PERF (deferred-2): emit the compressed format when the flag is on.
+        // Falls back to JSON automatically if compression throws.
+        const out = serializeBackupFile(backup);
+        const blob = new Blob([out.text], { type: out.format === 'compressed' ? 'application/octet-stream' : 'application/json' });
         url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "cross-stitch-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+        a.download = "cross-stitch-backup-" + new Date().toISOString().slice(0, 10) + "." + out.extension;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -156,13 +243,20 @@ const BackupRestore = (() => {
         }
         const mdb = backup.databases.stitch_manager_db;
         if (mdb && mdb.manager_state) {
-          const threadsEntry = mdb.manager_state.find(e => e.key === "threads");
+          // PERF (perf-4 #7): index manager_state by key once instead of three
+          // separate Array.find() scans.
+          const msMap = new Map();
+          for (let i = 0; i < mdb.manager_state.length; i++) {
+            const e = mdb.manager_state[i];
+            if (e && e.key) msMap.set(e.key, e);
+          }
+          const threadsEntry = msMap.get("threads");
           if (threadsEntry && threadsEntry.value) {
             summary.threadCount = Object.keys(threadsEntry.value).filter(
               id => threadsEntry.value[id].owned > 0
             ).length;
           }
-          const patternsEntry = mdb.manager_state.find(e => e.key === "patterns");
+          const patternsEntry = msMap.get("patterns");
           if (patternsEntry && Array.isArray(patternsEntry.value)) {
             summary.patternCount = patternsEntry.value.length;
           }
@@ -234,7 +328,12 @@ const BackupRestore = (() => {
       try {
         const mdb = backup.databases && backup.databases.stitch_manager_db;
         if (mdb && mdb.manager_state) {
-          const sv = mdb.manager_state.find(e => e.key === 'schema_version');
+          // PERF (perf-4 #7): same single-pass index pattern as in validate().
+          let sv = null;
+          for (let i = 0; i < mdb.manager_state.length; i++) {
+            const e = mdb.manager_state[i];
+            if (e && e.key === 'schema_version') { sv = e; break; }
+          }
           stashIsV3 = sv && Number(sv.value) >= 3;
         }
         const csdb = backup.databases && backup.databases.CrossStitchDB;

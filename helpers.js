@@ -214,7 +214,9 @@ function analysePartialStitches(psEntry, baseCell) {
   Object.keys(colourGroups).forEach(function(id) {
     var group = colourGroups[id];
     if (group.corners.length === 3) {
-      var emptyCorner = quadrants.filter(function(q) { return group.corners.indexOf(q) === -1; })[0];
+      // PERF (perf-4 #9): O(1) Set membership beats Array.indexOf scan.
+      var cornerSet = new Set(group.corners);
+      var emptyCorner = quadrants.filter(function(q) { return !cornerSet.has(q); })[0];
       instructions.push({ type: "three-quarter", colour: group.colour, emptyCorner: emptyCorner });
       group.corners.forEach(function(q) { handled[q] = true; });
     }
@@ -1212,3 +1214,77 @@ if(typeof window!=='undefined')window.normaliseStashKey=normaliseStashKey;
 // Stub: always returns true. Flip this to add gating later.
 function isPremium(){return true;}
 if(typeof window!=='undefined')window.isPremium=isPremium;
+
+// ═══ PERF (deferred-1): rgb-stripping save helper ════════════════════════════
+// See reports/deferred-1-rgb-stripping-analysis.md.
+//
+// Rationale: every saved snapshot stores a redundant rgb triple per cell.
+// For a 200x200 / 20-colour pattern this is ~240 KB of pure duplication on
+// every autosave. The Creator/Tracker load path (`restoreStitch` in
+// colour-utils.js) already hydrates rgb from the DMC catalogue, so we can
+// safely drop rgb on disk for any cell whose colour can be reconstructed.
+//
+// Safety rule: only strip when the catalogue can reproduce the rgb exactly.
+// Cells whose stored rgb has drifted from the catalogue (e.g. after a
+// palette swap) keep their explicit rgb so colour data is never lost.
+//
+// Feature flag: window.PERF_FLAGS.stripRgbOnSave (default true). Setting it
+// to false restores the legacy {id, type, rgb} shape byte-for-byte. Both
+// shapes load identically via restoreStitch — no migration needed.
+if(typeof window!=='undefined'){
+  window.PERF_FLAGS=window.PERF_FLAGS||{};
+  if(window.PERF_FLAGS.stripRgbOnSave===undefined)window.PERF_FLAGS.stripRgbOnSave=true;
+}
+
+function _rgbEq(a,b){
+  return !!(a&&b&&a[0]===b[0]&&a[1]===b[1]&&a[2]===b[2]);
+}
+
+// Returns the on-disk shape for a single pattern cell.
+function stripCellForSave(m){
+  if(!m)return m;
+  // Skip / empty placeholders are already minimal — rgb is fixed at load time.
+  if(m.id==='__skip__'||m.id==='__empty__')return{id:m.id};
+  // Honour the kill-switch: emit the legacy shape when stripping is disabled.
+  var flags=(typeof window!=='undefined'&&window.PERF_FLAGS)||{};
+  if(flags.stripRgbOnSave===false){
+    return{id:m.id,type:m.type,rgb:m.rgb};
+  }
+  // Cell already lacks rgb (nothing to strip; pass through cleanly).
+  if(!m.rgb)return{id:m.id,type:m.type};
+  var mr=m.rgb;
+  // Blends: only safe to strip when both halves are DMC and the stored rgb
+  // matches the per-channel average — that is exactly what restoreStitch
+  // reconstructs.
+  if(m.type==='blend'&&typeof m.id==='string'&&m.id.indexOf('+')>=0){
+    var ids=splitBlendId(m.id);
+    if(ids.length===2){
+      var t0=findThreadInCatalog('dmc',ids[0]);
+      var t1=findThreadInCatalog('dmc',ids[1]);
+      if(t0&&t1){
+        var ar=Math.round((t0.rgb[0]+t1.rgb[0])/2);
+        var ag=Math.round((t0.rgb[1]+t1.rgb[1])/2);
+        var ab=Math.round((t0.rgb[2]+t1.rgb[2])/2);
+        if(ar===mr[0]&&ag===mr[1]&&ab===mr[2])return{id:m.id,type:m.type};
+      }
+    }
+    return{id:m.id,type:m.type,rgb:m.rgb};
+  }
+  // Solids: strip iff the DMC catalogue has a byte-identical rgb.
+  var dmc=findThreadInCatalog('dmc',m.id);
+  if(dmc&&dmc.rgb&&dmc.rgb[0]===mr[0]&&dmc.rgb[1]===mr[1]&&dmc.rgb[2]===mr[2])return{id:m.id,type:m.type};
+  return{id:m.id,type:m.type,rgb:m.rgb};
+}
+if(typeof window!=='undefined')window.stripCellForSave=stripCellForSave;
+
+// Convenience wrapper for the common pat.map(...) site.
+function serializePattern(pat){
+  if(!pat||!pat.map)return pat;
+  return pat.map(stripCellForSave);
+}
+if(typeof window!=='undefined'){
+  window.serializePattern=serializePattern;
+  window.PatternIO=window.PatternIO||{};
+  window.PatternIO.stripCellForSave=stripCellForSave;
+  window.PatternIO.serializePattern=serializePattern;
+}

@@ -30,8 +30,18 @@ const StashBridge = (() => {
   function _getThreadInfoByKey(key) {
     if (typeof getThreadByKey === "function") return getThreadByKey(key);
     const parsed = _parseThreadKey(key);
+    // PERF (perf-2 #3): prefer cached id-maps from helpers.js (O(1)) over O(n)
+    // Array.find scans across the full DMC/ANCHOR palettes.
     if (parsed.brand === "anchor") {
+      if (typeof _getAnchorById === "function") {
+        const m = _getAnchorById();
+        if (m) return m[parsed.id] || null;
+      }
       return typeof ANCHOR !== "undefined" ? ANCHOR.find(x => x.id === parsed.id) : null;
+    }
+    if (typeof _getDmcById === "function") {
+      const m = _getDmcById();
+      if (m) return m[parsed.id] || null;
     }
     return typeof DMC !== "undefined" ? DMC.find(x => x.id === parsed.id) : null;
   }
@@ -238,8 +248,11 @@ const StashBridge = (() => {
       // 1. Check ProjectStorage (generated patterns from Creator/Tracker)
       try {
         const allMeta = await ProjectStorage.listProjects();
-        for (const meta of allMeta) {
-          const full = await ProjectStorage.get(meta.id);
+        // PERF (perf-5 #3): parallel fetch instead of N sequential awaits.
+        const fulls = await Promise.all(allMeta.map(m => ProjectStorage.get(m.id).catch(() => null)));
+        for (let i = 0; i < allMeta.length; i++) {
+          const meta = allMeta[i];
+          const full = fulls[i];
           if (!full || !full.pattern) continue;
           const uses = full.pattern.some(cell =>
             cell && cell.id === dmcId
@@ -594,8 +607,9 @@ const StashBridge = (() => {
       if (typeof ProjectStorage !== 'undefined' && ProjectStorage.listProjects) {
         try {
           const projects = await ProjectStorage.listProjects();
-          for (const meta of projects) {
-            const proj = await ProjectStorage.get(meta.id);
+          // PERF (perf-5 #4): parallel fetch.
+          const fulls = await Promise.all(projects.map(m => ProjectStorage.get(m.id).catch(() => null)));
+          for (const proj of fulls) {
             if (!proj || !proj.stitchLog) continue;
             for (const log of proj.stitchLog) {
               const m = log.date.slice(0, 7);

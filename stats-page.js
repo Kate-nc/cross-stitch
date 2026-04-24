@@ -938,8 +938,11 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       try {
         const metas = await ProjectStorage.listProjects();
         const usedKeys = new Set();
-        for (const meta of metas) {
-          const proj = await ProjectStorage.get(meta.id);
+        // Load projects sequentially to avoid retaining all large pattern arrays in
+        // memory at once (peak-memory concern on mobile / large libraries).
+        for (const m of metas) {
+          let proj = null;
+          try { proj = await ProjectStorage.get(m.id); } catch (_) { proj = null; }
           if (!proj || !proj.pattern) continue;
           if (proj.finishStatus === 'planned') continue;
           for (const cell of proj.pattern) {
@@ -987,8 +990,9 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         const designerMap = {};
         const genreMap = {};
         let hasAny = false;
-        for (const meta of metas) {
-          const proj = await ProjectStorage.get(meta.id);
+        // PERF (perf-5 #7): parallel fetch.
+        const fulls = await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
+        for (const proj of fulls) {
           if (!proj) continue;
           const stitches = (proj.w || 0) * (proj.h || 0);
           if (stitches > 0) {
@@ -1048,8 +1052,9 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     async function loadDetails() {
       const metas = await ProjectStorage.listProjects();
       const details = [];
-      for (const m of metas) {
-        const p = await ProjectStorage.get(m.id);
+      // PERF (perf-5 #7): parallel fetch.
+      const fulls = await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
+      for (const p of fulls) {
         if (p) details.push({ id: p.id, name: p.name, finishStatus: p.finishStatus || 'active', completedAt: p.completedAt, startedAt: p.startedAt });
       }
       if (!cancelled) setProjectDetails(details);

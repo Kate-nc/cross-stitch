@@ -6411,7 +6411,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       designer: state.projectDesigner || "", description: state.projectDescription || "",
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
-      pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      // PERF (deferred-1): serializePattern strips redundant rgb for cells whose colour
+      // can be reconstructed from the DMC catalogue at load time. See
+      // reports/deferred-1-rgb-stripping-analysis.md. Toggleable via
+      // window.PERF_FLAGS.stripRgbOnSave.
+      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
@@ -6468,7 +6472,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       version: 11, id: projectIdRef.current, page: "creator", name: projectName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
-      pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      // PERF (deferred-1): see helpers.js / serializePattern.
+      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
@@ -6948,7 +6953,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       designer: state.projectDesigner || "", description: state.projectDescription || "",
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
-      pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      // PERF (deferred-1): see helpers.js / serializePattern.
+      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
       parkMarkers: state.parkMarkers, totalTime: state.totalTime, sessions: state.sessions,
       hlRow: state.hlRow, hlCol: state.hlCol, threadOwned: state.threadOwned,
@@ -9932,8 +9938,13 @@ window.ConvertPaletteModal = (function () {
       if (!seenIds[id]) { seenIds[id] = true; sourceIds.push(id); }
     });
 
+    // PERF (perf-4 #3): build srcMap once and reuse for srcId lookups instead
+    // of an O(n) Array.find per source thread.
+    var srcMap = Object.create(null);
+    for (var si = 0; si < srcArr.length; si++) srcMap[srcArr[si].id] = srcArr[si];
+
     sourceIds.forEach(function (srcId) {
-      var srcThread = srcArr.find(function (d) { return d.id === srcId; });
+      var srcThread = srcMap[srcId];
       if (!srcThread) return; // unknown ID — skip
 
       var proposal = {
@@ -12760,6 +12771,11 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                FABRIC_COUNTS (constants.js), StashBridge (stash-bridge.js),
                CreatorContext (context.js) */
 
+// PERF (perf-1 #7 / perf-2 #1): hoist Intl.Collator to module scope so it isn't
+// reallocated on every component render.
+var _LEGEND_THREAD_ID_COLLATOR = new Intl.Collator(undefined, {numeric: true, sensitivity: "base"});
+var _LEGEND_NUMERIC_RE = /^\d+$/;
+
 window.CreatorLegendTab = function CreatorLegendTab() {
   var ctx = window.usePatternData();
   var cv  = window.useCanvas();
@@ -12809,12 +12825,12 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     });
   }, [ctx.pat, ctx.pal, stash, effectiveFabric, app.confettiData, ctx.colourDoneCounts]);
 
-  var threadIdCollator = new Intl.Collator(undefined, {numeric: true, sensitivity: "base"});
+  var threadIdCollator = _LEGEND_THREAD_ID_COLLATOR;
   function compareThreadIds(aId, bId) {
     var aStr = String(aId == null ? "" : aId);
     var bStr = String(bId == null ? "" : bId);
-    var aIsNumeric = /^\d+$/.test(aStr);
-    var bIsNumeric = /^\d+$/.test(bStr);
+    var aIsNumeric = _LEGEND_NUMERIC_RE.test(aStr);
+    var bIsNumeric = _LEGEND_NUMERIC_RE.test(bStr);
     if (aIsNumeric && bIsNumeric) {
       var aNum = parseInt(aStr, 10);
       var bNum = parseInt(bStr, 10);

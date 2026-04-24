@@ -108,14 +108,16 @@ function runAnalysis(pat, done, sW, sH, REGION_SIZE) {
   var nearestDist = computeNearestSameColour(pat, sW, sH);
 
   // Per-stitch output arrays (typed for memory efficiency)
-  // We return lightweight objects for transfer
+  // PERF (perf-3 #8 / perf-6 #6): keep typed arrays — sole consumer indexes
+  // them numerically, so Array.from() conversions wasted ~120 KB per
+  // 200×200 message and added GC pressure on every analysis pass.
   var perStitch = {
-    neighbourCount: Array.from(neighbourCounts),
-    nearestDist:    Array.from(nearestDist),
-    clusterLabel:   Array.from(clusterLabel),
+    neighbourCount: neighbourCounts,
+    nearestDist:    nearestDist,
+    clusterLabel:   clusterLabel,
     clusterSize:    new Array(n),
     isConfetti:     new Uint8Array(n),
-    isCompleted:    done ? Array.from(done) : new Array(n).fill(0)
+    isCompleted:    done ? new Uint8Array(done) : new Uint8Array(n)
   };
 
   for (var i = 0; i < n; i++) {
