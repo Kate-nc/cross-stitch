@@ -583,21 +583,53 @@
         close();
       }
     }
-    return h("div", null, GETTING_STARTED.map(function (item) {
-      return h("div", { key: item.id, style: { marginBottom: 18 } },
-        h("h4", { style: { margin: "0 0 4px 0", fontSize: 14, color: "#1e293b" } }, item.heading),
-        h("p", { style: { margin: "0 0 8px 0", color: "#475569", fontSize: 13, lineHeight: 1.55 } }, item.body),
-        item.action && h("button", {
-          onClick: function () { handleAction(item.action); },
+    return h("div", null,
+      GETTING_STARTED.map(function (item) {
+        return h("div", { key: item.id, style: { marginBottom: 18 } },
+          h("h4", { style: { margin: "0 0 4px 0", fontSize: 14, color: "#1e293b" } }, item.heading),
+          h("p", { style: { margin: "0 0 8px 0", color: "#475569", fontSize: 13, lineHeight: 1.55 } }, item.body),
+          item.action && h("button", {
+            onClick: function () { handleAction(item.action); },
+            style: {
+              padding: "6px 12px", fontSize: 12, borderRadius: 6,
+              border: "1px solid #cbd5e1", background: "#fff",
+              color: "#0369a1", cursor: "pointer", fontWeight: 600,
+              fontFamily: "inherit"
+            }
+          }, item.action.label)
+        );
+      }),
+      // ── C8: Restart guided tours (Phase 1) ────────────────────────────
+      h("div", {
+        style: {
+          marginTop: 18, paddingTop: 14,
+          borderTop: "1px solid #e2e8f0"
+        }
+      },
+        h("h4", { style: { margin: "0 0 4px 0", fontSize: 14, color: "#1e293b" } }, "Guided tours"),
+        h("p", { style: { margin: "0 0 8px 0", color: "#475569", fontSize: 13, lineHeight: 1.55 } },
+          "Replay the in-app coachmarks the next time you start a new project."),
+        h("button", {
+          type: "button",
+          "data-action": "restart-tours",
+          onClick: function () {
+            try { if (typeof window.resetCoaching === "function") window.resetCoaching(); } catch (_) {}
+          },
           style: {
             padding: "6px 12px", fontSize: 12, borderRadius: 6,
             border: "1px solid #cbd5e1", background: "#fff",
             color: "#0369a1", cursor: "pointer", fontWeight: 600,
-            fontFamily: "inherit"
+            fontFamily: "inherit",
+            display: "inline-flex", alignItems: "center", gap: 6
           }
-        }, item.action.label)
-      );
-    }));
+        },
+          (window.Icons && typeof window.Icons.replay === "function")
+            ? h("span", { "aria-hidden": "true", style: { display: "inline-flex" } }, window.Icons.replay())
+            : null,
+          "Restart guided tours"
+        )
+      )
+    );
   }
 
   function TabButton(props) {

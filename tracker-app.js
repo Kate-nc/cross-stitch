@@ -4331,6 +4331,32 @@ const dragMarkState=_dragMark.dragState;
 // previous touch-only gate is no longer needed because legacy mouse
 // cell-marking has been removed from handleStitchMouseDown / Move / Up.
 
+// ── C8 Phase 1 — first-stitch coachmark (Tracker) ─────────────────────
+// Trigger condition: Tracker has a pattern AND the StitchingStyleOnboarding
+// has finished AND no stitches are marked yet. Success: doneCount > 0.
+const _trCoach = (typeof window.useCoachingSequence === 'function')
+  ? window.useCoachingSequence('tracker')
+  : { active: null, complete: ()=>{}, skip: ()=>{} };
+const [_trCoachReady, _setTrCoachReady] = React.useState(false);
+React.useEffect(()=>{
+  _setTrCoachReady(false);
+  if (!pat || styleOnboardingOpen || welcomeOpen) return;
+  if (_trCoach.active !== 'firstStitch_tracker') return;
+  if (doneCount > 0) return;
+  const t = setTimeout(()=>_setTrCoachReady(true), 600);
+  return ()=>clearTimeout(t);
+}, [!!pat, styleOnboardingOpen, welcomeOpen, _trCoach.active, doneCount]);
+React.useEffect(()=>{
+  if (_trCoach.active !== 'firstStitch_tracker') return;
+  if (doneCount > 0) _trCoach.complete('firstStitch_tracker');
+}, [doneCount, _trCoach.active]);
+const _showTrFirstStitchCoach = _trCoachReady
+  && _trCoach.active === 'firstStitch_tracker'
+  && !!pat
+  && !styleOnboardingOpen
+  && !welcomeOpen
+  && doneCount === 0;
+
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
@@ -5356,6 +5382,15 @@ return(
     }
   }}/>}
   {window.HelpHintBanner&&React.createElement(window.HelpHintBanner)}
+  {_showTrFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
+    id: 'firstStitch_tracker',
+    title: 'Mark your first stitch',
+    body: 'Tap a cell to mark it complete. Tap again to undo.',
+    placement: 'centre',
+    showHighlight: false,
+    onComplete: ()=>_trCoach.complete('firstStitch_tracker'),
+    onSkip: ()=>_trCoach.skip('firstStitch_tracker')
+  })}
   {sessionConfigOpen&&<SessionConfigModal liveAutoElapsed={liveAutoElapsed} liveAutoStitches={liveAutoStitches} onClose={()=>setSessionConfigOpen(false)} onStart={cfg=>{
     setExplicitSession({startTime:Date.now(),timeAvail:cfg.timeAvail,stitchGoal:cfg.stitchGoal,startStitches:doneCount,blocks:[]});
     setSessionConfigOpen(false);

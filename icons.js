@@ -355,6 +355,14 @@ window.Icons = (function() {
         p('M3 13A9 9 0 1 0 6 6.7L3 13')
       );
     },
+    // Replay — counter-clockwise circular arrow used by Help drawer's
+    // "Restart guided tours" affordance (C8 onboarding).
+    replay: function() {
+      return svg(
+        p('M3 12a9 9 0 1 0 3-6.7L3 8'),
+        pl('3 3 3 8 8 8')
+      );
+    },
     // Chevron up — replaces ▲ ↑
     chevronUp: function() {
       return svg(pl('18 15 12 9 6 15'));

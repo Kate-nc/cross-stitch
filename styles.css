@@ -3809,3 +3809,64 @@ html.pref-dark a { color: #5eead4; }
   background: #fff; border: 1px solid #cbd5e1; color: #1e293b;
   cursor: pointer; min-height: 36px; font-family: inherit;
 }
+
+/* -- C8 Coachmark (first-stitch coaching) ----------------------- */
+.cs-coachmark { position: fixed; inset: 0; z-index: 10000; pointer-events: none; }
+.cs-coachmark-scrim {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+  pointer-events: auto; animation: csCoachFade 160ms ease-out;
+}
+.cs-coachmark-highlight-ring {
+  position: fixed; pointer-events: none; border-radius: 8px;
+  box-shadow: 0 0 0 3px var(--accent, #0d9488), 0 0 0 6px rgba(13, 148, 136, 0.25);
+  animation: csCoachPulse 1.4s ease-in-out infinite;
+}
+.cs-coachmark-popover {
+  position: fixed; pointer-events: auto;
+  background: #fff; color: #1e293b;
+  border-radius: 10px; box-shadow: 0 16px 40px rgba(15, 23, 42, 0.25);
+  padding: 16px 18px; max-width: 90vw;
+  font-family: inherit;
+  animation: csCoachPop 180ms ease-out;
+}
+.cs-coachmark-title {
+  margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: #0f172a;
+}
+.cs-coachmark-body {
+  margin: 0 0 14px 0; font-size: 13px; line-height: 1.5; color: #334155;
+}
+.cs-coachmark-buttons {
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+.cs-coachmark-btn {
+  min-height: 36px; min-width: 64px;
+  padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  background: #fff; color: #1e293b; border: 1px solid #cbd5e1;
+  cursor: pointer; font-family: inherit;
+}
+.cs-coachmark-btn--primary {
+  background: var(--accent, #0d9488); color: #fff; border-color: var(--accent, #0d9488);
+}
+.cs-coachmark-btn:focus-visible {
+  outline: 2px solid var(--accent, #0d9488); outline-offset: 2px;
+}
+@media (max-width: 480px) {
+  .cs-coachmark-popover { max-width: calc(100vw - 24px); padding: 14px 14px; }
+  .cs-coachmark-btn { min-height: 44px; min-width: 44px; padding: 10px 16px; }
+}
+@keyframes csCoachFade {
+  from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes csCoachPop {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes csCoachPulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--accent, #0d9488), 0 0 0 6px rgba(13, 148, 136, 0.25); }
+  50%      { box-shadow: 0 0 0 3px var(--accent, #0d9488), 0 0 0 10px rgba(13, 148, 136, 0.10); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-coachmark-scrim, .cs-coachmark-popover, .cs-coachmark-highlight-ring { animation: none !important; }
+}
+.cs-coachmark-no-motion { animation: none !important; }
+

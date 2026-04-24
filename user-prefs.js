@@ -118,6 +118,16 @@
     // ─── Advanced ───────────────────────────────────────────────────────
     commandPaletteHotkey:     "ctrl+k",         // ctrl+k | ctrl+/ | off
     flagExperimentalPreview:  false,
+
+    // ─── Onboarding coaching (C8 — flattened keys, one per coachmark) ──
+    // Phase 1 active:
+    "onboarding.coached.firstStitch_creator": false,
+    "onboarding.coached.firstStitch_tracker": false,
+    // Phase 2 reserved (declared so resetCoaching() finds them):
+    "onboarding.coached.import":   false,
+    "onboarding.coached.undo":     false,
+    "onboarding.coached.progress": false,
+    "onboarding.coached.save":     false,
   };
 
   var PVIEW_DEFAULTS = {
