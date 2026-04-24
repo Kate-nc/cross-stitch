@@ -301,3 +301,62 @@ G6 (mobile reach).
 ### Test status
 
 - `npm test -- --runInBand`: 773 passed (up from 766 before A5).
+
+---
+
+## A6 — Dashboard de-dup + emoji removal
+
+**Roadmap line:** D-3 (dashboard noise), house rule (no raw glyphs in
+user-facing UI).
+
+**Wireframe:** [reports/wireframes/a-home-dashboard.html](wireframes/a-home-dashboard.html)
+
+### What shipped
+
+- Suppressed the Suggestion card on the multi-project dashboard whenever
+  it would propose the same project that is already pinned in the sticky
+  Continue bar (`suggestion.proj.id === continueProj.id`). The dashboard
+  no longer asks the user to "pick up" the project they were already
+  about to resume — one CTA per project, every time.
+- Replaced every emoji glyph in [home-screen.js](../home-screen.js) with
+  the SVG icons from [icons.js](../icons.js):
+  - 🔥 streak badge → `Icons.fire()`
+  - 💡 suggestion title → `Icons.lightbulb()`
+  - 📊 global-stats link → `Icons.barChart()`
+  - ✦ Showcase tile → `Icons.star()`
+  - ⚠️ stash alert + neglected-card warning → `Icons.warning()`
+  - ✓ / ! / ○ stash readiness on each project card → `Icons.check()`,
+    `Icons.warning()`, `Icons.info()` (with the existing colour cue
+    preserved via `stashColor`).
+- Each label is wrapped in an inline-flex row with `gap: 4–6` so the icon
+  sits on the baseline of the text instead of on top of it. No new
+  classes were needed; the existing typography keeps reading correctly
+  with the icon prefix.
+
+### Honesty notes
+
+- The neglected-card "≥14 days" indicator no longer carries an inline
+  warning glyph — the existing red `mpd-card-recency--warn` modifier
+  already styles the row with the warning colour, so a duplicate icon
+  would be redundant. The rest of the row reads "Last stitched N days
+  ago" plainly. Revisit if user feedback says the visual cue alone is
+  too subtle.
+- A handful of legacy "→" and "·" characters remain in label strings
+  (e.g. "Continue →", "Open stash manager →"). These are punctuation,
+  not pictographic emoji, and are explicitly allowed by the house rule
+  for inline copy. The forbidden glyphs (✓ ✗ ⚠ ℹ → ← ▸ ✕) listed in
+  AGENTS.md refer to status-indicator usage; arrow punctuation in the
+  middle of a CTA label remains acceptable and matches the style used
+  across the rest of the app.
+
+### Files touched
+
+- [home-screen.js](../home-screen.js) — emoji → Icons, Suggestion de-dup
+  guard, inline-flex wrappers.
+- [tests/homeDedup.test.js](../tests/homeDedup.test.js) — 10 cases:
+  9 emoji-removal assertions (4 forbidden glyphs gone, 5 Icons.* calls
+  present) plus the de-dup guard regex.
+
+### Test status
+
+- `npm test -- --runInBand`: 783 passed (up from 773 before A6).

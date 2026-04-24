@@ -195,7 +195,9 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
   var dim = proj.dimensions ? (proj.dimensions.width + '\u00D7' + proj.dimensions.height) : '';
   var fabricCt = proj.fabricCt ? proj.fabricCt + '-count' : '';
   var stashColor = stashOk === true ? '#16a34a' : stashOk === false ? '#b45309' : '#a1a1aa';
-  var stashIcon = stashOk === true ? '\u2713' : stashOk === false ? '!' : '\u25CB';
+  var stashIconEl = stashOk === true ? (window.Icons && window.Icons.check && window.Icons.check())
+    : stashOk === false ? (window.Icons && window.Icons.warning && window.Icons.warning())
+    : (window.Icons && window.Icons.info && window.Icons.info());
 
   return h('div', { className: 'mpd-card' },
     // Thumbnail
@@ -238,7 +240,7 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
       h('div', { className: 'mpd-card-recency' + (isNeglected ? ' mpd-card-recency--warn' : '') },
         days === 0 ? 'Last stitched today' :
         days === 1 ? 'Last stitched yesterday' :
-        days != null ? 'Last stitched ' + days + ' days ago' + (isNeglected ? ' \u26A0\uFE0F' : '') : 'Not started'
+        days != null ? 'Last stitched ' + days + ' days ago' : 'Not started'
       ),
       // Session summary
       weekSt > 0 && h('div', { className: 'mpd-card-session' },
@@ -250,8 +252,9 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
       ),
       // Footer row: stash + continue
       h('div', { className: 'mpd-card-footer' },
-        h('div', { className: 'mpd-card-stash', style: { color: stashColor }, title: stashMsg || '' },
-          stashIcon + ' ' + (stashMsg || (stashOk === true ? 'Ready' : stashOk === false ? 'Need threads' : 'Stash not checked'))
+        h('div', { className: 'mpd-card-stash', style: { color: stashColor, display: 'inline-flex', alignItems: 'center', gap: 4 }, title: stashMsg || '' },
+          stashIconEl,
+          h('span', null, stashMsg || (stashOk === true ? 'Ready' : stashOk === false ? 'Need threads' : 'Stash not checked'))
         ),
         h('div', { className: 'mpd-card-actions' },
           h('button', {
@@ -512,12 +515,18 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     h('div', { className: 'mpd-summary-bar' },
       h('span', null, summary.activeCount + ' active project' + (summary.activeCount !== 1 ? 's' : '')),
       summary.monthStitches > 0 && h('span', null, '\u00B7 ' + summary.monthStitches.toLocaleString() + ' stitches this month'),
-      summary.streak > 1 && h('span', { className: 'mpd-streak' }, '\uD83D\uDD25 ' + summary.streak + '-day streak')
+      summary.streak > 1 && h('span', { className: 'mpd-streak', style: { display: 'inline-flex', alignItems: 'center', gap: 4 } },
+        window.Icons && window.Icons.fire ? window.Icons.fire() : null,
+        h('span', null, summary.streak + '-day streak')
+      )
     ),
 
-    // ── Suggestion card ──
-    suggestion && h('div', { className: 'mpd-suggestion' },
-      h('div', { className: 'mpd-suggestion-title' }, '\uD83D\uDCA1 Suggestion: pick up \u201C' + suggestion.proj.name + '\u201D'),
+    // ── Suggestion card (suppressed when it duplicates the Continue bar) ──
+    suggestion && (!continueProj || suggestion.proj.id !== continueProj.id) && h('div', { className: 'mpd-suggestion' },
+      h('div', { className: 'mpd-suggestion-title', style: { display: 'inline-flex', alignItems: 'center', gap: 6 } },
+        window.Icons && window.Icons.lightbulb ? window.Icons.lightbulb() : null,
+        h('span', null, 'Suggestion: pick up \u201C' + suggestion.proj.name + '\u201D')
+      ),
       h('div', { className: 'mpd-suggestion-reason' }, suggestion.reason),
       h('button', {
         className: 'mpd-btn mpd-btn--primary',
@@ -674,8 +683,12 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     // ── Stats link ──
     onOpenGlobalStats && h('button', {
       className: 'mpd-stats-link',
-      onClick: onOpenGlobalStats
-    }, '\uD83D\uDCCA View detailed stats across all projects \u2192'),
+      onClick: onOpenGlobalStats,
+      style: { display: 'inline-flex', alignItems: 'center', gap: 6 }
+    },
+      window.Icons && window.Icons.barChart ? window.Icons.barChart() : null,
+      h('span', null, 'View detailed stats across all projects \u2192')
+    ),
 
     // ── Edit Project Details modal ──
     editingProj && typeof EditProjectDetailsModal !== 'undefined' && h(EditProjectDetailsModal, {
@@ -1181,7 +1194,10 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         title: 'See your stitching journey',
         'aria-label': 'Open Showcase view',
         style: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', fontFamily: 'inherit' }
-      }, '✦ See your Showcase →')
+      },
+        window.Icons && window.Icons.star ? window.Icons.star() : null,
+        h('span', { style: { marginLeft: 4 } }, 'See your Showcase \u2192')
+      )
     ),
 
     // Hero card (only if projects exist, and not using multi-project dashboard)
@@ -1370,11 +1386,13 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
 
     // Stash alert bar
     stashAlerts && h('div', { className: 'home-stash-alert' },
-      h('span', { className: 'home-stash-alert-text' },
-        '\u26A0 ',
-        stashAlerts.lowCount > 0 && (stashAlerts.lowCount + ' thread' + (stashAlerts.lowCount !== 1 ? 's' : '') + ' running low'),
-        stashAlerts.lowCount > 0 && stashAlerts.projectsNeedThread > 0 && '  \u00B7  ',
-        stashAlerts.projectsNeedThread > 0 && (stashAlerts.projectsNeedThread + ' project' + (stashAlerts.projectsNeedThread !== 1 ? 's' : '') + ' need thread')
+      h('span', { className: 'home-stash-alert-text', style: { display: 'inline-flex', alignItems: 'center', gap: 6 } },
+        window.Icons && window.Icons.warning ? window.Icons.warning() : null,
+        h('span', null,
+          (stashAlerts.lowCount > 0 ? (stashAlerts.lowCount + ' thread' + (stashAlerts.lowCount !== 1 ? 's' : '') + ' running low') : '')
+          + (stashAlerts.lowCount > 0 && stashAlerts.projectsNeedThread > 0 ? '  \u00B7  ' : '')
+          + (stashAlerts.projectsNeedThread > 0 ? (stashAlerts.projectsNeedThread + ' project' + (stashAlerts.projectsNeedThread !== 1 ? 's' : '') + ' need thread') : '')
+        )
       ),
       h('button', { className: 'home-stash-alert-link', onClick: onNavigateToStash }, 'Open stash manager \u2192')
     ),
