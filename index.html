@@ -87,7 +87,7 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_3667f13695';
+var TRACKER_CACHE_KEY = 'babel_tracker_efdfadf5b9';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -119,7 +119,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_434b3c80e0';
+var CREATOR_CACHE_KEY = 'babel_creator_03ab059ccf';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

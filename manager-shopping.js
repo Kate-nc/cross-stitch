@@ -163,6 +163,34 @@
     }, []);
 
     var rows = useMemo(function () { return aggregateDeficits(projects, stash); }, [projects, stash]);
+    var projectNamesById = useMemo(function () {
+      var map = {};
+      for (var i = 0; i < projects.length; i++) {
+        var p = projects[i] || {};
+        map[p.id] = p.name || p.id || 'Untitled project';
+      }
+      return map;
+    }, [projects]);
+    // fix-3.9 — which row(s) have their "Used in N projects" disclosure expanded.
+    var _expanded = useState({});
+    var expandedRows = _expanded[0], setExpandedRows = _expanded[1];
+    function toggleRow(key) {
+      setExpandedRows(function (prev) {
+        var next = {}; for (var k in prev) next[k] = prev[k];
+        next[key] = !prev[key]; return next;
+      });
+    }
+    function openProject(pid) {
+      if (typeof props.onOpenProject === 'function') { props.onOpenProject(pid); return; }
+      if (typeof window.openProject === 'function') { window.openProject(pid); return; }
+      // Last-resort fallback: navigate to the stitch page with the active id set.
+      try {
+        if (typeof ProjectStorage !== 'undefined' && typeof ProjectStorage.setActiveProject === 'function') {
+          ProjectStorage.setActiveProject(pid);
+        }
+        window.location.href = 'stitch.html';
+      } catch (_) {}
+    }
 
     function handleBulkAdd() {
       if (!(window.StashBridge && typeof StashBridge.markManyToBuy === 'function')) return;
@@ -204,6 +232,9 @@
     return h('div', { className: 'mgr-shopping' },
       h('div', { className: 'mgr-shopping-header', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border)' } },
         h('div', null,
+          // fix-3.4 — explicit scope caption so the user understands this view
+          // aggregates *all active projects*, not just the current one.
+          h('div', { className: 'mgr-shopping-caption', style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Shopping across all active projects'),
           h('div', { style: { fontSize: 14, fontWeight: 600 } }, rows.length + ' thread' + (rows.length === 1 ? '' : 's') + ' to buy'),
           h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)' } }, totalDeficitSkeins + ' skein' + (totalDeficitSkeins === 1 ? '' : 's') + ' across ' + projects.length + ' project' + (projects.length === 1 ? '' : 's'))
         ),
@@ -217,11 +248,39 @@
       ),
       h('div', { className: 'mgr-shopping-list', role: 'list' },
         rows.map(function (r) {
+          var isOpen = !!expandedRows[r.key];
+          var projectCount = r.projectIds.length;
           return h('div', { key: r.key, role: 'listitem', className: 'mgr-shopping-row',
-            style: { display: 'grid', gridTemplateColumns: '24px 1fr auto auto auto', gap: 10, alignItems: 'center', padding: '8px 16px', borderBottom: '1px solid var(--border)' } },
-            h('span', { 'aria-hidden': 'true', style: { display: 'inline-block', width: 20, height: 20, borderRadius: 4, background: 'rgb(' + r.rgb.join(',') + ')', border: '1px solid var(--border)' } }),
-            h('span', { style: { fontSize: 12 } }, h('strong', null, r.id), ' \u00B7 ', r.name, h('span', { style: { fontSize: 10, color: 'var(--text-tertiary)', marginLeft: 6 } }, '(' + r.brand.toUpperCase() + ')')),
-            h('span', { style: { fontSize: 11, color: 'var(--text-tertiary)' } }, 'across ' + r.projectIds.length + ' project' + (r.projectIds.length === 1 ? '' : 's')),
+            style: { display: 'grid', gridTemplateColumns: '24px 1fr auto auto auto', gap: 10, alignItems: 'start', padding: '8px 16px', borderBottom: '1px solid var(--border)' } },
+            h('span', { 'aria-hidden': 'true', style: { display: 'inline-block', width: 20, height: 20, borderRadius: 4, background: 'rgb(' + r.rgb.join(',') + ')', border: '1px solid var(--border)', marginTop: 2 } }),
+            h('div', { style: { fontSize: 12, minWidth: 0 } },
+              h('div', null,
+                h('strong', null, r.id), ' \u00B7 ', r.name,
+                h('span', { style: { fontSize: 10, color: 'var(--text-tertiary)', marginLeft: 6 } }, '(' + r.brand.toUpperCase() + ')')
+              ),
+              // fix-3.9 — per-row source list
+              h('div', { className: 'mgr-shopping-sources', style: { marginTop: 2 } },
+                h('button', {
+                  type: 'button',
+                  className: 'mgr-shopping-sources-toggle',
+                  'aria-expanded': isOpen ? 'true' : 'false',
+                  onClick: function () { toggleRow(r.key); },
+                }, (isOpen ? '\u2212 ' : '+ ') + 'Used in ' + projectCount + ' project' + (projectCount === 1 ? '' : 's')),
+                isOpen ? h('ul', { className: 'mgr-shopping-sources-list' },
+                  r.projectIds.map(function (pid) {
+                    var name = projectNamesById[pid] || pid;
+                    return h('li', { key: pid },
+                      h('button', {
+                        type: 'button',
+                        onClick: function () { openProject(pid); },
+                        title: 'Open ' + name,
+                      }, name)
+                    );
+                  })
+                ) : null
+              )
+            ),
+            h('span', { style: { fontSize: 11, color: 'var(--text-tertiary)' } }, 'across ' + projectCount + ' project' + (projectCount === 1 ? '' : 's')),
             h('span', { style: { fontSize: 11, color: 'var(--text-tertiary)' } }, 'need ' + r.totalNeeded + ', own ' + r.owned),
             h('button', {
               type: 'button',
@@ -242,4 +301,5 @@
   window.ManagerShopping._compositeKey = compositeKey;
   window.ManagerShopping.EMPTY_NO_PROJECTS = 'No active projects yet.';
   window.ManagerShopping.EMPTY_ALL_COVERED = 'All your active projects have the threads they need.';
+  window.ManagerShopping.SCOPE_CAPTION = 'Shopping across all active projects';
 })();

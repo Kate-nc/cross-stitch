@@ -1116,12 +1116,22 @@ function ManagerApp() {
                         <label
                           onClick={e => e.stopPropagation()}
                           style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", border: "1px solid " + (isSel ? "#16a34a" : "#cbd5e1"), borderRadius: 12, background: isSel ? "#f0fdf4" : "#fff", color: isSel ? "#15803d" : "#475569", cursor: "pointer", fontWeight: 600 }}
-                          title="Tick to add this pattern to the shopping list"
+                          title={isSel ? "Remove from shopping list selection" : "View shopping list for this pattern"}
                         >
                           <input
                             type="checkbox"
                             checked={isSel}
-                            onChange={e => { e.stopPropagation(); togglePatternSelection(pat.id); }}
+                            onChange={e => {
+                              e.stopPropagation();
+                              if (!isSel) {
+                                // Immediately open the shopping list modal for this pattern
+                                setSelectedPatternsForList(new Set([pat.id]));
+                                setShoppingListModalOpen(true);
+                              } else {
+                                // Already selected — uncheck to remove from selection
+                                togglePatternSelection(pat.id);
+                              }
+                            }}
                             style={{ margin: 0 }}
                           />
                           Shopping list

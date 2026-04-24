@@ -91,12 +91,14 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
   function shoppingPanel() {
     if (deficits.length === 0) {
       return h('div', { className: 'mh-shopping-empty', style: { padding: '32px 16px', textAlign: 'center', color: 'var(--text-secondary)' } },
+        h('div', { className: 'mh-shopping-caption', style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-tertiary)', marginBottom: 8 } }, 'Shopping for this pattern'),
         h('div', { style: { fontSize: 14, fontWeight: 500, marginBottom: 4 } }, 'No deficits to shop for.'),
         h('div', { style: { fontSize: 12, color: 'var(--text-tertiary)' } }, 'Your stash already covers every thread in this project.')
       );
     }
     var totalDeficitSkeins = deficits.reduce(function (s, r) { return s + r.deficit; }, 0);
     return h('div', { className: 'mh-shopping' },
+      h('div', { className: 'mh-shopping-caption', style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-tertiary)', marginBottom: 6 } }, 'Shopping for this pattern'),
       h('div', { className: 'mh-shopping-header', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 } },
         h('div', null,
           h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' } },
@@ -145,8 +147,14 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
   }
 
   return h('div', { className: 'materials-hub', role: 'tabpanel', 'aria-label': 'Materials and Output' },
-    h('nav', { className: 'mh-subtabs', role: 'tablist', 'aria-label': 'Materials sections' },
-      SUBTABS.map(tabBtn)
+    h('div', { className: 'mh-subtabs-wrap' },
+      h('span', { className: 'mh-subtabs-label', 'aria-hidden': 'true' },
+        window.Icons && window.Icons.layers ? h('span', { className: 'mh-subtabs-label-icon' }, window.Icons.layers()) : null,
+        h('span', null, 'View:')
+      ),
+      h('nav', { className: 'mh-subtabs', role: 'tablist', 'aria-label': 'Materials sections' },
+        SUBTABS.map(tabBtn)
+      )
     ),
     h('div', { className: 'mh-body' },
       // Threads / Stash / Output children manage their own visibility via the

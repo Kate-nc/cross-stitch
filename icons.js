@@ -363,6 +363,23 @@ window.Icons = (function() {
     chevronDown: function() {
       return svg(pl('6 9 12 15 18 9'));
     },
+    // Help — question-mark in a circle. Used by the Header help affordance.
+    help: function() {
+      return svg(
+        c(12, 12, 10),
+        p('M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'),
+        l(12, 17, 12.01, 17)
+      );
+    },
+    // Layers — stacked sheets. Used by MaterialsHub sub-tab strip and as a
+    // small "View:" affordance leading icon.
+    layers: function() {
+      return svg(
+        poly('12 2 2 7 12 12 22 7 12 2'),
+        pl('2 17 12 22 22 17'),
+        pl('2 12 12 17 22 12')
+      );
+    },
     // Keyboard — replaces ⌨ for the shortcuts-help launcher.
     keyboard: function() {
       return svg(

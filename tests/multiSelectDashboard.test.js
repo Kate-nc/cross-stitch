@@ -70,19 +70,26 @@ describe('Bulk action bar', () => {
   test('rendering is gated on selectionMode === true', () => {
     expect(home).toMatch(/selectionMode\s*&&\s*h\(['"]div['"],\s*\{\s*\n?\s*className:\s*['"]mpd-bulk-bar['"]/);
   });
-  test('bulk delete shows a confirmation before deletion', () => {
-    expect(home).toMatch(/handleBulkDelete[\s\S]{0,400}window\.confirm\(/);
-    expect(home).toMatch(/Delete[\s\S]{0,200}cannot be undone/);
+  test('bulk delete shows a confirmation before deletion (now via styled BulkDeleteModal)', () => {
+    // fix-3.5 — handleBulkDelete now opens a styled modal instead of
+    // calling window.confirm. The modal lists project names then calls
+    // doBulkDelete().
+    expect(home).toMatch(/function handleBulkDelete\(\)[\s\S]{0,300}setConfirmDelete\(true\)/);
+    expect(home).toMatch(/function BulkDeleteModal/);
+    expect(home).toMatch(/cannot be undone/);
   });
   test('bulk export only shows a "coming in B4" toast (no real export)', () => {
     expect(home).toMatch(/handleBulkExport[\s\S]{0,300}coming in B4/);
     // and is NOT calling any export pipeline
     expect(home).not.toMatch(/handleBulkExport[\s\S]{0,300}PdfExport/);
   });
-  test('bar shows N selected, Select all, and Clear', () => {
+  test('bar shows N selected, Select all, and a Cancel selection control', () => {
     expect(home).toMatch(/['"]mpd-bulk-count['"]/);
     expect(home).toMatch(/Select all/);
-    expect(home).toMatch(/Clear/);
+    // fix-3.7 — the old "Clear" label was renamed to "Cancel selection"
+    // and a persistent banner offers the same action where the Continue
+    // bar would be.
+    expect(home).toMatch(/Cancel selection/);
   });
 });
 

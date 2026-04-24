@@ -24,6 +24,7 @@ exports[`Icons object used icon set matches snapshot 1`] = `
   "fire",
   "folder",
   "gear",
+  "help",
   "hourglass",
   "info",
   "keyboard",

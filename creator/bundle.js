@@ -4392,6 +4392,12 @@ window.useCreatorState = function useCreatorState() {
   var prevSW     = useRef(sW);
   var prevSH     = useRef(sH);
   var projectIdRef = useRef(null);
+  // fix-3.8 — when the active project changes, reset MaterialsHub sub-tab to
+  // the default ('threads') so a freshly opened pattern lands on a sensible
+  // starting point instead of inheriting Shopping/Output from a prior project.
+  // Implemented by tracking the previous id in a ref and watching for
+  // mismatches every render.
+  var prevMaterialsProjectIdRef = useRef(null);
   var createdAtRef = useRef(null);
   var trackerFieldsRef = useRef({});
   var userActedRef = useRef(false);
@@ -4575,6 +4581,21 @@ window.useCreatorState = function useCreatorState() {
     selectStitchType("cross");
     setSelectedColorId(pal[0].id);
   }, [pat, pal]);
+
+  // fix-3.8 — reset MaterialsHub sub-tab to default ('threads') whenever the
+  // active project id changes (new project, project loaded from library).
+  // Skip persistence so the cross-project default in UserPrefs isn't trampled.
+  useEffect(function () {
+    var pid = projectIdRef.current || null;
+    if (prevMaterialsProjectIdRef.current === null) {
+      prevMaterialsProjectIdRef.current = pid;
+      return;
+    }
+    if (pid !== prevMaterialsProjectIdRef.current) {
+      prevMaterialsProjectIdRef.current = pid;
+      setMaterialsTabRaw('threads');
+    }
+  });
 
   // ── Dimming animation: 150ms fade-in/out when hiId or highlightMode changes ──
   var usesDimming = highlightMode === "isolate" || highlightMode === "spotlight";
@@ -14680,12 +14701,14 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
   function shoppingPanel() {
     if (deficits.length === 0) {
       return h('div', { className: 'mh-shopping-empty', style: { padding: '32px 16px', textAlign: 'center', color: 'var(--text-secondary)' } },
+        h('div', { className: 'mh-shopping-caption', style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-tertiary)', marginBottom: 8 } }, 'Shopping for this pattern'),
         h('div', { style: { fontSize: 14, fontWeight: 500, marginBottom: 4 } }, 'No deficits to shop for.'),
         h('div', { style: { fontSize: 12, color: 'var(--text-tertiary)' } }, 'Your stash already covers every thread in this project.')
       );
     }
     var totalDeficitSkeins = deficits.reduce(function (s, r) { return s + r.deficit; }, 0);
     return h('div', { className: 'mh-shopping' },
+      h('div', { className: 'mh-shopping-caption', style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-tertiary)', marginBottom: 6 } }, 'Shopping for this pattern'),
       h('div', { className: 'mh-shopping-header', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 } },
         h('div', null,
           h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' } },
@@ -14734,8 +14757,14 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
   }
 
   return h('div', { className: 'materials-hub', role: 'tabpanel', 'aria-label': 'Materials and Output' },
-    h('nav', { className: 'mh-subtabs', role: 'tablist', 'aria-label': 'Materials sections' },
-      SUBTABS.map(tabBtn)
+    h('div', { className: 'mh-subtabs-wrap' },
+      h('span', { className: 'mh-subtabs-label', 'aria-hidden': 'true' },
+        window.Icons && window.Icons.layers ? h('span', { className: 'mh-subtabs-label-icon' }, window.Icons.layers()) : null,
+        h('span', null, 'View:')
+      ),
+      h('nav', { className: 'mh-subtabs', role: 'tablist', 'aria-label': 'Materials sections' },
+        SUBTABS.map(tabBtn)
+      )
     ),
     h('div', { className: 'mh-body' },
       // Threads / Stash / Output children manage their own visibility via the

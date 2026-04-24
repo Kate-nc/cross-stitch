@@ -344,7 +344,15 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         ),
 
         React.createElement('button', { className: 'tb-nav-link', onClick: () => { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'shortcuts' }); else setModal('shortcuts'); }, 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, window.Icons && window.Icons.keyboard ? window.Icons.keyboard() : 'Shortcuts'),
-        React.createElement('button', { className: 'tb-nav-link', onClick: () => { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'help' }); else setModal('help'); } }, 'Help'),
+        React.createElement('button', {
+          className: 'tb-nav-link tb-help-btn',
+          onClick: () => { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'help' }); else setModal('help'); },
+          'aria-label': 'Open help (?)',
+          title: 'Open help (?)'
+        },
+          window.Icons && window.Icons.help ? window.Icons.help() : null,
+          React.createElement('span', { className: 'tb-help-btn-label' }, ' Help')
+        ),
 
         // File menu dropdown — shown on all pages
         React.createElement('div', { ref: fileMenuRef, style: { position: 'relative', flexShrink: 0 } },

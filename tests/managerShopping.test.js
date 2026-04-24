@@ -38,6 +38,22 @@ describe('B4 — ManagerShopping', () => {
       expect(src).toMatch(/No active projects yet\./);
     });
 
+    // fix-3.4 — explicit scope caption.
+    it('exposes a SCOPE_CAPTION on the public surface (fix-3.4)', () => {
+      expect(src).toMatch(/SCOPE_CAPTION\s*=\s*'Shopping across all active projects'/);
+    });
+
+    // fix-3.9 — per-row source projects disclosure.
+    it('renders an expandable "Used in N projects" disclosure (fix-3.9)', () => {
+      expect(src).toMatch(/mgr-shopping-sources-toggle/);
+      expect(src).toMatch(/Used in '\s*\+\s*projectCount/);
+      expect(src).toMatch(/projectNamesById/);
+    });
+
+    it('supports onOpenProject prop for navigating to a source project (fix-3.9)', () => {
+      expect(src).toMatch(/props\.onOpenProject/);
+    });
+
     it('calls StashBridge.markManyToBuy for both bulk and per-row adds', () => {
       const matches = src.match(/StashBridge\.markManyToBuy/g) || [];
       expect(matches.length).toBeGreaterThanOrEqual(2);

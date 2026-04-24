@@ -125,11 +125,13 @@ describe("HelpDrawer — pure search filter (_filter)", () => {
     expect(hits.some(h => /colour/i.test(h.searchText))).toBe(true);
   });
 
-  test("'color' (American) does NOT match — search is plain substring (documented)", () => {
-    // The drawer doesn't ship an alias map. This test pins the limitation
-    // so we don't accidentally regress when a contributor adds aliases.
+  test("'color' (American) NOW matches via the C11 alias map", () => {
+    // C11 / fix-3.1 — the drawer ships a bidirectional spelling alias map
+    // so American queries hit the British-English authored content.
     const hits = HelpDrawer._filter(HelpDrawer._helpItems, "color");
-    expect(hits.length).toBe(0);
+    expect(hits.length).toBeGreaterThan(0);
+    // The match should be on the British spelling within searchText.
+    expect(hits.some(h => /colour/i.test(h.searchText))).toBe(true);
   });
 
   test("'shortcut' filters to topics mentioning shortcuts", () => {

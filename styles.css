@@ -3624,10 +3624,45 @@ html.pref-dark a { color: #5eead4; }
 @keyframes cs-page-fade-in { from { opacity: 0.4; } to { opacity: 1; } }
 .cs-sidebar-fade { animation: cs-page-fade-in 160ms ease-out; }
 
+/* fix-3.6 — mode-swap micro-cue: translate the page content 12px towards the
+   freed sidebar space during the fade-in so the user perceives the layout
+   *expanding* rather than the sidebar simply *vanishing*. Respect
+   prefers-reduced-motion (no translate, opacity only). */
+.cs-page-fade { animation: cs-page-fade-in-translate 200ms ease-out; }
+@keyframes cs-page-fade-in-translate {
+  from { opacity: 0.4; transform: translateX(12px); }
+  to   { opacity: 1;   transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-page-fade, .cs-sidebar-fade {
+    animation: cs-page-fade-in 160ms ease-out;
+    transform: none !important;
+  }
+}
+
 /* B4 — Materials hub + Manager shopping */
 .materials-hub { display:flex; flex-direction:column; min-height:300px; }
-.mh-subtabs { display:flex; gap:4px; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
-.mh-subtab { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; font-size:12px; font-weight:500; color:var(--text-secondary); background:transparent; border:none; border-radius:8px; cursor:pointer; font-family:inherit; transition:background 0.12s, color 0.12s; }
+
+/* fix-3.2 — sub-tab strip differentiation. Strip is indented inside a soft
+   surface band with a small "View:" leading label so it doesn't read as a
+   second top-level navigation row. */
+.mh-subtabs-wrap {
+  display:flex; align-items:center; gap:8px;
+  padding:6px 10px 6px 16px;
+  background:var(--surface-2, #f1f5f9);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+  position:relative;
+}
+.mh-subtabs-label {
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:0.4px; color:var(--text-tertiary);
+  flex-shrink:0; padding-right:4px;
+}
+.mh-subtabs-label-icon { display:inline-flex; align-items:center; }
+.mh-subtabs { display:flex; gap:4px; flex:1; min-width:0; }
+.mh-subtab { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; min-height:36px; font-size:12px; font-weight:500; color:var(--text-secondary); background:transparent; border:none; border-radius:8px; cursor:pointer; font-family:inherit; transition:background 0.12s, color 0.12s; }
 .mh-subtab:hover { background:var(--surface-tertiary); color:var(--text-primary); }
 .mh-subtab.on { background:var(--accent); color:#fff; font-weight:600; }
 .mh-subtab-icon { display:inline-flex; align-items:center; }
@@ -3639,8 +3674,54 @@ html.pref-dark a { color: #5eead4; }
 .mgr-shopping-row:last-child { border-bottom:none !important; }
 .mgr-shopping-bulk:disabled { opacity:0.6; }
 
+/* fix-3.9 — per-row source projects disclosure */
+.mgr-shopping-sources { font-size:11px; color:var(--text-tertiary); }
+.mgr-shopping-sources-toggle { font-size:11px; background:none; border:none; color:var(--accent); cursor:pointer; padding:2px 4px; font-family:inherit; }
+.mgr-shopping-sources-toggle:hover { text-decoration:underline; }
+.mgr-shopping-sources-list { list-style:none; margin:4px 0 0; padding:0; display:flex; flex-direction:column; gap:2px; }
+.mgr-shopping-sources-list li button {
+  background:none; border:none; color:var(--accent); padding:2px 0;
+  cursor:pointer; font-family:inherit; font-size:11px; text-align:left;
+}
+.mgr-shopping-sources-list li button:hover { text-decoration:underline; }
+
 @media (max-width: 480px) {
-  .mh-subtabs { overflow-x:auto; flex-wrap:nowrap; }
-  .mh-subtab { flex-shrink:0; }
+  .mh-subtabs-wrap { padding-left:12px; }
+  .mh-subtabs {
+    overflow-x:auto; flex-wrap:nowrap;
+    /* fix-3.2 — fade the right edge so users see there's more content. */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+  /* fix-3.2 — guarantee 44x44 mobile touch target on each sub-tab. */
+  .mh-subtab { flex-shrink:0; min-height:44px; min-width:44px; padding:10px 14px; }
   .mgr-shopping-row { grid-template-columns: 24px 1fr auto !important; }
+}
+
+/* fix-3.5 — styled bulk delete confirmation modal (replaces window.confirm). */
+.mpd-bulk-delete-modal { max-width: 440px; }
+.mpd-bulk-delete-modal h3 { margin: 0 0 8px; font-size: 17px; color: #1e293b; }
+.mpd-bulk-delete-modal p { margin: 0 0 12px; font-size: 13px; color: #475569; line-height: 1.5; }
+.mpd-bulk-delete-modal ul { margin: 0 0 16px; padding-left: 18px; font-size: 12px; color: #475569; max-height: 160px; overflow-y: auto; }
+.mpd-bulk-delete-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.mpd-bulk-delete-actions button { padding: 8px 16px; border-radius: 6px; font-size: 13px; font-family: inherit; cursor: pointer; min-height: 40px; }
+.mpd-bulk-delete-actions .mpd-cancel-btn { background: #fff; border: 1px solid #cbd5e1; color: #1e293b; }
+.mpd-bulk-delete-actions .mpd-confirm-delete-btn { background: #b91c1c; border: 1px solid #b91c1c; color: #fff; font-weight: 600; }
+.mpd-bulk-delete-actions .mpd-confirm-delete-btn:hover { background: #991b1b; }
+
+/* fix-3.7 — persistent Cancel selection control replacing the Continue bar
+   slot while in selection mode. */
+.mpd-selection-cancel-bar {
+  background: var(--surface-2, #f1f5f9);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 8px);
+  padding: 8px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 12px; min-height: 48px;
+  font-size: 13px; color: var(--text-secondary);
+}
+.mpd-selection-cancel-bar button {
+  padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  background: #fff; border: 1px solid #cbd5e1; color: #1e293b;
+  cursor: pointer; min-height: 36px; font-family: inherit;
 }

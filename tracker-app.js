@@ -4460,7 +4460,12 @@ const _dragMarkOnCommitRange=useCallback(function(set,intent){
 // a future PR can coordinate the legacy touch handlers with this hook and
 // remove the flag. Source assertions in tests/dragMark.test.js verify the
 // wiring regardless of the runtime flag.
-const _dragMarkFlag=(typeof window!=='undefined'&&window.B2_DRAG_MARK_ENABLED===true);
+// fix-3.3 — primary source is the user preference `trackerDragMark`. The
+// legacy `window.B2_DRAG_MARK_ENABLED` global remains supported as an
+// override for QA/automation, but Preferences > Tracker is now the
+// supported way to enable the gesture.
+const _dragMarkPrefOn=(typeof window!=='undefined'&&window.UserPrefs&&typeof window.UserPrefs.get==='function'&&window.UserPrefs.get('trackerDragMark')===true);
+const _dragMarkFlag=_dragMarkPrefOn||(typeof window!=='undefined'&&window.B2_DRAG_MARK_ENABLED===true);
 const _dragMarkActive=_dragMarkFlag&&!isEditMode&&stitchMode==="track"&&!!pat&&!!done;
 const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
   ?window.useDragMark({

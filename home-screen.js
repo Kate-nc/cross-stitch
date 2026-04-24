@@ -479,6 +479,61 @@ function StateChangeMenu({ proj, currentState, onSelect, onClose, onEditDetails 
 }
 
 // ─────────────────────────────────────────────────────────────────
+// BulkDeleteModal (fix-3.5) — styled confirmation replacing
+// window.confirm. Lists up to 5 project names so the user can
+// double-check before destroying records.
+// ─────────────────────────────────────────────────────────────────
+function BulkDeleteModal({ projectIds, projectsById, onConfirm, onCancel }) {
+  var h = React.createElement;
+  var useEffect = React.useEffect;
+  var useRef = React.useRef;
+  var cancelRef = useRef(null);
+  useEffect(function () {
+    if (cancelRef.current && cancelRef.current.focus) cancelRef.current.focus();
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+      if (e.key === 'Enter' && e.target && e.target.classList && e.target.classList.contains('mpd-confirm-delete-btn')) {
+        e.preventDefault(); onConfirm();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return function () { window.removeEventListener('keydown', onKey); };
+  }, []);
+  var ids = projectIds || [];
+  var n = ids.length;
+  var SHOW_MAX = 5;
+  var visible = ids.slice(0, SHOW_MAX);
+  var extra = Math.max(0, n - SHOW_MAX);
+  return h('div', {
+    className: 'modal-overlay mpd-bulk-delete-overlay',
+    role: 'dialog',
+    'aria-modal': 'true',
+    'aria-labelledby': 'mpd-bulk-delete-title',
+    onClick: function (e) { if (e.target === e.currentTarget) onCancel(); },
+    style: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }
+  },
+    h('div', {
+      className: 'modal-content mpd-bulk-delete-modal',
+      style: { background: '#fff', borderRadius: 12, padding: 20, maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(15, 23, 42, 0.3)' },
+    },
+      h('h3', { id: 'mpd-bulk-delete-title' }, 'Delete ' + n + ' project' + (n === 1 ? '' : 's') + '?'),
+      h('p', null, 'This permanently removes the selected project' + (n === 1 ? '' : 's') + ' and ' + (n === 1 ? 'its' : 'their') + ' progress, palettes, and stitch history. This cannot be undone.'),
+      h('ul', null,
+        visible.map(function (id) {
+          var name = (projectsById && projectsById[id]) || id;
+          return h('li', { key: id }, name);
+        }),
+        extra > 0 ? h('li', { key: '__more', style: { listStyle: 'none', marginLeft: -18, color: '#64748b' } }, '\u2026 and ' + extra + ' more') : null
+      ),
+      h('div', { className: 'mpd-bulk-delete-actions' },
+        h('button', { type: 'button', ref: cancelRef, className: 'mpd-cancel-btn', onClick: onCancel }, 'Cancel'),
+        h('button', { type: 'button', className: 'mpd-confirm-delete-btn', onClick: onConfirm }, 'Delete ' + n + ' project' + (n === 1 ? '' : 's'))
+      )
+    )
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
 // MultiProjectDashboard — shown on home screen when >1 project exists
 // ─────────────────────────────────────────────────────────────────
 function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalStats, onAddNew, cardExtras }) {
@@ -665,13 +720,14 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
   function handleBulkDelete() {
     var ids = Array.from(selected);
     if (ids.length === 0) return;
-    // Confirmation modal — uses window.confirm (matches preferences-modal pattern).
-    var msg = 'Delete ' + ids.length + ' project' + (ids.length === 1 ? '' : 's') + '? This cannot be undone.';
-    var ok = typeof window !== 'undefined' && typeof window.confirm === 'function'
-      ? window.confirm(msg)
-      : true;
-    if (!ok) return;
+    // fix-3.5 — open the styled BulkDelete confirmation modal instead of
+    // the native browser dialog. Actual deletion happens in doBulkDelete().
+    setConfirmDelete(true);
+  }
+  function doBulkDelete() {
+    var ids = Array.from(selected);
     setConfirmDelete(false);
+    if (ids.length === 0) return;
     if (typeof ProjectStorage !== 'undefined' && ProjectStorage.deleteMany) {
       ProjectStorage.deleteMany(ids).then(function() {
         showToast(ids.length + ' project' + (ids.length === 1 ? '' : 's') + ' deleted', 'success');
@@ -738,8 +794,9 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
         h('button', {
           type: 'button',
           className: 'mpd-btn mpd-btn--ghost',
-          onClick: clearSelection
-        }, 'Clear')
+          onClick: clearSelection,
+          'aria-label': 'Cancel selection mode'
+        }, 'Cancel selection')
       ),
       h('div', { className: 'mpd-bulk-bar-right' },
         h('button', {
@@ -770,6 +827,18 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
           title: 'Export selected projects'
         }, 'Export')
       )
+    ),
+
+    // fix-3.7 — persistent "Selection mode active" banner replacing the
+    // Continue bar slot. Gives a constant visible affordance to leave
+    // selection mode without scrolling back to the top toolbar.
+    selectionMode && h('div', {
+      className: 'mpd-selection-cancel-bar',
+      role: 'status',
+      'aria-live': 'polite',
+    },
+      h('span', null, 'Selection mode active \u2014 ' + selected.size + ' selected'),
+      h('button', { type: 'button', onClick: clearSelection, 'aria-label': 'Cancel selection mode' }, 'Cancel selection')
     ),
 
     // ── Sticky Continue bar (most recent active project) ──
@@ -997,6 +1066,21 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
         setEditingProj(null);
       },
       onClose: function() { setEditingProj(null); }
+    }),
+
+    // fix-3.5 — Bulk delete confirmation modal (replaces window.confirm).
+    confirmDelete && h(BulkDeleteModal, {
+      projectIds: Array.from(selected),
+      projectsById: (function () {
+        var m = {};
+        for (var i = 0; i < projects.length; i++) {
+          var p = projects[i] || {};
+          if (p.id) m[p.id] = p.name || p.id;
+        }
+        return m;
+      })(),
+      onConfirm: doBulkDelete,
+      onCancel: function () { setConfirmDelete(false); },
     })
   );
 }

@@ -270,12 +270,57 @@
   // items: array of { searchText: string, ... }. Returns subset where
   // searchText (lowercased) contains the query. Empty / short query
   // returns all items unchanged.
+
+  // C11 — American → British spelling alias map. The help drawer index is
+  // authored in British English, but many users will type the American
+  // form. We expand the user's query so either spelling matches. Mapping
+  // is bidirectional and applied to both the query and every alias key
+  // discovered inside it.
+  var SPELLING_ALIASES = {
+    "color": "colour",     "colour": "color",
+    "colors": "colours",   "colours": "colors",
+    "gray": "grey",        "grey": "gray",
+    "customize": "customise", "customise": "customize",
+    "organize": "organise",   "organise": "organize",
+    "organizer": "organiser", "organiser": "organizer",
+    "analyze": "analyse",   "analyse": "analyze",
+    "center": "centre",     "centre": "center",
+    "behavior": "behaviour", "behaviour": "behavior",
+    "realize": "realise",   "realise": "realize",
+    "favorite": "favourite", "favourite": "favorite",
+    "favorites": "favourites", "favourites": "favorites",
+    "neighbor": "neighbour", "neighbour": "neighbor"
+  };
+
+  // Returns an array of search terms to try in OR fashion: the original
+  // query plus, for each known alias word it contains, a copy of the query
+  // with that word substituted for its counterpart. Always lowercased.
+  function expandAliases(query) {
+    var q = (query == null ? "" : String(query)).trim().toLowerCase();
+    if (!q) return [];
+    var out = [q];
+    for (var alias in SPELLING_ALIASES) {
+      if (!Object.prototype.hasOwnProperty.call(SPELLING_ALIASES, alias)) continue;
+      // Word-boundary regex avoids substituting "colorize" → "colourize" etc.
+      var re = new RegExp("\\b" + alias + "\\b", "g");
+      if (re.test(q)) {
+        var sub = q.replace(re, SPELLING_ALIASES[alias]);
+        if (out.indexOf(sub) === -1) out.push(sub);
+      }
+    }
+    return out;
+  }
+
   function filterItems(items, query) {
     if (!Array.isArray(items)) return [];
-    var q = (query == null ? "" : String(query)).trim().toLowerCase();
-    if (!q) return items.slice();
+    var queries = expandAliases(query);
+    if (queries.length === 0) return items.slice();
     return items.filter(function (it) {
-      return it && typeof it.searchText === "string" && it.searchText.indexOf(q) !== -1;
+      if (!it || typeof it.searchText !== "string") return false;
+      for (var i = 0; i < queries.length; i++) {
+        if (it.searchText.indexOf(queries[i]) !== -1) return true;
+      }
+      return false;
     });
   }
 
@@ -384,6 +429,8 @@
     toggle: toggle,
     isOpen: isOpen,
     _filter: filterItems,
+    _expandAliases: expandAliases,
+    _SPELLING_ALIASES: SPELLING_ALIASES,
     _helpItems: HELP_ITEMS,
     _shortcutItems: SHORTCUT_ITEMS,
     _gettingStarted: GETTING_STARTED

@@ -353,6 +353,7 @@
     var parking = usePref("trackerShowParking", true);
     var undoDepth = usePref("trackerUndoDepth", 50);
     var celebrate = usePref("trackerCelebrate", true);
+    var dragMark = usePref("trackerDragMark", false);
 
     return h("div", null,
       h(PageHeader, { title: "Stitch Tracker",
@@ -389,8 +390,12 @@
       ),
 
       h(Section, { title: "Feedback" },
-        h(Row, { last: true, label: "Celebrate when a pattern is finished", desc: "Plays a confetti animation and a celebratory toast at 100%." },
+        h(Row, { label: "Celebrate when a pattern is finished", desc: "Plays a confetti animation and a celebratory toast at 100%." },
           h(Switch, { checked: celebrate[0], onChange: celebrate[1] })
+        ),
+        h(Row, { last: true, label: "Drag to mark stitches (experimental)",
+          desc: "Click-and-drag (or touch-and-drag) across the chart to mark a run of stitches in one motion. Off by default while we polish the gesture." },
+          h(Switch, { checked: dragMark[0], onChange: dragMark[1] })
         )
       )
     );

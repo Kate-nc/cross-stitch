@@ -67,4 +67,16 @@ describe('B4 — CreatorMaterialsHub', () => {
   it('uses Icons.shoppingCart (or Icons.cart fallback) for the Shopping tab icon', () => {
     expect(hubSrc).toMatch(/Icons\.shoppingCart|Icons\.cart/);
   });
+
+  // fix-3.2 — sub-tab differentiation from the top app tabs.
+  it('wraps the sub-tab strip with a "View:" leading label (fix-3.2)', () => {
+    expect(hubSrc).toMatch(/className:\s*'mh-subtabs-wrap'/);
+    expect(hubSrc).toMatch(/className:\s*'mh-subtabs-label'/);
+    expect(hubSrc).toMatch(/'View:'/);
+  });
+
+  // fix-3.10 — explicit signposting that Shopping is scoped to this pattern.
+  it('shopping panel includes the "Shopping for this pattern" caption (fix-3.10)', () => {
+    expect(hubSrc).toMatch(/Shopping for this pattern/);
+  });
 });
