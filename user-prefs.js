@@ -85,6 +85,8 @@
     // controls. Default is closed — users opt in via the hamburger button.
     trackerLeftSidebarOpen: false,
     trackerLeftSidebarTab:  "highlight",
+    // Palette legend sort: id | done | count
+    trackerLegendSort:      "id",
 
     // ─── Stash Manager defaults ─────────────────────────────────────────
     stashDefaultBrand:        "DMC",            // DMC | Anchor | both
