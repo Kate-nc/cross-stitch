@@ -355,11 +355,47 @@
     );
   }
 
+  // Track narrow viewport so ≤480px gets wizard-style single-section navigation.
+  function useIsMobile() {
+    var _m = useState(function () {
+      return typeof window !== "undefined" && window.matchMedia
+        ? window.matchMedia("(max-width: 480px)").matches : false;
+    });
+    var isMobile = _m[0], setIsMobile = _m[1];
+    React.useEffect(function () {
+      if (typeof window === "undefined" || !window.matchMedia) return;
+      var mq = window.matchMedia("(max-width: 480px)");
+      function on() { setIsMobile(mq.matches); }
+      // Older Safari uses addListener
+      if (mq.addEventListener) mq.addEventListener("change", on);
+      else if (mq.addListener) mq.addListener(on);
+      return function () {
+        if (mq.removeEventListener) mq.removeEventListener("change", on);
+        else if (mq.removeListener) mq.removeListener(on);
+      };
+    }, []);
+    return isMobile;
+  }
+
+  var TABS = [
+    ["profile", "Your profile", ProfilePanel],
+    ["pdf", "PDF defaults", PdfDefaultsPanel],
+    ["preview", "Preview defaults", PreviewDefaultsPanel],
+    ["tutorials", "Tutorials", TutorialsPanel]
+  ];
+
   function PreferencesModal(props) {
     var onClose = props.onClose;
-    var _tab = useState("profile"); var tab = _tab[0], setTab = _tab[1];    function tabBtn(id, label) {
+    var _tab = useState("profile"); var tab = _tab[0], setTab = _tab[1];
+    var isMobile = useIsMobile();
+    var idx = 0;
+    for (var i = 0; i < TABS.length; i++) { if (TABS[i][0] === tab) { idx = i; break; } }
+    var Panel = TABS[idx][2];
+
+    function tabBtn(id, label, key) {
       var active = tab === id;
       return h("button", {
+        key: key,
         onClick: function () { setTab(id); },
         style: {
           padding: "8px 14px", border: "none", background: "transparent",
@@ -372,34 +408,54 @@
 
     window.useEscape(function () { onClose && onClose(); });
 
+    // Header strip: tab strip on tablet+, current section title on mobile.
+    var headerStrip = isMobile
+      ? h("div", { style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 20px 10px", borderBottom: "1px solid #e2e8f0" } },
+          h("div", { style: { fontSize: 12, color: "#94a3b8", fontWeight: 600 } }, "Step " + (idx + 1) + " of " + TABS.length),
+          h("div", { style: { fontSize: 14, color: "#0f172a", fontWeight: 700 } }, TABS[idx][1])
+        )
+      : h("div", { role: "tablist", "aria-label": "Preferences sections", style: { display: "flex", gap: 4, padding: "8px 20px 0", borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" } },
+          TABS.map(function (t) { return tabBtn(t[0], t[1], t[0]); })
+        );
+
+    // Footer: Back/Next on mobile, Done on tablet+.
+    var footer = isMobile
+      ? h("div", { style: { padding: "12px 20px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", gap: 8 } },
+          h("button", {
+            onClick: function () { if (idx > 0) setTab(TABS[idx - 1][0]); },
+            disabled: idx === 0,
+            style: { padding: "10px 16px", borderRadius: 6, border: "1px solid #cbd5e1", background: "#fff", color: idx === 0 ? "#cbd5e1" : "#475569", fontSize: 13, fontWeight: 600, cursor: idx === 0 ? "not-allowed" : "pointer", fontFamily: "inherit", minHeight: 44 }
+          }, "← Back"),
+          idx < TABS.length - 1
+            ? h("button", {
+                onClick: function () { setTab(TABS[idx + 1][0]); },
+                style: { padding: "10px 16px", borderRadius: 6, border: "none", background: "#0d9488", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", minHeight: 44 }
+              }, "Next →")
+            : h("button", {
+                onClick: onClose,
+                style: { padding: "10px 18px", borderRadius: 6, border: "none", background: "#0d9488", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", minHeight: 44 }
+              }, "Done")
+        )
+      : h("div", { style: { padding: "12px 20px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end", gap: 8 } },
+          h("div", { style: { flex: 1, fontSize: 11, color: "#94a3b8", alignSelf: "center" } }, "Changes save automatically."),
+          h("button", { onClick: onClose, style: { padding: "8px 18px", borderRadius: 6, border: "none", background: "#0d9488", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" } }, "Done")
+        );
+
     return h("div", {
       onClick: onClose,
-      style: { position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }
+      style: { position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1100, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", padding: isMobile ? 0 : 20 }
     },
       h("div", {
         onClick: function (e) { e.stopPropagation(); },
-        style: { background: "#fff", borderRadius: 12, width: "100%", maxWidth: 620, maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }
+        style: { background: "#fff", borderRadius: isMobile ? 0 : 12, width: "100%", maxWidth: isMobile ? "100%" : 620, maxHeight: isMobile ? "100vh" : "88vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }
       },
         h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 0" } },
           h("h2", { style: { margin: 0, fontSize: 18, color: "#0f172a" } }, "Preferences"),
-          h("button", { onClick: onClose, style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#64748b", padding: "0 4px" }, "aria-label": "Close" }, "×")
+          h("button", { onClick: onClose, style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#64748b", padding: "0 4px", minWidth: 44, minHeight: 44 }, "aria-label": "Close" }, "×")
         ),
-        h("div", { style: { display: "flex", gap: 4, padding: "8px 20px 0", borderBottom: "1px solid #e2e8f0" } },
-          tabBtn("profile", "Your profile"),
-          tabBtn("pdf", "PDF defaults"),
-          tabBtn("preview", "Preview defaults"),
-          tabBtn("tutorials", "Tutorials")
-        ),
-        h("div", { style: { padding: 20, overflowY: "auto", flex: 1 } },
-          tab === "profile" ? h(ProfilePanel) :
-          tab === "pdf"     ? h(PdfDefaultsPanel) :
-          tab === "preview" ? h(PreviewDefaultsPanel) :
-                              h(TutorialsPanel)
-        ),
-        h("div", { style: { padding: "12px 20px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end", gap: 8 } },
-          h("div", { style: { flex: 1, fontSize: 11, color: "#94a3b8", alignSelf: "center" } }, "Changes save automatically."),
-          h("button", { onClick: onClose, style: { padding: "8px 18px", borderRadius: 6, border: "none", background: "#0d9488", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" } }, "Done")
-        )
+        headerStrip,
+        h("div", { style: { padding: 20, overflowY: "auto", flex: 1 } }, h(Panel)),
+        footer
       )
     );
   }
