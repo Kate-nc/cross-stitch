@@ -30,6 +30,17 @@ let _wandEdgeCache = null;
 // {data: Uint8Array, w, h, src} where src is the _wandEdgeCache or ImageData object used to build it
 let _lassoCostCache = null;
 
+// PERF (perf-8 #2): expose a clear hook so callers (e.g. switching away
+// from the Embroidery tool, loading a new image) can release these
+// potentially large Uint8Array caches instead of holding them for the
+// life of the page.
+if (typeof window !== 'undefined') {
+  window.clearEmbroideryCache = function clearEmbroideryCache() {
+    _wandEdgeCache = null;
+    _lassoCostCache = null;
+  };
+}
+
 // --- Wand HSL metric ---
 const WAND_WEIGHT_HUE         = 1.8;  // dominant: prevents hue-boundary bleeding
 const WAND_WEIGHT_SATURATION  = 1.0;  // moderate

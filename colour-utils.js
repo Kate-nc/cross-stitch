@@ -1309,11 +1309,15 @@ function analyzeConfetti(mapped, w, h, precomputedLabels = null) {
 // Inputs: [L, a, b] arrays. Output: non-negative number.
 //
 // Cache key uses rounded values so we never miss due to float noise.
-const _de2000Cache = {};
+// PERF (perf-8 #4): use a Map and cap at 5000 entries to bound memory.
+// When full, the oldest insertion is evicted (Map iteration order = insertion order).
+const _de2000Cache = new Map();
+const _DE2000_CACHE_MAX = 5000;
 
 function dE2000(lab1, lab2) {
   const k = lab1[0].toFixed(2)+','+lab1[1].toFixed(2)+','+lab1[2].toFixed(2)+'-'+lab2[0].toFixed(2)+','+lab2[1].toFixed(2)+','+lab2[2].toFixed(2);
-  if (_de2000Cache[k] !== undefined) return _de2000Cache[k];
+  const cached = _de2000Cache.get(k);
+  if (cached !== undefined) return cached;
 
   const L1 = lab1[0], a1 = lab1[1], b1 = lab1[2];
   const L2 = lab2[0], a2 = lab2[1], b2 = lab2[2];
@@ -1391,7 +1395,12 @@ function dE2000(lab1, lab2) {
     RT * (dCp / (kC * SC)) * (dHp / (kH * SH))
   );
 
-  _de2000Cache[k] = result;
+  _de2000Cache.set(k, result);
+  // PERF (perf-8 #4): evict oldest entry if cache exceeds bound.
+  if (_de2000Cache.size > _DE2000_CACHE_MAX) {
+    const firstKey = _de2000Cache.keys().next().value;
+    if (firstKey !== undefined) _de2000Cache.delete(firstKey);
+  }
   return result;
 }
 // Assign to the global scope. globalThis works in browser, Web Worker, and Node.js.
