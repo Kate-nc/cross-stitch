@@ -459,10 +459,10 @@ useEffect(()=>{
 // While actively scrolling the pattern, slide the topbar + toolbar off-screen
 // so the canvas can use almost the full viewport. On any upward scroll the
 // chrome reappears immediately. Only active on touch / narrow viewports.
+// Re-evaluates when the media query changes (e.g. on resize or screen rotation).
 useEffect(()=>{
   if(typeof window==='undefined'||!window.matchMedia)return;
   const mql=window.matchMedia('(pointer: coarse), (max-width: 899px)');
-  if(!mql.matches)return;
   // Canvas scroll container is created later — poll briefly until it exists.
   let lastY=0,raf=0;
   function handleScroll(target){
@@ -485,20 +485,31 @@ useEffect(()=>{
     attached={el,fn};
     return true;
   }
-  // Try immediately and again after a short delay to let React mount.
-  if(!attach()){
-    const tries=[100,300,800,1500].map(d=>setTimeout(()=>{if(!attached)attach();},d));
-    return()=>{
-      tries.forEach(clearTimeout);
-      if(attached)attached.el.removeEventListener('scroll',attached.fn);
-      if(raf)cancelAnimationFrame(raf);
-      document.body.classList.remove('tracker-immersive');
-    };
-  }
-  return()=>{
-    if(attached)attached.el.removeEventListener('scroll',attached.fn);
-    if(raf)cancelAnimationFrame(raf);
+  function detach(){
+    if(attached){attached.el.removeEventListener('scroll',attached.fn);attached=null;}
+    if(raf){cancelAnimationFrame(raf);raf=0;}
     document.body.classList.remove('tracker-immersive');
+  }
+  let tries=[];
+  function enable(){
+    if(attached)return;
+    lastY=0;
+    if(!attach()){
+      tries=[100,300,800,1500].map(d=>setTimeout(()=>{if(!attached&&mql.matches)attach();},d));
+    }
+  }
+  function onMqlChange(){
+    if(mql.matches){enable();}else{tries.forEach(clearTimeout);tries=[];detach();}
+  }
+  if(mql.addEventListener)mql.addEventListener('change',onMqlChange);
+  else if(mql.addListener)mql.addListener(onMqlChange);
+  // Initialise for the current state.
+  if(mql.matches)enable();
+  return()=>{
+    if(mql.removeEventListener)mql.removeEventListener('change',onMqlChange);
+    else if(mql.removeListener)mql.removeListener(onMqlChange);
+    tries.forEach(clearTimeout);
+    detach();
   };
 },[]);
 // Generic Tracker welcome — fires once on first visit, before the existing
@@ -4969,11 +4980,11 @@ return(
               <span className="ci-id">DMC {focusInfo.id}</span>
               <span className="ci-name">{focusInfo.name||""}</span>
             </span>
-            <span className="ci-chev">{quickColourOpen?"▼":"▲"}</span>
+            <span className="ci-chev">{quickColourOpen?window.Icons.chevronDown():window.Icons.chevronUp()}</span>
           </>:<>
             <span style={{display:"inline-flex",alignItems:"center",gap:8}}>
-              🎨 Pick a colour
-              <span className="ci-chev">{quickColourOpen?"▼":"▲"}</span>
+              {window.Icons.palette()} Pick a colour
+              <span className="ci-chev">{quickColourOpen?window.Icons.chevronDown():window.Icons.chevronUp()}</span>
             </span>
           </>}
         </button>
@@ -4984,7 +4995,7 @@ return(
           disabled={undoDisabled}
           aria-label="Undo last stitch"
           title={undoDisabled?"Nothing to undo":"Tap to undo · Long-press for redo"}
-        >↩</button>
+        >{window.Icons.undo()}</button>
         <button
           className="action-btn action-btn--mark"
           onClick={()=>{
@@ -5006,11 +5017,11 @@ return(
               }
             }
             // No crosshair target → toast hint to use canvas tap.
-            try{if(window.Toast&&window.Toast.show)window.Toast.show("Tap a stitch on the canvas, or use Navigate mode to place a crosshair.");}catch(_){}
+            try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"Tap a stitch on the canvas, or use Navigate mode to place a crosshair.",type:"info"});}catch(_){}
           }}
           aria-label="Mark stitch at crosshair"
           title="Mark/unmark the stitch under the crosshair (Navigate mode)"
-        >✓</button>
+        >{window.Icons.check()}</button>
       </div>
       {/* Colour quick-switcher backdrop + drawer */}
       {quickColourOpen&&<div className="colour-quick-backdrop" onClick={()=>setQuickColourOpen(false)} aria-hidden="true"/>}

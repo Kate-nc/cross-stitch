@@ -85,7 +85,7 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_cc65a39ce4';
+var TRACKER_CACHE_KEY = 'babel_tracker_f78f74252f';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -117,7 +117,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_1511646c57';
+var CREATOR_CACHE_KEY = 'babel_creator_49eacb0b91';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;
@@ -142,7 +142,7 @@ window.loadCreatorMain = function() {
   });
 };/* Loads stats-activity.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var ACTIVITY_CACHE_KEY = 'babel_activity_d9588e9eca';
+var ACTIVITY_CACHE_KEY = 'babel_activity_80aad64662';
 window.loadStatsActivity = function() {
   if (window.__statsActivityLoading || window.__statsActivityLoaded) return;
   window.__statsActivityLoading = true;
@@ -166,7 +166,7 @@ window.loadStatsActivity = function() {
   });
 };/* Loads stats-insights.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. (Brief E) */
-var INSIGHTS_CACHE_KEY = 'babel_insights_7eb145172f';
+var INSIGHTS_CACHE_KEY = 'babel_insights_58f1fcbbd0';
 window.loadStatsInsights = function() {
   if (window.__statsInsightsLoading || window.__statsInsightsLoaded) return;
   window.__statsInsightsLoading = true;
@@ -190,7 +190,7 @@ window.loadStatsInsights = function() {
   });
 };/* Loads stats-page.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var STATS_CACHE_KEY = 'babel_stats_2bb0d4f72c';
+var STATS_CACHE_KEY = 'babel_stats_0235d76a75';
 window.loadStatsPage = function() {
   if (window.__statsPageLoading || window.__statsPageLoaded) return;
   window.__statsPageLoading = true;
@@ -217,8 +217,10 @@ window.loadStatsPage = function() {
 <!-- TrackerApp is lazy-loaded (above) the first time the user switches to Track mode -->
 </head>
 <body>
-<a class="skip-to-content" href="#root">Skip to content</a>
+<a class="skip-to-content" href="#main-content">Skip to content</a>
+<main id="main-content" tabindex="-1">
 <div id="root"></div>
+</main>
 
 <script>window.loadCreatorMain();</script>
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>

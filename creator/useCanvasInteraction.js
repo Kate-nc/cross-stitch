@@ -630,7 +630,6 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         longPressTimerRef.current = setTimeout(function() {
           // Only fire if user hasn't started panning
           if (!panStateRef.current) return;
-          var moved = Math.hypot(0, 0); // pan would have updated scroll; we use a direct move check below
           // If panState is still at its origin scroll, treat as no-move
           if (panStateRef.current.startX !== pressClientX || panStateRef.current.startY !== pressClientY) return;
           var gc = gridCoord(state.pcRef, pressEvtLike, state.cs, state.G, false);

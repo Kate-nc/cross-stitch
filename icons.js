@@ -335,6 +335,21 @@ window.Icons = (function() {
         p('M6 12v4a6 3 0 0 0 12 0v-4'),
         l(22, 10, 22, 16)
       );
+    },
+    // Undo — curved arrow counter-clockwise — replaces ↩ ↺
+    undo: function() {
+      return svg(
+        p('M3 7v6h6'),
+        p('M3 13A9 9 0 1 0 6 6.7L3 13')
+      );
+    },
+    // Chevron up — replaces ▲ ↑
+    chevronUp: function() {
+      return svg(pl('18 15 12 9 6 15'));
+    },
+    // Chevron down — replaces ▼ ↓
+    chevronDown: function() {
+      return svg(pl('6 9 12 15 18 9'));
     }
   };
 })();

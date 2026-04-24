@@ -459,6 +459,8 @@
       (function (action) {
         row.addEventListener('pointerdown', function (e) {
           e.preventDefault(); // keep input focus
+        });
+        row.addEventListener('click', function () {
           executeAction(action);
         });
         row.addEventListener('mouseenter', function () {
