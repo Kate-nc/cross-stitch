@@ -2093,8 +2093,8 @@ function handleSymbolReassignment(oldColorId, newThread) {
   if (!pat || !pal || !cmap) return;
 
   // 1. Snapshot for undo — V2 single-level undoSnapshot
-  const currentPalState = JSON.parse(JSON.stringify(pal));
-  const currentThreadOwnedState = JSON.parse(JSON.stringify(threadOwned));
+  const currentPalState = structuredClone(pal); // PERF (perf-6 #5): structuredClone > JSON round-trip
+  const currentThreadOwnedState = structuredClone(threadOwned); // PERF (perf-6 #5)
   setUndoSnapshot({ type:"bulk_reassignment", pal: currentPalState, threadOwned: currentThreadOwnedState, oldId: oldColorId, newId: newThread.id });
 
   // 2. Map grid values
@@ -2185,7 +2185,7 @@ function processLoadedProject(project){
   if (project.originalPaletteState) {
     setOriginalPaletteState(project.originalPaletteState);
   } else {
-    setOriginalPaletteState(JSON.parse(JSON.stringify(newPal)));
+    setOriginalPaletteState(structuredClone(newPal)); // PERF (perf-6 #5)
   }
   // V2: restore sparse diff of single-stitch edits
   if (project.singleStitchEdits && project.singleStitchEdits.length > 0) {
@@ -4216,7 +4216,7 @@ return(
         <div className="tb-ovf-sep"/>
       </>}
       {!isEditMode&&<><button className="tb-ovf-item" style={{color:"#475569"}} onClick={()=>{
-        setSessionStartSnapshot({pat:[...pat],pal:JSON.parse(JSON.stringify(pal)),threadOwned:JSON.parse(JSON.stringify(threadOwned)),singleStitchEdits:new Map(singleStitchEdits)});
+        setSessionStartSnapshot({pat:[...pat],pal:structuredClone(pal),threadOwned:structuredClone(threadOwned),singleStitchEdits:new Map(singleStitchEdits)}); // PERF (perf-6 #5)
         setStitchMode("navigate");setFocusColour(null);setHoverInfo(null);setIsEditMode(true);setDrawer(true);setTOverflowOpen(false);
       }} title="Correct individual stitch colours — for imported patterns">Correct pattern colours…</button><div className="tb-ovf-sep"/></>
       }
