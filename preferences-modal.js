@@ -20,6 +20,12 @@
   var useState = React.useState;
   var useEffect = React.useEffect;
   var useMemo = React.useMemo;
+  // Inline SVG icon library (icons.js). Falls back to a no-op so the modal
+  // still renders if icons.js fails to load for any reason.
+  var Icons = window.Icons || {};
+  function ico(name) {
+    return (typeof Icons[name] === "function") ? Icons[name]() : null;
+  }
 
   // ─── UserPrefs bridge ────────────────────────────────────────────────
   function UP_get(key, fallback) {
@@ -239,12 +245,14 @@
         )
       ),
 
-      h(Section, { title: "App appearance" },
-        h(Row, { last: true, label: "Accent colour", desc: "Tints buttons, links and active tabs across the app.", soon: true },
+      // App appearance section commented out — accent-colour tinting is not
+      // wired to runtime styles yet, so we hide it from users for now.
+      /* h(Section, { title: "App appearance" },
+        h(Row, { last: true, label: "Accent colour", desc: "Tints buttons, links and active tabs across the app." },
           h("input", { type: "color", value: ac[0], onChange: function (e) { ac[1](e.target.value); },
             style: { width: 44, height: 30, padding: 0, border: "1px solid " + COLOURS.line2, borderRadius: 6, cursor: "pointer" } })
         )
-      )
+      ) */ null
     );
   }
 
@@ -374,20 +382,9 @@
       ),
 
       h(Section, { title: "Counting" },
-        h(Row, { label: "How half‑stitches are counted", desc: "Affects progress percentages and skein estimates.", soon: true },
-          h("select", { value: halfMode[0], onChange: function (e) { halfMode[1](e.target.value); }, style: styles.input },
-            h("option", { value: "half" }, "Count as a half stitch"),
-            h("option", { value: "full" }, "Count as a full stitch"),
-            h("option", { value: "ignore" }, "Don't count them")
-          )
-        ),
-        h(Row, { label: "Show parking markers", desc: "Small dots that remember where you parked each colour between sessions." },
+        // Half-stitch counting and undo-depth rows hidden — not wired yet.
+        h(Row, { last: true, label: "Show parking markers", desc: "Small dots that remember where you parked each colour between sessions." },
           h(Switch, { checked: parking[0], onChange: parking[1] })
-        ),
-        h(Row, { last: true, label: "Undo history", desc: "How many recent actions you can undo in a session.", soon: true },
-          h("input", { type: "number", min: 5, max: 500, step: 5, value: undoDepth[0],
-            onChange: function (e) { undoDepth[1](Math.max(5, parseInt(e.target.value, 10) || 50)); },
-            style: Object.assign({}, styles.input, { width: 90 }) })
         )
       ),
 
@@ -466,9 +463,8 @@
             h("option", { value: "completed" }, "Completed")
           )
         ),
-        h(Row, { last: true, label: "Show detailed thread grid", desc: "An older, denser view of the stash. Most people prefer it off.", soon: true },
-          h(Switch, { checked: detailGrid[0], onChange: detailGrid[1] })
-        )
+        // Detailed thread grid toggle hidden — old denser view not implemented.
+        null
       )
     );
   }
@@ -639,16 +635,9 @@
       ),
 
       h(Section, { title: "Motion & colour" },
+        // Colour-blind aid hidden — colour-shift logic not wired yet.
         h(Row, { label: "Reduce motion", desc: "Turns off slide and fade animations and the completion confetti." },
           h(Switch, { checked: rm[0], onChange: rm[1] })
-        ),
-        h(Row, { label: "Colour-blind palette aid", desc: "Tints similar DMC colours so they're easier to tell apart on charts.", soon: true },
-          h("select", { value: cb[0], onChange: function (e) { cb[1](e.target.value); }, style: styles.input },
-            h("option", { value: "off" }, "Off"),
-            h("option", { value: "protan" }, "Red‑weak (Protanopia)"),
-            h("option", { value: "deutan" }, "Green‑weak (Deuteranopia)"),
-            h("option", { value: "tritan" }, "Blue‑weak (Tritanopia)")
-          )
         ),
         h(Row, { last: true, label: "Show symbols, not colours, by default", desc: "Some stitchers find symbols easier to follow than colour swatches." },
           h(Switch, { checked: symOnly[0], onChange: symOnly[1] })
@@ -692,14 +681,8 @@
         )
       ),
 
-      h(Section, { title: "Sound & touch" },
-        h(Row, { label: "Sound effects", desc: "A soft click for each stitch and a chime on milestones.", soon: true },
-          h(Switch, { checked: sound[0], onChange: sound[1] })
-        ),
-        h(Row, { last: true, label: "Vibration on phone & tablet", desc: "Gentle haptic feedback when you tap stitches.", soon: true },
-          h(Switch, { checked: haptic[0], onChange: haptic[1] })
-        )
-      )
+      // Sound & touch section hidden — audio/haptic feedback not wired yet.
+      null
     );
   }
 
@@ -815,9 +798,7 @@
         subtitle: "Keep a safety copy of your work, or start over with a clean slate." }),
 
       h(Section, { title: "Sync" },
-        h(Row, { label: "Auto‑sync stitch progress", desc: "Mirror Tracker progress between devices when you're signed in.", soon: true },
-          h(Switch, { checked: autosync[0], onChange: autosync[1] })
-        ),
+        // Auto-sync stitch progress hidden — multi-device sync not implemented yet.
         h(Row, { last: true, label: "Add new patterns to the library automatically", desc: "When you save a pattern in the Creator, also link it from the Stash Manager." },
           h(Switch, { checked: autoLib[0], onChange: autoLib[1] })
         )
@@ -985,20 +966,8 @@
       h(PageHeader, { title: "Advanced",
         subtitle: "Settings most stitchers won't need to change. Use these only if you know what you're doing." }),
 
-      h(Section, { title: "Keyboard" },
-        h(Row, { last: true, label: "Open Command Palette with", desc: "The keyboard shortcut to open the quick‑action palette.", soon: true },
-          h(Segmented, { value: palette[0], onChange: palette[1], options: [
-            { value: "ctrl+k", label: "Ctrl/⌘ + K" }, { value: "ctrl+/", label: "Ctrl/⌘ + /" }, { value: "off", label: "Off" }
-          ]})
-        )
-      ),
-
-      h(Section, { title: "Experimental features" },
-        h(Row, { last: true, label: "Enable experimental preview rendering",
-          desc: "Try in‑progress preview improvements. They may be slow or look odd.", soon: true },
-          h(Switch, { checked: experimental[0], onChange: experimental[1] })
-        )
-      ),
+      // Keyboard hotkey customisation and experimental-preview flag hidden
+      // until the underlying features are implemented.
 
       h(Section, { title: "Storage & cache" },
         h(Row, { label: "Service worker", desc: "Lets the app work offline." },
@@ -1026,19 +995,21 @@
   // ════════════════════════════════════════════════════════════════════
   // CATEGORIES INDEX
   // ════════════════════════════════════════════════════════════════════
+  // Each category renders an inline-SVG icon from window.Icons (see icons.js).
+  // No emoji — we use icons everywhere for visual consistency.
   var CATEGORIES = [
-    { group: "General",   id: "profile",  icon: "👤", label: "Profile & branding",  Panel: ProfilePanel },
-    { group: "General",   id: "regional", icon: "🌐", label: "Regional & units",    Panel: RegionalPanel },
-    { group: "General",   id: "notify",   icon: "🔔", label: "Notifications",       Panel: NotificationsPanel },
-    { group: "General",   id: "a11y",     icon: "♿", label: "Accessibility",       Panel: AccessibilityPanel },
-    { group: "Workspaces",id: "creator",  icon: "🧵", label: "Pattern Creator",     Panel: CreatorPanel },
-    { group: "Workspaces",id: "tracker",  icon: "🪡", label: "Stitch Tracker",      Panel: TrackerPanel },
-    { group: "Workspaces",id: "manager",  icon: "📦", label: "Stash Manager",       Panel: ManagerPanel },
-    { group: "Output",    id: "preview",  icon: "🖼️", label: "Preview & display",  Panel: PreviewPanel },
-    { group: "Output",    id: "pdf",      icon: "📄", label: "PDF export",          Panel: PdfPanel },
-    { group: "System",    id: "data",     icon: "☁️", label: "Sync, backup & data",Panel: DataPanel },
-    { group: "System",    id: "onboard",  icon: "🎓", label: "Onboarding & help",   Panel: OnboardingPanel },
-    { group: "System",    id: "advanced", icon: "⚙️", label: "Advanced",           Panel: AdvancedPanel }
+    { group: "General",   id: "profile",  iconName: "user",          label: "Profile & branding",   Panel: ProfilePanel },
+    { group: "General",   id: "regional", iconName: "globe",         label: "Regional & units",     Panel: RegionalPanel },
+    { group: "General",   id: "notify",   iconName: "bell",          label: "Notifications",        Panel: NotificationsPanel },
+    { group: "General",   id: "a11y",     iconName: "accessibility", label: "Accessibility",        Panel: AccessibilityPanel },
+    { group: "Workspaces",id: "creator",  iconName: "palette",       label: "Pattern Creator",      Panel: CreatorPanel },
+    { group: "Workspaces",id: "tracker",  iconName: "needle",        label: "Stitch Tracker",       Panel: TrackerPanel },
+    { group: "Workspaces",id: "manager",  iconName: "box",           label: "Stash Manager",        Panel: ManagerPanel },
+    { group: "Output",    id: "preview",  iconName: "frame",         label: "Preview & display",    Panel: PreviewPanel },
+    { group: "Output",    id: "pdf",      iconName: "document",      label: "PDF export",           Panel: PdfPanel },
+    { group: "System",    id: "data",     iconName: "cloudSync",     label: "Sync, backup & data",  Panel: DataPanel },
+    { group: "System",    id: "onboard",  iconName: "gradCap",       label: "Onboarding & help",    Panel: OnboardingPanel },
+    { group: "System",    id: "advanced", iconName: "gear",          label: "Advanced",             Panel: AdvancedPanel }
   ];
 
   // ════════════════════════════════════════════════════════════════════
@@ -1085,7 +1056,7 @@
           boxShadow: active ? ("inset 3px 0 0 " + COLOURS.teal) : "none"
         }
       },
-        h("span", { style: { width: 18, display: "inline-flex", justifyContent: "center", color: active ? COLOURS.teal : COLOURS.slate2 } }, cat.icon),
+        h("span", { style: { width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", color: active ? COLOURS.teal : COLOURS.slate2, fontSize: 16, lineHeight: 1 }, "aria-hidden": true }, ico(cat.iconName)),
         h("span", null, cat.label)
       );
     };

@@ -448,7 +448,7 @@ var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colour
         React.createElement("div", {className:"colour-tl-bar"},
           React.createElement("div", {className:"colour-tl-bar-fill", style:{width:pctDone + '%', background:'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')'}})
         ),
-        React.createElement("span", {className:"colour-tl-pct"}, isComplete ? '✓' : pctDone + '%')
+        React.createElement("span", {className:"colour-tl-pct"}, isComplete ? (window.Icons ? window.Icons.check() : null) : pctDone + '%')
       )
     ));
   }

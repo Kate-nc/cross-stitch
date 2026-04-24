@@ -1357,7 +1357,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               ))
             )
           : h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)' } },
-              h('span', { style: { color: '#0d9488', fontSize: 18 } }, '✓'),
+              h('span', { style: { color: '#0d9488', fontSize: 18, display:'inline-flex', alignItems:'center' } }, window.Icons ? window.Icons.check() : null),
               'No duplicates spotted — nicely done'
             )
       ),

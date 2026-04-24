@@ -64,9 +64,12 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
         meta && React.createElement('span', { className: 'tb-context-meta' }, meta),
         showAutosaved && React.createElement('span', {
           className: 'tb-context-meta',
-          style: { color:'#16a34a', fontSize:11 },
+          style: { color:'#16a34a', fontSize:11, display:'inline-flex', alignItems:'center', gap:4 },
           title: 'Your work auto-saves to this device. Use Download to export a .json file.'
-        }, '✓ Auto-saved'),
+        },
+          (window.Icons && window.Icons.check) ? window.Icons.check() : null,
+          'Auto-saved'
+        ),
         pct !== null && React.createElement('span', { className: 'tb-context-pct' },
           React.createElement('span', { className: 'tb-context-pct-bar' },
             React.createElement('span', { className: 'tb-context-pct-fill', style: { width: pct + '%' } })
