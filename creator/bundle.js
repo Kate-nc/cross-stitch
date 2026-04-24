@@ -10248,7 +10248,7 @@ window.BulkAddModal = (function () {
       var items = activeTab === 'paste' ? pasteResolved : kitResolved;
       var validItems = items.filter(function (i) { return i.valid; });
       if (validItems.length === 0) return;
-      if (!window.StashBridge) { alert('StashBridge is not available. Make sure stash-bridge.js is loaded.'); return; }
+      if (!window.StashBridge) { (window.Toast ? window.Toast.show({ message: 'StashBridge is not available. Make sure stash-bridge.js is loaded.', type: 'error' }) : alert('StashBridge is not available. Make sure stash-bridge.js is loaded.')); return; }
 
       setSaving(true);
       try {
@@ -10268,7 +10268,7 @@ window.BulkAddModal = (function () {
         setDone(true);
       } catch (e) {
         console.error('BulkAddModal: save failed', e);
-        alert('Failed to save: ' + e.message);
+        (window.Toast ? window.Toast.show({ message: 'Failed to save: ' + e.message, type: 'error' }) : alert('Failed to save: ' + e.message));
       } finally {
         setSaving(false);
       }
