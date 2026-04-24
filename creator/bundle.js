@@ -5964,6 +5964,27 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         scrollTop: scrollRef.current.scrollTop,
       };
       state.setHoverCoords(null);
+      // Long-press = touch equivalent of right-click context menu
+      longPressTriggeredRef.current = false;
+      clearLongPressTimer();
+      if (typeof state.setContextMenu === "function" && state.pat && state.pcRef && state.pcRef.current) {
+        var pressClientX = e.clientX, pressClientY = e.clientY;
+        var pressEvtLike = { clientX: pressClientX, clientY: pressClientY };
+        longPressTimerRef.current = setTimeout(function() {
+          // Only fire if user hasn't started panning
+          if (!panStateRef.current) return;
+          // If panState is still at its origin scroll, treat as no-move
+          if (panStateRef.current.startX !== pressClientX || panStateRef.current.startY !== pressClientY) return;
+          var gc = gridCoord(state.pcRef, pressEvtLike, state.cs, state.G, false);
+          if (!gc || gc.gx < 0 || gc.gx >= state.sW || gc.gy < 0 || gc.gy >= state.sH) return;
+          var idx = gc.gy * state.sW + gc.gx;
+          var cell = state.pat[idx];
+          longPressTriggeredRef.current = true;
+          panStateRef.current = null;
+          state.setContextMenu({ x: pressClientX, y: pressClientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
+          longPressTimerRef.current = null;
+        }, LONG_PRESS_MS);
+      }
       e.preventDefault();
       return;
     }
@@ -6012,6 +6033,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (panStateRef.current && panStateRef.current.pointerId === e.pointerId && state.scrollRef.current) {
       var dx = e.clientX - panStateRef.current.startX;
       var dy = e.clientY - panStateRef.current.startY;
+      if (Math.hypot(dx, dy) > TOUCH_TAP_SLOP) clearLongPressTimer();
       state.scrollRef.current.scrollLeft = panStateRef.current.scrollLeft - dx;
       state.scrollRef.current.scrollTop = panStateRef.current.scrollTop - dy;
       state.setHoverCoords(null);
@@ -6051,6 +6073,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
     if (wasPan) {
       panStateRef.current = null;
+      clearLongPressTimer();
       state.setHoverCoords(null);
       e.preventDefault();
       return;
@@ -7715,10 +7738,17 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         }, "\xD7")
       ),
 
-      // Preview pane (collapsible)
-      previewOpen && h("div", {
+      // Preview pane: stays mounted when collapsed (visibility:hidden +
+      // position:absolute) so canvas state, scroll position, and any
+      // in-flight async work survive the toggle. Replaces the previous
+      // `previewOpen && ...` conditional render that lost state on every
+      // close. (mobile-6 perf #5)
+      h("div", {
         ref: rightScrollRef,
-        style: { overflow: "auto", maxHeight: 220, border: "0.5px solid #e2e8f0", borderRadius: "0 0 8px 8px", background: "#f1f5f9" },
+        "aria-hidden": previewOpen ? "false" : "true",
+        style: previewOpen
+          ? { overflow: "auto", maxHeight: 220, border: "0.5px solid #e2e8f0", borderRadius: "0 0 8px 8px", background: "#f1f5f9" }
+          : { position: "absolute", left: -99999, top: -99999, width: 1, height: 1, overflow: "hidden", visibility: "hidden", pointerEvents: "none" },
       }, rightPaneCanvas())
     );
   }
@@ -7871,6 +7901,16 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // Local state
   var _swe = React.useState(false); var swatchExpanded = _swe[0], setSwatchExpanded = _swe[1];
+  // Click-to-toggle state for hover dropdowns (touch-friendly).
+  var _od = React.useState(null); var openDrop = _od[0], setOpenDrop = _od[1];
+  React.useEffect(function() {
+    if (!openDrop) return;
+    function close(e) {
+      if (!e.target || !e.target.closest || !e.target.closest('.tb-drop-wrap--open')) setOpenDrop(null);
+    }
+    document.addEventListener('pointerdown', close);
+    return function(){ document.removeEventListener('pointerdown', close); };
+  }, [openDrop]);
 
   // ResizeObserver: progressively collapse strip groups when narrow
   React.useEffect(function() {
@@ -7923,7 +7963,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           style:{width:80}, title:"Zoom"
         }),
         h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}, Math.round(cv.zoom*100)+"%"),
-        h("button", {className:"tb-btn", onClick:function(){ cv.setZoom(cv.fitZ||1); }, title:"Fit (Home)"}, "Fit")
+        h("button", {className:"tb-btn", onClick:function(){ cv.setZoom(cv.fitZ||1); }, title:"Fit (Home)", "aria-label":"Fit pattern to view"}, "Fit")
       )
     ];
     return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},
@@ -8011,7 +8051,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
           cv.setBrushAndActivate("paint");
         },
-        title:"Paint (P)"
+        title:"Paint (P)",
+        "aria-label":"Paint tool"
       }, "Paint"),
       h("button", {
         className:"tb-btn"+(cv.brushMode==="fill" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
@@ -8019,16 +8060,18 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
           cv.setBrushAndActivate("fill");
         },
-        title:"Fill (F)"
+        title:"Fill (F)",
+        "aria-label":"Fill tool"
       }, "Fill"),
       h("button", {
         className:"tb-btn"+(cv.stitchType==="erase"?" tb-btn--red":""),
-        onClick:function(){cv.selectStitchType("erase");}, title:"Erase (5)"
+        onClick:function(){cv.selectStitchType("erase");}, title:"Erase (5)", "aria-label":"Erase tool"
       }, svgErase, "Erase"),
       h("button", {
         className:"tb-btn"+(cv.activeTool==="eyedropper"?" tb-btn--on":""),
         onClick:function(){cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);},
-        title:"Eyedropper (I)"
+        title:"Eyedropper (I)",
+        "aria-label":"Eyedropper tool"
       }, "Pick")
     )
   ];
@@ -8049,18 +8092,22 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var activeSM = stitchMeta[cv.stitchType] || stitchMeta["cross"];
   var stitchDrop = showStitchGrp ? [
     h("div", {key:"sdiv-stitch", className:"tb-sdiv"}),
-    h("div", {key:"stitch-drop", className:"tb-drop-wrap"},
+    h("div", {key:"stitch-drop", className:"tb-drop-wrap" + (openDrop==="stitch"?" tb-drop-wrap--open":"")},
       h("button", {
         className:"tb-btn tb-drop-btn " + activeSM.cls,
-        title:"Stitch type"
+        title:"Stitch type",
+        "aria-label":"Stitch type menu",
+        "aria-haspopup":"menu",
+        "aria-expanded":openDrop==="stitch",
+        onClick:function(){setOpenDrop(openDrop==="stitch"?null:"stitch");}
       }, activeSM.icon, activeSM.label, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
-      h("div", {className:"tb-dropdown"},
+      h("div", {className:"tb-dropdown", role:"menu"},
         Object.keys(stitchMeta).map(function(k) {
           var m = stitchMeta[k];
           return h("button", {
             key:k,
             className:"tb-drop-item" + (cv.stitchType===k?" tb-drop-item--on":""),
-            onClick:function(){cv.selectStitchType(k);}
+            onClick:function(){cv.selectStitchType(k);setOpenDrop(null);}
           }, m.icon, m.label);
         })
       )
@@ -8073,10 +8120,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
-      style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0}
+      style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0,maxWidth:"60vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
+      title: ctx.cmap[cv.selectedColorId].name || cv.selectedColorId
     },
-      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block"}}),
-      h("span", {style:{fontWeight:600,color:"#0d9488"}}, cv.selectedColorId)
+      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}),
+      h("span", {style:{fontWeight:600,color:"#0d9488",flexShrink:0}}, cv.selectedColorId),
+      ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"#0f766e",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
     ) : h("span", {style:{fontSize:10,color:"#94a3b8",marginRight:6,flexShrink:0}}, "none selected"),
     swatchesShown.map(function(p) {
       var isSel = cv.selectedColorId === p.id;
@@ -8159,12 +8208,16 @@ window.CreatorToolStrip = function CreatorToolStrip() {
                  "Select";
   var selectDrop = [
     h("div", {key:"sdiv-select", className:"tb-sdiv"}),
-    h("div", {key:"select-drop", className:"tb-drop-wrap"},
+    h("div", {key:"select-drop", className:"tb-drop-wrap" + (openDrop==="select"?" tb-drop-wrap--open":"")},
       h("button", {
         className:"tb-btn tb-drop-btn" + (isSelectActive ? " tb-btn--on" : ""),
-        title:"Selection tools"
+        title:"Selection tools",
+        "aria-label":"Selection tools menu",
+        "aria-haspopup":"menu",
+        "aria-expanded":openDrop==="select",
+        onClick:function(){setOpenDrop(openDrop==="select"?null:"select");}
       }, selIcon, selLabel, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
-      h("div", {className:"tb-dropdown"},
+      h("div", {className:"tb-dropdown", role:"menu", onClick:function(e){if(e.target.closest&&e.target.closest('.tb-drop-item'))setOpenDrop(null);}},
         h("button", {
           className:"tb-drop-item"+(cv.activeTool==="magicWand"?" tb-drop-item--on":""),
           onClick:function(){
@@ -8209,6 +8262,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       className:"tb-btn",
       onClick:function(){if(cv.cancelLasso)cv.cancelLasso();if(cv.clearSelection)cv.clearSelection();},
       title:"Clear selection (Esc)",
+      "aria-label":"Clear selection",
       style:{fontSize:9,padding:"2px 5px",color:"#475569"}
     }, (cv.selectionCount||0).toLocaleString()+" sel")
   ];
@@ -8283,12 +8337,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       key:"undo", className:"tb-btn",
       onClick:cv.undoEdit, disabled:!cv.editHistory.length,
       title:"Undo (Ctrl+Z)",
+      "aria-label":"Undo",
       style:{opacity:cv.editHistory.length?1:0.3}
     }, "\u21A9"),
     h("button", {
       key:"redo", className:"tb-btn",
       onClick:cv.redoEdit, disabled:!cv.redoHistory.length,
       title:"Redo (Ctrl+Y)",
+      "aria-label":"Redo",
       style:{opacity:cv.redoHistory.length?1:0.3}
     }, "\u21AA")
   ];
@@ -8349,7 +8405,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("button", {
       className:"tb-btn"+(app.previewActive?" tb-btn--on":""),
       onClick:function(){setPreviewMenuOpen(function(o){return !o;});},
-      title:"Preview mode"
+      title:"Preview mode",
+      "aria-label":"Preview mode menu"
     }, previewLabel),
     previewMenuOpen && h("div", {className:"tb-overflow-menu", style:{minWidth:195,right:0}},
       h("span", {className:"tb-ovf-lbl"}, "View"),
@@ -8466,7 +8523,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("button", {
       className:"tb-overflow-btn",
       onClick:function(){app.setOverflowOpen(function(o){return !o;});},
-      title:"More options"
+      title:"More options",
+      "aria-label":"More options menu"
     }, "\u00B7\u00B7\u00B7"),
     overflowMenu
   );
@@ -8479,6 +8537,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var splitBtn = h("button", {
     className: "tb-btn" + (app.splitPaneEnabled ? " tb-btn--on" : ""),
     title: app.splitPaneEnabled ? "Exit split view (\\)" : "Split view: chart + preview (\\)",
+    "aria-label": app.splitPaneEnabled ? "Exit split view" : "Enter split view",
     disabled: !(ctx.pat && ctx.pal),
     onClick: function() {
       var next = !app.splitPaneEnabled;
@@ -10331,7 +10390,7 @@ window.BulkAddModal = (function () {
       var items = activeTab === 'paste' ? pasteResolved : kitResolved;
       var validItems = items.filter(function (i) { return i.valid; });
       if (validItems.length === 0) return;
-      if (!window.StashBridge) { alert('StashBridge is not available. Make sure stash-bridge.js is loaded.'); return; }
+      if (!window.StashBridge) { (window.Toast ? window.Toast.show({ message: 'StashBridge is not available. Make sure stash-bridge.js is loaded.', type: 'error' }) : alert('StashBridge is not available. Make sure stash-bridge.js is loaded.')); return; }
 
       setSaving(true);
       try {
@@ -10351,7 +10410,7 @@ window.BulkAddModal = (function () {
         setDone(true);
       } catch (e) {
         console.error('BulkAddModal: save failed', e);
-        alert('Failed to save: ' + e.message);
+        (window.Toast ? window.Toast.show({ message: 'Failed to save: ' + e.message, type: 'error' }) : alert('Failed to save: ' + e.message));
       } finally {
         setSaving(false);
       }
@@ -11840,6 +11899,20 @@ window.CreatorContextMenu = function CreatorContextMenu() {
 
   if (!menu) return null;
 
+  // Clamp menu position to viewport once rendered, so right-clicks / long-presses
+  // near the edges don't push it off-screen on mobile.
+  var menuRef = React.useRef(null);
+  var _pos = React.useState({ x: menu.x, y: menu.y });
+  var pos = _pos[0], setPos = _pos[1];
+  React.useLayoutEffect(function() {
+    if (!menuRef.current) return;
+    var r = menuRef.current.getBoundingClientRect();
+    var vw = window.innerWidth, vh = window.innerHeight, pad = 8;
+    var nx = Math.max(pad, Math.min(menu.x, vw - r.width - pad));
+    var ny = Math.max(pad, Math.min(menu.y, vh - r.height - pad));
+    if (nx !== pos.x || ny !== pos.y) setPos({ x: nx, y: ny });
+  }, [menu.x, menu.y]);
+
   var cell = menu.cell;
   var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
   var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
@@ -11870,8 +11943,9 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   }
 
   return h("div", {
+    ref: menuRef,
     style:{
-      position:"fixed", left:menu.x, top:menu.y, zIndex:9999,
+      position:"fixed", left:pos.x, top:pos.y, zIndex:9999,
       background:"#fff", border:"1px solid #cbd5e1", borderRadius:8,
       boxShadow:"0 4px 16px rgba(0,0,0,0.12)", padding:"4px 0",
       minWidth:180, maxWidth:240
@@ -12419,7 +12493,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
           h("span", {style:{fontSize:12,color:"#475569"}}, "Price per skein (\xA3)"),
           h("input", {
-            type:"number", value:ctx.skeinPrice, min:0, step:0.05,
+            type:"number", inputMode:"decimal", value:ctx.skeinPrice, min:0, step:0.05,
             onChange:function(e){ctx.setSkeinPrice(Math.max(0,parseFloat(e.target.value)||0));},
             style:{width:70,padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13,textAlign:"right"}
           })

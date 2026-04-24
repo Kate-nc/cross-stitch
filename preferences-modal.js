@@ -913,6 +913,28 @@
     );
   }
 
+  // Track narrow viewport so ≤480px gets a stacked single-column layout.
+  function useIsMobile() {
+    var _m = useState(function () {
+      return typeof window !== "undefined" && window.matchMedia
+        ? window.matchMedia("(max-width: 480px)").matches : false;
+    });
+    var isMobile = _m[0], setIsMobile = _m[1];
+    React.useEffect(function () {
+      if (typeof window === "undefined" || !window.matchMedia) return;
+      var mq = window.matchMedia("(max-width: 480px)");
+      function on() { setIsMobile(mq.matches); }
+      // Older Safari uses addListener
+      if (mq.addEventListener) mq.addEventListener("change", on);
+      else if (mq.addListener) mq.addListener(on);
+      return function () {
+        if (mq.removeEventListener) mq.removeEventListener("change", on);
+        else if (mq.removeListener) mq.removeListener(on);
+      };
+    }, []);
+    return isMobile;
+  }
+
   // ════════════════════════════════════════════════════════════════════
   // ADVANCED
   // ════════════════════════════════════════════════════════════════════
@@ -1061,14 +1083,21 @@
       );
     };
 
+    var isMobile = useIsMobile();
+
     return h("div", {
       onClick: onClose,
       "data-pref-modal": true,
-      style: { position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }
+      style: { position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1100, display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", padding: isMobile ? 0 : 20 }
     },
       h("div", {
         onClick: function (e) { e.stopPropagation(); },
-        style: {
+        style: isMobile ? {
+          background: COLOURS.card, borderRadius: "12px 12px 0 0",
+          width: "100%", maxHeight: "92vh",
+          display: "flex", flexDirection: "column",
+          boxShadow: "0 -8px 40px rgba(0,0,0,0.35)", overflow: "hidden"
+        } : {
           background: COLOURS.card, borderRadius: 14,
           width: "100%", maxWidth: 1100, height: "min(92vh, 720px)",
           display: "grid", gridTemplateRows: "auto 1fr auto",
@@ -1079,22 +1108,27 @@
         h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1px solid " + COLOURS.line } },
           h("h2", { style: { margin: 0, fontSize: 18, color: COLOURS.ink } }, "Settings"),
           h("button", { onClick: onClose, "aria-label": "Close",
-            style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: COLOURS.slate2, padding: "0 4px" } }, "×")
+            style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: COLOURS.slate2, padding: "0 4px", minWidth: 44, minHeight: 44 } }, "×")
         ),
 
-        // Body: sidebar + main pane
-        h("div", { style: { display: "grid", gridTemplateColumns: "240px 1fr", minHeight: 0 } },
+        // Body: on mobile stack nav above panel, on desktop use sidebar grid
+        h("div", { style: isMobile
+          ? { display: "flex", flexDirection: "column", overflowY: "auto", flex: 1 }
+          : { display: "grid", gridTemplateColumns: "240px 1fr", minHeight: 0, overflow: "hidden" }
+        },
           h("nav", {
-            style: { borderRight: "1px solid " + COLOURS.line, background: COLOURS.bg, overflowY: "auto", padding: "10px 8px" }
+            style: isMobile
+              ? { borderBottom: "1px solid " + COLOURS.line, background: COLOURS.bg, padding: "6px 8px", display: "flex", flexWrap: "wrap", gap: 2 }
+              : { borderRight: "1px solid " + COLOURS.line, background: COLOURS.bg, overflowY: "auto", padding: "10px 8px" }
           },
             groups.map(function (g) {
               return h("div", { key: g.name },
-                h("div", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: ".06em", color: COLOURS.hint, padding: "14px 12px 6px" } }, g.name),
+                !isMobile && h("div", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: ".06em", color: COLOURS.hint, padding: "14px 12px 6px" } }, g.name),
                 g.items.map(navBtn)
               );
             })
           ),
-          h("main", { style: { overflowY: "auto", padding: "24px 28px" } },
+          h("main", { style: isMobile ? { overflowY: "auto", padding: "16px 18px" } : { overflowY: "auto", padding: "24px 28px" } },
             h(current.Panel)
           )
         ),

@@ -272,9 +272,9 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
         <button className="modal-choice-btn" onClick={()=>setShowCustom(v=>!v)}>Other size…</button>
         {showCustom&&<div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 12px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
           <label style={{fontSize:12,fontWeight:600}}>W:</label>
-          <input type="number" value={customW} onChange={e=>setCustomW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
+          <input type="number" inputMode="numeric" value={customW} onChange={e=>setCustomW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
           <label style={{fontSize:12,fontWeight:600}}>H:</label>
-          <input type="number" value={customH} onChange={e=>setCustomH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
+          <input type="number" inputMode="numeric" value={customH} onChange={e=>setCustomH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
           <button onClick={()=>{setStyle("block");setBw(customW);setBh(customH);setScreen(3);}} style={{padding:"4px 10px",borderRadius:4,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}>OK</button>
         </div>}
         {showCustom&&(customW%10!==0||customH%10!==0)&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>Custom sizes may not align with the 10-stitch grid lines.</div>}
@@ -328,7 +328,7 @@ function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
         </div>
         <div style={{marginBottom:16}}>
           <div style={{fontWeight:600,fontSize:12,color:"#475569",marginBottom:8}}>Stitch goal (optional)</div>
-          <input type="number" value={goalStitches} onChange={e=>setGoalStitches(e.target.value)} placeholder="e.g. 200" min={1} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #e2e8f0",fontSize:13,width:"100%",boxSizing:"border-box"}}/>
+          <input type="number" inputMode="numeric" enterKeyHint="done" value={goalStitches} onChange={e=>setGoalStitches(e.target.value)} placeholder="e.g. 200" min={1} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #e2e8f0",fontSize:13,width:"100%",boxSizing:"border-box"}}/>
         </div>
         <button onClick={()=>onStart({timeAvail:timeChoice,stitchGoal:goalStitches?parseInt(goalStitches)||null:null})} style={{width:"100%",padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer",fontSize:14}}>Start</button>
       </div>
@@ -433,6 +433,85 @@ const[stitchSpeed,setStitchSpeed]=useState(40);
 const[loadError,setLoadError]=useState(null);
 const[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
+// ── Mobile: bottom action bar + colour quick-switcher state ──
+// `quickColourOpen` toggles a dedicated bottom drawer that lets the user pick
+// the focus colour with one tap. It's only used on touch / narrow viewports.
+const[quickColourOpen,setQuickColourOpen]=useState(false);
+// Tag the document body with `tracker-mobile` while the Tracker is mounted on a
+// touch / narrow viewport. CSS scopes the new bottom action bar and quick-
+// switcher drawer to this class so desktop layout is untouched.
+useEffect(()=>{
+  if(typeof window==='undefined'||!window.matchMedia)return;
+  const mql=window.matchMedia('(pointer: coarse), (max-width: 899px)');
+  const apply=()=>{document.body.classList.toggle('tracker-mobile',mql.matches);};
+  apply();
+  // Modern + legacy listener API
+  if(mql.addEventListener)mql.addEventListener('change',apply);
+  else if(mql.addListener)mql.addListener(apply);
+  return()=>{
+    document.body.classList.remove('tracker-mobile');
+    document.body.classList.remove('tracker-immersive');
+    if(mql.removeEventListener)mql.removeEventListener('change',apply);
+    else if(mql.removeListener)mql.removeListener(apply);
+  };
+},[]);
+// ── Mobile immersive mode ──
+// While actively scrolling the pattern, slide the topbar + toolbar off-screen
+// so the canvas can use almost the full viewport. On any upward scroll the
+// chrome reappears immediately. Only active on touch / narrow viewports.
+// Re-evaluates when the media query changes (e.g. on resize or screen rotation).
+useEffect(()=>{
+  if(typeof window==='undefined'||!window.matchMedia)return;
+  const mql=window.matchMedia('(pointer: coarse), (max-width: 899px)');
+  // Canvas scroll container is created later — poll briefly until it exists.
+  let lastY=0,raf=0;
+  function handleScroll(target){
+    const y=target.scrollTop;
+    if(raf)return;
+    raf=requestAnimationFrame(()=>{
+      raf=0;
+      const goingDown=y>lastY;
+      if(goingDown&&y>50){document.body.classList.add('tracker-immersive');}
+      else if(!goingDown){document.body.classList.remove('tracker-immersive');}
+      lastY=y;
+    });
+  }
+  let attached=null;
+  function attach(){
+    const el=document.querySelector('.canvas-area');
+    if(!el)return false;
+    const fn=(e)=>handleScroll(e.target);
+    el.addEventListener('scroll',fn,{passive:true});
+    attached={el,fn};
+    return true;
+  }
+  function detach(){
+    if(attached){attached.el.removeEventListener('scroll',attached.fn);attached=null;}
+    if(raf){cancelAnimationFrame(raf);raf=0;}
+    document.body.classList.remove('tracker-immersive');
+  }
+  let tries=[];
+  function enable(){
+    if(attached)return;
+    lastY=0;
+    if(!attach()){
+      tries=[100,300,800,1500].map(d=>setTimeout(()=>{if(!attached&&mql.matches)attach();},d));
+    }
+  }
+  function onMqlChange(){
+    if(mql.matches){enable();}else{tries.forEach(clearTimeout);tries=[];detach();}
+  }
+  if(mql.addEventListener)mql.addEventListener('change',onMqlChange);
+  else if(mql.addListener)mql.addListener(onMqlChange);
+  // Initialise for the current state.
+  if(mql.matches)enable();
+  return()=>{
+    if(mql.removeEventListener)mql.removeEventListener('change',onMqlChange);
+    else if(mql.removeListener)mql.removeListener(onMqlChange);
+    tries.forEach(clearTimeout);
+    detach();
+  };
+},[]);
 // Generic Tracker welcome — fires once on first visit, before the existing
 // StitchingStyleOnboarding (which is domain-specific).
 const[welcomeOpen,setWelcomeOpen]=useState(()=>{try{return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('tracker'));}catch(_){return false;}});
@@ -4263,9 +4342,9 @@ return(
       {stitchingStyle!=="crosscountry"&&stitchingStyle!=="freestyle"&&<div style={{padding:"4px 14px 6px",fontSize:11,color:"#475569"}}>Block size: {blockW}×{blockH}
         <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}>
           {[[10,10,"10×10"],[20,20,"20×20"]].map(([w,h,l])=><button key={l} onClick={()=>{setBlockW(w);setBlockH(h);}} style={{padding:"2px 7px",borderRadius:5,border:"1px solid "+(blockW===w&&blockH===h?"#0d9488":"#e2e8f0"),background:blockW===w&&blockH===h?"#f0fdfa":"#fff",fontSize:10,cursor:"pointer"}}>{l}</button>)}
-          <input type="number" title="Custom width" placeholder="W" value={blockW} onChange={e=>setBlockW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:10}} min={5} max={100}/>
+          <input type="number" inputMode="numeric" title="Custom width" placeholder="W" value={blockW} onChange={e=>setBlockW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:10}} min={5} max={100}/>
           <span style={{fontSize:10,lineHeight:"22px"}}>×</span>
-          <input type="number" title="Custom height" placeholder="H" value={blockH} onChange={e=>setBlockH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:10}} min={5} max={100}/>
+          <input type="number" inputMode="numeric" title="Custom height" placeholder="H" value={blockH} onChange={e=>setBlockH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:10}} min={5} max={100}/>
         </div>
         {(blockW%10!==0||blockH%10!==0)&&<div style={{fontSize:10,color:"#92400e",marginTop:3}}>May not align with 10-stitch grid lines.</div>}
       </div>}
@@ -4303,7 +4382,15 @@ return(
     </button>
   )}
 </div></div>
-{!isEditMode&&<div className="info-strip" aria-live="polite">
+{!isEditMode&&<div className="info-strip" aria-live="polite" onClick={()=>{
+  // Mobile-only: tapping the info strip opens the per-project stats view.
+  // On desktop the click is harmless because cursor:pointer is only set on
+  // touch / narrow viewports via CSS.
+  if(typeof window==='undefined'||!window.matchMedia)return;
+  if(!window.matchMedia('(pointer: coarse), (max-width: 899px)').matches)return;
+  setStatsTab(projectIdRef.current||'all');
+  setStatsView(true);
+}}>
   <div className="info-strip-bar">
     {progressPct>=100&&<div className="info-strip-fill info-strip-fill--done" style={{width:"100%"}}/>}
     {progressPct<100&&prevBarPct>0&&<div className="info-strip-fill" style={{width:prevBarPct+"%"}}/>}
@@ -4313,7 +4400,8 @@ return(
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
     {todayStitchesForBar>0&&<span className="info-strip-today-count">Today: {todayStitchesForBar}</span>}
     {liveAutoStitches>0&&<span className="info-strip-timer">{liveAutoIsPaused?"⏸":"⏱"} {fmtTime(liveAutoElapsed)}</span>}
-    {!isEditMode&&<button onClick={()=>{
+    {!isEditMode&&<button onClick={(e)=>{
+      e.stopPropagation();
       if(explicitSession){
         const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
         const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
@@ -4868,6 +4956,118 @@ return(
       </div>{/* end rp-tab-content */}
     </div>{/* end rpanel */}
   </div>{/* end cs-main */}
+  {/* ═══ MOBILE BOTTOM ACTION BAR ═══
+       Visibility scoped via CSS (`body.tracker-mobile`). Renders on every
+       page load but is `display:none` on desktop. Only shown in track mode. */}
+  {!isEditMode&&!statsView&&stitchMode==="track"&&(()=>{
+    const focusInfo=focusColour&&cmap?cmap[focusColour]:null;
+    const undoDisabled=!trackHistory.length;
+    return <>
+      <div className="tracker-action-bar" role="toolbar" aria-label="Stitch tracker actions">
+        <button
+          className={"colour-indicator"+(focusInfo?"":" colour-indicator--empty")}
+          onClick={()=>{
+            // If no focus colour yet, ensure highlight view is on so a pick is meaningful.
+            if(stitchView!=="highlight")setStitchView("highlight");
+            setQuickColourOpen(o=>!o);
+          }}
+          aria-label="Choose focus colour"
+          aria-expanded={quickColourOpen}
+        >
+          {focusInfo?<>
+            <span className="ci-sw" style={{background:`rgb(${focusInfo.rgb})`}}/>
+            <span className="ci-text">
+              <span className="ci-id">DMC {focusInfo.id}</span>
+              <span className="ci-name">{focusInfo.name||""}</span>
+            </span>
+            <span className="ci-chev">{quickColourOpen?window.Icons.chevronDown():window.Icons.chevronUp()}</span>
+          </>:<>
+            <span style={{display:"inline-flex",alignItems:"center",gap:8}}>
+              {window.Icons.palette()} Pick a colour
+              <span className="ci-chev">{quickColourOpen?window.Icons.chevronDown():window.Icons.chevronUp()}</span>
+            </span>
+          </>}
+        </button>
+        <button
+          className="action-btn action-btn--undo"
+          onClick={undoTrack}
+          onContextMenu={e=>{e.preventDefault();if(redoStack.length)redoTrack();}}
+          disabled={undoDisabled}
+          aria-label="Undo last stitch"
+          title={undoDisabled?"Nothing to undo":"Tap to undo · Long-press for redo"}
+        >{window.Icons.undo()}</button>
+        <button
+          className="action-btn action-btn--mark"
+          onClick={()=>{
+            // Mark/unmark the cell currently under the navigation crosshair if
+            // it's available. Otherwise, just centre the canvas hint.
+            if(done&&hlRow!=null&&hlCol!=null&&hlRow>=0&&hlRow<sH&&hlCol>=0&&hlCol<sW){
+              const idx=hlRow*sW+hlCol;
+              const cell=pat[idx];
+              if(cell&&cell.id!=="__skip__"&&cell.id!=="__empty__"){
+                if(isColourLocked&&isColourLocked()&&!fullStitchMatchesFocus(idx))return;
+                const nv=done[idx]?0:1;
+                const nd=new Uint8Array(done);
+                nd[idx]=nv;
+                pushTrackHistory([{idx,oldVal:done[idx]}]);
+                applyDoneCountsDelta([{idx,oldVal:done[idx]}],pat,nd);
+                setDone(nd);
+                drawCellDirectly(idx,nv);
+                return;
+              }
+            }
+            // No crosshair target → toast hint to use canvas tap.
+            try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"Tap a stitch on the canvas, or use Navigate mode to place a crosshair.",type:"info"});}catch(_){}
+          }}
+          aria-label="Mark stitch at crosshair"
+          title="Mark/unmark the stitch under the crosshair (Navigate mode)"
+        >{window.Icons.check()}</button>
+      </div>
+      {/* Colour quick-switcher backdrop + drawer */}
+      {quickColourOpen&&<div className="colour-quick-backdrop" onClick={()=>setQuickColourOpen(false)} aria-hidden="true"/>}
+      <div className={"colour-quick-drawer"+(quickColourOpen?" colour-quick-drawer--open":"")} role="dialog" aria-label="Choose focus colour" aria-hidden={!quickColourOpen}>
+        <div className="cqd-handle" onClick={()=>setQuickColourOpen(false)}>
+          <div className="rpanel-handle-bar"/>
+        </div>
+        <div className="cqd-grid">
+          {(()=>{
+            // Sort: incomplete first by stitches remaining (desc), completed last.
+            const sorted=[...pal].map(p=>{
+              const dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
+              const totalWithHalf=dc.total+dc.halfTotal*0.5;
+              const doneWithHalf=dc.done+dc.halfDone*0.5;
+              const remaining=Math.max(0,totalWithHalf-doneWithHalf);
+              const pct=totalWithHalf>0?Math.round(doneWithHalf/totalWithHalf*100):0;
+              const complete=remaining<=0&&totalWithHalf>0;
+              return{p,remaining,pct,complete};
+            });
+            sorted.sort((a,b)=>{
+              if(a.complete!==b.complete)return a.complete?1:-1;
+              return b.remaining-a.remaining;
+            });
+            return sorted.map(({p,pct,complete})=>{
+              const isFocused=focusColour===p.id;
+              return <button
+                key={p.id}
+                className={"cqd-tile"+(isFocused?" cqd-tile--on":"")+(complete?" cqd-tile--done":"")}
+                onClick={()=>{
+                  if(stitchView!=="highlight")setStitchView("highlight");
+                  setFocusColour(p.id);
+                  setQuickColourOpen(false);
+                }}
+                aria-label={"DMC "+p.id+(p.name?(" "+p.name):"")+", "+pct+" percent complete"}
+                aria-pressed={isFocused}
+              >
+                <span className="cqd-sw" style={{background:`rgb(${p.rgb})`}}/>
+                <span className="cqd-id">{p.id}</span>
+                <span className="cqd-pct">{pct}%</span>
+              </button>;
+            });
+          })()}
+        </div>
+      </div>
+    </>;
+  })()}
   </>}
 
   {importDialog==="image"&&importImage&&<div className="modal-overlay" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
@@ -4894,7 +5094,7 @@ return(
           <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
             <div style={{display:"flex", flexDirection:"column", gap:4}}>
               <label style={{fontSize:12, fontWeight:600, color:"#475569"}}>Max Width (stitches)</label>
-              <input type="number" min={10} max={300} value={importMaxW} onChange={e=>{
+              <input type="number" inputMode="numeric" min={10} max={300} value={importMaxW} onChange={e=>{
                 let val = Number(e.target.value);
                 setImportMaxW(val);
                 if (importArLock) setImportMaxH(Math.max(10, Math.floor(val * (importImage.height / importImage.width))));
@@ -4902,7 +5102,7 @@ return(
             </div>
             <div style={{display:"flex", flexDirection:"column", gap:4}}>
               <label style={{fontSize:12, fontWeight:600, color:"#475569"}}>Max Height (stitches)</label>
-              <input type="number" min={10} max={300} value={importMaxH} onChange={e=>{
+              <input type="number" inputMode="numeric" min={10} max={300} value={importMaxH} onChange={e=>{
                 let val = Number(e.target.value);
                 setImportMaxH(val);
                 if (importArLock) setImportMaxW(Math.max(10, Math.floor(val * (importImage.width / importImage.height))));

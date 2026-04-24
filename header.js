@@ -112,8 +112,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   React.useEffect(() => {
     if (!pageDrop) return;
     function close(e) { if (dropRef.current && !dropRef.current.contains(e.target)) setPageDrop(false); }
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
   }, [pageDrop]);
 
   const [fileMenuOpen, setFileMenuOpen] = React.useState(false);
@@ -125,8 +125,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   React.useEffect(() => {
     if (!fileMenuOpen) return;
     function close(e) { if (fileMenuRef.current && !fileMenuRef.current.contains(e.target)) setFileMenuOpen(false); }
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
   }, [fileMenuOpen]);
   React.useEffect(() => {
     if (typeof SyncEngine === 'undefined' || !SyncEngine.getWatchDirectory) return;
@@ -149,7 +149,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         // and the new CSB1\n compressed format.
         var backup = BackupRestore.parseBackupText(reader.result);
         var check = BackupRestore.validate(backup);
-        if (!check.valid) { alert(check.error); return; }
+        if (!check.valid) { (window.Toast ? window.Toast.show({ message: check.error, type: 'error' }) : alert(check.error)); return; }
         var s = check.summary;
         var when = s.createdAt ? new Date(s.createdAt).toLocaleString() : 'unknown date';
         var msg = 'Restore backup from ' + when + '?\n\n'
@@ -158,9 +158,9 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         if (!window.confirm(msg)) return;
         BackupRestore.restore(backup)
           .then(function () { window.location.reload(); })
-          .catch(function (err) { alert('Restore failed: ' + err.message); });
+          .catch(function (err) { (window.Toast ? window.Toast.show({ message: 'Restore failed: ' + err.message, type: 'error' }) : alert('Restore failed: ' + err.message)); });
       } catch (err) {
-        alert('Invalid file: could not parse JSON.');
+        (window.Toast ? window.Toast.show({ message: 'Invalid file: could not parse JSON.', type: 'error' }) : alert('Invalid file: could not parse JSON.'));
       }
     };
     reader.readAsText(file);
@@ -390,7 +390,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               onClick: () => {
                 setFileMenuOpen(false);
                 if (onBackupDownload) { onBackupDownload(); }
-                else { BackupRestore.downloadBackup().catch(function(e) { alert('Backup failed: ' + e.message); }); }
+                else { BackupRestore.downloadBackup().catch(function(e) { (window.Toast ? window.Toast.show({ message: 'Backup failed: ' + e.message, type: 'error' }) : alert('Backup failed: ' + e.message)); }); }
               }
             }, Icons.save(), ' Export Backup'),
             // Restore — use prop handler if provided, else inline
@@ -415,7 +415,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               className: 'tb-page-dropdown-item',
               onClick: () => {
                 setFileMenuOpen(false);
-                SyncEngine.downloadSync().catch(function(e) { alert('Sync export failed: ' + e.message); });
+                SyncEngine.downloadSync().catch(function(e) { (window.Toast ? window.Toast.show({ message: 'Sync export failed: ' + e.message, type: 'error' }) : alert('Sync export failed: ' + e.message)); });
               }
             }, Icons.cloudSync(), ' Export Sync (.csync)'),
             typeof SyncEngine !== 'undefined' && React.createElement('label', {
@@ -449,19 +449,19 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                       if (m) parts.push(m + ' to merge');
                       if (c) parts.push(c + ' conflict' + (c !== 1 ? 's' : ''));
                       if (plan.stashMerge) parts.push('stash update');
-                      if (parts.length === 0) { alert('Nothing to sync — all projects are identical.'); return; }
+                      if (parts.length === 0) { (window.Toast ? window.Toast.show({ message: 'Nothing to sync \u2014 all projects are identical.', type: 'info' }) : alert('Nothing to sync — all projects are identical.')); return; }
                       var msg = 'Import sync file?\n\n' + parts.join(', ');
                       if (c > 0) msg += '\n\nConflicts will keep local versions. For detailed control, import from the home screen.';
                       if (!window.confirm(msg)) return;
                       var resolutions = {};
                       plan.conflicts.forEach(function(entry) { resolutions[entry.id] = 'keep-local'; });
                       SyncEngine.executeImport(plan, resolutions).then(function(result) {
-                        alert('Sync complete: ' + result.imported + ' imported, ' + result.merged + ' merged.');
+                        (window.Toast ? window.Toast.show({ message: 'Sync complete: ' + result.imported + ' imported, ' + result.merged + ' merged.', type: 'success' }) : alert('Sync complete: ' + result.imported + ' imported, ' + result.merged + ' merged.'));
                         window.location.reload();
-                      }).catch(function(err) { alert('Sync failed: ' + err.message); });
+                      }).catch(function(err) { (window.Toast ? window.Toast.show({ message: 'Sync failed: ' + err.message, type: 'error' }) : alert('Sync failed: ' + err.message)); });
                     }
                   }).catch(function(err) {
-                    alert('Sync import failed: ' + err.message);
+                    (window.Toast ? window.Toast.show({ message: 'Sync import failed: ' + err.message, type: 'error' }) : alert('Sync import failed: ' + err.message));
                   });
                 }
               })

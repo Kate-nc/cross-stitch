@@ -621,6 +621,27 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         scrollTop: scrollRef.current.scrollTop,
       };
       state.setHoverCoords(null);
+      // Long-press = touch equivalent of right-click context menu
+      longPressTriggeredRef.current = false;
+      clearLongPressTimer();
+      if (typeof state.setContextMenu === "function" && state.pat && state.pcRef && state.pcRef.current) {
+        var pressClientX = e.clientX, pressClientY = e.clientY;
+        var pressEvtLike = { clientX: pressClientX, clientY: pressClientY };
+        longPressTimerRef.current = setTimeout(function() {
+          // Only fire if user hasn't started panning
+          if (!panStateRef.current) return;
+          // If panState is still at its origin scroll, treat as no-move
+          if (panStateRef.current.startX !== pressClientX || panStateRef.current.startY !== pressClientY) return;
+          var gc = gridCoord(state.pcRef, pressEvtLike, state.cs, state.G, false);
+          if (!gc || gc.gx < 0 || gc.gx >= state.sW || gc.gy < 0 || gc.gy >= state.sH) return;
+          var idx = gc.gy * state.sW + gc.gx;
+          var cell = state.pat[idx];
+          longPressTriggeredRef.current = true;
+          panStateRef.current = null;
+          state.setContextMenu({ x: pressClientX, y: pressClientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
+          longPressTimerRef.current = null;
+        }, LONG_PRESS_MS);
+      }
       e.preventDefault();
       return;
     }
@@ -669,6 +690,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (panStateRef.current && panStateRef.current.pointerId === e.pointerId && state.scrollRef.current) {
       var dx = e.clientX - panStateRef.current.startX;
       var dy = e.clientY - panStateRef.current.startY;
+      if (Math.hypot(dx, dy) > TOUCH_TAP_SLOP) clearLongPressTimer();
       state.scrollRef.current.scrollLeft = panStateRef.current.scrollLeft - dx;
       state.scrollRef.current.scrollTop = panStateRef.current.scrollTop - dy;
       state.setHoverCoords(null);
@@ -708,6 +730,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
     if (wasPan) {
       panStateRef.current = null;
+      clearLongPressTimer();
       state.setHoverCoords(null);
       e.preventDefault();
       return;
