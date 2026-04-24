@@ -4587,36 +4587,27 @@ return(
 </div>
   {liveAutoStitches > 0 && (
     <button className={"session-chip" + (liveAutoIsPaused||manuallyPaused ? " session-chip--paused" : "") + (inactivityPausedRef.current&&!manuallyPaused ? " session-chip--idle" : "")}
-      title={manuallyPaused ? "Tap to resume tracking" : inactivityPausedRef.current ? "Auto-paused (idle) — tap to resume" : "Tap to pause tracking"}
+      title="Open session controls"
       onClick={() => {
-        if(!currentAutoSessionRef.current) return;
-        if(manuallyPaused){
-          const pausedMs=Date.now()-manualPauseTimeRef.current;
-          currentAutoSessionRef.current.totalPausedMs=(currentAutoSessionRef.current.totalPausedMs||0)+pausedMs;
-          manualPauseTimeRef.current=null;
-          setManuallyPaused(false);
-          setLiveAutoIsPaused(document.hidden||inactivityPausedRef.current);
-        }else{
-          clearTimeout(inactivityTimerRef.current);
-          manualPauseTimeRef.current=Date.now();
-          setManuallyPaused(true);
-          setLiveAutoIsPaused(true);
-        }
+        // Phase 3/5: chip is now glanceable only; click opens the
+        // Session tab in the left sidebar where pause / resume / end
+        // session live alongside the goal + thread-usage controls.
+        setLeftSidebarTab("session");
+        setLeftSidebarOpen(true);
       }}>
       <span className="dot"/>
-      {manuallyPaused ? `⏸ Paused · ${liveAutoStitches} st` : inactivityPausedRef.current ? `⏸ Idle · ${liveAutoStitches} st` : liveAutoIsPaused ? '⏸ Paused' : `▶ ${fmtTime(liveAutoElapsed)} · ${liveAutoStitches} st`}
+      <span className="session-chip-icon" aria-hidden="true">{(manuallyPaused||inactivityPausedRef.current||liveAutoIsPaused)?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span>
+      {manuallyPaused ? `Paused · ${liveAutoStitches} st` : inactivityPausedRef.current ? `Idle · ${liveAutoStitches} st` : liveAutoIsPaused ? 'Paused' : `${fmtTime(liveAutoElapsed)} · ${liveAutoStitches} st`}
     </button>
   )}
 </div></div>
-{!isEditMode&&<div className="info-strip" aria-live="polite" onClick={()=>{
-  // Mobile-only: tapping the info strip opens the per-project stats view.
-  // On desktop the click is harmless because cursor:pointer is only set on
-  // touch / narrow viewports via CSS.
-  if(typeof window==='undefined'||!window.matchMedia)return;
-  if(!window.matchMedia('(pointer: coarse), (max-width: 899px)').matches)return;
-  setStatsTab(projectIdRef.current||'all');
-  setStatsView(true);
-}}>
+{!isEditMode&&<div className="info-strip" aria-live="polite" role="button" tabIndex={0} title="Open session controls" onClick={()=>{
+  // Phase 3/5: tapping the live progress strip opens the left
+  // sidebar Session tab so all start/stop/configure actions live in
+  // one place. The strip itself remains glanceable.
+  setLeftSidebarTab("session");
+  setLeftSidebarOpen(true);
+}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setLeftSidebarTab("session");setLeftSidebarOpen(true);}}}>
   <div className="info-strip-bar">
     {progressPct>=100&&<div className="info-strip-fill info-strip-fill--done" style={{width:"100%"}}/>}
     {progressPct<100&&prevBarPct>0&&<div className="info-strip-fill" style={{width:prevBarPct+"%"}}/>}
@@ -4625,20 +4616,9 @@ return(
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
     {todayStitchesForBar>0&&<span className="info-strip-today-count">Today: {todayStitchesForBar}</span>}
-    {liveAutoStitches>0&&<span className="info-strip-timer">{liveAutoIsPaused?"⏸":"⏱"} {fmtTime(liveAutoElapsed)}</span>}
-    {!isEditMode&&<button onClick={(e)=>{
-      e.stopPropagation();
-      if(explicitSession){
-        const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
-        const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
-        setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[]});
-        setExplicitSession(null);
-      }else{
-        setExplicitSession({startTime:Date.now(),timeAvail:null,stitchGoal:null});
-        setRpanelTab("session");
-        setMobileDrawerOpen(true);
-      }
-    }} title={explicitSession?"End session":"Start session"} style={{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",fontSize:14,color:explicitSession?"#dc2626":"#0d9488",padding:"0 4px",lineHeight:1,flexShrink:0,fontWeight:700}}>{explicitSession?"⏹":"▶"}</button>}
+    {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.clock?Icons.clock():null)}</span> {fmtTime(liveAutoElapsed)}</span>}
+    {/* Phase 3/5: explicit-session start/stop button removed; lives in
+        the left sidebar Session tab. Tap the strip itself to open it. */}
   </div>
 </div>}
 {hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:6,padding:"6px 10px",fontSize:11,color:"#1d4ed8",marginBottom:4,gap:8}}>
@@ -4927,7 +4907,7 @@ return(
           ["Mark a stitch",isTouch?"Tap a cell":"Click a cell"],
           ["Mark multiple",isTouch?"Tap, then drag across cells":"Click + drag across cells — all set to same state"],
           ["Undo last marks","↩ Undo button (top right)"],
-          stitchView==="highlight"?["Cycle colours",isTouch?"Tap ◀ ▶ arrows in the toolbar":"[ or ] keys  ·  or ← → arrow keys"]:null,
+          stitchView==="highlight"?["Cycle colours",isTouch?"Open the Highlight tab in the sidebar":"[ or ] keys"]:null,
           stitchView==="highlight"?["Clear focus","Tap the colour pill to show all colours"]:null,
           stitchMode==="navigate"?["Place crosshair","Click on any cell to drop a guide"]:null,
           stitchMode==="navigate"?["Park marker","Select a colour, then click to place a marker"]:null,
@@ -5200,7 +5180,7 @@ return(
             {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
             <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
           </div>
-          <button style={{marginTop:8,width:"100%",padding:"6px 0",borderRadius:6,border:"1px solid #0d9488",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>setSessionConfigOpen(true)}>▶ Start session</button>
+          <button style={{marginTop:8,width:"100%",padding:"6px 0",borderRadius:6,border:"1px solid #0d9488",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={()=>setSessionConfigOpen(true)}>{Icons.play?Icons.play():null} Start session</button>
         </>}
         <button style={{marginTop:8,width:'100%',padding:"6px 0",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#475569",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>{if(!statsView){setStatsTab(projectIdRef.current||'all');}setStatsView(v=>!v);}}>📊 {statsView?"Hide":"View"} full stats</button>
       </div>}

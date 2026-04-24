@@ -112,4 +112,21 @@ describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
     // It now lives in the (future) Tools tab. Confirm it's gone from the pill.
     expect(trackerSrc).not.toMatch(/title=\{"Spotlight focus area \(F\)"/);
   });
+
+  test('phase 3: info strip + session chip defer to the Session tab', () => {
+    // The info strip click handler used to open the per-project stats view
+    // on mobile. After phase 3 it opens the left sidebar Session tab.
+    expect(trackerSrc).toMatch(/setLeftSidebarTab\("session"\);\s*setLeftSidebarOpen\(true\);/);
+    // The chip's pause-toggle behaviour is gone — the chip now only opens
+    // the sidebar Session tab.
+    expect(trackerSrc).not.toMatch(/title=\{manuallyPaused \? "Tap to resume tracking"/);
+    // The legacy explicit-session start/stop button on the info strip is gone.
+    expect(trackerSrc).not.toMatch(/title=\{explicitSession\?"End session":"Start session"\}/);
+  });
+
+  test('phase 3: forbidden emoji-like marks gone from the live progress UI', () => {
+    // The chip + info strip used ▶ ⏸ ⏹ ⏱ for live state. Phase 3 swaps
+    // them for SVG icons (Icons.play / Icons.pause / Icons.clock).
+    expect(trackerSrc).not.toMatch(/['"`][^'"`]*[▶⏸⏹⏱][^'"`]*['"`]/);
+  });
 });

@@ -185,6 +185,10 @@ window.Icons = (function() {
     pause: function() {
       return svg(rc(6,4,4,16,1), rc(14,4,4,16,1));
     },
+    // Stop square — replaces ⏹
+    stop: function() {
+      return svg(rc(5,5,14,14,1));
+    },
     // Archive box — used for bulk-archive on the dashboard
     archive: function() {
       return svg(
