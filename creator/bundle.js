@@ -11703,7 +11703,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // When pickBg is active the card grows a pulsing orange outline and a
   // prominent banner so the user knows this is the click target. ESC cancels
   // (wired in useKeyboardShortcuts.js).
-  var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {className:"card"+(gen.pickBg?" card--pickBg":"")},
+  var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {id:"bg-pick-target", className:"card"+(gen.pickBg?" card--pickBg":"")},
     gen.pickBg && h("div", {style:{padding:"10px 12px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#fff7ed",borderBottom:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:8}},
       h("span", {style:{flex:1}}, "Click anywhere on the image to set the background colour."),
       h("button", {
@@ -12342,6 +12342,19 @@ window.CreatorSidebar = function CreatorSidebar() {
     // Switch the user to the Image tab so the pick target is visible.
     if (app.appMode === "create" && app.setSidebarTab) app.setSidebarTab("image");
     gen.setPickBg(true);
+    // Scroll the source-image card into view so users know where to click
+    // next. Defer twice so the tab switch + pickBg re-render have committed.
+    if (typeof window !== "undefined" && window.requestAnimationFrame) {
+      window.requestAnimationFrame(function(){
+        window.requestAnimationFrame(function(){
+          var el = document.getElementById("bg-pick-target");
+          if (el && el.scrollIntoView) {
+            try { el.scrollIntoView({behavior:"smooth", block:"center"}); }
+            catch (_) { el.scrollIntoView(); }
+          }
+        });
+      });
+    }
   }
   var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:app.bgOpen, onToggle:app.setBgOpen, badge:bgBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}},

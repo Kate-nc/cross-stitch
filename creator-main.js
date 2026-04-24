@@ -875,7 +875,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             {state.panelOpen&&<div className="rpanel-backdrop" onClick={()=>state.setPanelOpen(false)}/>}
             <div className={"rpanel"+(state.panelOpen?" rpanel--open":"")}>
             <window.CreatorSidebar/>
-            {!state.pat&&state.img&&<div className={"card"+(state.pickBg?" card--pickBg":"")} style={{overflow:"hidden"}}>
+            {!state.pat&&state.img&&<div id="bg-pick-target" className={"card"+(state.pickBg?" card--pickBg":"")} style={{overflow:"hidden"}}>
               <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#475569"}}>Original Image</div>
               {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#fff7ed",borderTop:"1px solid #fed7aa",borderBottom:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:8}}>
                 <span style={{flex:1}}>Click anywhere on the image to set the background colour.</span>
