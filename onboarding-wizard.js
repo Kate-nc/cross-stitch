@@ -235,7 +235,7 @@
         }, 600);
       }
       window.addEventListener("resize", recompute);
-      window.addEventListener("scroll", recompute, true);
+      window.addEventListener("scroll", recompute, { capture: true, passive: true });
       // dismissOnTargetClick: clicking the highlighted target closes the
       // tour cleanly (and marks the page done), so navigating away as a
       // result of that click won't leave the user stranded.
@@ -246,7 +246,7 @@
       return function () {
         if (missingTimer) clearTimeout(missingTimer);
         window.removeEventListener("resize", recompute);
-        window.removeEventListener("scroll", recompute, true);
+        window.removeEventListener("scroll", recompute, { capture: true });
         if (clickEl) clickEl.removeEventListener("click", onTargetClick);
       };
     }, [idx, step.target, step.placement, step.dismissOnTargetClick]);
