@@ -1067,6 +1067,7 @@ function UnifiedApp(){
   },[]);
 
   const[homeModal,setHomeModal]=React.useState(null);
+  const[statsModal,setStatsModal]=React.useState(null);
   const[homePrefsOpen,setHomePrefsOpen]=React.useState(false);
   const[homeBulkAddOpen,setHomeBulkAddOpen]=React.useState(false);
   // First-visit welcome wizard. Shows once on the Creator home screen.
@@ -1078,6 +1079,7 @@ function UnifiedApp(){
   React.useEffect(()=>{
     const h=()=>{
       if(mode==='home'){setHomeModal('help');}
+      else if(mode==='stats'){setStatsModal('help');}
       else if(mode==='track'&&typeof T==='function'){/* Tracker has its own listener */}
       else{
         // In design mode, dispatch via state.setModal if available.
@@ -1086,6 +1088,15 @@ function UnifiedApp(){
     };
     window.addEventListener('cs:openHelp',h);
     return()=>window.removeEventListener('cs:openHelp',h);
+  },[mode]);
+  React.useEffect(()=>{
+    const h=()=>{
+      if(mode==='home'){setHomeModal('shortcuts');}
+      else if(mode==='stats'){setStatsModal('shortcuts');}
+      // design/track have their own cs:openShortcuts listeners
+    };
+    window.addEventListener('cs:openShortcuts',h);
+    return()=>window.removeEventListener('cs:openShortcuts',h);
   },[mode]);
   // "Show welcome tour again" from HelpCentre → re-open the wizard.
   React.useEffect(()=>{
@@ -1125,6 +1136,7 @@ function UnifiedApp(){
         onOpenShowcase={switchToShowcase}
       />
       {homeModal==='help'&&<SharedModals.Help defaultTab="creator" onClose={()=>setHomeModal(null)} />}
+      {homeModal==='shortcuts'&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setHomeModal(null)} />}
       {welcomeOpen&&mode==='home'&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{page:'creator',onClose:()=>setWelcomeOpen(false)})}
     </div>}
     <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
@@ -1145,10 +1157,12 @@ function UnifiedApp(){
       />}
     </div>
     {mode==='stats'&&<div style={{position:'fixed',inset:0,background:'var(--surface)',zIndex:100,overflowY:'auto'}}>
-      <Header page="stats" tab="" onPageChange={()=>{}} setModal={()=>{}} />
+      <Header page="stats" tab="" onPageChange={()=>{}} setModal={setStatsModal} />
       {statsPageReady
         ?<window.StatsPage onClose={closeStats} onNavigateToProject={(id)=>{switchToTrack({id})}} onNavigateToStash={()=>{window.location.href='manager.html';}} />
         :<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh'}}><span style={{opacity:0.5}}>Loading stats…</span></div>}
+      {statsModal==='help'&&<SharedModals.Help defaultTab="creator" onClose={()=>setStatsModal(null)} />}
+      {statsModal==='shortcuts'&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setStatsModal(null)} />}
     </div>}
     {window.HelpHintBanner&&<window.HelpHintBanner/>}
   </>;

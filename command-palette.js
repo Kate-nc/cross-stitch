@@ -534,10 +534,9 @@
     togglePalette();
   }, true);
 
-  // M10: Global "?" → open Help, but only on pages that have not bound
-  // their own "?" handler. Tracker and Creator already bind "?" in their
-  // React keydown handlers — registering a second listener here would
-  // double-fire. Manager is the only page that needs this fallback.
+  // M10: Global "?" → open keyboard shortcuts, but only on the manager page
+  // where the central registry is not handling it. Creator and Tracker have
+  // their own cs:openShortcuts listeners; manager does too.
   document.addEventListener('keydown', function (e) {
     if (e.defaultPrevented) return;
     if (e.key !== '?') return;
@@ -549,7 +548,7 @@
     // Skip when palette is open — input swallows keys there.
     if (overlayEl && overlayEl.parentNode) return;
     e.preventDefault();
-    window.dispatchEvent(new CustomEvent('cs:openHelp'));
+    window.dispatchEvent(new CustomEvent('cs:openShortcuts'));
   });
 
   // ── Public API ─────────────────────────────────────────────────────────
