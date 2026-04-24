@@ -722,6 +722,9 @@ function ManagerApp() {
           <button data-onboard="mgr-patterns-tab" className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
             <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
           </button>
+          <button data-onboard="mgr-shopping-tab" className={"mgr-tab" + (tab === "shopping" ? " on" : "")} onClick={() => { setTab("shopping"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
+            <span className="icon">{Icons.shoppingCart ? Icons.shoppingCart() : Icons.cart()}</span> Shopping
+          </button>
         </div>
         <button
           onClick={() => { window.location.href = "index.html?mode=stats&tab=showcase"; }}
@@ -997,6 +1000,12 @@ function ManagerApp() {
             )}
           </div>
         </div>
+        )}
+
+        {tab === "shopping" && (
+          window.ManagerShopping
+            ? React.createElement(window.ManagerShopping, null)
+            : <div style={{ padding: 24, fontSize: 13, color: "#94a3b8" }}>Shopping list module unavailable.</div>
         )}
 
         {tab === "patterns" && (

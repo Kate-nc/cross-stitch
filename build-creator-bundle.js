@@ -44,6 +44,9 @@ const ORDER = [
   'DesignerBrandingSection.js',
   'ExportTab.js',
   'ShoppingListModal.js',
+  // B4: MaterialsHub renders LegendTab/PrepareTab/ExportTab as sub-tabs,
+  // so it must be concatenated AFTER all three.
+  'MaterialsHub.js',
 ];
 
 const parts = ORDER.map(name => {

@@ -4099,7 +4099,47 @@ window.useCreatorState = function useCreatorState() {
   var _sidebarTab = useState("settings"); var sidebarTab = _sidebarTab[0], setSidebarTab = _sidebarTab[1];
 
   // UI state
-  var _tab        = useState("pattern"); var tab        = _tab[0],        setTab        = _tab[1];
+  // B3: top-level Creator pages collapsed to 3 — 'pattern' | 'project' | 'materials'.
+  // setTab is wrapped below to migrate legacy values ('prepare'/'legend'/'export').
+  var _tab        = useState(function () {
+    var v = loadUserPref("creator.lastPage", null);
+    if (v === "prepare" || v === "legend" || v === "export") return "materials";
+    if (v === "pattern" || v === "project" || v === "materials") return v;
+    return "pattern";
+  });
+  var tab        = _tab[0],        setTabRaw     = _tab[1];
+  // B4: which sub-tab inside MaterialsHub is active.
+  // 'threads' | 'stash' | 'shopping' | 'output'
+  var _materialsTab = useState(function () {
+    var v = loadUserPref("creator.materialsTab", null);
+    if (v === "threads" || v === "stash" || v === "shopping" || v === "output") return v;
+    // Honour legacy lastPage as a one-off seed so a user whose last visit
+    // was the old Export tab lands on Output in the new hub.
+    var lp = loadUserPref("creator.lastPage", null);
+    if (lp === "export") return "output";
+    if (lp === "prepare") return "stash";
+    if (lp === "legend") return "threads";
+    return "threads";
+  });
+  var materialsTab = _materialsTab[0];
+  var setMaterialsTabRaw = _materialsTab[1];
+  function setMaterialsTab(v) {
+    if (v !== "threads" && v !== "stash" && v !== "shopping" && v !== "output") return;
+    setMaterialsTabRaw(v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.materialsTab", v); } catch (_) {}
+  }
+  // setTab wrapper: rewrite legacy page IDs to (materials, sub-tab).
+  function setTab(value) {
+    var next = value;
+    if (value === "prepare") { next = "materials"; setMaterialsTab("stash"); }
+    else if (value === "legend") { next = "materials"; setMaterialsTab("threads"); }
+    else if (value === "export") { next = "materials"; setMaterialsTab("output"); }
+    else if (value !== "pattern" && value !== "project" && value !== "materials") {
+      next = "pattern";
+    }
+    setTabRaw(next);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.lastPage", next); } catch (_) {}
+  }
   var _sidOpen    = useState(true);      var sidebarOpen = _sidOpen[0],   setSidebarOpen = _sidOpen[1];
   var _loadErr    = useState(null);      var loadError  = _loadErr[0],    setLoadError  = _loadErr[1];
   var _copied     = useState(null);      var copied     = _copied[0],     setCopied     = _copied[1];
@@ -5018,7 +5058,7 @@ window.useCreatorState = function useCreatorState() {
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, sidebarTab, setSidebarTab,
-    tab, setTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
+    tab, setTab, materialsTab, setMaterialsTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
@@ -11962,6 +12002,31 @@ window.CreatorSidebar = function CreatorSidebar() {
     }, "Start Tracking \u2192")
   ) : null;
 
+  // ─── B3: mode-aware sidebar — hide on Materials, summarise on Project ─────
+  // Only applies when a pattern is loaded (edit mode); the create-mode early
+  // return above already governs pre-generation rendering.
+  if (ctx.pat && ctx.pal && app && app.tab === 'materials') {
+    return null;
+  }
+  if (ctx.pat && ctx.pal && app && app.tab === 'project') {
+    var palLen = (ctx.displayPal || ctx.pal || []).length;
+    return h('aside', { className: 'cs-sidebar-fade', style: { padding: '12px', display: 'flex', flexDirection: 'column', gap: 10 } },
+      h('div', { style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 0.4 } }, 'Project at a glance'),
+      h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 4, fontSize: 12 } },
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Size'),
+        h('span', null, ctx.sW + ' \u00D7 ' + ctx.sH + ' stitches'),
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Colours'),
+        h('span', null, palLen),
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Fabric'),
+        h('span', null, (ctx.fabricCt || 14) + ' count'),
+        ctx.totalSkeins != null && h('span', { style: { color: 'var(--text-tertiary)' } }, 'Skeins'),
+        ctx.totalSkeins != null && h('span', null, ctx.totalSkeins)
+      ),
+      h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.4 } },
+        'Use the canvas tools on the Pattern page to edit. Generation parameters are above on this page.')
+    );
+  }
+
   return h(React.Fragment, null,
     tabBar,
     h("div", {style:{overflowY:"auto",flex:1}},
@@ -13102,7 +13167,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   // ── Early returns after all hooks ─────────────────────────────────────────
   if (!(ctx.pat && ctx.pal)) return null;
-  if (app.tab !== "legend") return null;
+  // B3/B4: rendered as the 'threads' sub-tab inside MaterialsHub.
+  if (app.tab !== "materials" || app.materialsTab !== "threads") return null;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   var fabCounts = (typeof FABRIC_COUNTS !== "undefined") ? FABRIC_COUNTS : [
@@ -13520,7 +13586,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
 
   // Early returns AFTER all hooks
   if (!(ctx.pat && ctx.pal)) return null;
-  if (app.tab !== 'prepare') return null;
+  // B3/B4: rendered as a sub-tab inside MaterialsHub.
+  if (app.tab !== 'materials' || app.materialsTab !== 'stash') return null;
 
   // Fabric calculator
   var fabCounts = typeof FABRIC_COUNTS !== 'undefined' ? FABRIC_COUNTS : [
@@ -14148,7 +14215,8 @@ window.CreatorExportTab = function CreatorExportTab() {
   }
 
   if (!(ctx && ctx.pat && ctx.pal)) return null;
-  if (app.tab !== "export") return null;
+  // B3/B4: rendered as the 'output' sub-tab inside MaterialsHub.
+  if (app.tab !== "materials" || app.materialsTab !== "output") return null;
 
   var presetCardActive = EXPORT_PRESET_CARD_ACTIVE;
   var presetCardBase = EXPORT_PRESET_CARD_BASE;
@@ -14516,3 +14584,167 @@ window.CreatorExportTab = function CreatorExportTab() {
 
   window.CreatorShoppingListModal = CreatorShoppingListModal;
 })();
+
+
+/* ─── MaterialsHub.js ─── */
+/* creator/MaterialsHub.js — B4 Materials & Output hub.
+   Replaces the three former top-level tabs (Materials/Prepare/Export)
+   with a single page exposing four side-tabs:
+     Threads  : CreatorLegendTab
+     Stash    : CreatorPrepareTab
+     Shopping : in-line aggregate (deficit list + Add-all-to-shopping CTA)
+     Output   : CreatorExportTab
+   Reads from CreatorContext via window.useApp / window.usePatternData.
+   Active sub-tab persists via UserPrefs key 'creator.materialsTab'
+   (managed by useCreatorState's setMaterialsTab wrapper). */
+
+window.CreatorMaterialsHub = function CreatorMaterialsHub() {
+  var app = window.useApp();
+  var ctx = window.usePatternData();
+  var h   = React.createElement;
+  var useMemo = React.useMemo;
+  var useState = React.useState;
+
+  // ── Hooks BEFORE any conditional returns ────────────────────────────────
+  var _bulkBusy = useState(false);
+  var bulkBusy = _bulkBusy[0], setBulkBusy = _bulkBusy[1];
+
+  // Aggregate deficits: which threads in this project are not fully owned.
+  var deficits = useMemo(function () {
+    if (!(ctx && ctx.pat && ctx.pal)) return [];
+    var stash = (ctx.globalStash) || {};
+    var fab = ctx.fabricCt || 14;
+    var rows = [];
+    for (var i = 0; i < ctx.pal.length; i++) {
+      var p = ctx.pal[i];
+      if (!p || p.id === '__skip__' || p.id === '__empty__') continue;
+      var needed;
+      if (typeof stitchesToSkeins === 'function') {
+        var sk = stitchesToSkeins({ stitchCount: p.count, fabricCount: fab, strandsUsed: 2 });
+        needed = sk
+          ? (sk.colorA ? Math.max(sk.colorA.skeinsToBuy || 0, sk.colorB.skeinsToBuy || 0) : (sk.skeinsToBuy || 0))
+          : (typeof skeinEst === 'function' ? skeinEst(p.count, fab) : Math.ceil(p.count / 800));
+      } else {
+        needed = (typeof skeinEst === 'function') ? skeinEst(p.count, fab) : Math.ceil(p.count / 800);
+      }
+      if (needed < 1) needed = 1;
+      // Composite stash key: prefer DMC, but blends list both halves.
+      var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
+        ? p.id.split('+') : [p.id];
+      for (var j = 0; j < ids.length; j++) {
+        var id = ids[j];
+        var key = (typeof id === 'string' && id.indexOf(':') !== -1) ? id : ('dmc:' + id);
+        var entry = stash[key] || stash[id] || {};
+        var owned = entry.owned || 0;
+        if (owned >= needed) continue;
+        rows.push({
+          key: key, id: id,
+          name: (p.threads && p.threads[j] && p.threads[j].name) || p.name || String(id),
+          rgb: (p.threads && p.threads[j] && p.threads[j].rgb) || p.rgb || [200,200,200],
+          needed: needed, owned: owned, deficit: needed - owned,
+        });
+      }
+    }
+    rows.sort(function (a, b) { return b.deficit - a.deficit; });
+    return rows;
+  }, [ctx && ctx.pal, ctx && ctx.pat, ctx && ctx.globalStash, ctx && ctx.fabricCt]);
+
+  // Top-level guard: only render on the Materials & Output page.
+  if (app.tab !== 'materials') return null;
+  if (!(ctx && ctx.pat && ctx.pal)) return null;
+
+  var SUBTABS = [
+    { id: 'threads',  label: 'Threads',  icon: window.Icons && Icons.thread     ? Icons.thread()     : null },
+    { id: 'stash',    label: 'Stash status', icon: window.Icons && Icons.layers ? Icons.layers()     : null },
+    { id: 'shopping', label: 'Shopping', icon: window.Icons && Icons.shoppingCart ? Icons.shoppingCart() : (window.Icons && Icons.cart ? Icons.cart() : null) },
+    { id: 'output',   label: 'Output',   icon: window.Icons && Icons.download   ? Icons.download()   : null },
+  ];
+  var activeSub = app.materialsTab || 'threads';
+
+  function tabBtn(t) {
+    var on = activeSub === t.id;
+    return h('button', {
+      key: t.id,
+      type: 'button',
+      role: 'tab',
+      'aria-selected': on,
+      className: 'mh-subtab' + (on ? ' on' : ''),
+      onClick: function () { app.setMaterialsTab(t.id); },
+    },
+      t.icon && h('span', { className: 'mh-subtab-icon', 'aria-hidden': 'true' }, t.icon),
+      h('span', null, t.label)
+    );
+  }
+
+  // Shopping sub-tab content — only mounted when active to avoid extra work.
+  function shoppingPanel() {
+    if (deficits.length === 0) {
+      return h('div', { className: 'mh-shopping-empty', style: { padding: '32px 16px', textAlign: 'center', color: 'var(--text-secondary)' } },
+        h('div', { style: { fontSize: 14, fontWeight: 500, marginBottom: 4 } }, 'No deficits to shop for.'),
+        h('div', { style: { fontSize: 12, color: 'var(--text-tertiary)' } }, 'Your stash already covers every thread in this project.')
+      );
+    }
+    var totalDeficitSkeins = deficits.reduce(function (s, r) { return s + r.deficit; }, 0);
+    return h('div', { className: 'mh-shopping' },
+      h('div', { className: 'mh-shopping-header', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 } },
+        h('div', null,
+          h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' } },
+            deficits.length + ' thread' + (deficits.length === 1 ? '' : 's') + ' to buy'
+          ),
+          h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)' } },
+            totalDeficitSkeins + ' skein' + (totalDeficitSkeins === 1 ? '' : 's') + ' across this project'
+          )
+        ),
+        h('button', {
+          type: 'button',
+          disabled: bulkBusy,
+          className: 'mh-shopping-bulk',
+          onClick: function () {
+            if (!(window.StashBridge && typeof StashBridge.markManyToBuy === 'function')) return;
+            setBulkBusy(true);
+            var keys = deficits.map(function (r) { return r.key; });
+            Promise.resolve(StashBridge.markManyToBuy(keys, true))
+              .then(function () {
+                if (window.Toast && typeof Toast.show === 'function') {
+                  Toast.show({ message: 'Added ' + keys.length + ' thread' + (keys.length === 1 ? '' : 's') + ' to your shopping list.', type: 'success', duration: 3000 });
+                }
+              })
+              .catch(function (e) { console.error('MaterialsHub bulk shopping failed:', e); })
+              .then(function () { setBulkBusy(false); });
+          },
+          style: { padding: '8px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', cursor: bulkBusy ? 'wait' : 'pointer' },
+        }, bulkBusy ? 'Adding…' : 'Add all to shopping list')
+      ),
+      h('div', { className: 'mh-shopping-list', role: 'list' },
+        deficits.map(function (r) {
+          return h('div', { key: r.key, role: 'listitem', className: 'mh-shopping-row',
+            style: { display: 'grid', gridTemplateColumns: '24px 1fr auto auto', gap: 10, alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid var(--border)' } },
+            h('span', { className: 'mh-swatch', 'aria-hidden': 'true',
+              style: { display: 'inline-block', width: 20, height: 20, borderRadius: 4, background: 'rgb(' + r.rgb.join(',') + ')', border: '1px solid var(--border)' } }),
+            h('span', { className: 'mh-shopping-name', style: { fontSize: 12, color: 'var(--text-primary)' } },
+              h('strong', null, r.id), ' \u00B7 ', r.name),
+            h('span', { className: 'mh-shopping-need', style: { fontSize: 11, color: 'var(--text-tertiary)' } },
+              'need ' + r.needed + ', own ' + r.owned),
+            h('span', { className: 'mh-shopping-deficit', style: { fontSize: 12, fontWeight: 600, color: 'var(--accent)' } },
+              '+' + r.deficit + ' skein' + (r.deficit === 1 ? '' : 's'))
+          );
+        })
+      )
+    );
+  }
+
+  return h('div', { className: 'materials-hub', role: 'tabpanel', 'aria-label': 'Materials and Output' },
+    h('nav', { className: 'mh-subtabs', role: 'tablist', 'aria-label': 'Materials sections' },
+      SUBTABS.map(tabBtn)
+    ),
+    h('div', { className: 'mh-body' },
+      // Threads / Stash / Output children manage their own visibility via the
+      // app.materialsTab guard added in B3, so they are mounted unconditionally
+      // here. Shopping is local to this hub.
+      h(window.CreatorLegendTab, null),
+      h(window.CreatorPrepareTab, null),
+      activeSub === 'shopping' && shoppingPanel(),
+      h(window.CreatorExportTab, null)
+    )
+  );
+};

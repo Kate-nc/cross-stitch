@@ -73,6 +73,10 @@ window.Icons = (function() {
     cart: function() {
       return svg(c(9,21,1), c(20,21,1), p('M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'));
     },
+    // Alias used by the B4 Manager Shopping tab + MaterialsHub.
+    shoppingCart: function() {
+      return svg(c(9,21,1), c(20,21,1), p('M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'));
+    },
     // Trash / delete — replaces 🗑
     trash: function() {
       return svg(pl('3 6 5 6 21 6'), p('M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'), l(10,11,10,17), l(14,11,14,17));

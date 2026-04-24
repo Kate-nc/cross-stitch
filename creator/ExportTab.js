@@ -202,7 +202,8 @@ window.CreatorExportTab = function CreatorExportTab() {
   }
 
   if (!(ctx && ctx.pat && ctx.pal)) return null;
-  if (app.tab !== "export") return null;
+  // B3/B4: rendered as the 'output' sub-tab inside MaterialsHub.
+  if (app.tab !== "materials" || app.materialsTab !== "output") return null;
 
   var presetCardActive = EXPORT_PRESET_CARD_ACTIVE;
   var presetCardBase = EXPORT_PRESET_CARD_BASE;

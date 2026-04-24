@@ -167,8 +167,16 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     e.target.value = '';
   }
 
-  const creatorPages = [['pattern','Pattern'],['project','Project'],['legend','Materials'],['prepare','Prepare'],['export','Export']];
-  const activeLabel = creatorPages.find(p => p[0] === tab)?.[1] || 'Pattern';
+  // B3: Creator sub-pages collapsed from 5 → 3. Materials/Prepare/Export
+  // are now sub-tabs inside the new "Materials & Output" hub. The legacy
+  // values 'prepare' / 'legend' / 'export' are mapped to 'materials' by
+  // useCreatorState's setTab wrapper.
+  const creatorPages = [
+    ['pattern', 'Pattern'],
+    ['project', 'Project'],
+    ['materials', 'Materials & Output'],
+  ];
+  const activeLabel = (creatorPages.find(p => p[0] === tab) || (tab === 'prepare' || tab === 'legend' || tab === 'export' ? ['materials','Materials & Output'] : null) || ['pattern', 'Pattern'])[1];
 
   // App-section nav tabs — include Edit between Create and Track
   const appSections = [

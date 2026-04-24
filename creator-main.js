@@ -414,6 +414,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     appMode: state.appMode, setAppMode: state.setAppMode,
     sidebarTab: state.sidebarTab, setSidebarTab: state.setSidebarTab,
     tab: state.tab, setTab: state.setTab,
+    materialsTab: state.materialsTab, setMaterialsTab: state.setMaterialsTab,
     modal: state.modal, setModal: state.setModal,
     sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
     loadError: state.loadError, setLoadError: state.setLoadError,
@@ -470,7 +471,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     isActive: isActive,
   }; }, [
     state.appMode, state.sidebarTab,
-    state.tab, state.modal, state.sidebarOpen, state.loadError,
+    state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
     state.copied, state.dimOpen, state.palOpen, state.fabOpen,
     state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen,
     state.splitPaneEnabled, state.splitPaneRatio,
@@ -746,12 +747,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         <input ref={state.fRef} type="file" accept="image/*" onChange={io.handleFile} style={{display:"none"}}/>
         {(state.img||state.pat)&&<div className="cs-main">
           <div className="canvas-area">
-            {state.pat&&state.pal&&<div>
+            {state.pat&&state.pal&&<div className={"cs-page-fade cs-page-fade--"+state.tab}>
               <window.CreatorPatternTab/>
               <window.CreatorProjectTab/>
-              <window.CreatorLegendTab/>
-              <window.CreatorPrepareTab/>
-              <window.CreatorExportTab/>
+              <window.CreatorMaterialsHub/>
             </div>}
             {!state.pat&&state.img&&<div style={{display:"flex",flexDirection:"column",gap:16,padding:"20px 16px"}}>
               {!state.previewUrl&&<div className="card" style={{overflow:"hidden"}}>

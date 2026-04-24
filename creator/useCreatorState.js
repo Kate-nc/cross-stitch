@@ -89,7 +89,47 @@ window.useCreatorState = function useCreatorState() {
   var _sidebarTab = useState("settings"); var sidebarTab = _sidebarTab[0], setSidebarTab = _sidebarTab[1];
 
   // UI state
-  var _tab        = useState("pattern"); var tab        = _tab[0],        setTab        = _tab[1];
+  // B3: top-level Creator pages collapsed to 3 — 'pattern' | 'project' | 'materials'.
+  // setTab is wrapped below to migrate legacy values ('prepare'/'legend'/'export').
+  var _tab        = useState(function () {
+    var v = loadUserPref("creator.lastPage", null);
+    if (v === "prepare" || v === "legend" || v === "export") return "materials";
+    if (v === "pattern" || v === "project" || v === "materials") return v;
+    return "pattern";
+  });
+  var tab        = _tab[0],        setTabRaw     = _tab[1];
+  // B4: which sub-tab inside MaterialsHub is active.
+  // 'threads' | 'stash' | 'shopping' | 'output'
+  var _materialsTab = useState(function () {
+    var v = loadUserPref("creator.materialsTab", null);
+    if (v === "threads" || v === "stash" || v === "shopping" || v === "output") return v;
+    // Honour legacy lastPage as a one-off seed so a user whose last visit
+    // was the old Export tab lands on Output in the new hub.
+    var lp = loadUserPref("creator.lastPage", null);
+    if (lp === "export") return "output";
+    if (lp === "prepare") return "stash";
+    if (lp === "legend") return "threads";
+    return "threads";
+  });
+  var materialsTab = _materialsTab[0];
+  var setMaterialsTabRaw = _materialsTab[1];
+  function setMaterialsTab(v) {
+    if (v !== "threads" && v !== "stash" && v !== "shopping" && v !== "output") return;
+    setMaterialsTabRaw(v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.materialsTab", v); } catch (_) {}
+  }
+  // setTab wrapper: rewrite legacy page IDs to (materials, sub-tab).
+  function setTab(value) {
+    var next = value;
+    if (value === "prepare") { next = "materials"; setMaterialsTab("stash"); }
+    else if (value === "legend") { next = "materials"; setMaterialsTab("threads"); }
+    else if (value === "export") { next = "materials"; setMaterialsTab("output"); }
+    else if (value !== "pattern" && value !== "project" && value !== "materials") {
+      next = "pattern";
+    }
+    setTabRaw(next);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.lastPage", next); } catch (_) {}
+  }
   var _sidOpen    = useState(true);      var sidebarOpen = _sidOpen[0],   setSidebarOpen = _sidOpen[1];
   var _loadErr    = useState(null);      var loadError  = _loadErr[0],    setLoadError  = _loadErr[1];
   var _copied     = useState(null);      var copied     = _copied[0],     setCopied     = _copied[1];
@@ -1008,7 +1048,7 @@ window.useCreatorState = function useCreatorState() {
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, sidebarTab, setSidebarTab,
-    tab, setTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
+    tab, setTab, materialsTab, setMaterialsTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,

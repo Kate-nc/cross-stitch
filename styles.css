@@ -3618,3 +3618,29 @@ html.pref-dark a { color: #5eead4; }
     flex-shrink: 0;
   }
 }
+
+/* B3 — Mode-aware sidebar (Pattern / Project / Materials) */
+.cs-page-fade { animation: cs-page-fade-in 160ms ease-out; }
+@keyframes cs-page-fade-in { from { opacity: 0.4; } to { opacity: 1; } }
+.cs-sidebar-fade { animation: cs-page-fade-in 160ms ease-out; }
+
+/* B4 — Materials hub + Manager shopping */
+.materials-hub { display:flex; flex-direction:column; min-height:300px; }
+.mh-subtabs { display:flex; gap:4px; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+.mh-subtab { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; font-size:12px; font-weight:500; color:var(--text-secondary); background:transparent; border:none; border-radius:8px; cursor:pointer; font-family:inherit; transition:background 0.12s, color 0.12s; }
+.mh-subtab:hover { background:var(--surface-tertiary); color:var(--text-primary); }
+.mh-subtab.on { background:var(--accent); color:#fff; font-weight:600; }
+.mh-subtab-icon { display:inline-flex; align-items:center; }
+.mh-body { flex:1; overflow-y:auto; padding:14px 16px; }
+.mh-shopping-list { border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.mh-shopping-row:last-child { border-bottom:none !important; }
+
+.mgr-shopping-list { border-top:1px solid var(--border); }
+.mgr-shopping-row:last-child { border-bottom:none !important; }
+.mgr-shopping-bulk:disabled { opacity:0.6; }
+
+@media (max-width: 480px) {
+  .mh-subtabs { overflow-x:auto; flex-wrap:nowrap; }
+  .mh-subtab { flex-shrink:0; }
+  .mgr-shopping-row { grid-template-columns: 24px 1fr auto !important; }
+}

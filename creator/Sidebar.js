@@ -1347,6 +1347,31 @@ window.CreatorSidebar = function CreatorSidebar() {
     }, "Start Tracking \u2192")
   ) : null;
 
+  // ─── B3: mode-aware sidebar — hide on Materials, summarise on Project ─────
+  // Only applies when a pattern is loaded (edit mode); the create-mode early
+  // return above already governs pre-generation rendering.
+  if (ctx.pat && ctx.pal && app && app.tab === 'materials') {
+    return null;
+  }
+  if (ctx.pat && ctx.pal && app && app.tab === 'project') {
+    var palLen = (ctx.displayPal || ctx.pal || []).length;
+    return h('aside', { className: 'cs-sidebar-fade', style: { padding: '12px', display: 'flex', flexDirection: 'column', gap: 10 } },
+      h('div', { style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 0.4 } }, 'Project at a glance'),
+      h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 4, fontSize: 12 } },
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Size'),
+        h('span', null, ctx.sW + ' \u00D7 ' + ctx.sH + ' stitches'),
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Colours'),
+        h('span', null, palLen),
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Fabric'),
+        h('span', null, (ctx.fabricCt || 14) + ' count'),
+        ctx.totalSkeins != null && h('span', { style: { color: 'var(--text-tertiary)' } }, 'Skeins'),
+        ctx.totalSkeins != null && h('span', null, ctx.totalSkeins)
+      ),
+      h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.4 } },
+        'Use the canvas tools on the Pattern page to edit. Generation parameters are above on this page.')
+    );
+  }
+
   return h(React.Fragment, null,
     tabBar,
     h("div", {style:{overflowY:"auto",flex:1}},
