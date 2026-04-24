@@ -3147,9 +3147,14 @@ kbd {
 @media (pointer: coarse) and (max-width: 1024px) {
   /* Touch-target floor (WCAG 2.5.5) for the smallest tap targets in the app */
   .tb-btn, .tb-fit-btn, .tb-app-tab, .tb-page-btn, .rp-tab,
-  .cs-cmdp-row, .mpd-card-menu-btn {
+  .cs-cmdp-row, .mpd-card-menu-btn,
+  /* A4 (UX Phase 5) â€” extend the floor to home & dashboard buttons,
+     context-bar quick-actions, and the resume recap modal CTAs. */
+  .home-btn, .mpd-btn, .tb-context-btn, .resume-recap-btn,
+  .tb-nav-link, .tb-context-name--editable, .tb-proj-badge-name--editable {
     min-height: 44px;
   }
+  .home-btn, .mpd-btn { padding: 10px 16px; }
   .tb-btn { padding: 8px 12px; gap: 6px; }
   .tb-fit-btn { padding: 8px 12px; }
   /* Bump tiny labels so they meet the 12px+ legibility floor */
@@ -3274,9 +3279,9 @@ html.pref-dark a { color: #5eead4; }
   .edit-mode-strip__hint { display: none; }
 }
 
-/* A3 (UX Phase 5) — Tracker resume recap modal */
+/* A3 (UX Phase 5) ï¿½ Tracker resume recap modal */
 
-/* A3 (UX Phase 5) — Tracker resume recap modal
+/* A3 (UX Phase 5) ï¿½ Tracker resume recap modal
    Fires once per project load when the project has prior stitching sessions.
    Mobile: full-screen below 480px (addresses G6). */
 .resume-recap-overlay {

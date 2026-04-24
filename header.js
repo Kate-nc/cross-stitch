@@ -68,7 +68,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
           title: 'Your work auto-saves to this device. Use Download to export a .json file.'
         },
           (window.Icons && window.Icons.check) ? window.Icons.check() : null,
-          'Auto-saved'
+          'All changes saved'
         ),
         pct !== null && React.createElement('span', { className: 'tb-context-pct' },
           React.createElement('span', { className: 'tb-context-pct-bar' },
@@ -298,10 +298,13 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             : React.createElement('span', { className: 'tb-proj-badge-name' }, propProjectName || projName),
           (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) !== null && React.createElement('span', { className: 'tb-proj-badge-pct' }, (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) + '%'),
           showAutosaved && React.createElement('span', {
-            className: 'tb-proj-badge-pct',
-            style: { background:'transparent', color:'#16a34a', fontWeight:600, fontSize:10, padding:'0 4px' },
+            className: 'tb-proj-badge-pct tb-proj-badge-saved',
+            style: { background:'transparent', color:'#16a34a', fontWeight:600, fontSize:10, padding:'0 4px', display:'inline-flex', alignItems:'center', gap:3 },
             title: 'Your work auto-saves to this device. Use Download to export a .json file.'
-          }, '✓ Auto-saved')
+          },
+            (window.Icons && window.Icons.check) ? window.Icons.check() : null,
+            'All changes saved'
+          )
         ),
 
         React.createElement('div', { className: 'tb-sep' }),

@@ -197,3 +197,54 @@
 
 - `npm test -- --runInBand`: 760 passed (up from 751 before A3).
 
+
+
+## A4 — Touch-target floor + persistent saved tag
+
+**Roadmap line:** F-1 (touch-target floor), F-3 (saved-state visibility),
+G6 (mobile reach).
+
+**Wireframe:** [reports/wireframes/a-header.html](wireframes/a-header.html)
+
+### What shipped
+
+- Replaced raw `'? Auto-saved'` glyph in [header.js](../header.js) with
+  `Icons.check()` + `'All changes saved'` copy. Done in both the project
+  badge (top header) and the `ContextBar` row to keep wording consistent.
+  Removes a house-rule violation (no raw glyphs) and matches the wireframe.
+- Extended the existing 44 × 44 touch-target floor in
+  [styles.css](../styles.css) (`@media (pointer: coarse) and (max-width:
+  1024px)`) to cover `.home-btn`, `.mpd-btn`, `.tb-context-btn`,
+  `.resume-recap-btn` (added in A3), `.tb-nav-link`, and the inline
+  editable name buttons (`.tb-context-name--editable`,
+  `.tb-proj-badge-name--editable`). Padding on `.home-btn` / `.mpd-btn`
+  bumped to `10px 16px` on coarse pointers so labels do not crowd the edge
+  of the larger hit area.
+
+### Honesty notes
+
+- The wireframe also shows tabbed Pattern / Project / Materials / Export
+  sub-page navigation alongside the dropdown. The Creator already exposes
+  the same destinations through the `tb-page-btn` dropdown; adding a
+  parallel always-visible tab strip would duplicate behaviour and chew up
+  scarce header width on small laptops. Keeping the dropdown for now and
+  re-evaluating once user telemetry exists.
+- The "in {projectName}" prefix from the wireframe is implicit in the
+  existing project badge — adding the literal word "in" before every
+  project name read clunkily on hover-test mocks, so the badge keeps the
+  bare name. Revisit if observed users misread the badge as a global
+  setting.
+
+### Files touched
+
+- [header.js](../header.js) — saved-tag copy + Icons.check (badge + ContextBar).
+- [styles.css](../styles.css) — touch-target list extended; `.home-btn` /
+  `.mpd-btn` padding bump.
+- [tests/touchTargets.test.js](../tests/touchTargets.test.js) — 6 cases
+  covering copy, glyph removal, badge wiring, Tracker / Creator pass-through,
+  combined coarse-pointer rule, and padding bump.
+
+### Test status
+
+- `npm test -- --runInBand`: 766 passed (up from 760 before A4).
+
