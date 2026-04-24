@@ -3154,3 +3154,25 @@ kbd {
   }
   .tb-btn, .rp-tab, .tb-fit-btn, .tb-app-tab, .tb-page-btn { font-size: 13px; }
 }
+
+/* ------------------------- Touch press feedback (WU-11) -------------------------
+   Visible feedback that a tap was registered on touch devices, where :hover never
+   triggers. Scoped to (pointer: coarse) so desktop click feel is unchanged. */
+@media (pointer: coarse) {
+  .tb-btn:active, .tb-fit-btn:active, .rp-tab:active,
+  .cs-cmdp-row:active, .pcard:active, .tcard:active,
+  .mpd-card:active, .mpd-card-menu-btn:active,
+  button:not(:disabled):active {
+    transform: scale(0.97);
+    transition: transform 0.05s;
+  }
+}
+
+/* ------------------------- Skip-to-content link (WU-11) ------------------------- */
+.skip-to-content {
+  position: absolute; top: -9999px; left: 8px; z-index: 100000;
+  padding: 8px 14px; background: var(--accent, #0d9488); color: #fff;
+  border-radius: 6px; font-weight: 600; text-decoration: none;
+  font-family: inherit; font-size: 14px;
+}
+.skip-to-content:focus { top: 8px; outline: 2px solid #fff; outline-offset: 2px; }
