@@ -723,6 +723,10 @@ const[sessionConfigOpen,setSessionConfigOpen]=useState(false);
 const[sessionTimeChoice,setSessionTimeChoice]=useState(null);
 const[sessionGoalInput,setSessionGoalInput]=useState("");
 const[sessionSummaryData,setSessionSummaryData]=useState(null);
+// A3 (UX Phase 5) — Resume recap modal shown once per project load when the
+// project already has stitching sessions. Cleared via Continue/Stats/Switch/Close.
+const[resumeRecap,setResumeRecap]=useState(null);
+const resumeRecapShownRef=useRef(new Set());
 const focusOverlayCanvasRef=useRef(null);
 const breadcrumbCanvasRef=useRef(null);
 const[hlRow,setHlRow]=useState(-1);
@@ -731,8 +735,7 @@ const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
 const scrollRafRef=useRef(null);
 const lastClickedRef=useRef(null); // { idx, row, col, val } for shift+click range
-const[rangeModeActive,setRangeModeActive]=useState(false);
-const[rangeAnchor,setRangeAnchor]=useState(null); // { idx, row, col, val } for touch range mode
+// C3: range-select state lives inside useDragMark (long-press anchor + shift+click).
 
 const[selectedColorId,setSelectedColorId]=useState(null);
 
@@ -741,7 +744,6 @@ const[selectedColorId,setSelectedColorId]=useState(null);
 const[halfStitches,setHalfStitches]=useState(new Map());
 // Sparse map: cellIdx → { fwd?: 0|1, bck?: 0|1 }
 const[halfDone,setHalfDone]=useState(new Map());
-useEffect(()=>{if(stitchMode!=="track"){setRangeModeActive(false);setRangeAnchor(null);}},[stitchMode]);
 const[halfDisambig,setHalfDisambig]=useState(null); // {x, y, idx} for popup
 
 const[hoverInfo,setHoverInfo]=useState(null);
@@ -1338,6 +1340,18 @@ function _getRoyalRowsNext(bx,by){
   if(by+1<bRows)return{bx:0,by:by+1};
   return null;
 }
+// Move the spotlight focus block by one block in (dx,dy). No-op when spotlight
+// is disabled or stitching style is cross-country (which has no concept of
+// spatial blocks). If no focus block is set yet, falls back to the start block.
+function _stepFocusBlock(dx,dy){
+  if(!focusEnabled||stitchingStyle==="crosscountry"||!sW||!sH)return;
+  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
+  const cur=focusBlock||_getStartBlock();
+  const bx=Math.max(0,Math.min(bCols-1,cur.bx+dx));
+  const by=Math.max(0,Math.min(bRows-1,cur.by+dy));
+  if(bx===cur.bx&&by===cur.by&&focusBlock)return;
+  setFocusBlock({bx,by});
+}
 
 // ── Block auto-advance effect ──
 useEffect(()=>{
@@ -1423,6 +1437,14 @@ function copyProgressSummary(){
   copyText(lines.join("\n"),"progress");
 }
 
+// History entry shapes:
+//   • Legacy: bare array of {idx,oldVal} — single-cell or per-pixel drag.
+//   • B2 BULK_TOGGLE: {type:"BULK_TOGGLE", source:"drag"|"range", changes:[...]}
+//     One undo step covering the whole drag-mark or range-select gesture.
+// _historyChanges normalises both shapes for the undo/redo pipeline.
+function _historyChanges(entry){
+  return (entry && entry.type === "BULK_TOGGLE") ? entry.changes : entry;
+}
 function pushTrackHistory(changes){
   if(!changes||!changes.length)return;
   // Track colours for auto-session
@@ -1430,26 +1452,42 @@ function pushTrackHistory(changes){
   setTrackHistory(prev=>{let n=[...prev,changes];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
 }
+// B2: push a single tagged BULK_TOGGLE entry from useDragMark commits.
+function pushBulkToggleHistory(changes, source){
+  if(!changes||!changes.length)return;
+  if(pat){for(let i=0;i<changes.length;i++){const id=pat[changes[i].idx]&&pat[changes[i].idx].id;if(id&&id!=='__skip__'&&id!=='__empty__')pendingColoursRef.current.add(id);}}
+  const entry={type:"BULK_TOGGLE",source:source||"drag",changes:changes};
+  setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  setRedoStack([]);
+}
 function undoTrack(){
   if(!trackHistory.length||!done)return;
-  let last=trackHistory[trackHistory.length-1];
+  let lastEntry=trackHistory[trackHistory.length-1];
+  let last=_historyChanges(lastEntry);
   let nd=new Uint8Array(done);
-  let redoEntry=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
+  let redoChanges=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
-  applyDoneCountsDelta(redoEntry,pat,nd);
+  applyDoneCountsDelta(redoChanges,pat,nd);
   setDone(nd);
   setTrackHistory(prev=>prev.slice(0,-1));
+  let redoEntry=(lastEntry&&lastEntry.type==="BULK_TOGGLE")
+    ?{type:"BULK_TOGGLE",source:lastEntry.source,changes:redoChanges}
+    :redoChanges;
   setRedoStack(prev=>{let n=[...prev,redoEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
 }
 function redoTrack(){
   if(!redoStack.length||!done)return;
-  let last=redoStack[redoStack.length-1];
+  let lastEntry=redoStack[redoStack.length-1];
+  let last=_historyChanges(lastEntry);
   let nd=new Uint8Array(done);
-  let undoEntry=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
+  let undoChanges=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
-  applyDoneCountsDelta(undoEntry,pat,nd);
+  applyDoneCountsDelta(undoChanges,pat,nd);
   setDone(nd);
   setRedoStack(prev=>prev.slice(0,-1));
+  let undoEntry=(lastEntry&&lastEntry.type==="BULK_TOGGLE")
+    ?{type:"BULK_TOGGLE",source:lastEntry.source,changes:undoChanges}
+    :undoChanges;
   setTrackHistory(prev=>{let n=[...prev,undoEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
 }
 
@@ -2403,6 +2441,28 @@ function processLoadedProject(project){
     sorted.forEach(function(s){running+=(s.netStitches||0);if(s.totalAtEnd==null)s.totalAtEnd=Math.min(Math.max(0,running),totalStitchCount);});
   }
   setStatsSessions(rawStatsSessions);
+  // A3: fire the resume recap modal once per project load when there is at
+  // least one prior session. Skipped on a fresh project (sessions empty) and
+  // on the same project re-loading inside one mounted Tracker instance.
+  try{
+    var _pid=project.id||'__unsaved__';
+    if(rawStatsSessions.length>0&&!resumeRecapShownRef.current.has(_pid)){
+      resumeRecapShownRef.current.add(_pid);
+      var _summary=(typeof lastSessionSummary==='function')?lastSessionSummary({statsSessions:rawStatsSessions}):null;
+      if(_summary){
+        var _last=rawStatsSessions[rawStatsSessions.length-1];
+        var _totalSt=(project.pattern||[]).filter(function(c){return c&&c.id!=='__skip__'&&c.id!=='__empty__';}).length;
+        var _doneSt=project.done?Array.from(project.done).filter(function(v){return v===1;}).length:0;
+        setResumeRecap({
+          projectName:project.name||'Untitled',
+          summary:_summary,
+          lastDate:_last&&(_last.date||_last.startTime)||null,
+          totalSt:_totalSt,
+          doneSt:_doneSt
+        });
+      }
+    }
+  }catch(_e){}
   setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true,sectionCols:50,sectionRows:50},project.statsSettings||{}));
   setStatsView(false);
   setCelebration(null);
@@ -3681,6 +3741,20 @@ function halfStitchMatchesFocus(idx, dir) {
 function handleStitchMouseDown(e){
   if(!stitchRef.current||!pat)return;
   if(e.button===1||isSpaceDownRef.current){e.preventDefault();startPan(e);return;}
+  // Alt+click: relocate the spotlight focus block to the clicked cell's block.
+  // Works in both Mark and Navigate modes; bypasses edit-mode cell editor too.
+  // No-op when spotlight is off or the stitching style has no spatial blocks.
+  if(e.altKey&&e.button===0&&focusEnabled&&stitchingStyle!=="crosscountry"&&sW&&sH){
+    const gcA=gridCoord(stitchRef,e,scs,G,false);
+    if(gcA&&gcA.gx>=0&&gcA.gx<sW&&gcA.gy>=0&&gcA.gy<sH){
+      e.preventDefault();
+      const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
+      const bx=Math.max(0,Math.min(bCols-1,Math.floor(gcA.gx/blockW)));
+      const by=Math.max(0,Math.min(bRows-1,Math.floor(gcA.gy/blockH)));
+      setFocusBlock({bx,by});
+      return;
+    }
+  }
   // Edit Mode: left-click on grid opens cell edit popover instead of any navigate/track action
   if(isEditMode){
     if(e.button!==0)return;
@@ -3749,80 +3823,10 @@ function handleStitchMouseDown(e){
 
   if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
 
-  // ═══ Range mode (2-click rectangle, desktop) ═══
-  if(rangeModeActive&&stitchMode==="track"&&!e.shiftKey){
-    if(!rangeAnchor){
-      // First click: toggle this cell and set it as the anchor; do NOT start drag
-      if (isColourLocked() && !fullStitchMatchesFocus(idx)) return;
-      let nv=done[idx]?0:1;
-      const oldVal=done[idx];
-      done[idx]=nv;
-      drawCellDirectly(idx,nv);
-      pushTrackHistory([{idx,oldVal}]);
-      applyDoneCountsDelta([{idx,oldVal}],pat,done);
-      setDone(new Uint8Array(done));
-      lastClickedRef.current={idx,row:gy,col:gx,val:nv};
-      setRangeAnchor({idx,row:gy,col:gx,val:nv});
-    }else{
-      // Second click: fill rectangle from anchor to here
-      const a=rangeAnchor;
-      const minR=Math.min(a.row,gy),maxR=Math.max(a.row,gy);
-      const minC=Math.min(a.col,gx),maxC=Math.max(a.col,gx);
-      const targetVal=a.val;
-      const changes=[];
-      for(let r=minR;r<=maxR;r++){for(let c=minC;c<=maxC;c++){
-        const ci=r*sW+c;const cell=pat[ci];
-        if(cell.id==="__skip__"||cell.id==="__empty__")continue;
-        if (isColourLocked() && pat[ci].id !== focusColour) continue;
-        if(done[ci]!==targetVal){changes.push({idx:ci,oldVal:done[ci]});done[ci]=targetVal;}
-      }}
-      if(changes.length){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,done);setDone(new Uint8Array(done));renderStitch();}
-      lastClickedRef.current={idx,row:gy,col:gx,val:targetVal};
-      setRangeAnchor(null);
-    }
-    e.preventDefault();
-    return;
-  }
-
-  // ═══ Shift+Click range fill ═══
-  if(e.shiftKey&&lastClickedRef.current&&stitchMode==="track"){
-    const a=lastClickedRef.current;
-    const bCol=gx,bRow=gy;
-    const minR=Math.min(a.row,bRow),maxR=Math.max(a.row,bRow);
-    const minC=Math.min(a.col,bCol),maxC=Math.max(a.col,bCol);
-    const targetVal=a.val;
-    const changes=[];
-    for(let r=minR;r<=maxR;r++){
-      for(let c=minC;c<=maxC;c++){
-        const ci=r*sW+c;
-        const cell=pat[ci];
-        if(cell.id==="__skip__"||cell.id==="__empty__")continue;
-        if (isColourLocked() && pat[ci].id !== focusColour) continue;
-        if(done[ci]!==targetVal){
-          changes.push({idx:ci,oldVal:done[ci]});
-          done[ci]=targetVal;
-        }
-      }
-    }
-    if(changes.length){
-      pushTrackHistory(changes);
-      applyDoneCountsDelta(changes,pat,done);
-      setDone(new Uint8Array(done));
-      renderStitch();
-    }
-    lastClickedRef.current={idx,row:gy,col:gx,val:targetVal};
-    e.preventDefault();
-    return;
-  }
-
-  if (isColourLocked() && !fullStitchMatchesFocus(idx)) return;
-  let nv=done[idx]?0:1;
-  lastClickedRef.current={idx,row:gy,col:gx,val:nv};
-  dragStateRef.current = { isDragging: true, dragVal: nv };
-  dragChangesRef.current=[{idx,oldVal:done[idx]}];
-  done[idx] = nv; // Optimistic update
-  drawCellDirectly(idx, nv);
-  window.addEventListener("pointerup", handleMouseUp, { once: true });
+  // C3: cell tap / drag-mark / shift+click range / long-press range are all
+  // owned by useDragMark (see _dragMarkOnToggle / _dragMarkOnCommitDrag /
+  // _dragMarkOnCommitRange below). The mousedown handler keeps only the
+  // pan, edit-mode popover, navigate-mode, and half-stitch branches above.
   e.preventDefault();
 }
 function handleStitchMouseMove(e){
@@ -3859,18 +3863,8 @@ function handleStitchMouseMove(e){
     setHoverInfo(null);
   }
 
-  if(!dragStateRef.current.isDragging||stitchMode!=="track"||!done||!stitchRef.current||!pat)return;
-  if(!gc)return;let{gx,gy}=gc;
-  if(gx<0||gx>=sW||gy<0||gy>=sH)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
-  const dVal = dragStateRef.current.dragVal;
-  if (isColourLocked() && !fullStitchMatchesFocus(idx)) {
-    // skip — don't mark this cell during drag
-  } else if(done[idx]!==dVal){
-    dragChangesRef.current.push({idx,oldVal:done[idx]});
-    done[idx] = dVal; // Optimistic update
-    drawCellDirectly(idx, dVal);
-  }
+  // C3: drag mutation now flows through useDragMark; mousemove only owns
+  // pan + hover updates above.
 }
 function handleStitchMouseLeave(){
   handleMouseUp();
@@ -3879,14 +3873,7 @@ function handleStitchMouseLeave(){
 }
 function handleMouseUp(){
   if(isPanning){setIsPanning(false);return;}
-  if(dragStateRef.current.isDragging&&dragChangesRef.current.length>0){
-    pushTrackHistory([...dragChangesRef.current]);
-    applyDoneCountsDelta(dragChangesRef.current,pat,done);
-    let nd = new Uint8Array(done);
-    setDone(nd);
-    dragChangesRef.current=[];
-  }
-  dragStateRef.current.isDragging = false;
+  // C3: drag commit owned by useDragMark via _dragMarkOnCommitDrag.
 }
 
 function startPan(e){
@@ -3941,18 +3928,12 @@ function handleTouchStart(e){
   e.preventDefault();
   const ts=touchStateRef.current;
   if(e.touches.length===1){
+    // C3: single-finger TAP / DRAG-MARK / LONG-PRESS RANGE are owned by
+    // useDragMark via pointer events. We only record startX/startY/mode
+    // here so the > 8px PAN fallback in handleTouchMove can take over.
     const t=e.touches[0];
     ts.startX=t.clientX; ts.startY=t.clientY;
     ts.mode="tap"; ts.tapIdx=-1;
-    if(!isEditMode&&stitchMode==="track"&&done){
-      const gc=gridCoord(stitchRef,{clientX:t.clientX,clientY:t.clientY},scs,G,false);
-      if(gc&&gc.gx>=0&&gc.gx<sW&&gc.gy>=0&&gc.gy<sH){
-        const idx=gc.gy*sW+gc.gx;
-        if(pat[idx].id!=="__skip__"&&pat[idx].id!=="__empty__"){
-          ts.tapIdx=idx; ts.tapVal=done[idx]?0:1;
-        }
-      }
-    }
   }else if(e.touches.length===2){
     ts.mode="pinch"; ts.tapIdx=-1;
     const dx=e.touches[1].clientX-e.touches[0].clientX;
@@ -4018,66 +3999,10 @@ function handleTouchMove(e){
 
 function handleTouchEnd(e){
   if(!pat)return;
+  // C3: tap toggle / range fill are owned by useDragMark. Touch handler
+  // only resets pinch + pan tracking state so the next gesture starts
+  // cleanly.
   const ts=touchStateRef.current;
-  if(ts.mode==="tap"&&ts.tapIdx>=0&&done){
-    const idx=ts.tapIdx;
-    if(isEditMode){
-      const t=e.changedTouches[0];
-      const gc={gx:idx%sW,gy:Math.floor(idx/sW)};
-      setCellEditPopover({idx,row:gc.gy+1,col:gc.gx+1,x:t.clientX,y:t.clientY});
-    }else if(stitchMode==="track"){
-      if(rangeModeActive){
-        const gx=idx%sW,gy=Math.floor(idx/sW);
-        if(!rangeAnchor){
-          // First tap: toggle the anchor cell AND record it as the anchor
-          if (isColourLocked() && !fullStitchMatchesFocus(idx)) return;
-          const nv=ts.tapVal;
-          const nd=new Uint8Array(done);
-          nd[idx]=nv;
-          pushTrackHistory([{idx,oldVal:done[idx]}]);
-          applyDoneCountsDelta([{idx,oldVal:done[idx]}],pat,nd);
-          setDone(nd);
-          drawCellDirectly(idx,nv);
-          setRangeAnchor({idx,row:gy,col:gx,val:nv});
-        }else{
-          // Second tap fills rectangle then clears anchor
-          const a=rangeAnchor;
-          const minR=Math.min(a.row,gy),maxR=Math.max(a.row,gy);
-          const minC=Math.min(a.col,gx),maxC=Math.max(a.col,gx);
-          const targetVal=a.val;
-          const changes=[];
-          for(let r=minR;r<=maxR;r++){
-            for(let c=minC;c<=maxC;c++){
-              const ci=r*sW+c;
-              const cell=pat[ci];
-              if(cell.id==="__skip__"||cell.id==="__empty__")continue;
-              if (isColourLocked() && pat[ci].id !== focusColour) continue;
-              if(done[ci]!==targetVal){
-                changes.push({idx:ci,oldVal:done[ci]});
-                done[ci]=targetVal;
-              }
-            }
-          }
-          if(changes.length){
-            pushTrackHistory(changes);
-            applyDoneCountsDelta(changes,pat,done);
-            setDone(new Uint8Array(done));
-            renderStitch();
-          }
-          setRangeAnchor(null);
-        }
-      }else{
-        if (isColourLocked() && !fullStitchMatchesFocus(idx)) return;
-        const nv=ts.tapVal;
-        const nd=new Uint8Array(done);
-        nd[idx]=nv;
-        pushTrackHistory([{idx,oldVal:done[idx]}]);
-        applyDoneCountsDelta([{idx,oldVal:done[idx]}],pat,nd);
-        setDone(nd);
-        drawCellDirectly(idx,nv);
-      }
-    }
-  }
   ts.mode="none"; ts.tapIdx=-1; ts.pinchDist=0;
 }
 
@@ -4148,7 +4073,6 @@ useShortcuts(!isActive ? [] : [
   { id: "tracker.esc", keys: "esc", scope: "tracker", hidden: true,
     description: "Cancel / dismiss",
     run: () => {
-      if(rangeModeActive){setRangeModeActive(false);setRangeAnchor(null);return;}
       if(halfDisambig){setHalfDisambig(null);return;}
       if(namePromptOpen){setNamePromptOpen(false);return;}
       if(modal){setModal(null);return;}
@@ -4247,6 +4171,28 @@ useShortcuts(!isActive ? [] : [
   { id: "tracker.counting", keys: "c", scope: "tracker",
     description: "Toggle counting aids",
     run: () => setCountingAidsEnabled(v=>!v) },
+  { id: "tracker.focus.toggle", keys: "f", scope: "tracker",
+    description: "Toggle spotlight focus area",
+    run: () => {
+      if(stitchingStyle==="crosscountry")return;
+      setFocusEnabled(v=>{
+        const next=!v;
+        if(next&&!focusBlock)setFocusBlock(_getStartBlock());
+        return next;
+      });
+    } },
+  { id: "tracker.focus.left", keys: "alt+arrowleft", scope: "tracker",
+    description: "Move spotlight one block left",
+    run: () => _stepFocusBlock(-1,0) },
+  { id: "tracker.focus.right", keys: "alt+arrowright", scope: "tracker",
+    description: "Move spotlight one block right",
+    run: () => _stepFocusBlock(+1,0) },
+  { id: "tracker.focus.up", keys: "alt+arrowup", scope: "tracker",
+    description: "Move spotlight one block up",
+    run: () => _stepFocusBlock(0,-1) },
+  { id: "tracker.focus.down", keys: "alt+arrowdown", scope: "tracker",
+    description: "Move spotlight one block down",
+    run: () => _stepFocusBlock(0,+1) },
   { id: "tracker.zoom.in", keys: ["=", "+"], scope: "tracker",
     description: "Zoom in",
     run: () => setStitchZoom(z=>Math.min(4,+(z+0.1).toFixed(2))) },
@@ -4276,7 +4222,7 @@ useShortcuts(!isActive ? [] : [
   { id: "tracker.hl.spotlight", keys: "4", scope: "tracker.view.highlight",
     description: "Highlight: spotlight",
     run: () => { ensureFocusColour(); setHighlightMode("spotlight"); } },
-],[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive,layerVis,colourDoneCounts]);
+],[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,layerVis,colourDoneCounts,focusEnabled,focusBlock,stitchingStyle,blockW,blockH,sW,sH,startCorner]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
@@ -4328,6 +4274,137 @@ useEffect(()=>{
   return()=>ro.disconnect();
 },[]);
 
+// ═══ B2: Drag-Mark + Long-Press Range Select ═══════════════════════════
+// useDragMark owns tap / drag / long-press routing for TOUCH input on the
+// canvas. Mouse input continues to flow through handleStitchMouseDown so
+// the existing pinch / pan / shift+click / range-mode pathways are intact.
+const _dragMarkCellAtPoint=useCallback(function(cx,cy){
+  if(!stitchRef.current||!pat)return -1;
+  const gc=gridCoord(stitchRef,{clientX:cx,clientY:cy},scs,G,false);
+  if(!gc)return -1;
+  if(gc.gx<0||gc.gx>=sW||gc.gy<0||gc.gy>=sH)return -1;
+  return gc.gy*sW+gc.gx;
+},[pat,sW,sH,scs]);
+
+const _pulseCells=useCallback(function(idxList){
+  // Briefly add a pulse class on overlay cells. The overlay re-renders from
+  // dragState; we mirror the just-committed indices into a transient ref.
+  if(!idxList||!idxList.length)return;
+  const pulse=new Set(idxList);
+  setDragMarkPulse(pulse);
+  setTimeout(function(){setDragMarkPulse(null);},250);
+},[]);
+
+const[dragMarkPulse,setDragMarkPulse]=useState(null);
+
+const _commitBulk=useCallback(function(set,intent,source){
+  if(!pat||!done||!set||!set.size)return;
+  const want=intent==='mark'?1:0;
+  const changes=[];
+  const nd=new Uint8Array(done);
+  set.forEach(function(idx){
+    if(idx<0||idx>=pat.length)return;
+    const cell=pat[idx];
+    if(!cell||cell.id==='__skip__'||cell.id==='__empty__')return;
+    // C3: colour-lock filter — match the legacy handlers' fullStitchMatchesFocus check.
+    if(typeof isColourLocked==='function'&&isColourLocked()
+       &&!fullStitchMatchesFocus(idx))return;
+    if(nd[idx]!==want){
+      changes.push({idx:idx,oldVal:nd[idx]});
+      nd[idx]=want;
+    }
+  });
+  if(!changes.length)return;
+  pushBulkToggleHistory(changes,source);
+  applyDoneCountsDelta(changes,pat,nd);
+  setDone(nd);
+  if(typeof renderStitch==='function')renderStitch();
+  _pulseCells(changes.map(function(c){return c.idx;}));
+},[pat,done,focusColour,_pulseCells]);
+
+const _dragMarkOnToggle=useCallback(function(idx){
+  // C3: single-cell tap from useDragMark (touch + mouse). Uses the
+  // standard pushTrackHistory machinery for a single-cell undo step.
+  if(!pat||!done)return;
+  if(idx<0||idx>=pat.length)return;
+  const cell=pat[idx];
+  if(!cell||cell.id==='__skip__'||cell.id==='__empty__')return;
+  // C3: colour-lock filter — match the legacy handlers' fullStitchMatchesFocus check.
+  if(typeof isColourLocked==='function'&&isColourLocked()
+     &&!fullStitchMatchesFocus(idx))return;
+  const oldVal=done[idx];
+  const nv=oldVal?0:1;
+  const nd=new Uint8Array(done);
+  nd[idx]=nv;
+  pushTrackHistory([{idx:idx,oldVal:oldVal}]);
+  applyDoneCountsDelta([{idx:idx,oldVal:oldVal}],pat,nd);
+  setDone(nd);
+  if(typeof renderStitch==='function')renderStitch();
+},[pat,done,focusColour]);
+
+const _dragMarkOnCommitDrag=useCallback(function(set,intent){
+  _commitBulk(set,intent,'drag');
+},[_commitBulk]);
+
+const _dragMarkOnCommitRange=useCallback(function(set,intent){
+  _commitBulk(set,intent,'range');
+},[_commitBulk]);
+
+// Hook itself — gated by edit mode + non-track stitchMode (returns idle).
+// C3: useDragMark is the unified pointer pipeline (touch + mouse). The
+// `trackerDragMark` user preference (default true) lets users opt out at
+// runtime. The legacy `window.B2_DRAG_MARK_ENABLED` global remains
+// supported only as a QA/automation override — set it to false to force
+// the hook off (e.g. for regression repro). Source assertions in
+// tests/dragMark.test.js + tests/c3LegacyHandlersRemoved.test.js verify
+// the wiring.
+const _dragMarkPref=(typeof window!=='undefined'&&window.UserPrefs&&typeof window.UserPrefs.get==='function')?window.UserPrefs.get('trackerDragMark'):true;
+const _dragMarkOverrideOff=(typeof window!=='undefined'&&window.B2_DRAG_MARK_ENABLED===false);
+const _dragMarkFlag=!_dragMarkOverrideOff&&_dragMarkPref!==false;
+const _dragMarkActive=_dragMarkFlag&&!isEditMode&&stitchMode==="track"&&!!pat&&!!done;
+const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
+  ?window.useDragMark({
+    w:sW,h:sH,pattern:pat,done:done,
+    cellAtPoint:_dragMarkCellAtPoint,
+    onToggleCell:_dragMarkOnToggle,
+    onCommitDrag:_dragMarkOnCommitDrag,
+    onCommitRange:_dragMarkOnCommitRange,
+    isEditMode:!_dragMarkActive,
+  })
+  :{handlers:{},dragState:{mode:'idle',path:new Set(),anchor:null,intent:null}};
+const dragMarkHandlers=_dragMark.handlers;
+const dragMarkState=_dragMark.dragState;
+
+// C3: useDragMark now owns both touch AND mouse pointer events. The
+// previous touch-only gate is no longer needed because legacy mouse
+// cell-marking has been removed from handleStitchMouseDown / Move / Up.
+
+// ── C8 Phase 1 — first-stitch coachmark (Tracker) ─────────────────────
+// Trigger condition: Tracker has a pattern AND the StitchingStyleOnboarding
+// has finished AND no stitches are marked yet. Success: doneCount > 0.
+const _trCoach = (typeof window.useCoachingSequence === 'function')
+  ? window.useCoachingSequence('tracker')
+  : { active: null, complete: ()=>{}, skip: ()=>{} };
+const [_trCoachReady, _setTrCoachReady] = React.useState(false);
+React.useEffect(()=>{
+  _setTrCoachReady(false);
+  if (!pat || styleOnboardingOpen || welcomeOpen) return;
+  if (_trCoach.active !== 'firstStitch_tracker') return;
+  if (doneCount > 0) return;
+  const t = setTimeout(()=>_setTrCoachReady(true), 600);
+  return ()=>clearTimeout(t);
+}, [!!pat, styleOnboardingOpen, welcomeOpen, _trCoach.active, doneCount]);
+React.useEffect(()=>{
+  if (_trCoach.active !== 'firstStitch_tracker') return;
+  if (doneCount > 0) _trCoach.complete('firstStitch_tracker');
+}, [doneCount, _trCoach.active]);
+const _showTrFirstStitchCoach = _trCoachReady
+  && _trCoach.active === 'firstStitch_tracker'
+  && !!pat
+  && !styleOnboardingOpen
+  && !welcomeOpen
+  && doneCount === 0;
+
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
@@ -4372,15 +4449,33 @@ return(
   onClose={()=>setEditDetailsOpen(false)}
 />}
 {pat&&pal&&<>
+{/* A2 (UX Phase 5) — bold edit-mode strip. Sits directly above the toolbar so
+    users cannot miss that "Mark"/grid actions now overwrite stitches rather
+    than record progress. aria-live="polite" announces entry once. */}
+{isEditMode&&<div className="edit-mode-strip" role="status" aria-live="polite">
+  <span className="edit-mode-strip__label">
+    {Icons.warning&&Icons.warning()}
+    <strong>Edit mode</strong>
+    <span className="edit-mode-strip__hint">— grid taps modify the pattern, not your progress</span>
+  </span>
+  <button
+    type="button"
+    className="edit-mode-strip__exit"
+    onClick={()=>{
+      if(undoSnapshot!==null){setShowExitEditModal(true);}
+      else{setIsEditMode(false);setUndoSnapshot(null);setSessionStartSnapshot(null);}
+    }}
+  >Exit edit mode</button>
+</div>}
 {/* ═══ TRACKER PILL TOOLBAR ═══ */}
-<div className="toolbar-row"><div className="pill-row" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
-  <div ref={tStripRef} className="pill">
+<div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")}><div className="pill-row" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
+  <div ref={tStripRef} className={"pill"+(isEditMode?" pill--edit":"")}>
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
-    <button className={"tb-btn"+(stitchMode==="track"?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");}} title="Mark stitch (T)">
-      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Mark
+    <button className={"tb-btn"+(stitchMode==="track"?(isEditMode?" tb-btn--red":" tb-btn--green"):"")} onClick={()=>{setStitchMode("track");}} title={isEditMode?"Modify stitches (T)":"Mark stitch (T)"}>
+      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>{isEditMode?"Modify":"Mark"}
     </button>
     <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");}} title="Navigate (N)">Nav</button>
-    {stitchMode==="track"&&<button className={"tb-btn"+(rangeModeActive?" tb-btn--blue":"")} onClick={()=>{setRangeModeActive(r=>!r);setRangeAnchor(null);}} title="Range select mode">⊞ Range</button>}
+    {/* C3: range-mode toolbar button removed; long-press + shift+click own range via useDragMark. */}
   </div>
   <div className="tb-sdiv"/>
   <div className={"tb-grp"+(tStripCollapsed.view?" tb-hidden":"")}>
@@ -4391,6 +4486,14 @@ return(
     <button className="tb-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} title="Next colour ([)">▶</button>
     <button className={"tb-btn"+(countingAidsEnabled?" tb-btn--on":"")} onClick={()=>setCountingAidsEnabled(v=>!v)} title="Toggle counting aids (C)" style={{fontSize:12,padding:"0 6px"}}>⊞</button>
   </>}
+  {stitchingStyle!=="crosscountry"&&<button
+    className={"tb-btn"+(focusEnabled?" tb-btn--on":"")}
+    onClick={()=>{const next=!focusEnabled;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());}}
+    title={"Spotlight focus area (F)"+(focusEnabled?" — Alt+click to move, Alt+Arrow to step":"")}
+    aria-pressed={focusEnabled}
+    aria-label="Toggle spotlight focus area"
+    style={{padding:"0 6px"}}
+  >{Icons.eye()}</button>}
   <div className="tb-flex"/>
   <div className="tb-zoom-grp tb-desktop-only">
     <span className="tb-zoom-lbl">Zoom</span>
@@ -4448,7 +4551,7 @@ return(
       <button className={"tb-ovf-item"+(statsView?" tb-ovf-item--on":"")} onClick={()=>{setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);setTOverflowOpen(false);}}>{Icons.barChart()} Stats{statsView?" ":""}{statsView?Icons.check():null}</button>
       <div className="tb-ovf-sep"/>
       <span className="tb-ovf-lbl">Focus Area</span>
-      <button className={"tb-ovf-item"+(focusEnabled?" tb-ovf-item--on":"")} onClick={()=>{setFocusEnabled(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Spotlight{focusEnabled?" ":""}{focusEnabled?Icons.check():null}</button>
+      <button className={"tb-ovf-item"+(focusEnabled?" tb-ovf-item--on":"")} onClick={()=>{const next=!focusEnabled;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());setTOverflowOpen(false);}}>{Icons.eye()} Spotlight{focusEnabled?" ":""}{focusEnabled?Icons.check():null}</button>
       {focusEnabled&&!focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(_getStartBlock());setTOverflowOpen(false);}}>Set focus to start block</button>}
       {focusEnabled&&focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(null);setTOverflowOpen(false);}}>Clear focus block</button>}
       <button className={"tb-ovf-item"+(breadcrumbVisible?" tb-ovf-item--on":"")} onClick={()=>{setBreadcrumbVisible(v=>!v);setTOverflowOpen(false);}}>Breadcrumbs{breadcrumbVisible?" ✓":""}</button>
@@ -4670,7 +4773,7 @@ return(
           <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:11,padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"#94a3b8"}}>Stay</button>
         </div>
       </div>;
-      if(stitchMode==="track") return <div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{rangeModeActive?(rangeAnchor?(hasTouchRef.current?"Anchor set — tap second corner to fill rectangle":"Anchor set — click second corner to fill the rectangle · Esc to cancel"):(hasTouchRef.current?"Range mode — tap first corner of the rectangle":"Range mode — click first corner, then click second corner to mark a rectangle · Esc to cancel")):(hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag to pan · Ctrl+scroll to zoom · Shift+click for rectangle fill · Ctrl+Z undo")}{!rangeModeActive&&trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
+      if(stitchMode==="track") return <div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press a cell, then tap the opposite corner to fill a rectangle · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
       if(stitchMode==="navigate") return <div style={{fontSize:12,color:"#1e293b",background:"#f1f5f9",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>;
       if(!shortcutsHintDismissed&&pat) return <div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>;
       return null;
@@ -4706,7 +4809,31 @@ return(
           })}
         </div>
         <div style={{ position: 'relative' }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()} {...dragMarkHandlers}/>
+
+          {/* B2 — drag-mark / range-select visual overlay (touch) */}
+          {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(
+            <div className={"drag-mark-overlay drag-mark-overlay--"+(dragMarkState.intent||'mark')}
+                 style={{position:"absolute",top:-G,left:-G,zIndex:6,pointerEvents:"none",
+                         width:sW*scs+G,height:sH*scs+G}}>
+              {[...dragMarkState.path].map(function(idx){
+                var x=(idx%sW)*scs+G, y=Math.floor(idx/sW)*scs+G;
+                return <div key={"p"+idx} className="drag-mark-cell"
+                            style={{left:x,top:y,width:scs,height:scs}}/>;
+              })}
+              {dragMarkState.anchor!=null&&(function(){
+                var idx=dragMarkState.anchor;
+                var x=(idx%sW)*scs+G, y=Math.floor(idx/sW)*scs+G;
+                return <div key={"a"+idx} className="drag-mark-anchor"
+                            style={{left:x,top:y,width:scs,height:scs}}/>;
+              })()}
+              {dragMarkPulse&&[...dragMarkPulse].map(function(idx){
+                var x=(idx%sW)*scs+G, y=Math.floor(idx/sW)*scs+G;
+                return <div key={"x"+idx} className="drag-mark-pulse cell-pulse"
+                            style={{left:x,top:y,width:scs,height:scs}}/>;
+              })}
+            </div>
+          )}
 
           {/* Thread usage overlay */}
           {threadUsageMode&&<canvas ref={threadUsageCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:3,pointerEvents:"none"}}/>}
@@ -4719,10 +4846,11 @@ return(
           {/* Counting aids overlay (block counts, run lengths, ninja stitches) */}
           {countingAidsEnabled&&stitchView==="highlight"&&focusColour&&<canvas ref={countingAidsCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:7,pointerEvents:"none"}}/>}
 
-          {rangeModeActive&&rangeAnchor&&<div style={{
+          {/* C3: range anchor overlay driven by useDragMark long-press anchor. */}
+          {dragMarkState&&dragMarkState.mode==='range'&&dragMarkState.anchor!=null&&sW>0&&<div style={{
             position:'absolute',
-            left:rangeAnchor.col*scs,
-            top:rangeAnchor.row*scs,
+            left:(dragMarkState.anchor%sW)*scs,
+            top:Math.floor(dragMarkState.anchor/sW)*scs,
             width:scs,height:scs,
             border:'2px solid #3b82f6',
             borderRadius:2,
@@ -5184,7 +5312,44 @@ return(
   })()}
   </>}
 
-  {importDialog==="image"&&importImage&&<div className="modal-overlay" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
+  {importDialog==="image"&&importImage&&(()=>{
+    // C7: when the experimental import wizard is enabled, mount the new
+    // 5-step ImportWizard component instead of the legacy single-step
+    // parameter modal. The flag defaults off so existing users see no
+    // change. The wizard's commit() returns the same shape the legacy
+    // path expects so the generation call below stays identical.
+    let _useWizard=false;
+    try{ _useWizard=!!(window.UserPrefs&&window.UserPrefs.get&&window.UserPrefs.get('experimental.importWizard')); }catch(_){_useWizard=false;}
+    if(_useWizard&&window.ImportWizard){
+      return React.createElement(window.ImportWizard,{
+        image:importImage,
+        baseName:importName||"",
+        onClose:()=>{ setImportDialog(null); setImportImage(null); },
+        onGenerate:(settings)=>{
+          try{
+            let result=parseImagePattern(importImage,{
+              maxWidth:settings.maxWidth, maxHeight:settings.maxHeight,
+              maxColours:settings.maxColours,
+              skipWhiteBg:settings.skipWhiteBg, bgThreshold:settings.bgThreshold
+            });
+            const finalName=(settings.name||'').trim().slice(0,60);
+            let project=importResultToProject(result,settings.fabricCt||14,finalName);
+            project.id=ProjectStorage.newId();
+            project.createdAt=project.createdAt||new Date().toISOString();
+            processLoadedProject(project);
+            ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(err=>console.error("Import save failed:",err));
+            setImportSuccess(`Imported "${finalName||'image'}" \u2014 ${result.width}\u00d7${result.height}, ${result.paletteSize} colours, ${result.stitchCount} stitches`);
+          }catch(err){
+            console.error(err);
+            setLoadError("Image import failed: "+err.message);
+            setTimeout(()=>setLoadError(null),4000);
+          }
+          setImportDialog(null);
+          setImportImage(null);
+        }
+      });
+    }
+    return <div className="modal-overlay" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
     <div className="modal-content" style={{maxWidth:600}} onClick={e=>e.stopPropagation()}>
       <button className="modal-close" onClick={()=>{setImportDialog(null);setImportImage(null);}}>×</button>
       <h3 style={{marginTop:0,marginBottom:15}}>Import Image Pattern</h3>
@@ -5272,7 +5437,8 @@ return(
         }} style={{padding:"8px 16px", borderRadius:8, border:"none", background:"#0d9488", color:"#fff", cursor:"pointer", fontWeight:600}}>Import Pattern</button>
       </div>
     </div>
-  </div>}
+  </div>;
+  })()}
 
   {modal==="help"&&<SharedModals.Help defaultTab="tracker" onClose={()=>setModal(null)} />}
   {welcomeOpen&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{
@@ -5310,6 +5476,15 @@ return(
     }
   }}/>}
   {window.HelpHintBanner&&React.createElement(window.HelpHintBanner)}
+  {_showTrFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
+    id: 'firstStitch_tracker',
+    title: 'Mark your first stitch',
+    body: 'Tap a cell to mark it complete. Tap again to undo.',
+    placement: 'centre',
+    showHighlight: false,
+    onComplete: ()=>_trCoach.complete('firstStitch_tracker'),
+    onSkip: ()=>_trCoach.skip('firstStitch_tracker')
+  })}
   {sessionConfigOpen&&<SessionConfigModal liveAutoElapsed={liveAutoElapsed} liveAutoStitches={liveAutoStitches} onClose={()=>setSessionConfigOpen(false)} onStart={cfg=>{
     setExplicitSession({startTime:Date.now(),timeAvail:cfg.timeAvail,stitchGoal:cfg.stitchGoal,startStitches:doneCount,blocks:[]});
     setSessionConfigOpen(false);
@@ -5319,6 +5494,75 @@ return(
     const sessionBreadcrumbs=(breadcrumbs||[]).filter(b=>b&&b.sessionIdx===activeSessionIdx);
     const firstSessionBreadcrumb=sessionBreadcrumbs.length>0?sessionBreadcrumbs[0]:null;
     return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.stitchesCompleted||0),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const cx=G+b.bx*blockW*scs+blockW*scs/2;const cy=G+b.by*blockH*scs+blockH*scs/2;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
+  })()}
+  {resumeRecap&&(()=>{
+    // A3: Resume recap modal — fires once per project load when prior sessions exist.
+    const r=resumeRecap;
+    const sm=r.summary||{};
+    const dismiss=()=>setResumeRecap(null);
+    let lastStr='';
+    if(r.lastDate){
+      try{
+        const d=new Date(r.lastDate);
+        if(!Number.isNaN(d.getTime())){
+          const days=Math.floor((Date.now()-d.getTime())/86400000);
+          if(days<=0)lastStr='Last stitched today';
+          else if(days===1)lastStr='Last stitched yesterday';
+          else if(days<7)lastStr='Last stitched '+days+' days ago';
+          else lastStr='Last stitched '+d.toLocaleDateString();
+        }
+      }catch(_){}
+    }
+    const pct=r.totalSt>0?Math.round(r.doneSt/r.totalSt*100):0;
+    const minutes=Math.max(0,Math.round((sm.ms||0)/60000));
+    let speedNote=null;
+    if(sm.perHour!=null&&sm.perHourAvg!=null){
+      const diff=sm.perHour-sm.perHourAvg;
+      if(diff>=5)speedNote=(sm.perHour-sm.perHourAvg)+' / hr faster than your average';
+      else if(diff<=-5)speedNote=Math.abs(diff)+' / hr slower than your average';
+    }
+    return <div className="modal-overlay resume-recap-overlay" role="dialog" aria-modal="true" aria-labelledby="resume-recap-title" onClick={dismiss}>
+      <div className="modal-content resume-recap-modal" onClick={e=>e.stopPropagation()}>
+        <div className="resume-recap-header">
+          <div>
+            <h3 id="resume-recap-title" className="resume-recap-title">Welcome back to {r.projectName}</h3>
+            {lastStr&&<div className="resume-recap-sub">{lastStr}</div>}
+          </div>
+          <button className="resume-recap-close" onClick={dismiss} aria-label="Close">{Icons.x()}</button>
+        </div>
+        <div className="resume-recap-body">
+          <div className="resume-recap-progress">
+            <div className="resume-recap-progress-row">
+              <span className="resume-recap-progress-label">Overall progress</span>
+              <span className="resume-recap-progress-pct">{pct}%</span>
+            </div>
+            <div className="resume-recap-bar"><div className="resume-recap-bar-fill" style={{width:pct+'%'}}/></div>
+            <div className="resume-recap-progress-meta">{r.doneSt.toLocaleString()} / {r.totalSt.toLocaleString()} stitches</div>
+          </div>
+          <div className="resume-recap-section-label">Your last session</div>
+          <div className="resume-recap-grid">
+            <div className="resume-recap-card">
+              <div className="resume-recap-card-num">{(sm.count||0).toLocaleString()}</div>
+              <div className="resume-recap-card-lbl">stitches</div>
+            </div>
+            <div className="resume-recap-card">
+              <div className="resume-recap-card-num">{minutes} m</div>
+              <div className="resume-recap-card-lbl">stitch time</div>
+            </div>
+            <div className="resume-recap-card">
+              <div className="resume-recap-card-num">{sm.perHour!=null?sm.perHour:'—'}</div>
+              <div className="resume-recap-card-lbl">stitches / hr</div>
+            </div>
+          </div>
+          {speedNote&&<div className="resume-recap-note">{speedNote}</div>}
+        </div>
+        <div className="resume-recap-footer">
+          <button className="resume-recap-btn" onClick={()=>{dismiss();if(typeof onGoHome==='function')onGoHome();}}>Switch project</button>
+          <button className="resume-recap-btn" onClick={()=>{dismiss();setStatsView(true);}}>Stats</button>
+          <button className="resume-recap-btn resume-recap-btn--primary" onClick={dismiss} autoFocus>Continue stitching</button>
+        </div>
+      </div>
+    </div>;
   })()}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
   {modal==="pdf_export"&&<div className="modal-overlay" onClick={()=>setModal(null)}>

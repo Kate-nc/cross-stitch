@@ -1,16 +1,36 @@
 const SharedModals = {
+  // [B6] Help is now the unified Help & Shortcuts drawer (help-drawer.js).
+  // This shim opens the drawer on mount and immediately closes the modal
+  // state so existing call sites (`{modal === 'help' && <SharedModals.Help/>}`)
+  // route into the drawer with no further changes required.
   Help: ({ onClose, defaultTab }) => {
-    window.useEscape(onClose);
-    // Delegate to the new tabbed Help Centre when available; fall back to a
-    // simple message if help-content.js failed to load (defensive).
-    if (window.HelpCentre) {
-      return React.createElement(window.HelpCentre, { onClose: onClose, defaultTab: defaultTab });
-    }
+    const [showFallback, setShowFallback] = React.useState(false);
+    React.useEffect(() => {
+      if (window.HelpDrawer && typeof window.HelpDrawer.open === "function") {
+        var t = defaultTab;
+        var ctx = null, tab = "help";
+        if (t === "shortcuts") tab = "shortcuts";
+        else if (t === "creator") { ctx = "creator"; tab = "help"; }
+        else if (t === "tracker") { ctx = "tracker"; tab = "help"; }
+        else if (t === "manager") { ctx = "manager"; tab = "help"; }
+        window.HelpDrawer.open({ tab: tab, context: ctx });
+        if (typeof onClose === "function") onClose();
+      } else {
+        setShowFallback(true);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    if (!showFallback) return null;
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
-      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 480, padding: 20 } },
-        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "\u00d7"),
-        React.createElement("h3", { style: { marginTop: 0 } }, "Help"),
-        React.createElement("p", null, "Help content failed to load. Please reload the page.")
+      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 460 } },
+        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
+        React.createElement("h3", { style: { marginTop: 0, marginBottom: 12, fontSize: 20, color: "#1e293b" } }, "Help"),
+        React.createElement("p", { style: { margin: 0, color: "#475569", fontSize: 14, lineHeight: 1.6 } },
+          "The help panel could not be opened. Please reload the page to restore full functionality."
+        ),
+        React.createElement("div", { style: { marginTop: 16, textAlign: "right" } },
+          React.createElement("button", { className: "btn btn-primary", onClick: onClose }, "Close")
+        )
       )
     );
   },

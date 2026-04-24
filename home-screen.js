@@ -2,6 +2,65 @@
 // Dashboard hub — unified entry point for the cross-stitch app.
 // Renders when showHome === true or no current project is active.
 
+// ───────────────────────────────────────────────────────────────────────
+// Sample starter pattern (used by the empty-state "Try a sample" CTA).
+// A tiny 16×16 heart in DMC 321 — enough cells to feel like a real
+// project on the tracker without overwhelming a brand-new user.
+// ───────────────────────────────────────────────────────────────────────
+function buildSampleProject() {
+  var HEART = [
+    '0000000000000000',
+    '0000000000000000',
+    '0001110001110000',
+    '0011111011111000',
+    '0111111111111100',
+    '0111111111111100',
+    '0111111111111100',
+    '0011111111111000',
+    '0001111111110000',
+    '0000111111100000',
+    '0000011111000000',
+    '0000000111000000',
+    '0000000010000000',
+    '0000000000000000',
+    '0000000000000000',
+    '0000000000000000'
+  ];
+  var W = 16, H = 16;
+  var RED = { id: '321', type: 'solid', rgb: [228, 4, 52] };
+  var SKIP = { id: '__skip__' };
+  var pattern = [];
+  for (var y = 0; y < H; y++) {
+    for (var x = 0; x < W; x++) {
+      pattern.push(HEART[y].charAt(x) === '1'
+        ? { id: RED.id, type: RED.type, rgb: RED.rgb.slice() }
+        : { id: SKIP.id });
+    }
+  }
+  var now = new Date().toISOString();
+  return {
+    v: 9,
+    name: 'Sample heart',
+    w: W,
+    h: H,
+    settings: { sW: W, sH: H, fabricCt: 14, skeinPrice: 0.95, stitchSpeed: 40 },
+    pattern: pattern,
+    bsLines: [],
+    done: null,
+    halfStitches: [],
+    halfDone: [],
+    singleStitchEdits: [],
+    parkMarkers: [],
+    totalTime: 0,
+    sessions: [],
+    threadOwned: {},
+    createdAt: now,
+    updatedAt: now,
+    isSample: true
+  };
+}
+if (typeof window !== 'undefined') window.buildSampleProject = buildSampleProject;
+
 function timeAgo(date) {
   if (!date) return '';
   var d = typeof date === 'string' ? new Date(date) : date;
@@ -123,7 +182,9 @@ function getSuggestion(activeProjects, stashMap) {
 // ─────────────────────────────────────────────────────────────────
 // ProjectCard
 // ─────────────────────────────────────────────────────────────────
-function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtras }) {
+function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtras,
+                       selectionMode, selected, onToggleSelect, onLongPress,
+                       payloadCache }) {
   var h = React.createElement;
   var cs = proj.completedStitches || 0;
   var ts = proj.totalStitches || 0;
@@ -135,21 +196,139 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
   var weekSess = 0; // not stored in meta, skip for now
   var dim = proj.dimensions ? (proj.dimensions.width + '\u00D7' + proj.dimensions.height) : '';
   var fabricCt = proj.fabricCt ? proj.fabricCt + '-count' : '';
+  // Thread count — meta sometimes carries it as `colourCount` or `threadCount`.
+  var threadCount = proj.colourCount || proj.threadCount || (proj.threads && proj.threads.length) || 0;
   var stashColor = stashOk === true ? '#16a34a' : stashOk === false ? '#b45309' : '#a1a1aa';
-  var stashIcon = stashOk === true ? '\u2713' : stashOk === false ? '!' : '\u25CB';
+  var stashIconEl = stashOk === true ? (window.Icons && window.Icons.check && window.Icons.check())
+    : stashOk === false ? (window.Icons && window.Icons.warning && window.Icons.warning())
+    : (window.Icons && window.Icons.info && window.Icons.info());
 
-  return h('div', { className: 'mpd-card' },
+  // ── PERF NOTE (B5 Option A): lazy-load full project payload for the
+  // PartialStitchThumb only after the card mounts. The dashboard meta store
+  // intentionally omits `pattern`/`done` so listProjects() stays cheap; we
+  // fetch each project's payload once and memoise it on a Map ref shared at
+  // the dashboard level (`payloadCache`) so re-renders never refetch.
+  // Falls back to the static `proj.thumbnail` while loading.
+  var _payload = React.useState(function() {
+    if (payloadCache && payloadCache.has(proj.id)) return payloadCache.get(proj.id);
+    return null;
+  });
+  var payload = _payload[0], setPayload = _payload[1];
+  React.useEffect(function() {
+    if (payload || proj.managerOnly) return;
+    if (typeof ProjectStorage === 'undefined' || !ProjectStorage.get) return;
+    var cancelled = false;
+    ProjectStorage.get(proj.id).then(function(full) {
+      if (cancelled || !full) return;
+      var p = { pattern: full.pattern, done: full.done, w: full.w, h: full.h };
+      if (payloadCache) payloadCache.set(proj.id, p);
+      setPayload(p);
+    }).catch(function() {});
+    return function() { cancelled = true; };
+  }, [proj.id]);
+
+  // ── Long-press / multi-select interaction ──
+  var pressTimerRef = React.useRef(null);
+  var pressMovedRef = React.useRef(false);
+  var pressStartRef = React.useRef({ x: 0, y: 0 });
+  function clearPressTimer() {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+  }
+  function onTouchStart(e) {
+    if (!e.touches || e.touches.length !== 1) return;
+    pressMovedRef.current = false;
+    pressStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    clearPressTimer();
+    pressTimerRef.current = setTimeout(function() {
+      pressTimerRef.current = null;
+      if (!pressMovedRef.current && onLongPress) onLongPress(proj);
+    }, 500);
+  }
+  function onTouchMove(e) {
+    if (!e.touches || e.touches.length !== 1) return;
+    var dx = e.touches[0].clientX - pressStartRef.current.x;
+    var dy = e.touches[0].clientY - pressStartRef.current.y;
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+      pressMovedRef.current = true;
+      clearPressTimer();
+    }
+  }
+  function onTouchEnd() { clearPressTimer(); }
+
+  function handleCardClick(e) {
+    // Cmd/Ctrl-click toggles selection without entering selection mode.
+    if ((e.metaKey || e.ctrlKey) && onToggleSelect) {
+      e.preventDefault();
+      e.stopPropagation();
+      onToggleSelect(proj.id);
+      return true;
+    }
+    if (selectionMode && onToggleSelect) {
+      e.preventDefault();
+      e.stopPropagation();
+      onToggleSelect(proj.id);
+      return true;
+    }
+    return false;
+  }
+  function thumbClick(e) {
+    if (handleCardClick(e)) return;
+    onOpen(proj, 'tracker');
+  }
+  function nameClick(e) {
+    if (handleCardClick(e)) return;
+    onOpen(proj, 'tracker');
+  }
+
+  var cardClassName = 'mpd-card'
+    + (selected ? ' mpd-card--selected' : '')
+    + (selectionMode ? ' mpd-card--selectable' : '');
+
+  return h('div', {
+      className: cardClassName,
+      onTouchStart: onTouchStart,
+      onTouchMove: onTouchMove,
+      onTouchEnd: onTouchEnd,
+      onTouchCancel: onTouchEnd
+    },
+    // Selection checkbox (top-left, visible in selection mode or on hover)
+    h('button', {
+      type: 'button',
+      className: 'mpd-card-select' + (selected ? ' mpd-card-select--checked' : ''),
+      'aria-label': selected ? 'Deselect project' : 'Select project',
+      'aria-pressed': !!selected,
+      onClick: function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (onToggleSelect) onToggleSelect(proj.id);
+      }
+    }, selected && window.Icons && window.Icons.check ? window.Icons.check() : null),
+
     // Thumbnail
-    h('div', { className: 'mpd-card-thumb', onClick: function() { onOpen(proj, 'tracker'); } },
-      proj.thumbnail
-        ? h('img', { src: proj.thumbnail, alt: '', className: 'mpd-card-thumb-img' })
-        : h('div', { className: 'mpd-card-thumb-placeholder' })
+    h('div', { className: 'mpd-card-thumb', onClick: thumbClick },
+      (payload && payload.pattern && window.PartialStitchThumb)
+        ? h(window.PartialStitchThumb, {
+            pattern: payload.pattern,
+            done: payload.done,
+            w: payload.w,
+            h: payload.h,
+            size: 96,
+            projectId: proj.id,
+            className: 'mpd-card-thumb-img',
+            alt: ''
+          })
+        : (proj.thumbnail
+            ? h('img', { src: proj.thumbnail, alt: '', className: 'mpd-card-thumb-img' })
+            : h('div', { className: 'mpd-card-thumb-placeholder' }))
     ),
     // Body
     h('div', { className: 'mpd-card-body' },
       // Top row: name + progress
       h('div', { className: 'mpd-card-top' },
-        h('div', { className: 'mpd-card-name', onClick: function() { onOpen(proj, 'tracker'); } },
+        h('div', { className: 'mpd-card-name', onClick: nameClick },
           proj.name || 'Untitled'
         ),
         h('div', { className: 'mpd-card-pct' + (pct >= 100 ? ' mpd-card-pct--done' : '') },
@@ -170,16 +349,18 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
         h('div', { className: 'mpd-card-progress-fill', style: { width: Math.min(100, pct) + '%' } })
       ),
       // Metadata row
-      dim || fabricCt ? h('div', { className: 'mpd-card-meta' },
+      (dim || fabricCt || threadCount > 0) ? h('div', { className: 'mpd-card-meta' },
         dim && h('span', null, dim),
         dim && fabricCt && h('span', { className: 'mpd-card-sep' }, '\u00B7'),
-        fabricCt && h('span', null, fabricCt)
+        fabricCt && h('span', null, fabricCt),
+        threadCount > 0 && (dim || fabricCt) && h('span', { className: 'mpd-card-sep' }, '\u00B7'),
+        threadCount > 0 && h('span', null, threadCount + ' colour' + (threadCount === 1 ? '' : 's'))
       ) : null,
       // Recency
       h('div', { className: 'mpd-card-recency' + (isNeglected ? ' mpd-card-recency--warn' : '') },
         days === 0 ? 'Last stitched today' :
         days === 1 ? 'Last stitched yesterday' :
-        days != null ? 'Last stitched ' + days + ' days ago' + (isNeglected ? ' \u26A0\uFE0F' : '') : 'Not started'
+        days != null ? 'Last stitched ' + days + ' days ago' : 'Not started'
       ),
       // Session summary
       weekSt > 0 && h('div', { className: 'mpd-card-session' },
@@ -191,8 +372,9 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
       ),
       // Footer row: stash + continue
       h('div', { className: 'mpd-card-footer' },
-        h('div', { className: 'mpd-card-stash', style: { color: stashColor }, title: stashMsg || '' },
-          stashIcon + ' ' + (stashMsg || (stashOk === true ? 'Ready' : stashOk === false ? 'Need threads' : 'Stash not checked'))
+        h('div', { className: 'mpd-card-stash', style: { color: stashColor, display: 'inline-flex', alignItems: 'center', gap: 4 }, title: stashMsg || '' },
+          stashIconEl,
+          h('span', null, stashMsg || (stashOk === true ? 'Ready' : stashOk === false ? 'Need threads' : 'Stash not checked'))
         ),
         h('div', { className: 'mpd-card-actions' },
           h('button', {
@@ -297,6 +479,61 @@ function StateChangeMenu({ proj, currentState, onSelect, onClose, onEditDetails 
 }
 
 // ─────────────────────────────────────────────────────────────────
+// BulkDeleteModal (fix-3.5) — styled confirmation replacing
+// window.confirm. Lists up to 5 project names so the user can
+// double-check before destroying records.
+// ─────────────────────────────────────────────────────────────────
+function BulkDeleteModal({ projectIds, projectsById, onConfirm, onCancel }) {
+  var h = React.createElement;
+  var useEffect = React.useEffect;
+  var useRef = React.useRef;
+  var cancelRef = useRef(null);
+  useEffect(function () {
+    if (cancelRef.current && cancelRef.current.focus) cancelRef.current.focus();
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+      if (e.key === 'Enter' && e.target && e.target.classList && e.target.classList.contains('mpd-confirm-delete-btn')) {
+        e.preventDefault(); onConfirm();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return function () { window.removeEventListener('keydown', onKey); };
+  }, []);
+  var ids = projectIds || [];
+  var n = ids.length;
+  var SHOW_MAX = 5;
+  var visible = ids.slice(0, SHOW_MAX);
+  var extra = Math.max(0, n - SHOW_MAX);
+  return h('div', {
+    className: 'modal-overlay mpd-bulk-delete-overlay',
+    role: 'dialog',
+    'aria-modal': 'true',
+    'aria-labelledby': 'mpd-bulk-delete-title',
+    onClick: function (e) { if (e.target === e.currentTarget) onCancel(); },
+    style: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }
+  },
+    h('div', {
+      className: 'modal-content mpd-bulk-delete-modal',
+      style: { background: '#fff', borderRadius: 12, padding: 20, maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(15, 23, 42, 0.3)' },
+    },
+      h('h3', { id: 'mpd-bulk-delete-title' }, 'Delete ' + n + ' project' + (n === 1 ? '' : 's') + '?'),
+      h('p', null, 'This permanently removes the selected project' + (n === 1 ? '' : 's') + ' and ' + (n === 1 ? 'its' : 'their') + ' progress, palettes, and stitch history. This cannot be undone.'),
+      h('ul', null,
+        visible.map(function (id) {
+          var name = (projectsById && projectsById[id]) || id;
+          return h('li', { key: id }, name);
+        }),
+        extra > 0 ? h('li', { key: '__more', style: { listStyle: 'none', marginLeft: -18, color: '#64748b' } }, '\u2026 and ' + extra + ' more') : null
+      ),
+      h('div', { className: 'mpd-bulk-delete-actions' },
+        h('button', { type: 'button', ref: cancelRef, className: 'mpd-cancel-btn', onClick: onCancel }, 'Cancel'),
+        h('button', { type: 'button', className: 'mpd-confirm-delete-btn', onClick: onConfirm }, 'Delete ' + n + ' project' + (n === 1 ? '' : 's'))
+      )
+    )
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
 // MultiProjectDashboard — shown on home screen when >1 project exists
 // ─────────────────────────────────────────────────────────────────
 function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalStats, onAddNew, cardExtras }) {
@@ -325,6 +562,77 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
   var completedOpen = _completedOpen[0], setCompletedOpen = _completedOpen[1];
   var _designOpen = useState(false);
   var designOpen = _designOpen[0], setDesignOpen = _designOpen[1];
+
+  // ── Multi-select dashboard state (B5) ──
+  // `selected` is a Set<projectId>. `selectionMode` flips the bulk-action bar
+  // on; cards expose checkboxes and clicks toggle selection rather than open.
+  var _selected = useState(function() { return new Set(); });
+  var selected = _selected[0], setSelected = _selected[1];
+  var _selectionMode = useState(false);
+  var selectionMode = _selectionMode[0], setSelectionMode = _selectionMode[1];
+  var _confirmDelete = useState(false);
+  var confirmDelete = _confirmDelete[0], setConfirmDelete = _confirmDelete[1];
+
+  // Lazy-loaded project payload cache, shared across all rendered cards so
+  // re-renders never refetch. PERF NOTE (Option A): only loads when a card
+  // actually mounts — avoids the full-payload fan-out that would re-introduce
+  // the perf problem the meta store was designed to solve.
+  var payloadCacheRef = React.useRef(null);
+  if (!payloadCacheRef.current) payloadCacheRef.current = new Map();
+
+  // Reset / intersect the selection set whenever the project list changes
+  // (e.g. after a bulk delete or archive) so the bulk bar never references
+  // ghost IDs.
+  useEffect(function() {
+    var ids = new Set(projects.map(function(p) { return p.id; }));
+    setSelected(function(prev) {
+      var next = new Set();
+      prev.forEach(function(id) { if (ids.has(id)) next.add(id); });
+      if (next.size === prev.size) return prev;
+      return next;
+    });
+    if (selectionMode && projects.length === 0) setSelectionMode(false);
+  }, [projects]);
+
+  // Escape exits selection mode (mounts/unmounts with the mode).
+  useEffect(function() {
+    if (!selectionMode) return;
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        setSelectionMode(false);
+        setSelected(new Set());
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return function() { window.removeEventListener('keydown', onKey); };
+  }, [selectionMode]);
+
+  function toggleSelect(id) {
+    setSelected(function(prev) {
+      var next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      // Auto-exit selection mode when nothing is selected.
+      if (next.size === 0) setSelectionMode(false);
+      else if (!selectionMode) setSelectionMode(true);
+      return next;
+    });
+  }
+  function enterSelectionMode(proj) {
+    setSelectionMode(true);
+    setSelected(function(prev) {
+      var next = new Set(prev);
+      next.add(proj.id);
+      return next;
+    });
+  }
+  function selectAll() {
+    var ids = new Set(projects.filter(function(p) { return !p.managerOnly; }).map(function(p) { return p.id; }));
+    setSelected(ids);
+  }
+  function clearSelection() {
+    setSelected(new Set());
+    setSelectionMode(false);
+  }
 
   // Stash readiness lookup: { projectId → true/false/null }
   var stashReadiness = useMemo(function() {
@@ -388,6 +696,53 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     });
   }
 
+  // ── Bulk handlers (B5) ──
+  function showToast(message, type) {
+    if (window.Toast && typeof window.Toast.show === 'function') {
+      window.Toast.show({ message: message, type: type || 'success' });
+    }
+  }
+  function handleBulkArchive() {
+    var ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (typeof ProjectStorage !== 'undefined' && ProjectStorage.setStateMany) {
+      ProjectStorage.setStateMany(ids, 'paused');
+    }
+    setStates(function(prev) {
+      var next = Object.assign({}, prev);
+      ids.forEach(function(id) { next[id] = 'paused'; });
+      return next;
+    });
+    setSelected(new Set());
+    setSelectionMode(false);
+    showToast(ids.length + ' project' + (ids.length === 1 ? '' : 's') + ' archived', 'success');
+  }
+  function handleBulkDelete() {
+    var ids = Array.from(selected);
+    if (ids.length === 0) return;
+    // fix-3.5 — open the styled BulkDelete confirmation modal instead of
+    // the native browser dialog. Actual deletion happens in doBulkDelete().
+    setConfirmDelete(true);
+  }
+  function doBulkDelete() {
+    var ids = Array.from(selected);
+    setConfirmDelete(false);
+    if (ids.length === 0) return;
+    if (typeof ProjectStorage !== 'undefined' && ProjectStorage.deleteMany) {
+      ProjectStorage.deleteMany(ids).then(function() {
+        showToast(ids.length + ' project' + (ids.length === 1 ? '' : 's') + ' deleted', 'success');
+      }).catch(function() {
+        showToast('Bulk delete failed', 'error');
+      });
+    }
+    setSelected(new Set());
+    setSelectionMode(false);
+  }
+  function handleBulkExport() {
+    // Bulk export lands in B4 — surface a placeholder toast for now.
+    showToast('Bulk export coming in B4', 'info');
+  }
+
   function openMenu(proj) {
     setMenuProj(proj.id);
   }
@@ -421,9 +776,74 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     ? Math.round((continueProj.completedStitches || 0) / continueProj.totalStitches * 100)
     : 0;
 
-  return h('div', { className: 'mpd' },
+  return h('div', { className: 'mpd' + (selectionMode ? ' mpd--selection-mode' : '') },
+    // ── Bulk action bar (B5) — only when in selection mode ──
+    selectionMode && h('div', {
+      className: 'mpd-bulk-bar',
+      role: 'toolbar',
+      'aria-label': 'Bulk project actions'
+    },
+      h('div', { className: 'mpd-bulk-bar-left' },
+        h('span', { className: 'mpd-bulk-count' },
+          selected.size + ' selected'),
+        h('button', {
+          type: 'button',
+          className: 'mpd-btn mpd-btn--ghost',
+          onClick: selectAll
+        }, 'Select all'),
+        h('button', {
+          type: 'button',
+          className: 'mpd-btn mpd-btn--ghost',
+          onClick: clearSelection,
+          'aria-label': 'Cancel selection mode'
+        }, 'Cancel selection')
+      ),
+      h('div', { className: 'mpd-bulk-bar-right' },
+        h('button', {
+          type: 'button',
+          className: 'mpd-btn mpd-btn--ghost',
+          onClick: handleBulkArchive,
+          disabled: selected.size === 0,
+          title: 'Move selected projects to Paused'
+        },
+          window.Icons && window.Icons.archive ? window.Icons.archive() : null,
+          h('span', null, ' Archive')
+        ),
+        h('button', {
+          type: 'button',
+          className: 'mpd-btn mpd-btn--ghost mpd-bulk-delete',
+          onClick: handleBulkDelete,
+          disabled: selected.size === 0,
+          title: 'Delete selected projects'
+        },
+          window.Icons && window.Icons.trash ? window.Icons.trash() : null,
+          h('span', null, ' Delete')
+        ),
+        h('button', {
+          type: 'button',
+          className: 'mpd-btn mpd-btn--ghost',
+          onClick: handleBulkExport,
+          disabled: selected.size === 0,
+          title: 'Export selected projects'
+        }, 'Export')
+      )
+    ),
+
+    // fix-3.7 — persistent "Selection mode active" banner replacing the
+    // Continue bar slot. Gives a constant visible affordance to leave
+    // selection mode without scrolling back to the top toolbar.
+    selectionMode && h('div', {
+      className: 'mpd-selection-cancel-bar',
+      role: 'status',
+      'aria-live': 'polite',
+    },
+      h('span', null, 'Selection mode active \u2014 ' + selected.size + ' selected'),
+      h('button', { type: 'button', onClick: clearSelection, 'aria-label': 'Cancel selection mode' }, 'Cancel selection')
+    ),
+
     // ── Sticky Continue bar (most recent active project) ──
-    continueProj && h('div', {
+    // Hidden while selection mode is active to keep the bulk bar uncluttered.
+    !selectionMode && continueProj && h('div', {
       className: 'mpd-continue-bar',
       style: {
         background: 'var(--accent-light)', border: '1px solid var(--accent-border)',
@@ -453,12 +873,18 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     h('div', { className: 'mpd-summary-bar' },
       h('span', null, summary.activeCount + ' active project' + (summary.activeCount !== 1 ? 's' : '')),
       summary.monthStitches > 0 && h('span', null, '\u00B7 ' + summary.monthStitches.toLocaleString() + ' stitches this month'),
-      summary.streak > 1 && h('span', { className: 'mpd-streak' }, '\uD83D\uDD25 ' + summary.streak + '-day streak')
+      summary.streak > 1 && h('span', { className: 'mpd-streak', style: { display: 'inline-flex', alignItems: 'center', gap: 4 } },
+        window.Icons && window.Icons.fire ? window.Icons.fire() : null,
+        h('span', null, summary.streak + '-day streak')
+      )
     ),
 
-    // ── Suggestion card ──
-    suggestion && h('div', { className: 'mpd-suggestion' },
-      h('div', { className: 'mpd-suggestion-title' }, '\uD83D\uDCA1 Suggestion: pick up \u201C' + suggestion.proj.name + '\u201D'),
+    // ── Suggestion card (suppressed when it duplicates the Continue bar) ──
+    suggestion && (!continueProj || suggestion.proj.id !== continueProj.id) && h('div', { className: 'mpd-suggestion' },
+      h('div', { className: 'mpd-suggestion-title', style: { display: 'inline-flex', alignItems: 'center', gap: 6 } },
+        window.Icons && window.Icons.lightbulb ? window.Icons.lightbulb() : null,
+        h('span', null, 'Suggestion: pick up \u201C' + suggestion.proj.name + '\u201D')
+      ),
       h('div', { className: 'mpd-suggestion-reason' }, suggestion.reason),
       h('button', {
         className: 'mpd-btn mpd-btn--primary',
@@ -478,7 +904,12 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
                 onChangeState: openMenu,
                 stashOk: stashReadiness[proj.id],
                 stashMsg: stashReadiness[proj.id] === true ? 'Ready (all in stash)' : stashReadiness[proj.id] === false ? 'Need threads' : null,
-                cardExtras: cardExtras
+                cardExtras: cardExtras,
+                selectionMode: selectionMode,
+                selected: selected.has(proj.id),
+                onToggleSelect: toggleSelect,
+                onLongPress: enterSelectionMode,
+                payloadCache: payloadCacheRef.current
               }),
               menuProj === proj.id && h(StateChangeMenu, {
                 proj: proj,
@@ -615,8 +1046,12 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     // ── Stats link ──
     onOpenGlobalStats && h('button', {
       className: 'mpd-stats-link',
-      onClick: onOpenGlobalStats
-    }, '\uD83D\uDCCA View detailed stats across all projects \u2192'),
+      onClick: onOpenGlobalStats,
+      style: { display: 'inline-flex', alignItems: 'center', gap: 6 }
+    },
+      window.Icons && window.Icons.barChart ? window.Icons.barChart() : null,
+      h('span', null, 'View detailed stats across all projects \u2192')
+    ),
 
     // ── Edit Project Details modal ──
     editingProj && typeof EditProjectDetailsModal !== 'undefined' && h(EditProjectDetailsModal, {
@@ -631,6 +1066,21 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
         setEditingProj(null);
       },
       onClose: function() { setEditingProj(null); }
+    }),
+
+    // fix-3.5 — Bulk delete confirmation modal (replaces window.confirm).
+    confirmDelete && h(BulkDeleteModal, {
+      projectIds: Array.from(selected),
+      projectsById: (function () {
+        var m = {};
+        for (var i = 0; i < projects.length; i++) {
+          var p = projects[i] || {};
+          if (p.id) m[p.id] = p.name || p.id;
+        }
+        return m;
+      })(),
+      onConfirm: doBulkDelete,
+      onCancel: function () { setConfirmDelete(false); },
     })
   );
 }
@@ -1060,6 +1510,22 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   }
   var heroIsPrimaryTracker = heroProject && (heroProject.source === 'tracker' || heroProject.source === 'unknown');
 
+  // Lazy-load the hero project's full payload so the PartialStitchThumb can
+  // ghost unstitched cells. PERF NOTE (B5 Option A): the meta store omits
+  // pattern/done; we only fetch when there's a hero card actually rendering.
+  var _heroPayload = useState(null);
+  var heroPayload = _heroPayload[0], setHeroPayload = _heroPayload[1];
+  useEffect(function() {
+    if (!heroProject || heroProject.managerOnly) { setHeroPayload(null); return; }
+    if (typeof ProjectStorage === 'undefined' || !ProjectStorage.get) return;
+    var cancelled = false;
+    ProjectStorage.get(heroProject.id).then(function(full) {
+      if (cancelled || !full) return;
+      setHeroPayload({ pattern: full.pattern, done: full.done, w: full.w, h: full.h });
+    }).catch(function() {});
+    return function() { cancelled = true; };
+  }, [heroProject ? heroProject.id : null]);
+
   if (loading) return null;
 
   // When multiple projects exist, show the rich multi-project dashboard instead of the simple hero layout.
@@ -1122,7 +1588,10 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         title: 'See your stitching journey',
         'aria-label': 'Open Showcase view',
         style: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', fontFamily: 'inherit' }
-      }, '✦ See your Showcase →')
+      },
+        window.Icons && window.Icons.star ? window.Icons.star() : null,
+        h('span', { style: { marginLeft: 4 } }, 'See your Showcase \u2192')
+      )
     ),
 
     // Hero card (only if projects exist, and not using multi-project dashboard)
@@ -1130,9 +1599,20 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       h('div', { className: 'home-hero-inner' },
         // Thumbnail
         h('div', { className: 'home-hero-thumb' },
-          heroProject.thumbnail
-            ? h('img', { src: heroProject.thumbnail, alt: '', className: 'home-hero-thumb-img' })
-            : h('div', { className: 'home-hero-thumb-placeholder' })
+          (heroPayload && heroPayload.pattern && window.PartialStitchThumb)
+            ? h(window.PartialStitchThumb, {
+                pattern: heroPayload.pattern,
+                done: heroPayload.done,
+                w: heroPayload.w,
+                h: heroPayload.h,
+                size: 96,
+                projectId: heroProject.id,
+                className: 'home-hero-thumb-img',
+                alt: ''
+              })
+            : (heroProject.thumbnail
+                ? h('img', { src: heroProject.thumbnail, alt: '', className: 'home-hero-thumb-img' })
+                : h('div', { className: 'home-hero-thumb-placeholder' }))
         ),
         // Content
         h('div', { className: 'home-hero-content' },
@@ -1286,16 +1766,38 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       title: 'Welcome! Start your first project',
       description: 'Convert any image into a cross-stitch pattern, then track your progress as you stitch.',
       ctaLabel: 'Create from image',
-      ctaAction: function() { imageInputRef.current && imageInputRef.current.click(); }
+      ctaAction: function() { imageInputRef.current && imageInputRef.current.click(); },
+      secondaryLabel: 'Try a sample pattern',
+      secondaryAction: function() {
+        try {
+          var sample = buildSampleProject();
+          if (window.ProjectStorage && typeof window.ProjectStorage.save === 'function') {
+            window.ProjectStorage.save(sample).then(function(saved) {
+              var id = (saved && saved.id) || sample.id;
+              if (id && typeof window.ProjectStorage.setActiveProject === 'function') {
+                window.ProjectStorage.setActiveProject(id);
+              }
+              window.location.href = 'stitch.html';
+            }).catch(function(err) {
+              console.error('Failed to save sample project', err);
+              if (window.Toast) window.Toast.show({ message: 'Could not load sample pattern', type: 'error' });
+            });
+          }
+        } catch (err) {
+          console.error('Sample pattern error', err);
+        }
+      }
     }) : h('div', { className: 'home-empty-state' }, 'No projects yet \u2014 start your first one above!')),
 
     // Stash alert bar
     stashAlerts && h('div', { className: 'home-stash-alert' },
-      h('span', { className: 'home-stash-alert-text' },
-        '\u26A0 ',
-        stashAlerts.lowCount > 0 && (stashAlerts.lowCount + ' thread' + (stashAlerts.lowCount !== 1 ? 's' : '') + ' running low'),
-        stashAlerts.lowCount > 0 && stashAlerts.projectsNeedThread > 0 && '  \u00B7  ',
-        stashAlerts.projectsNeedThread > 0 && (stashAlerts.projectsNeedThread + ' project' + (stashAlerts.projectsNeedThread !== 1 ? 's' : '') + ' need thread')
+      h('span', { className: 'home-stash-alert-text', style: { display: 'inline-flex', alignItems: 'center', gap: 6 } },
+        window.Icons && window.Icons.warning ? window.Icons.warning() : null,
+        h('span', null,
+          (stashAlerts.lowCount > 0 ? (stashAlerts.lowCount + ' thread' + (stashAlerts.lowCount !== 1 ? 's' : '') + ' running low') : '')
+          + (stashAlerts.lowCount > 0 && stashAlerts.projectsNeedThread > 0 ? '  \u00B7  ' : '')
+          + (stashAlerts.projectsNeedThread > 0 ? (stashAlerts.projectsNeedThread + ' project' + (stashAlerts.projectsNeedThread !== 1 ? 's' : '') + ' need thread') : '')
+        )
       ),
       h('button', { className: 'home-stash-alert-link', onClick: onNavigateToStash }, 'Open stash manager \u2192')
     ),

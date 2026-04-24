@@ -15,6 +15,7 @@ const ORDER = [
   'symbolFontSpec.js',
   'pdfChartLayout.js',
   'pdfExport.js',
+  'zipBundle.js',
   'generate.js',
   'canvasRenderer.js',
   'PreviewCanvas.js',
@@ -22,6 +23,8 @@ const ORDER = [
   'useMagicWand.js',
   'useLassoSelect.js',
   'useCreatorState.js',
+  'useImportWizard.js',
+  'ImportWizard.js',
   'useEditHistory.js',
   'useCanvasInteraction.js',
   'useKeyboardShortcuts.js',
@@ -44,6 +47,9 @@ const ORDER = [
   'DesignerBrandingSection.js',
   'ExportTab.js',
   'ShoppingListModal.js',
+  // B4: MaterialsHub renders LegendTab/PrepareTab/ExportTab as sub-tabs,
+  // so it must be concatenated AFTER all three.
+  'MaterialsHub.js',
 ];
 
 const parts = ORDER.map(name => {

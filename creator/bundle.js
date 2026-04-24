@@ -1164,6 +1164,257 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
 })();
 
 
+/* ─── zipBundle.js ─── */
+/* creator/zipBundle.js — C6: pack PDF + OXS + PNG + JSON + manifest into a single .zip
+ *
+ * Public surface:
+ *   window.ZipBundle.build(inputs, options) → Promise<Blob>
+ *     inputs = {
+ *       projectName:    string,
+ *       schemaVersion:  number,           // typically 11
+ *       pdfBytes:       Uint8Array|null,  // omit if PDF unavailable
+ *       oxsString:      string|null,
+ *       pngBlob:        Blob|null,
+ *       projectJson:    object|string|null,
+ *       appVersion:     string|undefined  // optional
+ *     }
+ *     options = { onProgress?: fn(stage,msg) }
+ *
+ *   window.ZipBundle._slugify(name)
+ *   window.ZipBundle._filename(projectName, schemaVersion, date)
+ *   window.ZipBundle._buildManifest({projectName, schemaVersion, generatedAt, files, appVersion})
+ *   window.ZipBundle._serializeOxs(project)   // { width, height, pattern, bsLines, palette? }
+ *
+ * Pure helpers are exported via module.exports for Jest tests; window
+ * assignments handle the browser-side surface.
+ *
+ * JSZip is loaded lazily via window.loadScript (CDN script tag in index.html
+ * also makes it available eagerly on the Creator page).
+ */
+
+(function () {
+  var SCHEMA_DEFAULT = 11;
+
+  // ───────────────────────────────────────── slug + filename ────────────
+  function _slugify(name) {
+    var s = String(name == null ? '' : name).toLowerCase();
+    // Strip diacritics (NFKD normalise, drop combining marks).
+    try { s = s.normalize('NFKD').replace(/[\u0300-\u036f]/g, ''); } catch (_) {}
+    s = s.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (s.length > 48) s = s.slice(0, 48).replace(/-+$/, '');
+    return s || 'pattern';
+  }
+
+  function _pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function _filename(projectName, schemaVersion, date) {
+    var d = date instanceof Date ? date : new Date();
+    var stamp = d.getFullYear() + _pad(d.getMonth() + 1) + _pad(d.getDate())
+              + '-' + _pad(d.getHours()) + _pad(d.getMinutes());
+    var v = (schemaVersion == null ? SCHEMA_DEFAULT : schemaVersion);
+    return _slugify(projectName) + '-' + stamp + '-v' + v + '.zip';
+  }
+
+  // ─────────────────────────────────────────── manifest ─────────────────
+  function _buildManifest(opts) {
+    opts = opts || {};
+    var generatedAt = opts.generatedAt || new Date().toISOString();
+    var files = (opts.files || []).map(function (f) {
+      var entry = { name: f.name, bytes: f.bytes | 0 };
+      if (f.format) entry.format = f.format;
+      return entry;
+    });
+    return {
+      app: 'cross-stitch',
+      appVersion: opts.appVersion || 'unknown',
+      bundleVersion: 1,
+      generatedAt: generatedAt,
+      name: String(opts.projectName == null ? '' : opts.projectName),
+      version: opts.schemaVersion == null ? SCHEMA_DEFAULT : opts.schemaVersion,
+      files: files
+    };
+  }
+
+  // ─────────────────────────────────────────── OXS writer ───────────────
+  // Minimal XML writer that round-trips through parseOXS in import-formats.js.
+  // Emits palette entries (with DMC number + RGB) and fullstitch positions,
+  // plus backstitch lines if present. Blend cells are flattened to their first
+  // DMC component (parseOXS doesn't model blends as a single cell).
+  function _xmlEscape(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function _serializeOxs(project) {
+    project = project || {};
+    var w = project.width | 0, h = project.height | 0;
+    var pattern = project.pattern || [];
+    var bsLines = project.bsLines || [];
+    if (w <= 0 || h <= 0) throw new Error('OXS: invalid dimensions');
+
+    // Build palette index from cell ids (skip __skip__ / __empty__).
+    var palette = [];           // [{id, rgb}]
+    var idToIndex = {};         // id → 1-based palette index
+    function ensureEntry(id, rgb) {
+      if (!id || id === '__skip__' || id === '__empty__') return 0;
+      if (idToIndex[id]) return idToIndex[id];
+      palette.push({ id: id, rgb: rgb || [0, 0, 0] });
+      idToIndex[id] = palette.length;
+      return palette.length;
+    }
+    // Pre-seed with project.palette if supplied (preserves ordering).
+    if (project.palette && project.palette.length) {
+      for (var p = 0; p < project.palette.length; p++) {
+        var pe = project.palette[p];
+        if (pe && pe.id) ensureEntry(pe.id, pe.rgb);
+      }
+    }
+
+    var lines = [];
+    lines.push('<?xml version="1.0" encoding="UTF-8"?>');
+    lines.push('<chart width="' + w + '" height="' + h + '">');
+    lines.push('  <format><chartwidth>' + w + '</chartwidth><chartheight>' + h + '</chartheight></format>');
+
+    // First pass — record stitch entries and grow the palette.
+    var stitches = [];
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var cell = pattern[y * w + x];
+        if (!cell) continue;
+        var id = cell.id;
+        if (!id || id === '__skip__' || id === '__empty__') continue;
+        // Flatten blend → first DMC id.
+        var primaryId = id, primaryRgb = cell.rgb;
+        if (cell.type === 'blend' && id.indexOf('+') >= 0) {
+          primaryId = id.split('+')[0];
+        }
+        var idx = ensureEntry(primaryId, primaryRgb);
+        if (idx) stitches.push({ x: x, y: y, palindex: idx });
+      }
+    }
+
+    // Palette block.
+    lines.push('  <palette>');
+    for (var i = 0; i < palette.length; i++) {
+      var entry = palette[i];
+      var rgb = entry.rgb || [0, 0, 0];
+      lines.push('    <color index="' + (i + 1) + '"'
+        + ' number="' + _xmlEscape(entry.id) + '"'
+        + ' name="' + _xmlEscape(entry.id) + '"'
+        + ' red="' + (rgb[0] | 0) + '"'
+        + ' green="' + (rgb[1] | 0) + '"'
+        + ' blue="' + (rgb[2] | 0) + '"/>');
+    }
+    lines.push('  </palette>');
+
+    // Stitches.
+    lines.push('  <fullstitches>');
+    for (var s = 0; s < stitches.length; s++) {
+      var st = stitches[s];
+      lines.push('    <stitch x="' + st.x + '" y="' + st.y + '" palindex="' + st.palindex + '"/>');
+    }
+    lines.push('  </fullstitches>');
+
+    // Backstitches (optional).
+    if (bsLines.length) {
+      lines.push('  <backstitches>');
+      for (var b = 0; b < bsLines.length; b++) {
+        var bl = bsLines[b];
+        lines.push('    <backstitch x1="' + bl.x1 + '" y1="' + bl.y1 + '"'
+          + ' x2="' + bl.x2 + '" y2="' + bl.y2 + '" palindex="1"/>');
+      }
+      lines.push('  </backstitches>');
+    }
+
+    lines.push('</chart>');
+    return lines.join('\n');
+  }
+
+  // ─────────────────────────────────────── JSZip lazy loader ────────────
+  function _loadJSZip() {
+    if (typeof window === 'undefined') return Promise.reject(new Error('JSZip requires a browser'));
+    if (window.JSZip) return Promise.resolve(window.JSZip);
+    if (window.__jszipPromise) return window.__jszipPromise;
+    var loader = (typeof window.loadScript === 'function')
+      ? window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js')
+      : Promise.reject(new Error('window.loadScript unavailable'));
+    window.__jszipPromise = loader.then(function () {
+      if (!window.JSZip) throw new Error('JSZip failed to load');
+      return window.JSZip;
+    });
+    return window.__jszipPromise;
+  }
+
+  // ─────────────────────────────────────────── build ────────────────────
+  function build(inputs, options) {
+    inputs = inputs || {};
+    options = options || {};
+    var onProgress = typeof options.onProgress === 'function' ? options.onProgress : function () {};
+
+    return _loadJSZip().then(function (JSZip) {
+      var zip = new JSZip();
+      var files = [];
+
+      function addText(name, text, format) {
+        var bytes = (typeof Blob !== 'undefined') ? new Blob([text]).size : text.length;
+        zip.file(name, text);
+        files.push({ name: name, bytes: bytes, format: format });
+      }
+      function addBinary(name, u8, format) {
+        zip.file(name, u8);
+        files.push({ name: name, bytes: u8.byteLength | 0, format: format });
+      }
+      function addBlob(name, blob, format) {
+        zip.file(name, blob);
+        files.push({ name: name, bytes: blob.size | 0, format: format });
+      }
+
+      onProgress('collect', 'Collecting files');
+      if (inputs.pdfBytes) addBinary('pattern.pdf', inputs.pdfBytes, 'pdf');
+      if (inputs.oxsString) addText('pattern.oxs', inputs.oxsString, 'oxs');
+      if (inputs.pngBlob) addBlob('preview.png', inputs.pngBlob, 'png');
+      if (inputs.projectJson != null) {
+        var jsonText = (typeof inputs.projectJson === 'string')
+          ? inputs.projectJson
+          : JSON.stringify(inputs.projectJson);
+        addText('project.json', jsonText, 'json');
+      }
+
+      var manifest = _buildManifest({
+        projectName: inputs.projectName,
+        schemaVersion: inputs.schemaVersion,
+        appVersion: inputs.appVersion,
+        files: files
+      });
+      zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+
+      onProgress('zip', 'Compressing');
+      return zip.generateAsync(
+        { type: 'blob', streamFiles: true, compression: 'DEFLATE', compressionOptions: { level: 6 } },
+        function (meta) {
+          onProgress('zip', 'Compressing ' + (meta.percent | 0) + '%');
+        }
+      );
+    });
+  }
+
+  var api = {
+    build: build,
+    _slugify: _slugify,
+    _filename: _filename,
+    _buildManifest: _buildManifest,
+    _serializeOxs: _serializeOxs,
+    _loadJSZip: _loadJSZip
+  };
+
+  if (typeof window !== 'undefined') window.ZipBundle = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})();
+
+
 /* ─── generate.js ─── */
 /* creator/generate.js — Pure pattern-generation pipeline.
    All inputs passed explicitly; returns { pat, pal, cmap, confettiData } or null.
@@ -4099,7 +4350,47 @@ window.useCreatorState = function useCreatorState() {
   var _sidebarTab = useState("settings"); var sidebarTab = _sidebarTab[0], setSidebarTab = _sidebarTab[1];
 
   // UI state
-  var _tab        = useState("pattern"); var tab        = _tab[0],        setTab        = _tab[1];
+  // B3: top-level Creator pages collapsed to 3 — 'pattern' | 'project' | 'materials'.
+  // setTab is wrapped below to migrate legacy values ('prepare'/'legend'/'export').
+  var _tab        = useState(function () {
+    var v = loadUserPref("creator.lastPage", null);
+    if (v === "prepare" || v === "legend" || v === "export") return "materials";
+    if (v === "pattern" || v === "project" || v === "materials") return v;
+    return "pattern";
+  });
+  var tab        = _tab[0],        setTabRaw     = _tab[1];
+  // B4: which sub-tab inside MaterialsHub is active.
+  // 'threads' | 'stash' | 'shopping' | 'output'
+  var _materialsTab = useState(function () {
+    var v = loadUserPref("creator.materialsTab", null);
+    if (v === "threads" || v === "stash" || v === "shopping" || v === "output") return v;
+    // Honour legacy lastPage as a one-off seed so a user whose last visit
+    // was the old Export tab lands on Output in the new hub.
+    var lp = loadUserPref("creator.lastPage", null);
+    if (lp === "export") return "output";
+    if (lp === "prepare") return "stash";
+    if (lp === "legend") return "threads";
+    return "threads";
+  });
+  var materialsTab = _materialsTab[0];
+  var setMaterialsTabRaw = _materialsTab[1];
+  function setMaterialsTab(v) {
+    if (v !== "threads" && v !== "stash" && v !== "shopping" && v !== "output") return;
+    setMaterialsTabRaw(v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.materialsTab", v); } catch (_) {}
+  }
+  // setTab wrapper: rewrite legacy page IDs to (materials, sub-tab).
+  function setTab(value) {
+    var next = value;
+    if (value === "prepare") { next = "materials"; setMaterialsTab("stash"); }
+    else if (value === "legend") { next = "materials"; setMaterialsTab("threads"); }
+    else if (value === "export") { next = "materials"; setMaterialsTab("output"); }
+    else if (value !== "pattern" && value !== "project" && value !== "materials") {
+      next = "pattern";
+    }
+    setTabRaw(next);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.lastPage", next); } catch (_) {}
+  }
   var _sidOpen    = useState(true);      var sidebarOpen = _sidOpen[0],   setSidebarOpen = _sidOpen[1];
   var _loadErr    = useState(null);      var loadError  = _loadErr[0],    setLoadError  = _loadErr[1];
   var _copied     = useState(null);      var copied     = _copied[0],     setCopied     = _copied[1];
@@ -4352,6 +4643,12 @@ window.useCreatorState = function useCreatorState() {
   var prevSW     = useRef(sW);
   var prevSH     = useRef(sH);
   var projectIdRef = useRef(null);
+  // fix-3.8 — when the active project changes, reset MaterialsHub sub-tab to
+  // the default ('threads') so a freshly opened pattern lands on a sensible
+  // starting point instead of inheriting Shopping/Output from a prior project.
+  // Implemented by tracking the previous id in a ref and watching for
+  // mismatches every render.
+  var prevMaterialsProjectIdRef = useRef(null);
   var createdAtRef = useRef(null);
   var trackerFieldsRef = useRef({});
   var userActedRef = useRef(false);
@@ -4535,6 +4832,21 @@ window.useCreatorState = function useCreatorState() {
     selectStitchType("cross");
     setSelectedColorId(pal[0].id);
   }, [pat, pal]);
+
+  // fix-3.8 — reset MaterialsHub sub-tab to default ('threads') whenever the
+  // active project id changes (new project, project loaded from library).
+  // Skip persistence so the cross-project default in UserPrefs isn't trampled.
+  useEffect(function () {
+    var pid = projectIdRef.current || null;
+    if (prevMaterialsProjectIdRef.current === null) {
+      prevMaterialsProjectIdRef.current = pid;
+      return;
+    }
+    if (pid !== prevMaterialsProjectIdRef.current) {
+      prevMaterialsProjectIdRef.current = pid;
+      setMaterialsTabRaw('threads');
+    }
+  });
 
   // ── Dimming animation: 150ms fade-in/out when hiId or highlightMode changes ──
   var usesDimming = highlightMode === "isolate" || highlightMode === "spotlight";
@@ -5018,7 +5330,7 @@ window.useCreatorState = function useCreatorState() {
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, sidebarTab, setSidebarTab,
-    tab, setTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
+    tab, setTab, materialsTab, setMaterialsTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
@@ -5204,6 +5516,661 @@ window.useCreatorState = function useCreatorState() {
     lassoBoundaryPath: lasso.buildBoundaryPath,
   };
 };
+
+
+/* ─── useImportWizard.js ─── */
+/* creator/useImportWizard.js — C7 image-import wizard state hook.
+ *
+ * Owns the 5-step wizard state machine, persists a draft to localStorage so
+ * the user can resume after an accidental reload, and produces a settings
+ * object that's drop-in compatible with parseImagePattern() (the same call
+ * site the legacy single-step modal uses in tracker-app.js).
+ *
+ * Behind the experimental.importWizard pref. Legacy flow is untouched.
+ *
+ * No emoji in copy. British English. Public API:
+ *
+ *   const wiz = window.useImportWizard({ image, baseName });
+ *   wiz.step / wiz.crop / wiz.palette / wiz.size / wiz.settings / wiz.name
+ *   wiz.setCrop / setPalette / setSize / setSettings / setName
+ *   wiz.next() / wiz.back() / wiz.goto(n)
+ *   wiz.reset()                                // clears draft + state
+ *   wiz.commit() -> { name, maxWidth, maxHeight, maxColours,
+ *                     skipWhiteBg, bgThreshold, fabricCt,
+ *                     crop, palette, settings }
+ */
+(function () {
+  if (typeof window === "undefined") return;
+
+  var STEPS = 5;
+  var DRAFT_KEY = "cs_import_wizard_draft";
+  var DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // 7 days
+
+  function _readDraft(match) {
+    try {
+      var raw = (typeof localStorage !== "undefined") ? localStorage.getItem(DRAFT_KEY) : null;
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (!obj || typeof obj !== "object") return null;
+      if (typeof obj.ts === "number" && (Date.now() - obj.ts) > DRAFT_TTL_MS) {
+        try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
+        return null;
+      }
+      // Bug-hunt D2 — reject drafts that were written for a different
+      // source image. Without this, importing image A then image B would
+      // resume image B mid-wizard with image A's settings (auto-fit size,
+      // base name, crop rectangle) silently applied.
+      if (match && (typeof obj.imageW === "number" || typeof obj.imageH === "number")) {
+        if (obj.imageW !== (match.imageW | 0) ||
+            obj.imageH !== (match.imageH | 0) ||
+            (obj.baseName || "") !== (match.baseName || "")) {
+          try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
+          return null;
+        }
+      }
+      return obj;
+    } catch (_) { return null; }
+  }
+
+  function _writeDraft(state, match) {
+    try {
+      if (typeof localStorage === "undefined") return;
+      var payload = {
+        v: 1, ts: Date.now(),
+        step: state.step, crop: state.crop, palette: state.palette,
+        size: state.size, settings: state.settings, name: state.name,
+        imageW: match ? (match.imageW | 0) : 0,
+        imageH: match ? (match.imageH | 0) : 0,
+        baseName: match ? (match.baseName || "") : ""
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+    } catch (_) { /* QuotaExceededError etc. — fail silently */ }
+  }
+
+  function _clearDraft() {
+    try { if (typeof localStorage !== "undefined") localStorage.removeItem(DRAFT_KEY); } catch (_) {}
+  }
+
+  function _clamp(n) {
+    n = (n | 0);
+    if (n < 1) return 1;
+    if (n > STEPS) return STEPS;
+    return n;
+  }
+
+  function _autoFitSize(image) {
+    if (!image || !image.width || !image.height) return { w: 80, h: 80 };
+    var TARGET = 80;
+    var longest = Math.max(image.width, image.height);
+    var scale = Math.min(1, TARGET / longest);
+    return {
+      w: Math.max(10, Math.round(image.width  * scale)),
+      h: Math.max(10, Math.round(image.height * scale))
+    };
+  }
+
+  function _initialState(image, baseName, draft) {
+    var d = draft || {};
+    var fitted = _autoFitSize(image);
+    return {
+      step: d.step || 1,
+      crop: d.crop || { rotate: 0, flipH: false, flipV: false, aspect: "free" },
+      palette: d.palette || { mode: "dmc", maxColours: 30, allowBlends: true },
+      size: d.size || { w: fitted.w, h: fitted.h, lock: true, fabricCt: 14 },
+      settings: d.settings || { dither: true, contrast: 0, saliency: false, skipBg: false, bgThreshold: 15 },
+      name: d.name || baseName || ""
+    };
+  }
+
+  function useImportWizard(opts) {
+    var React = window.React;
+    var image = (opts && opts.image) || null;
+    var baseName = (opts && opts.baseName) || "";
+    var match = {
+      imageW: image && image.width  ? image.width  : 0,
+      imageH: image && image.height ? image.height : 0,
+      baseName: baseName
+    };
+
+    // Single state object so we can persist atomically on every action.
+    var initial = (React && React.useMemo)
+      ? React.useMemo(function () { return _initialState(image, baseName, _readDraft(match)); }, [])
+      : _initialState(image, baseName, _readDraft(match));
+
+    var st = React.useState(initial);
+    var state = st[0], setState = st[1];
+
+    // Read the latest state via the setState updater. Works in both real
+    // React (where the updater fires synchronously) and our test fakes.
+    function _peek() {
+      var latest = state;
+      setState(function (prev) { latest = prev; return prev; });
+      return latest;
+    }
+
+    function _apply(patch) {
+      setState(function (prev) {
+        var next = Object.assign({}, prev, patch);
+        _writeDraft(next, match);
+        return next;
+      });
+    }
+
+    function next() { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(prev.step + 1) }); _writeDraft(n, match); return n; }); }
+    function back() { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(prev.step - 1) }); _writeDraft(n, match); return n; }); }
+    function goto_(target) { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(target) }); _writeDraft(n, match); return n; }); }
+
+    function setCrop(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.crop)     : v; var n = Object.assign({}, prev, { crop: nv });     _writeDraft(n, match); return n; }); }
+    function setPalette(v)  { setState(function (prev) { var nv = typeof v === "function" ? v(prev.palette)  : v; var n = Object.assign({}, prev, { palette: nv });  _writeDraft(n, match); return n; }); }
+    function setSize(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.size)     : v; var n = Object.assign({}, prev, { size: nv });     _writeDraft(n, match); return n; }); }
+    function setSettings(v) { setState(function (prev) { var nv = typeof v === "function" ? v(prev.settings) : v; var n = Object.assign({}, prev, { settings: nv }); _writeDraft(n, match); return n; }); }
+    function setName(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.name)     : v; var n = Object.assign({}, prev, { name: nv });     _writeDraft(n, match); return n; }); }
+
+    function reset() {
+      _clearDraft();
+      var fresh = _initialState(image, baseName, null);
+      setState(fresh);
+    }
+
+    function commit() {
+      _clearDraft();
+      var s = _peek();
+      var trimmedName = (s.name || "").trim().slice(0, 60);
+      // Settings shape compatible with the existing parseImagePattern() call
+      // site in tracker-app.js (and the wider generate-worker job message).
+      return {
+        name: trimmedName,
+        maxWidth: s.size.w,
+        maxHeight: s.size.h,
+        maxColours: s.palette.maxColours,
+        skipWhiteBg: !!s.settings.skipBg,
+        bgThreshold: s.settings.bgThreshold,
+        fabricCt: s.size.fabricCt,
+        // Pass-through for downstream wiring (allowBlends, dither, etc.).
+        crop:     s.crop,
+        palette:  s.palette,
+        settings: s.settings
+      };
+    }
+
+    return {
+      step: state.step,
+      image: image,
+      crop: state.crop,
+      palette: state.palette,
+      size: state.size,
+      settings: state.settings,
+      name: state.name,
+      setCrop: setCrop,
+      setPalette: setPalette,
+      setSize: setSize,
+      setSettings: setSettings,
+      setName: setName,
+      next: next,
+      back: back,
+      goto: goto_,
+      reset: reset,
+      commit: commit,
+      STEPS: STEPS
+    };
+  }
+
+  // Expose for tests + other modules.
+  window.useImportWizard = useImportWizard;
+  window.ImportWizardInternals = {
+    DRAFT_KEY: DRAFT_KEY,
+    DRAFT_TTL_MS: DRAFT_TTL_MS,
+    STEPS: STEPS,
+    _readDraft: _readDraft,
+    _writeDraft: _writeDraft,
+    _clearDraft: _clearDraft,
+    _initialState: _initialState,
+    _autoFitSize: _autoFitSize,
+    _clamp: _clamp
+  };
+})();
+
+
+/* ─── ImportWizard.js ─── */
+/* creator/ImportWizard.js — C7 image-import wizard (experimental).
+ *
+ * 5-step guided flow for converting an image into a cross-stitch pattern:
+ *   1. Crop & orient
+ *   2. Palette choice
+ *   3. Size & fabric (live time + skein estimate)
+ *   4. Preview & tune
+ *   5. Confirm + Generate
+ *
+ * Mounted by tracker-app.js when UserPrefs `experimental.importWizard` is on,
+ * in place of the legacy single-step parameter modal.
+ *
+ * Public component: window.ImportWizard
+ *   props: {
+ *     image,            // HTMLImageElement (required)
+ *     baseName,         // suggested project name (filename minus extension)
+ *     onClose,          // () => void  — user cancelled / discarded
+ *     onGenerate        // (settings)  => void — proceed to legacy generation path
+ *   }
+ *
+ * No emoji in copy. British English. Reuses the C8 coachmark scrim styling
+ * conceptually but keeps the wizard's class names under .iw-* so the two
+ * systems remain independent.
+ */
+(function () {
+  if (typeof window === "undefined") return;
+
+  function ImportWizard(props) {
+    var React = window.React;
+    if (!React) return null;
+    var h = React.createElement;
+    var Icons = window.Icons || {};
+    var FABRIC_COUNTS = (typeof window.FABRIC_COUNTS !== "undefined")
+      ? window.FABRIC_COUNTS
+      : (typeof FABRIC_COUNTS !== "undefined" ? FABRIC_COUNTS : [
+          { ct: 11, label: "11 count" }, { ct: 14, label: "14 count" },
+          { ct: 16, label: "16 count" }, { ct: 18, label: "18 count" }
+        ]);
+
+    var fmtTime = (typeof window.fmtTime === "function")
+      ? window.fmtTime
+      : (typeof fmtTime === "function" ? fmtTime : function (s) {
+          var hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60);
+          return hh > 0 ? (hh + "h " + mm + "m") : (mm + "m");
+        });
+    var skeinEst = (typeof window.skeinEst === "function")
+      ? window.skeinEst
+      : (typeof skeinEst === "function" ? skeinEst : function () { return 1; });
+
+    var image = props.image || null;
+    var baseName = props.baseName || "";
+
+    var wizard = window.useImportWizard({ image: image, baseName: baseName });
+
+    var headingRef = React.useRef(null);
+    var ds = React.useState(false);
+    var discardOpen = ds[0], setDiscardOpen = ds[1];
+
+    // Move focus to the active step heading on every step change.
+    React.useEffect(function () {
+      var node = headingRef.current;
+      if (node && typeof node.focus === "function") {
+        try { node.focus(); } catch (_) {}
+      }
+    }, [wizard.step]);
+
+    // Escape -> confirm discard (don't lose the user's work silently).
+    React.useEffect(function () {
+      function onKey(e) {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          setDiscardOpen(true);
+        }
+      }
+      if (typeof document !== "undefined" && document.addEventListener) {
+        document.addEventListener("keydown", onKey, true);
+      }
+      return function () {
+        if (typeof document !== "undefined" && document.removeEventListener) {
+          document.removeEventListener("keydown", onKey, true);
+        }
+      };
+    }, []);
+
+    function onCancel() {
+      wizard.reset();
+      if (typeof props.onClose === "function") props.onClose();
+    }
+
+    function onGenerate() {
+      var settings = wizard.commit();
+      if (typeof props.onGenerate === "function") props.onGenerate(settings);
+    }
+
+    // ── Live readouts (used by step 3 + step 5) ───────────────────────────
+    var stitchCount = (wizard.size.w | 0) * (wizard.size.h | 0);
+    var skeins = skeinEst(stitchCount, wizard.size.fabricCt);
+    // Rough time estimate: ~4 seconds per stitch at intermediate pace.
+    var timeS = stitchCount * 4;
+    var timeText = fmtTime(timeS);
+    var skeinText = "Estimate: ~" + skeins + " skein" + (skeins === 1 ? "" : "s")
+                  + ", ~" + timeText;
+
+    // ── Progress strip ───────────────────────────────────────────────────
+    var STEP_LABELS = [
+      { n: 1, label: "Crop",    icon: "crop"    },
+      { n: 2, label: "Palette", icon: "palette" },
+      { n: 3, label: "Size",    icon: "ruler"   },
+      { n: 4, label: "Preview", icon: "eye"     },
+      { n: 5, label: "Confirm", icon: "check"   }
+    ];
+
+    function renderProgress() {
+      return h("ol", {
+        className: "iw-progress",
+        role: "list",
+        "aria-label": "Wizard steps"
+      }, STEP_LABELS.map(function (s) {
+        var isActive = s.n === wizard.step;
+        var isReached = s.n <= wizard.step;
+        var iconEl = (Icons[s.icon] && typeof Icons[s.icon] === "function") ? Icons[s.icon]() : null;
+        var commonProps = {
+          key: s.n,
+          className: "iw-progress-item"
+            + (isActive ? " iw-progress-item--active" : "")
+            + (isReached ? " iw-progress-item--reached" : ""),
+          role: "listitem"
+        };
+        if (isActive) commonProps["aria-current"] = "step";
+        if (isReached && !isActive) {
+          // Allow jumping back to a completed step.
+          return h("li", commonProps,
+            h("button", {
+              type: "button",
+              className: "iw-progress-btn",
+              onClick: function () { wizard.goto(s.n); },
+              "aria-label": "Go back to step " + s.n + " of 5: " + s.label
+            }, iconEl, h("span", { className: "iw-progress-label" }, "Step " + s.n + " of 5: " + s.label))
+          );
+        }
+        return h("li", commonProps,
+          h("span", { className: "iw-progress-marker", "aria-hidden": "true" }, iconEl),
+          h("span", { className: "iw-progress-label" }, "Step " + s.n + " of 5: " + s.label)
+        );
+      }));
+    }
+
+    // ── Step bodies ──────────────────────────────────────────────────────
+    function renderStep1() {
+      var c = wizard.crop;
+      function setRotate(v) { wizard.setCrop(Object.assign({}, c, { rotate: v })); }
+      function toggle(key)  { wizard.setCrop(Object.assign({}, c, (function () { var o = {}; o[key] = !c[key]; return o; })())); }
+      function setAspect(v) { wizard.setCrop(Object.assign({}, c, { aspect: v })); }
+      var ratios = [
+        { v: "free", label: "Free" }, { v: "1:1", label: "1:1" },
+        { v: "4:3", label: "4:3" },   { v: "3:4", label: "3:4" }, { v: "16:9", label: "16:9" }
+      ];
+      return h("div", { className: "iw-step iw-step-crop" },
+        h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 1 of 5: Crop & orient"),
+        h("p", { className: "iw-step-desc" }, "Rotate or mirror your image, and pick an aspect-ratio guide. The crop is applied when the pattern is generated."),
+        image ? h("div", { className: "iw-crop-viewport" },
+          h("img", {
+            src: image.src,
+            alt: "Source image preview",
+            style: {
+              transform: "rotate(" + (c.rotate || 0) + "deg)"
+                + " scaleX(" + (c.flipH ? -1 : 1) + ")"
+                + " scaleY(" + (c.flipV ? -1 : 1) + ")"
+            }
+          })
+        ) : h("div", { className: "iw-crop-empty" }, "No image loaded."),
+        h("div", { className: "iw-crop-controls" },
+          h("button", { type: "button", className: "iw-btn", onClick: function () { setRotate(((c.rotate || 0) + 90) % 360); } }, "Rotate 90°"),
+          h("button", { type: "button", className: "iw-btn", onClick: function () { toggle("flipH"); }, "aria-pressed": !!c.flipH }, "Mirror horizontally"),
+          h("button", { type: "button", className: "iw-btn", onClick: function () { toggle("flipV"); }, "aria-pressed": !!c.flipV }, "Mirror vertically")
+        ),
+        h("fieldset", { className: "iw-aspect-group" },
+          h("legend", { className: "iw-aspect-legend" }, "Aspect ratio"),
+          ratios.map(function (r) {
+            return h("label", { key: r.v, className: "iw-radio" },
+              h("input", {
+                type: "radio", name: "iw-aspect",
+                value: r.v, checked: (c.aspect || "free") === r.v,
+                onChange: function () { setAspect(r.v); }
+              }),
+              h("span", null, r.label)
+            );
+          })
+        )
+      );
+    }
+
+    function renderStep2() {
+      var p = wizard.palette;
+      function setMode(m)   { wizard.setPalette(Object.assign({}, p, { mode: m })); }
+      function setMaxC(n)   { wizard.setPalette(Object.assign({}, p, { maxColours: Math.max(5, Math.min(80, n | 0)) })); }
+      function toggleBlend(){ wizard.setPalette(Object.assign({}, p, { allowBlends: !p.allowBlends })); }
+      var modes = [
+        { v: "dmc",    label: "Full DMC palette",   desc: "Match against the entire DMC range." },
+        { v: "stash",  label: "From my stash",      desc: "Use only the threads you've marked as owned." },
+        { v: "limited",label: "Limited palette",    desc: "Pick the maximum number of colours." }
+      ];
+      return h("div", { className: "iw-step iw-step-palette" },
+        h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 2 of 5: Choose a palette"),
+        h("p", { className: "iw-step-desc" }, "Decide which threads the Creator may use."),
+        h("fieldset", { className: "iw-palette-modes" },
+          h("legend", { className: "sr-only" }, "Palette source"),
+          modes.map(function (m) {
+            return h("label", { key: m.v, className: "iw-card" + (p.mode === m.v ? " iw-card--active" : "") },
+              h("input", { type: "radio", name: "iw-palette-mode", value: m.v, checked: p.mode === m.v, onChange: function () { setMode(m.v); } }),
+              h("div", { className: "iw-card-body" },
+                h("div", { className: "iw-card-title" }, m.label),
+                h("div", { className: "iw-card-desc" }, m.desc)
+              )
+            );
+          })
+        ),
+        h("div", { className: "iw-row" },
+          h("label", { className: "iw-field-label", htmlFor: "iw-max-colours" }, "Maximum colours"),
+          h("input", {
+            id: "iw-max-colours",
+            type: "range", min: 5, max: 80, step: 1,
+            value: p.maxColours,
+            onChange: function (e) { setMaxC(Number(e.target.value)); },
+            "aria-valuemin": 5, "aria-valuemax": 80, "aria-valuenow": p.maxColours
+          }),
+          h("output", { className: "iw-output" }, p.maxColours)
+        ),
+        h("label", { className: "iw-checkbox" },
+          h("input", { type: "checkbox", checked: !!p.allowBlends, onChange: toggleBlend }),
+          h("span", null, "Allow 2-thread blends")
+        )
+      );
+    }
+
+    function renderStep3() {
+      var sz = wizard.size;
+      function setW(n) {
+        var w = Math.max(10, Math.min(300, n | 0));
+        if (sz.lock && image && image.width && image.height) {
+          var ratio = image.height / image.width;
+          wizard.setSize(Object.assign({}, sz, { w: w, h: Math.max(10, Math.round(w * ratio)) }));
+        } else {
+          wizard.setSize(Object.assign({}, sz, { w: w }));
+        }
+      }
+      function setH(n) {
+        var hh = Math.max(10, Math.min(300, n | 0));
+        if (sz.lock && image && image.width && image.height) {
+          var ratio = image.width / image.height;
+          wizard.setSize(Object.assign({}, sz, { h: hh, w: Math.max(10, Math.round(hh * ratio)) }));
+        } else {
+          wizard.setSize(Object.assign({}, sz, { h: hh }));
+        }
+      }
+      function setLock()  { wizard.setSize(Object.assign({}, sz, { lock: !sz.lock })); }
+      function setFab(v)  { wizard.setSize(Object.assign({}, sz, { fabricCt: Number(v) })); }
+      var warn = (sz.w * sz.h) > 40000;
+      return h("div", { className: "iw-step iw-step-size" },
+        h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 3 of 5: Size & fabric count"),
+        h("p", { className: "iw-step-desc" }, "Set the finished pattern dimensions in stitches and pick your fabric count."),
+        h("div", { className: "iw-grid-two" },
+          h("label", { className: "iw-field" },
+            h("span", { className: "iw-field-label" }, "Width (stitches)"),
+            h("input", {
+              type: "number", inputMode: "numeric", min: 10, max: 300, step: 1,
+              value: sz.w, onChange: function (e) { setW(Number(e.target.value)); }
+            })
+          ),
+          h("label", { className: "iw-field" },
+            h("span", { className: "iw-field-label" }, "Height (stitches)"),
+            h("input", {
+              type: "number", inputMode: "numeric", min: 10, max: 300, step: 1,
+              value: sz.h, onChange: function (e) { setH(Number(e.target.value)); }
+            })
+          )
+        ),
+        h("label", { className: "iw-checkbox" },
+          h("input", { type: "checkbox", checked: !!sz.lock, onChange: setLock }),
+          h("span", null, "Lock aspect ratio")
+        ),
+        h("label", { className: "iw-field" },
+          h("span", { className: "iw-field-label" }, "Fabric count"),
+          h("select", { value: sz.fabricCt, onChange: function (e) { setFab(e.target.value); } },
+            FABRIC_COUNTS.map(function (fc) {
+              return h("option", { key: fc.ct, value: fc.ct }, fc.label);
+            })
+          )
+        ),
+        h("div", { className: "iw-readout", role: "status", "aria-live": "polite" },
+          h("div", null, "Total stitches: " + stitchCount.toLocaleString()),
+          h("div", null, skeinText)
+        ),
+        warn ? h("div", { className: "iw-warn", role: "alert" }, "Patterns over 40,000 stitches can be slow to generate on older devices.") : null
+      );
+    }
+
+    function renderStep4() {
+      var s = wizard.settings;
+      function setDither()    { wizard.setSettings(Object.assign({}, s, { dither: !s.dither })); }
+      function setContrast(n) { wizard.setSettings(Object.assign({}, s, { contrast: Math.max(-50, Math.min(50, n | 0)) })); }
+      function setSaliency()  { wizard.setSettings(Object.assign({}, s, { saliency: !s.saliency })); }
+      function setSkipBg()    { wizard.setSettings(Object.assign({}, s, { skipBg: !s.skipBg })); }
+      function setBgT(n)      { wizard.setSettings(Object.assign({}, s, { bgThreshold: Math.max(3, Math.min(50, n | 0)) })); }
+      return h("div", { className: "iw-step iw-step-preview" },
+        h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 4 of 5: Preview & tune"),
+        h("p", { className: "iw-step-desc" }, "Live preview is coming in a follow-up. For now, choose how the pixels should be processed."),
+        image ? h("div", { className: "iw-preview-thumb" },
+          h("img", { src: image.src, alt: "Image preview", style: { imageRendering: "pixelated" } })
+        ) : null,
+        h("label", { className: "iw-checkbox" },
+          h("input", { type: "checkbox", checked: !!s.dither, onChange: setDither }),
+          h("span", null, "Use dithering (smoother gradients)")
+        ),
+        h("div", { className: "iw-row" },
+          h("label", { className: "iw-field-label", htmlFor: "iw-contrast" }, "Contrast"),
+          h("input", {
+            id: "iw-contrast", type: "range", min: -50, max: 50, step: 1,
+            value: s.contrast,
+            onChange: function (e) { setContrast(Number(e.target.value)); },
+            "aria-valuemin": -50, "aria-valuemax": 50, "aria-valuenow": s.contrast
+          }),
+          h("output", { className: "iw-output" }, s.contrast)
+        ),
+        h("label", { className: "iw-checkbox" },
+          h("input", { type: "checkbox", checked: !!s.saliency, onChange: setSaliency }),
+          h("span", null, "Show saliency overlay (advanced)")
+        ),
+        h("label", { className: "iw-checkbox" },
+          h("input", { type: "checkbox", checked: !!s.skipBg, onChange: setSkipBg }),
+          h("span", null, "Skip near-white background")
+        ),
+        s.skipBg ? h("div", { className: "iw-row" },
+          h("label", { className: "iw-field-label", htmlFor: "iw-bgt" }, "Background tolerance"),
+          h("input", {
+            id: "iw-bgt", type: "range", min: 3, max: 50, step: 1,
+            value: s.bgThreshold,
+            onChange: function (e) { setBgT(Number(e.target.value)); },
+            "aria-valuemin": 3, "aria-valuemax": 50, "aria-valuenow": s.bgThreshold
+          }),
+          h("output", { className: "iw-output" }, s.bgThreshold)
+        ) : null
+      );
+    }
+
+    function renderStep5() {
+      var p = wizard.palette, sz = wizard.size, st = wizard.settings;
+      var paletteText = p.mode === "dmc" ? "Full DMC"
+                      : p.mode === "stash" ? "From stash"
+                      : "Limited (" + p.maxColours + ")";
+      return h("div", { className: "iw-step iw-step-confirm" },
+        h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 5 of 5: Confirm"),
+        h("p", { className: "iw-step-desc" }, "Check the details, then generate your pattern."),
+        h("label", { className: "iw-field" },
+          h("span", { className: "iw-field-label" }, "Project name"),
+          h("input", {
+            type: "text", maxLength: 60, value: wizard.name,
+            placeholder: "e.g. Rose Garden",
+            onChange: function (e) { wizard.setName(e.target.value); }
+          })
+        ),
+        h("div", { className: "iw-summary" },
+          image ? h("div", { className: "iw-summary-thumb" },
+            h("img", { src: image.src, alt: "Project thumbnail" })
+          ) : null,
+          h("dl", { className: "iw-summary-list" },
+            h("dt", null, "Dimensions"), h("dd", null, sz.w + " × " + sz.h + " stitches"),
+            h("dt", null, "Fabric count"), h("dd", null, sz.fabricCt + " count"),
+            h("dt", null, "Palette"), h("dd", null, paletteText),
+            h("dt", null, "Blends"), h("dd", null, p.allowBlends ? "Allowed" : "Off"),
+            h("dt", null, "Dithering"), h("dd", null, st.dither ? "On" : "Off"),
+            h("dt", null, "Skip background"), h("dd", null, st.skipBg ? ("On (tolerance " + st.bgThreshold + ")") : "Off"),
+            h("dt", null, "Estimate"), h("dd", null, skeinText)
+          )
+        )
+      );
+    }
+
+    // ── Footer controls ──────────────────────────────────────────────────
+    function renderFooter() {
+      var isFirst = wizard.step === 1;
+      var isLast  = wizard.step === wizard.STEPS;
+      return h("div", { className: "iw-controls" },
+        h("button", {
+          type: "button", className: "iw-btn iw-btn--ghost",
+          onClick: function () { setDiscardOpen(true); }
+        }, "Cancel"),
+        h("div", { className: "iw-controls-spacer" }),
+        h("button", {
+          type: "button", className: "iw-btn",
+          onClick: function () { wizard.back(); },
+          disabled: isFirst,
+          "aria-disabled": isFirst ? "true" : "false"
+        }, "Back"),
+        isLast
+          ? h("button", { type: "button", className: "iw-btn iw-btn--primary", onClick: onGenerate }, "Generate pattern")
+          : h("button", { type: "button", className: "iw-btn iw-btn--primary", onClick: function () { wizard.next(); } }, "Next")
+      );
+    }
+
+    var bodyRender = wizard.step === 1 ? renderStep1
+                    : wizard.step === 2 ? renderStep2
+                    : wizard.step === 3 ? renderStep3
+                    : wizard.step === 4 ? renderStep4
+                    : renderStep5;
+
+    return h("div", {
+      className: "iw-wizard-root",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "iw-step-heading",
+      "aria-describedby": "iw-wizard-desc"
+    },
+      h("div", { className: "iw-scrim", "aria-hidden": "true", onClick: function () { setDiscardOpen(true); } }),
+      h("div", { className: "iw-wizard" },
+        h("div", { className: "iw-header" },
+          h("span", { id: "iw-wizard-desc", className: "sr-only" }, "Image import wizard. Five steps to convert an image into a cross-stitch pattern."),
+          renderProgress()
+        ),
+        h("div", { className: "iw-body" }, bodyRender()),
+        renderFooter()
+      ),
+      discardOpen ? h("div", {
+        className: "iw-discard-modal",
+        role: "alertdialog",
+        "aria-labelledby": "iw-discard-title"
+      },
+        h("h3", { id: "iw-discard-title" }, "Discard import?"),
+        h("p", null, "Your draft is saved for 7 days, so you can come back to it."),
+        h("div", { className: "iw-discard-buttons" },
+          h("button", { type: "button", className: "iw-btn", onClick: function () { setDiscardOpen(false); } }, "Keep editing"),
+          h("button", { type: "button", className: "iw-btn iw-btn--danger", onClick: onCancel }, "Discard")
+        )
+      ) : null
+    );
+  }
+
+  window.ImportWizard = ImportWizard;
+})();
 
 
 /* ─── useEditHistory.js ─── */
@@ -8608,9 +9575,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
   );
   var splitBtn = h("button", {
-    className: "tb-btn" + (app.splitPaneEnabled ? " tb-btn--on" : ""),
-    title: app.splitPaneEnabled ? "Exit split view (\\)" : "Split view: chart + preview (\\)",
-    "aria-label": app.splitPaneEnabled ? "Exit split view" : "Enter split view",
+    className: "tb-btn tb-btn--compare" + (app.splitPaneEnabled ? " tb-btn--on" : ""),
+    title: app.splitPaneEnabled
+      ? "Exit compare view (\\)"
+      : "Compare chart vs realistic preview (\\)",
+    "aria-label": app.splitPaneEnabled ? "Exit compare view" : "Compare chart vs realistic preview",
+    "aria-pressed": app.splitPaneEnabled ? "true" : "false",
     disabled: !(ctx.pat && ctx.pal),
     onClick: function() {
       var next = !app.splitPaneEnabled;
@@ -8618,7 +9588,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", next);
     },
     style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
-  }, svgSplit, !sc.bs ? " Split" : null);
+  }, svgSplit, !sc.bs ? " Compare" : null);
 
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
@@ -10727,11 +11697,33 @@ window.CreatorSidebar = function CreatorSidebar() {
     }
     var STASH_DOT = { owned: '#16a34a', partial: '#f59e0b', needed: '#dc2626' };
     var hiddenByFilter = 0;
+    // A1 (UX Phase 5) — collect composite keys of unowned palette threads so
+    // the warning panel can wire its CTAs honestly. Mirrors stashStatusForChip.
+    var unownedKeys = [];
+    var unownedSeen = Object.create(null);
+    function _trackUnowned(p) {
+      if (!stashHas) return;
+      var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
+        ? splitBlendId(p.id)
+        : [p.id];
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        if (!id || id === '__skip__' || id === '__empty__') continue;
+        var brand = p.brand || resolveBrand(id);
+        var key = brand + ':' + id;
+        if (unownedSeen[key]) continue;
+        var entry = stash[key];
+        var owned = entry && entry.owned ? entry.owned : 0;
+        var needed = (typeof skeinEst === 'function' && p.count != null) ? skeinEst(p.count, fabricCtForStash) : 1;
+        if (owned < needed) { unownedSeen[key] = true; unownedKeys.push(key); }
+      }
+    }
     var chips = displayPal.map(function(p) {
       var ips = isPaintMode && cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
       var isUnused = ctx.isScratchMode && p.count === 0;
       var stashStatus = stashStatusForChip(p);
+      if (stashStatus === 'needed') _trackUnowned(p);
       // Brief D — when "limit to stash" filter is on, hide unowned chips.
       if (ctx.creatorStashFilter && stashHas && stashStatus === 'needed') {
         hiddenByFilter++;
@@ -10817,8 +11809,75 @@ window.CreatorSidebar = function CreatorSidebar() {
           style:{marginLeft:"auto",fontSize:10,padding:"2px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}
         }, typeof Icons !== 'undefined' && Icons.cart ? Icons.cart() : null, "Shopping list")
       ),
-      // Brief D — banner when filter hides chips, or stash empty.
-      ctx.creatorStashFilter && stashHas && hiddenByFilter > 0 && h("div", {
+      // A1 (UX Phase 5) — honest warning panel + actionable CTAs.
+      // Always show when filter is on and unowned threads remain in the
+      // pattern (regardless of whether chips are currently hidden), so the
+      // user can never believe they are stash-ready when they are not.
+      ctx.creatorStashFilter && stashHas && unownedKeys.length > 0 && h("div", {
+        role: "status",
+        "aria-live": "polite",
+        style:{marginBottom:8,padding:"8px 10px",borderRadius:7,background:"#fffbeb",border:"1px solid #fde68a",fontSize:11,color:"#92400e",display:"flex",flexDirection:"column",gap:6}
+      },
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,fontWeight:600}},
+          typeof Icons !== 'undefined' && Icons.warning ? Icons.warning() : null,
+          h("span", null,
+            unownedKeys.length + " unowned thread" + (unownedKeys.length !== 1 ? "s" : "") + " still in this pattern"
+          )
+        ),
+        h("div", {style:{color:"#78350f",lineHeight:1.4}},
+          "The filter only hides chips \u2014 it does not change the pattern. Substitute or buy these threads to be truly stash-ready."
+        ),
+        h("div", {style:{display:"flex",gap:6,flexWrap:"wrap"}},
+          h("button", {
+            onClick: function() {
+              if (typeof StashBridge === 'undefined' || typeof analyseSubstitutions !== 'function') {
+                if (app.addToast) app.addToast("Substitute is unavailable right now.", {type:"error", duration:3000});
+                return;
+              }
+              StashBridge.getGlobalStash().then(function(s) {
+                var result = analyseSubstitutions(
+                  ctx.skeinData || [],
+                  ctx.threadOwned || {},
+                  s,
+                  ctx.fabricCt || 14,
+                  { maxDeltaE: ctx.substituteMaxDeltaE != null ? ctx.substituteMaxDeltaE : 15, dmcData: typeof DMC !== 'undefined' ? DMC : [] }
+                );
+                if (typeof ctx.setSubstituteProposal === 'function') ctx.setSubstituteProposal(result);
+                if (typeof ctx.setSubstituteModalKey === 'function') ctx.setSubstituteModalKey(function(k){ return k + 1; });
+                if (typeof ctx.setSubstituteModalOpen === 'function') ctx.setSubstituteModalOpen(true);
+              }).catch(function() {
+                if (app.addToast) app.addToast("Could not load your stash.", {type:"error", duration:3000});
+              });
+            },
+            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #fbbf24",background:"#fff",color:"#92400e",fontWeight:600,cursor:"pointer"}
+          }, "Substitute from stash"),
+          h("button", {
+            onClick: function() {
+              if (typeof StashBridge === 'undefined' || typeof StashBridge.markManyToBuy !== 'function') {
+                if (app.addToast) app.addToast("Shopping list is unavailable right now.", {type:"error", duration:3000});
+                return;
+              }
+              var keys = unownedKeys.slice();
+              StashBridge.markManyToBuy(keys, true).then(function(changed) {
+                if (!app.addToast) return;
+                if (changed === 0) {
+                  app.addToast("Already on your shopping list.", {type:"info", duration:2500});
+                } else if (changed === keys.length) {
+                  app.addToast("Added " + changed + " thread" + (changed !== 1 ? "s" : "") + " to your shopping list.", {type:"success", duration:2800});
+                } else {
+                  app.addToast("Added " + changed + " new thread" + (changed !== 1 ? "s" : "") + "; " + (keys.length - changed) + " already on your list.", {type:"success", duration:2800});
+                }
+              }).catch(function() {
+                if (app.addToast) app.addToast("Could not update your shopping list.", {type:"error", duration:3000});
+              });
+            },
+            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #fbbf24",background:"#fef3c7",color:"#92400e",fontWeight:600,cursor:"pointer"}
+          }, "Add to shopping list")
+        )
+      ),
+      // Brief D — banner when filter hides chips (kept as a quieter follow-up
+      // line for users who still need the "turn off the filter" hint).
+      ctx.creatorStashFilter && stashHas && hiddenByFilter > 0 && unownedKeys.length === 0 && h("div", {
         style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#fffbeb",border:"0.5px solid #fde68a",fontSize:10,color:"#92400e"}
       }, hiddenByFilter + " unowned colour" + (hiddenByFilter !== 1 ? "s" : "") + " hidden \u2014 turn off the filter to see all."),
       ctx.creatorStashFilter && !stashHas && h("div", {
@@ -11869,6 +12928,31 @@ window.CreatorSidebar = function CreatorSidebar() {
         display:"flex",alignItems:"center",justifyContent:"center",gap:6}
     }, "Start Tracking \u2192")
   ) : null;
+
+  // ─── B3: mode-aware sidebar — hide on Materials, summarise on Project ─────
+  // Only applies when a pattern is loaded (edit mode); the create-mode early
+  // return above already governs pre-generation rendering.
+  if (ctx.pat && ctx.pal && app && app.tab === 'materials') {
+    return null;
+  }
+  if (ctx.pat && ctx.pal && app && app.tab === 'project') {
+    var palLen = (ctx.displayPal || ctx.pal || []).length;
+    return h('aside', { className: 'cs-sidebar-fade', style: { padding: '12px', display: 'flex', flexDirection: 'column', gap: 10 } },
+      h('div', { style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 0.4 } }, 'Project at a glance'),
+      h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 4, fontSize: 12 } },
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Size'),
+        h('span', null, ctx.sW + ' \u00D7 ' + ctx.sH + ' stitches'),
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Colours'),
+        h('span', null, palLen),
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Fabric'),
+        h('span', null, (ctx.fabricCt || 14) + ' count'),
+        ctx.totalSkeins != null && h('span', { style: { color: 'var(--text-tertiary)' } }, 'Skeins'),
+        ctx.totalSkeins != null && h('span', null, ctx.totalSkeins)
+      ),
+      h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.4 } },
+        'Use the canvas tools on the Pattern page to edit. Generation parameters are above on this page.')
+    );
+  }
 
   return h(React.Fragment, null,
     tabBar,
@@ -13010,7 +14094,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   // ── Early returns after all hooks ─────────────────────────────────────────
   if (!(ctx.pat && ctx.pal)) return null;
-  if (app.tab !== "legend") return null;
+  // B3/B4: rendered as the 'threads' sub-tab inside MaterialsHub.
+  if (app.tab !== "materials" || app.materialsTab !== "threads") return null;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   var fabCounts = (typeof FABRIC_COUNTS !== "undefined") ? FABRIC_COUNTS : [
@@ -13428,7 +14513,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
 
   // Early returns AFTER all hooks
   if (!(ctx.pat && ctx.pal)) return null;
-  if (app.tab !== 'prepare') return null;
+  // B3/B4: rendered as a sub-tab inside MaterialsHub.
+  if (app.tab !== 'materials' || app.materialsTab !== 'stash') return null;
 
   // Fabric calculator
   var fabCounts = typeof FABRIC_COUNTS !== 'undefined' ? FABRIC_COUNTS : [
@@ -14022,28 +15108,38 @@ window.CreatorExportTab = function CreatorExportTab() {
     setProgress(null);
   }
 
+  // Render the pattern to a PNG Blob at CELL px per stitch (default 10).
+  // Used by the standalone PNG export and by the C6 zip bundle.
+  function renderPatternPng(cellPx) {
+    return new Promise(function (resolve, reject) {
+      if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { reject(new Error("No pattern")); return; }
+      var CELL = cellPx || 10;
+      var c = document.createElement("canvas");
+      c.width = ctx.sW * CELL;
+      c.height = ctx.sH * CELL;
+      var g = c.getContext("2d");
+      g.fillStyle = "#ffffff";
+      g.fillRect(0, 0, c.width, c.height);
+      for (var y = 0; y < ctx.sH; y++) {
+        for (var x = 0; x < ctx.sW; x++) {
+          var cell = ctx.pat[y * ctx.sW + x];
+          if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+          var rgb = cell.rgb;
+          if (!rgb || rgb.length < 3) continue;
+          g.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+          g.fillRect(x * CELL, y * CELL, CELL, CELL);
+        }
+      }
+      c.toBlob(function (blob) {
+        if (!blob) { reject(new Error("Failed to create PNG")); return; }
+        resolve(blob);
+      }, "image/png");
+    });
+  }
+
   function doExportPng() {
     setError(null);
-    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("Nothing to export yet — create or open a pattern first."); return; }
-    var CELL = 10;
-    var c = document.createElement("canvas");
-    c.width = ctx.sW * CELL;
-    c.height = ctx.sH * CELL;
-    var g = c.getContext("2d");
-    g.fillStyle = "#ffffff";
-    g.fillRect(0, 0, c.width, c.height);
-    for (var y = 0; y < ctx.sH; y++) {
-      for (var x = 0; x < ctx.sW; x++) {
-        var cell = ctx.pat[y * ctx.sW + x];
-        if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-        var rgb = cell.rgb;
-        if (!rgb || rgb.length < 3) continue;
-        g.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
-        g.fillRect(x * CELL, y * CELL, CELL, CELL);
-      }
-    }
-    c.toBlob(function (blob) {
-      if (!blob) { setError("Failed to create PNG."); return; }
+    renderPatternPng(10).then(function (blob) {
       var name = ((app.projectName || "pattern") + "").replace(EXPORT_UNSAFE_FILENAME_CHARS, "_") + ".png";
       var a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -14052,11 +15148,171 @@ window.CreatorExportTab = function CreatorExportTab() {
       a.click();
       document.body.removeChild(a);
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-    }, "image/png");
+    }).catch(function (err) {
+      setError(err.message || "Failed to create PNG");
+    });
   }
 
+  // ── C6: Download bundle (PDF + OXS + PNG + JSON + manifest.json) ──────
+  var bundleState = React.useState(null); // {stage, msg} or null
+  var setBundleState = bundleState[1];
+
+  function buildProjectJson() {
+    // Mirrors the shape produced by useProjectIO.doSaveProject (version 11).
+    // Kept inline (rather than refactored into useProjectIO) to keep C6 a
+    // single-file change in ExportTab; can be lifted later.
+    var psArr = [];
+    if (ctx.partialStitches && typeof ctx.partialStitches.forEach === "function") {
+      ctx.partialStitches.forEach(function (v, k) {
+        var e = {};
+        ["TL", "TR", "BL", "BR"].forEach(function (q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+        psArr.push([k, e]);
+      });
+    }
+    var pattern = (window.PatternIO && window.PatternIO.serializePattern)
+      ? window.PatternIO.serializePattern(ctx.pat)
+      : ctx.pat.map(function (m) { return m && m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; });
+    return {
+      version: 11,
+      page: "creator",
+      name: app.projectName || "Untitled pattern",
+      designer: app.projectDesigner || "",
+      description: app.projectDescription || "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      settings: { sW: ctx.sW, sH: ctx.sH, fabricCt: ctx.fabricCt },
+      pattern: pattern,
+      bsLines: ctx.bsLines || [],
+      partialStitches: psArr,
+    };
+  }
+
+  function shareOrDownload(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    function cleanup() { setTimeout(function () { URL.revokeObjectURL(url); }, 5000); }
+    try {
+      if (typeof navigator !== "undefined" && navigator.canShare && typeof File === "function") {
+        var file = new File([blob], filename, { type: "application/zip" });
+        if (navigator.canShare({ files: [file] })) {
+          return navigator.share({ files: [file], title: filename })
+            .then(cleanup)
+            .catch(function () {
+              // User dismissed or share failed — fall back to download.
+              var a = document.createElement("a");
+              a.href = url; a.download = filename;
+              document.body.appendChild(a); a.click(); document.body.removeChild(a);
+              cleanup();
+            });
+        }
+      }
+    } catch (_) { /* fall through to download */ }
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    cleanup();
+    return Promise.resolve();
+  }
+
+  function doExportBundle() {
+    setError(null);
+    if (!window.ZipBundle) { setError("Bundle export unavailable — JSZip failed to load."); return; }
+    if (!ctx || !ctx.pat || !ctx.pal || !ctx.sW || !ctx.sH) {
+      setError("Nothing to export yet — create or open a pattern first.");
+      return;
+    }
+    setBundleState({ stage: "init", msg: "Preparing bundle…" });
+
+    // Assemble project payload + PDF options (same as doExport).
+    var exportCtx = Object.assign({}, ctx, {
+      projectName: app.projectName,
+      projectDesigner: app.projectDesigner,
+      projectDescription: app.projectDescription,
+    });
+    var project = window.PdfExport.buildExportProject(exportCtx);
+    if (!project) { setBundleState(null); setError("Nothing to export yet — create or open a pattern first."); return; }
+    project.coverPreviewJpeg = window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
+    var branding = window.PdfExport.readBranding();
+    if (app.projectDesigner) branding = Object.assign({}, branding, { designerName: app.projectDesigner });
+    var pdfOpts = {
+      pageSize: pageSize[0], marginsMm: marginsMm[0],
+      stitchesPerPage: stPerPg[0], customCols: customCols[0], customRows: customRows[0],
+      chartModes: modesArr.length ? modesArr : ["bw", "colour"], overlap: overlap[0],
+      includeCover: includeCover[0], includeInfo: includeInfo[0],
+      includeIndex: includeIndex[0], miniLegend: miniLegend[0],
+      branding: branding,
+      locale: navigator.language || "en-GB",
+    };
+
+    setBundleState({ stage: "pdf", msg: "Rendering PDF…" });
+    var pdfPromise = window.PdfExport.runExport(project, pdfOpts).catch(function (err) {
+      // PDF failure does not abort — bundle ships without it.
+      console.warn("Bundle: PDF export failed, continuing without PDF:", err);
+      return null;
+    });
+    var pngPromise = renderPatternPng(10).catch(function (err) {
+      console.warn("Bundle: PNG render failed:", err);
+      return null;
+    });
+
+    var oxsString = null;
+    try {
+      oxsString = window.ZipBundle._serializeOxs({
+        width: ctx.sW, height: ctx.sH, pattern: ctx.pat,
+        bsLines: ctx.bsLines || [], palette: ctx.pal
+      });
+    } catch (e) {
+      console.warn("Bundle: OXS serialise failed:", e);
+    }
+    var jsonObj = null;
+    try { jsonObj = buildProjectJson(); } catch (e) { console.warn("Bundle: JSON snapshot failed:", e); }
+
+    Promise.all([pdfPromise, pngPromise]).then(function (parts) {
+      var pdfBytes = parts[0];
+      var pngBlob = parts[1];
+
+      // Mobile: warn before producing very large bundles.
+      var estBytes = (pdfBytes ? pdfBytes.byteLength : 0)
+        + (pngBlob ? pngBlob.size : 0)
+        + (oxsString ? oxsString.length : 0)
+        + (jsonObj ? JSON.stringify(jsonObj).length : 0);
+      var isCoarse = (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+      if (estBytes > 50 * 1024 * 1024 && isCoarse) {
+        var ok = window.confirm("Bundle is roughly " + (estBytes / 1024 / 1024).toFixed(1)
+          + " MB. Large bundles can be slow on phones. Continue?");
+        if (!ok) { setBundleState(null); return null; }
+      }
+
+      setBundleState({ stage: "zip", msg: "Compressing…" });
+      return window.ZipBundle.build({
+        projectName: project.name,
+        schemaVersion: 11,
+        pdfBytes: pdfBytes,
+        oxsString: oxsString,
+        pngBlob: pngBlob,
+        projectJson: jsonObj,
+      }, {
+        onProgress: function (stage, msg) { setBundleState({ stage: stage, msg: msg }); }
+      });
+    }).then(function (zipBlob) {
+      if (!zipBlob) return;
+      var filename = window.ZipBundle._filename(project.name, 11, new Date());
+      setBundleState(null);
+      try {
+        if (typeof Toast !== "undefined" && Toast.show) {
+          Toast.show({ message: "Bundle saved (" + (zipBlob.size / 1024 / 1024).toFixed(1) + " MB)", type: "success", duration: 3000 });
+        }
+      } catch (_) {}
+      shareOrDownload(zipBlob, filename);
+    }).catch(function (err) {
+      setBundleState(null);
+      setError("Bundle export failed: " + (err && err.message ? err.message : err));
+    });
+  }
+
+
   if (!(ctx && ctx.pat && ctx.pal)) return null;
-  if (app.tab !== "export") return null;
+  // B3/B4: rendered as the 'output' sub-tab inside MaterialsHub.
+  if (app.tab !== "materials" || app.materialsTab !== "output") return null;
 
   var presetCardActive = EXPORT_PRESET_CARD_ACTIVE;
   var presetCardBase = EXPORT_PRESET_CARD_BASE;
@@ -14194,6 +15450,22 @@ window.CreatorExportTab = function CreatorExportTab() {
       style: (exportFormat[0] === "pdf" && modesArr.length === 0) ? disabledCta : ctaStyle,
       disabled: exportFormat[0] === "pdf" && modesArr.length === 0,
     }, exportFormat[0] === "png" ? "Export PNG" : "Export PDF"),
+
+    // C6: Download bundle (zip with PDF + OXS + PNG + JSON + manifest).
+    h("div", { style: { borderTop: "1px solid #e2e8f0", marginTop: 4, paddingTop: 14, display: "flex", flexDirection: "column", gap: 8 } },
+      h("div", { style: { fontSize: 13, fontWeight: 600, color: "#0f172a" } }, "Download as bundle"),
+      h("div", { style: { fontSize: 11, color: "#64748b" } },
+        "One .zip with the PDF chart, OXS pattern, PNG preview, JSON snapshot, and a manifest. Useful for archiving or sharing the finished project."),
+      bundleState[0]
+        ? h("div", { style: { background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 8, padding: 10, fontSize: 12, color: "#0f172a" } },
+            (bundleState[0].msg || "Working…"))
+        : h("button", {
+            onClick: doExportBundle,
+            style: Object.assign({}, ctaStyle, { display: "inline-flex", alignItems: "center", gap: 8, alignSelf: "flex-start" }),
+          },
+          window.Icons && Icons.archive && Icons.archive(),
+          h("span", null, "Download bundle"))
+    ),
 
     errorState[0] && h("div", { style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, fontSize: 12, color: "#b91c1c" } }, errorState[0])
   );
@@ -14424,3 +15696,231 @@ window.CreatorExportTab = function CreatorExportTab() {
 
   window.CreatorShoppingListModal = CreatorShoppingListModal;
 })();
+
+
+/* ─── MaterialsHub.js ─── */
+/* creator/MaterialsHub.js — B4 Materials & Output hub.
+   Replaces the three former top-level tabs (Materials/Prepare/Export)
+   with a single page exposing four side-tabs:
+     Threads  : CreatorLegendTab
+     Stash    : CreatorPrepareTab
+     Shopping : in-line aggregate (deficit list + Add-all-to-shopping CTA)
+     Output   : CreatorExportTab
+   Reads from CreatorContext via window.useApp / window.usePatternData.
+   Active sub-tab persists via UserPrefs key 'creator.materialsTab'
+   (managed by useCreatorState's setMaterialsTab wrapper). */
+
+window.CreatorMaterialsHub = function CreatorMaterialsHub() {
+  var app = window.useApp();
+  var ctx = window.usePatternData();
+  var h   = React.createElement;
+  var useMemo = React.useMemo;
+  var useState = React.useState;
+  var useRef = React.useRef;
+
+  // ── Hooks BEFORE any conditional returns ────────────────────────────────
+  var _bulkBusy = useState(false);
+  var bulkBusy = _bulkBusy[0], setBulkBusy = _bulkBusy[1];
+  var tablistRef = useRef(null);
+
+  // Aggregate deficits: which threads in this project are not fully owned.
+  var deficits = useMemo(function () {
+    if (!(ctx && ctx.pat && ctx.pal)) return [];
+    var stash = (ctx.globalStash) || {};
+    var fab = ctx.fabricCt || 14;
+    var rows = [];
+    for (var i = 0; i < ctx.pal.length; i++) {
+      var p = ctx.pal[i];
+      if (!p || p.id === '__skip__' || p.id === '__empty__') continue;
+      var needed;
+      if (typeof stitchesToSkeins === 'function') {
+        var sk = stitchesToSkeins({ stitchCount: p.count, fabricCount: fab, strandsUsed: 2 });
+        needed = sk
+          ? (sk.colorA ? Math.max(sk.colorA.skeinsToBuy || 0, sk.colorB.skeinsToBuy || 0) : (sk.skeinsToBuy || 0))
+          : (typeof skeinEst === 'function' ? skeinEst(p.count, fab) : Math.ceil(p.count / 800));
+      } else {
+        needed = (typeof skeinEst === 'function') ? skeinEst(p.count, fab) : Math.ceil(p.count / 800);
+      }
+      if (needed < 1) needed = 1;
+      // Composite stash key: prefer DMC, but blends list both halves.
+      var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
+        ? p.id.split('+') : [p.id];
+      for (var j = 0; j < ids.length; j++) {
+        var id = ids[j];
+        var key = (typeof id === 'string' && id.indexOf(':') !== -1) ? id : ('dmc:' + id);
+        var entry = stash[key] || stash[id] || {};
+        var owned = entry.owned || 0;
+        if (owned >= needed) continue;
+        rows.push({
+          key: key, id: id,
+          name: (p.threads && p.threads[j] && p.threads[j].name) || p.name || String(id),
+          rgb: (p.threads && p.threads[j] && p.threads[j].rgb) || p.rgb || [200,200,200],
+          needed: needed, owned: owned, deficit: needed - owned,
+        });
+      }
+    }
+    rows.sort(function (a, b) { return b.deficit - a.deficit; });
+    return rows;
+  }, [ctx && ctx.pal, ctx && ctx.pat, ctx && ctx.globalStash, ctx && ctx.fabricCt]);
+
+  // Top-level guard: only render on the Materials & Output page.
+  if (app.tab !== 'materials') return null;
+  if (!(ctx && ctx.pat && ctx.pal)) return null;
+
+  var SUBTABS = [
+    { id: 'threads',  label: 'Threads',  icon: window.Icons && Icons.thread     ? Icons.thread()     : null },
+    { id: 'stash',    label: 'Stash status', icon: window.Icons && Icons.layers ? Icons.layers()     : null },
+    { id: 'shopping', label: 'Shopping', icon: window.Icons && Icons.shoppingCart ? Icons.shoppingCart() : (window.Icons && Icons.cart ? Icons.cart() : null) },
+    { id: 'output',   label: 'Output',   icon: window.Icons && Icons.download   ? Icons.download()   : null },
+  ];
+  var activeSub = app.materialsTab || 'threads';
+  var activeIdx = 0;
+  for (var si = 0; si < SUBTABS.length; si++) {
+    if (SUBTABS[si].id === activeSub) { activeIdx = si; break; }
+  }
+  var activeLabel = SUBTABS[activeIdx] ? SUBTABS[activeIdx].label : 'Threads';
+
+  function focusTabByIndex(idx) {
+    if (!tablistRef.current) return;
+    var btns = tablistRef.current.querySelectorAll('button[role="tab"]');
+    if (btns && btns[idx]) { btns[idx].focus(); }
+  }
+
+  function onTablistKeyDown(e) {
+    var key = e.key;
+    if (key !== 'ArrowRight' && key !== 'ArrowLeft' && key !== 'Home' && key !== 'End') return;
+    e.preventDefault();
+    var n = SUBTABS.length;
+    var nextIdx = activeIdx;
+    if (key === 'ArrowRight') nextIdx = (activeIdx + 1) % n;
+    else if (key === 'ArrowLeft') nextIdx = (activeIdx - 1 + n) % n;
+    else if (key === 'Home') nextIdx = 0;
+    else if (key === 'End') nextIdx = n - 1;
+    app.setMaterialsTab(SUBTABS[nextIdx].id);
+    setTimeout(function () { focusTabByIndex(nextIdx); }, 0);
+  }
+
+  function tabBtn(t, idx) {
+    var on = activeSub === t.id;
+    return h('button', {
+      key: t.id,
+      type: 'button',
+      role: 'tab',
+      'aria-selected': on,
+      tabIndex: on ? 0 : -1,
+      className: 'mh-subtab' + (on ? ' on' : ''),
+      onClick: function () { app.setMaterialsTab(t.id); },
+    },
+      t.icon && h('span', { className: 'mh-subtab-icon', 'aria-hidden': 'true' }, t.icon),
+      h('span', null, t.label)
+    );
+  }
+
+  // Shared empty-state renderer for sub-tab panels (centred icon, headline,
+  // optional helper paragraph, optional primary action). Uses SVG icons from
+  // icons.js — never emoji.
+  function emptyState(opts) {
+    return h('div', { className: 'mh-empty', role: 'status' },
+      opts.icon && h('div', { className: 'mh-empty-icon', 'aria-hidden': 'true' }, opts.icon),
+      h('h4', { className: 'mh-empty-headline' }, opts.headline),
+      opts.body && h('p', { className: 'mh-empty-body' }, opts.body),
+      opts.action && h('button', {
+        type: 'button', className: 'mh-empty-action',
+        onClick: opts.action.onClick,
+      }, opts.action.label)
+    );
+  }
+
+  // Shopping sub-tab content — only mounted when active to avoid extra work.
+  function shoppingPanel() {
+    if (deficits.length === 0) {
+      return emptyState({
+        icon: window.Icons && Icons.shoppingCart ? Icons.shoppingCart() : (window.Icons && Icons.cart ? Icons.cart() : null),
+        headline: 'Your stash already covers every thread.',
+        body: 'When you\u2019re short of a colour, the deficit will appear here.'
+      });
+    }
+    var totalDeficitSkeins = deficits.reduce(function (s, r) { return s + r.deficit; }, 0);
+    return h('div', { className: 'mh-shopping' },
+      h('div', { className: 'mh-shopping-caption', style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-tertiary)', marginBottom: 6 } }, 'Shopping for this pattern'),
+      h('div', { className: 'mh-shopping-header', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 } },
+        h('div', null,
+          h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' } },
+            deficits.length + ' thread' + (deficits.length === 1 ? '' : 's') + ' to buy'
+          ),
+          h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)' } },
+            totalDeficitSkeins + ' skein' + (totalDeficitSkeins === 1 ? '' : 's') + ' across this project'
+          )
+        ),
+        h('button', {
+          type: 'button',
+          disabled: bulkBusy,
+          className: 'mh-shopping-bulk',
+          onClick: function () {
+            if (!(window.StashBridge && typeof StashBridge.markManyToBuy === 'function')) return;
+            setBulkBusy(true);
+            var keys = deficits.map(function (r) { return r.key; });
+            Promise.resolve(StashBridge.markManyToBuy(keys, true))
+              .then(function () {
+                if (window.Toast && typeof Toast.show === 'function') {
+                  Toast.show({ message: 'Added ' + keys.length + ' thread' + (keys.length === 1 ? '' : 's') + ' to your shopping list.', type: 'success', duration: 3000 });
+                }
+              })
+              .catch(function (e) { console.error('MaterialsHub bulk shopping failed:', e); })
+              .then(function () { setBulkBusy(false); });
+          },
+          style: { padding: '8px 14px', fontSize: 12, fontWeight: 600, borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', cursor: bulkBusy ? 'wait' : 'pointer' },
+        }, bulkBusy ? 'Adding…' : 'Add all to shopping list')
+      ),
+      h('div', { className: 'mh-shopping-list', role: 'list' },
+        deficits.map(function (r) {
+          return h('div', { key: r.key, role: 'listitem', className: 'mh-shopping-row',
+            style: { display: 'grid', gridTemplateColumns: '24px 1fr auto auto', gap: 10, alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid var(--border)' } },
+            h('span', { className: 'mh-swatch', 'aria-hidden': 'true',
+              style: { display: 'inline-block', width: 20, height: 20, borderRadius: 4, background: 'rgb(' + r.rgb.join(',') + ')', border: '1px solid var(--border)' } }),
+            h('span', { className: 'mh-shopping-name', style: { fontSize: 12, color: 'var(--text-primary)' } },
+              h('strong', null, r.id), ' \u00B7 ', r.name),
+            h('span', { className: 'mh-shopping-need', style: { fontSize: 11, color: 'var(--text-tertiary)' } },
+              'need ' + r.needed + ', own ' + r.owned),
+            h('span', { className: 'mh-shopping-deficit', style: { fontSize: 12, fontWeight: 600, color: 'var(--accent)' } },
+              '+' + r.deficit + ' skein' + (r.deficit === 1 ? '' : 's'))
+          );
+        })
+      )
+    );
+  }
+
+  return h('div', { className: 'materials-hub', role: 'tabpanel', 'aria-label': 'Materials and Output' },
+    h('div', { className: 'mh-subtabs-wrap' },
+      h('div', { className: 'mh-breadcrumb', 'aria-hidden': 'true' },
+        h('span', { className: 'mh-breadcrumb-root' }, 'Materials & Output'),
+        h('span', { className: 'mh-breadcrumb-sep' },
+          window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null
+        ),
+        h('span', { className: 'mh-breadcrumb-current' }, activeLabel)
+      ),
+      h('span', { className: 'mh-subtabs-label', 'aria-hidden': 'true' },
+        window.Icons && window.Icons.layers ? h('span', { className: 'mh-subtabs-label-icon' }, window.Icons.layers()) : null,
+        h('span', null, 'View:')
+      ),
+      h('nav', {
+        className: 'mh-subtabs',
+        role: 'tablist',
+        'aria-label': 'Materials sections',
+        ref: tablistRef,
+        onKeyDown: onTablistKeyDown,
+      },
+        SUBTABS.map(tabBtn)
+      )
+    ),
+    h('div', { className: 'mh-body' },
+      // Threads / Stash / Output children manage their own visibility via the
+      // app.materialsTab guard added in B3, so they are mounted unconditionally
+      // here. Shopping is local to this hub.
+      h(window.CreatorLegendTab, null),
+      h(window.CreatorPrepareTab, null),
+      activeSub === 'shopping' && shoppingPanel(),
+      h(window.CreatorExportTab, null)
+    )
+  );
+};

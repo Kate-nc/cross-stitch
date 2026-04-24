@@ -115,11 +115,33 @@ window.CreatorSidebar = function CreatorSidebar() {
     }
     var STASH_DOT = { owned: '#16a34a', partial: '#f59e0b', needed: '#dc2626' };
     var hiddenByFilter = 0;
+    // A1 (UX Phase 5) — collect composite keys of unowned palette threads so
+    // the warning panel can wire its CTAs honestly. Mirrors stashStatusForChip.
+    var unownedKeys = [];
+    var unownedSeen = Object.create(null);
+    function _trackUnowned(p) {
+      if (!stashHas) return;
+      var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
+        ? splitBlendId(p.id)
+        : [p.id];
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        if (!id || id === '__skip__' || id === '__empty__') continue;
+        var brand = p.brand || resolveBrand(id);
+        var key = brand + ':' + id;
+        if (unownedSeen[key]) continue;
+        var entry = stash[key];
+        var owned = entry && entry.owned ? entry.owned : 0;
+        var needed = (typeof skeinEst === 'function' && p.count != null) ? skeinEst(p.count, fabricCtForStash) : 1;
+        if (owned < needed) { unownedSeen[key] = true; unownedKeys.push(key); }
+      }
+    }
     var chips = displayPal.map(function(p) {
       var ips = isPaintMode && cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
       var isUnused = ctx.isScratchMode && p.count === 0;
       var stashStatus = stashStatusForChip(p);
+      if (stashStatus === 'needed') _trackUnowned(p);
       // Brief D — when "limit to stash" filter is on, hide unowned chips.
       if (ctx.creatorStashFilter && stashHas && stashStatus === 'needed') {
         hiddenByFilter++;
@@ -205,8 +227,75 @@ window.CreatorSidebar = function CreatorSidebar() {
           style:{marginLeft:"auto",fontSize:10,padding:"2px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}
         }, typeof Icons !== 'undefined' && Icons.cart ? Icons.cart() : null, "Shopping list")
       ),
-      // Brief D — banner when filter hides chips, or stash empty.
-      ctx.creatorStashFilter && stashHas && hiddenByFilter > 0 && h("div", {
+      // A1 (UX Phase 5) — honest warning panel + actionable CTAs.
+      // Always show when filter is on and unowned threads remain in the
+      // pattern (regardless of whether chips are currently hidden), so the
+      // user can never believe they are stash-ready when they are not.
+      ctx.creatorStashFilter && stashHas && unownedKeys.length > 0 && h("div", {
+        role: "status",
+        "aria-live": "polite",
+        style:{marginBottom:8,padding:"8px 10px",borderRadius:7,background:"#fffbeb",border:"1px solid #fde68a",fontSize:11,color:"#92400e",display:"flex",flexDirection:"column",gap:6}
+      },
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,fontWeight:600}},
+          typeof Icons !== 'undefined' && Icons.warning ? Icons.warning() : null,
+          h("span", null,
+            unownedKeys.length + " unowned thread" + (unownedKeys.length !== 1 ? "s" : "") + " still in this pattern"
+          )
+        ),
+        h("div", {style:{color:"#78350f",lineHeight:1.4}},
+          "The filter only hides chips \u2014 it does not change the pattern. Substitute or buy these threads to be truly stash-ready."
+        ),
+        h("div", {style:{display:"flex",gap:6,flexWrap:"wrap"}},
+          h("button", {
+            onClick: function() {
+              if (typeof StashBridge === 'undefined' || typeof analyseSubstitutions !== 'function') {
+                if (app.addToast) app.addToast("Substitute is unavailable right now.", {type:"error", duration:3000});
+                return;
+              }
+              StashBridge.getGlobalStash().then(function(s) {
+                var result = analyseSubstitutions(
+                  ctx.skeinData || [],
+                  ctx.threadOwned || {},
+                  s,
+                  ctx.fabricCt || 14,
+                  { maxDeltaE: ctx.substituteMaxDeltaE != null ? ctx.substituteMaxDeltaE : 15, dmcData: typeof DMC !== 'undefined' ? DMC : [] }
+                );
+                if (typeof ctx.setSubstituteProposal === 'function') ctx.setSubstituteProposal(result);
+                if (typeof ctx.setSubstituteModalKey === 'function') ctx.setSubstituteModalKey(function(k){ return k + 1; });
+                if (typeof ctx.setSubstituteModalOpen === 'function') ctx.setSubstituteModalOpen(true);
+              }).catch(function() {
+                if (app.addToast) app.addToast("Could not load your stash.", {type:"error", duration:3000});
+              });
+            },
+            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #fbbf24",background:"#fff",color:"#92400e",fontWeight:600,cursor:"pointer"}
+          }, "Substitute from stash"),
+          h("button", {
+            onClick: function() {
+              if (typeof StashBridge === 'undefined' || typeof StashBridge.markManyToBuy !== 'function') {
+                if (app.addToast) app.addToast("Shopping list is unavailable right now.", {type:"error", duration:3000});
+                return;
+              }
+              var keys = unownedKeys.slice();
+              StashBridge.markManyToBuy(keys, true).then(function(changed) {
+                if (!app.addToast) return;
+                if (changed === 0) {
+                  app.addToast("Already on your shopping list.", {type:"info", duration:2500});
+                } else if (changed === keys.length) {
+                  app.addToast("Added " + changed + " thread" + (changed !== 1 ? "s" : "") + " to your shopping list.", {type:"success", duration:2800});
+                } else {
+                  app.addToast("Added " + changed + " new thread" + (changed !== 1 ? "s" : "") + "; " + (keys.length - changed) + " already on your list.", {type:"success", duration:2800});
+                }
+              }).catch(function() {
+                if (app.addToast) app.addToast("Could not update your shopping list.", {type:"error", duration:3000});
+              });
+            },
+            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #fbbf24",background:"#fef3c7",color:"#92400e",fontWeight:600,cursor:"pointer"}
+          }, "Add to shopping list")
+        )
+      ),
+      // Brief D — banner when filter hides chips (kept as a quieter follow-up
+      // line for users who still need the "turn off the filter" hint).
+      ctx.creatorStashFilter && stashHas && hiddenByFilter > 0 && unownedKeys.length === 0 && h("div", {
         style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#fffbeb",border:"0.5px solid #fde68a",fontSize:10,color:"#92400e"}
       }, hiddenByFilter + " unowned colour" + (hiddenByFilter !== 1 ? "s" : "") + " hidden \u2014 turn off the filter to see all."),
       ctx.creatorStashFilter && !stashHas && h("div", {
@@ -1257,6 +1346,31 @@ window.CreatorSidebar = function CreatorSidebar() {
         display:"flex",alignItems:"center",justifyContent:"center",gap:6}
     }, "Start Tracking \u2192")
   ) : null;
+
+  // ─── B3: mode-aware sidebar — hide on Materials, summarise on Project ─────
+  // Only applies when a pattern is loaded (edit mode); the create-mode early
+  // return above already governs pre-generation rendering.
+  if (ctx.pat && ctx.pal && app && app.tab === 'materials') {
+    return null;
+  }
+  if (ctx.pat && ctx.pal && app && app.tab === 'project') {
+    var palLen = (ctx.displayPal || ctx.pal || []).length;
+    return h('aside', { className: 'cs-sidebar-fade', style: { padding: '12px', display: 'flex', flexDirection: 'column', gap: 10 } },
+      h('div', { style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 0.4 } }, 'Project at a glance'),
+      h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 4, fontSize: 12 } },
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Size'),
+        h('span', null, ctx.sW + ' \u00D7 ' + ctx.sH + ' stitches'),
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Colours'),
+        h('span', null, palLen),
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Fabric'),
+        h('span', null, (ctx.fabricCt || 14) + ' count'),
+        ctx.totalSkeins != null && h('span', { style: { color: 'var(--text-tertiary)' } }, 'Skeins'),
+        ctx.totalSkeins != null && h('span', null, ctx.totalSkeins)
+      ),
+      h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.4 } },
+        'Use the canvas tools on the Pattern page to edit. Generation parameters are above on this page.')
+    );
+  }
 
   return h(React.Fragment, null,
     tabBar,

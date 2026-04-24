@@ -163,17 +163,9 @@
         id: 'act_shortcuts', label: 'Keyboard Shortcuts', section: 'action',
         keywords: ['keyboard', 'shortcut', 'keys', 'hotkey'],
         action: function () { window.dispatchEvent(new CustomEvent('cs:openShortcuts')); }
-      },
-      {
-        id: 'act_reset_tour', label: 'Reset Onboarding Tour', section: 'settings',
-        keywords: ['reset', 'tour', 'onboarding', 'welcome', 'wizard'],
-        condition: function () { return typeof window.OnboardingTour !== 'undefined'; },
-        action: function () {
-          window.OnboardingTour.reset();
-          if (window.Toast && window.Toast.show) window.Toast.show({ message: 'Onboarding tour reset. Reloading…', type: 'success' });
-          setTimeout(function () { location.reload(); }, 400);
-        }
       }
+      // [B6] Removed 'act_reset_tour' — onboarding.js retired; the per-page
+      // WelcomeWizard replays now live under HelpDrawer → Getting Started.
     ];
   }
   STATIC_ACTIONS = buildStaticActions();

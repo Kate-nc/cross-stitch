@@ -329,6 +329,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tb-proj-badge-name--editable:hover{border-bottom-color:var(--accent);}
 .tb-proj-badge-input{font-size:11px;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 4px;outline:none;background:var(--surface);width:160px;max-width:30vw;font-family:inherit;}
 .tb-proj-badge-pct{font-size:10px;font-weight:500;color:#16a34a;flex-shrink:0;background:#dcfce7;padding:1px 5px;border-radius:8px;white-space:nowrap;}
+.tb-proj-badge-saved{background:transparent;color:#16a34a;font-weight:600;font-size:10px;padding:0 4px;display:inline-flex;align-items:center;gap:3px;}
 
 /* Stash status badges (Thread Organiser) */
 .stash-badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0;}
@@ -3147,9 +3148,14 @@ kbd {
 @media (pointer: coarse) and (max-width: 1024px) {
   /* Touch-target floor (WCAG 2.5.5) for the smallest tap targets in the app */
   .tb-btn, .tb-fit-btn, .tb-app-tab, .tb-page-btn, .rp-tab,
-  .cs-cmdp-row, .mpd-card-menu-btn {
+  .cs-cmdp-row, .mpd-card-menu-btn,
+  /* A4 (UX Phase 5) — extend the floor to home & dashboard buttons,
+     context-bar quick-actions, and the resume recap modal CTAs. */
+  .home-btn, .mpd-btn, .tb-context-btn, .resume-recap-btn,
+  .tb-nav-link, .tb-context-name--editable, .tb-proj-badge-name--editable {
     min-height: 44px;
   }
+  .home-btn, .mpd-btn { padding: 10px 16px; }
   .tb-btn { padding: 8px 12px; gap: 6px; }
   .tb-fit-btn { padding: 8px 12px; }
   /* Bump tiny labels so they meet the 12px+ legibility floor */
@@ -3248,3 +3254,733 @@ html.pref-dark button:not(.btn-primary):not([data-pref-modal] *) {
   background: #1f2937 !important; color: #e5e7eb !important; border-color: #334155 !important;
 }
 html.pref-dark a { color: #5eead4; }
+
+/* --- A2 (UX Phase 5) --- Bold edit-mode strip in the Tracker.
+   Sits directly under the global header, above the toolbar, so users
+   cannot mistake destructive "Modify" actions for normal "Mark" tracking. */
+.edit-mode-strip {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 8px 16px; min-height: 40px;
+  background: #fef2f2; border-bottom: 2px solid #dc2626;
+  color: #991b1b; font-size: 13px; font-weight: 600;
+}
+.edit-mode-strip__label { display: inline-flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.edit-mode-strip__label svg { color: #dc2626; flex-shrink: 0; }
+.edit-mode-strip__hint { color: #b91c1c; font-weight: 500; font-size: 12px; }
+.edit-mode-strip__exit {
+  border: 1px solid #dc2626; background: #fff; color: #b91c1c;
+  font-weight: 600; font-size: 12px; padding: 6px 12px; border-radius: 6px;
+  cursor: pointer; min-height: 32px;
+}
+.edit-mode-strip__exit:hover { background: #fef2f2; }
+.toolbar-row--edit { background: #fff5f5; }
+.pill--edit { box-shadow: inset 0 0 0 1px #fecaca; }
+@media (max-width: 480px) {
+  .edit-mode-strip { flex-wrap: wrap; padding: 8px 12px; }
+  .edit-mode-strip__hint { display: none; }
+}
+
+/* A3 (UX Phase 5) � Tracker resume recap modal */
+
+/* A3 (UX Phase 5) � Tracker resume recap modal
+   Fires once per project load when the project has prior stitching sessions.
+   Mobile: full-screen below 480px (addresses G6). */
+.resume-recap-overlay {
+  z-index: 1100;
+}
+.resume-recap-modal {
+  max-width: 540px;
+  width: 100%;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.resume-recap-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.resume-recap-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.3;
+}
+.resume-recap-sub {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+.resume-recap-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+.resume-recap-close:hover { background: #f1f5f9; color: #0f172a; }
+.resume-recap-body { padding: 16px; }
+.resume-recap-progress { margin-bottom: 18px; }
+.resume-recap-progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+.resume-recap-progress-pct {
+  font-weight: 600;
+  color: #0d9488;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.resume-recap-bar {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.resume-recap-bar-fill {
+  height: 100%;
+  background: #0d9488;
+  transition: width 0.3s ease;
+}
+.resume-recap-progress-meta {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.resume-recap-section-label {
+  font-weight: 600;
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 8px;
+}
+.resume-recap-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.resume-recap-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+}
+.resume-recap-card-num {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.resume-recap-card-lbl {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+.resume-recap-note {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 8px;
+  font-style: italic;
+}
+.resume-recap-footer {
+  padding: 12px 16px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.resume-recap-btn {
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  font-weight: 500;
+}
+.resume-recap-btn:hover { background: #f8fafc; color: #0f172a; }
+.resume-recap-btn--primary {
+  background: #0d9488;
+  color: #fff;
+  border-color: #0d9488;
+  font-weight: 600;
+}
+.resume-recap-btn--primary:hover { background: #0f766e; color: #fff; }
+@media (max-width: 480px) {
+  .resume-recap-overlay { padding: 0; align-items: stretch; }
+  .resume-recap-modal {
+    max-width: none;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+  .resume-recap-body { flex: 1; overflow-y: auto; }
+  .resume-recap-footer { flex-direction: column-reverse; }
+  .resume-recap-btn { width: 100%; padding: 12px 14px; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   B2 — drag-mark and range select (touch overlay)
+   Painted as transparent divs over the tracker canvas while a gesture
+   is in progress. Path cells use the intent colour at 50 % opacity;
+   the long-press anchor gets a thicker outline. Pulse class flashes
+   committed cells for 250 ms.
+   ════════════════════════════════════════════════════════════════════ */
+.drag-mark-overlay { position: absolute; }
+.drag-mark-cell {
+  position: absolute;
+  border-radius: 2px;
+  background: rgba(13, 148, 136, 0.50);   /* mark — teal/green family */
+  box-shadow: inset 0 0 0 1px rgba(13, 148, 136, 0.85);
+  transition: opacity 60ms ease-out;
+}
+.drag-mark-overlay--unmark .drag-mark-cell {
+  background: rgba(220, 38, 38, 0.50);    /* unmark — red family */
+  box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.85);
+}
+.drag-mark-anchor {
+  position: absolute;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--accent, #0d9488),
+              0 0 0 1px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.drag-mark-overlay--unmark .drag-mark-anchor {
+  box-shadow: inset 0 0 0 2px var(--danger, #dc2626),
+              0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+.drag-mark-pulse,
+.cell-pulse {
+  position: absolute;
+  border-radius: 2px;
+  background: rgba(13, 148, 136, 0.40);
+  animation: dragMarkPulse 250ms ease-out;
+  pointer-events: none;
+}
+.drag-mark-overlay--unmark .drag-mark-pulse {
+  background: rgba(220, 38, 38, 0.40);
+}
+@keyframes dragMarkPulse {
+  0%   { transform: scale(1.20); opacity: 0.85; }
+  100% { transform: scale(1.00); opacity: 0;    }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drag-mark-pulse, .cell-pulse { animation: none; opacity: 0; }
+}
+
+
+/* ════ B6 — Help & Shortcuts drawer ════════════════════════════════════ */
+/* Side drawer for unified Help, Shortcuts, and Getting Started.          */
+/* Most layout is inline (see help-drawer.js) so it works without a CSS   */
+/* dependency; this block adds the slide animation and mobile full-screen */
+/* override.                                                              */
+
+.cs-help-drawer {
+  animation: cs-help-drawer-slide-in 180ms ease-out;
+}
+@keyframes cs-help-drawer-slide-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.cs-help-drawer kbd {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.cs-help-drawer button:focus-visible,
+.cs-help-drawer input:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .cs-help-drawer {
+    width: 100vw !important;
+    border-left: none !important;
+  }
+  /* On mobile the click-outside scrim has no width — there's no app surface
+     visible behind the drawer — so hide it to keep the tap target clean. */
+  .cs-help-drawer-scrim {
+    display: none !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   B5 — Multi-select dashboard + rich cards
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Bulk action bar — sits above the dashboard while selection mode is on. */
+.mpd-bulk-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  margin-bottom: 12px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--accent-border, #c7d2fe);
+  border-radius: var(--radius-lg, 10px);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  flex-wrap: wrap;
+}
+.mpd-bulk-bar-left,
+.mpd-bulk-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mpd-bulk-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  margin-right: 4px;
+}
+.mpd-bulk-delete {
+  color: #b91c1c;
+}
+.mpd-bulk-delete:hover:not(:disabled) {
+  background: #fee2e2;
+}
+.mpd-bulk-bar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Card selection affordance — checkbox sits in the top-left corner.
+   Hidden by default, shown on hover (desktop) and always shown when
+   the dashboard is in selection mode. */
+.mpd-card {
+  position: relative;
+}
+.mpd-card-select {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border, #cbd5e1);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--accent, #0d9488);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  transition: background 0.12s, border-color 0.12s;
+}
+.mpd-card:hover .mpd-card-select,
+.mpd--selection-mode .mpd-card-select {
+  display: inline-flex;
+}
+.mpd-card-select--checked {
+  background: var(--accent, #0d9488);
+  border-color: var(--accent, #0d9488);
+  color: #fff;
+}
+.mpd-card--selected {
+  outline: 2px solid var(--accent, #0d9488);
+  outline-offset: 2px;
+}
+.mpd--selection-mode .mpd-card {
+  cursor: pointer;
+}
+
+/* Continue button in the card footer — make sure it stays tap-friendly on
+   mobile (no hover-only visibility tricks should ever hide it). */
+@media (max-width: 480px) {
+  .mpd-card-actions .mpd-btn { min-height: 36px; }
+  .mpd-bulk-bar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mpd-bulk-bar-left,
+  .mpd-bulk-bar-right {
+    flex-shrink: 0;
+  }
+}
+
+/* B3 — Mode-aware sidebar (Pattern / Project / Materials) */
+.cs-page-fade { animation: cs-page-fade-in 160ms ease-out; }
+@keyframes cs-page-fade-in { from { opacity: 0.4; } to { opacity: 1; } }
+.cs-sidebar-fade { animation: cs-page-fade-in 160ms ease-out; }
+
+/* fix-3.6 — mode-swap micro-cue: translate the page content 12px towards the
+   freed sidebar space during the fade-in so the user perceives the layout
+   *expanding* rather than the sidebar simply *vanishing*. Respect
+   prefers-reduced-motion (no translate, opacity only). */
+.cs-page-fade { animation: cs-page-fade-in-translate 200ms ease-out; }
+@keyframes cs-page-fade-in-translate {
+  from { opacity: 0.4; transform: translateX(12px); }
+  to   { opacity: 1;   transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-page-fade, .cs-sidebar-fade {
+    animation: cs-page-fade-in 160ms ease-out;
+    transform: none !important;
+  }
+}
+
+/* B4 — Materials hub + Manager shopping */
+.materials-hub { display:flex; flex-direction:column; min-height:300px; }
+
+/* C4 — sub-tab strip nests visually under the parent Sidebar tab strip:
+   - inset wrap with surface-2 fill and a 2px accent left border
+   - "View:" caption + breadcrumb micro-label sit above the pill rail
+   - pills are outline-style at rest, accent-filled when active, so they
+     read as "filter" rather than "page". */
+.mh-subtabs-wrap {
+  display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+  padding:8px 12px 8px 22px;
+  background:var(--surface-2, #f1f5f9);
+  border-bottom:1px solid var(--border);
+  border-left:2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  flex-shrink:0;
+  position:relative;
+}
+.mh-breadcrumb {
+  flex-basis:100%;
+  display:flex; align-items:center; gap:4px;
+  font-size:11px; line-height:1.2;
+  color:var(--text-tertiary);
+  min-width:0;
+  margin-bottom:2px;
+}
+.mh-breadcrumb-root {
+  font-weight:500;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  max-width:60%;
+}
+.mh-breadcrumb-sep {
+  display:inline-flex; align-items:center;
+  font-size:10px; color:var(--text-tertiary); opacity:0.7;
+  flex-shrink:0;
+}
+.mh-breadcrumb-current {
+  font-weight:600; color:var(--text-primary);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  flex:0 1 auto;
+}
+.mh-subtabs-label {
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:0.6px; color:var(--text-tertiary);
+  flex-shrink:0; padding-right:4px;
+}
+.mh-subtabs-label-icon { display:inline-flex; align-items:center; }
+.mh-subtabs { display:flex; gap:6px; flex:1; min-width:0; }
+.mh-subtab {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 12px; min-height:32px;
+  font-size:11.5px; font-weight:500;
+  color:var(--text-secondary);
+  background:transparent;
+  border:1px solid var(--border);
+  border-radius:999px;
+  cursor:pointer; font-family:inherit;
+  transition:background 0.12s, color 0.12s, border-color 0.12s;
+}
+.mh-subtab:hover { background:var(--surface-tertiary); color:var(--text-primary); border-color:var(--text-tertiary); }
+.mh-subtab.on {
+  background:var(--accent);
+  color:#fff;
+  font-weight:550;
+  border-color:var(--accent);
+}
+.mh-subtab:focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+.mh-subtab-icon { display:inline-flex; align-items:center; }
+.mh-body {
+  flex:1; overflow-y:auto;
+  padding:14px 16px;
+  background:var(--surface-1, #fff);
+  border-radius:0 0 12px 12px;
+}
+.mh-shopping-list { border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.mh-shopping-row:last-child { border-bottom:none !important; }
+
+/* C4 — shared empty-state layout (centred icon + headline + body + action). */
+.mh-empty {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; gap:8px;
+  padding:32px 16px;
+  color:var(--text-secondary);
+}
+.mh-empty-icon {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:32px; height:32px; font-size:32px;
+  color:var(--text-tertiary);
+  margin-bottom:4px;
+}
+.mh-empty-headline {
+  margin:0; font-size:14px; font-weight:600; line-height:1.3;
+  color:var(--text-primary);
+}
+.mh-empty-body {
+  margin:0; font-size:12px; color:var(--text-tertiary); line-height:1.4;
+  max-width:42ch;
+}
+.mh-empty-action {
+  margin-top:8px; padding:8px 14px;
+  font-size:12px; font-weight:600; font-family:inherit;
+  background:var(--accent); color:#fff;
+  border:none; border-radius:8px; cursor:pointer; min-height:36px;
+}
+.mh-empty-action:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+.mgr-shopping-list { border-top:1px solid var(--border); }
+.mgr-shopping-row:last-child { border-bottom:none !important; }
+.mgr-shopping-bulk:disabled { opacity:0.6; }
+
+/* fix-3.9 — per-row source projects disclosure */
+.mgr-shopping-sources { font-size:11px; color:var(--text-tertiary); }
+.mgr-shopping-sources-toggle { font-size:11px; background:none; border:none; color:var(--accent); cursor:pointer; padding:2px 4px; font-family:inherit; }
+.mgr-shopping-sources-toggle:hover { text-decoration:underline; }
+.mgr-shopping-sources-list { list-style:none; margin:4px 0 0; padding:0; display:flex; flex-direction:column; gap:2px; }
+.mgr-shopping-sources-list li button {
+  background:none; border:none; color:var(--accent); padding:2px 0;
+  cursor:pointer; font-family:inherit; font-size:11px; text-align:left;
+}
+.mgr-shopping-sources-list li button:hover { text-decoration:underline; }
+
+@media (max-width: 480px) {
+  .mh-subtabs-wrap { padding-left:14px; padding-right:8px; }
+  .mh-breadcrumb { font-size:10.5px; }
+  .mh-breadcrumb-root { max-width:40%; }
+  .mh-subtabs {
+    overflow-x:auto; flex-wrap:nowrap;
+    /* fix-3.2 — fade the right edge so users see there's more content. */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    scrollbar-width:none;
+  }
+  .mh-subtabs::-webkit-scrollbar { display:none; }
+  /* fix-3.2 — guarantee 44x44 mobile touch target on each sub-tab. */
+  .mh-subtab { flex-shrink:0; min-height:44px; min-width:44px; padding:10px 14px; }
+  .mh-empty { padding:20px 12px; }
+  .mgr-shopping-row { grid-template-columns: 24px 1fr auto !important; }
+}
+
+/* fix-3.5 — styled bulk delete confirmation modal (replaces window.confirm). */
+.mpd-bulk-delete-modal { max-width: 440px; }
+.mpd-bulk-delete-modal h3 { margin: 0 0 8px; font-size: 17px; color: #1e293b; }
+.mpd-bulk-delete-modal p { margin: 0 0 12px; font-size: 13px; color: #475569; line-height: 1.5; }
+.mpd-bulk-delete-modal ul { margin: 0 0 16px; padding-left: 18px; font-size: 12px; color: #475569; max-height: 160px; overflow-y: auto; }
+.mpd-bulk-delete-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.mpd-bulk-delete-actions button { padding: 8px 16px; border-radius: 6px; font-size: 13px; font-family: inherit; cursor: pointer; min-height: 40px; }
+.mpd-bulk-delete-actions .mpd-cancel-btn { background: #fff; border: 1px solid #cbd5e1; color: #1e293b; }
+.mpd-bulk-delete-actions .mpd-confirm-delete-btn { background: #b91c1c; border: 1px solid #b91c1c; color: #fff; font-weight: 600; }
+.mpd-bulk-delete-actions .mpd-confirm-delete-btn:hover { background: #991b1b; }
+
+/* fix-3.7 — persistent Cancel selection control replacing the Continue bar
+   slot while in selection mode. */
+.mpd-selection-cancel-bar {
+  background: var(--surface-2, #f1f5f9);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 8px);
+  padding: 8px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 12px; min-height: 48px;
+  font-size: 13px; color: var(--text-secondary);
+}
+.mpd-selection-cancel-bar button {
+  padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  background: #fff; border: 1px solid #cbd5e1; color: #1e293b;
+  cursor: pointer; min-height: 36px; font-family: inherit;
+}
+
+/* -- C8 Coachmark (first-stitch coaching) ----------------------- */
+.cs-coachmark { position: fixed; inset: 0; z-index: 10000; pointer-events: none; }
+.cs-coachmark-scrim {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+  pointer-events: auto; animation: csCoachFade 160ms ease-out;
+}
+.cs-coachmark-highlight-ring {
+  position: fixed; pointer-events: none; border-radius: 8px;
+  box-shadow: 0 0 0 3px var(--accent, #0d9488), 0 0 0 6px rgba(13, 148, 136, 0.25);
+  animation: csCoachPulse 1.4s ease-in-out infinite;
+}
+.cs-coachmark-popover {
+  position: fixed; pointer-events: auto;
+  background: #fff; color: #1e293b;
+  border-radius: 10px; box-shadow: 0 16px 40px rgba(15, 23, 42, 0.25);
+  padding: 16px 18px; max-width: 90vw;
+  font-family: inherit;
+  animation: csCoachPop 180ms ease-out;
+}
+.cs-coachmark-title {
+  margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: #0f172a;
+}
+.cs-coachmark-body {
+  margin: 0 0 14px 0; font-size: 13px; line-height: 1.5; color: #334155;
+}
+.cs-coachmark-buttons {
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+.cs-coachmark-btn {
+  min-height: 36px; min-width: 64px;
+  padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  background: #fff; color: #1e293b; border: 1px solid #cbd5e1;
+  cursor: pointer; font-family: inherit;
+}
+.cs-coachmark-btn--primary {
+  background: var(--accent, #0d9488); color: #fff; border-color: var(--accent, #0d9488);
+}
+.cs-coachmark-btn:focus-visible {
+  outline: 2px solid var(--accent, #0d9488); outline-offset: 2px;
+}
+@media (max-width: 480px) {
+  .cs-coachmark-popover { max-width: calc(100vw - 24px); padding: 14px 14px; }
+  .cs-coachmark-btn { min-height: 44px; min-width: 44px; padding: 10px 16px; }
+}
+@keyframes csCoachFade {
+  from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes csCoachPop {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes csCoachPulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--accent, #0d9488), 0 0 0 6px rgba(13, 148, 136, 0.25); }
+  50%      { box-shadow: 0 0 0 3px var(--accent, #0d9488), 0 0 0 10px rgba(13, 148, 136, 0.10); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-coachmark-scrim, .cs-coachmark-popover, .cs-coachmark-highlight-ring { animation: none !important; }
+}
+.cs-coachmark-no-motion { animation: none !important; }
+
+
+
+/* -- C7 Image Import Wizard (experimental) --------------------- */
+.iw-wizard-root { position: fixed; inset: 0; z-index: 9500; display: flex; align-items: center; justify-content: center; }
+.iw-scrim { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.55); }
+.iw-wizard {
+  position: relative; background: #fff; color: #1e293b;
+  border-radius: 12px; box-shadow: 0 20px 60px rgba(15, 23, 42, 0.3);
+  width: min(720px, 92vw); max-height: 92vh;
+  display: flex; flex-direction: column; font-family: inherit;
+}
+.iw-header { padding: 18px 20px 0; border-bottom: 1px solid #e2e8f0; }
+.iw-progress {
+  list-style: none; margin: 0 0 12px; padding: 0;
+  display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; color: #64748b;
+}
+.iw-progress-item { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: #f1f5f9; }
+.iw-progress-item--reached { background: #ccfbf1; color: #0f766e; }
+.iw-progress-item--active { background: var(--accent, #0d9488); color: #fff; }
+.iw-progress-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+.iw-progress-marker, .iw-progress-btn { font-size: 12px; }
+.iw-body { padding: 18px 20px; overflow-y: auto; }
+.iw-step-title { margin: 0 0 6px; font-size: 17px; font-weight: 700; color: #0f172a; outline: none; }
+.iw-step-desc { margin: 0 0 14px; font-size: 13px; color: #475569; line-height: 1.5; }
+.iw-controls {
+  padding: 14px 20px; border-top: 1px solid #e2e8f0;
+  display: flex; align-items: center; gap: 10px;
+}
+.iw-controls-spacer { flex: 1; }
+.iw-btn {
+  min-height: 40px; padding: 8px 16px;
+  background: #fff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 8px;
+  font: inherit; font-weight: 600; cursor: pointer;
+}
+.iw-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.iw-btn--primary { background: var(--accent, #0d9488); color: #fff; border-color: var(--accent, #0d9488); }
+.iw-btn--ghost { background: transparent; border-color: transparent; color: #64748b; }
+.iw-btn--danger { background: #b91c1c; color: #fff; border-color: #b91c1c; }
+.iw-btn:focus-visible { outline: 2px solid var(--accent, #0d9488); outline-offset: 2px; }
+
+.iw-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+.iw-grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }
+.iw-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.iw-field-label { font-size: 12px; font-weight: 600; color: #475569; }
+.iw-field input[type="number"], .iw-field input[type="text"], .iw-field select {
+  padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font: inherit; min-height: 40px;
+}
+.iw-checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 8px 0; cursor: pointer; }
+.iw-output { font-size: 12px; color: #475569; min-width: 28px; text-align: right; }
+.iw-readout { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
+.iw-warn { background: #fef3c7; border: 1px solid #fde68a; color: #92400e; border-radius: 8px; padding: 8px 12px; font-size: 12px; margin-top: 10px; }
+
+.iw-crop-viewport {
+  width: 100%; max-width: 320px; aspect-ratio: 1 / 1;
+  border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc;
+  display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto 14px;
+}
+.iw-crop-viewport img { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 120ms ease-out; }
+.iw-crop-empty { padding: 40px 20px; text-align: center; color: #94a3b8; font-size: 13px; }
+.iw-crop-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.iw-aspect-group { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.iw-aspect-legend { font-size: 12px; font-weight: 600; color: #475569; padding: 0; margin-right: 4px; }
+.iw-radio { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+
+.iw-palette-modes { border: 0; padding: 0; margin: 0 0 12px; display: flex; flex-direction: column; gap: 8px; }
+.iw-card {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer;
+}
+.iw-card--active { border-color: var(--accent, #0d9488); background: #f0fdfa; }
+.iw-card-body { flex: 1; }
+.iw-card-title { font-size: 14px; font-weight: 600; color: #0f172a; }
+.iw-card-desc { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+.iw-preview-thumb {
+  width: 100%; max-width: 256px; aspect-ratio: 1 / 1;
+  border: 1px solid #e2e8f0; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto 14px;
+}
+.iw-preview-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+.iw-summary {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+}
+.iw-summary-thumb {
+  width: 96px; height: 96px; flex-shrink: 0;
+  border: 1px solid #e2e8f0; border-radius: 6px; background: #fff;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.iw-summary-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated; }
+.iw-summary-list { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 13px; }
+.iw-summary-list dt { color: #64748b; }
+.iw-summary-list dd { margin: 0; color: #1e293b; font-weight: 500; }
+
+.iw-discard-modal {
+  position: absolute; inset: 0; background: rgba(15, 23, 42, 0.5);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 12px; padding: 20px;
+}
+.iw-discard-modal h3 { margin: 0 0 8px; font-size: 16px; color: #0f172a; }
+.iw-discard-modal p { margin: 0 0 14px; font-size: 13px; color: #475569; }
+.iw-discard-modal > * { background: #fff; border-radius: 10px; padding: 18px; max-width: 360px; }
+.iw-discard-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+
+@media (max-width: 480px) {
+  .iw-wizard { width: 100vw; height: 100vh; max-height: 100vh; border-radius: 0; }
+  .iw-controls { position: sticky; bottom: 0; background: #fff; }
+  .iw-btn { min-height: 48px; padding: 12px 18px; }
+  .iw-grid-two { grid-template-columns: 1fr; }
+  .iw-summary { flex-direction: column; align-items: stretch; }
+  .iw-summary-thumb { width: 100%; height: 160px; }
+}

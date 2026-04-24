@@ -722,6 +722,9 @@ function ManagerApp() {
           <button data-onboard="mgr-patterns-tab" className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
             <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
           </button>
+          <button data-onboard="mgr-shopping-tab" className={"mgr-tab" + (tab === "shopping" ? " on" : "")} onClick={() => { setTab("shopping"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
+            <span className="icon">{Icons.shoppingCart ? Icons.shoppingCart() : Icons.cart()}</span> Shopping
+          </button>
         </div>
         <button
           onClick={() => { window.location.href = "index.html?mode=stats&tab=showcase"; }}
@@ -999,6 +1002,12 @@ function ManagerApp() {
         </div>
         )}
 
+        {tab === "shopping" && (
+          window.ManagerShopping
+            ? React.createElement(window.ManagerShopping, null)
+            : <div style={{ padding: 24, fontSize: 13, color: "#94a3b8" }}>Shopping list module unavailable.</div>
+        )}
+
         {tab === "patterns" && (
           <><div className="mgr-filter-bar">
             <input
@@ -1107,12 +1116,20 @@ function ManagerApp() {
                         <label
                           onClick={e => e.stopPropagation()}
                           style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", border: "1px solid " + (isSel ? "#16a34a" : "#cbd5e1"), borderRadius: 12, background: isSel ? "#f0fdf4" : "#fff", color: isSel ? "#15803d" : "#475569", cursor: "pointer", fontWeight: 600 }}
-                          title="Tick to add this pattern to the shopping list"
+                          title={isSel ? "Remove from shopping list selection" : "View shopping list for this pattern"}
                         >
                           <input
                             type="checkbox"
                             checked={isSel}
-                            onChange={e => { e.stopPropagation(); togglePatternSelection(pat.id); }}
+                            onChange={e => {
+                              e.stopPropagation();
+                              togglePatternSelection(pat.id);
+                              if (!isSel) {
+                                // When newly selected, immediately open the shopping list modal
+                                setSelectedPatternsForList(new Set([pat.id]));
+                                setShoppingListModalOpen(true);
+                              }
+                            }}
                             style={{ margin: 0 }}
                           />
                           Shopping list

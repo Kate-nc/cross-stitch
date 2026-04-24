@@ -111,7 +111,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
 
   // Early returns AFTER all hooks
   if (!(ctx.pat && ctx.pal)) return null;
-  if (app.tab !== 'prepare') return null;
+  // B3/B4: rendered as a sub-tab inside MaterialsHub.
+  if (app.tab !== 'materials' || app.materialsTab !== 'stash') return null;
 
   // Fabric calculator
   var fabCounts = typeof FABRIC_COUNTS !== 'undefined' ? FABRIC_COUNTS : [

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wireframe C · Stitch — resume "Welcome back"</title>
+<link rel="stylesheet" href="_wf.css">
+</head>
+<body>
+<h1 class="wf-title">Proposal C · Stitch — Welcome back</h1>
+<p class="wf-subtitle">A full-screen resume surface, not a modal. Pattern preview, last-session stats, mini "what you did" replay, three CTAs.</p>
+
+<div class="wf-frame">
+  <div class="wf-frame-label">Desktop · 1280 px</div>
+  <div style="display: grid; grid-template-columns: 56px 1fr; height: 640px;">
+    <div style="background: #0f172a; color: #e2e8f0; display: flex; flex-direction: column; align-items: center; padding: 10px 0;">
+      <div style="font-weight: 700; font-size: 13px; margin-bottom: 14px;">×∕×</div>
+      <div style="width: 44px; height: 44px; background: #0d9488; border-radius: 8px; display:flex; align-items:center; justify-content:center;">◉</div>
+    </div>
+    <div style="padding: 36px 48px; display: flex; flex-direction: column; align-items: center;">
+      <div style="font-size: 13px; color: #64748b;">Welcome back to</div>
+      <div style="font: 600 28px/1.2 inherit; margin: 4px 0 24px;">Wildflower Meadow</div>
+
+      <div style="display: grid; grid-template-columns: 240px 1fr; gap: 32px; align-items: start; max-width: 800px;">
+        <div>
+          <div style="height: 240px; background:
+            radial-gradient(circle at 30% 30%, #fde68a 36px, transparent 38px),
+            radial-gradient(circle at 60% 50%, #fca5a5 28px, transparent 30px),
+            radial-gradient(circle at 40% 70%, #86efac 32px, transparent 34px),
+            repeating-conic-gradient(#f8fafc 0% 25%, #fff 0% 50%) 50% / 18px 18px;
+            border: 1px solid #cbd5e1; border-radius: 8px;"></div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 6px; text-align: center;">38% complete · ~12 hrs remaining</div>
+        </div>
+
+        <div>
+          <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">Last session · 3 days ago</div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px;">
+            <div class="gb" style="padding: 10px;"><div style="font-size: 18px; font-weight: 600;">247</div><div style="font-size: 10px; color: #64748b;">stitches</div></div>
+            <div class="gb" style="padding: 10px;"><div style="font-size: 18px; font-weight: 600;">32 m</div><div style="font-size: 10px; color: #64748b;">stitch time</div></div>
+            <div class="gb" style="padding: 10px;"><div style="font-size: 18px; font-weight: 600;">7 / hr</div><div style="font-size: 10px; color: #64748b;">faster than avg</div></div>
+          </div>
+
+          <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">Where you stitched</div>
+          <div class="gb" style="padding: 12px;">
+            <!-- mini-replay: dotted breadcrumb path -->
+            <div style="height: 80px; background:
+              radial-gradient(circle at 20% 40%, #0d9488 4px, transparent 5px),
+              radial-gradient(circle at 30% 50%, #0d9488 4px, transparent 5px),
+              radial-gradient(circle at 38% 55%, #0d9488 4px, transparent 5px),
+              radial-gradient(circle at 45% 60%, #0d9488 4px, transparent 5px),
+              radial-gradient(circle at 52% 58%, #0d9488 4px, transparent 5px),
+              radial-gradient(circle at 60% 50%, #0d9488 4px, transparent 5px),
+              repeating-conic-gradient(#f8fafc 0% 25%, #fff 0% 50%) 50% / 10px 10px;
+              border: 1px solid #cbd5e1;"></div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 6px;">You worked on the centre flower cluster (DMC 733, 471, 471).</div>
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-top: 24px;">
+            <span class="btn btn--primary">Continue stitching →</span>
+            <span class="btn">Switch project</span>
+            <span class="btn">End session &amp; review</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  Replaces the small resume modal. Whole-screen surface, breathing room, three explicit CTAs. Addresses <strong>D2</strong>, <strong>D-9 home antipattern: no emotional hook</strong>.
+</div>
+</body>
+</html>

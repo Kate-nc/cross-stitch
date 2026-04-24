@@ -68,7 +68,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
           title: 'Your work auto-saves to this device. Use Download to export a .json file.'
         },
           (window.Icons && window.Icons.check) ? window.Icons.check() : null,
-          'Auto-saved'
+          'All changes saved'
         ),
         pct !== null && React.createElement('span', { className: 'tb-context-pct' },
           React.createElement('span', { className: 'tb-context-pct-bar' },
@@ -167,8 +167,16 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     e.target.value = '';
   }
 
-  const creatorPages = [['pattern','Pattern'],['project','Project'],['legend','Materials'],['prepare','Prepare'],['export','Export']];
-  const activeLabel = creatorPages.find(p => p[0] === tab)?.[1] || 'Pattern';
+  // B3: Creator sub-pages collapsed from 5 → 3. Materials/Prepare/Export
+  // are now sub-tabs inside the new "Materials & Output" hub. The legacy
+  // values 'prepare' / 'legend' / 'export' are mapped to 'materials' by
+  // useCreatorState's setTab wrapper.
+  const creatorPages = [
+    ['pattern', 'Pattern'],
+    ['project', 'Project'],
+    ['materials', 'Materials & Output'],
+  ];
+  const activeLabel = (creatorPages.find(p => p[0] === tab) || (tab === 'prepare' || tab === 'legend' || tab === 'export' ? ['materials','Materials & Output'] : null) || ['pattern', 'Pattern'])[1];
 
   // App-section nav tabs — include Edit between Create and Track
   const appSections = [
@@ -298,10 +306,12 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             : React.createElement('span', { className: 'tb-proj-badge-name' }, propProjectName || projName),
           (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) !== null && React.createElement('span', { className: 'tb-proj-badge-pct' }, (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) + '%'),
           showAutosaved && React.createElement('span', {
-            className: 'tb-proj-badge-pct',
-            style: { background:'transparent', color:'#16a34a', fontWeight:600, fontSize:10, padding:'0 4px' },
+            className: 'tb-proj-badge-pct tb-proj-badge-saved',
             title: 'Your work auto-saves to this device. Use Download to export a .json file.'
-          }, '✓ Auto-saved')
+          },
+            (window.Icons && window.Icons.check) ? window.Icons.check() : null,
+            'All changes saved'
+          )
         ),
 
         React.createElement('div', { className: 'tb-sep' }),
@@ -332,8 +342,16 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           })()
         ),
 
-        React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('shortcuts'), 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, window.Icons && window.Icons.keyboard ? window.Icons.keyboard() : 'Shortcuts'),
-        React.createElement('button', { className: 'tb-nav-link', onClick: () => setModal('help') }, 'Help'),
+        React.createElement('button', { className: 'tb-nav-link', onClick: () => { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'shortcuts' }); else setModal('shortcuts'); }, 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, window.Icons && window.Icons.keyboard ? window.Icons.keyboard() : 'Shortcuts'),
+        React.createElement('button', {
+          className: 'tb-nav-link tb-help-btn',
+          onClick: () => { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'help' }); else setModal('help'); },
+          'aria-label': 'Open help (?)',
+          title: 'Open help (?)'
+        },
+          window.Icons && window.Icons.help ? window.Icons.help() : null,
+          React.createElement('span', { className: 'tb-help-btn-label' }, ' Help')
+        ),
 
         // File menu dropdown — shown on all pages
         React.createElement('div', { ref: fileMenuRef, style: { position: 'relative', flexShrink: 0 } },

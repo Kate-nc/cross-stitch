@@ -32,6 +32,10 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <!-- pako needed at startup (project data uses deflate/inflate) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<!-- JSZip (C6 bundle export) — loaded eagerly on the Creator page so the
+     "Download bundle" action is available without a CDN round-trip on click.
+     Pinned to 3.10.1 (immutable on cdnjs). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <!-- pdf-lib (export), pdf.js (import) and pdf-importer are lazy-loaded on first use -->
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
@@ -41,14 +45,17 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="starter-kits.js"></script>
 <script src="colour-utils.js"></script>
 <script src="helpers.js"></script>
+<script src="coaching.js"></script>
 <script src="keyboard-utils.js"></script>
 <script src="shortcuts.js"></script>
 <script src="icons.js"></script>
+<script src="useDragMark.js"></script>
 <script src="import-formats.js"></script>
 <script src="components.js"></script>
+<script src="components/PartialStitchThumb.js"></script>
 <script src="header.js"></script>
 <script src="modals.js"></script>
-<script src="help-content.js"></script>
+<script src="help-drawer.js"></script>
 <script src="onboarding-wizard.js"></script>
 <script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
@@ -61,7 +68,6 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="user-prefs.js"></script>
 <script src="apply-prefs.js"></script>
 <script src="toast.js"></script>
-<script src="onboarding.js"></script>
 <script>window.__csPageKind = 'creator';</script>
 <script src="command-palette.js"></script>
 <script src="preferences-modal.js"></script>
@@ -86,7 +92,7 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_13565e2692';
+var TRACKER_CACHE_KEY = 'babel_tracker_4766c8a9a2';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -118,7 +124,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_c995b5a34d';
+var CREATOR_CACHE_KEY = 'babel_creator_c4d93f4bcd';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

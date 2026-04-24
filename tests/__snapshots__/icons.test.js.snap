@@ -2,6 +2,7 @@
 
 exports[`Icons object used icon set matches snapshot 1`] = `
 [
+  "archive",
   "barChart",
   "box",
   "bucket",
@@ -23,6 +24,7 @@ exports[`Icons object used icon set matches snapshot 1`] = `
   "fire",
   "folder",
   "gear",
+  "help",
   "hourglass",
   "info",
   "keyboard",
@@ -36,6 +38,7 @@ exports[`Icons object used icon set matches snapshot 1`] = `
   "play",
   "pointing",
   "save",
+  "shoppingCart",
   "shuffle",
   "sleep",
   "star",
@@ -45,5 +48,6 @@ exports[`Icons object used icon set matches snapshot 1`] = `
   "unlock",
   "wand",
   "warning",
+  "x",
 ]
 `;

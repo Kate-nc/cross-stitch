@@ -757,5 +757,23 @@ const ProjectStorage = (() => {
         localStorage.setItem('cs_projectStates', JSON.stringify(s));
       } catch(e) {}
     },
+
+    // ── Bulk helpers (B5 — multi-select dashboard) ──
+    // Thin wrappers over the per-id methods. Behaviour is identical to a
+    // sequential loop; provided so dashboard bulk actions read clearly.
+    async deleteMany(ids) {
+      if (!Array.isArray(ids) || ids.length === 0) return [];
+      var results = [];
+      for (var i = 0; i < ids.length; i++) {
+        try { await this.delete(ids[i]); results.push({ id: ids[i], ok: true }); }
+        catch (e) { results.push({ id: ids[i], ok: false, error: e }); }
+      }
+      return results;
+    },
+
+    setStateMany(ids, state) {
+      if (!Array.isArray(ids) || ids.length === 0) return;
+      for (var i = 0; i < ids.length; i++) this.setProjectState(ids[i], state);
+    },
   };
 })();

@@ -96,7 +96,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   // ── Early returns after all hooks ─────────────────────────────────────────
   if (!(ctx.pat && ctx.pal)) return null;
-  if (app.tab !== "legend") return null;
+  // B3/B4: rendered as the 'threads' sub-tab inside MaterialsHub.
+  if (app.tab !== "materials" || app.materialsTab !== "threads") return null;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   var fabCounts = (typeof FABRIC_COUNTS !== "undefined") ? FABRIC_COUNTS : [

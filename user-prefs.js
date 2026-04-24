@@ -73,6 +73,11 @@
     trackerShowParking:    true,
     trackerUndoDepth:      50,
     trackerCelebrate:      true,
+    // C3 — the unified pointer pipeline (useDragMark) is now the default.
+    // Set this preference to false to fall back to plain tap-to-mark only
+    // (no drag-mark, no long-press range). The legacy global override
+    // `window.B2_DRAG_MARK_ENABLED = false` also disables the gesture.
+    trackerDragMark:       true,
 
     // ─── Stash Manager defaults ─────────────────────────────────────────
     stashDefaultBrand:        "DMC",            // DMC | Anchor | both
@@ -113,6 +118,19 @@
     // ─── Advanced ───────────────────────────────────────────────────────
     commandPaletteHotkey:     "ctrl+k",         // ctrl+k | ctrl+/ | off
     flagExperimentalPreview:  false,
+
+    // ─── Experimental features (opt-in, may change without notice) ──────
+    "experimental.importWizard": false,         // C7: guided 5-step image-import wizard
+
+    // ─── Onboarding coaching (C8 — flattened keys, one per coachmark) ──
+    // Phase 1 active:
+    "onboarding.coached.firstStitch_creator": false,
+    "onboarding.coached.firstStitch_tracker": false,
+    // Phase 2 reserved (declared so resetCoaching() finds them):
+    "onboarding.coached.import":   false,
+    "onboarding.coached.undo":     false,
+    "onboarding.coached.progress": false,
+    "onboarding.coached.save":     false,
   };
 
   var PVIEW_DEFAULTS = {

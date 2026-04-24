@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wireframe C · Home — three rows</title>
+<link rel="stylesheet" href="_wf.css">
+</head>
+<body>
+<h1 class="wf-title">Proposal C · Home — three rows</h1>
+<p class="wf-subtitle">Resume stitching · Stitch journal · Library. Each row has an emotional anchor (live preview, heat-map streak, finished collection).</p>
+
+<div class="wf-frame">
+  <div class="wf-frame-label">Desktop · 1280 px</div>
+  <div style="display: grid; grid-template-columns: 56px 1fr; height: 720px;">
+
+    <!-- mode rail (collapsed visual) -->
+    <div style="background: #0f172a; color: #e2e8f0; display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 4px;">
+      <div style="font-weight: 700; font-size: 13px; margin-bottom: 14px;">×∕×</div>
+      <div style="width: 44px; height: 44px; display:flex; flex-direction: column; align-items: center; justify-content: center; background: #0d9488; border-radius: 8px; font-size: 10px;">
+        <div style="font-size: 16px;">⌂</div>Home
+      </div>
+      <div style="width: 44px; height: 44px; display:flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #94a3b8;">
+        <div style="font-size: 16px;">◰</div>Studio
+      </div>
+      <div style="width: 44px; height: 44px; display:flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #94a3b8;">
+        <div style="font-size: 16px;">◉</div>Stitch
+      </div>
+      <div style="width: 44px; height: 44px; display:flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #94a3b8;">
+        <div style="font-size: 16px;">▦</div>Stash
+      </div>
+    </div>
+
+    <!-- content -->
+    <div style="padding: 18px 24px; overflow-y: auto;">
+      <h2 style="font: 600 22px/1.2 inherit; margin: 0 0 4px;">Welcome back, stitcher</h2>
+      <div style="font-size: 12px; color: #64748b; margin-bottom: 24px;">5-day streak · 1 247 stitches this month · 2 finishes this year</div>
+
+      <!-- Row 1: Resume -->
+      <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">Resume stitching</div>
+      <div class="gb-strong" style="padding: 14px; display: grid; grid-template-columns: 160px 1fr auto; gap: 16px; align-items: center; background: #f0fdfa; border-color: #99f6e4; margin-bottom: 28px;">
+        <div style="height: 140px; background:
+          radial-gradient(circle at 30% 30%, #fde68a 22px, transparent 24px),
+          radial-gradient(circle at 60% 50%, #fca5a5 18px, transparent 20px),
+          radial-gradient(circle at 40% 70%, #86efac 20px, transparent 22px),
+          repeating-conic-gradient(#f8fafc 0% 25%, #fff 0% 50%) 50% / 12px 12px;
+          border: 1px solid #cbd5e1; border-radius: 6px;"
+          title="live partial-stitched preview"></div>
+        <div>
+          <div style="font: 600 15px/1.2 inherit;">Wildflower Meadow</div>
+          <div style="font-size: 12px; color: #64748b; margin-top: 4px;">38% complete · row 23 col 41 · DMC 733</div>
+          <div class="bar" style="margin: 8px 0;"><i style="width: 38%"></i></div>
+          <div style="font-size: 11px; color: #64748b;">Last session: 247 stitches in 32 min · 3 days ago</div>
+          <div style="font-size: 11px; color: #64748b;">~12 hrs of stitching remaining</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span class="btn btn--primary">Continue →</span>
+          <span class="btn btn--sm">Switch project</span>
+        </div>
+      </div>
+
+      <!-- Row 2: Journal -->
+      <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+        Stitch journal
+        <span class="tag tag--info">5-day streak</span>
+        <span style="flex:1"></span>
+        <a href="#" style="font-size: 11px;">View full stats →</a>
+      </div>
+      <div class="gb" style="padding: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 28px;">
+        <div>
+          <div style="font-size: 11px; color: #64748b; margin-bottom: 6px;">Last 12 weeks</div>
+          <!-- heatmap mock -->
+          <div style="display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px;">
+            <!-- 12 weeks * 7 days = 84 cells -->
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(12, 14px); grid-template-rows: repeat(7, 14px); gap: 3px;">
+            <div style="background:#e2e8f0;"></div><div style="background:#a7f3d0;"></div><div style="background:#34d399;"></div><div style="background:#0d9488;"></div><div style="background:#e2e8f0;"></div><div style="background:#e2e8f0;"></div><div style="background:#34d399;"></div>
+            <div style="background:#a7f3d0;"></div><div style="background:#0d9488;"></div><div style="background:#34d399;"></div><div style="background:#a7f3d0;"></div><div style="background:#e2e8f0;"></div><div style="background:#e2e8f0;"></div><div style="background:#a7f3d0;"></div>
+            <div style="background:#0d9488;"></div><div style="background:#34d399;"></div><div style="background:#a7f3d0;"></div><div style="background:#0d9488;"></div><div style="background:#34d399;"></div><div style="background:#e2e8f0;"></div><div style="background:#e2e8f0;"></div>
+            <div style="background:#a7f3d0;"></div><div style="background:#a7f3d0;"></div><div style="background:#0d9488;"></div><div style="background:#34d399;"></div><div style="background:#a7f3d0;"></div><div style="background:#0d9488;"></div><div style="background:#0d9488;"></div>
+            <div style="background:#e2e8f0;"></div><div style="background:#a7f3d0;"></div><div style="background:#0d9488;"></div><div style="background:#34d399;"></div><div style="background:#a7f3d0;"></div><div style="background:#e2e8f0;"></div><div style="background:#a7f3d0;"></div>
+            <div style="background:#a7f3d0;"></div><div style="background:#34d399;"></div><div style="background:#0d9488;"></div><div style="background:#a7f3d0;"></div><div style="background:#0d9488;"></div><div style="background:#34d399;"></div><div style="background:#a7f3d0;"></div>
+            <div style="background:#34d399;"></div><div style="background:#0d9488;"></div><div style="background:#34d399;"></div><div style="background:#a7f3d0;"></div><div style="background:#0d9488;"></div><div style="background:#a7f3d0;"></div><div style="background:#34d399;"></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 11px; color: #64748b; margin-bottom: 6px;">Recent sessions</div>
+          <div style="font-size: 12px; line-height: 1.7;">
+            <div><strong>Tue</strong> · 247 on Wildflower (32 m)</div>
+            <div><strong>Mon</strong> · 188 on Tiny Sampler (24 m)</div>
+            <div><strong>Sun</strong> · 412 on Wildflower (54 m)</div>
+          </div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 12px;">Milestones</div>
+          <div style="font-size: 12px; line-height: 1.7;">
+            · 50% on Wildflower coming up (~530 stitches)<br>
+            · 1st finish in 90 days
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: Library -->
+      <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; display: flex; align-items: center;">
+        Library
+        <span style="flex:1"></span>
+        <span class="btn btn--sm">Start something new</span>
+      </div>
+      <div class="gb" style="padding: 12px; margin-bottom: 8px;">
+        <div style="font-size: 11px; color: #64748b; margin-bottom: 6px;">In progress · 3</div>
+        <div style="display: flex; gap: 10px; overflow-x: auto;">
+          <div style="min-width: 140px;">
+            <div class="gb-strong" style="height: 90px;"></div>
+            <div style="font-size: 12px; font-weight: 600; margin-top: 4px;">Wildflower Meadow</div>
+            <div class="bar"><i style="width: 38%"></i></div>
+          </div>
+          <div style="min-width: 140px;">
+            <div class="gb-strong" style="height: 90px;"></div>
+            <div style="font-size: 12px; font-weight: 600; margin-top: 4px;">Mountain View</div>
+            <div class="bar"><i style="width: 12%"></i></div>
+          </div>
+          <div style="min-width: 140px;">
+            <div class="gb-strong" style="height: 90px;"></div>
+            <div style="font-size: 12px; font-weight: 600; margin-top: 4px;">Tiny Sampler</div>
+            <div class="bar"><i style="width: 88%"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="gb" style="padding: 12px; margin-bottom: 8px;">
+        <div style="font-size: 11px; color: #64748b; margin-bottom: 6px;">Up next · 2</div>
+        <div style="display: flex; gap: 10px;">
+          <div style="font-size: 12px;">Holiday Sampler · 80×80</div>
+          <span style="color:#cbd5e1;">·</span>
+          <div style="font-size: 12px;">Birthday Card · 50×70</div>
+        </div>
+      </div>
+      <div class="gb" style="padding: 12px;">
+        <div style="font-size: 11px; color: #64748b; margin-bottom: 6px;">Finished · 2 this year</div>
+        <div style="display: flex; gap: 10px;">
+          <div class="gb-strong" style="width: 60px; height: 60px;"></div>
+          <div class="gb-strong" style="width: 60px; height: 60px;"></div>
+          <span class="btn btn--sm" style="align-self: center;">Open showcase →</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Annotations.</strong>
+  <ul style="margin: 4px 0 0 20px;">
+    <li>Three rows give the home an emotional rhythm: <em>where you were</em> → <em>your craft</em> → <em>your collection</em>. Addresses <strong>D-9 home antipattern: dumping ground</strong>.</li>
+    <li>Resume is one card with everything; Switch project is the explicit fallback. Addresses <strong>D-1</strong>.</li>
+    <li>Showcase is a destination, not buried at the bottom. Addresses <strong>D-10</strong>.</li>
+    <li>Library uses horizontal scrollers — works on mobile too.</li>
+  </ul>
+</div>
+</body>
+</html>

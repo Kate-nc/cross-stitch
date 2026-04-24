@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wireframe C · Studio mode</title>
+<link rel="stylesheet" href="_wf.css">
+</head>
+<body>
+<h1 class="wf-title">Proposal C · Studio mode</h1>
+<p class="wf-subtitle">Floating dock at canvas bottom; right inspector with Project/Materials/Export tabs. The canvas is the entire screen.</p>
+
+<div class="wf-frame">
+  <div class="wf-frame-label">Desktop · 1440 px</div>
+  <div style="display: grid; grid-template-columns: 56px 1fr 320px; height: 640px;">
+    <!-- rail -->
+    <div style="background: #0f172a; color: #e2e8f0; display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 4px;">
+      <div style="font-weight: 700; font-size: 13px; margin-bottom: 14px;">×∕×</div>
+      <div style="width: 44px; height: 44px; background: #0d9488; border-radius: 8px; display:flex; align-items:center; justify-content:center;">◰</div>
+      <div style="width: 44px; height: 44px; color: #94a3b8; display:flex; align-items:center; justify-content:center;">◉</div>
+      <div style="width: 44px; height: 44px; color: #94a3b8; display:flex; align-items:center; justify-content:center;">▦</div>
+    </div>
+
+    <!-- canvas + dock + collapsible context bar -->
+    <div style="display: flex; flex-direction: column; position: relative;">
+      <div style="padding: 6px 14px; border-bottom: 1px solid #e5e7eb; background: #f9fafb; display: flex; align-items: center; gap: 12px;">
+        <div style="font-weight: 600; font-size: 13px;">Wildflower Meadow</div>
+        <div style="font-size: 11px; color: #64748b;">80×80 · 47 colours</div>
+        <div style="flex:1"></div>
+        <span class="btn btn--sm">↻</span>
+        <span class="btn btn--sm">↶</span>
+        <span class="btn btn--sm">⫴ Compare</span>
+      </div>
+      <div class="gb-canvas" style="margin: 14px; flex: 1; border-radius: 6px; position: relative;">
+        <!-- floating dock -->
+        <div style="position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; gap: 6px; padding: 8px 10px; background: #fff; border: 1px solid #cbd5e1; border-radius: 999px; box-shadow: 0 6px 18px rgba(0,0,0,.1);">
+          <span class="btn btn--sm" style="background:#0d9488;color:#fff;border-color:#0d9488;">Paint</span>
+          <span class="btn btn--sm">Fill</span>
+          <span class="btn btn--sm">Wand</span>
+          <span class="btn btn--sm">Lasso</span>
+          <span class="btn btn--sm">Eraser</span>
+          <span class="btn btn--sm">Picker</span>
+          <span class="btn btn--sm">Move</span>
+          <span style="width: 1px; background: #e5e7eb;"></span>
+          <span class="btn btn--sm">More ▴</span>
+        </div>
+        <!-- selected swatch chip top-left -->
+        <div style="position: absolute; top: 14px; left: 14px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #fff; border: 1px solid #cbd5e1; border-radius: 999px; box-shadow: 0 2px 6px rgba(0,0,0,.06);">
+          <div class="swatch" style="background:#6b8e23;"></div>
+          <div style="font-size: 12px;"><strong>DMC 733</strong></div>
+          <span class="kbd">P</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- right inspector -->
+    <div style="border-left: 1px solid #e5e7eb; padding: 12px;">
+      <div class="gb-row" style="border-bottom: 1px solid #e5e7eb; margin: -12px -12px 12px; padding: 4px 12px;">
+        <span class="tab tab--active">Project</span>
+        <span class="tab">Materials</span>
+        <span class="tab">Export</span>
+      </div>
+
+      <div style="font-weight: 600; font-size: 12px; margin-bottom: 6px;">Project</div>
+      <div style="font-size: 12px; line-height: 1.8;">
+        Name: <strong>Wildflower Meadow</strong><br>
+        Designer: Studio Default<br>
+        Size: 80×80 (14 ct → 5.7" × 5.7")<br>
+        Strands: 2<br>
+        Created: 5 Apr 2024
+      </div>
+      <span class="btn btn--sm" style="width: 100%; justify-content: center; margin-top: 8px;">Edit details</span>
+
+      <div style="font-weight: 600; font-size: 12px; margin: 14px 0 6px;">Palette</div>
+      <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-bottom: 8px;">
+        <div class="swatch" style="background:#000;"></div>
+        <div class="swatch" style="background:#dc2626;"></div>
+        <div class="swatch" style="background:#fbbf24;"></div>
+        <div class="swatch" style="background:#22c55e;"></div>
+        <div class="swatch" style="background:#0ea5e9;"></div>
+        <div class="swatch" style="background:#a78bfa;"></div>
+        <div class="swatch" style="background:#6b8e23; outline:2px solid #0d9488;"></div>
+        <div class="swatch" style="background:#f97316;"></div>
+      </div>
+      <span class="btn btn--sm" style="width:100%; justify-content: center;">+ Add colour</span>
+
+      <div style="font-weight: 600; font-size: 12px; margin: 14px 0 6px;">Send to…</div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span class="btn btn--sm" style="justify-content: flex-start;">⤓ Stitch (start tracking)</span>
+        <span class="btn btn--sm" style="justify-content: flex-start;">▦ Match against stash</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Annotations.</strong>
+  <ul style="margin: 4px 0 0 20px;">
+    <li>7 always-on tools in dock; the long tail is in "More ▴" sheet (Half-stitch, Backstitch, Park markers, Magic wand variants…). Addresses <strong>B1</strong>, <strong>E1</strong>.</li>
+    <li>Selected swatch as a floating chip is the most prominent piece of state — tap it to open the palette picker. Addresses <strong>D6</strong>.</li>
+    <li>Right inspector is the home for sub-page content (Project/Materials/Export). Addresses <strong>A4</strong>.</li>
+    <li>"Send to Stitch" makes the Studio → Stitch handoff explicit instead of implicit. Addresses <strong>F-2.7</strong>.</li>
+  </ul>
+</div>
+</body>
+</html>

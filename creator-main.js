@@ -414,6 +414,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     appMode: state.appMode, setAppMode: state.setAppMode,
     sidebarTab: state.sidebarTab, setSidebarTab: state.setSidebarTab,
     tab: state.tab, setTab: state.setTab,
+    materialsTab: state.materialsTab, setMaterialsTab: state.setMaterialsTab,
     modal: state.modal, setModal: state.setModal,
     sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
     loadError: state.loadError, setLoadError: state.setLoadError,
@@ -470,7 +471,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     isActive: isActive,
   }; }, [
     state.appMode, state.sidebarTab,
-    state.tab, state.modal, state.sidebarOpen, state.loadError,
+    state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
     state.copied, state.dimOpen, state.palOpen, state.fabOpen,
     state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen,
     state.splitPaneEnabled, state.splitPaneRatio,
@@ -687,6 +688,35 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.doneCount, state.totalTime, state.sessions,
   ]);
 
+  // ── C8 Phase 1 — first-stitch coachmark (Creator) ────────────────────
+  // Trigger condition: in Edit mode with a pattern loaded but no edits yet.
+  // Success signal: state.editHistory becomes non-empty (a cell received a
+  // colour). The 500ms delay lets the canvas settle so the popover anchors
+  // sensibly and avoids racing with auto-loaded projects.
+  const _coach = (typeof window.useCoachingSequence === 'function')
+    ? window.useCoachingSequence('creator')
+    : { active: null, complete: ()=>{}, skip: ()=>{} };
+  const [_coachReady, _setCoachReady] = React.useState(false);
+  React.useEffect(()=>{
+    _setCoachReady(false);
+    if (state.appMode !== 'edit' || !state.pat) return;
+    if (_coach.active !== 'firstStitch_creator') return;
+    const t = setTimeout(()=>_setCoachReady(true), 500);
+    return ()=>clearTimeout(t);
+  }, [state.appMode, !!state.pat, _coach.active]);
+  // Auto-complete when the user makes their first edit.
+  React.useEffect(()=>{
+    if (_coach.active !== 'firstStitch_creator') return;
+    if (state.editHistory && state.editHistory.length > 0) {
+      _coach.complete('firstStitch_creator');
+    }
+  }, [state.editHistory && state.editHistory.length, _coach.active]);
+  const _showFirstStitchCoach = _coachReady
+    && _coach.active === 'firstStitch_creator'
+    && state.appMode === 'edit'
+    && !!state.pat
+    && (!state.editHistory || state.editHistory.length === 0);
+
   return (
     <window.GenerationContext.Provider value={genCtx}>
     <window.AppContext.Provider value={appCtx}>
@@ -746,12 +776,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         <input ref={state.fRef} type="file" accept="image/*" onChange={io.handleFile} style={{display:"none"}}/>
         {(state.img||state.pat)&&<div className="cs-main">
           <div className="canvas-area">
-            {state.pat&&state.pal&&<div>
+            {state.pat&&state.pal&&<div className={"cs-page-fade cs-page-fade--"+state.tab}>
               <window.CreatorPatternTab/>
               <window.CreatorProjectTab/>
-              <window.CreatorLegendTab/>
-              <window.CreatorPrepareTab/>
-              <window.CreatorExportTab/>
+              <window.CreatorMaterialsHub/>
             </div>}
             {!state.pat&&state.img&&<div style={{display:"flex",flexDirection:"column",gap:16,padding:"20px 16px"}}>
               {!state.previewUrl&&<div className="card" style={{overflow:"hidden"}}>
@@ -890,6 +918,15 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         <div style={{fontSize:14,color:"#475569",fontWeight:500}}>Generating pattern\u2026</div>
       </div>}
       <window.CreatorToastContainer/>
+      {_showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
+        id: 'firstStitch_creator',
+        title: 'Paint your first stitch',
+        body: 'Pick a colour from the palette below, then click a cell to paint.',
+        placement: 'centre',
+        showHighlight: false,
+        onComplete: ()=>_coach.complete('firstStitch_creator'),
+        onSkip: ()=>_coach.skip('firstStitch_creator')
+      })}
     </window.PatternDataContext.Provider>
     </window.CanvasContext.Provider>
     </window.AppContext.Provider>

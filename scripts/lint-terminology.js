@@ -32,7 +32,7 @@ const TARGET_FILES = [
   "modals.js",
   "components.js",
   "preferences-modal.js",
-  "help-content.js",
+  "help-drawer.js",
   "onboarding-wizard.js",
   "project-library.js",
   "stats-page.js",

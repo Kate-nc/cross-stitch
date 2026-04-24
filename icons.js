@@ -73,6 +73,10 @@ window.Icons = (function() {
     cart: function() {
       return svg(c(9,21,1), c(20,21,1), p('M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'));
     },
+    // Alias used by the B4 Manager Shopping tab + MaterialsHub.
+    shoppingCart: function() {
+      return svg(c(9,21,1), c(20,21,1), p('M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'));
+    },
     // Trash / delete — replaces 🗑
     trash: function() {
       return svg(pl('3 6 5 6 21 6'), p('M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'), l(10,11,10,17), l(14,11,14,17));
@@ -175,6 +179,14 @@ window.Icons = (function() {
     // Pause bars — replaces ⏸
     pause: function() {
       return svg(rc(6,4,4,16,1), rc(14,4,4,16,1));
+    },
+    // Archive box — used for bulk-archive on the dashboard
+    archive: function() {
+      return svg(
+        rc(2, 4, 20, 5, 1),
+        p('M4 9v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9'),
+        l(10, 13, 14, 13)
+      );
     },
     // Play triangle — replaces ▶ in creator
     play: function() {
@@ -343,6 +355,14 @@ window.Icons = (function() {
         p('M3 13A9 9 0 1 0 6 6.7L3 13')
       );
     },
+    // Replay — counter-clockwise circular arrow used by Help drawer's
+    // "Restart guided tours" affordance (C8 onboarding).
+    replay: function() {
+      return svg(
+        p('M3 12a9 9 0 1 0 3-6.7L3 8'),
+        pl('3 3 3 8 8 8')
+      );
+    },
     // Chevron up — replaces ▲ ↑
     chevronUp: function() {
       return svg(pl('18 15 12 9 6 15'));
@@ -350,6 +370,27 @@ window.Icons = (function() {
     // Chevron down — replaces ▼ ↓
     chevronDown: function() {
       return svg(pl('6 9 12 15 18 9'));
+    },
+    // Chevron right — replaces ▶ ›
+    chevronRight: function() {
+      return svg(pl('9 6 15 12 9 18'));
+    },
+    // Help — question-mark in a circle. Used by the Header help affordance.
+    help: function() {
+      return svg(
+        c(12, 12, 10),
+        p('M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'),
+        l(12, 17, 12.01, 17)
+      );
+    },
+    // Layers — stacked sheets. Used by MaterialsHub sub-tab strip and as a
+    // small "View:" affordance leading icon.
+    layers: function() {
+      return svg(
+        poly('12 2 2 7 12 12 22 7 12 2'),
+        pl('2 17 12 22 22 17'),
+        pl('2 12 12 17 22 12')
+      );
     },
     // Keyboard — replaces ⌨ for the shortcuts-help launcher.
     keyboard: function() {
@@ -362,6 +403,23 @@ window.Icons = (function() {
         l(6, 13, 6.01, 13), l(10, 13, 10.01, 13), l(14, 13, 14.01, 13), l(18, 13, 18.01, 13),
         // Spacebar
         l(7, 16, 17, 16)
+      );
+    },
+    // Crop — replaces ✂ (used by the C7 image-import wizard, step 1)
+    crop: function() {
+      return svg(
+        p('M6 2v14a2 2 0 0 0 2 2h14'),
+        p('M18 22V8a2 2 0 0 0-2-2H2')
+      );
+    },
+    // Ruler — replaces 📏 (used by the C7 image-import wizard, step 3)
+    ruler: function() {
+      return svg(
+        p('M21.3 8.7L8.7 21.3a1 1 0 0 1-1.4 0L2.7 16.7a1 1 0 0 1 0-1.4L15.3 2.7a1 1 0 0 1 1.4 0l4.6 4.6a1 1 0 0 1 0 1.4z'),
+        l(7, 14, 9, 16),
+        l(10, 11, 13, 14),
+        l(13, 8, 15, 10),
+        l(16, 5, 18, 7)
       );
     }
   };
