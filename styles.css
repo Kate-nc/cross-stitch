@@ -3134,3 +3134,23 @@ kbd {
 
 /* Card menu button */
 .mpd-card-menu-btn { min-width: 32px; text-align: center; padding: 4px 8px; }
+
+/* ------------------------- Mobile / touch overrides (WU-8) -------------------------
+   Mobile-first per project convention: defaults are desktop, this block layers on top
+   for touch + narrow viewports only. Increases the smallest font sizes to ~13px and
+   guarantees a 44x44 touch area on the densest UI controls. */
+@media (pointer: coarse) and (max-width: 1024px) {
+  /* Touch-target floor (WCAG 2.5.5) for the smallest tap targets in the app */
+  .tb-btn, .tb-fit-btn, .tb-app-tab, .tb-page-btn, .rp-tab,
+  .cs-cmdp-row, .mpd-card-menu-btn {
+    min-height: 44px;
+  }
+  .tb-btn { padding: 8px 12px; gap: 6px; }
+  .tb-fit-btn { padding: 8px 12px; }
+  /* Bump tiny labels so they meet the 12px+ legibility floor */
+  .tb-zoom-lbl, .tb-zoom-pct, .tb-progress-txt, .tb-progress-rem,
+  .tb-status, .tb-ovf-lbl, .tb-proj-badge-name, .tb-proj-badge-pct {
+    font-size: 13px;
+  }
+  .tb-btn, .rp-tab, .tb-fit-btn, .tb-app-tab, .tb-page-btn { font-size: 13px; }
+}
