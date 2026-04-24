@@ -17,7 +17,7 @@
     c.setAttribute("role", "status");
     c.style.cssText = [
       "position:fixed",
-      "bottom:24px",
+      "bottom:max(24px, env(safe-area-inset-bottom, 0px))",
       "left:50%",
       "transform:translateX(-50%)",
       "z-index:9999",
@@ -90,7 +90,7 @@
       "pointer-events:auto",
       "animation:toast-in 0.25s ease-out both",
       "transition:opacity 0.3s ease, transform 0.3s ease",
-      "max-width:480px"
+      "max-width:min(480px, calc(100vw - 32px))"
     ].join(";");
 
     var msgSpan = document.createElement("span");

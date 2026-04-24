@@ -11757,6 +11757,20 @@ window.CreatorContextMenu = function CreatorContextMenu() {
 
   if (!menu) return null;
 
+  // Clamp menu position to viewport once rendered, so right-clicks / long-presses
+  // near the edges don't push it off-screen on mobile.
+  var menuRef = React.useRef(null);
+  var _pos = React.useState({ x: menu.x, y: menu.y });
+  var pos = _pos[0], setPos = _pos[1];
+  React.useLayoutEffect(function() {
+    if (!menuRef.current) return;
+    var r = menuRef.current.getBoundingClientRect();
+    var vw = window.innerWidth, vh = window.innerHeight, pad = 8;
+    var nx = Math.max(pad, Math.min(menu.x, vw - r.width - pad));
+    var ny = Math.max(pad, Math.min(menu.y, vh - r.height - pad));
+    if (nx !== pos.x || ny !== pos.y) setPos({ x: nx, y: ny });
+  }, [menu.x, menu.y]);
+
   var cell = menu.cell;
   var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
   var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
@@ -11787,8 +11801,9 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   }
 
   return h("div", {
+    ref: menuRef,
     style:{
-      position:"fixed", left:menu.x, top:menu.y, zIndex:9999,
+      position:"fixed", left:pos.x, top:pos.y, zIndex:9999,
       background:"#fff", border:"1px solid #cbd5e1", borderRadius:8,
       boxShadow:"0 4px 16px rgba(0,0,0,0.12)", padding:"4px 0",
       minWidth:180, maxWidth:240
