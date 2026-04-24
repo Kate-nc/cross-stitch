@@ -1,25 +1,29 @@
-/* creator/useKeyboardShortcuts.js — Keyboard shortcut handler for CreatorApp.
-   Registers/unregisters a keydown listener on the window.
-   Expects state (from useCreatorState), history (from useEditHistory),
-   and io (from useProjectIO). */
+/* creator/useKeyboardShortcuts.js — Creator design-mode shortcuts.
+   Migrated to the central registry (window.Shortcuts). The hook
+   declares the entries; the registry handles dispatch, the canonical
+   input-element guard, scope activation, and conflict detection.
+
+   Scope: 'creator.design' is pushed by this hook while the Creator
+   is active. Esc handling stays imperative (composes with the
+   useEscape stack via the registry's allowInInput=false default
+   for the bare 'esc' key). */
 
 window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) {
-  React.useEffect(function() {
-    if (!state.isActive) return;
+  // Activate the Creator design scope while the hook is mounted + active.
+  // useScope is a no-op when when=false, so this safely toggles.
+  if (typeof window.useScope === "function") {
+    window.useScope("creator.design", !!state.isActive);
+  }
 
-    function handleKeyDown(e) {
-      var tag = document.activeElement && document.activeElement.tagName;
-      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
-      var mod = e.ctrlKey || e.metaKey;
-
-      if (mod && !e.shiftKey && e.key === "z") { e.preventDefault(); history.undoEdit(); return; }
-      if ((mod && e.key === "y") || (mod && e.shiftKey && e.key === "z")) { e.preventDefault(); history.redoEdit(); return; }
-      if (mod && e.key === "s") { e.preventDefault(); if (state.pat && state.pal) io.saveProject(); return; }
-      if (mod && !e.shiftKey && e.key === "a") { e.preventDefault(); if (state.pat) { state.selectAll(); } return; }
-      if (mod && e.shiftKey && (e.key === "i" || e.key === "I")) { e.preventDefault(); if (state.pat) { state.invertSelection(); } return; }
-      if (mod) return;
-
-      if (e.key === "Escape") {
+  // Register all entries through the central registry. The hook re-runs
+  // when any of the closure-captured state references change so the
+  // run() bodies always see fresh values.
+  var entries = !state.isActive ? [] : [
+    // Esc cascade — preserves the original priority order.
+    { id: "creator.esc", keys: "esc", scope: "creator.design",
+      description: "Cancel / dismiss",
+      hidden: true, // Esc is implicit in every modal — don't list separately.
+      run: function () {
         if (state.namePromptOpen) { state.setNamePromptOpen(false); return; }
         if (state.modal) { state.setModal(null); return; }
         if (state.overflowOpen) { state.setOverflowOpen(false); return; }
@@ -31,58 +35,127 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         }
         if (state.hiId) { state.setHiId(null); return; }
         if (state.selectedColorId) { state.setSelectedColorId(null); return; }
-        return;
-      }
+      } },
 
-      if (e.key === "?") { state.setModal(function(m) { return m === "shortcuts" ? null : "shortcuts"; }); return; }
-      if (!state.pat) return;
+    // History / save / select-all / invert
+    { id: "creator.undo", keys: "mod+z", scope: "creator.design",
+      description: "Undo edit",
+      run: function () { history.undoEdit(); } },
+    { id: "creator.redo", keys: ["mod+y", "mod+shift+z"], scope: "creator.design",
+      description: "Redo edit",
+      run: function () { history.redoEdit(); } },
+    { id: "creator.save", keys: "mod+s", scope: "creator.design",
+      description: "Save project",
+      run: function () { if (state.pat && state.pal) io.saveProject(); } },
+    { id: "creator.selectAll", keys: "mod+a", scope: "creator.design",
+      description: "Select all stitches",
+      run: function () { if (state.pat) state.selectAll(); } },
+    { id: "creator.invertSel", keys: "mod+shift+i", scope: "creator.design",
+      description: "Invert selection",
+      run: function () { if (state.pat) state.invertSelection(); } },
 
-      if (e.key === "1") { if (state.hiId) { state.setHighlightMode("isolate"); return; } state.selectStitchType("cross"); return; }
-      if (e.key === "2") { if (state.hiId) { state.setHighlightMode("outline"); return; } state.selectStitchType("half-fwd"); return; }
-      if (e.key === "3") { if (state.hiId) { state.setHighlightMode("tint"); return; } state.selectStitchType("half-bck"); return; }
-      if (e.key === "4") { if (state.hiId) { state.setHighlightMode("spotlight"); return; } state.selectStitchType("backstitch"); return; }
-      if (e.key === "5") { state.selectStitchType("erase"); return; }
-      if (e.key === "w" || e.key === "W") {
+    // Help / shortcuts
+    { id: "creator.shortcuts", keys: "?", scope: "creator.design",
+      description: "Toggle shortcuts panel",
+      run: function () {
+        state.setModal(function (m) { return m === "shortcuts" ? null : "shortcuts"; });
+      } },
+
+    // Stitch type / highlight modes (conditional behaviour preserved).
+    { id: "creator.stitch.cross", keys: "1", scope: "creator.design",
+      description: "Cross stitch (or highlight: isolate)",
+      when: function () { return !!state.pat; },
+      run: function () {
+        if (state.hiId) { state.setHighlightMode("isolate"); return; }
+        state.selectStitchType("cross");
+      } },
+    { id: "creator.stitch.halffwd", keys: "2", scope: "creator.design",
+      description: "Half stitch / (or highlight: outline)",
+      when: function () { return !!state.pat; },
+      run: function () {
+        if (state.hiId) { state.setHighlightMode("outline"); return; }
+        state.selectStitchType("half-fwd");
+      } },
+    { id: "creator.stitch.halfbck", keys: "3", scope: "creator.design",
+      description: "Half stitch \\ (or highlight: tint)",
+      when: function () { return !!state.pat; },
+      run: function () {
+        if (state.hiId) { state.setHighlightMode("tint"); return; }
+        state.selectStitchType("half-bck");
+      } },
+    { id: "creator.stitch.bs", keys: "4", scope: "creator.design",
+      description: "Backstitch (or highlight: spotlight)",
+      when: function () { return !!state.pat; },
+      run: function () {
+        if (state.hiId) { state.setHighlightMode("spotlight"); return; }
+        state.selectStitchType("backstitch");
+      } },
+    { id: "creator.stitch.erase", keys: "5", scope: "creator.design",
+      description: "Erase",
+      when: function () { return !!state.pat; },
+      run: function () { state.selectStitchType("erase"); } },
+
+    // Tools
+    { id: "creator.tool.wand", keys: "w", scope: "creator.design",
+      description: "Magic wand",
+      when: function () { return !!state.pat; },
+      run: function () {
         if (state.activeTool === "magicWand") { state.setActiveTool(null); }
         else { state.setActiveTool("magicWand"); state.setPartialStitchTool(null); state.setBsStart(null); }
-        return;
-      }
-      if (e.key === "p" || e.key === "P") {
-        if (!state.partialStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("paint");
-        return;
-      }
-      if (e.key === "f" || e.key === "F") {
-        if (!state.partialStitchTool && state.activeTool !== "backstitch") state.setBrushAndActivate("fill");
-        return;
-      }
-      if (e.key === "i" || e.key === "I") {
+      } },
+    { id: "creator.tool.paint", keys: "p", scope: "creator.design",
+      description: "Paint brush",
+      when: function () { return !!state.pat && !state.partialStitchTool && state.activeTool !== "backstitch"; },
+      run: function () { state.setBrushAndActivate("paint"); } },
+    { id: "creator.tool.fill", keys: "f", scope: "creator.design",
+      description: "Fill bucket",
+      when: function () { return !!state.pat && !state.partialStitchTool && state.activeTool !== "backstitch"; },
+      run: function () { state.setBrushAndActivate("fill"); } },
+    { id: "creator.tool.eyedropper", keys: "i", scope: "creator.design",
+      description: "Eyedropper",
+      when: function () { return !!state.pat; },
+      run: function () {
         state.setActiveTool("eyedropper"); state.setBsStart(null); state.setPartialStitchTool(null);
-        return;
-      }
-      if (e.key === "v" || e.key === "V") {
-        state.setView(function(v) { return v === "color" ? "symbol" : v === "symbol" ? "both" : "color"; });
-        return;
-      }
-      if (e.key === "\\") {
+      } },
+
+    // View / canvas
+    { id: "creator.view.cycle", keys: "v", scope: "creator.design",
+      description: "Cycle view: colour → symbol → both",
+      when: function () { return !!state.pat; },
+      run: function () {
+        state.setView(function (v) { return v === "color" ? "symbol" : v === "symbol" ? "both" : "color"; });
+      } },
+    { id: "creator.split", keys: "\\", scope: "creator.design",
+      description: "Toggle split-pane preview",
+      when: function () { return !!state.pat; },
+      run: function () {
         var nextSplit = !state.splitPaneEnabled;
         state.setSplitPaneEnabled(nextSplit);
         if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", nextSplit);
-        return;
-      }
-      if (e.key === "=" || e.key === "+") { state.setZoom(function(z) { return Math.min(3, +(z + 0.1).toFixed(2)); }); return; }
-      if (e.key === "-") { state.setZoom(function(z) { return Math.max(0.05, +(z - 0.1).toFixed(2)); }); return; }
-      if (e.key === "0") { state.fitZ(); return; }
-    }
+      } },
+    { id: "creator.zoom.in", keys: ["=", "+"], scope: "creator.design",
+      description: "Zoom in",
+      when: function () { return !!state.pat; },
+      run: function () { state.setZoom(function (z) { return Math.min(3, +(z + 0.1).toFixed(2)); }); } },
+    { id: "creator.zoom.out", keys: "-", scope: "creator.design",
+      description: "Zoom out",
+      when: function () { return !!state.pat; },
+      run: function () { state.setZoom(function (z) { return Math.max(0.05, +(z - 0.1).toFixed(2)); }); } },
+    { id: "creator.zoom.fit", keys: "0", scope: "creator.design",
+      description: "Zoom to fit",
+      when: function () { return !!state.pat; },
+      run: function () { state.fitZ(); } },
+  ];
 
-    window.addEventListener("keydown", handleKeyDown);
-    return function() { window.removeEventListener("keydown", handleKeyDown); };
-  }, [
-    state.activeTool, state.bsStart, state.isActive,
-    state.editHistory, state.redoHistory, state.pat, state.pal,
-    state.namePromptOpen, state.modal, state.overflowOpen,
-    state.selectedColorId, state.partialStitchTool, state.hiId,
-    state.hasSelection, state.lassoInProgress, state.highlightMode,
-    state.splitPaneEnabled,
-    history.undoEdit, history.redoEdit, io.saveProject,
-  ]);
+  if (typeof window.useShortcuts === "function") {
+    window.useShortcuts(entries, [
+      state.isActive, state.activeTool, state.bsStart,
+      state.editHistory, state.redoHistory, state.pat, state.pal,
+      state.namePromptOpen, state.modal, state.overflowOpen,
+      state.selectedColorId, state.partialStitchTool, state.hiId,
+      state.hasSelection, state.lassoInProgress, state.highlightMode,
+      state.splitPaneEnabled,
+      history.undoEdit, history.redoEdit, io.saveProject,
+    ]);
+  }
 };

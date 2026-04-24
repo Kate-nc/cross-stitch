@@ -350,6 +350,19 @@ window.Icons = (function() {
     // Chevron down — replaces ▼ ↓
     chevronDown: function() {
       return svg(pl('6 9 12 15 18 9'));
+    },
+    // Keyboard — replaces ⌨ for the shortcuts-help launcher.
+    keyboard: function() {
+      return svg(
+        // Body
+        h('rect', { x: 2, y: 6, width: 20, height: 13, rx: 2, ry: 2 }),
+        // Top row of keys (3 dots)
+        l(6, 10, 6.01, 10), l(10, 10, 10.01, 10), l(14, 10, 14.01, 10), l(18, 10, 18.01, 10),
+        // Middle row of keys (3 dots)
+        l(6, 13, 6.01, 13), l(10, 13, 10.01, 13), l(14, 13, 14.01, 13), l(18, 13, 18.01, 13),
+        // Spacebar
+        l(7, 16, 17, 16)
+      );
     }
   };
 })();

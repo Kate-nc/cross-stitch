@@ -166,10 +166,13 @@ const SharedModals = {
   },
 
   Shortcuts: ({ onClose, page }) => {
-    const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform || navigator.userAgent || '');
-    const mod = isMac ? '⌘' : 'Ctrl';
+    // Auto-generated from window.Shortcuts.list() — single source of truth.
+    // Falls back to a tiny static notice if the registry isn't loaded (e.g.
+    // shortcuts.js script tag missing).
+    const reg = (typeof window !== 'undefined') && window.Shortcuts;
 
     function kbList(keys) {
+      // keys: array of pre-formatted strings (e.g. ['Ctrl+Z', '⌘Z']).
       const out = [];
       keys.forEach((k, i) => {
         if (i > 0) out.push(React.createElement('span', { key: 'sl'+i, style: { margin: '0 3px', color: '#94a3b8', fontSize: 10 } }, '/'));
@@ -178,63 +181,79 @@ const SharedModals = {
       return React.createElement('span', { style: { whiteSpace: 'nowrap' } }, ...out);
     }
 
-    function shRow(keys, desc) {
-      return React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 12, padding: '4px 0', borderBottom: '0.5px solid #f1f5f9' } },
+    function shRow(keys, desc, key) {
+      return React.createElement('div', { key: key, style: { display: 'flex', alignItems: 'baseline', gap: 12, padding: '4px 0', borderBottom: '0.5px solid #f1f5f9' } },
         React.createElement('div', { style: { minWidth: 130, flexShrink: 0 } }, kbList(keys)),
         React.createElement('div', { style: { fontSize: 13, color: '#475569' } }, desc)
       );
     }
 
-    function section(title, rows) {
-      return React.createElement('div', { style: { marginBottom: 16 } },
+    function section(title, rows, key) {
+      if (!rows.length) return null;
+      return React.createElement('div', { key: key, style: { marginBottom: 16 } },
         React.createElement('div', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.07em', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid #e2e8f0' } }, title),
         ...rows
       );
     }
 
-    const general = section('General', [
-      shRow([mod+'+Z'], 'Undo'),
-      shRow([mod+'+Y', mod+'+⇧Z'], 'Redo'),
-      shRow([mod+'+S'], 'Save project'),
-      shRow(['Esc'], 'Deselect / dismiss'),
-      shRow(['?'], 'Toggle this help'),
-    ]);
+    // Map registered scopes → human-readable section titles. Anything not in
+    // the map gets binned into "Other".
+    const SECTION_LABELS = {
+      'global':                'General',
+      'home':                  'Home Screen',
+      'creator':               'Pattern Creator',
+      'creator.design':        'Pattern Creator',
+      'tracker':               'Stitch Tracker',
+      'tracker.notedit':       'Stitch Tracker',
+      'tracker.view.highlight':'Stitch Tracker — Highlight View',
+      'manager':               'Stash Manager'
+    };
+    // Order in which sections render (others fall to the bottom).
+    const SECTION_ORDER = [
+      'General',
+      'Pattern Creator',
+      'Stitch Tracker',
+      'Stitch Tracker — Highlight View',
+      'Stash Manager',
+      'Home Screen',
+      'Other'
+    ];
 
-    const pageSection = page === 'creator'
-      ? section('Pattern Editor', [
-          shRow(['1'], 'Cross stitch'),
-          shRow(['2'], 'Half stitch /'),
-          shRow(['3'], 'Half stitch \\'),
-          shRow(['4'], 'Backstitch'),
-          shRow(['5'], 'Erase'),
-          shRow(['P'], 'Paint brush'),
-          shRow(['F'], 'Fill bucket'),
-          shRow(['V'], 'Cycle view mode'),
-          shRow(['+', '−'], 'Zoom in / out'),
-          shRow(['0'], 'Zoom to fit'),
-        ])
-      : section('Stitch Tracker', [
-          shRow(['T'], 'Track mode'),
-          shRow(['N'], 'Navigate mode'),
-          shRow(['Shift+Click'], 'Mark range from last clicked cell'),
-          shRow(['Space'], 'Start / stop timer (tap)'),
-          shRow(['P'], 'Pause / resume session timer'),
-          shRow(['V'], 'Cycle view mode'),
-          shRow(['[', ']'], 'Previous / next colour'),
-          shRow(['C'], 'Toggle counting aids (highlight mode)'),
-          shRow(['D'], 'Toggle colour drawer'),
-          shRow(['+', '−'], 'Zoom in / out'),
-          shRow(['0'], 'Zoom to fit'),
-          shRow(['Hold Space + drag'], 'Pan canvas'),
-          shRow([mod+'+scroll'], 'Zoom canvas'),
-        ]);
+    let content;
+    if (!reg || typeof reg.list !== 'function') {
+      content = React.createElement('p', { style: { color: '#94a3b8', fontSize: 13 } },
+        'Shortcut registry not loaded — keyboard shortcuts may be unavailable on this page.');
+    } else {
+      // Show shortcuts whose scope is currently active. The page hint lets
+      // the modal scope to a single page even when the registry has more
+      // (it doesn't, in practice, but kept defensive).
+      const activeScopes = new Set(reg.getActiveScopes ? reg.getActiveScopes() : []);
+      const all = reg.list().filter(e => !e.hidden && activeScopes.has(e.scope));
+      // Group by section label.
+      const groups = {};
+      all.forEach(e => {
+        const label = SECTION_LABELS[e.scope] || 'Other';
+        (groups[label] = groups[label] || []).push(e);
+      });
+      const sections = SECTION_ORDER.filter(name => groups[name] && groups[name].length).map(name => {
+        const rows = groups[name].map((e, i) => {
+          const keysArr = Array.isArray(e.keys) ? e.keys : [e.keys];
+          const formatted = keysArr.map(k => reg.formatKey ? reg.formatKey(k) : k);
+          return shRow(formatted, e.description || e.id, e.id);
+        });
+        return section(name, rows, name);
+      });
+      content = sections.length
+        ? sections
+        : React.createElement('p', { style: { color: '#94a3b8', fontSize: 13 } },
+            'No shortcuts available in the current view.');
+    }
 
     return React.createElement('div', { className: 'modal-overlay', onClick: onClose },
-      React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 420, maxHeight: '80vh', overflowY: 'auto' } },
+      React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 460, maxHeight: '80vh', overflowY: 'auto' } },
         React.createElement('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '×'),
         React.createElement('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 20, color: '#1e293b' } }, 'Keyboard Shortcuts'),
-        general,
-        pageSection,
+        content,
         React.createElement('p', { style: { margin: '8px 0 0', fontSize: 12, color: '#94a3b8', textAlign: 'center' } },
           'Press ', React.createElement('kbd', null, '?'), ' anytime to toggle this panel'
         ),

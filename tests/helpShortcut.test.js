@@ -1,4 +1,4 @@
-// Tests for keyboard-utils.js global "?" → cs:openHelp dispatch.
+// Tests for keyboard-utils.js global "?" → cs:openShortcuts dispatch.
 const fs = require('fs');
 const path = require('path');
 
@@ -41,19 +41,22 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'keyboard-utils.js'), 'ut
 eval(src);
 
 describe('keyboard-utils global "?" shortcut', () => {
-  test('pressing "?" dispatches cs:openHelp', () => {
-    let fired = 0;
-    win.addEventListener('cs:openHelp', () => { fired++; });
+  test('pressing "?" dispatches cs:openShortcuts (not cs:openHelp)', () => {
+    let shortcutsFired = 0;
+    let helpFired = 0;
+    win.addEventListener('cs:openShortcuts', () => { shortcutsFired++; });
+    win.addEventListener('cs:openHelp', () => { helpFired++; });
     // Simulate keydown listener installed by keyboard-utils.
     const handlers = doc._listeners.keydown || [];
     expect(handlers.length).toBeGreaterThan(0);
     handlers.forEach(fn => fn({ key: '?', ctrlKey: false, metaKey: false, altKey: false, preventDefault: () => {}, stopPropagation: () => {} }));
-    expect(fired).toBe(1);
+    expect(shortcutsFired).toBe(1);
+    expect(helpFired).toBe(0);
   });
 
   test('"?" with modifier does NOT dispatch', () => {
     let fired = 0;
-    win.addEventListener('cs:openHelp', () => { fired++; });
+    win.addEventListener('cs:openShortcuts', () => { fired++; });
     const handlers = doc._listeners.keydown || [];
     handlers.forEach(fn => fn({ key: '?', ctrlKey: true, metaKey: false, altKey: false, preventDefault: () => {}, stopPropagation: () => {} }));
     expect(fired).toBe(0);
