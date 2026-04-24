@@ -198,9 +198,15 @@ function ManagerApp() {
   }
 
   async function addUnlinkedPatterns(reconciled, basePatterns, unlinked) {
-    for (const meta of unlinked) {
+    // PERF (perf-5 #5): fetch all unlinked projects in parallel.
+    let fulls;
+    try {
+      fulls = await Promise.all(unlinked.map(m => ProjectStorage.get(m.id).catch(() => null)));
+    } catch (e) { fulls = []; }
+    for (let i = 0; i < unlinked.length; i++) {
+      const meta = unlinked[i];
+      const full = fulls[i];
       try {
-        const full = await ProjectStorage.get(meta.id);
         const autoPattern = buildAutoSyncedPattern(meta, full);
         if (autoPattern) {
           if (reconciled === basePatterns) reconciled = [...basePatterns];

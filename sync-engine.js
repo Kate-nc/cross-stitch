@@ -152,10 +152,10 @@ const SyncEngine = (() => {
     var allProjects = [];
     try {
       var metaList = await ProjectStorage.listProjects();
-      for (var i = 0; i < metaList.length; i++) {
-        var full = await ProjectStorage.get(metaList[i].id);
-        if (full) allProjects.push(full);
-      }
+      // PERF (perf-5 #1): batch project fetches in parallel via Promise.all
+      // instead of awaiting each get() sequentially.
+      var fetched = await Promise.all(metaList.map(function(m){ return ProjectStorage.get(m.id); }));
+      for (var i = 0; i < fetched.length; i++) { if (fetched[i]) allProjects.push(fetched[i]); }
     } catch (e) {
       console.error("SyncEngine.export: failed to read projects:", e);
       throw new Error("Could not read projects from database.");
@@ -555,10 +555,9 @@ const SyncEngine = (() => {
     var localMap = {};
     try {
       var metaList = await ProjectStorage.listProjects();
-      for (var i = 0; i < metaList.length; i++) {
-        var full = await ProjectStorage.get(metaList[i].id);
-        if (full) localMap[full.id] = full;
-      }
+      // PERF (perf-5 #2): parallel fetch of all local projects.
+      var fetched = await Promise.all(metaList.map(function(m){ return ProjectStorage.get(m.id); }));
+      for (var i = 0; i < fetched.length; i++) { if (fetched[i]) localMap[fetched[i].id] = fetched[i]; }
     } catch (e) {
       console.error("SyncEngine.prepareImport: failed to read local projects:", e);
     }

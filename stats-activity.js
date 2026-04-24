@@ -44,8 +44,9 @@ async function loadStitchData(filterProjectId) {
   const durationByDay = {}; // { 'YYYY-MM-DD': number } — real stitching seconds per day
   const projectNames = {};
   let trackingStart = null;
-  for (const meta of metas) {
-    const proj = await ProjectStorage.get(meta.id);
+  // PERF (perf-5 #6): parallel fetch of all projects rather than sequential awaits.
+  const fulls = await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
+  for (const proj of fulls) {
     if (!proj) continue;
     projectNames[proj.id] = proj.name || 'Untitled';
     if (filterProjectId && proj.id !== filterProjectId) continue;
