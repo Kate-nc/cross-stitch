@@ -262,7 +262,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         title:"Clear selection (Esc)",
         "aria-label":"Clear selection",
         style:{fontSize:10,padding:"2px 6px",color:"#475569"}
-      }, (cv.selectionCount||0).toLocaleString()+" sel \u2715")
+      }, (cv.selectionCount||0).toLocaleString()+" sel ", window.Icons.x())
     )
   ];
 

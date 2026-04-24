@@ -366,7 +366,6 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   .rpanel{display:none!important;}
   /* Phase 5 — touch-friendly hit targets inside the lpanel. */
   .lp-btn,.lp-tab,.lp-seg{min-height:44px;}
-  .lp-row input[type="range"]{min-height:32px;}
 }
 @media(pointer:coarse){.fab-undo{display:flex;position:fixed;bottom:60px;left:16px;width:48px;height:48px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:20px;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.2);z-index:400;cursor:pointer;touch-action:manipulation;}}
 .tb-btn{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;font-size:11px;font-weight:400;border:none;border-radius:5px;background:transparent;color:var(--text-secondary);cursor:pointer;white-space:nowrap;line-height:1.4;font-family:inherit;}

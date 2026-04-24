@@ -981,10 +981,11 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){
         var on = e.target.checked;
         gen.setSkipBg(on);
-        // Auto-arm the pick on toggle ON (always — picking is the only useful
-        // next step). Toggle OFF clears any in-flight pick mode.
-        if (on) armBgPick();
-        else if (gen.pickBg) gen.setPickBg(false);
+        // Auto-arm pick mode on the first enable (0→1 when no custom colour
+        // has been chosen yet). Re-toggling after a pick skips auto-arming.
+        var isDefaultWhite = gen.bgCol[0]===255 && gen.bgCol[1]===255 && gen.bgCol[2]===255;
+        if (on && isDefaultWhite) armBgPick();
+        else if (!on && gen.pickBg) gen.setPickBg(false);
       }}),
       h("span", null, "Skip background"),
       h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})

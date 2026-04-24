@@ -322,7 +322,7 @@ function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
     <div className="modal-overlay modal-overlay--sheet" onClick={onClose}>
       <div className="modal-content modal-content--sheet" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
         <div className="sheet-handle" aria-hidden="true"/>
-        <button className="modal-close" onClick={onClose}>{Icons.x?Icons.x():"\u00D7"}</button>
+        <button className="modal-close" onClick={onClose} aria-label="Close" title="Close">{Icons.x?Icons.x():"\u00D7"}</button>
         <h3 style={{marginTop:0,fontSize:17}}>Start Session</h3>
         <div style={{marginBottom:16}}>
           <div style={{fontWeight:600,fontSize:12,color:"#475569",marginBottom:8}}>Time available</div>
@@ -4575,8 +4575,8 @@ return(
       <button className="tb-ovf-item" onClick={()=>{setShowNavHelp(h=>!h);setTOverflowOpen(false);}}>{showNavHelp?"Hide":"Show"} controls help</button>
       <div className="tb-ovf-sep"/>
       <span className="tb-ovf-lbl">Tools</span>
-      <button className={"tb-ovf-item"+(trackerPreviewOpen?" tb-ovf-item--on":"")} onClick={()=>{setTrackerPreviewOpen(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Realistic preview{trackerPreviewOpen?" ✓":""}</button>
-      <button className={"tb-ovf-item"+(threadUsageMode?" tb-ovf-item--on":"")} onClick={()=>{setThreadUsageMode(m=>m?null:"cluster");setTOverflowOpen(false);}}>Thread usage{threadUsageMode?" ✓":""}</button>
+      <button className={"tb-ovf-item"+(trackerPreviewOpen?" tb-ovf-item--on":"")} onClick={()=>{setTrackerPreviewOpen(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Realistic preview{trackerPreviewOpen?" ":""}{trackerPreviewOpen?Icons.check():null}</button>
+      <button className={"tb-ovf-item"+(threadUsageMode?" tb-ovf-item--on":"")} onClick={()=>{setThreadUsageMode(m=>m?null:"cluster");setTOverflowOpen(false);}}>Thread usage{threadUsageMode?" ":""}{threadUsageMode?Icons.check():null}</button>
       <button className={"tb-ovf-item"+(countingAidsEnabled?" tb-ovf-item--on":"")} onClick={()=>{setCountingAidsEnabled(v=>!v);setTOverflowOpen(false);}}>{Icons.barChart()} Counting aids{countingAidsEnabled?" ":""}{countingAidsEnabled?Icons.check():null}</button>
       <button className={"tb-ovf-item"} onClick={()=>{setLeftSidebarTab("view");setLeftSidebarOpen(true);setTOverflowOpen(false);}}>Layers{!Object.values(layerVis).every(Boolean)?" (filtered)":""}</button>
       <button className={"tb-ovf-item"+(statsView?" tb-ovf-item--on":"")} onClick={()=>{setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);setTOverflowOpen(false);}}>{Icons.barChart()} Stats{statsView?" ":""}{statsView?Icons.check():null}</button>
@@ -4585,7 +4585,7 @@ return(
       <button className={"tb-ovf-item"+(focusEnabled?" tb-ovf-item--on":"")} onClick={()=>{const next=!focusEnabled;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());setTOverflowOpen(false);}}>{Icons.eye()} Spotlight{focusEnabled?" ":""}{focusEnabled?Icons.check():null}</button>
       {focusEnabled&&!focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(_getStartBlock());setTOverflowOpen(false);}}>Set focus to start block</button>}
       {focusEnabled&&focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(null);setTOverflowOpen(false);}}>Clear focus block</button>}
-      <button className={"tb-ovf-item"+(breadcrumbVisible?" tb-ovf-item--on":"")} onClick={()=>{setBreadcrumbVisible(v=>!v);setTOverflowOpen(false);}}>Breadcrumbs{breadcrumbVisible?" ✓":""}</button>
+      <button className={"tb-ovf-item"+(breadcrumbVisible?" tb-ovf-item--on":"")} onClick={()=>{setBreadcrumbVisible(v=>!v);setTOverflowOpen(false);}}>Breadcrumbs{breadcrumbVisible?" ":""}{breadcrumbVisible?Icons.check():null}</button>
       <button className="tb-ovf-item" onClick={()=>{setStyleOnboardingOpen(true);setTOverflowOpen(false);}}>Stitching style: {({block:"Block",royal:"Royal Rows",crosscountry:"Cross Country",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle}</button>
       {stitchingStyle!=="crosscountry"&&stitchingStyle!=="freestyle"&&<div style={{padding:"4px 14px 6px",fontSize:11,color:"#475569"}}>Block size: {blockW}×{blockH}
         <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}>
@@ -4749,12 +4749,48 @@ return(
         old controls remain wired during phase 1 to avoid disrupting
         in-flight sessions during the migration. */}
     {leftSidebarOpen&&<div className={"lpanel"+(leftSidebarOpen?" lpanel--open":"")} role="complementary" aria-label="Tracker sidebar">
-      <div className="lp-tabs" role="tablist">
-        {[["highlight","Highlight"],["view","View"],["session","Session"],["tools","Tools"],["notes","Notes"],["legend","Legend"]].map(([k,l])=>
-          <button key={k} role="tab" aria-selected={leftSidebarTab===k} className={"lp-tab"+(leftSidebarTab===k?" lp-tab--on":"")+(k==="legend"?" lp-tab--mobile-only":"")} onClick={()=>setLeftSidebarTab(k)}>{l}</button>
-        )}
-        <button type="button" className="lp-close" onClick={()=>setLeftSidebarOpen(false)} aria-label="Close sidebar" title="Close sidebar">{Icons.x?Icons.x():"\u00D7"}</button>
-      </div>
+      {(()=>{
+        const leftSidebarTabs=[["highlight","Highlight"],["view","View"],["session","Session"],["tools","Tools"],["notes","Notes"],["legend","Legend"]];
+        const handleLeftSidebarTabKeyDown=(e,currentKey)=>{
+          let nextKey=null;
+          const currentIndex=leftSidebarTabs.findIndex(([k])=>k===currentKey);
+          if(e.key==="ArrowLeft"){
+            e.preventDefault();
+            nextKey=leftSidebarTabs[(currentIndex<=0?leftSidebarTabs.length:currentIndex)-1][0];
+          }else if(e.key==="ArrowRight"){
+            e.preventDefault();
+            nextKey=leftSidebarTabs[(currentIndex+1)%leftSidebarTabs.length][0];
+          }else if(e.key==="Home"){
+            e.preventDefault();
+            nextKey=leftSidebarTabs[0][0];
+          }else if(e.key==="End"){
+            e.preventDefault();
+            nextKey=leftSidebarTabs[leftSidebarTabs.length-1][0];
+          }
+          if(!nextKey||nextKey===currentKey)return;
+          setLeftSidebarTab(nextKey);
+          const tablist=e.currentTarget.closest('[role="tablist"]');
+          if(!tablist)return;
+          const nextTab=tablist.querySelector('[role="tab"][data-lp-tab="'+(typeof CSS!=="undefined"&&CSS.escape?CSS.escape(nextKey):nextKey)+'"]');
+          if(nextTab&&typeof nextTab.focus==="function")nextTab.focus();
+        };
+        return <div className="lp-tabs" role="tablist" aria-label="Tracker sidebar sections">
+          {leftSidebarTabs.map(([k,l])=>
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              data-lp-tab={k}
+              aria-selected={leftSidebarTab===k}
+              tabIndex={leftSidebarTab===k?0:-1}
+              className={"lp-tab"+(leftSidebarTab===k?" lp-tab--on":"")+(k==="legend"?" lp-tab--mobile-only":"")}
+              onClick={()=>setLeftSidebarTab(k)}
+              onKeyDown={(e)=>handleLeftSidebarTabKeyDown(e,k)}
+            >{l}</button>
+          )}
+          <button type="button" className="lp-close" onClick={()=>setLeftSidebarOpen(false)} aria-label="Close sidebar" title="Close sidebar">{Icons.x?Icons.x():"\u00D7"}</button>
+        </div>;
+      })()}
       <div className="lp-tab-content">
 
       {/* ── Tab: Highlight ── */}
