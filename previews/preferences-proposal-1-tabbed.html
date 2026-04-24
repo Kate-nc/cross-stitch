@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8" />
+<title>Preferences — Proposal A: Sidebar Workbench</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root{
+    --teal:#0d9488; --teal-2:#0f766e; --teal-bg:#f0fdfa; --teal-border:#99f6e4;
+    --ink:#0f172a; --slate:#475569; --slate-2:#64748b; --hint:#94a3b8;
+    --line:#e2e8f0; --line-2:#cbd5e1; --bg:#f8fafc; --card:#fff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:#0f172a99;}
+  body{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e293b,#0f172a);padding:24px}
+  .modal{width:min(1100px,96vw);height:min(720px,92vh);background:var(--card);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.45);display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;border-bottom:1px solid var(--line)}
+  header h1{margin:0;font-size:18px}
+  header .x{border:0;background:transparent;font-size:22px;color:var(--slate-2);cursor:pointer;line-height:1}
+  .body{display:grid;grid-template-columns:240px 1fr;min-height:0}
+  nav{border-right:1px solid var(--line);background:var(--bg);overflow-y:auto;padding:10px 8px}
+  nav .group{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--hint);padding:14px 12px 6px}
+  nav button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:transparent;color:var(--slate);padding:8px 12px;border-radius:8px;font:inherit;cursor:pointer}
+  nav button:hover{background:#fff}
+  nav button.active{background:#fff;color:var(--ink);font-weight:600;box-shadow:inset 3px 0 0 var(--teal)}
+  nav .ico{width:18px;display:inline-flex;justify-content:center;color:var(--slate-2)}
+  nav button.active .ico{color:var(--teal)}
+  main{overflow-y:auto;padding:24px 32px}
+  main h2{font-size:18px;margin:0 0 4px}
+  main .sub{color:var(--slate-2);margin:0 0 18px}
+  section.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:16px}
+  section.card > h3{margin:0 0 14px;font-size:14px;color:var(--ink);border-bottom:1px solid var(--line);padding-bottom:8px}
+  .row{display:grid;grid-template-columns:1fr 260px;align-items:center;gap:18px;padding:10px 0;border-bottom:1px dashed var(--line)}
+  .row:last-child{border-bottom:0}
+  .row .lbl{font-weight:600;color:var(--ink);font-size:13px}
+  .row .desc{font-size:12px;color:var(--slate-2);margin-top:2px}
+  .row .ctrl{justify-self:end;display:flex;align-items:center;gap:8px}
+  input[type=text],input[type=number],select{padding:7px 10px;border:1px solid var(--line-2);border-radius:6px;font:inherit;background:#fff;min-width:160px}
+  input[type=color]{width:40px;height:30px;border:1px solid var(--line-2);border-radius:6px;background:#fff}
+  /* switch */
+  .switch{position:relative;width:38px;height:22px;background:#cbd5e1;border-radius:999px;cursor:pointer;transition:background .15s}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:left .15s}
+  .switch.on{background:var(--teal)}
+  .switch.on::after{left:18px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--teal-2);background:var(--teal-bg);border:1px solid var(--teal-border);padding:2px 8px;border-radius:999px}
+  .danger{color:#b91c1c}
+  .btn{padding:7px 14px;border-radius:7px;border:1px solid var(--line-2);background:#fff;font:inherit;cursor:pointer}
+  .btn.primary{background:var(--teal);color:#fff;border-color:var(--teal)}
+  .btn.danger-outline{color:#b91c1c;border-color:#fecaca;background:#fff1f2}
+  footer{display:flex;justify-content:space-between;align-items:center;padding:12px 22px;border-top:1px solid var(--line);background:#fafbfc}
+  footer .meta{font-size:11px;color:var(--hint)}
+  .swatch{width:22px;height:22px;border-radius:6px;border:1px solid var(--line-2);display:inline-block}
+  .seg{display:inline-flex;border:1px solid var(--line-2);border-radius:7px;overflow:hidden;background:#fff}
+  .seg button{border:0;background:transparent;padding:6px 10px;font:inherit;color:var(--slate);cursor:pointer}
+  .seg button.on{background:var(--teal);color:#fff}
+  .crumbs{font-size:12px;color:var(--hint);margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="modal" role="dialog" aria-label="Preferences">
+  <header>
+    <h1>Preferences</h1>
+    <button class="x" aria-label="Close">×</button>
+  </header>
+  <div class="body">
+    <nav>
+      <div class="group">General</div>
+      <button><span class="ico">👤</span>Profile &amp; branding</button>
+      <button><span class="ico">🌐</span>Regional &amp; units</button>
+      <button><span class="ico">🔔</span>Notifications</button>
+      <button><span class="ico">♿</span>Accessibility</button>
+
+      <div class="group">Workspaces</div>
+      <button class="active"><span class="ico">🧵</span>Pattern Creator</button>
+      <button><span class="ico">🪡</span>Stitch Tracker</button>
+      <button><span class="ico">📦</span>Stash Manager</button>
+
+      <div class="group">Output</div>
+      <button><span class="ico">🖼️</span>Preview &amp; display</button>
+      <button><span class="ico">📄</span>PDF export</button>
+
+      <div class="group">System</div>
+      <button><span class="ico">☁️</span>Sync, backup &amp; data</button>
+      <button><span class="ico">🎓</span>Onboarding &amp; help</button>
+      <button><span class="ico">⚙️</span>Advanced</button>
+    </nav>
+    <main>
+      <div class="crumbs">Preferences › Workspaces › Pattern Creator</div>
+      <h2>Pattern Creator</h2>
+      <p class="sub">Defaults applied whenever a new pattern is generated. Per‑project overrides remain available in the Creator sidebar.</p>
+
+      <section class="card">
+        <h3>Generation defaults</h3>
+        <div class="row">
+          <div>
+            <div class="lbl">Default palette size</div>
+            <div class="desc">Maximum DMC colours used by automatic generation. <span class="pill">overrides Sidebar slider</span></div>
+          </div>
+          <div class="ctrl"><input type="range" min="10" max="40" value="24" /><input type="number" value="24" style="min-width:60px" /></div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="lbl">Default fabric count</div>
+            <div class="desc">Aida count assumed when no project value is set.</div>
+          </div>
+          <div class="ctrl">
+            <select><option>11</option><option>14</option><option selected>16</option><option>18</option><option>22</option><option>28</option></select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="lbl">Allow blended threads</div>
+            <div class="desc">Permit two‑colour blends in generated palettes.</div>
+          </div>
+          <div class="ctrl"><span class="switch on" role="switch" aria-checked="true"></span></div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="lbl">Stash‑only mode</div>
+            <div class="desc">Constrain palette to threads currently in your stash.</div>
+          </div>
+          <div class="ctrl"><span class="switch" role="switch" aria-checked="false"></span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Image preparation &amp; cleanup</h3>
+        <div class="row">
+          <div>
+            <div class="lbl">Dithering</div>
+            <div class="desc">Floyd–Steinberg strength applied during quantisation.</div>
+          </div>
+          <div class="ctrl">
+            <div class="seg"><button>Off</button><button>Weak</button><button class="on">Balanced</button><button>Strong</button></div>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="lbl">Smooth dithering</div>
+            <div class="desc">Reduces speckled "confetti" stitches.</div>
+          </div>
+          <div class="ctrl"><span class="switch on"></span></div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="lbl">Orphan removal strength</div>
+            <div class="desc">0 = keep everything · 3 = remove most isolated cells.</div>
+          </div>
+          <div class="ctrl"><input type="range" min="0" max="3" value="2" /><span style="width:18px;text-align:right">2</span></div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="lbl">Min stitches per colour</div>
+            <div class="desc">Drops colours used fewer than this many times.</div>
+          </div>
+          <div class="ctrl"><input type="number" value="6" style="min-width:80px" /></div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="lbl">Protect detail areas</div>
+            <div class="desc">Skip cleanup near high‑saliency / edge regions.</div>
+          </div>
+          <div class="ctrl"><span class="switch on"></span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Canvas &amp; view</h3>
+        <div class="row">
+          <div>
+            <div class="lbl">Default view mode</div>
+            <div class="desc">What new patterns open as in the chart canvas.</div>
+          </div>
+          <div class="ctrl"><div class="seg"><button class="on">Colour</button><button>Symbol</button><button>Both</button></div></div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="lbl">Grid overlay on by default</div>
+            <div class="desc">Show the 10×10 grid lines on the chart canvas.</div>
+          </div>
+          <div class="ctrl"><span class="switch"></span></div>
+        </div>
+        <div class="row">
+          <div>
+            <div class="lbl">Reference image opacity</div>
+            <div class="desc">Default opacity when overlaying the source image.</div>
+          </div>
+          <div class="ctrl"><input type="range" min="0" max="100" value="35" /><span style="width:34px;text-align:right">35%</span></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <footer>
+    <span class="meta">Changes save automatically · 14 settings on this page</span>
+    <div style="display:flex;gap:8px">
+      <button class="btn danger-outline">Reset section</button>
+      <button class="btn primary">Done</button>
+    </div>
+  </footer>
+</div>
+</body>
+</html>

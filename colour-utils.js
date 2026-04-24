@@ -72,17 +72,22 @@ function quantize(data,w,h,n,allowedPalette,options){
       if(acc>=r){cs.push([px[i][0],px[i][1],px[i][2]]);break;}
     }
   }
+  // PERF (perf-1 #2): replaced per-iteration `cs.map(()=>[])` cluster arrays
+  // and 3× reduce() with reusable Float64Array sums + Uint32Array counts.
+  // Avoids ~N×iterations array allocations and per-pixel push() growth.
+  let _sumL=new Float64Array(cs.length),_sumA=new Float64Array(cs.length),_sumB=new Float64Array(cs.length),_cnt=new Uint32Array(cs.length);
   for(let it=0;it<20;it++){
-    let cl=cs.map(()=>[]);
+    _sumL.fill(0);_sumA.fill(0);_sumB.fill(0);_cnt.fill(0);
     for(let pi=0;pi<px.length;pi++){
       let md=1e9,mi=0;
+      let pL=px[pi][0],pA=px[pi][1],pB=px[pi][2];
       for(let c=0;c<cs.length;c++){let d=dE2(px[pi],cs[c]);if(d<md){md=d;mi=c;}}
-      cl[mi].push(px[pi]);
+      _sumL[mi]+=pL;_sumA[mi]+=pA;_sumB[mi]+=pB;_cnt[mi]++;
     }
     let mv=false;
     for(let c2=0;c2<cs.length;c2++){
-      if(!cl[c2].length)continue;
-      let nv=[cl[c2].reduce((s,q)=>s+q[0],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[1],0)/cl[c2].length,cl[c2].reduce((s,q)=>s+q[2],0)/cl[c2].length];
+      if(!_cnt[c2])continue;
+      let nv=[_sumL[c2]/_cnt[c2],_sumA[c2]/_cnt[c2],_sumB[c2]/_cnt[c2]];
       if(dE2(nv,cs[c2])>0.25)mv=true;
       cs[c2]=nv;
     }
@@ -176,25 +181,29 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
       let chosen = best;
 
       if (effectiveThreshold > 0) {
-        // Collect the up to 4 already-processed neighbors:
-        //   top-left (y-1, x-1), top (y-1, x), top-right (y-1, x+1), left (y, x-1)
-        const neighborIds = new Set();
+        // PERF (perf-1 #3): replaced per-pixel `new Set()` with a small 4-slot
+        // string array — at most 4 neighbours, linear scan beats Set churn.
+        let nb0=null,nb1=null,nb2=null,nb3=null;
         if (y > 0) {
-          if (x > 0)     neighborIds.add(r[idx - w - 1].id);
-                         neighborIds.add(r[idx - w].id);
-          if (x < w - 1) neighborIds.add(r[idx - w + 1].id);
+          if (x > 0)     nb0 = r[idx - w - 1].id;
+                         nb1 = r[idx - w].id;
+          if (x < w - 1) nb2 = r[idx - w + 1].id;
         }
-        if (x > 0)       neighborIds.add(r[idx - 1].id);
+        if (x > 0)       nb3 = r[idx - 1].id;
+
+        const bestId = best.id;
+        const bestNeighbour = (bestId === nb0 || bestId === nb1 || bestId === nb2 || bestId === nb3);
 
         // If the best color is already represented in a neighbor, no confetti risk.
-        if (!neighborIds.has(best.id)) {
+        if (!bestNeighbour) {
           // Find the closest palette color that shares a neighbor's ID.
           let secondBest = null;
           let secondBestDistSq = Infinity;
 
           for (let pi = 0; pi < pal.length; pi++) {
             const entry = pal[pi];
-            if (!neighborIds.has(entry.id)) continue;
+            const eid = entry.id;
+            if (eid !== nb0 && eid !== nb1 && eid !== nb2 && eid !== nb3) continue;
             const distSq = dE2(targetLab, entry.lab);
             if (distSq < secondBestDistSq) {
               secondBestDistSq = distSq;

@@ -12760,6 +12760,11 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                FABRIC_COUNTS (constants.js), StashBridge (stash-bridge.js),
                CreatorContext (context.js) */
 
+// PERF (perf-1 #7 / perf-2 #1): hoist Intl.Collator to module scope so it isn't
+// reallocated on every component render.
+var _LEGEND_THREAD_ID_COLLATOR = new Intl.Collator(undefined, {numeric: true, sensitivity: "base"});
+var _LEGEND_NUMERIC_RE = /^\d+$/;
+
 window.CreatorLegendTab = function CreatorLegendTab() {
   var ctx = window.usePatternData();
   var cv  = window.useCanvas();
@@ -12809,12 +12814,12 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     });
   }, [ctx.pat, ctx.pal, stash, effectiveFabric, app.confettiData, ctx.colourDoneCounts]);
 
-  var threadIdCollator = new Intl.Collator(undefined, {numeric: true, sensitivity: "base"});
+  var threadIdCollator = _LEGEND_THREAD_ID_COLLATOR;
   function compareThreadIds(aId, bId) {
     var aStr = String(aId == null ? "" : aId);
     var bStr = String(bId == null ? "" : bId);
-    var aIsNumeric = /^\d+$/.test(aStr);
-    var bIsNumeric = /^\d+$/.test(bStr);
+    var aIsNumeric = _LEGEND_NUMERIC_RE.test(aStr);
+    var bIsNumeric = _LEGEND_NUMERIC_RE.test(bStr);
     if (aIsNumeric && bIsNumeric) {
       var aNum = parseInt(aStr, 10);
       var bNum = parseInt(bStr, 10);
