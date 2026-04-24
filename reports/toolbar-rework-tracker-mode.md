@@ -132,7 +132,7 @@ proper left sidebar with grouped tabs.
 ```
 ┌─ TOOLS ──────────────────────────────────┐
 │ Realistic preview                         │
-│   [☑] Show   Detail [L1][L2][L3][L4]      │
+│   [Open realistic preview]                │
 │                                           │
 │ Thread usage                              │
 │   Mode [Cluster][Isolation]               │

@@ -7297,6 +7297,8 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.namePromptOpen) { state.setNamePromptOpen(false); return; }
         if (state.modal) { state.setModal(null); return; }
         if (state.overflowOpen) { state.setOverflowOpen(false); return; }
+        // Background-pick mode: ESC backs out without sampling.
+        if (state.pickBg) { state.setPickBg(false); return; }
         if (state.lassoInProgress) { state.cancelLasso(); return; }
         if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
@@ -11698,7 +11700,18 @@ window.CreatorSidebar = function CreatorSidebar() {
   })() : null;
 
   // ── Crop image card ──────────────────────────────────────────────────────────
-  var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {className:"card"},
+  // When pickBg is active the card grows a pulsing orange outline and a
+  // prominent banner so the user knows this is the click target. ESC cancels
+  // (wired in useKeyboardShortcuts.js).
+  var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {className:"card"+(gen.pickBg?" card--pickBg":"")},
+    gen.pickBg && h("div", {style:{padding:"10px 12px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#fff7ed",borderBottom:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:8}},
+      h("span", {style:{flex:1}}, "Click anywhere on the image to set the background colour."),
+      h("button", {
+        onClick:function(){gen.setPickBg(false);},
+        title:"Cancel pick (Esc)",
+        style:{fontSize:11,padding:"3px 8px",border:"1px solid #fdba74",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}
+      }, "Cancel")
+    ),
     h("div", {
       style:{position:"relative",touchAction:"none",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none"}, ref:gen.cropRef,
       onPointerDown:gen.handleCropPointerDown,
@@ -11748,10 +11761,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
             }, "Change")
           )
-        ),
-    gen.pickBg && h("div", {style:{padding:"6px 12px",fontSize:11,color:"#ea580c",fontWeight:600,background:"#fff7ed"}},
-      "Click to pick BG"
-    )
+        )
   ) : null;
 
   // ── Colours section (scratch mode) ─────────────────────────────────────────
@@ -12323,23 +12333,40 @@ window.CreatorSidebar = function CreatorSidebar() {
   ) : null;
 
   // ── Background section (non-scratch) ───────────────────────────────────────
+  // The "Skip background" toggle auto-enters pick mode the first time it's
+  // turned on so the user is never left wondering what to click. Re-toggling
+  // off and on doesn't keep re-arming pick mode (only on the 0→1 transition
+  // when no bgCol has been customised).
   var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}) : null;
+  function armBgPick() {
+    // Switch the user to the Image tab so the pick target is visible.
+    if (app.appMode === "create" && app.setSidebarTab) app.setSidebarTab("image");
+    gen.setPickBg(true);
+  }
   var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:app.bgOpen, onToggle:app.setBgOpen, badge:bgBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}},
-      h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){gen.setSkipBg(e.target.checked);}}),
+      h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){
+        var on = e.target.checked;
+        gen.setSkipBg(on);
+        // Auto-arm the pick on toggle ON (always — picking is the only useful
+        // next step). Toggle OFF clears any in-flight pick mode.
+        if (on) armBgPick();
+        else if (gen.pickBg) gen.setPickBg(false);
+      }}),
       h("span", null, "Skip background"),
       h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})
     ),
     gen.skipBg && h("div", {style:{marginTop:10}},
       h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
         h("div", {
-          onClick:function(){gen.setPickBg(true);},
+          onClick:armBgPick,
+          title:"Pick background colour from the source image",
           style:{width:24,height:24,borderRadius:6,background:"rgb("+gen.bgCol+")",border:"2px solid #e2e8f0",cursor:"pointer"}
         }),
         h("button", {
-          onClick:function(){gen.setPickBg(true);},
-          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa",cursor:"pointer"}
-        }, "Pick")
+          onClick:armBgPick,
+          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:gen.pickBg?"#fff7ed":"#f8f9fa",color:gen.pickBg?"#9a3412":"#1e293b",cursor:"pointer"}
+        }, gen.pickBg ? "Picking…" : "Pick")
       ),
       h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
         helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),

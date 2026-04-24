@@ -43,6 +43,21 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   box-shadow: var(--shadow-sm);
 }
 
+/* Background-pick mode: pulses the source-image card so the user knows
+   where to click. Paired with an in-card banner explaining the action. */
+.card--pickBg {
+  border-color: #fb923c;
+  box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.18), var(--shadow-sm);
+  animation: card-pickbg-pulse 1.6s ease-in-out infinite;
+}
+@keyframes card-pickbg-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.18), var(--shadow-sm); }
+  50%      { box-shadow: 0 0 0 6px rgba(251, 146, 60, 0.28), var(--shadow-sm); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card--pickBg { animation: none; }
+}
+
 .upload-area {
   border: 1.5px dashed var(--border);
   border-radius: var(--radius-xl);

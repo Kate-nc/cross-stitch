@@ -27,6 +27,8 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.namePromptOpen) { state.setNamePromptOpen(false); return; }
         if (state.modal) { state.setModal(null); return; }
         if (state.overflowOpen) { state.setOverflowOpen(false); return; }
+        // Background-pick mode: ESC backs out without sampling.
+        if (state.pickBg) { state.setPickBg(false); return; }
         if (state.lassoInProgress) { state.cancelLasso(); return; }
         if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
