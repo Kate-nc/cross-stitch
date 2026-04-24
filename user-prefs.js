@@ -73,9 +73,11 @@
     trackerShowParking:    true,
     trackerUndoDepth:      50,
     trackerCelebrate:      true,
-    // fix-3.3 — opt-in drag-to-mark gesture (replaces the global window
-    // override `B2_DRAG_MARK_ENABLED`). Default off until rolled out.
-    trackerDragMark:       false,
+    // C3 — the unified pointer pipeline (useDragMark) is now the default.
+    // Set this preference to false to fall back to plain tap-to-mark only
+    // (no drag-mark, no long-press range). The legacy global override
+    // `window.B2_DRAG_MARK_ENABLED = false` also disables the gesture.
+    trackerDragMark:       true,
 
     // ─── Stash Manager defaults ─────────────────────────────────────────
     stashDefaultBrand:        "DMC",            // DMC | Anchor | both

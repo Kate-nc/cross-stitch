@@ -735,8 +735,7 @@ const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
 const scrollRafRef=useRef(null);
 const lastClickedRef=useRef(null); // { idx, row, col, val } for shift+click range
-const[rangeModeActive,setRangeModeActive]=useState(false);
-const[rangeAnchor,setRangeAnchor]=useState(null); // { idx, row, col, val } for touch range mode
+// C3: range-select state lives inside useDragMark (long-press anchor + shift+click).
 
 const[selectedColorId,setSelectedColorId]=useState(null);
 
@@ -745,7 +744,6 @@ const[selectedColorId,setSelectedColorId]=useState(null);
 const[halfStitches,setHalfStitches]=useState(new Map());
 // Sparse map: cellIdx → { fwd?: 0|1, bck?: 0|1 }
 const[halfDone,setHalfDone]=useState(new Map());
-useEffect(()=>{if(stitchMode!=="track"){setRangeModeActive(false);setRangeAnchor(null);}},[stitchMode]);
 const[halfDisambig,setHalfDisambig]=useState(null); // {x, y, idx} for popup
 
 const[hoverInfo,setHoverInfo]=useState(null);
@@ -3799,80 +3797,10 @@ function handleStitchMouseDown(e){
 
   if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
 
-  // ═══ Range mode (2-click rectangle, desktop) ═══
-  if(rangeModeActive&&stitchMode==="track"&&!e.shiftKey){
-    if(!rangeAnchor){
-      // First click: toggle this cell and set it as the anchor; do NOT start drag
-      if (isColourLocked() && !fullStitchMatchesFocus(idx)) return;
-      let nv=done[idx]?0:1;
-      const oldVal=done[idx];
-      done[idx]=nv;
-      drawCellDirectly(idx,nv);
-      pushTrackHistory([{idx,oldVal}]);
-      applyDoneCountsDelta([{idx,oldVal}],pat,done);
-      setDone(new Uint8Array(done));
-      lastClickedRef.current={idx,row:gy,col:gx,val:nv};
-      setRangeAnchor({idx,row:gy,col:gx,val:nv});
-    }else{
-      // Second click: fill rectangle from anchor to here
-      const a=rangeAnchor;
-      const minR=Math.min(a.row,gy),maxR=Math.max(a.row,gy);
-      const minC=Math.min(a.col,gx),maxC=Math.max(a.col,gx);
-      const targetVal=a.val;
-      const changes=[];
-      for(let r=minR;r<=maxR;r++){for(let c=minC;c<=maxC;c++){
-        const ci=r*sW+c;const cell=pat[ci];
-        if(cell.id==="__skip__"||cell.id==="__empty__")continue;
-        if (isColourLocked() && pat[ci].id !== focusColour) continue;
-        if(done[ci]!==targetVal){changes.push({idx:ci,oldVal:done[ci]});done[ci]=targetVal;}
-      }}
-      if(changes.length){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,done);setDone(new Uint8Array(done));renderStitch();}
-      lastClickedRef.current={idx,row:gy,col:gx,val:targetVal};
-      setRangeAnchor(null);
-    }
-    e.preventDefault();
-    return;
-  }
-
-  // ═══ Shift+Click range fill ═══
-  if(e.shiftKey&&lastClickedRef.current&&stitchMode==="track"){
-    const a=lastClickedRef.current;
-    const bCol=gx,bRow=gy;
-    const minR=Math.min(a.row,bRow),maxR=Math.max(a.row,bRow);
-    const minC=Math.min(a.col,bCol),maxC=Math.max(a.col,bCol);
-    const targetVal=a.val;
-    const changes=[];
-    for(let r=minR;r<=maxR;r++){
-      for(let c=minC;c<=maxC;c++){
-        const ci=r*sW+c;
-        const cell=pat[ci];
-        if(cell.id==="__skip__"||cell.id==="__empty__")continue;
-        if (isColourLocked() && pat[ci].id !== focusColour) continue;
-        if(done[ci]!==targetVal){
-          changes.push({idx:ci,oldVal:done[ci]});
-          done[ci]=targetVal;
-        }
-      }
-    }
-    if(changes.length){
-      pushTrackHistory(changes);
-      applyDoneCountsDelta(changes,pat,done);
-      setDone(new Uint8Array(done));
-      renderStitch();
-    }
-    lastClickedRef.current={idx,row:gy,col:gx,val:targetVal};
-    e.preventDefault();
-    return;
-  }
-
-  if (isColourLocked() && !fullStitchMatchesFocus(idx)) return;
-  let nv=done[idx]?0:1;
-  lastClickedRef.current={idx,row:gy,col:gx,val:nv};
-  dragStateRef.current = { isDragging: true, dragVal: nv };
-  dragChangesRef.current=[{idx,oldVal:done[idx]}];
-  done[idx] = nv; // Optimistic update
-  drawCellDirectly(idx, nv);
-  window.addEventListener("pointerup", handleMouseUp, { once: true });
+  // C3: cell tap / drag-mark / shift+click range / long-press range are all
+  // owned by useDragMark (see _dragMarkOnToggle / _dragMarkOnCommitDrag /
+  // _dragMarkOnCommitRange below). The mousedown handler keeps only the
+  // pan, edit-mode popover, navigate-mode, and half-stitch branches above.
   e.preventDefault();
 }
 function handleStitchMouseMove(e){
@@ -3909,18 +3837,8 @@ function handleStitchMouseMove(e){
     setHoverInfo(null);
   }
 
-  if(!dragStateRef.current.isDragging||stitchMode!=="track"||!done||!stitchRef.current||!pat)return;
-  if(!gc)return;let{gx,gy}=gc;
-  if(gx<0||gx>=sW||gy<0||gy>=sH)return;
-  let idx=gy*sW+gx;if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
-  const dVal = dragStateRef.current.dragVal;
-  if (isColourLocked() && !fullStitchMatchesFocus(idx)) {
-    // skip — don't mark this cell during drag
-  } else if(done[idx]!==dVal){
-    dragChangesRef.current.push({idx,oldVal:done[idx]});
-    done[idx] = dVal; // Optimistic update
-    drawCellDirectly(idx, dVal);
-  }
+  // C3: drag mutation now flows through useDragMark; mousemove only owns
+  // pan + hover updates above.
 }
 function handleStitchMouseLeave(){
   handleMouseUp();
@@ -3929,14 +3847,7 @@ function handleStitchMouseLeave(){
 }
 function handleMouseUp(){
   if(isPanning){setIsPanning(false);return;}
-  if(dragStateRef.current.isDragging&&dragChangesRef.current.length>0){
-    pushTrackHistory([...dragChangesRef.current]);
-    applyDoneCountsDelta(dragChangesRef.current,pat,done);
-    let nd = new Uint8Array(done);
-    setDone(nd);
-    dragChangesRef.current=[];
-  }
-  dragStateRef.current.isDragging = false;
+  // C3: drag commit owned by useDragMark via _dragMarkOnCommitDrag.
 }
 
 function startPan(e){
@@ -3991,18 +3902,12 @@ function handleTouchStart(e){
   e.preventDefault();
   const ts=touchStateRef.current;
   if(e.touches.length===1){
+    // C3: single-finger TAP / DRAG-MARK / LONG-PRESS RANGE are owned by
+    // useDragMark via pointer events. We only record startX/startY/mode
+    // here so the > 8px PAN fallback in handleTouchMove can take over.
     const t=e.touches[0];
     ts.startX=t.clientX; ts.startY=t.clientY;
     ts.mode="tap"; ts.tapIdx=-1;
-    if(!isEditMode&&stitchMode==="track"&&done){
-      const gc=gridCoord(stitchRef,{clientX:t.clientX,clientY:t.clientY},scs,G,false);
-      if(gc&&gc.gx>=0&&gc.gx<sW&&gc.gy>=0&&gc.gy<sH){
-        const idx=gc.gy*sW+gc.gx;
-        if(pat[idx].id!=="__skip__"&&pat[idx].id!=="__empty__"){
-          ts.tapIdx=idx; ts.tapVal=done[idx]?0:1;
-        }
-      }
-    }
   }else if(e.touches.length===2){
     ts.mode="pinch"; ts.tapIdx=-1;
     const dx=e.touches[1].clientX-e.touches[0].clientX;
@@ -4068,66 +3973,10 @@ function handleTouchMove(e){
 
 function handleTouchEnd(e){
   if(!pat)return;
+  // C3: tap toggle / range fill are owned by useDragMark. Touch handler
+  // only resets pinch + pan tracking state so the next gesture starts
+  // cleanly.
   const ts=touchStateRef.current;
-  if(ts.mode==="tap"&&ts.tapIdx>=0&&done){
-    const idx=ts.tapIdx;
-    if(isEditMode){
-      const t=e.changedTouches[0];
-      const gc={gx:idx%sW,gy:Math.floor(idx/sW)};
-      setCellEditPopover({idx,row:gc.gy+1,col:gc.gx+1,x:t.clientX,y:t.clientY});
-    }else if(stitchMode==="track"){
-      if(rangeModeActive){
-        const gx=idx%sW,gy=Math.floor(idx/sW);
-        if(!rangeAnchor){
-          // First tap: toggle the anchor cell AND record it as the anchor
-          if (isColourLocked() && !fullStitchMatchesFocus(idx)) return;
-          const nv=ts.tapVal;
-          const nd=new Uint8Array(done);
-          nd[idx]=nv;
-          pushTrackHistory([{idx,oldVal:done[idx]}]);
-          applyDoneCountsDelta([{idx,oldVal:done[idx]}],pat,nd);
-          setDone(nd);
-          drawCellDirectly(idx,nv);
-          setRangeAnchor({idx,row:gy,col:gx,val:nv});
-        }else{
-          // Second tap fills rectangle then clears anchor
-          const a=rangeAnchor;
-          const minR=Math.min(a.row,gy),maxR=Math.max(a.row,gy);
-          const minC=Math.min(a.col,gx),maxC=Math.max(a.col,gx);
-          const targetVal=a.val;
-          const changes=[];
-          for(let r=minR;r<=maxR;r++){
-            for(let c=minC;c<=maxC;c++){
-              const ci=r*sW+c;
-              const cell=pat[ci];
-              if(cell.id==="__skip__"||cell.id==="__empty__")continue;
-              if (isColourLocked() && pat[ci].id !== focusColour) continue;
-              if(done[ci]!==targetVal){
-                changes.push({idx:ci,oldVal:done[ci]});
-                done[ci]=targetVal;
-              }
-            }
-          }
-          if(changes.length){
-            pushTrackHistory(changes);
-            applyDoneCountsDelta(changes,pat,done);
-            setDone(new Uint8Array(done));
-            renderStitch();
-          }
-          setRangeAnchor(null);
-        }
-      }else{
-        if (isColourLocked() && !fullStitchMatchesFocus(idx)) return;
-        const nv=ts.tapVal;
-        const nd=new Uint8Array(done);
-        nd[idx]=nv;
-        pushTrackHistory([{idx,oldVal:done[idx]}]);
-        applyDoneCountsDelta([{idx,oldVal:done[idx]}],pat,nd);
-        setDone(nd);
-        drawCellDirectly(idx,nv);
-      }
-    }
-  }
   ts.mode="none"; ts.tapIdx=-1; ts.pinchDist=0;
 }
 
@@ -4198,7 +4047,6 @@ useShortcuts(!isActive ? [] : [
   { id: "tracker.esc", keys: "esc", scope: "tracker", hidden: true,
     description: "Cancel / dismiss",
     run: () => {
-      if(rangeModeActive){setRangeModeActive(false);setRangeAnchor(null);return;}
       if(halfDisambig){setHalfDisambig(null);return;}
       if(namePromptOpen){setNamePromptOpen(false);return;}
       if(modal){setModal(null);return;}
@@ -4326,7 +4174,7 @@ useShortcuts(!isActive ? [] : [
   { id: "tracker.hl.spotlight", keys: "4", scope: "tracker.view.highlight",
     description: "Highlight: spotlight",
     run: () => { ensureFocusColour(); setHighlightMode("spotlight"); } },
-],[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive,layerVis,colourDoneCounts]);
+],[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,layerVis,colourDoneCounts]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
@@ -4410,8 +4258,9 @@ const _commitBulk=useCallback(function(set,intent,source){
     if(idx<0||idx>=pat.length)return;
     const cell=pat[idx];
     if(!cell||cell.id==='__skip__'||cell.id==='__empty__')return;
+    // C3: colour-lock filter — match the legacy handlers' fullStitchMatchesFocus check.
     if(typeof isColourLocked==='function'&&isColourLocked()
-       &&pat[idx].id!==focusColour)return;
+       &&!fullStitchMatchesFocus(idx))return;
     if(nd[idx]!==want){
       changes.push({idx:idx,oldVal:nd[idx]});
       nd[idx]=want;
@@ -4426,15 +4275,15 @@ const _commitBulk=useCallback(function(set,intent,source){
 },[pat,done,focusColour,_pulseCells]);
 
 const _dragMarkOnToggle=useCallback(function(idx){
-  // Touch tap: delegate to the existing single-cell toggle path. We keep
-  // mouse on its own path; touch tap goes through here and uses the
+  // C3: single-cell tap from useDragMark (touch + mouse). Uses the
   // standard pushTrackHistory machinery for a single-cell undo step.
   if(!pat||!done)return;
   if(idx<0||idx>=pat.length)return;
   const cell=pat[idx];
   if(!cell||cell.id==='__skip__'||cell.id==='__empty__')return;
+  // C3: colour-lock filter — match the legacy handlers' fullStitchMatchesFocus check.
   if(typeof isColourLocked==='function'&&isColourLocked()
-     &&pat[idx].id!==focusColour)return;
+     &&!fullStitchMatchesFocus(idx))return;
   const oldVal=done[idx];
   const nv=oldVal?0:1;
   const nd=new Uint8Array(done);
@@ -4454,18 +4303,16 @@ const _dragMarkOnCommitRange=useCallback(function(set,intent){
 },[_commitBulk]);
 
 // Hook itself — gated by edit mode + non-track stitchMode (returns idle).
-// Default-disabled via window.B2_DRAG_MARK_ENABLED to avoid double-handling
-// with the existing legacy touch pipeline (handleTouchStart / End own the
-// tap, pan, pinch, and range-mode flows). Set the flag to true to opt in;
-// a future PR can coordinate the legacy touch handlers with this hook and
-// remove the flag. Source assertions in tests/dragMark.test.js verify the
-// wiring regardless of the runtime flag.
-// fix-3.3 — primary source is the user preference `trackerDragMark`. The
-// legacy `window.B2_DRAG_MARK_ENABLED` global remains supported as an
-// override for QA/automation, but Preferences > Tracker is now the
-// supported way to enable the gesture.
-const _dragMarkPrefOn=(typeof window!=='undefined'&&window.UserPrefs&&typeof window.UserPrefs.get==='function'&&window.UserPrefs.get('trackerDragMark')===true);
-const _dragMarkFlag=_dragMarkPrefOn||(typeof window!=='undefined'&&window.B2_DRAG_MARK_ENABLED===true);
+// C3: useDragMark is the unified pointer pipeline (touch + mouse). The
+// `trackerDragMark` user preference (default true) lets users opt out at
+// runtime. The legacy `window.B2_DRAG_MARK_ENABLED` global remains
+// supported only as a QA/automation override — set it to false to force
+// the hook off (e.g. for regression repro). Source assertions in
+// tests/dragMark.test.js + tests/c3LegacyHandlersRemoved.test.js verify
+// the wiring.
+const _dragMarkPref=(typeof window!=='undefined'&&window.UserPrefs&&typeof window.UserPrefs.get==='function')?window.UserPrefs.get('trackerDragMark'):true;
+const _dragMarkOverrideOff=(typeof window!=='undefined'&&window.B2_DRAG_MARK_ENABLED===false);
+const _dragMarkFlag=!_dragMarkOverrideOff&&_dragMarkPref!==false;
 const _dragMarkActive=_dragMarkFlag&&!isEditMode&&stitchMode==="track"&&!!pat&&!!done;
 const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
   ?window.useDragMark({
@@ -4480,21 +4327,9 @@ const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
 const dragMarkHandlers=_dragMark.handlers;
 const dragMarkState=_dragMark.dragState;
 
-// Touch-only wrapper: only forward pointer events whose pointerType is
-// 'touch' to the hook, so existing mouse handlers stay primary.
-const _touchOnlyHandlers=useMemo(function(){
-  function gate(h){return function(e){
-    if(!h)return;
-    if(e&&e.pointerType==='touch')h(e);
-  };}
-  return {
-    onPointerDown:gate(dragMarkHandlers.onPointerDown),
-    onPointerMove:gate(dragMarkHandlers.onPointerMove),
-    onPointerUp:gate(dragMarkHandlers.onPointerUp),
-    onPointerCancel:gate(dragMarkHandlers.onPointerCancel),
-    onContextMenu:dragMarkHandlers.onContextMenu||function(){},
-  };
-},[dragMarkHandlers]);
+// C3: useDragMark now owns both touch AND mouse pointer events. The
+// previous touch-only gate is no longer needed because legacy mouse
+// cell-marking has been removed from handleStitchMouseDown / Move / Up.
 
 return(
 <>
@@ -4566,7 +4401,7 @@ return(
       <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>{isEditMode?"Modify":"Mark"}
     </button>
     <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");}} title="Navigate (N)">Nav</button>
-    {stitchMode==="track"&&<button className={"tb-btn"+(rangeModeActive?" tb-btn--blue":"")} onClick={()=>{setRangeModeActive(r=>!r);setRangeAnchor(null);}} title="Range select mode">⊞ Range</button>}
+    {/* C3: range-mode toolbar button removed; long-press + shift+click own range via useDragMark. */}
   </div>
   <div className="tb-sdiv"/>
   <div className={"tb-grp"+(tStripCollapsed.view?" tb-hidden":"")}>
@@ -4856,7 +4691,7 @@ return(
           <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:11,padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"#94a3b8"}}>Stay</button>
         </div>
       </div>;
-      if(stitchMode==="track") return <div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{rangeModeActive?(rangeAnchor?(hasTouchRef.current?"Anchor set — tap second corner to fill rectangle":"Anchor set — click second corner to fill the rectangle · Esc to cancel"):(hasTouchRef.current?"Range mode — tap first corner of the rectangle":"Range mode — click first corner, then click second corner to mark a rectangle · Esc to cancel")):(hasTouchRef.current?"Tap to mark cross stitches · Drag to pan · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Space+drag to pan · Ctrl+scroll to zoom · Shift+click for rectangle fill · Ctrl+Z undo")}{!rangeModeActive&&trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
+      if(stitchMode==="track") return <div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press a cell, then tap the opposite corner to fill a rectangle · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
       if(stitchMode==="navigate") return <div style={{fontSize:12,color:"#1e293b",background:"#f1f5f9",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>;
       if(!shortcutsHintDismissed&&pat) return <div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>;
       return null;
@@ -4892,7 +4727,7 @@ return(
           })}
         </div>
         <div style={{ position: 'relative' }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()} {..._touchOnlyHandlers}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()} {...dragMarkHandlers}/>
 
           {/* B2 — drag-mark / range-select visual overlay (touch) */}
           {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(
@@ -4929,10 +4764,11 @@ return(
           {/* Counting aids overlay (block counts, run lengths, ninja stitches) */}
           {countingAidsEnabled&&stitchView==="highlight"&&focusColour&&<canvas ref={countingAidsCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:7,pointerEvents:"none"}}/>}
 
-          {rangeModeActive&&rangeAnchor&&<div style={{
+          {/* C3: range anchor overlay driven by useDragMark long-press anchor. */}
+          {dragMarkState&&dragMarkState.mode==='range'&&dragMarkState.anchor!=null&&sW>0&&<div style={{
             position:'absolute',
-            left:rangeAnchor.col*scs,
-            top:rangeAnchor.row*scs,
+            left:(dragMarkState.anchor%sW)*scs,
+            top:Math.floor(dragMarkState.anchor/sW)*scs,
             width:scs,height:scs,
             border:'2px solid #3b82f6',
             borderRadius:2,
