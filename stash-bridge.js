@@ -30,8 +30,18 @@ const StashBridge = (() => {
   function _getThreadInfoByKey(key) {
     if (typeof getThreadByKey === "function") return getThreadByKey(key);
     const parsed = _parseThreadKey(key);
+    // PERF (perf-2 #3): prefer cached id-maps from helpers.js (O(1)) over O(n)
+    // Array.find scans across the full DMC/ANCHOR palettes.
     if (parsed.brand === "anchor") {
+      if (typeof _getAnchorById === "function") {
+        const m = _getAnchorById();
+        if (m) return m[parsed.id] || null;
+      }
       return typeof ANCHOR !== "undefined" ? ANCHOR.find(x => x.id === parsed.id) : null;
+    }
+    if (typeof _getDmcById === "function") {
+      const m = _getDmcById();
+      if (m) return m[parsed.id] || null;
     }
     return typeof DMC !== "undefined" ? DMC.find(x => x.id === parsed.id) : null;
   }

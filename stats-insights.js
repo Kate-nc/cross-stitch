@@ -139,11 +139,18 @@
     const lastWeekStartStr = ymd(lastWeekStart);
     const lastWeekEndStr = ymd(new Date(thisWeekStart.getTime() - 86400000));
     function wk(sessions) {
-      const stitches = sessions.reduce((s, x) => s + (x.netStitches || 0), 0);
-      const seconds = sessions.reduce((s, x) => s + getSessionSeconds(x), 0);
+      // PERF (perf-7 #10): fused three independent passes (two reduces + a map+Set)
+      // into a single loop over the sessions array.
+      let stitches = 0, seconds = 0;
+      const dayKeys = new Set();
+      for (let i = 0; i < sessions.length; i++) {
+        const x = sessions[i];
+        stitches += (x.netStitches || 0);
+        seconds += getSessionSeconds(x);
+        if (x.date) dayKeys.add(x.date);
+      }
       const speed = seconds > 0 ? Math.round(stitches / (seconds / 3600)) : 0;
-      const activeDays = new Set(sessions.map(x => x.date)).size;
-      return { stitches, seconds, speed, activeDays };
+      return { stitches, seconds, speed, activeDays: dayKeys.size };
     }
     const tw = wk(allSessions.filter(s => s.date >= thisWeekStartStr));
     const lw = wk(allSessions.filter(s => s.date >= lastWeekStartStr && s.date <= lastWeekEndStr));

@@ -1,3 +1,25 @@
+// PERF (perf-2 #3): lazy O(1) DMC lookup maps shared by all parsers in this
+// file, replacing repeated O(n) DMC.find() scans during import.
+var _IMPORT_DMC_BY_ID = null, _IMPORT_DMC_BY_NAME = null;
+function _importDmcById(id) {
+  if (!_IMPORT_DMC_BY_ID) {
+    _IMPORT_DMC_BY_ID = Object.create(null);
+    if (typeof DMC !== 'undefined') {
+      for (var i = 0; i < DMC.length; i++) _IMPORT_DMC_BY_ID[String(DMC[i].id).toLowerCase()] = DMC[i];
+    }
+  }
+  return id == null ? null : (_IMPORT_DMC_BY_ID[String(id).toLowerCase()] || null);
+}
+function _importDmcByName(name) {
+  if (!_IMPORT_DMC_BY_NAME) {
+    _IMPORT_DMC_BY_NAME = Object.create(null);
+    if (typeof DMC !== 'undefined') {
+      for (var j = 0; j < DMC.length; j++) _IMPORT_DMC_BY_NAME[String(DMC[j].name).toLowerCase()] = DMC[j];
+    }
+  }
+  return name == null ? null : (_IMPORT_DMC_BY_NAME[String(name).toLowerCase()] || null);
+}
+
 function parseHexColor(hex) {
   if (!hex || typeof hex !== 'string') return null;
   hex = hex.replace(/^#/, '');
@@ -150,12 +172,12 @@ function parseOXS(xmlString) {
 
       // Try matching by number
       if (matchNumber) {
-        dmcThread = DMC.find(d => String(d.id).toLowerCase() === matchNumber.toLowerCase());
+        dmcThread = _importDmcById(matchNumber); // PERF (perf-2 #3): O(1) map lookup
       }
 
       // Try matching by name
       if (!dmcThread && nameStr) {
-        dmcThread = DMC.find(d => d.name.toLowerCase() === nameStr.toLowerCase());
+        dmcThread = _importDmcByName(nameStr); // PERF (perf-2 #3): O(1) map lookup
       }
 
       // Try extraction RGB
