@@ -86,11 +86,30 @@ describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
   });
 
   test('mitigation: legacy toolbar-pill highlight controls remain wired (phase 1 only)', () => {
-    // The "Hl" button (◀ ▶) and toolbar view-mode pill must still be in
-    // place during phase 1 so an in-flight session is not disrupted.
-    // Phase 2 removes them.
-    expect(trackerSrc).toMatch(/title="Previous colour \(\]\)"/);
-    expect(trackerSrc).toMatch(/title="Next colour \(\[\)"/);
-    expect(trackerSrc).toMatch(/title="Toggle counting aids \(C\)"/);
+    // Phase 2 removes these; the assertion is inverted there.
+    // For phase >=2, the toolbar pill should no longer carry these.
+    expect(trackerSrc).not.toMatch(/title="Previous colour \(\]\)"/);
+    expect(trackerSrc).not.toMatch(/title="Next colour \(\[\)"/);
+    expect(trackerSrc).not.toMatch(/title="Toggle counting aids \(C\)"/);
+  });
+
+  test('phase 2: rpanel "More" tab no longer carries the duplicate View block', () => {
+    // The legacy More-tab View section opened with a `<div className="rp-heading">View</div>`
+    // immediately following an `{rpanelTab==="more"&&<div className="rp-section">`.
+    // After phase 2 there is no rp-heading "View" reachable from the more tab.
+    const moreSections = trackerSrc.split('rpanelTab==="more"').slice(1);
+    const carriesViewHeading = moreSections.some(s => /<div className="rp-heading">View<\/div>/.test(s.slice(0, 200)));
+    expect(carriesViewHeading).toBe(false);
+  });
+
+  test('phase 2: toolbar pill no longer renders the View mode pill', () => {
+    // The legacy toolbar View pill mapped Sym/Col+Sym/HL labels.
+    expect(trackerSrc).not.toMatch(/\[\['symbol','Sym'\],\['colour','Col\+Sym'\],\['highlight','HL'\]\]/);
+  });
+
+  test('phase 2: toolbar pill no longer renders the focus-area Eye button', () => {
+    // The legacy Eye button used title="Spotlight focus area (F)" inside the toolbar pill.
+    // It now lives in the (future) Tools tab. Confirm it's gone from the pill.
+    expect(trackerSrc).not.toMatch(/title=\{"Spotlight focus area \(F\)"/);
   });
 });

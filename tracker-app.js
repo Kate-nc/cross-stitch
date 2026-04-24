@@ -4500,22 +4500,9 @@ return(
     {/* C3: range-mode toolbar button removed; long-press + shift+click own range via useDragMark. */}
   </div>
   <div className="tb-sdiv"/>
-  <div className={"tb-grp"+(tStripCollapsed.view?" tb-hidden":"")}>
-    {[['symbol','Sym'],['colour','Col+Sym'],['highlight','HL']].map(([k,l])=><button key={k} className={"tb-btn"+(stitchView===k?" tb-btn--on":"")} title="Cycle view (V)" onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>)}
-  </div>
-  {stitchView==="highlight"&&<>
-    <button className="tb-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} title="Previous colour (])">◀</button>
-    <button className="tb-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} title="Next colour ([)">▶</button>
-    <button className={"tb-btn"+(countingAidsEnabled?" tb-btn--on":"")} onClick={()=>setCountingAidsEnabled(v=>!v)} title="Toggle counting aids (C)" style={{fontSize:12,padding:"0 6px"}}>⊞</button>
-  </>}
-  {stitchingStyle!=="crosscountry"&&<button
-    className={"tb-btn"+(focusEnabled?" tb-btn--on":"")}
-    onClick={()=>{const next=!focusEnabled;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());}}
-    title={"Spotlight focus area (F)"+(focusEnabled?" — Alt+click to move, Alt+Arrow to step":"")}
-    aria-pressed={focusEnabled}
-    aria-label="Toggle spotlight focus area"
-    style={{padding:"0 6px"}}
-  >{Icons.eye()}</button>}
+  {/* Phase 2/5: View mode pill, highlight cycle, counting aids and Focus
+      area button removed — now live in the left sidebar's View / Highlight
+      / Tools tabs. The Sidebar opens via the hamburger button to the left. */}
   <div className="tb-flex"/>
   <div className="tb-zoom-grp tb-desktop-only">
     <span className="tb-zoom-lbl">Zoom</span>
@@ -5218,95 +5205,9 @@ return(
         <button style={{marginTop:8,width:'100%',padding:"6px 0",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#475569",cursor:"pointer",fontSize:12,fontWeight:600}} onClick={()=>{if(!statsView){setStatsTab(projectIdRef.current||'all');}setStatsView(v=>!v);}}>📊 {statsView?"Hide":"View"} full stats</button>
       </div>}
 
-      {/* View Mode */}
-      {rpanelTab==="more"&&<div className="rp-section">
-        <div className="rp-heading">View</div>
-        <div className="rp-pill-toggle" style={{marginBottom:8}}>
-          {[['symbol','Symbol'],['colour','Colour'],['highlight','Highlight']].map(([k,l])=>
-            <button key={k} className={stitchView===k?"on":""} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>
-          )}
-        </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:10,marginBottom:4}}>
-          <label title="Fade un-stitched cells when zoomed out so completed cells stand out. Off keeps the chart at full colour." style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:lockDetailLevel?"#cbd5e1":(lowZoomFade>0?"#0d9488":"#94a3b8"),userSelect:"none",cursor:lockDetailLevel?"not-allowed":"pointer"}}>
-            <span>Zoomed-out fade</span>
-            <select value={String(lowZoomFade)} disabled={lockDetailLevel} onChange={e=>setLowZoomFade(parseFloat(e.target.value))} style={{fontSize:10,padding:"1px 2px",border:"1px solid #e2e8f0",borderRadius:3,background:lockDetailLevel?"#f1f5f9":"#fff",cursor:lockDetailLevel?"not-allowed":"pointer"}}>
-              <option value="0">Off</option>
-              <option value="0.15">Subtle</option>
-              <option value="0.55">Strong</option>
-            </select>
-          </label>
-          <label title="Disable zoom-adaptive rendering — always use Tier 3 (Detail) regardless of zoom level" style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:lockDetailLevel?"#0d9488":"#94a3b8",cursor:"pointer",userSelect:"none"}}>
-            <input type="checkbox" checked={lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>Lock detail
-          </label>
-        </div>
-        {stitchView==="highlight"&&<div style={{fontSize:11,color:"#475569"}}>Focus one colour at a time. ◀ ▶ or <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #cbd5e1",borderRadius:3,background:"#f1f5f9"}}>[ ]</kbd> to cycle.</div>}
-        {stitchView==="highlight"&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:6}}>
-          <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];setFocusColour(prev.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#f8f9fa",cursor:"pointer",lineHeight:1}}>◀</button>
-          {focusColour&&cmap&&cmap[focusColour]&&(()=>{const p=cmap[focusColour];return(
-            <span style={{fontSize:11,display:"flex",alignItems:"center",gap:3,flex:1}} onClick={()=>setFocusColour(null)} title="Click to clear">
-              <span style={{width:10,height:10,borderRadius:2,background:`rgb(${p.rgb})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
-              <span style={{fontWeight:700}}>{focusColour}</span>
-            </span>);})()}
-          <button onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} style={{fontSize:13,padding:"2px 5px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#f8f9fa",cursor:"pointer",lineHeight:1}}>▶</button>
-          <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#475569",cursor:"pointer",whiteSpace:"nowrap",userSelect:"none",marginLeft:4}}>
-            <input type="checkbox" checked={highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{cursor:"pointer"}}/>Skip done
-          </label>
-          <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#475569",cursor:"pointer",whiteSpace:"nowrap",userSelect:"none",marginLeft:4}}>
-            <input type="checkbox" checked={onlyStarted} onChange={e=>setOnlyStarted(e.target.checked)} style={{cursor:"pointer"}}/>Started
-          </label>
-        </div>}
-        {stitchView==="highlight"&&focusColour&&<div style={{marginTop:6}}>
-          <div style={{display:"flex",gap:0,borderRadius:6,overflow:"hidden",border:"1px solid #e2e8f0",marginBottom:4}}>
-            {[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spot"]].map(([m,l])=>(
-              <button key={m} onClick={()=>setHighlightMode(m)} style={{flex:1,padding:"3px 0",fontSize:10,fontWeight:highlightMode===m?700:500,border:"none",borderRight:"1px solid #e2e8f0",background:highlightMode===m?"#0d9488":"#f8fafc",color:highlightMode===m?"#fff":"#475569",cursor:"pointer"}}>{l}</button>
-            ))}
-          </div>
-          {highlightMode==="isolate"&&<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,marginBottom:2}}>
-            <span style={{color:"#475569",flexShrink:0}}>Visibility</span>
-            <input type="range" min={0} max={60} value={Math.round(trackerDimLevel*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTrackerDimLevel(v);try{localStorage.setItem("cs_trDimLv",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
-            <span style={{width:22,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(trackerDimLevel*100)}%</span>
-          </div>}
-          {highlightMode==="tint"&&<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10}}>
-            <input type="color" value={tintColor} onChange={e=>{setTintColor(e.target.value);try{localStorage.setItem("cs_tintColor",e.target.value);}catch(_){}}} style={{width:22,height:18,padding:0,border:"1px solid #e2e8f0",borderRadius:3,cursor:"pointer"}}/>
-            <input type="range" min={10} max={80} value={Math.round(tintOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTintOpacity(v);try{localStorage.setItem("cs_tintOp",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
-            <span style={{width:28,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(tintOpacity*100)}%</span>
-          </div>}
-          {highlightMode==="spotlight"&&<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10}}>
-            <span style={{color:"#475569",flexShrink:0}}>Dim</span>
-            <input type="range" min={5} max={50} value={Math.round(spotDimOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setSpotDimOpacity(v);try{localStorage.setItem("cs_spotDimOp",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
-            <span style={{width:28,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(spotDimOpacity*100)}%</span>
-          </div>}
-        </div>}
-        {stitchView==="highlight"&&focusColour&&<div style={{marginTop:8,paddingTop:8,borderTop:"0.5px solid #e2e8f0"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <span style={{fontSize:11,fontWeight:600,color:"#475569"}}>Counting aids</span>
-            <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"#475569",cursor:"pointer"}}>
-              <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>Show
-            </label>
-          </div>
-          {countingAidsEnabled&&<>
-            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:10}}>
-              <span style={{color:"#475569",flexShrink:0}}>Runs</span>
-              <div style={{display:"flex",gap:0,borderRadius:5,overflow:"hidden",border:"1px solid #e2e8f0"}}>
-                {[[0,"Off"],[1,"All"],[3,"3+"],[5,"5+"],[10,"10+"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>setCountRunMin(v)} style={{padding:"2px 7px",fontSize:10,border:"none",borderRight:"1px solid #e2e8f0",background:countRunMin===v?"#0d9488":"#f8fafc",color:countRunMin===v?"#fff":"#475569",cursor:"pointer",fontWeight:countRunMin===v?600:400}}>{l}</button>
-                ))}
-              </div>
-            </div>
-            {countRunMin>0&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:10}}>
-              <span style={{color:"#475569",flexShrink:0}}>Direction</span>
-              <div style={{display:"flex",gap:0,borderRadius:5,overflow:"hidden",border:"1px solid #e2e8f0"}}>
-                {[["h","Horiz"],["v","Vert"],["both","Both"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>setCountRunDir(v)} style={{padding:"2px 7px",fontSize:10,border:"none",borderRight:"1px solid #e2e8f0",background:countRunDir===v?"#0d9488":"#f8fafc",color:countRunDir===v?"#fff":"#475569",cursor:"pointer",fontWeight:countRunDir===v?600:400}}>{l}</button>
-                ))}
-              </div>
-            </div>}
-            <label style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#475569",cursor:"pointer"}}>
-              <input type="checkbox" checked={countNinjaEnabled} onChange={e=>setCountNinjaEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#ea580c"}}/>🥷 Ninja stitch warnings
-            </label>
-          </>}
-        </div>}
-      </div>}
+      {/* Phase 2/5: View / Highlight / Counting-aids "More"-tab section
+          removed — now lives in the left sidebar (lpanel) View and
+          Highlight tabs. */}
 
       {/* Colours List */}
       {rpanelTab==="colours"&&<div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
