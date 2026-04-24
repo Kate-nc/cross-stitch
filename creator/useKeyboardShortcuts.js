@@ -95,6 +95,29 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       when: function () { return !!state.pat; },
       run: function () { state.selectStitchType("erase"); } },
 
+    // Cycle through stitch types — pairs with the Tools sidebar tab where
+    // the stitch-type chooser now lives. Skips "erase" (its own shortcut: 5).
+    { id: "creator.stitch.cycle", keys: "t", scope: "creator.design",
+      description: "Cycle stitch type forward",
+      when: function () { return !!state.pat; },
+      run: function () {
+        var order = ["cross","quarter","half-fwd","half-bck","three-quarter","backstitch"];
+        var cur = state.stitchType || "cross";
+        var i = order.indexOf(cur);
+        var next = order[(i < 0 ? 0 : (i + 1) % order.length)];
+        state.selectStitchType(next);
+      } },
+    { id: "creator.stitch.cycleBack", keys: "shift+t", scope: "creator.design",
+      description: "Cycle stitch type backward",
+      when: function () { return !!state.pat; },
+      run: function () {
+        var order = ["cross","quarter","half-fwd","half-bck","three-quarter","backstitch"];
+        var cur = state.stitchType || "cross";
+        var i = order.indexOf(cur);
+        var prev = order[(i <= 0 ? order.length - 1 : i - 1)];
+        state.selectStitchType(prev);
+      } },
+
     // Tools
     { id: "creator.tool.wand", keys: "w", scope: "creator.design",
       description: "Magic wand",
@@ -154,7 +177,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.namePromptOpen, state.modal, state.overflowOpen,
       state.selectedColorId, state.partialStitchTool, state.hiId,
       state.hasSelection, state.lassoInProgress, state.highlightMode,
-      state.splitPaneEnabled,
+      state.splitPaneEnabled, state.stitchType,
       history.undoEdit, history.redoEdit, io.saveProject,
     ]);
   }

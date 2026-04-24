@@ -171,47 +171,16 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ];
 
-  // Stitch type dropdown — shown only when paint or fill is the active brush mode
-  var showStitchGrp = (cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase";
-
-  // Show the colour pill for paint/fill modes AND when the eyedropper is active
-  var showSwatchRow = (showStitchGrp || cv.activeTool==="eyedropper") && palData.length > 0;
-  var stitchMeta = {
-    "cross":         {icon:svgX,         label:"Cross",       cls:"tb-btn--green"},
-    "quarter":       {icon:svgQtr,       label:"\u00BC Stitch",  cls:"tb-btn--blue"},
-    "half-fwd":      {icon:svgFwd,       label:"Half /",       cls:"tb-btn--blue"},
-    "half-bck":      {icon:svgBck,       label:"Half \\",      cls:"tb-btn--blue"},
-    "three-quarter": {icon:svgThreeQtr,  label:"\u00BE Stitch",  cls:"tb-btn--blue"},
-    "backstitch":    {icon:null,         label:"Bs",           cls:"tb-btn--on"}
-  };
-  var activeSM = stitchMeta[cv.stitchType] || stitchMeta["cross"];
-  var stitchDrop = showStitchGrp ? [
-    h("div", {key:"sdiv-stitch", className:"tb-sdiv"}),
-    h("div", {key:"stitch-drop", className:"tb-drop-wrap" + (openDrop==="stitch"?" tb-drop-wrap--open":"")},
-      h("button", {
-        className:"tb-btn tb-drop-btn " + activeSM.cls,
-        title:"Stitch type",
-        "aria-label":"Stitch type menu",
-        "aria-haspopup":"menu",
-        "aria-expanded":openDrop==="stitch",
-        onClick:function(){setOpenDrop(openDrop==="stitch"?null:"stitch");}
-      }, activeSM.icon, activeSM.label, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
-      h("div", {className:"tb-dropdown", role:"menu"},
-        Object.keys(stitchMeta).map(function(k) {
-          var m = stitchMeta[k];
-          return h("button", {
-            key:k,
-            className:"tb-drop-item" + (cv.stitchType===k?" tb-drop-item--on":""),
-            onClick:function(){cv.selectStitchType(k);setOpenDrop(null);}
-          }, m.icon, m.label);
-        })
-      )
-    )
-  ] : null;
+  // Stitch type, brush size and backstitch-continuous toggle previously
+  // lived here; they have moved to the Sidebar Tools tab. The toolbar
+  // keeps Paint/Fill/Erase/Pick + Wand/Lasso primary buttons only.
+  // (Stitch type cycles with the T shortcut from the keyboard; sub-modes
+  // for the lasso are picked once in the Tools tab and remembered.)
 
   // Colour swatch strip — second toolbar row, sorted by usage, with expand
   var SWATCH_INIT = 20;
   var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
+  var showSwatchRow = ((cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase" || cv.activeTool==="eyedropper") && palData.length > 0;
   var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
@@ -253,132 +222,52 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     }, swatchExpanded ? "\u25B4" : "+"+( palData.length - SWATCH_INIT)+  " \u25BE")
   ) : null;
 
-  // Brush size group
-  var showBrushSize = (
-    ((cv.stitchType === "cross" || cv.stitchType === "half-fwd" || cv.stitchType === "half-bck") && cv.brushMode === "paint") ||
-    cv.stitchType === "erase"
-  ) && cv.activeTool !== "eyedropper";
-  var sizeGrp = showBrushSize ? [
-    h("div", {key:"sdiv-sz", className:"tb-sdiv"}),
-    h("div", {
-      key:"size-grp",
-      className:"tb-grp",
-      style:{display:"flex",alignItems:"center",gap:4,opacity:(cv.selectedColorId||cv.stitchType==="erase")?1:0.6}
-    },
-      h("span", {style:{fontSize:10,color:"#475569",textTransform:"uppercase",fontWeight:600}}, "Size"),
-      [1,2,3].map(function(sz) {
-        return h("button", {
-          key:sz,
-          className:"tb-btn"+(cv.brushSize===sz?" tb-btn--on":""),
-          onClick:function(){cv.setBrushSize(sz);},
-          style:{padding:"2px 6px",minWidth:24}
-        }, sz);
-      })
-    )
-  ] : null;
-
-  // Backstitch continuous
-  var bsCont = (cv.stitchType === "backstitch") ? [
-    h("div", {key:"sdiv-bs", className:"tb-sdiv"}),
-    h("label", {
-      key:"bs-cont",
-      style:{display:"flex",alignItems:"center",gap:4,fontSize:11,cursor:"pointer",color:"#475569",flexShrink:0}
-    },
-      h("input", {
-        type:"checkbox", checked:cv.bsContinuous,
-        onChange:function(e){cv.setBsContinuous(e.target.checked); cv.setBsStart(null);}
-      }),
-      "Continuous"
-    )
-  ] : null;
-
-  // Selection tools dropdown
-  var isSelectActive = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
-  var selIcon = cv.activeTool === "magicWand" ? svgWand :
-                cv.activeTool === "lasso" && cv.lassoMode === "polygon" ? svgPolygon :
-                cv.activeTool === "lasso" && cv.lassoMode === "magnetic" ? svgMagnetic :
-                cv.activeTool === "lasso" ? svgFreehand : svgWand;
-  var selLabel = cv.activeTool === "magicWand" ? "Wand" :
-                 cv.activeTool === "lasso" ? (cv.lassoMode === "polygon" ? "Poly" : cv.lassoMode === "magnetic" ? "Mag" : "Lasso") :
-                 "Select";
-  var selectDrop = [
+  // Selection: simple Wand + Lasso primary buttons. Sub-modes
+  // (Freehand / Polygon / Magnetic) and the Clear-selection control now
+  // live in the Sidebar Tools tab.
+  var selectGrp = [
     h("div", {key:"sdiv-select", className:"tb-sdiv"}),
-    h("div", {key:"select-drop", className:"tb-drop-wrap" + (openDrop==="select"?" tb-drop-wrap--open":"")},
+    h("div", {key:"select-grp", className:"tb-grp"},
       h("button", {
-        className:"tb-btn tb-drop-btn" + (isSelectActive ? " tb-btn--on" : ""),
-        title:"Selection tools",
-        "aria-label":"Selection tools menu",
-        "aria-haspopup":"menu",
-        "aria-expanded":openDrop==="select",
-        onClick:function(){setOpenDrop(openDrop==="select"?null:"select");}
-      }, selIcon, selLabel, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
-      h("div", {className:"tb-dropdown", role:"menu", onClick:function(e){if(e.target.closest&&e.target.closest('.tb-drop-item'))setOpenDrop(null);}},
-        h("button", {
-          className:"tb-drop-item"+(cv.activeTool==="magicWand"?" tb-drop-item--on":""),
-          onClick:function(){
-            if (cv.activeTool==="magicWand") cv.setActiveTool(null);
-            else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
+        className:"tb-btn"+(cv.activeTool==="magicWand"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool==="magicWand") cv.setActiveTool(null);
+          else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
+        },
+        title:"Magic Wand (W)",
+        "aria-label":"Magic wand",
+        "aria-pressed": cv.activeTool==="magicWand" ? "true" : "false"
+      }, svgWand, " Wand"),
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="lasso"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool==="lasso") { if (cv.cancelLasso) cv.cancelLasso(); cv.setActiveTool(null); }
+          else {
+            cv.setActiveTool("lasso");
+            cv.setLassoMode(cv.lassoMode || "freehand");
+            ctx.setPartialStitchTool(null); cv.setBsStart(null);
           }
-        }, svgWand, "Magic Wand"),
-        h("button", {
-          className:"tb-drop-item"+(cv.activeTool==="lasso"&&cv.lassoMode==="freehand"?" tb-drop-item--on":""),
-          onClick:function(){
-            var same=cv.activeTool==="lasso"&&cv.lassoMode==="freehand";
-            if (same){cv.cancelLasso();cv.setActiveTool(null);cv.setLassoMode(null);}
-            else{cv.setActiveTool("lasso");cv.setLassoMode("freehand");ctx.setPartialStitchTool(null);cv.setBsStart(null);}
-          }
-        }, svgFreehand, "Freehand"),
-        h("button", {
-          className:"tb-drop-item"+(cv.activeTool==="lasso"&&cv.lassoMode==="polygon"?" tb-drop-item--on":""),
-          onClick:function(){
-            var same=cv.activeTool==="lasso"&&cv.lassoMode==="polygon";
-            if (same){cv.cancelLasso();cv.setActiveTool(null);cv.setLassoMode(null);}
-            else{cv.setActiveTool("lasso");cv.setLassoMode("polygon");ctx.setPartialStitchTool(null);cv.setBsStart(null);}
-          }
-        }, svgPolygon, "Polygon"),
-        h("button", {
-          className:"tb-drop-item"+(cv.activeTool==="lasso"&&cv.lassoMode==="magnetic"?" tb-drop-item--on":""),
-          onClick:function(){
-            var same=cv.activeTool==="lasso"&&cv.lassoMode==="magnetic";
-            if (same){cv.cancelLasso();cv.setActiveTool(null);cv.setLassoMode(null);}
-            else{cv.setActiveTool("lasso");cv.setLassoMode("magnetic");ctx.setPartialStitchTool(null);cv.setBsStart(null);}
-          }
-        }, svgMagnetic, "Magnetic"),
-        (cv.hasSelection || cv.lassoInProgress) && h("div", {style:{borderTop:"1px solid var(--border)",marginTop:3,paddingTop:3}},
-          h("button", {
-            className:"tb-drop-item",
-            onClick:function(){if(cv.cancelLasso)cv.cancelLasso();if(cv.clearSelection)cv.clearSelection();}
-          }, "\u2715 Clear (", (cv.selectionCount||0).toLocaleString(), ")")
-        )
-      )
-    ),
-    (cv.hasSelection || cv.lassoInProgress) && h("button", {
-      key:"select-clear",
-      className:"tb-btn",
-      onClick:function(){if(cv.cancelLasso)cv.cancelLasso();if(cv.clearSelection)cv.clearSelection();},
-      title:"Clear selection (Esc)",
-      "aria-label":"Clear selection",
-      style:{fontSize:9,padding:"2px 5px",color:"#475569"}
-    }, (cv.selectionCount||0).toLocaleString()+" sel")
+        },
+        title:"Lasso \u2014 mode in Tools tab",
+        "aria-label":"Lasso",
+        "aria-pressed": cv.activeTool==="lasso" ? "true" : "false"
+      },
+        cv.lassoMode === "polygon" ? svgPolygon :
+        cv.lassoMode === "magnetic" ? svgMagnetic : svgFreehand,
+        " Lasso"
+      ),
+      (cv.hasSelection || cv.lassoInProgress) && h("button", {
+        className:"tb-btn",
+        onClick:function(){ if(cv.cancelLasso) cv.cancelLasso(); if(cv.clearSelection) cv.clearSelection(); },
+        title:"Clear selection (Esc)",
+        "aria-label":"Clear selection",
+        style:{fontSize:10,padding:"2px 6px",color:"#475569"}
+      }, (cv.selectionCount||0).toLocaleString()+" sel \u2715")
+    )
   ];
 
-  // Colour chip
-  var colChip = ((cv.stitchType==="cross"||cv.stitchType==="half-fwd"||cv.stitchType==="half-bck") &&
-    cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId]) ?
-    h("span", {
-      style:{fontSize:11,display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:6,
-        background:(cv.stitchType==="half-fwd"||cv.stitchType==="half-bck")?"#e0f2fe":"#f1f5f9",
-        flexShrink:0,
-        border:(cv.stitchType==="half-fwd"||cv.stitchType==="half-bck")?"1px solid #7dd3fc":"none"
-      }
-    },
-      h("span", {style:{width:10,height:10,borderRadius:2,
-        background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",
-        border:"1px solid #cbd5e1",display:"inline-block"}}),
-      cv.selectedColorId
-    ) : null;
-
-  // Active tool indicator badge
+  // Active tool indicator badge — tooltip surfaces the selected colour
+  // since the toolbar no longer carries a colour chip.
   var badgeLabel, badgeBg, badgeColor, badgeDot;
   if (cv.activeTool === "eyedropper") {
     badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#eab308";
@@ -403,7 +292,11 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else {
     badgeLabel = null;
   }
+  var badgeColourTip = (cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId])
+    ? (" \u2014 DMC " + cv.selectedColorId + (ctx.cmap[cv.selectedColorId].name ? " " + ctx.cmap[cv.selectedColorId].name : ""))
+    : "";
   var toolBadge = badgeLabel ? h("span", {
+    title: badgeLabel + badgeColourTip,
     style:{fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,
       padding:"2px 8px 2px 6px",borderRadius:10,background:badgeBg,color:badgeColor,
       flexShrink:0,letterSpacing:0.2,lineHeight:1.4,border:"1px solid " + badgeDot + "33"}
@@ -520,11 +413,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
           brushGrp,
-          stitchDrop,
-          sizeGrp,
-          bsCont,
-          selectDrop,
-          colChip,
+          selectGrp,
           toolBadge,
           zoomGrp,
           undoRedo,

@@ -1015,7 +1015,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     ["preview","Preview"],
     ["project","Project"]
   ];
-  var editTabs = [["palette","Palette"],["view","View"],["preview","Preview"],["more","More"]];
+  var editTabs = [["palette","Palette"],["tools","Tools"],["view","View"],["preview","Preview"],["more","More"]];
   var tabs = mode === "create" ? createTabs : editTabs;
 
   // Ensure sidebarTab is valid for current mode
@@ -1427,6 +1427,172 @@ window.CreatorSidebar = function CreatorSidebar() {
   }
 
   // ─── Edit Mode Sidebar ────────────────────────────────────────────────────
+
+  // Tools tab — absorbs the stitch-type, brush-size, lasso-mode and
+  // backstitch-continuous controls that used to live in the top toolbar.
+  // The toolbar keeps Paint/Fill/Erase/Pick + Wand/Lasso primary buttons;
+  // every "what does my brush do" mode tweak lives here.
+  var stitchOpts = [
+    ["cross",         "Cross"],
+    ["quarter",       "\u00BC Stitch"],
+    ["half-fwd",      "Half /"],
+    ["half-bck",      "Half \\"],
+    ["three-quarter", "\u00BE Stitch"],
+    ["backstitch",    "Backstitch"]
+  ];
+  var curStitch = cv.stitchType || "cross";
+  var stitchTypeSection = h("div", {style:{padding:"12px"}},
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}},
+      "Stitch type"),
+    h("div", {role:"radiogroup", "aria-label":"Stitch type",
+      style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
+      stitchOpts.map(function(kl) {
+        var on = curStitch === kl[0];
+        return h("button", {
+          key:kl[0],
+          role:"radio",
+          "aria-checked": on ? "true" : "false",
+          onClick:function(){ cv.selectStitchType(kl[0]); },
+          style:{
+            padding:"7px 8px",fontSize:12,fontWeight:on?600:400,
+            border:"1px solid "+(on?"var(--accent)":"var(--border)"),
+            background:on?"var(--accent-light)":"transparent",
+            color:on?"var(--accent)":"var(--text-secondary)",
+            borderRadius:6,cursor:"pointer",fontFamily:"inherit",textAlign:"left"
+          }
+        }, kl[1]);
+      })
+    ),
+    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
+      "Shortcuts: 1\u20134 for Cross / Half\u2009/ / Half\u2009\\ / Backstitch \u00B7 T cycles, Shift+T reverses.")
+  );
+
+  var bsContSection = (curStitch === "backstitch") ? h("div", {
+    style:{padding:"0 12px 12px"}
+  },
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}},
+      "Backstitch options"),
+    h("label", {style:{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text-secondary)",cursor:"pointer"}},
+      h("input", {type:"checkbox", checked: !!cv.bsContinuous,
+        onChange:function(e){ cv.setBsContinuous(e.target.checked); cv.setBsStart(null); }}),
+      h("span", null, "Continuous mode \u2014 chain segments without re-clicking the start")
+    )
+  ) : null;
+
+  var brushSizeSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}},
+      "Brush size"),
+    h("div", {style:{display:"flex",alignItems:"center",gap:8}},
+      h("input", {type:"range", min:1, max:3, step:1, value:cv.brushSize||1,
+        onChange:function(e){ cv.setBrushSize(parseInt(e.target.value,10)); },
+        "aria-label":"Brush size",
+        style:{flex:1}}),
+      h("div", {style:{display:"flex",gap:3}},
+        [1,2,3].map(function(sz) {
+          var on = cv.brushSize === sz;
+          return h("button", {
+            key:sz,
+            onClick:function(){ cv.setBrushSize(sz); },
+            "aria-pressed": on ? "true" : "false",
+            style:{
+              minWidth:28,padding:"4px 8px",fontSize:12,fontWeight:on?600:400,
+              border:"1px solid "+(on?"var(--accent)":"var(--border)"),
+              background:on?"var(--accent-light)":"transparent",
+              color:on?"var(--accent)":"var(--text-secondary)",
+              borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+            }
+          }, sz);
+        })
+      )
+    ),
+    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
+      "Applies to Cross and Half stitches, and the Erase tool.")
+  );
+
+  var lassoModes = [["freehand","Freehand"],["polygon","Polygon"],["magnetic","Magnetic"]];
+  var curLasso = cv.lassoMode || "freehand";
+  var selectionSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
+    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}},
+      "Selection"),
+    h("div", {style:{display:"flex",gap:6,marginBottom:10}},
+      h("button", {
+        onClick:function(){
+          if (cv.activeTool === "magicWand") { cv.setActiveTool(null); }
+          else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
+        },
+        "aria-pressed": cv.activeTool === "magicWand" ? "true" : "false",
+        style:{
+          flex:1,padding:"6px 8px",fontSize:12,
+          fontWeight:cv.activeTool==="magicWand"?600:400,
+          border:"1px solid "+(cv.activeTool==="magicWand"?"var(--accent)":"var(--border)"),
+          background:cv.activeTool==="magicWand"?"var(--accent-light)":"transparent",
+          color:cv.activeTool==="magicWand"?"var(--accent)":"var(--text-secondary)",
+          borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+        }
+      }, "Magic Wand (W)"),
+      h("button", {
+        onClick:function(){
+          if (cv.activeTool === "lasso") { if (cv.cancelLasso) cv.cancelLasso(); cv.setActiveTool(null); }
+          else { cv.setActiveTool("lasso"); cv.setLassoMode(curLasso); ctx.setPartialStitchTool(null); cv.setBsStart(null); }
+        },
+        "aria-pressed": cv.activeTool === "lasso" ? "true" : "false",
+        style:{
+          flex:1,padding:"6px 8px",fontSize:12,
+          fontWeight:cv.activeTool==="lasso"?600:400,
+          border:"1px solid "+(cv.activeTool==="lasso"?"var(--accent)":"var(--border)"),
+          background:cv.activeTool==="lasso"?"var(--accent-light)":"transparent",
+          color:cv.activeTool==="lasso"?"var(--accent)":"var(--text-secondary)",
+          borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+        }
+      }, "Lasso")
+    ),
+    h("div", {style:{fontSize:10,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}},
+      "Lasso mode"),
+    h("div", {role:"radiogroup", "aria-label":"Lasso mode",
+      style:{display:"flex",gap:4,marginBottom:8}},
+      lassoModes.map(function(kl) {
+        var on = curLasso === kl[0];
+        return h("button", {
+          key:kl[0],
+          role:"radio",
+          "aria-checked": on ? "true" : "false",
+          onClick:function(){
+            cv.setLassoMode(kl[0]);
+            // If lasso isn't active yet, picking a mode here activates it.
+            if (cv.activeTool !== "lasso") {
+              cv.setActiveTool("lasso"); ctx.setPartialStitchTool(null); cv.setBsStart(null);
+            }
+          },
+          style:{
+            flex:1,padding:"5px 6px",fontSize:11,fontWeight:on?600:400,
+            border:"1px solid "+(on?"var(--accent)":"var(--border)"),
+            background:on?"var(--accent-light)":"transparent",
+            color:on?"var(--accent)":"var(--text-secondary)",
+            borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+          }
+        }, kl[1]);
+      })
+    ),
+    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",lineHeight:1.4}},
+      "Modifier hint: Shift = add to selection, Alt = subtract."),
+    (cv.hasSelection || cv.lassoInProgress) && h("button", {
+      onClick:function(){ if (cv.cancelLasso) cv.cancelLasso(); if (cv.clearSelection) cv.clearSelection(); },
+      style:{
+        marginTop:8,width:"100%",padding:"6px 8px",fontSize:11,
+        border:"1px solid var(--border)",borderRadius:6,
+        background:"var(--surface)",color:"var(--text-secondary)",
+        cursor:"pointer",fontFamily:"inherit"
+      }
+    }, "Clear selection (" + (cv.selectionCount || 0).toLocaleString() + ")")
+  );
+
+  var toolsContent = h(React.Fragment, null,
+    stitchTypeSection,
+    bsContSection,
+    brushSizeSection,
+    selectionSection
+  );
+
   var moreContent = h(React.Fragment, null,
     h(Section, {title:"Generation Settings",defaultOpen:false},
       imageCard,
@@ -1513,6 +1679,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         palChipsSection,
         coloursSection
       ),
+      sTab === "tools" && toolsContent,
       sTab === "view" && h(React.Fragment, null,
         viewToggle,
         highlightControls
