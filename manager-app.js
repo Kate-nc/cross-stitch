@@ -515,7 +515,8 @@ function ManagerApp() {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const backup = JSON.parse(reader.result);
+        // PERF (deferred-2): handles both legacy JSON and CSB1\n compressed.
+        const backup = BackupRestore.parseBackupText(reader.result);
         const check = BackupRestore.validate(backup);
         if (!check.valid) {
           setBackupStatus({ type: "error", message: check.error });

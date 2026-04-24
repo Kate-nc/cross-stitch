@@ -145,7 +145,9 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     var reader = new FileReader();
     reader.onload = function () {
       try {
-        var backup = JSON.parse(reader.result);
+        // PERF (deferred-2): parseBackupText handles both legacy JSON files
+        // and the new CSB1\n compressed format.
+        var backup = BackupRestore.parseBackupText(reader.result);
         var check = BackupRestore.validate(backup);
         if (!check.valid) { alert(check.error); return; }
         var s = check.summary;
