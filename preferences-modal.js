@@ -273,6 +273,7 @@
     var view = usePref("creatorDefaultViewMode", "colour");
     var grid = usePref("gridOverlayEnabled", false);
     var refOpac = usePref("creatorReferenceOpacity", 35);
+    var importWiz = usePref("experimental.importWizard", false);
 
     return h("div", null,
       h(PageHeader, { title: "Pattern Creator",
@@ -337,6 +338,13 @@
         ),
         h(Row, { last: true, label: "Show grid overlay by default", desc: "Adds 10‑stitch grid lines to the chart canvas." },
           h(Switch, { checked: grid[0], onChange: grid[1] })
+        )
+      ),
+
+      h(Section, { title: "Experimental" },
+        h(Row, { last: true, label: "Use guided import wizard (experimental)",
+          desc: "Replaces the single‑step image import dialog with a five‑step wizard. Off by default while we iterate." },
+          h(Switch, { checked: importWiz[0], onChange: importWiz[1] })
         )
       )
     );

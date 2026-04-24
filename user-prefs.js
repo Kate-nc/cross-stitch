@@ -119,6 +119,9 @@
     commandPaletteHotkey:     "ctrl+k",         // ctrl+k | ctrl+/ | off
     flagExperimentalPreview:  false,
 
+    // ─── Experimental features (opt-in, may change without notice) ──────
+    "experimental.importWizard": false,         // C7: guided 5-step image-import wizard
+
     // ─── Onboarding coaching (C8 — flattened keys, one per coachmark) ──
     // Phase 1 active:
     "onboarding.coached.firstStitch_creator": false,

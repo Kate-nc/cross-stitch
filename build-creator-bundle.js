@@ -23,6 +23,8 @@ const ORDER = [
   'useMagicWand.js',
   'useLassoSelect.js',
   'useCreatorState.js',
+  'useImportWizard.js',
+  'ImportWizard.js',
   'useEditHistory.js',
   'useCanvasInteraction.js',
   'useKeyboardShortcuts.js',

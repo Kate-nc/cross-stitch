@@ -5256,7 +5256,44 @@ return(
   })()}
   </>}
 
-  {importDialog==="image"&&importImage&&<div className="modal-overlay" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
+  {importDialog==="image"&&importImage&&(()=>{
+    // C7: when the experimental import wizard is enabled, mount the new
+    // 5-step ImportWizard component instead of the legacy single-step
+    // parameter modal. The flag defaults off so existing users see no
+    // change. The wizard's commit() returns the same shape the legacy
+    // path expects so the generation call below stays identical.
+    let _useWizard=false;
+    try{ _useWizard=!!(window.UserPrefs&&window.UserPrefs.get&&window.UserPrefs.get('experimental.importWizard')); }catch(_){_useWizard=false;}
+    if(_useWizard&&window.ImportWizard){
+      return React.createElement(window.ImportWizard,{
+        image:importImage,
+        baseName:importName||"",
+        onClose:()=>{ setImportDialog(null); setImportImage(null); },
+        onGenerate:(settings)=>{
+          try{
+            let result=parseImagePattern(importImage,{
+              maxWidth:settings.maxWidth, maxHeight:settings.maxHeight,
+              maxColours:settings.maxColours,
+              skipWhiteBg:settings.skipWhiteBg, bgThreshold:settings.bgThreshold
+            });
+            const finalName=(settings.name||'').trim().slice(0,60);
+            let project=importResultToProject(result,settings.fabricCt||14,finalName);
+            project.id=ProjectStorage.newId();
+            project.createdAt=project.createdAt||new Date().toISOString();
+            processLoadedProject(project);
+            ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(err=>console.error("Import save failed:",err));
+            setImportSuccess(`Imported "${finalName||'image'}" \u2014 ${result.width}\u00d7${result.height}, ${result.paletteSize} colours, ${result.stitchCount} stitches`);
+          }catch(err){
+            console.error(err);
+            setLoadError("Image import failed: "+err.message);
+            setTimeout(()=>setLoadError(null),4000);
+          }
+          setImportDialog(null);
+          setImportImage(null);
+        }
+      });
+    }
+    return <div className="modal-overlay" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
     <div className="modal-content" style={{maxWidth:600}} onClick={e=>e.stopPropagation()}>
       <button className="modal-close" onClick={()=>{setImportDialog(null);setImportImage(null);}}>×</button>
       <h3 style={{marginTop:0,marginBottom:15}}>Import Image Pattern</h3>
@@ -5344,7 +5381,8 @@ return(
         }} style={{padding:"8px 16px", borderRadius:8, border:"none", background:"#0d9488", color:"#fff", cursor:"pointer", fontWeight:600}}>Import Pattern</button>
       </div>
     </div>
-  </div>}
+  </div>;
+  })()}
 
   {modal==="help"&&<SharedModals.Help defaultTab="tracker" onClose={()=>setModal(null)} />}
   {welcomeOpen&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{

@@ -404,6 +404,23 @@ window.Icons = (function() {
         // Spacebar
         l(7, 16, 17, 16)
       );
+    },
+    // Crop — replaces ✂ (used by the C7 image-import wizard, step 1)
+    crop: function() {
+      return svg(
+        p('M6 2v14a2 2 0 0 0 2 2h14'),
+        p('M18 22V8a2 2 0 0 0-2-2H2')
+      );
+    },
+    // Ruler — replaces 📏 (used by the C7 image-import wizard, step 3)
+    ruler: function() {
+      return svg(
+        p('M21.3 8.7L8.7 21.3a1 1 0 0 1-1.4 0L2.7 16.7a1 1 0 0 1 0-1.4L15.3 2.7a1 1 0 0 1 1.4 0l4.6 4.6a1 1 0 0 1 0 1.4z'),
+        l(7, 14, 9, 16),
+        l(10, 11, 13, 14),
+        l(13, 8, 15, 10),
+        l(16, 5, 18, 7)
+      );
     }
   };
 })();
