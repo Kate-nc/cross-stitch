@@ -248,3 +248,56 @@ G6 (mobile reach).
 
 - `npm test -- --runInBand`: 766 passed (up from 760 before A4).
 
+
+---
+
+## A5 — Sample row on empty Home
+
+**Roadmap line:** B-2 (first-run scaffolding), C5 (zero-data Home).
+
+**Wireframe:** [reports/wireframes/a-home-empty.html](wireframes/a-home-empty.html)
+
+### What shipped
+
+- New pure helper `buildSampleProject()` at the top of
+  [home-screen.js](../home-screen.js) returns a v9 project object: a tiny
+  16 × 16 heart in DMC 321 (about 76 stitches) with sensible defaults
+  (`fabricCt: 14`, `skeinPrice: 0.95`, `stitchSpeed: 40`) and an
+  `isSample: true` marker so future analytics / UI can distinguish it.
+- The shared `EmptyState` component already supports a secondary CTA via
+  `secondaryLabel` / `secondaryAction`, so wiring is one prop pair on the
+  empty-Home branch — no markup churn. Click handler saves the sample to
+  IndexedDB through `ProjectStorage.save`, calls `setActiveProject(id)`,
+  then navigates to `stitch.html` so the user lands directly on the
+  Tracker with their first stitchable pattern open.
+- Errors are caught and surfaced via `Toast.show({type:'error'})` so a
+  storage failure does not silently leave the empty state untouched.
+
+### Honesty notes
+
+- The roadmap also asks for a one-shot coachmark on the Creator's
+  "Add a colour" button and an empty-canvas hint. Neither shipped in this
+  ticket — both touch `creator/Sidebar.js` / `creator/PatternCanvas.js`
+  which require a `creator/bundle.js` rebuild and have a non-trivial
+  positioning story (the colour-add chip lives inside the palette grid
+  whose scroll container clips absolutely-positioned tooltips). Filed as
+  a follow-up so the empty-Home win is not blocked on Creator polish.
+- The sample is intentionally tiny (≈76 stitches) so a curious first-time
+  user can complete it in one sitting and feel the full Tracker
+  loop — start session, mark stitches, see the resume modal next visit.
+  A more visually impressive sample (e.g. a 50 × 50 multi-colour piece)
+  would showcase more features but raise the cost of "throw it away" if
+  the user dismisses the demo.
+
+### Files touched
+
+- [home-screen.js](../home-screen.js) — `buildSampleProject()` helper plus
+  `secondaryLabel` / `secondaryAction` on the empty-state `EmptyState`.
+- [tests/sampleStarter.test.js](../tests/sampleStarter.test.js) — 7 cases
+  covering project shape, settings, stitch / skip cell counts, sample
+  flag, fresh-progress invariants, and EmptyState wiring (label, save,
+  active-project pointer, navigation).
+
+### Test status
+
+- `npm test -- --runInBand`: 773 passed (up from 766 before A5).

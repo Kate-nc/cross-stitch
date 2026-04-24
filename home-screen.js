@@ -2,6 +2,65 @@
 // Dashboard hub — unified entry point for the cross-stitch app.
 // Renders when showHome === true or no current project is active.
 
+// ───────────────────────────────────────────────────────────────────────
+// Sample starter pattern (used by the empty-state "Try a sample" CTA).
+// A tiny 16×16 heart in DMC 321 — enough cells to feel like a real
+// project on the tracker without overwhelming a brand-new user.
+// ───────────────────────────────────────────────────────────────────────
+function buildSampleProject() {
+  var HEART = [
+    '0000000000000000',
+    '0000000000000000',
+    '0001110001110000',
+    '0011111011111000',
+    '0111111111111100',
+    '0111111111111100',
+    '0111111111111100',
+    '0011111111111000',
+    '0001111111110000',
+    '0000111111100000',
+    '0000011111000000',
+    '0000000111000000',
+    '0000000010000000',
+    '0000000000000000',
+    '0000000000000000',
+    '0000000000000000'
+  ];
+  var W = 16, H = 16;
+  var RED = { id: '321', type: 'solid', rgb: [228, 4, 52] };
+  var SKIP = { id: '__skip__' };
+  var pattern = [];
+  for (var y = 0; y < H; y++) {
+    for (var x = 0; x < W; x++) {
+      pattern.push(HEART[y].charAt(x) === '1'
+        ? { id: RED.id, type: RED.type, rgb: RED.rgb.slice() }
+        : { id: SKIP.id });
+    }
+  }
+  var now = new Date().toISOString();
+  return {
+    v: 9,
+    name: 'Sample heart',
+    w: W,
+    h: H,
+    settings: { sW: W, sH: H, fabricCt: 14, skeinPrice: 0.95, stitchSpeed: 40 },
+    pattern: pattern,
+    bsLines: [],
+    done: null,
+    halfStitches: [],
+    halfDone: [],
+    singleStitchEdits: [],
+    parkMarkers: [],
+    totalTime: 0,
+    sessions: [],
+    threadOwned: {},
+    createdAt: now,
+    updatedAt: now,
+    isSample: true
+  };
+}
+if (typeof window !== 'undefined') window.buildSampleProject = buildSampleProject;
+
 function timeAgo(date) {
   if (!date) return '';
   var d = typeof date === 'string' ? new Date(date) : date;
@@ -1286,7 +1345,27 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       title: 'Welcome! Start your first project',
       description: 'Convert any image into a cross-stitch pattern, then track your progress as you stitch.',
       ctaLabel: 'Create from image',
-      ctaAction: function() { imageInputRef.current && imageInputRef.current.click(); }
+      ctaAction: function() { imageInputRef.current && imageInputRef.current.click(); },
+      secondaryLabel: 'Try a sample pattern',
+      secondaryAction: function() {
+        try {
+          var sample = buildSampleProject();
+          if (window.ProjectStorage && typeof window.ProjectStorage.save === 'function') {
+            window.ProjectStorage.save(sample).then(function(saved) {
+              var id = (saved && saved.id) || sample.id;
+              if (id && typeof window.ProjectStorage.setActiveProject === 'function') {
+                window.ProjectStorage.setActiveProject(id);
+              }
+              window.location.href = 'stitch.html';
+            }).catch(function(err) {
+              console.error('Failed to save sample project', err);
+              if (window.Toast) window.Toast.show({ message: 'Could not load sample pattern', type: 'error' });
+            });
+          }
+        } catch (err) {
+          console.error('Sample pattern error', err);
+        }
+      }
     }) : h('div', { className: 'home-empty-state' }, 'No projects yet \u2014 start your first one above!')),
 
     // Stash alert bar
