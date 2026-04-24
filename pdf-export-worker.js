@@ -77,6 +77,44 @@ function progress(reqId, stage, current, total) {
   self.postMessage({ type: "progress", reqId: reqId, stage: stage, current: current || 0, total: total || 0 });
 }
 
+// PERF (deferred-3): default-on feature flag for transferable PDF result.
+// When ON we transfer bytes.buffer directly (zero-copy) for whole-buffer
+// Uint8Arrays; when OFF we keep the legacy .slice() path that copies the
+// buffer first. See reports/deferred-3-transferable-pdf-payloads-analysis.md.
+self.PERF_FLAGS = self.PERF_FLAGS || {};
+if (typeof self.PERF_FLAGS.transferablePdfResult === "undefined") {
+  self.PERF_FLAGS.transferablePdfResult = true;
+}
+
+/**
+ * Build the worker→main "result" postMessage envelope for a finished PDF.
+ * Returns { message, transferList } so the helper is unit-testable.
+ *
+ * Whole-buffer Uint8Array → transfers bytes.buffer directly (no copy).
+ * Sub-view Uint8Array (byteOffset>0 or byteLength<buffer.byteLength) → falls
+ * back to .slice() so we never transfer extra bytes the receiver doesn't
+ * expect. Flag OFF always uses .slice().
+ *
+ * IMPORTANT: callers MUST treat `bytes` as moved after this function runs
+ * when the transfer path is taken — the underlying ArrayBuffer is neutered.
+ */
+function buildResultMessage(reqId, bytes) {
+  var flags = (self.PERF_FLAGS = self.PERF_FLAGS || {});
+  var useTransfer = flags.transferablePdfResult !== false;
+  var whole = bytes.byteOffset === 0 &&
+              bytes.byteLength === bytes.buffer.byteLength;
+  var ab;
+  if (useTransfer && whole) {
+    ab = bytes.buffer;
+  } else {
+    ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  }
+  return {
+    message: { type: "result", reqId: reqId, pdfBytes: ab },
+    transferList: [ab],
+  };
+}
+
 // ─── main entry ──────────────────────────────────────────────────────────
 self.onmessage = function (e) {
   var msg = e.data;
@@ -84,8 +122,11 @@ self.onmessage = function (e) {
   var reqId = msg.reqId;
   try {
     buildPdf(msg.project, msg.options || {}, reqId).then(function (bytes) {
-      var ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-      self.postMessage({ type: "result", reqId: reqId, pdfBytes: ab }, [ab]);
+      // PERF (deferred-3): use buildResultMessage to skip the redundant
+      // bytes.buffer.slice() copy when the buffer is wholly-owned. Falls
+      // back to the legacy slice path for sub-views or when the flag is off.
+      var out = buildResultMessage(reqId, bytes);
+      self.postMessage(out.message, out.transferList);
     }).catch(function (err) {
       self.postMessage({ type: "error", reqId: reqId, message: err && err.message ? err.message : String(err), stack: err && err.stack });
     });
