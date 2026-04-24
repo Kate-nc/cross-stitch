@@ -7847,7 +7847,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           style:{width:80}, title:"Zoom"
         }),
         h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}, Math.round(cv.zoom*100)+"%"),
-        h("button", {className:"tb-btn", onClick:function(){ cv.setZoom(cv.fitZ||1); }, title:"Fit (Home)"}, "Fit")
+        h("button", {className:"tb-btn", onClick:function(){ cv.setZoom(cv.fitZ||1); }, title:"Fit (Home)", "aria-label":"Fit pattern to view"}, "Fit")
       )
     ];
     return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},
@@ -7935,7 +7935,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
           cv.setBrushAndActivate("paint");
         },
-        title:"Paint (P)"
+        title:"Paint (P)",
+        "aria-label":"Paint tool"
       }, "Paint"),
       h("button", {
         className:"tb-btn"+(cv.brushMode==="fill" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
@@ -7943,16 +7944,18 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
           cv.setBrushAndActivate("fill");
         },
-        title:"Fill (F)"
+        title:"Fill (F)",
+        "aria-label":"Fill tool"
       }, "Fill"),
       h("button", {
         className:"tb-btn"+(cv.stitchType==="erase"?" tb-btn--red":""),
-        onClick:function(){cv.selectStitchType("erase");}, title:"Erase (5)"
+        onClick:function(){cv.selectStitchType("erase");}, title:"Erase (5)", "aria-label":"Erase tool"
       }, svgErase, "Erase"),
       h("button", {
         className:"tb-btn"+(cv.activeTool==="eyedropper"?" tb-btn--on":""),
         onClick:function(){cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);},
-        title:"Eyedropper (I)"
+        title:"Eyedropper (I)",
+        "aria-label":"Eyedropper tool"
       }, "Pick")
     )
   ];
@@ -7977,6 +7980,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("button", {
         className:"tb-btn tb-drop-btn " + activeSM.cls,
         title:"Stitch type",
+        "aria-label":"Stitch type menu",
         "aria-haspopup":"menu",
         "aria-expanded":openDrop==="stitch",
         onClick:function(){setOpenDrop(openDrop==="stitch"?null:"stitch");}
@@ -8090,6 +8094,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("button", {
         className:"tb-btn tb-drop-btn" + (isSelectActive ? " tb-btn--on" : ""),
         title:"Selection tools",
+        "aria-label":"Selection tools menu",
         "aria-haspopup":"menu",
         "aria-expanded":openDrop==="select",
         onClick:function(){setOpenDrop(openDrop==="select"?null:"select");}
@@ -8139,6 +8144,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       className:"tb-btn",
       onClick:function(){if(cv.cancelLasso)cv.cancelLasso();if(cv.clearSelection)cv.clearSelection();},
       title:"Clear selection (Esc)",
+      "aria-label":"Clear selection",
       style:{fontSize:9,padding:"2px 5px",color:"#475569"}
     }, (cv.selectionCount||0).toLocaleString()+" sel")
   ];
@@ -8213,12 +8219,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       key:"undo", className:"tb-btn",
       onClick:cv.undoEdit, disabled:!cv.editHistory.length,
       title:"Undo (Ctrl+Z)",
+      "aria-label":"Undo",
       style:{opacity:cv.editHistory.length?1:0.3}
     }, "\u21A9"),
     h("button", {
       key:"redo", className:"tb-btn",
       onClick:cv.redoEdit, disabled:!cv.redoHistory.length,
       title:"Redo (Ctrl+Y)",
+      "aria-label":"Redo",
       style:{opacity:cv.redoHistory.length?1:0.3}
     }, "\u21AA")
   ];
@@ -8279,7 +8287,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("button", {
       className:"tb-btn"+(app.previewActive?" tb-btn--on":""),
       onClick:function(){setPreviewMenuOpen(function(o){return !o;});},
-      title:"Preview mode"
+      title:"Preview mode",
+      "aria-label":"Preview mode menu"
     }, previewLabel),
     previewMenuOpen && h("div", {className:"tb-overflow-menu", style:{minWidth:195,right:0}},
       h("span", {className:"tb-ovf-lbl"}, "View"),
@@ -8396,7 +8405,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("button", {
       className:"tb-overflow-btn",
       onClick:function(){app.setOverflowOpen(function(o){return !o;});},
-      title:"More options"
+      title:"More options",
+      "aria-label":"More options menu"
     }, "\u00B7\u00B7\u00B7"),
     overflowMenu
   );
@@ -8409,6 +8419,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var splitBtn = h("button", {
     className: "tb-btn" + (app.splitPaneEnabled ? " tb-btn--on" : ""),
     title: app.splitPaneEnabled ? "Exit split view (\\)" : "Split view: chart + preview (\\)",
+    "aria-label": app.splitPaneEnabled ? "Exit split view" : "Enter split view",
     disabled: !(ctx.pat && ctx.pal),
     onClick: function() {
       var next = !app.splitPaneEnabled;
