@@ -294,13 +294,13 @@
     overlay.className = 'cs-cmdp-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-label', 'Command palette');
-    overlay.addEventListener('mousedown', function (e) {
+    overlay.addEventListener('pointerdown', function (e) {
       if (e.target === overlay) closePalette();
     });
 
     var dialog = document.createElement('div');
     dialog.className = 'cs-cmdp-dialog';
-    dialog.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+    dialog.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
 
     var inputWrap = document.createElement('div');
     inputWrap.className = 'cs-cmdp-input-wrap';
@@ -447,7 +447,7 @@
       row.appendChild(icon);
       row.appendChild(text);
       (function (action) {
-        row.addEventListener('mousedown', function (e) {
+        row.addEventListener('pointerdown', function (e) {
           e.preventDefault(); // keep input focus
           executeAction(action);
         });

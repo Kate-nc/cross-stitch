@@ -849,7 +849,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             <window.CreatorSidebar/>
             {!state.pat&&state.img&&<div className="card" style={{overflow:"hidden"}}>
               <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#475569"}}>Original Image</div>
-              <div style={{position:"relative"}} ref={state.cropRef} onMouseDown={canvas.handleCropMouseDown} onMouseMove={canvas.handleCropMouseMove} onMouseUp={canvas.handleCropMouseUp} onMouseLeave={canvas.handleCropMouseUp}>
+              <div style={{position:"relative",touchAction:state.isCropping?"none":"auto"}} ref={state.cropRef} onPointerDown={canvas.handleCropPointerDown} onPointerMove={canvas.handleCropPointerMove} onPointerUp={canvas.handleCropPointerUp} onPointerCancel={canvas.handleCropPointerCancel}>
                 <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.isCropping?"crosshair":(state.pickBg?"crosshair":"default"),opacity:state.isCropping?0.7:1}} onClick={canvas.srcClick}/>
                 {state.isCropping&&state.cropRect&&<div style={{position:"absolute",left:state.cropRect.x,top:state.cropRect.y,width:state.cropRect.w,height:state.cropRect.h,border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
               </div>

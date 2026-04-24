@@ -109,8 +109,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   React.useEffect(() => {
     if (!pageDrop) return;
     function close(e) { if (dropRef.current && !dropRef.current.contains(e.target)) setPageDrop(false); }
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
   }, [pageDrop]);
 
   const [fileMenuOpen, setFileMenuOpen] = React.useState(false);
@@ -122,8 +122,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   React.useEffect(() => {
     if (!fileMenuOpen) return;
     function close(e) { if (fileMenuRef.current && !fileMenuRef.current.contains(e.target)) setFileMenuOpen(false); }
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
   }, [fileMenuOpen]);
   React.useEffect(() => {
     if (typeof SyncEngine === 'undefined' || !SyncEngine.getWatchDirectory) return;
