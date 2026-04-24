@@ -1409,6 +1409,7 @@ function ManagerApp() {
       )}
       {bulkAddOpen && window.BulkAddModal && React.createElement(window.BulkAddModal, {onClose: () => setBulkAddOpen(false)})}
       {modal === "help" && <SharedModals.Help defaultTab="manager" onClose={() => setModal(null)} />}
+      {modal === "shortcuts" && <SharedModals.Help defaultTab="shortcuts" onClose={() => setModal(null)} />}
       {welcomeOpen && window.WelcomeWizard && <window.WelcomeWizard page="manager" onClose={() => setWelcomeOpen(false)} />}
       {window.HelpHintBanner && <window.HelpHintBanner />}
       {modal === "about" && <SharedModals.About onClose={() => setModal(null)} />}

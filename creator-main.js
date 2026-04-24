@@ -873,7 +873,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         </div>}
         {state.modal==="help"&&<SharedModals.Help defaultTab="creator" onClose={()=>state.setModal(null)} />}
         {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}
-        {state.modal==="shortcuts"&&<SharedModals.Shortcuts onClose={()=>state.setModal(null)} page="creator" />}
+        {state.modal==="shortcuts"&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>state.setModal(null)} />}
         {state.modal==="shopping_list"&&window.CreatorShoppingListModal&&<window.CreatorShoppingListModal onClose={()=>state.setModal(null)} />}
       </div>
       {state.busy&&<div style={{

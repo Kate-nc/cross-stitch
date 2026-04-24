@@ -124,36 +124,79 @@
       icon: "⌨",
       sections: [
         {
-          heading: "Global",
+          heading: "All pages",
           bullets: [
-            ["Esc", "Close the topmost modal/menu/popover (without leaving any underlying modals)."],
-            ["?", "Open this Help Centre from any page (when focus is not in a text field)."]
+            ["Esc", "Close the topmost open panel, modal, or menu — without closing anything underneath."],
+            ["?", "Open the keyboard shortcuts reference (this page)."],
+            ["Ctrl / Cmd + K", "Open the command palette."]
           ]
         },
         {
-          heading: "Creator canvas",
+          heading: "Pattern Creator",
+          body: "These shortcuts are active while a pattern is open in the Creator editor.",
           bullets: [
-            ["P", "Paint tool"],
-            ["F", "Fill tool"],
-            ["L", "Lasso"],
-            ["W", "Magic Wand"],
-            ["H", "Hand (pan)"],
-            ["Ctrl/Cmd + Z", "Undo"],
-            ["Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y", "Redo"]
+            ["1", "Cross stitch tool (or switch highlight view to Isolate mode)"],
+            ["2", "Half stitch / forward (or Outline mode)"],
+            ["3", "Half stitch \\ back (or Tint mode)"],
+            ["4", "Backstitch tool (or Spotlight mode)"],
+            ["5", "Erase tool"],
+            ["P", "Paint brush"],
+            ["F", "Fill bucket"],
+            ["W", "Magic wand (toggle)"],
+            ["I", "Eyedropper"],
+            ["V", "Cycle view: colour / symbol / both"],
+            ["\\", "Toggle split-pane preview"],
+            ["+  or  =", "Zoom in"],
+            ["-", "Zoom out"],
+            ["0", "Zoom to fit"],
+            ["Ctrl / Cmd + Z", "Undo"],
+            ["Ctrl / Cmd + Y  or  Ctrl / Cmd + Shift + Z", "Redo"],
+            ["Ctrl / Cmd + S", "Save project"],
+            ["Ctrl / Cmd + A", "Select all stitches"],
+            ["Ctrl / Cmd + Shift + I", "Invert selection"],
+            ["B", "Open Bulk Add Threads"]
           ]
         },
         {
-          heading: "Tracker canvas",
+          heading: "Stitch Tracker",
+          body: "Active while viewing a pattern in the Tracker. Layer toggles and view cycling are disabled while in Edit mode.",
           bullets: [
-            ["Click / drag", "Mark or unmark stitches."],
-            ["T", "Switch to Track mode."],
-            ["N", "Switch to Navigate mode (place crosshair / parking markers)."],
-            ["V", "Cycle stitch view (symbol → colour → highlight)."],
-            ["D", "Toggle the Colours drawer."],
-            ["P", "Pause / resume the live session timer."],
-            ["Space (hold)", "Hold to temporarily pan the canvas."],
-            ["+/-", "Zoom in/out."],
-            ["0", "Fit pattern to view."]
+            ["T", "Switch to Track mode (mark stitches done)"],
+            ["N", "Switch to Navigate mode (crosshair and parking markers)"],
+            ["V", "Cycle view: symbol / colour / highlight"],
+            ["F", "Toggle full-stitch layer visibility"],
+            ["H", "Toggle half-stitch layer visibility"],
+            ["K", "Toggle French-knot layer visibility"],
+            ["L", "Toggle backstitch layer visibility"],
+            ["Shift + A", "Toggle all layers on / off"],
+            ["D", "Toggle the colour drawer"],
+            ["C", "Toggle counting aids"],
+            ["P", "Pause / resume session timer"],
+            ["Space (hold)", "Hold to pan the canvas freely"],
+            ["+  or  =", "Zoom in"],
+            ["-", "Zoom out"],
+            ["0", "Zoom to fit"],
+            ["Ctrl / Cmd + Z", "Undo"],
+            ["Ctrl / Cmd + Y  or  Ctrl / Cmd + Shift + Z", "Redo"],
+            ["Ctrl / Cmd + S", "Save project"]
+          ]
+        },
+        {
+          heading: "Stitch Tracker — Highlight view",
+          body: "Extra shortcuts available when the view is set to Highlight mode.",
+          bullets: [
+            ["[  or  Left arrow", "Move focus to the previous colour"],
+            ["]  or  Right arrow", "Move focus to the next colour"],
+            ["1", "Isolate view — grey out everything except the focused colour"],
+            ["2", "Outline view — draw outlines around the focused colour's stitches"],
+            ["3", "Tint view — dim other colours while the focused one stays vivid"],
+            ["4", "Spotlight view — blend between isolate and tint"]
+          ]
+        },
+        {
+          heading: "Stash Manager",
+          bullets: [
+            ["B", "Open Bulk Add Threads"]
           ]
         }
       ]

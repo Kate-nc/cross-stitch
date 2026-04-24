@@ -5352,7 +5352,7 @@ return(
     </div>
   </div>}
 
-  {modal==="shortcuts"&&<SharedModals.Shortcuts onClose={()=>setModal(null)} page="tracker" />}
+  {modal==="shortcuts"&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setModal(null)} />}
 
 
   {modal==="deduct_prompt"&&<div className="modal-overlay" onClick={()=>{setModal(null);setStashDeducted(true);}}>
