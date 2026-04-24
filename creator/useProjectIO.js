@@ -58,7 +58,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       designer: state.projectDesigner || "", description: state.projectDescription || "",
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
-      pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      // PERF (deferred-1): serializePattern strips redundant rgb for cells whose colour
+      // can be reconstructed from the DMC catalogue at load time. See
+      // reports/deferred-1-rgb-stripping-analysis.md. Toggleable via
+      // window.PERF_FLAGS.stripRgbOnSave.
+      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
@@ -115,7 +119,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       version: 11, id: projectIdRef.current, page: "creator", name: projectName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
-      pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      // PERF (deferred-1): see helpers.js / serializePattern.
+      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
@@ -595,7 +600,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       designer: state.projectDesigner || "", description: state.projectDescription || "",
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
-      pattern: pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; }),
+      // PERF (deferred-1): see helpers.js / serializePattern.
+      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
       parkMarkers: state.parkMarkers, totalTime: state.totalTime, sessions: state.sessions,
       hlRow: state.hlRow, hlCol: state.hlCol, threadOwned: state.threadOwned,

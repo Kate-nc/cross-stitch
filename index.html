@@ -85,7 +85,7 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_4e8fd3e40e';
+var TRACKER_CACHE_KEY = 'babel_tracker_cc65a39ce4';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -117,7 +117,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_ae021d30ef';
+var CREATOR_CACHE_KEY = 'babel_creator_1511646c57';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;
@@ -142,7 +142,7 @@ window.loadCreatorMain = function() {
   });
 };/* Loads stats-activity.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var ACTIVITY_CACHE_KEY = 'babel_activity_40fcd9db71';
+var ACTIVITY_CACHE_KEY = 'babel_activity_d9588e9eca';
 window.loadStatsActivity = function() {
   if (window.__statsActivityLoading || window.__statsActivityLoaded) return;
   window.__statsActivityLoading = true;
@@ -190,7 +190,7 @@ window.loadStatsInsights = function() {
   });
 };/* Loads stats-page.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var STATS_CACHE_KEY = 'babel_stats_92084ba9fd';
+var STATS_CACHE_KEY = 'babel_stats_2bb0d4f72c';
 window.loadStatsPage = function() {
   if (window.__statsPageLoading || window.__statsPageLoaded) return;
   window.__statsPageLoading = true;

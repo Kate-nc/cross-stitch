@@ -1546,7 +1546,8 @@ function doSaveProject(finalName){
     createdAt:createdAtRef.current||new Date().toISOString(),
     updatedAt:new Date().toISOString(),
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
-    pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),
+    // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
+    pattern:(window.PatternIO?window.PatternIO.serializePattern(pat):pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb})),
     bsLines,
     done:done?Array.from(done):null,
     parkMarkers,
@@ -2580,7 +2581,8 @@ const buildSnapshot = () => {
     version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
     createdAt: createdAtRef.current, updatedAt: new Date().toISOString(),
     settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
-    pattern: pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb }),
+    // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
+    pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb })),
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
     hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
@@ -2725,7 +2727,8 @@ useEffect(() => {
       createdAt: createdAtRef.current,
       updatedAt: new Date().toISOString(),
       settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
-      pattern: pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb }),
+      // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
+      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb })),
       bsLines, done: done ? Array.from(done) : null, parkMarkers,
       hlRow, hlCol, threadOwned, originalPaletteState,
       singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
