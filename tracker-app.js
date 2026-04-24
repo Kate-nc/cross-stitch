@@ -723,7 +723,10 @@ const createdAtRef=useRef(null);    // stable createdAt ISO string for the activ
 const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunload
 const v3FieldsRef=useRef({});       // preserve v3 stats fields across save round-trips
 const[projectName,setProjectName]=useState("");
+const[projectDesigner,setProjectDesigner]=useState("");
+const[projectDescription,setProjectDescription]=useState("");
 const[namePromptOpen,setNamePromptOpen]=useState(false);
+const[editDetailsOpen,setEditDetailsOpen]=useState(false);
 const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
 const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});
@@ -2341,6 +2344,8 @@ function processLoadedProject(project){
   if(project.hlRow>=0)setHlRow(project.hlRow);
   if(project.hlCol>=0)setHlCol(project.hlCol);
   setProjectName(project.name||"");
+  setProjectDesigner(project.designer||"");
+  setProjectDescription(project.description||"");
   projectIdRef.current = project.id || null;
   try{const saved=localStorage.getItem('cs_layerVis_'+(project.id||''));if(saved)setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);}catch(_){setLayerVis(ALL_LAYERS_VISIBLE);}
   const normalisedCreatedAt=(()=>{
@@ -2581,6 +2586,7 @@ const buildSnapshot = () => {
   if (v3FieldsRef.current) v3FieldsRef.current.stitchLog = _derivedLog;
   return {
     version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
+    designer: projectDesigner, description: projectDescription,
     createdAt: createdAtRef.current, updatedAt: new Date().toISOString(),
     settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
     // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
@@ -4159,6 +4165,19 @@ return(
   onConfirm={name=>{setProjectName(name);setNamePromptOpen(false);doSaveProject(name);}}
   onCancel={()=>setNamePromptOpen(false)}
 />}
+{editDetailsOpen&&typeof EditProjectDetailsModal!=='undefined'&&<EditProjectDetailsModal
+  projectId={projectIdRef.current}
+  name={projectName || (sW+'×'+sH+' pattern')}
+  designer={projectDesigner}
+  description={projectDescription}
+  onSave={({name,designer,description})=>{
+    setProjectName(name);
+    setProjectDesigner(designer);
+    setProjectDescription(description);
+    setEditDetailsOpen(false);
+  }}
+  onClose={()=>setEditDetailsOpen(false)}
+/>}
 {pat&&pal&&<>
 {/* ═══ TRACKER PILL TOOLBAR ═══ */}
 <div className="toolbar-row"><div className="pill-row" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -4191,6 +4210,7 @@ return(
   <div className="tb-overflow-wrap" ref={tOverflowRef}>
     <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
     {tOverflowOpen&&<div className="tb-overflow-menu">
+      {!isEditMode&&pat&&pal&&<><button className="tb-ovf-item" onClick={()=>{setTOverflowOpen(false);setEditDetailsOpen(true);}}>{Icons.pencil()} Edit project details…</button><div className="tb-ovf-sep"/></>}
       {!isEditMode&&<>
         {tStripCollapsed.stitch&&<><span className="tb-ovf-lbl">Stitch</span>
           <button className={"tb-ovf-item"+(stitchMode==="track"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setTOverflowOpen(false);}}>Mark{stitchMode==="track"?" ✓":""}</button>

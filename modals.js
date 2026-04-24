@@ -526,3 +526,114 @@ function SyncConflictCard({ entry, resolution, onResolve }) {
     )
   );
 }
+
+// ═══ Edit Project Details Modal ═══
+// Lets users rename a project and edit its designer / description from the
+// Home dashboard "…" menu or the Tracker overflow menu — anywhere the Creator
+// sidebar "Project info" section isn't visible.
+//
+// Props:
+//   projectId   — string ID of the project to edit (used to load+save via
+//                 ProjectStorage). Pass null to run in "in-memory only" mode.
+//   name        — initial name string
+//   designer    — initial designer string (optional)
+//   description — initial description string (optional)
+//   onSave      — callback({ name, designer, description }) called after a
+//                 successful save (or immediately in in-memory mode)
+//   onClose     — callback to dismiss the modal without saving
+function EditProjectDetailsModal({ projectId, name: initName, designer: initDesigner, description: initDesc, onSave, onClose }) {
+  var h = React.createElement;
+  var _n = React.useState(initName || '');
+  var name = _n[0], setName = _n[1];
+  var _d = React.useState(initDesigner || '');
+  var designer = _d[0], setDesigner = _d[1];
+  var _ds = React.useState(initDesc || '');
+  var desc = _ds[0], setDesc = _ds[1];
+  var _saving = React.useState(false);
+  var saving = _saving[0], setSaving = _saving[1];
+  var _err = React.useState(null);
+  var err = _err[0], setErr = _err[1];
+
+  var nameRef = React.useRef(null);
+  React.useEffect(function() { if (nameRef.current) nameRef.current.select(); }, []);
+  window.useEscape(onClose);
+
+  function handleSave() {
+    var trimmedName = (name || '').trim().slice(0, 60);
+    if (!trimmedName) { setErr('Please enter a name.'); return; }
+    var trimmedDesigner = (designer || '').trim().slice(0, 80);
+    var trimmedDesc = (desc || '').trim().slice(0, 300);
+    var updated = { name: trimmedName, designer: trimmedDesigner, description: trimmedDesc };
+
+    if (!projectId || typeof ProjectStorage === 'undefined') {
+      // In-memory mode: no IDB write needed (caller owns the state)
+      onSave(updated);
+      return;
+    }
+
+    setSaving(true);
+    ProjectStorage.get(projectId).then(function(project) {
+      if (!project) throw new Error('Project not found.');
+      project.name = trimmedName;
+      project.designer = trimmedDesigner;
+      project.description = trimmedDesc;
+      return ProjectStorage.save(project);
+    }).then(function() {
+      onSave(updated);
+    }).catch(function(e) {
+      setSaving(false);
+      setErr('Could not save: ' + (e && e.message ? e.message : 'Unknown error'));
+    });
+  }
+
+  var inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border, #e2e8f0)', fontSize: 14, boxSizing: 'border-box', background: 'var(--surface, #fff)', color: 'var(--text-primary, #1e293b)' };
+  var labelStyle = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #475569)' };
+
+  return h('div', { className: 'modal-overlay', onClick: onClose },
+    h('div', { className: 'modal-content', onClick: function(e) { e.stopPropagation(); }, style: { maxWidth: 420 } },
+      h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '\u00d7'),
+      h('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 18, color: 'var(--text-primary, #1e293b)', display: 'flex', alignItems: 'center', gap: 8 } },
+        Icons.pencil(), ' Edit project details'
+      ),
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
+        h('label', { style: labelStyle },
+          'Pattern name',
+          h('input', {
+            ref: nameRef, type: 'text', maxLength: 60, value: name,
+            onChange: function(e) { setName(e.target.value); setErr(null); },
+            onKeyDown: function(e) { if (e.key === 'Enter') handleSave(); },
+            placeholder: 'e.g. Rose Garden',
+            style: inputStyle,
+            disabled: saving
+          })
+        ),
+        h('label', { style: labelStyle },
+          'Designer (optional)',
+          h('input', {
+            type: 'text', maxLength: 80, value: designer,
+            onChange: function(e) { setDesigner(e.target.value); },
+            placeholder: 'Your name or studio',
+            style: inputStyle,
+            disabled: saving
+          })
+        ),
+        h('label', { style: labelStyle },
+          'Description (optional)',
+          h('textarea', {
+            maxLength: 300, value: desc,
+            onChange: function(e) { setDesc(e.target.value); },
+            placeholder: 'A short note about this pattern\u2026',
+            rows: 3,
+            style: Object.assign({}, inputStyle, { resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }),
+            disabled: saving
+          })
+        )
+      ),
+      err && h('p', { style: { margin: '10px 0 0', fontSize: 12, color: '#dc2626' } }, err),
+      h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 } },
+        h('button', { onClick: onClose, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border, #e2e8f0)', background: 'var(--surface, #fff)', cursor: 'pointer', color: 'var(--text-primary, #1e293b)' } }, 'Cancel'),
+        h('button', { onClick: handleSave, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#0d9488', color: '#fff', cursor: saving ? 'wait' : 'pointer', fontWeight: 600 } }, saving ? 'Saving\u2026' : 'Save')
+      )
+    )
+  );
+}
