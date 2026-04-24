@@ -3181,3 +3181,18 @@ kbd {
   font-family: inherit; font-size: 14px;
 }
 .skip-to-content:focus { top: 8px; outline: 2px solid #fff; outline-offset: 2px; }
+
+/* ------------------------- Title truncation tweaks (WU-17) ------------------------- */
+@media (max-width: 480px) {
+  .pcard, .mpd-card { /* card titles often truncate at 1 line; allow 2 on phone */
+    /* no global override -- specific name elements opt in below */
+  }
+  .mpd-card-title, .pcard-title, .pat-grid .pcard b, .pat-grid .pcard strong {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: normal;
+  }
+}
