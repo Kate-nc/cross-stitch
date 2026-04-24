@@ -1003,9 +1003,18 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ─── Mode-aware sidebar tab bar ────────────────────────────────────────────
   var mode = app.appMode || "edit";
-  var sTab = app.sidebarTab || "settings";
+  var rawTab = app.sidebarTab;
+  // Back-compat: legacy "settings" (single-Settings-accordion) → first new tab.
+  if (rawTab === "settings") rawTab = "image";
+  var sTab = rawTab || (mode === "create" ? "image" : "palette");
 
-  var createTabs = [["settings","Settings"],["preview","Preview"]];
+  var createTabs = [
+    ["image","Image"],
+    ["dimensions","Dimensions"],
+    ["palette","Palette"],
+    ["preview","Preview"],
+    ["project","Project"]
+  ];
   var editTabs = [["palette","Palette"],["view","View"],["preview","Preview"],["more","More"]];
   var tabs = mode === "create" ? createTabs : editTabs;
 
@@ -1020,7 +1029,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {"aria-hidden":"true", className:"rpanel-handle-wrap", style:{paddingTop:6,paddingBottom:2,display:"flex",justifyContent:"center"}},
       h("div", {className:"rpanel-handle-bar"})
     ),
-    h("div", {style:{display:"flex",borderBottom:"1px solid var(--border)"}},
+    h("div", {style:{display:"flex",borderBottom:"1px solid var(--border)",overflowX:"auto",scrollbarWidth:"none"}},
       tabs.map(function(kl) {
         return h("button", {
           key:kl[0],
@@ -1043,9 +1052,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             }
           },
           style:{
-            flex:1,padding:"8px 2px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
+            flex:"1 1 0",minWidth:0,padding:"8px 4px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
             border:"none",borderBottom:sTab===kl[0]?"2px solid var(--accent)":"2px solid transparent",
-            cursor:"pointer",fontFamily:"inherit",
+            cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",
             background:"transparent",
             color:sTab===kl[0]?"var(--accent)":"var(--text-secondary)",
           }
@@ -1192,6 +1201,36 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
       h("input", {type:"checkbox",checked:app.previewFabricBg,onChange:function(){app.setPreviewFabricBg(!app.previewFabricBg);}}),
       "Fabric background"
+    ),
+    // ── Split / compare view (moved here from the top toolbar) ──────────
+    (ctx.pat && ctx.pal) && h("div", {style:{marginTop:14,paddingTop:10,borderTop:"1px solid var(--border)"}},
+      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:8}}, "Compare"),
+      h("button", {
+        onClick:function(){
+          var next = !app.splitPaneEnabled;
+          app.setSplitPaneEnabled(next);
+          if (typeof window.UserPrefs !== "undefined") window.UserPrefs.set("splitPaneEnabled", next);
+        },
+        "aria-pressed": app.splitPaneEnabled ? "true" : "false",
+        title: app.splitPaneEnabled ? "Exit compare view (\\)" : "Compare chart vs realistic preview (\\)",
+        style:{
+          width:"100%",padding:"8px 10px",fontSize:12,fontWeight:app.splitPaneEnabled?600:500,
+          border:"1px solid "+(app.splitPaneEnabled?"var(--accent)":"var(--border)"),
+          background:app.splitPaneEnabled?"var(--accent-light)":"transparent",
+          color:app.splitPaneEnabled?"var(--accent)":"var(--text-secondary)",
+          borderRadius:6,cursor:"pointer",fontFamily:"inherit",
+          display:"flex",alignItems:"center",justifyContent:"center",gap:6
+        }
+      },
+        h("svg", {width:14,height:12,viewBox:"0 0 14 12",fill:"none","aria-hidden":"true"},
+          h("rect",{x:"0.7",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"}),
+          h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
+        ),
+        app.splitPaneEnabled ? "Exit compare" : "Compare side-by-side"
+      ),
+      h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
+        "Shows the editable chart on the left and the realistic preview on the right."
+      )
     )
   );
 
@@ -1230,18 +1269,111 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       )
     );
-    var settingsContent = h(React.Fragment, null,
-      projectInfoSection,
+    // ── Image tab — file picker, source thumbnail (with Crop / Change),
+    //   plus the canonical Source-overlay toggle + opacity slider. The
+    //   toolbar overlay button still works as a quick toggle.
+    var overlayRow = h("div", {style:{padding:"12px",borderTop:ctx.pat&&gen.img?"1px solid var(--border)":"none"}},
+      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}, "Source overlay"),
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--text-secondary)",marginBottom:8,cursor:gen.img?"pointer":"not-allowed",opacity:gen.img?1:0.5}},
+        h("input", {type:"checkbox", disabled:!gen.img, checked:!!cv.showOverlay,
+          onChange:function(){cv.setShowOverlay(function(v){return !v;});}}),
+        h("span", null, "Show source image over chart")
+      ),
+      h("div", {style:{display:"flex",alignItems:"center",gap:8,opacity:(gen.img&&cv.showOverlay)?1:0.4}},
+        h("label", {style:{fontSize:11,color:"var(--text-secondary)",flexShrink:0}}, "Opacity"),
+        h("input", {type:"range",min:0,max:1,step:0.05,
+          value:cv.overlayOpacity!=null?cv.overlayOpacity:0.3,
+          disabled:!gen.img||!cv.showOverlay,
+          onChange:function(e){cv.setOverlayOpacity(Number(e.target.value));},
+          style:{flex:1}}),
+        h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:32,textAlign:"right",fontVariantNumeric:"tabular-nums"}},
+          Math.round((cv.overlayOpacity!=null?cv.overlayOpacity:0.3)*100)+"%")
+      ),
+      !gen.img && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6}},
+        "Load an image to enable the overlay.")
+    );
+    var imageContent = h(React.Fragment, null,
+      h("div", {style:{padding:"12px",display:"flex",flexDirection:"column",gap:8}},
+        h("button", {
+          onClick:function(){ if(gen.fRef && gen.fRef.current) gen.fRef.current.click(); },
+          style:{padding:"8px 14px",fontSize:12,fontWeight:600,border:"1px solid var(--border)",borderRadius:8,background:"var(--surface-tertiary)",color:"var(--text-primary)",cursor:"pointer",fontFamily:"inherit"}
+        }, gen.img ? "Change image\u2026" : "Choose image\u2026"),
+        !gen.img && h("div", {style:{fontSize:11,color:"var(--text-tertiary)"}},
+          "Pick a photo or drawing to convert into a cross-stitch chart.")
+      ),
       imageCard,
+      overlayRow
+    );
+
+    // ── Dimensions tab — size controls + image adjustments + fabric count.
+    var dimensionsContent = h(React.Fragment, null,
       dimSection,
+      adjSection,
+      fabSection
+    );
+
+    // ── Palette tab — palette source, quality cleanup, and palette swap.
+    //   Background-removal moved to the Preview tab so users can colocate
+    //   "what to skip" with the canvas they click on to pick the colour.
+    var paletteContent = h(React.Fragment, null,
       palSection,
       cleanupSection,
-      fabSection,
-      adjSection,
-      bgSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection
     );
+
+    // ── Preview tab — chart-mode controls + Background section first
+    //   because picking the BG colour means clicking the preview canvas.
+    var previewContent = h(React.Fragment, null,
+      bgSection,
+      previewPanel
+    );
+
+    // ── Project tab — name/designer/notes plus a live cost/size summary.
+    var projectSummary = (function() {
+      var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
+      var stitchable = ctx.totalStitchable || (ctx.pat ? (ctx.sW * ctx.sH) : 0);
+      var fabricCt = ctx.fabricCt || 14;
+      var finishedW = (ctx.sW / fabricCt).toFixed(1);
+      var finishedH = (ctx.sH / fabricCt).toFixed(1);
+      var skeins = (ctx.pat && typeof skeinEst === "function" && palLen > 0)
+        ? (ctx.displayPal || ctx.pal || []).reduce(function(t,p){ return t + (p && p.count ? skeinEst(p.count, fabricCt) : 0); }, 0)
+        : 0;
+      var cost = skeins * (ctx.skeinPrice || (typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 0.95));
+      function row(label, value) {
+        return h("div", {style:{display:"contents"}},
+          h("span", {style:{color:"var(--text-tertiary)"}}, label),
+          h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, value)
+        );
+      }
+      return h(Section, {title:"Live summary", defaultOpen:true},
+        h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:12,padding:"4px 0"}},
+          row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
+          row("Finished", finishedW + " \u00D7 " + finishedH + " in (" + fabricCt + "ct)"),
+          row("Colours", ctx.pat ? (palLen + " colour" + (palLen === 1 ? "" : "s")) : "\u2014"),
+          row("Stitches", ctx.pat ? stitchable.toLocaleString() : "\u2014"),
+          row("Skeins", ctx.pat && skeins > 0 ? ("\u2248 " + Math.ceil(skeins)) : "\u2014"),
+          row("Estimated cost", ctx.pat && cost > 0
+            ? ("\u2248 " + (typeof window.AppPrefs !== "undefined" && window.AppPrefs.formatCurrency
+                ? window.AppPrefs.formatCurrency(cost)
+                : ("\u00A3" + cost.toFixed(2))))
+            : "\u2014")
+        )
+      );
+    })();
+    var projectContent = h(React.Fragment, null,
+      projectInfoSection,
+      projectSummary
+    );
+
+    var tabContentMap = {
+      image: imageContent,
+      dimensions: dimensionsContent,
+      palette: paletteContent,
+      preview: previewContent,
+      project: projectContent
+    };
+    var activeContent = tabContentMap[sTab] || imageContent;
     // ── Create mode bottom action bar ─────────────────────────────────────
     var createActions = h("div", {style:{
       flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
@@ -1284,10 +1416,12 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
     return h(React.Fragment, null,
       tabBar,
-      h("div", {style:{overflowY:"auto",flex:1}},
-        sTab === "settings" && settingsContent,
-        sTab === "preview" && previewPanel
-      ),
+      h("div", {
+        id:"sidebar-panel-"+sTab,
+        role:"tabpanel",
+        "aria-label":"Create mode "+sTab+" panel",
+        style:{overflowY:"auto",flex:1}
+      }, activeContent),
       createActions
     );
   }
@@ -1330,7 +1464,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       onClick:function(){
         if(cv.editHistory.length > 0 && !confirm("Switch to Create mode? Your edits are auto-saved.")) return;
         app.setAppMode("create");
-        app.setSidebarTab("settings");
+        app.setSidebarTab("image");
         if(window.__switchToCreate) window.__switchToCreate();
         app.addToast("Switched to Create mode", {type:"info", duration:2000});
       },

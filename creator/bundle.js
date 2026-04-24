@@ -4346,8 +4346,20 @@ window.useCreatorState = function useCreatorState() {
   // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
   var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
 
-  // Sidebar tab within current mode (mode-specific)
-  var _sidebarTab = useState("settings"); var sidebarTab = _sidebarTab[0], setSidebarTab = _sidebarTab[1];
+  // Sidebar tab within current mode (mode-specific).
+  // Create mode tabs: "image" | "dimensions" | "palette" | "preview" | "project".
+  // Legacy "settings" (pre-2026-04 toolbar rework) is remapped to "image".
+  var _sidebarTab = useState(function () {
+    var v = loadUserPref("creator.sidebarTab", null);
+    if (v === "settings") return "image";
+    return v || "image";
+  });
+  var sidebarTab = _sidebarTab[0], _setSidebarTabRaw = _sidebarTab[1];
+  function setSidebarTab(v) {
+    if (v === "settings") v = "image"; // back-compat for any caller still passing the old id
+    _setSidebarTabRaw(v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.sidebarTab", v); } catch (_) {}
+  }
 
   // UI state
   // B3: top-level Creator pages collapsed to 3 — 'pattern' | 'project' | 'materials'.
@@ -4734,6 +4746,7 @@ window.useCreatorState = function useCreatorState() {
 
   var stitchType = partialStitchTool ? partialStitchTool
     : activeTool === "backstitch" ? "backstitch"
+    : activeTool === "eraseAll" ? "erase"
     : (activeTool === "paint" || activeTool === "fill") ? "cross"
     : null;
 
@@ -6443,7 +6456,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         dragCellsRef.current.add(idx);
 
         if (action === "paint" && np) {
-          if (np[idx].id === "__skip__") continue;
+          // Allow painting over both __empty__ (manually erased) and __skip__
+          // (background-removed) cells — users expect the brush to put a
+          // stitch back wherever they click, not silently skip it.
           if (!colorEntry) continue;
           var selMask = state.selectionMask;
           if (selMask && !selMask[idx]) continue;
@@ -6539,13 +6554,19 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
     var idx = gy * sW + gx;
     var cell = pat[idx];
+    // After a successful pick, switch to the Paint tool (with the just-picked
+    // colour) rather than returning to whatever was active before — that's
+    // the gesture users expect ("now I want to paint with this").
+    function activatePaintWithPick() {
+      if (typeof state.setBrushMode === "function") state.setBrushMode("paint");
+      state.setActiveTool("paint");
+      if (typeof state.setPartialStitchTool === "function") state.setPartialStitchTool(null);
+      if (typeof state.setBsStart === "function") state.setBsStart(null);
+      if (state.previousToolRef) state.previousToolRef.current = null;
+    }
     if (cell && cell.id !== "__skip__" && cell.id !== "__empty__" && cmap && cmap[cell.id]) {
       state.setSelectedColorId(cell.id);
-      // Auto-return to the previous tool after a successful pick
-      if (state.previousToolRef && state.previousToolRef.current) {
-        state.setActiveTool(state.previousToolRef.current);
-        state.previousToolRef.current = null;
-      }
+      activatePaintWithPick();
     } else {
       var ps = partialStitches.get(idx);
       if (ps) {
@@ -6554,11 +6575,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
           var qe = ps[qKeys[qi]];
           if (qe && cmap[qe.id]) {
             state.setSelectedColorId(qe.id);
-            // Auto-return to the previous tool after a successful pick
-            if (state.previousToolRef && state.previousToolRef.current) {
-              state.setActiveTool(state.previousToolRef.current);
-              state.previousToolRef.current = null;
-            }
+            activatePaintWithPick();
             return;
           }
         }
@@ -6665,7 +6682,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if ((activeTool === "paint" || activeTool === "fill") && selectedColorId && cmap) {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
       var idx2 = gy * sW + gx;
-      if (pat[idx2].id === "__skip__") return;
+      // Both __skip__ (background-removed) and __empty__ (manually erased)
+      // cells are paintable \u2014 the user expects to put a stitch back there.
       var pe = cmap[selectedColorId]; if (!pe) return;
       var np2 = pat.slice();
       if (activeTool === "fill") {
@@ -8978,17 +8996,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { document.removeEventListener("pointerdown", close); };
   }, [app.overflowOpen]);
 
-  // Preview dropdown local state — must be declared before early return (Rules of Hooks)
-  var previewWrapRef = React.useRef(null);
-  var _pm = React.useState(false); var previewMenuOpen = _pm[0], setPreviewMenuOpen = _pm[1];
-  React.useEffect(function() {
-    if (!previewMenuOpen) return;
-    function close(e) {
-      if (previewWrapRef.current && !previewWrapRef.current.contains(e.target)) setPreviewMenuOpen(false);
-    }
-    document.addEventListener("pointerdown", close);
-    return function() { document.removeEventListener("pointerdown", close); };
-  }, [previewMenuOpen]);
+  // (The Preview chart-mode dropdown that used to live here has moved into
+  // the Sidebar Preview tab — see creator/Sidebar.js previewPanel.)
 
   if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
 
@@ -9009,21 +9018,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
-          // Generate / Regenerate — first so always visible on narrow screens
-          h("button", {
-            className:"tb-btn tb-btn--green",
-            onClick:function(){ gen.generate(); },
-            disabled:gen.busy,
-            "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
-            title:gen.hasGenerated?"Regenerate pattern":"Generate pattern"
-          }, gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate"),
-          h("div", {className:"tb-sdiv"}),
-          // Overlay toggle
+          // Overlay toggle — quick-access duplicate of the canonical
+          // "Source overlay" control in the sidebar's Image tab. The
+          // sidebar version owns opacity; this one just toggles on/off.
           gen.img && h("button", {
             className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
             onClick:function(){ cv.setShowOverlay(!cv.showOverlay); },
             title:"Toggle source image overlay", "aria-label":"Toggle source image overlay"
-          }, "\uD83D\uDDBC\uFE0F Overlay"),
+          }, Icons.image(), " Overlay"),
           // Zoom
           createZoomGrp
         )
@@ -9427,137 +9429,28 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     brushItems
   ) : null;
 
-  // Preview dropdown — mode selector + options
-  function chkBox(active) {
-    return h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-      border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
-      background:active?"var(--accent)":"transparent"}});
-  }
-  function radioBtn(active) {
-    return h("span", {style:{width:14,height:14,borderRadius:"50%",flexShrink:0,display:"inline-block",
-      border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
-      background:active?"var(--accent)":"transparent"}});
-  }
-  var isPixel     = app.previewActive && app.previewMode === "pixel";
-  var isRealistic = app.previewActive && app.previewMode === "realistic";
-  var previewLabel = isPixel ? "Pixel \u25BE" : isRealistic ? "Realistic \u25BE" : "Preview \u25BE";
-  var previewDropWrap = h("div", {className:"tb-overflow-wrap", ref:previewWrapRef},
-    h("button", {
-      className:"tb-btn"+(app.previewActive?" tb-btn--on":""),
-      onClick:function(){setPreviewMenuOpen(function(o){return !o;});},
-      title:"Preview mode",
-      "aria-label":"Preview mode menu"
-    }, previewLabel),
-    previewMenuOpen && h("div", {className:"tb-overflow-menu", style:{minWidth:195,right:0}},
-      h("span", {className:"tb-ovf-lbl"}, "View"),
-      h("button", {
-        className:"tb-ovf-item"+(!app.previewActive?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewActive(false); setPreviewMenuOpen(false);}
-      }, radioBtn(!app.previewActive), " Chart"),
-      h("button", {
-        className:"tb-ovf-item"+(isPixel?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewActive(true); app.setPreviewMode("pixel"); setPreviewMenuOpen(false);}
-      }, radioBtn(isPixel), " Pixel preview"),
-      h("button", {
-        className:"tb-ovf-item"+(isRealistic?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewActive(true); app.setPreviewMode("realistic"); setPreviewMenuOpen(false);}
-      }, radioBtn(isRealistic), " Realistic"),
-      h("div", {className:"tb-ovf-sep"}),
-      h("span", {className:"tb-ovf-lbl"}, "Options"),
-      h("button", {
-        className:"tb-ovf-item"+(app.previewShowGrid?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewShowGrid(function(v){return !v;}); setPreviewMenuOpen(false);},
-        disabled:!app.previewActive,
-        style:{opacity:app.previewActive?1:0.4}
-      }, chkBox(app.previewShowGrid), " Grid overlay"),
-      h("button", {
-        className:"tb-ovf-item"+(app.previewFabricBg?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewFabricBg(function(v){return !v;}); setPreviewMenuOpen(false);},
-        disabled:!isPixel,
-        style:{opacity:isPixel?1:0.4}
-      }, chkBox(app.previewFabricBg), " Fabric background"),
-      h("div", {className:"tb-ovf-sep"}),
-      h("span", {className:"tb-ovf-lbl"}, "Realistic level"),
-      h("button", {
-        className:"tb-ovf-item"+(app.realisticLevel===1?" tb-ovf-item--on":""),
-        onClick:function(){app.setRealisticLevel(1); setPreviewMenuOpen(false);},
-        disabled:!isRealistic,
-        style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(app.realisticLevel===1), " Flat (Level 1)"),
-      h("button", {
-        className:"tb-ovf-item"+(app.realisticLevel===2?" tb-ovf-item--on":""),
-        onClick:function(){app.setRealisticLevel(2); setPreviewMenuOpen(false);},
-        disabled:!isRealistic,
-        style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(app.realisticLevel===2), " Shaded (Level 2)"),
-      h("button", {
-        className:"tb-ovf-item"+(app.realisticLevel===3?" tb-ovf-item--on":""),
-        onClick:function(){app.setRealisticLevel(3); setPreviewMenuOpen(false);},
-        disabled:!isRealistic,
-        style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(app.realisticLevel===3), " Detailed (Level 3)"),
-      h("button", {
-        className:"tb-ovf-item"+(app.realisticLevel===4?" tb-ovf-item--on":""),
-        onClick:function(){app.setRealisticLevel(4); setPreviewMenuOpen(false);},
-        disabled:!isRealistic,
-        style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(app.realisticLevel===4), " Detailed \u2014 Blend (3a)"),
-      h("div", {className:"tb-ovf-sep"}),
-      h("span", {className:"tb-ovf-lbl"}, "Thread coverage"),
-      // Coverage slider + auto/manual indicator
-      (function() {
-        var sFc = ctx.fabricCt || 14;
-        var sSC = sFc <= 11 ? 3 : sFc <= 17 ? 2 : 1;
-        var sAutoCov = Math.min(1, Math.max(0, Math.min(1, Math.max(0, (sFc - 8) / 24)) * (sSC / 2)));
-        var isManual = app.coverageOverride !== null && app.coverageOverride !== undefined;
-        var dispCov = isManual ? app.coverageOverride : sAutoCov;
-        var dispPct = Math.round(dispCov * 100);
-        return h("div", {style:{padding:"4px 14px 6px"}},
-          h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
-            h("input", {
-              type:"range", min:0, max:100, step:1,
-              value: dispPct,
-              disabled: !isRealistic,
-              onChange: function(e) {
-                app.setCoverageOverride(parseInt(e.target.value) / 100);
-              },
-              style:{flex:1, accentColor:"var(--accent)", opacity:isRealistic?1:0.4}
-            }),
-            h("span", {style:{width:32,textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums",flexShrink:0}}, dispPct + "%")
-          ),
-          h("div", {style:{display:"flex",alignItems:"center",gap:6}},
-            h("span", {style:{fontSize:10,color:isManual?"#ea580c":"var(--text-tertiary)",fontWeight:isManual?600:400}},
-              isManual ? "Manual" : "Auto (" + sFc + "-count, " + sSC + " strand" + (sSC!==1?"s":"") + ")"
-            ),
-            isManual && h("button", {
-              onClick: function(e) { e.stopPropagation(); app.setCoverageOverride(null); },
-              title: "Reset to auto",
-              style:{marginLeft:"auto",fontSize:10,padding:"2px 6px",border:"1px solid #fed7aa",borderRadius:4,
-                     background:"#fff7ed",color:"#c2410c",cursor:"pointer", lineHeight:1.2}
-            }, "\u21BA Auto"),
-            !isManual && h("span", {style:{marginLeft:"auto",fontSize:10,color:"#94a3b8"}},
-              Math.round(sAutoCov * 100) + "%"
-            )
-          ),
-          // Quick presets
-          h("div", {style:{display:"flex",gap:3,marginTop:5}},
-            [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
-              var active = isManual && Math.abs(app.coverageOverride - preset[1]) < 0.03;
-              return h("button", {
-                key: preset[0],
-                disabled: !isRealistic,
-                onClick: function(e) { e.stopPropagation(); app.setCoverageOverride(preset[1]); },
-                style:{flex:1,fontSize:9,padding:"3px 0",border:"1px solid "+(active?"var(--accent)":"#cbd5e1"),
-                       borderRadius:4,background:active?"var(--accent)":"transparent",
-                       color:active?"#fff":"var(--text-secondary)",cursor:isRealistic?"pointer":"default",
-                       opacity:isRealistic?1:0.4}
-              }, preset[0]);
-            })
-          )
-        );
-      })()
-    )
-  );
+  // (The Preview chart-mode dropdown formerly built here has been removed.
+  //  All preview controls — Chart/Pixel/Realistic, quality level, coverage,
+  //  grid overlay, fabric background — now live in the Sidebar Preview tab.)
+
+  // Source-image overlay toggle — replaces the old Preview dropdown in the top
+  // toolbar. The Preview chart-mode/coverage controls now live in the Sidebar
+  // Preview tab (less duplication, more room here for editing tools). The
+  // overlay is the one display affordance that's most useful while editing.
+  var overlayBtn = (gen.img && gen.img.src) ? h("button", {
+    className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
+    onClick:function(){ cv.setShowOverlay(function(v){return !v;}); },
+    title:"Toggle source image overlay (O)",
+    "aria-label":"Toggle source image overlay",
+    "aria-pressed": cv.showOverlay ? "true" : "false"
+  }, "Overlay") : null;
+  var overlayOpacityCtl = (gen.img && gen.img.src && cv.showOverlay) ? h("input", {
+    type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
+    onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
+    title:"Overlay opacity",
+    "aria-label":"Overlay opacity",
+    style:{width:60}
+  }) : null;
 
   var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:app.overflowRef},
     h("button", {
@@ -9568,27 +9461,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     }, "\u00B7\u00B7\u00B7"),
     overflowMenu
   );
-
-  // Split view toggle button
-  var svgSplit = h("svg", {width:14,height:12,viewBox:"0 0 14 12",fill:"none"},
-    h("rect",{x:"0.7",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"}),
-    h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
-  );
-  var splitBtn = h("button", {
-    className: "tb-btn tb-btn--compare" + (app.splitPaneEnabled ? " tb-btn--on" : ""),
-    title: app.splitPaneEnabled
-      ? "Exit compare view (\\)"
-      : "Compare chart vs realistic preview (\\)",
-    "aria-label": app.splitPaneEnabled ? "Exit compare view" : "Compare chart vs realistic preview",
-    "aria-pressed": app.splitPaneEnabled ? "true" : "false",
-    disabled: !(ctx.pat && ctx.pal),
-    onClick: function() {
-      var next = !app.splitPaneEnabled;
-      app.setSplitPaneEnabled(next);
-      if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", next);
-    },
-    style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
-  }, svgSplit, !sc.bs ? " Compare" : null);
 
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
@@ -9603,10 +9475,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           toolBadge,
           zoomGrp,
           undoRedo,
-          h("div", {className:"tb-sdiv"}),
-          previewDropWrap,
-          h("div", {className:"tb-sdiv"}),
-          splitBtn,
+          overlayBtn && h("div", {className:"tb-sdiv"}),
+          overlayBtn,
+          overlayOpacityCtl,
           h("div", {className:"tb-sdiv"}),
           overflowWrap
         )
@@ -12585,9 +12456,18 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ─── Mode-aware sidebar tab bar ────────────────────────────────────────────
   var mode = app.appMode || "edit";
-  var sTab = app.sidebarTab || "settings";
+  var rawTab = app.sidebarTab;
+  // Back-compat: legacy "settings" (single-Settings-accordion) → first new tab.
+  if (rawTab === "settings") rawTab = "image";
+  var sTab = rawTab || (mode === "create" ? "image" : "palette");
 
-  var createTabs = [["settings","Settings"],["preview","Preview"]];
+  var createTabs = [
+    ["image","Image"],
+    ["dimensions","Dimensions"],
+    ["palette","Palette"],
+    ["preview","Preview"],
+    ["project","Project"]
+  ];
   var editTabs = [["palette","Palette"],["view","View"],["preview","Preview"],["more","More"]];
   var tabs = mode === "create" ? createTabs : editTabs;
 
@@ -12602,7 +12482,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {"aria-hidden":"true", className:"rpanel-handle-wrap", style:{paddingTop:6,paddingBottom:2,display:"flex",justifyContent:"center"}},
       h("div", {className:"rpanel-handle-bar"})
     ),
-    h("div", {style:{display:"flex",borderBottom:"1px solid var(--border)"}},
+    h("div", {style:{display:"flex",borderBottom:"1px solid var(--border)",overflowX:"auto",scrollbarWidth:"none"}},
       tabs.map(function(kl) {
         return h("button", {
           key:kl[0],
@@ -12625,9 +12505,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             }
           },
           style:{
-            flex:1,padding:"8px 2px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
+            flex:"1 1 0",minWidth:0,padding:"8px 4px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
             border:"none",borderBottom:sTab===kl[0]?"2px solid var(--accent)":"2px solid transparent",
-            cursor:"pointer",fontFamily:"inherit",
+            cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",
             background:"transparent",
             color:sTab===kl[0]?"var(--accent)":"var(--text-secondary)",
           }
@@ -12774,6 +12654,36 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
       h("input", {type:"checkbox",checked:app.previewFabricBg,onChange:function(){app.setPreviewFabricBg(!app.previewFabricBg);}}),
       "Fabric background"
+    ),
+    // ── Split / compare view (moved here from the top toolbar) ──────────
+    (ctx.pat && ctx.pal) && h("div", {style:{marginTop:14,paddingTop:10,borderTop:"1px solid var(--border)"}},
+      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:8}}, "Compare"),
+      h("button", {
+        onClick:function(){
+          var next = !app.splitPaneEnabled;
+          app.setSplitPaneEnabled(next);
+          if (typeof window.UserPrefs !== "undefined") window.UserPrefs.set("splitPaneEnabled", next);
+        },
+        "aria-pressed": app.splitPaneEnabled ? "true" : "false",
+        title: app.splitPaneEnabled ? "Exit compare view (\\)" : "Compare chart vs realistic preview (\\)",
+        style:{
+          width:"100%",padding:"8px 10px",fontSize:12,fontWeight:app.splitPaneEnabled?600:500,
+          border:"1px solid "+(app.splitPaneEnabled?"var(--accent)":"var(--border)"),
+          background:app.splitPaneEnabled?"var(--accent-light)":"transparent",
+          color:app.splitPaneEnabled?"var(--accent)":"var(--text-secondary)",
+          borderRadius:6,cursor:"pointer",fontFamily:"inherit",
+          display:"flex",alignItems:"center",justifyContent:"center",gap:6
+        }
+      },
+        h("svg", {width:14,height:12,viewBox:"0 0 14 12",fill:"none","aria-hidden":"true"},
+          h("rect",{x:"0.7",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"}),
+          h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
+        ),
+        app.splitPaneEnabled ? "Exit compare" : "Compare side-by-side"
+      ),
+      h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
+        "Shows the editable chart on the left and the realistic preview on the right."
+      )
     )
   );
 
@@ -12812,18 +12722,111 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       )
     );
-    var settingsContent = h(React.Fragment, null,
-      projectInfoSection,
+    // ── Image tab — file picker, source thumbnail (with Crop / Change),
+    //   plus the canonical Source-overlay toggle + opacity slider. The
+    //   toolbar overlay button still works as a quick toggle.
+    var overlayRow = h("div", {style:{padding:"12px",borderTop:ctx.pat&&gen.img?"1px solid var(--border)":"none"}},
+      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}, "Source overlay"),
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--text-secondary)",marginBottom:8,cursor:gen.img?"pointer":"not-allowed",opacity:gen.img?1:0.5}},
+        h("input", {type:"checkbox", disabled:!gen.img, checked:!!cv.showOverlay,
+          onChange:function(){cv.setShowOverlay(function(v){return !v;});}}),
+        h("span", null, "Show source image over chart")
+      ),
+      h("div", {style:{display:"flex",alignItems:"center",gap:8,opacity:(gen.img&&cv.showOverlay)?1:0.4}},
+        h("label", {style:{fontSize:11,color:"var(--text-secondary)",flexShrink:0}}, "Opacity"),
+        h("input", {type:"range",min:0,max:1,step:0.05,
+          value:cv.overlayOpacity!=null?cv.overlayOpacity:0.3,
+          disabled:!gen.img||!cv.showOverlay,
+          onChange:function(e){cv.setOverlayOpacity(Number(e.target.value));},
+          style:{flex:1}}),
+        h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:32,textAlign:"right",fontVariantNumeric:"tabular-nums"}},
+          Math.round((cv.overlayOpacity!=null?cv.overlayOpacity:0.3)*100)+"%")
+      ),
+      !gen.img && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6}},
+        "Load an image to enable the overlay.")
+    );
+    var imageContent = h(React.Fragment, null,
+      h("div", {style:{padding:"12px",display:"flex",flexDirection:"column",gap:8}},
+        h("button", {
+          onClick:function(){ if(gen.fRef && gen.fRef.current) gen.fRef.current.click(); },
+          style:{padding:"8px 14px",fontSize:12,fontWeight:600,border:"1px solid var(--border)",borderRadius:8,background:"var(--surface-tertiary)",color:"var(--text-primary)",cursor:"pointer",fontFamily:"inherit"}
+        }, gen.img ? "Change image\u2026" : "Choose image\u2026"),
+        !gen.img && h("div", {style:{fontSize:11,color:"var(--text-tertiary)"}},
+          "Pick a photo or drawing to convert into a cross-stitch chart.")
+      ),
       imageCard,
+      overlayRow
+    );
+
+    // ── Dimensions tab — size controls + image adjustments + fabric count.
+    var dimensionsContent = h(React.Fragment, null,
       dimSection,
+      adjSection,
+      fabSection
+    );
+
+    // ── Palette tab — palette source, quality cleanup, and palette swap.
+    //   Background-removal moved to the Preview tab so users can colocate
+    //   "what to skip" with the canvas they click on to pick the colour.
+    var paletteContent = h(React.Fragment, null,
       palSection,
       cleanupSection,
-      fabSection,
-      adjSection,
-      bgSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection
     );
+
+    // ── Preview tab — chart-mode controls + Background section first
+    //   because picking the BG colour means clicking the preview canvas.
+    var previewContent = h(React.Fragment, null,
+      bgSection,
+      previewPanel
+    );
+
+    // ── Project tab — name/designer/notes plus a live cost/size summary.
+    var projectSummary = (function() {
+      var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
+      var stitchable = ctx.totalStitchable || (ctx.pat ? (ctx.sW * ctx.sH) : 0);
+      var fabricCt = ctx.fabricCt || 14;
+      var finishedW = (ctx.sW / fabricCt).toFixed(1);
+      var finishedH = (ctx.sH / fabricCt).toFixed(1);
+      var skeins = (ctx.pat && typeof skeinEst === "function" && palLen > 0)
+        ? (ctx.displayPal || ctx.pal || []).reduce(function(t,p){ return t + (p && p.count ? skeinEst(p.count, fabricCt) : 0); }, 0)
+        : 0;
+      var cost = skeins * (ctx.skeinPrice || (typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 0.95));
+      function row(label, value) {
+        return h("div", {style:{display:"contents"}},
+          h("span", {style:{color:"var(--text-tertiary)"}}, label),
+          h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, value)
+        );
+      }
+      return h(Section, {title:"Live summary", defaultOpen:true},
+        h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:12,padding:"4px 0"}},
+          row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
+          row("Finished", finishedW + " \u00D7 " + finishedH + " in (" + fabricCt + "ct)"),
+          row("Colours", ctx.pat ? (palLen + " colour" + (palLen === 1 ? "" : "s")) : "\u2014"),
+          row("Stitches", ctx.pat ? stitchable.toLocaleString() : "\u2014"),
+          row("Skeins", ctx.pat && skeins > 0 ? ("\u2248 " + Math.ceil(skeins)) : "\u2014"),
+          row("Estimated cost", ctx.pat && cost > 0
+            ? ("\u2248 " + (typeof window.AppPrefs !== "undefined" && window.AppPrefs.formatCurrency
+                ? window.AppPrefs.formatCurrency(cost)
+                : ("\u00A3" + cost.toFixed(2))))
+            : "\u2014")
+        )
+      );
+    })();
+    var projectContent = h(React.Fragment, null,
+      projectInfoSection,
+      projectSummary
+    );
+
+    var tabContentMap = {
+      image: imageContent,
+      dimensions: dimensionsContent,
+      palette: paletteContent,
+      preview: previewContent,
+      project: projectContent
+    };
+    var activeContent = tabContentMap[sTab] || imageContent;
     // ── Create mode bottom action bar ─────────────────────────────────────
     var createActions = h("div", {style:{
       flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
@@ -12866,10 +12869,12 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
     return h(React.Fragment, null,
       tabBar,
-      h("div", {style:{overflowY:"auto",flex:1}},
-        sTab === "settings" && settingsContent,
-        sTab === "preview" && previewPanel
-      ),
+      h("div", {
+        id:"sidebar-panel-"+sTab,
+        role:"tabpanel",
+        "aria-label":"Create mode "+sTab+" panel",
+        style:{overflowY:"auto",flex:1}
+      }, activeContent),
       createActions
     );
   }
@@ -12912,7 +12917,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       onClick:function(){
         if(cv.editHistory.length > 0 && !confirm("Switch to Create mode? Your edits are auto-saved.")) return;
         app.setAppMode("create");
-        app.setSidebarTab("settings");
+        app.setSidebarTab("image");
         if(window.__switchToCreate) window.__switchToCreate();
         app.addToast("Switched to Create mode", {type:"info", duration:2000});
       },

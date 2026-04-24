@@ -791,6 +791,20 @@ const[recEnabled,setRecEnabled]=useState(()=>{try{return localStorage.getItem("c
 const[rpanelTab,setRpanelTab]=useState("colours");
 const[mobileDrawerOpen,setMobileDrawerOpen]=useState(false);
 
+// ─── Tracker left sidebar (toolbar-rework phase 1) ─────────────────────
+// Replaces the scattered Highlight / View / Session controls in the
+// toolbar pill and right-panel "More" tab with a tabbed left sidebar.
+// State persists via window.UserPrefs (keys: trackerLeftSidebarOpen,
+// trackerLeftSidebarTab). Default closed; user opts in via hamburger.
+const[leftSidebarOpen,setLeftSidebarOpen]=useState(()=>{
+  try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarOpen");return !!p;}catch(_){return false;}
+});
+const[leftSidebarTab,setLeftSidebarTab]=useState(()=>{
+  try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarTab");return p||"highlight";}catch(_){return"highlight";}
+});
+useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarOpen",!!leftSidebarOpen);}catch(_){}},[leftSidebarOpen]);
+useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarTab",leftSidebarTab);}catch(_){}},[leftSidebarTab]);
+
 const [importDialog, setImportDialog] = useState(null);
 const [importImage, setImportImage] = useState(null);
 const [importSuccess, setImportSuccess] = useState(null);
@@ -4469,6 +4483,14 @@ return(
 </div>}
 {/* ═══ TRACKER PILL TOOLBAR ═══ */}
 <div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")}><div className="pill-row" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
+  <button
+    type="button"
+    className="tracker-hamburger"
+    onClick={()=>setLeftSidebarOpen(o=>!o)}
+    aria-label="Toggle sidebar"
+    aria-expanded={leftSidebarOpen}
+    title="Sidebar (Highlight, View, Session)"
+  >{Icons.menu()}</button>
   <div ref={tStripRef} className={"pill"+(isEditMode?" pill--edit":"")}>
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
     <button className={"tb-btn"+(stitchMode==="track"?(isEditMode?" tb-btn--red":" tb-btn--green"):"")} onClick={()=>{setStitchMode("track");}} title={isEditMode?"Modify stitches (T)":"Mark stitch (T)"}>
@@ -4728,6 +4750,181 @@ return(
   </div>}
 
   {!statsView&&pat&&pal&&<><div className="cs-main">
+    {/* ═══ LEFT SIDEBAR (toolbar-rework phase 1) ═══
+        Mirrors Highlight / View / Session controls so the toolbar pill
+        and the rpanel "More" tab can be trimmed in later phases. The
+        old controls remain wired during phase 1 to avoid disrupting
+        in-flight sessions during the migration. */}
+    {leftSidebarOpen&&<div className={"lpanel"+(leftSidebarOpen?" lpanel--open":"")} role="complementary" aria-label="Tracker sidebar">
+      <div className="lp-tabs" role="tablist">
+        {[["highlight","Highlight"],["view","View"],["session","Session"]].map(([k,l])=>
+          <button key={k} role="tab" aria-selected={leftSidebarTab===k} className={"lp-tab"+(leftSidebarTab===k?" lp-tab--on":"")} onClick={()=>setLeftSidebarTab(k)}>{l}</button>
+        )}
+        <button type="button" className="lp-close" onClick={()=>setLeftSidebarOpen(false)} aria-label="Close sidebar" title="Close sidebar">{Icons.x?Icons.x():"\u00D7"}</button>
+      </div>
+      <div className="lp-tab-content">
+
+      {/* ── Tab: Highlight ── */}
+      {leftSidebarTab==="highlight"&&<div className="lp-section">
+        <div className="lp-heading">Colour focus</div>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+          <button className="lp-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];if(stitchView!=="highlight")setStitchView("highlight");setFocusColour(prev.id);}} title="Previous colour ([)" aria-label="Previous colour">{Icons.chevronLeft?Icons.chevronLeft():"<"}</button>
+          <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:6}}>
+            {focusColour&&cmap&&cmap[focusColour]?(()=>{const cp=cmap[focusColour];return(
+              <>
+                <span style={{width:14,height:14,borderRadius:3,background:`rgb(${cp.rgb})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
+                <span style={{fontSize:12,fontWeight:700}}>DMC {focusColour}</span>
+                <span style={{fontSize:11,color:"#64748b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cp.name||""}</span>
+              </>
+            );})():<span style={{fontSize:11,color:"#94a3b8"}}>No focus</span>}
+          </div>
+          <button className="lp-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];if(stitchView!=="highlight")setStitchView("highlight");setFocusColour(next.id);}} title="Next colour (])" aria-label="Next colour">{Icons.chevronRight?Icons.chevronRight():">"}</button>
+          {focusColour&&<button className="lp-btn lp-btn--ghost" onClick={()=>setFocusColour(null)} title="Clear focus" aria-label="Clear focus">{Icons.x?Icons.x():"\u00D7"}</button>}
+        </div>
+
+        <div className="lp-heading">Mode</div>
+        <div className="lp-segmented" style={{marginBottom:10}}>
+          {[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(([m,l])=>
+            <button key={m} className={"lp-seg"+(highlightMode===m?" lp-seg--on":"")} onClick={()=>{ensureFocusColour();setHighlightMode(m);}}>{l}</button>
+          )}
+        </div>
+
+        {highlightMode==="isolate"&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11}}>
+          <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Visibility</span>
+          <input type="range" min={0} max={60} value={Math.round(trackerDimLevel*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTrackerDimLevel(v);try{localStorage.setItem("cs_trDimLv",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
+          <span style={{width:34,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(trackerDimLevel*100)}%</span>
+        </div>}
+        {highlightMode==="tint"&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11}}>
+          <input type="color" value={tintColor} onChange={e=>{setTintColor(e.target.value);try{localStorage.setItem("cs_tintColor",e.target.value);}catch(_){}}} style={{width:28,height:22,padding:0,border:"1px solid #e2e8f0",borderRadius:4,cursor:"pointer"}} aria-label="Tint colour"/>
+          <input type="range" min={10} max={80} value={Math.round(tintOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTintOpacity(v);try{localStorage.setItem("cs_tintOp",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}} aria-label="Tint opacity"/>
+          <span style={{width:34,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(tintOpacity*100)}%</span>
+        </div>}
+        {highlightMode==="spotlight"&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11}}>
+          <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Dim</span>
+          <input type="range" min={5} max={50} value={Math.round(spotDimOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setSpotDimOpacity(v);try{localStorage.setItem("cs_spotDimOp",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
+          <span style={{width:34,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(spotDimOpacity*100)}%</span>
+        </div>}
+
+        <div className="lp-heading" style={{marginTop:10}}>Counting aids</div>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,fontSize:11,cursor:"pointer"}}>
+          <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+          <span>Show counting aids</span>
+        </label>
+        {countingAidsEnabled&&<>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,fontSize:11}}>
+            <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Runs</span>
+            <div className="lp-segmented" style={{flex:1}}>
+              {[[0,"Off"],[1,"All"],[3,"3+"],[5,"5+"],[10,"10+"]].map(([v,l])=>
+                <button key={v} className={"lp-seg"+(countRunMin===v?" lp-seg--on":"")} onClick={()=>setCountRunMin(v)}>{l}</button>
+              )}
+            </div>
+          </div>
+          {countRunMin>0&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,fontSize:11}}>
+            <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Direction</span>
+            <div className="lp-segmented" style={{flex:1}}>
+              {[["h","Horizontal"],["v","Vertical"],["both","Both"]].map(([v,l])=>
+                <button key={v} className={"lp-seg"+(countRunDir===v?" lp-seg--on":"")} onClick={()=>setCountRunDir(v)}>{l}</button>
+              )}
+            </div>
+          </div>}
+          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,cursor:"pointer"}}>
+            <input type="checkbox" checked={countNinjaEnabled} onChange={e=>setCountNinjaEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#ea580c"}}/>
+            <span>Highlight ninja stitches</span>
+          </label>
+        </>}
+
+        <div className="lp-heading" style={{marginTop:10}}>Skip</div>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:11,cursor:"pointer"}}>
+          <input type="checkbox" checked={highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+          <span>Skip completed colours when cycling</span>
+        </label>
+        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,cursor:"pointer"}}>
+          <input type="checkbox" checked={onlyStarted} onChange={e=>setOnlyStarted(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+          <span>Only colours already started</span>
+        </label>
+      </div>}
+
+      {/* ── Tab: View ── */}
+      {leftSidebarTab==="view"&&<div className="lp-section">
+        <div className="lp-heading">Mode</div>
+        <div className="lp-segmented" style={{marginBottom:10}}>
+          {[['symbol','Symbol'],['colour','Colour'],['highlight','Highlight']].map(([k,l])=>
+            <button key={k} className={"lp-seg"+(stitchView===k?" lp-seg--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>
+          )}
+        </div>
+
+        <div className="lp-heading">Zoom</div>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+          <button className="lp-btn" onClick={()=>setStitchZoom(z=>Math.max(0.1,+(z-0.25).toFixed(2)))} aria-label="Zoom out">−</button>
+          <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{flex:1,accentColor:"#0d9488"}} aria-label="Zoom level"/>
+          <button className="lp-btn" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in">+</button>
+          <span style={{minWidth:40,textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{Math.round(stitchZoom*100)}%</span>
+          <button className="lp-btn lp-btn--ghost" onClick={fitSZ}>Fit</button>
+        </div>
+
+        <div className="lp-heading">Rendering</div>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11,cursor:"pointer"}}>
+          <input type="checkbox" checked={lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+          <span>Lock detail tier</span>
+        </label>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,fontSize:11}}>
+          <span style={{color:"#475569",flexShrink:0,minWidth:80}}>Zoomed-out fade</span>
+          <select value={String(lowZoomFade)} disabled={lockDetailLevel} onChange={e=>setLowZoomFade(parseFloat(e.target.value))} style={{flex:1,padding:"3px 6px",borderRadius:4,border:"1px solid #e2e8f0",background:lockDetailLevel?"#f1f5f9":"#fff"}}>
+            <option value="0">Off</option>
+            <option value="0.15">Subtle</option>
+            <option value="0.55">Strong</option>
+          </select>
+        </div>
+
+        <div className="lp-heading">Layers</div>
+        {STITCH_LAYERS.map(layer=>{
+          const count=layerCounts[layer.id];
+          const vis=layerVis[layer.id];
+          return <label key={layer.id} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",fontSize:11,cursor:"pointer",opacity:count>0?1:0.4}}>
+            <input type="checkbox" checked={vis} onChange={()=>{setSoloPreState(null);setLayerVis(v=>({...v,[layer.id]:!v[layer.id]}));}} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+            <span style={{flex:1}}>{layer.label}</span>
+            <span style={{fontSize:10,color:"#94a3b8"}}>{count.toLocaleString()}</span>
+          </label>;
+        })}
+      </div>}
+
+      {/* ── Tab: Session ── */}
+      {leftSidebarTab==="session"&&<div className="lp-section">
+        <div className="lp-heading">Session {liveAutoStitches>0&&<span className="badge">Live</span>}</div>
+        {explicitSession?(()=>{
+          const elapsed=Math.floor((Date.now()-explicitSession.startTime)/1000);
+          const stitchesDone=liveAutoStitches;
+          const timeRemaining=explicitSession.timeAvail?Math.max(0,explicitSession.timeAvail-elapsed):null;
+          const goalReached=(explicitSession.stitchGoal&&stitchesDone>=explicitSession.stitchGoal)||(explicitSession.timeAvail&&elapsed>=explicitSession.timeAvail);
+          return(<>
+            <div className="sess-card" style={{borderColor:"#99f6e4",background:"#f0fdfa"}}>
+              <div className="row"><span className="lbl">{timeRemaining!==null?"Remaining":"Elapsed"}</span><span className="val" style={{fontWeight:700,color:"#0d9488"}}>{fmtTime(timeRemaining!==null?timeRemaining:elapsed)}</span></div>
+              <div className="row"><span className="lbl">Stitches</span><span className="val">{stitchesDone}{explicitSession.stitchGoal?` / ${explicitSession.stitchGoal}`:""}</span></div>
+              {stitchesDone>0&&elapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(stitchesDone/(elapsed/3600)).toFixed(0)} st/hr</span></div>}
+            </div>
+            {goalReached&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 10px",borderRadius:6,marginTop:6,textAlign:"center",fontWeight:600}}>Goal reached!</div>}
+            <button className="lp-btn lp-btn--danger" style={{marginTop:8,width:"100%"}} onClick={()=>{
+              const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
+              const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
+              setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[]});
+              setExplicitSession(null);
+            }}>End session</button>
+          </>);
+        })():<>
+          <div className="sess-card">
+            <div className="row"><span className="lbl">Time</span><span className="val">{fmtTime(liveAutoElapsed)}</span></div>
+            <div className="row"><span className="lbl">Stitches</span><span className="val">{liveAutoStitches}</span></div>
+            {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
+            <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
+          </div>
+          <button className="lp-btn lp-btn--primary" style={{marginTop:8,width:"100%"}} onClick={()=>setSessionConfigOpen(true)}>Start session</button>
+        </>}
+        <button className="lp-btn lp-btn--ghost" style={{marginTop:8,width:'100%'}} onClick={()=>{if(!statsView){setStatsTab(projectIdRef.current||'all');}setStatsView(v=>!v);}}>{statsView?"Hide":"View"} full stats</button>
+      </div>}
+
+      </div>{/* end lp-tab-content */}
+    </div>}
+
     <div className="canvas-area" style={{padding:"12px 16px"}}>
     {showNavHelp&&!isEditMode&&(()=>{const isTouch=hasTouchRef.current;return(
     <div style={{marginBottom:8,padding:"14px 16px",background:"#fff",border:"1px solid #a5b4fc",borderRadius:10,fontSize:12}}>

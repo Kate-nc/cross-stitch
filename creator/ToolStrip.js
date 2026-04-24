@@ -49,17 +49,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { document.removeEventListener("pointerdown", close); };
   }, [app.overflowOpen]);
 
-  // Preview dropdown local state — must be declared before early return (Rules of Hooks)
-  var previewWrapRef = React.useRef(null);
-  var _pm = React.useState(false); var previewMenuOpen = _pm[0], setPreviewMenuOpen = _pm[1];
-  React.useEffect(function() {
-    if (!previewMenuOpen) return;
-    function close(e) {
-      if (previewWrapRef.current && !previewWrapRef.current.contains(e.target)) setPreviewMenuOpen(false);
-    }
-    document.addEventListener("pointerdown", close);
-    return function() { document.removeEventListener("pointerdown", close); };
-  }, [previewMenuOpen]);
+  // (The Preview chart-mode dropdown that used to live here has moved into
+  // the Sidebar Preview tab — see creator/Sidebar.js previewPanel.)
 
   if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
 
@@ -80,21 +71,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
-          // Generate / Regenerate — first so always visible on narrow screens
-          h("button", {
-            className:"tb-btn tb-btn--green",
-            onClick:function(){ gen.generate(); },
-            disabled:gen.busy,
-            "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
-            title:gen.hasGenerated?"Regenerate pattern":"Generate pattern"
-          }, gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate"),
-          h("div", {className:"tb-sdiv"}),
-          // Overlay toggle
+          // Overlay toggle — quick-access duplicate of the canonical
+          // "Source overlay" control in the sidebar's Image tab. The
+          // sidebar version owns opacity; this one just toggles on/off.
           gen.img && h("button", {
             className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
             onClick:function(){ cv.setShowOverlay(!cv.showOverlay); },
             title:"Toggle source image overlay", "aria-label":"Toggle source image overlay"
-          }, "\uD83D\uDDBC\uFE0F Overlay"),
+          }, Icons.image(), " Overlay"),
           // Zoom
           createZoomGrp
         )
@@ -498,137 +482,28 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     brushItems
   ) : null;
 
-  // Preview dropdown — mode selector + options
-  function chkBox(active) {
-    return h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-      border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
-      background:active?"var(--accent)":"transparent"}});
-  }
-  function radioBtn(active) {
-    return h("span", {style:{width:14,height:14,borderRadius:"50%",flexShrink:0,display:"inline-block",
-      border:"2px solid "+(active?"var(--accent)":"#cbd5e1"),
-      background:active?"var(--accent)":"transparent"}});
-  }
-  var isPixel     = app.previewActive && app.previewMode === "pixel";
-  var isRealistic = app.previewActive && app.previewMode === "realistic";
-  var previewLabel = isPixel ? "Pixel \u25BE" : isRealistic ? "Realistic \u25BE" : "Preview \u25BE";
-  var previewDropWrap = h("div", {className:"tb-overflow-wrap", ref:previewWrapRef},
-    h("button", {
-      className:"tb-btn"+(app.previewActive?" tb-btn--on":""),
-      onClick:function(){setPreviewMenuOpen(function(o){return !o;});},
-      title:"Preview mode",
-      "aria-label":"Preview mode menu"
-    }, previewLabel),
-    previewMenuOpen && h("div", {className:"tb-overflow-menu", style:{minWidth:195,right:0}},
-      h("span", {className:"tb-ovf-lbl"}, "View"),
-      h("button", {
-        className:"tb-ovf-item"+(!app.previewActive?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewActive(false); setPreviewMenuOpen(false);}
-      }, radioBtn(!app.previewActive), " Chart"),
-      h("button", {
-        className:"tb-ovf-item"+(isPixel?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewActive(true); app.setPreviewMode("pixel"); setPreviewMenuOpen(false);}
-      }, radioBtn(isPixel), " Pixel preview"),
-      h("button", {
-        className:"tb-ovf-item"+(isRealistic?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewActive(true); app.setPreviewMode("realistic"); setPreviewMenuOpen(false);}
-      }, radioBtn(isRealistic), " Realistic"),
-      h("div", {className:"tb-ovf-sep"}),
-      h("span", {className:"tb-ovf-lbl"}, "Options"),
-      h("button", {
-        className:"tb-ovf-item"+(app.previewShowGrid?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewShowGrid(function(v){return !v;}); setPreviewMenuOpen(false);},
-        disabled:!app.previewActive,
-        style:{opacity:app.previewActive?1:0.4}
-      }, chkBox(app.previewShowGrid), " Grid overlay"),
-      h("button", {
-        className:"tb-ovf-item"+(app.previewFabricBg?" tb-ovf-item--on":""),
-        onClick:function(){app.setPreviewFabricBg(function(v){return !v;}); setPreviewMenuOpen(false);},
-        disabled:!isPixel,
-        style:{opacity:isPixel?1:0.4}
-      }, chkBox(app.previewFabricBg), " Fabric background"),
-      h("div", {className:"tb-ovf-sep"}),
-      h("span", {className:"tb-ovf-lbl"}, "Realistic level"),
-      h("button", {
-        className:"tb-ovf-item"+(app.realisticLevel===1?" tb-ovf-item--on":""),
-        onClick:function(){app.setRealisticLevel(1); setPreviewMenuOpen(false);},
-        disabled:!isRealistic,
-        style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(app.realisticLevel===1), " Flat (Level 1)"),
-      h("button", {
-        className:"tb-ovf-item"+(app.realisticLevel===2?" tb-ovf-item--on":""),
-        onClick:function(){app.setRealisticLevel(2); setPreviewMenuOpen(false);},
-        disabled:!isRealistic,
-        style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(app.realisticLevel===2), " Shaded (Level 2)"),
-      h("button", {
-        className:"tb-ovf-item"+(app.realisticLevel===3?" tb-ovf-item--on":""),
-        onClick:function(){app.setRealisticLevel(3); setPreviewMenuOpen(false);},
-        disabled:!isRealistic,
-        style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(app.realisticLevel===3), " Detailed (Level 3)"),
-      h("button", {
-        className:"tb-ovf-item"+(app.realisticLevel===4?" tb-ovf-item--on":""),
-        onClick:function(){app.setRealisticLevel(4); setPreviewMenuOpen(false);},
-        disabled:!isRealistic,
-        style:{opacity:isRealistic?1:0.4}
-      }, radioBtn(app.realisticLevel===4), " Detailed \u2014 Blend (3a)"),
-      h("div", {className:"tb-ovf-sep"}),
-      h("span", {className:"tb-ovf-lbl"}, "Thread coverage"),
-      // Coverage slider + auto/manual indicator
-      (function() {
-        var sFc = ctx.fabricCt || 14;
-        var sSC = sFc <= 11 ? 3 : sFc <= 17 ? 2 : 1;
-        var sAutoCov = Math.min(1, Math.max(0, Math.min(1, Math.max(0, (sFc - 8) / 24)) * (sSC / 2)));
-        var isManual = app.coverageOverride !== null && app.coverageOverride !== undefined;
-        var dispCov = isManual ? app.coverageOverride : sAutoCov;
-        var dispPct = Math.round(dispCov * 100);
-        return h("div", {style:{padding:"4px 14px 6px"}},
-          h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
-            h("input", {
-              type:"range", min:0, max:100, step:1,
-              value: dispPct,
-              disabled: !isRealistic,
-              onChange: function(e) {
-                app.setCoverageOverride(parseInt(e.target.value) / 100);
-              },
-              style:{flex:1, accentColor:"var(--accent)", opacity:isRealistic?1:0.4}
-            }),
-            h("span", {style:{width:32,textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums",flexShrink:0}}, dispPct + "%")
-          ),
-          h("div", {style:{display:"flex",alignItems:"center",gap:6}},
-            h("span", {style:{fontSize:10,color:isManual?"#ea580c":"var(--text-tertiary)",fontWeight:isManual?600:400}},
-              isManual ? "Manual" : "Auto (" + sFc + "-count, " + sSC + " strand" + (sSC!==1?"s":"") + ")"
-            ),
-            isManual && h("button", {
-              onClick: function(e) { e.stopPropagation(); app.setCoverageOverride(null); },
-              title: "Reset to auto",
-              style:{marginLeft:"auto",fontSize:10,padding:"2px 6px",border:"1px solid #fed7aa",borderRadius:4,
-                     background:"#fff7ed",color:"#c2410c",cursor:"pointer", lineHeight:1.2}
-            }, "\u21BA Auto"),
-            !isManual && h("span", {style:{marginLeft:"auto",fontSize:10,color:"#94a3b8"}},
-              Math.round(sAutoCov * 100) + "%"
-            )
-          ),
-          // Quick presets
-          h("div", {style:{display:"flex",gap:3,marginTop:5}},
-            [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
-              var active = isManual && Math.abs(app.coverageOverride - preset[1]) < 0.03;
-              return h("button", {
-                key: preset[0],
-                disabled: !isRealistic,
-                onClick: function(e) { e.stopPropagation(); app.setCoverageOverride(preset[1]); },
-                style:{flex:1,fontSize:9,padding:"3px 0",border:"1px solid "+(active?"var(--accent)":"#cbd5e1"),
-                       borderRadius:4,background:active?"var(--accent)":"transparent",
-                       color:active?"#fff":"var(--text-secondary)",cursor:isRealistic?"pointer":"default",
-                       opacity:isRealistic?1:0.4}
-              }, preset[0]);
-            })
-          )
-        );
-      })()
-    )
-  );
+  // (The Preview chart-mode dropdown formerly built here has been removed.
+  //  All preview controls — Chart/Pixel/Realistic, quality level, coverage,
+  //  grid overlay, fabric background — now live in the Sidebar Preview tab.)
+
+  // Source-image overlay toggle — replaces the old Preview dropdown in the top
+  // toolbar. The Preview chart-mode/coverage controls now live in the Sidebar
+  // Preview tab (less duplication, more room here for editing tools). The
+  // overlay is the one display affordance that's most useful while editing.
+  var overlayBtn = (gen.img && gen.img.src) ? h("button", {
+    className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
+    onClick:function(){ cv.setShowOverlay(function(v){return !v;}); },
+    title:"Toggle source image overlay (O)",
+    "aria-label":"Toggle source image overlay",
+    "aria-pressed": cv.showOverlay ? "true" : "false"
+  }, "Overlay") : null;
+  var overlayOpacityCtl = (gen.img && gen.img.src && cv.showOverlay) ? h("input", {
+    type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
+    onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
+    title:"Overlay opacity",
+    "aria-label":"Overlay opacity",
+    style:{width:60}
+  }) : null;
 
   var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:app.overflowRef},
     h("button", {
@@ -639,27 +514,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     }, "\u00B7\u00B7\u00B7"),
     overflowMenu
   );
-
-  // Split view toggle button
-  var svgSplit = h("svg", {width:14,height:12,viewBox:"0 0 14 12",fill:"none"},
-    h("rect",{x:"0.7",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"}),
-    h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
-  );
-  var splitBtn = h("button", {
-    className: "tb-btn tb-btn--compare" + (app.splitPaneEnabled ? " tb-btn--on" : ""),
-    title: app.splitPaneEnabled
-      ? "Exit compare view (\\)"
-      : "Compare chart vs realistic preview (\\)",
-    "aria-label": app.splitPaneEnabled ? "Exit compare view" : "Compare chart vs realistic preview",
-    "aria-pressed": app.splitPaneEnabled ? "true" : "false",
-    disabled: !(ctx.pat && ctx.pal),
-    onClick: function() {
-      var next = !app.splitPaneEnabled;
-      app.setSplitPaneEnabled(next);
-      if (typeof UserPrefs !== "undefined") UserPrefs.set("splitPaneEnabled", next);
-    },
-    style: { opacity: (ctx.pat && ctx.pal) ? 1 : 0.4 }
-  }, svgSplit, !sc.bs ? " Compare" : null);
 
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
@@ -674,10 +528,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           toolBadge,
           zoomGrp,
           undoRedo,
-          h("div", {className:"tb-sdiv"}),
-          previewDropWrap,
-          h("div", {className:"tb-sdiv"}),
-          splitBtn,
+          overlayBtn && h("div", {className:"tb-sdiv"}),
+          overlayBtn,
+          overlayOpacityCtl,
           h("div", {className:"tb-sdiv"}),
           overflowWrap
         )

@@ -85,8 +85,20 @@ window.useCreatorState = function useCreatorState() {
   // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
   var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
 
-  // Sidebar tab within current mode (mode-specific)
-  var _sidebarTab = useState("settings"); var sidebarTab = _sidebarTab[0], setSidebarTab = _sidebarTab[1];
+  // Sidebar tab within current mode (mode-specific).
+  // Create mode tabs: "image" | "dimensions" | "palette" | "preview" | "project".
+  // Legacy "settings" (pre-2026-04 toolbar rework) is remapped to "image".
+  var _sidebarTab = useState(function () {
+    var v = loadUserPref("creator.sidebarTab", null);
+    if (v === "settings") return "image";
+    return v || "image";
+  });
+  var sidebarTab = _sidebarTab[0], _setSidebarTabRaw = _sidebarTab[1];
+  function setSidebarTab(v) {
+    if (v === "settings") v = "image"; // back-compat for any caller still passing the old id
+    _setSidebarTabRaw(v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.sidebarTab", v); } catch (_) {}
+  }
 
   // UI state
   // B3: top-level Creator pages collapsed to 3 — 'pattern' | 'project' | 'materials'.
@@ -473,6 +485,7 @@ window.useCreatorState = function useCreatorState() {
 
   var stitchType = partialStitchTool ? partialStitchTool
     : activeTool === "backstitch" ? "backstitch"
+    : activeTool === "eraseAll" ? "erase"
     : (activeTool === "paint" || activeTool === "fill") ? "cross"
     : null;
 

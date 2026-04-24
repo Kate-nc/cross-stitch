@@ -111,6 +111,11 @@ window.Icons = (function() {
     eye: function() {
       return svg(p('M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'), c(12,12,3));
     },
+    // Image / picture — replaces 🖼 / 🖼️ (used by the source-image overlay
+    // toggle in the Pattern Creator toolbar).
+    image: function() {
+      return svg(rc(3,3,18,18,2), c(8.5,8.5,1.5), pl('21 15 16 10 5 21'));
+    },
     // Pencil — replaces ✏️
     pencil: function() {
       return svg(p('M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'));
@@ -363,6 +368,11 @@ window.Icons = (function() {
         pl('3 3 3 8 8 8')
       );
     },
+    // Hamburger menu — three horizontal lines. Used by the Tracker's
+    // left-sidebar opener (added with the Tracker toolbar rework).
+    menu: function() {
+      return svg(l(3, 6, 21, 6), l(3, 12, 21, 12), l(3, 18, 21, 18));
+    },
     // Chevron up — replaces ▲ ↑
     chevronUp: function() {
       return svg(pl('18 15 12 9 6 15'));
@@ -374,6 +384,10 @@ window.Icons = (function() {
     // Chevron right — replaces ▶ ›
     chevronRight: function() {
       return svg(pl('9 6 15 12 9 18'));
+    },
+    // Chevron left — mirror of chevronRight, replaces ◀ ‹
+    chevronLeft: function() {
+      return svg(pl('15 6 9 12 15 18'));
     },
     // Help — question-mark in a circle. Used by the Header help affordance.
     help: function() {
