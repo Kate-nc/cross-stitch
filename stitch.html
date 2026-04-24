@@ -48,6 +48,7 @@ window.loadPdfStack = function() {
 <script src="backup-restore.js"></script>
 <script src="sync-engine.js"></script>
 <script src="user-prefs.js"></script>
+<script src="apply-prefs.js"></script>
 <script src="toast.js"></script>
 <script src="onboarding.js"></script>
 <script>window.__csPageKind = 'tracker';</script>
@@ -58,14 +59,6 @@ window.loadPdfStack = function() {
 <a class="skip-to-content" href="#root">Skip to content</a>
 <div id="root"></div>
 <script type="text/babel" src="tracker-app.js"></script>
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('SW registered, scope:', reg.scope))
-        .catch(err => console.error('SW registration failed:', err));
-    });
-  }
-</script>
+<script src="./sw-register.js"></script>
 </body>
 </html>

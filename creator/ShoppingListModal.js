@@ -60,7 +60,7 @@
         if (!p || p.id === '__skip__' || p.id === '__empty__') return;
         var stitches = p.count || 0;
         var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
-          ? p.id.split('+').map(function (s) { return s.trim(); }).filter(Boolean)
+          ? splitBlendId(p.id)
           : [p.id];
         ids.forEach(function (id) {
           if (!perId[id]) perId[id] = { stitches: 0, fromBlend: ids.length > 1 };
@@ -81,7 +81,7 @@
         // Brand resolution: try DMC first, then Anchor. The matching brand's
         // composite stash key is used to look up owned counts.
         var info = null, brand = 'dmc';
-        if (typeof DMC !== 'undefined') info = DMC.find(function (d) { return d.id === id; });
+        info = findThreadInCatalog('dmc', id);
         if (!info && typeof ANCHOR !== 'undefined') {
           info = ANCHOR.find(function (d) { return d.id === id; });
           if (info) brand = 'anchor';

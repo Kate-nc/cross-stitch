@@ -64,9 +64,12 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
         meta && React.createElement('span', { className: 'tb-context-meta' }, meta),
         showAutosaved && React.createElement('span', {
           className: 'tb-context-meta',
-          style: { color:'#16a34a', fontSize:11 },
+          style: { color:'#16a34a', fontSize:11, display:'inline-flex', alignItems:'center', gap:4 },
           title: 'Your work auto-saves to this device. Use Download to export a .json file.'
-        }, '✓ Auto-saved'),
+        },
+          (window.Icons && window.Icons.check) ? window.Icons.check() : null,
+          'Auto-saved'
+        ),
         pct !== null && React.createElement('span', { className: 'tb-context-pct' },
           React.createElement('span', { className: 'tb-context-pct-bar' },
             React.createElement('span', { className: 'tb-context-pct-fill', style: { width: pct + '%' } })
@@ -142,7 +145,9 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     var reader = new FileReader();
     reader.onload = function () {
       try {
-        var backup = JSON.parse(reader.result);
+        // PERF (deferred-2): parseBackupText handles both legacy JSON files
+        // and the new CSB1\n compressed format.
+        var backup = BackupRestore.parseBackupText(reader.result);
         var check = BackupRestore.validate(backup);
         if (!check.valid) { (window.Toast ? window.Toast.show({ message: check.error, type: 'error' }) : alert(check.error)); return; }
         var s = check.summary;
@@ -281,8 +286,15 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   className: 'tb-proj-badge-name tb-proj-badge-name--editable',
                   onClick: function(e) { e.stopPropagation(); setEditingName(true); },
                   title: 'Click to rename',
-                  'aria-label': 'Rename project'
-                }, propProjectName || projName))
+                  'aria-label': 'Rename project',
+                  style: { display: 'inline-flex', alignItems: 'center', gap: 4 }
+                },
+                propProjectName || projName,
+                React.createElement('span', {
+                  style: { opacity: 0.45, lineHeight: 1, display: 'inline-flex', alignItems: 'center' },
+                  'aria-hidden': 'true'
+                }, Icons.pencil())
+              ))
             : React.createElement('span', { className: 'tb-proj-badge-name' }, propProjectName || projName),
           (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) !== null && React.createElement('span', { className: 'tb-proj-badge-pct' }, (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) + '%'),
           showAutosaved && React.createElement('span', {

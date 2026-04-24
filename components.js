@@ -1,3 +1,6 @@
+function calculateTooltipPosition(x, width){
+  return Math.max(width/2+8,Math.min(x,window.innerWidth-width/2-8));
+}
 function Tooltip({text,children,width=180}){
   const[show,setShow]=React.useState(false);
   const[pos,setPos]=React.useState({x:0,y:0});
@@ -16,7 +19,7 @@ function Tooltip({text,children,width=180}){
     children,
     show&&ReactDOM.createPortal(
       React.createElement("div",{style:{
-        position:"fixed",left:Math.max(width/2+8,Math.min(pos.x,window.innerWidth-width/2-8)),top:pos.y-10,
+        position:"fixed",left:calculateTooltipPosition(pos.x,width),top:pos.y-10,
         transform:"translate(-50%,-100%)",
         background:"#1e293b",color:"#fff",fontSize:11,lineHeight:"1.45",
         padding:"6px 10px",borderRadius:7,maxWidth:width,width:"max-content",
@@ -94,7 +97,6 @@ var ProgressRing=React.memo(function ProgressRing({percent, size}){
 });
 
 var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettings, onOpenStats, currentAutoSession}){
-  try {
     var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
     var todayStitches = getStatsTodayStitches(statsSessions || [], dayEndHour);
     var todaySeconds = getStatsTodaySeconds(statsSessions || [], dayEndHour);
@@ -148,7 +150,6 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
         )
       )
     );
-  } catch(e) { console.warn('Stats: MiniStatsBar render error', e); return null; }
 });
 
 var OverviewCards=React.memo(function OverviewCards({statsSessions, totalCompleted, totalStitches, halfStitchCounts, useActiveDays}){
@@ -193,7 +194,6 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
   var showAll = showSt[0], setShowAll = showSt[1];
   var editSt = React.useState(null);
   var editingId = editSt[0], setEditingId = editSt[1];
-  try {
   var colourMap = {};
   if (palette) { for (var pi = 0; pi < palette.length; pi++) { var pc = palette[pi]; if (pc.id && pc.rgb) colourMap[pc.id] = pc; } }
   var grouped = groupSessionsByDate(sessions || []);
@@ -247,13 +247,11 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
     React.createElement("div", {className:"timeline-track"}, timelineEntries),
     !showAll && sessions && sessions.length > 10 && React.createElement("button", {className:"timeline-show-all", onClick:function(){ setShowAll(true); }}, "View all " + sessions.length + " sessions")
   );
-  } catch(e) { console.warn('Stats: SessionTimeline render error', e); return React.createElement("p", {style:{color:'#94a3b8',fontSize:13}}, "Could not load timeline."); }
 }
 
 // ═══ Phase B: Charts & Milestones ═══
 
 var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches, targetDate, whatIfPace}){
-  try {
   var data = getCumulativeProgressData(sessions);
   if (data.length < 2) return React.createElement("p", {className:"stats-empty"}, "Start stitching to see your progress chart");
   var width = 600, height = 130;
@@ -320,11 +318,9 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
       wiLine ? React.createElement("span", null, React.createElement("span", {className:"legend-line dashed", style:{borderColor:'#f59e0b'}}), "What-if") : null
     )
   );
-  } catch(e) { console.warn('Stats: CumulativeChart render error', e); return null; }
 });
 
 var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysToShow, dayEndHour}){
-  try {
   daysToShow = daysToShow || 14;
   var data = getDailyStitchData(sessions, daysToShow, dayEndHour);
   var maxVal = 1;
@@ -366,13 +362,11 @@ var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysTo
       React.createElement("span", null, "Today")
     )
   );
-  } catch(e) { console.warn('Stats: DailyBarChart render error', e); return null; }
 });
 
 // ═══ Phase E: Speed Trend Chart ═══
 
 var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
-  try {
   var raw = getSpeedTrendData(sessions);
   if (raw.length < 3) return React.createElement("p", {className:"stats-empty"}, "Need more sessions (≥10 min each) to show speed trend");
   var data = getRollingAverage(raw);
@@ -418,13 +412,11 @@ var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
       React.createElement("span", null, React.createElement("span", {className:"legend-line solid", style:{borderColor:'#0d9488'}}), "7-session avg")
     )
   );
-  } catch(e) { console.warn('Stats: SpeedTrendChart render error', e); return null; }
 });
 
 // ═══ Phase E: Colour Timeline ═══
 
 var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colourDoneCounts}){
-  try {
   var timeline = getColourTimeline(sessions);
   if (!palette || palette.length === 0) return null;
   var hasAnyData = false;
@@ -456,7 +448,7 @@ var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colour
         React.createElement("div", {className:"colour-tl-bar"},
           React.createElement("div", {className:"colour-tl-bar-fill", style:{width:pctDone + '%', background:'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')'}})
         ),
-        React.createElement("span", {className:"colour-tl-pct"}, isComplete ? '✓' : pctDone + '%')
+        React.createElement("span", {className:"colour-tl-pct"}, isComplete ? (window.Icons ? window.Icons.check() : null) : pctDone + '%')
       )
     ));
   }
@@ -465,7 +457,6 @@ var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colour
     !hasAnyData && React.createElement("p", {className:"stats-empty", style:{marginTop:8}}, "Colour tracking data will appear as you stitch"),
     React.createElement("div", {className:"colour-tl-list"}, rows)
   );
-  } catch(e) { console.warn('Stats: ColourTimeline render error', e); return null; }
 });
 
 // ═══ Phase E: Monthly Calendar view ═══
@@ -625,9 +616,9 @@ function DailyGoalSetting({currentGoal, avgPerDay, remaining, onSet}){
         onChange:function(e){ setValue(e.target.value); },
         placeholder:"e.g. 300", className:"goal-input"}),
       React.createElement("button", {className:"goal-set-btn", onClick:function(){
-        var v = parseInt(value);
+        var v = parseInt(value, 10);
         onSet(v > 0 ? v : null);
-      }}, value && parseInt(value) > 0 ? 'Set goal' : 'Clear goal')
+      }}, value && parseInt(value, 10) > 0 ? 'Set goal' : 'Clear goal')
     ),
     presets.length > 0 && React.createElement("div", {className:"goal-presets"},
       presets.map(function(p){ return React.createElement("button", {key:p.label, className:"goal-preset-btn" + (currentGoal === p.value ? ' active' : ''), onClick:function(){ setValue(String(p.value)); onSet(p.value); }}, p.label + ' (' + p.value + ')'); })
@@ -790,7 +781,6 @@ function MilestoneCelebration({milestone, onDismiss}){
 }
 
 function ColourProgress({palette, colourDoneCounts, sessions}){
-  try {
     if (!palette || palette.length === 0) return null;
     var colourStats = [];
     var coloursComplete = 0;
@@ -840,7 +830,6 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
         })
       )
     );
-  } catch(e) { console.warn('Stats: ColourProgress render error', e); return null; }
 }
 
 // ═══ Visual Progress: Section completion grid ═══
@@ -881,7 +870,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
         var idx=y*sW+x;
         var cell=pat[idx];
         if(!cell||cell.id==='__skip__'||cell.id==='__empty__')continue;
-        var ids=cell.type==='blend'?cell.id.split('+'):[cell.id];
+        var ids=cell.type==='blend'?splitBlendId(cell.id):[cell.id];
         ids.forEach(function(cid){
           if(!counts[cid])counts[cid]={total:0,doneCount:0};
           counts[cid].total++;
@@ -1042,7 +1031,10 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
         return[...labelled,...autos];
       });
       setLabelText('');
-    }catch(e){console.warn('Snapshot save error',e);}
+    }catch(e){
+      console.warn('Snapshot save error',e);
+      try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save snapshot \u2014 try again.', type: 'error'}); } catch(_){}
+    }
   }
 
   var snapDone=snap?decompressSnap(snap.data):null;
@@ -1382,7 +1374,6 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       ProjectStorage.listProjects().then(function(list) { setHasMultiProjects(list.length >= 2); }).catch(function(){});
     }
   }, []);
-  try {
   var useActiveDays = statsSettings && statsSettings.useActiveDays !== false;
   var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches, useActiveDays);
   var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.avgPerDay);
@@ -1531,7 +1522,6 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       React.createElement("p", {style:{fontSize:11, color:'#94a3b8', margin:'4px 0 0'}}, "Affects average stitches/day calculation")
     )
   );
-  } catch(e) { console.warn('Stats: StatsDashboard render error', e); return React.createElement("p", {style:{color:'#dc2626',fontSize:13}}, "Stats error \u2014 see console."); }
 }
 
 const pill=a=>({padding:"5px 14px",fontSize:12,borderRadius:8,cursor:"pointer",border:a?"1px solid #99f6e4":"0.5px solid #e2e8f0",background:a?"#f0fdfa":"#fff",fontWeight:a?600:400,color:a?"#0d9488":"#475569"});
@@ -1607,8 +1597,8 @@ function InsightIcon({type}) {
   return React.createElement('span', {style: {display: 'inline-flex', alignItems: 'center', fontSize: 16}}, icon);
 }
 
-var CS_GLOBAL_GOALS_KEY = 'cs_global_goals';
-var CS_GLOBAL_GOALS_COMPAT_KEY = 'cs_stats_settings';
+var CS_GLOBAL_GOALS_KEY = (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.globalGoals : 'cs_global_goals';
+var CS_GLOBAL_GOALS_COMPAT_KEY = (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.globalGoalsCompat : 'cs_stats_settings';
 function normaliseGlobalGoals(goals) {
   goals = goals && typeof goals === 'object' ? goals : {};
   return {
@@ -1669,26 +1659,23 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
           return;
         }
         ProjectStorage.buildAllStatsSummaries().then(function(built) {
-          setProjectSummaries(Array.isArray(built) ? built : []);
+          setProjectSummaries(built);
           setLoading(false);
         }).catch(function() {
           setProjectSummaries([]);
           setLoading(false);
         });
       };
-      if (typeof ProjectStorage.getAllStatsSummaries === 'function') {
-        ProjectStorage.getAllStatsSummaries().then(function(summaries) {
-          if (Array.isArray(summaries) && summaries.length) {
-            setProjectSummaries(summaries);
-            setLoading(false);
-            return;
-          }
-          rebuild();
-        }).catch(rebuild);
-        return;
-      }
-      rebuild();
+      ProjectStorage.getAllStatsSummaries().then(function(summaries) {
+        if (Array.isArray(summaries) && summaries.length) {
+          setProjectSummaries(summaries);
+          setLoading(false);
+          return;
+        }
+        rebuild();
+      }).catch(rebuild);
     };
+    // __flushProjectToIDB is only present on tracker/stats page
     if (typeof window.__flushProjectToIDB === 'function') {
       window.__flushProjectToIDB().then(doLoad).catch(doLoad);
     } else {
@@ -1899,6 +1886,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
             }).catch(function() { setLoading(false); });
           };
           if (typeof window.__flushProjectToIDB === 'function') {
+            // only present on tracker/stats page
             window.__flushProjectToIDB().then(doRefresh).catch(doRefresh);
           } else { doRefresh(); }
         }, style: {fontSize: 13, padding: '4px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '↻ Refresh'),
@@ -2077,6 +2065,27 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
   );
 }
 
+// StatsErrorBoundary: prevents a single broken chart from crashing the
+// whole stats modal. Required because the per-chart try/catch wrappers were
+// removed in favour of a proper error boundary (code-quality-07 follow-up).
+class StatsErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error: error }; }
+  componentDidCatch(error, info) { try { console.error('Stats render error:', error, info); } catch (_) {} }
+  render() {
+    if (this.state.error) {
+      return React.createElement('div', {
+        style: {padding: '20px', textAlign: 'center', color: '#dc2626', fontSize: 13, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, margin: '12px'}
+      },
+        React.createElement('div', {style: {fontWeight: 600, marginBottom: 6}}, 'Stats failed to render'),
+        React.createElement('div', {style: {fontSize: 11, color: '#7f1d1d'}}, String(this.state.error && this.state.error.message || this.state.error || 'Unknown error'))
+      );
+    }
+    return this.props.children;
+  }
+}
+if (typeof window !== 'undefined') window.StatsErrorBoundary = StatsErrorBoundary;
+
 // StatsContainer: tab bar wrapping GlobalStatsDashboard or per-project StatsDashboard
 function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, statsSessions, statsSettings, onUpdateSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, projectName, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, onOpenProject}) {
   var _projects = React.useState([]);
@@ -2147,12 +2156,14 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
 
   return React.createElement('div', {className: 'stats-container'},
     tabBar,
-    React.createElement('div', {className: 'stats-container-body'}, content)
+    React.createElement('div', {className: 'stats-container-body'},
+      React.createElement(StatsErrorBoundary, null, content)
+    )
   );
 }
 
 
-// --- EmptyState � shared coaching empty-state card ---------------------
+// --- EmptyState � shared coaching empty-state card ---------------------
 // Used on Manager (Patterns/Threads), Home (no projects), and Stats (no data).
 // Props: { icon, title, description, ctaLabel, ctaAction, secondaryLabel?, secondaryAction? }
 function EmptyState(props) {

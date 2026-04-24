@@ -60,11 +60,88 @@ const SharedModals = {
       );
     }, [search]);
 
+    function renderSwapBanner() {
+      if (!swapCandidate) return null;
+      return React.createElement("div", { style: { margin: "0 0 12px 0", padding: "12px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8 } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 8 } },
+          `DMC ${swapCandidate.id} is already assigned to another symbol.`
+        ),
+        React.createElement("div", { style: { fontSize: 12, color: "#475569", marginBottom: 10 } },
+          `Swap the two symbols' colour assignments? Both symbols will keep their shapes — only their thread colours will exchange.`
+        ),
+        React.createElement("div", { style: { display: "flex", gap: 8 } },
+          React.createElement("button", {
+            onClick: () => {
+              if (onSwap && pal) {
+                const conflictingPalEntry = pal.find(p => p.id === swapCandidate.id);
+                if (conflictingPalEntry) onSwap(conflictingPalEntry);
+              }
+            },
+            style: { padding: "7px 14px", fontSize: 13, background: "#d97706", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }
+          }, "Swap Colours"),
+          React.createElement("button", {
+            onClick: () => setSwapCandidate(null),
+            style: { padding: "7px 14px", fontSize: 13, background: "#fff", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer" }
+          }, "Cancel")
+        )
+      );
+    }
+
+    function renderEmptyThreadList() {
+      return React.createElement("div", { style: { padding: 20, textAlign: "center" } },
+        React.createElement("div", { style: { color: "#475569", fontSize: 14, marginBottom: 12 } }, "No threads found."),
+        search.trim() !== "" ? React.createElement("button", {
+          onClick: () => {
+            if (usedThreads.includes(search.trim())) {
+              alert(`Thread ${search.trim()} is already assigned to another symbol.`);
+              return;
+            }
+            onSelect({
+              id: search.trim(),
+              name: "Unknown Thread",
+              rgb: [200, 200, 200],
+              lab: [80, 0, 0]
+            });
+          },
+          style: { padding: "8px 16px", fontSize: 13, background: "#0d9488", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 }
+        }, `Use "${search.trim()}" anyway`) : null
+      );
+    }
+
+    function renderThreadListItem(t) {
+      const isCurrent = t.id === currentThreadId;
+      const isUsed = usedThreads.includes(t.id) && !isCurrent;
+      const isSwapCandidate = swapCandidate && swapCandidate.id === t.id;
+      return React.createElement("div", {
+        key: t.id,
+        onClick: () => {
+          if (isUsed) {
+            setSwapCandidate(t);
+            return;
+          }
+          onSelect(t);
+        },
+        style: {
+          display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #f1f5f9",
+          background: isCurrent ? "#f0fdfa" : isSwapCandidate ? "#fffbeb" : (isUsed ? "#f8f9fa" : "#fff"),
+          cursor: isUsed ? "pointer" : "pointer",
+          opacity: 1
+        }
+      },
+        React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 } }),
+        React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "#1e293b" } }, "DMC " + t.id),
+        React.createElement("div", { style: { fontSize: 13, color: "#475569", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
+        isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#0d9488", background: "#ccfbf1", padding: "2px 8px", borderRadius: 10 } }, "Current"),
+        isUsed && !isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 } }, "In Use — tap to swap"),
+        isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fde68a", padding: "2px 8px", borderRadius: 10 } }, "Swap?")
+      );
+    }
+
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
       React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "80vh" } },
         React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
         React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 20, color: "#1e293b" } },
-          "Reassign Thread for ",
+          "Choose a different colour for ",
           React.createElement("span", { style: { fontFamily: "monospace", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, border: "1px solid #e2e8f0" } }, currentSymbol)
         ),
 
@@ -79,80 +156,10 @@ const SharedModals = {
           })
         ),
 
-        // Swap confirmation banner — shown when user clicks an "In Use" thread
-        swapCandidate && React.createElement("div", { style: { margin: "0 0 12px 0", padding: "12px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8 } },
-          React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 8 } },
-            `DMC ${swapCandidate.id} is already assigned to another symbol.`
-          ),
-          React.createElement("div", { style: { fontSize: 12, color: "#475569", marginBottom: 10 } },
-            `Swap the two symbols' colour assignments? Both symbols will keep their shapes — only their thread colours will exchange.`
-          ),
-          React.createElement("div", { style: { display: "flex", gap: 8 } },
-            React.createElement("button", {
-              onClick: () => {
-                if (onSwap && pal) {
-                  // Find the palette entry that holds swapCandidate.id (the conflicting symbol)
-                  const conflictingPalEntry = pal.find(p => p.id === swapCandidate.id);
-                  if (conflictingPalEntry) onSwap(conflictingPalEntry);
-                }
-              },
-              style: { padding: "7px 14px", fontSize: 13, background: "#d97706", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }
-            }, "Swap Colours"),
-            React.createElement("button", {
-              onClick: () => setSwapCandidate(null),
-              style: { padding: "7px 14px", fontSize: 13, background: "#fff", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer" }
-            }, "Cancel")
-          )
-        ),
+        renderSwapBanner(),
 
         React.createElement("div", { style: { flex: 1, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 8 } },
-          filteredThreads.length === 0 ? React.createElement("div", { style: { padding: 20, textAlign: "center" } },
-            React.createElement("div", { style: { color: "#475569", fontSize: 14, marginBottom: 12 } }, "No threads found."),
-            search.trim() !== "" ? React.createElement("button", {
-              onClick: () => {
-                if (usedThreads.includes(search.trim())) {
-                  alert(`Thread ${search.trim()} is already assigned to another symbol.`);
-                  return;
-                }
-                onSelect({
-                  id: search.trim(),
-                  name: "Unknown Thread",
-                  rgb: [200, 200, 200],
-                  lab: [80, 0, 0]
-                });
-              },
-              style: { padding: "8px 16px", fontSize: 13, background: "#0d9488", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 }
-            }, `Use "${search.trim()}" anyway`) : null
-          ) :
-          filteredThreads.map(t => {
-            const isCurrent = t.id === currentThreadId;
-            const isUsed = usedThreads.includes(t.id) && !isCurrent;
-            const isSwapCandidate = swapCandidate && swapCandidate.id === t.id;
-            return React.createElement("div", {
-              key: t.id,
-              onClick: () => {
-                if (isUsed) {
-                  // Offer swap instead of blocking with an alert
-                  setSwapCandidate(t);
-                  return;
-                }
-                onSelect(t);
-              },
-              style: {
-                display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #f1f5f9",
-                background: isCurrent ? "#f0fdfa" : isSwapCandidate ? "#fffbeb" : (isUsed ? "#f8f9fa" : "#fff"),
-                cursor: isUsed ? "pointer" : "pointer",
-                opacity: 1
-              }
-            },
-              React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 } }),
-              React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "#1e293b" } }, "DMC " + t.id),
-              React.createElement("div", { style: { fontSize: 13, color: "#475569", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
-              isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#0d9488", background: "#ccfbf1", padding: "2px 8px", borderRadius: 10 } }, "Current"),
-              isUsed && !isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 } }, "In Use — tap to swap"),
-              isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fde68a", padding: "2px 8px", borderRadius: 10 } }, "Swap?")
-            );
-          })
+          filteredThreads.length === 0 ? renderEmptyThreadList() : filteredThreads.map(renderThreadListItem)
         )
       )
     );
@@ -516,6 +523,117 @@ function SyncConflictCard({ entry, resolution, onResolve }) {
     ),
     resolution && h('div', { className: 'sync-conflict-resolved-label' },
       Icons.check(), ' ' + choices.find(function(c) { return c.val === resolution; }).label
+    )
+  );
+}
+
+// ═══ Edit Project Details Modal ═══
+// Lets users rename a project and edit its designer / description from the
+// Home dashboard "…" menu or the Tracker overflow menu — anywhere the Creator
+// sidebar "Project info" section isn't visible.
+//
+// Props:
+//   projectId   — string ID of the project to edit (used to load+save via
+//                 ProjectStorage). Pass null to run in "in-memory only" mode.
+//   name        — initial name string
+//   designer    — initial designer string (optional)
+//   description — initial description string (optional)
+//   onSave      — callback({ name, designer, description }) called after a
+//                 successful save (or immediately in in-memory mode)
+//   onClose     — callback to dismiss the modal without saving
+function EditProjectDetailsModal({ projectId, name: initName, designer: initDesigner, description: initDesc, onSave, onClose }) {
+  var h = React.createElement;
+  var _n = React.useState(initName || '');
+  var name = _n[0], setName = _n[1];
+  var _d = React.useState(initDesigner || '');
+  var designer = _d[0], setDesigner = _d[1];
+  var _ds = React.useState(initDesc || '');
+  var desc = _ds[0], setDesc = _ds[1];
+  var _saving = React.useState(false);
+  var saving = _saving[0], setSaving = _saving[1];
+  var _err = React.useState(null);
+  var err = _err[0], setErr = _err[1];
+
+  var nameRef = React.useRef(null);
+  React.useEffect(function() { if (nameRef.current) nameRef.current.select(); }, []);
+  window.useEscape(onClose);
+
+  function handleSave() {
+    var trimmedName = (name || '').trim().slice(0, 60);
+    if (!trimmedName) { setErr('Please enter a name.'); return; }
+    var trimmedDesigner = (designer || '').trim().slice(0, 80);
+    var trimmedDesc = (desc || '').trim().slice(0, 300);
+    var updated = { name: trimmedName, designer: trimmedDesigner, description: trimmedDesc };
+
+    if (!projectId || typeof ProjectStorage === 'undefined') {
+      // In-memory mode: no IDB write needed (caller owns the state)
+      onSave(updated);
+      return;
+    }
+
+    setSaving(true);
+    ProjectStorage.get(projectId).then(function(project) {
+      if (!project) throw new Error('Project not found.');
+      project.name = trimmedName;
+      project.designer = trimmedDesigner;
+      project.description = trimmedDesc;
+      return ProjectStorage.save(project);
+    }).then(function() {
+      onSave(updated);
+    }).catch(function(e) {
+      setSaving(false);
+      setErr('Could not save: ' + (e && e.message ? e.message : 'Unknown error'));
+    });
+  }
+
+  var inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border, #e2e8f0)', fontSize: 14, boxSizing: 'border-box', background: 'var(--surface, #fff)', color: 'var(--text-primary, #1e293b)' };
+  var labelStyle = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #475569)' };
+
+  return h('div', { className: 'modal-overlay', onClick: onClose },
+    h('div', { className: 'modal-content', onClick: function(e) { e.stopPropagation(); }, style: { maxWidth: 420 } },
+      h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '\u00d7'),
+      h('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 18, color: 'var(--text-primary, #1e293b)', display: 'flex', alignItems: 'center', gap: 8 } },
+        Icons.pencil(), ' Edit project details'
+      ),
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
+        h('label', { style: labelStyle },
+          'Pattern name',
+          h('input', {
+            ref: nameRef, type: 'text', maxLength: 60, value: name,
+            onChange: function(e) { setName(e.target.value); setErr(null); },
+            onKeyDown: function(e) { if (e.key === 'Enter') handleSave(); },
+            placeholder: 'e.g. Rose Garden',
+            style: inputStyle,
+            disabled: saving
+          })
+        ),
+        h('label', { style: labelStyle },
+          'Designer (optional)',
+          h('input', {
+            type: 'text', maxLength: 80, value: designer,
+            onChange: function(e) { setDesigner(e.target.value); },
+            placeholder: 'Your name or studio',
+            style: inputStyle,
+            disabled: saving
+          })
+        ),
+        h('label', { style: labelStyle },
+          'Description (optional)',
+          h('textarea', {
+            maxLength: 300, value: desc,
+            onChange: function(e) { setDesc(e.target.value); },
+            placeholder: 'A short note about this pattern\u2026',
+            rows: 3,
+            style: Object.assign({}, inputStyle, { resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }),
+            disabled: saving
+          })
+        )
+      ),
+      err && h('p', { style: { margin: '10px 0 0', fontSize: 12, color: '#dc2626' } }, err),
+      h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 } },
+        h('button', { onClick: onClose, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border, #e2e8f0)', background: 'var(--surface, #fff)', cursor: 'pointer', color: 'var(--text-primary, #1e293b)' } }, 'Cancel'),
+        h('button', { onClick: handleSave, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#0d9488', color: '#fff', cursor: saving ? 'wait' : 'pointer', fontWeight: 600 } }, saving ? 'Saving\u2026' : 'Save')
+      )
     )
   );
 }

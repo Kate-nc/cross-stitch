@@ -497,7 +497,7 @@ function SubstituteFromStashModalInner(props) {
       localProposal.substitutions.forEach(function(sub) {
         if (enabledMap[makeKey(sub)] === false) return;
         var target = overrides[makeKey(sub)] || sub.selectedTarget;
-        var dmcEntry = DMC.find(function(d) { return d.id === target.id; });
+        var dmcEntry = findThreadInCatalog('dmc', target.id);
         if (dmcEntry) remap[sub.sourceId] = dmcEntry;
       });
       setSubstitutedThumb(renderSubstitutionPreview(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches, remap));

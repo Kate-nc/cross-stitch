@@ -143,7 +143,9 @@ describe('index.html — Babel cache keys', () => {
   const html = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 
   test('STATS_CACHE_KEY is defined', () => {
-    expect(html).toMatch(/STATS_CACHE_KEY\s*=\s*'babel_stats_v\d+'/);
+    // Accept both legacy `babel_stats_v\d+` and the new content-hash form
+    // (`babel_stats_<10-hex-chars>`) auto-bumped by build-creator-bundle.js.
+    expect(html).toMatch(/STATS_CACHE_KEY\s*=\s*'babel_stats_(v\d+|[0-9a-f]{10})'/);
   });
 
   test('loadStatsPage function is defined', () => {

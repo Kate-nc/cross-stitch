@@ -16,6 +16,16 @@ function _extractDmcId(key) {
   return key.slice(idx + 1);
 }
 
+// Plain helper (not a hook) — safe to call inside useState lazy initializers.
+// Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
+// (e.g. SSR or test environments) never throws during render.
+function loadUserPref(key, fallback) {
+  try {
+    if (typeof UserPrefs === "undefined") return fallback;
+    return UserPrefs.get(key);
+  } catch (_) { return fallback; }
+}
+
 window.useCreatorState = function useCreatorState() {
   var useState    = React.useState;
   var useRef      = React.useRef;
@@ -32,21 +42,26 @@ window.useCreatorState = function useCreatorState() {
   var _arLock = useState(true);       var arLock = _arLock[0], setArLock = _arLock[1];
   var _ar     = useState(1);          var ar     = _ar[0],     setAr     = _ar[1];
 
-  // Generation parameters
-  var _maxC   = useState(30);         var maxC   = _maxC[0],   setMaxC   = _maxC[1];
+  // Generation parameters (initial values come from Preferences › Pattern Creator)
+  var _maxC   = useState(function () { var v = loadUserPref("creatorDefaultPaletteSize", 30); return (typeof v === "number" && v > 0) ? v : 30; });
+  var maxC   = _maxC[0],   setMaxC   = _maxC[1];
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
   var _sat    = useState(0);          var sat    = _sat[0],    setSat    = _sat[1];
-  var _dith   = useState(false);      var dith   = _dith[0],   setDith   = _dith[1];
+  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); return v && v !== "off"; });
+  var dith   = _dith[0],   setDith   = _dith[1];
   var _skipBg = useState(false);      var skipBg = _skipBg[0], setSkipBg = _skipBg[1];
   var _bgTh   = useState(15);         var bgTh   = _bgTh[0],   setBgTh   = _bgTh[1];
   var _bgCol  = useState([255,255,255]); var bgCol = _bgCol[0], setBgCol = _bgCol[1];
   var _pickBg = useState(false);      var pickBg = _pickBg[0], setPickBg = _pickBg[1];
-  var _minSt  = useState(0);          var minSt  = _minSt[0],  setMinSt  = _minSt[1];
+  var _minSt  = useState(function () { var v = loadUserPref("creatorMinStitchesPerColour", 0); return (typeof v === "number" && v >= 0) ? v : 0; });
+  var minSt  = _minSt[0],  setMinSt  = _minSt[1];
   var _smooth = useState(0);          var smooth = _smooth[0], setSmooth = _smooth[1];
   var _sType  = useState("median");   var smoothType = _sType[0], setSmoothType = _sType[1];
-  var _orphans= useState(0);          var orphans = _orphans[0], setOrphans = _orphans[1];
-  var _blends = useState(true);       var allowBlends = _blends[0], setAllowBlends = _blends[1];
+  var _orphans= useState(function () { var v = loadUserPref("creatorOrphanRemovalStrength", 0); return (typeof v === "number" && v >= 0) ? v : 0; });
+  var orphans = _orphans[0], setOrphans = _orphans[1];
+  var _blends = useState(function () { var v = loadUserPref("creatorAllowBlends", true); return v !== false; });
+  var allowBlends = _blends[0], setAllowBlends = _blends[1];
 
   // Pattern data
   var _pat  = useState(null);         var pat  = _pat[0],  setPat  = _pat[1];
@@ -57,8 +72,13 @@ window.useCreatorState = function useCreatorState() {
   var _oH   = useState(0);            var origH = _oH[0],  setOrigH = _oH[1];
 
   // Fabric / floss settings
-  var _fabricCt    = useState(14);    var fabricCt = _fabricCt[0], setFabricCt = _fabricCt[1];
-  var _skeinPrice  = useState(typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 1.0);
+  var _fabricCt    = useState(function () { var v = loadUserPref("creatorDefaultFabricCount", 14); return (typeof v === "number" && v > 0) ? v : 14; });
+  var fabricCt = _fabricCt[0], setFabricCt = _fabricCt[1];
+  var _skeinPrice  = useState(function () {
+    var v = loadUserPref("skeinPriceDefault", undefined);
+    if (typeof v === "number" && isFinite(v) && v >= 0) return v;
+    return typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 1.0;
+  });
   var skeinPrice = _skeinPrice[0], setSkeinPrice = _skeinPrice[1];
   var _stitchSpeed = useState(40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
 
@@ -74,12 +94,14 @@ window.useCreatorState = function useCreatorState() {
   var _loadErr    = useState(null);      var loadError  = _loadErr[0],    setLoadError  = _loadErr[1];
   var _copied     = useState(null);      var copied     = _copied[0],     setCopied     = _copied[1];
   var _modal      = useState(null);      var modal      = _modal[0],      setModal      = _modal[1];
-  var _view       = useState("color");   var view       = _view[0],       setView       = _view[1];
+  var _view       = useState(function () { var v = loadUserPref("creatorDefaultViewMode", "colour"); return v === "colour" ? "color" : (v || "color"); });
+  var view       = _view[0],       setView       = _view[1];
   var _zoom       = useState(1);         var zoom       = _zoom[0],       setZoom       = _zoom[1];
   var _hiId       = useState(null);      var hiId       = _hiId[0],       setHiId       = _hiId[1];
   var _showCtr    = useState(true);      var showCtr    = _showCtr[0],    setShowCtr    = _showCtr[1];
   var _showOvl    = useState(false);     var showOverlay = _showOvl[0],   setShowOverlay = _showOvl[1];
-  var _ovlOp      = useState(0.3);       var overlayOpacity = _ovlOp[0], setOverlayOpacity = _ovlOp[1];
+  var _ovlOp      = useState(function () { var v = loadUserPref("creatorReferenceOpacity", 30); return (typeof v === "number" && v >= 0 && v <= 100) ? v / 100 : 0.3; });
+  var overlayOpacity = _ovlOp[0], setOverlayOpacity = _ovlOp[1];
   var _prevActive = useState(false);     var previewActive = _prevActive[0], setPreviewActive = _prevActive[1];
   var _prevGrid   = useState(false);     var previewShowGrid = _prevGrid[0], setPreviewShowGrid = _prevGrid[1];
   var _prevFabric = useState(false);     var previewFabricBg = _prevFabric[0], setPreviewFabricBg = _prevFabric[1];
@@ -89,13 +111,13 @@ window.useCreatorState = function useCreatorState() {
   var _covOvr     = useState(null);      var coverageOverride = _covOvr[0], setCoverageOverride = _covOvr[1];
 
   // Split-pane state — loaded from UserPrefs on init
-  var _spEn = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneEnabled") : false; } catch(_) { return false; } });
+  var _spEn = useState(function() { return loadUserPref("splitPaneEnabled", false); });
   var splitPaneEnabled = _spEn[0], setSplitPaneEnabled = _spEn[1];
-  var _spRatio = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneRatio") : 0.5; } catch(_) { return 0.5; } });
+  var _spRatio = useState(function() { return loadUserPref("splitPaneRatio", 0.5); });
   var splitPaneRatio = _spRatio[0], setSplitPaneRatio = _spRatio[1];
-  var _spSync = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneSyncEnabled") : true; } catch(_) { return true; } });
+  var _spSync = useState(function() { return loadUserPref("splitPaneSyncEnabled", true); });
   var splitPaneSyncEnabled = _spSync[0], setSplitPaneSyncEnabled = _spSync[1];
-  var _rpMode = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("rightPaneMode") : "level2"; } catch(_) { return "level2"; } });
+  var _rpMode = useState(function() { return loadUserPref("rightPaneMode", "level2"); });
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
   // Section open states
@@ -106,7 +128,14 @@ window.useCreatorState = function useCreatorState() {
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
   var _clOpen   = useState(false);   var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
-  var _sc       = useState({enabled:true,strength:"balanced",protectDetails:true,smoothDithering:true});
+  var _sc       = useState(function () {
+    return {
+      enabled:        loadUserPref("creatorStitchCleanup", true) !== false,
+      strength:       "balanced",
+      protectDetails: loadUserPref("creatorProtectDetails", true) !== false,
+      smoothDithering:loadUserPref("creatorSmoothDithering", true) !== false
+    };
+  });
   var stitchCleanup = _sc[0], setStitchCleanup = _sc[1];
   var _hasGen   = useState(false);   var hasGenerated = _hasGen[0], setHasGenerated = _hasGen[1];
 
@@ -181,7 +210,14 @@ window.useCreatorState = function useCreatorState() {
   var _altOpen  = useState(null);    var altOpen = _altOpen[0], setAltOpen = _altOpen[1];
 
   // Substitute from stash
-  var _stashOnly = useState(function() { try { return localStorage.getItem("cs_stashConstrained") === "true"; } catch(_) { return false; } });
+  var _stashOnly = useState(function() {
+    try {
+      var ls = localStorage.getItem("cs_stashConstrained");
+      if (ls === "true") return true;
+      if (ls === "false") return false;
+    } catch(_) {}
+    return loadUserPref("creatorStashOnlyDefault", false) === true;
+  });
   var stashConstrained = _stashOnly[0];
   function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
   var _subOpen  = useState(false);   var substituteModalOpen = _subOpen[0], setSubstituteModalOpen = _subOpen[1];
@@ -346,7 +382,7 @@ window.useCreatorState = function useCreatorState() {
       .sort(function(a, b) { var na = parseInt(a[0]) || 0, nb = parseInt(b[0]) || 0; if (na && nb) return na - nb; return a[0].localeCompare(b[0]); })
       .map(function(e) {
         var id = e[0], ct = e[1];
-        var t = DMC.find(function(d) { return d.id === id; });
+        var t = findThreadInCatalog('dmc', id);
         return { id: id, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: ct, skeins: skeinEst(ct, fabricCt) };
       });
   }, [pal, fabricCt]);
@@ -683,7 +719,7 @@ window.useCreatorState = function useCreatorState() {
           if ((globalStash[key].owned || 0) <= 0) return;
           var bareId = _extractDmcId(key);
           if (!bareId) return;
-          var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+          var dmcEntry = findThreadInCatalog('dmc', bareId);
           if (dmcEntry) allowedPalette.push(dmcEntry);
         });
       }
@@ -770,7 +806,7 @@ window.useCreatorState = function useCreatorState() {
       if ((globalStash[key].owned || 0) <= 0) return;
       var bareId = _extractDmcId(key);
       if (!bareId) return;
-      var d = DMC.find(function(e) { return e.id === bareId; });
+      var d = findThreadInCatalog('dmc', bareId);
       if (d) pool.push(d);
     });
     if (!pool.length) return;
@@ -819,7 +855,7 @@ window.useCreatorState = function useCreatorState() {
       if ((globalStash[key].owned || 0) <= 0) return;
       var bareId = _extractDmcId(key);
       if (!bareId) return;
-      var d = DMC.find(function(e) { return e.id === bareId; });
+      var d = findThreadInCatalog('dmc', bareId);
       if (d) pool.push(d);
     });
     if (!pool.length) return;
@@ -889,7 +925,7 @@ window.useCreatorState = function useCreatorState() {
       if ((globalStash[key].owned || 0) <= 0) return;
       var bareId = _extractDmcId(key);
       if (!bareId) return;
-      var d = DMC.find(function(e) { return e.id === bareId; });
+      var d = findThreadInCatalog('dmc', bareId);
       if (d) stashPal.push(d);
     });
     if (!stashPal.length) { setCoverageGaps(null); return; }
@@ -1068,7 +1104,7 @@ window.useCreatorState = function useCreatorState() {
         if ((globalStash[key].owned || 0) <= 0) return;
         var bareId = _extractDmcId(key);
         if (!bareId) return;
-        var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+        var dmcEntry = findThreadInCatalog('dmc', bareId);
         if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[key].owned });
       });
       entries.sort(function(a, b) {

@@ -31,7 +31,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var rows = useMemo(function() {
     if (!(ctx.pat && ctx.pal)) return [];
     return ctx.pal.map(function(p) {
-      var key = 'dmc:' + p.id;
+      var key = threadKey('dmc', p.id);
       var stashEntry = stash[key] || {};
       var owned = stashEntry.owned || 0;
 
@@ -182,8 +182,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Status badge
   function statusBadge(status) {
     var map = {
-      owned: { label: 'In stash \u2713', bg: '#f0fdf4', color: '#16a34a' },
-      partial: { label: 'Partial', bg: '#fff7ed', color: '#ea580c' },
+      owned: { label: 'You own this', bg: '#f0fdf4', color: '#16a34a' },
+      partial: { label: 'Low stock', bg: '#fff7ed', color: '#ea580c' },
       needed: { label: 'Need to buy', bg: '#fef2f2', color: '#dc2626' }
     };
     var s = map[status] || map.needed;

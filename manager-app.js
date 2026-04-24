@@ -1,15 +1,16 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
-function PartialGauge({ status }) {
-  const segments = {
-    "null": { count: 0, color: "#e2e8f0", text: "No partial", textColor: "#94a3b8" },
-    "mostly-full": { count: 3, color: "#378ADD", text: "Mostly full", textColor: "#378ADD" },
-    "about-half": { count: 2, color: "#378ADD", text: "About half", textColor: "#378ADD" },
-    "remnant": { count: 1, color: "#EF9F27", text: "Remnant", textColor: "#EF9F27" },
-    "used-up": { count: 4, color: "#888780", text: "Used up", textColor: "#888780" }
-  };
+// Hoisted out of PartialGauge so the lookup table isn't reallocated each render.
+const PARTIAL_GAUGE_SEGMENTS = {
+  "null": { count: 0, color: "#e2e8f0", text: "No partial", textColor: "#94a3b8" },
+  "mostly-full": { count: 3, color: "#378ADD", text: "Mostly full", textColor: "#378ADD" },
+  "about-half": { count: 2, color: "#378ADD", text: "About half", textColor: "#378ADD" },
+  "remnant": { count: 1, color: "#EF9F27", text: "Remnant", textColor: "#EF9F27" },
+  "used-up": { count: 4, color: "#888780", text: "Used up", textColor: "#888780" }
+};
 
-  const current = segments[status || "null"];
+function PartialGauge({ status }) {
+  const current = PARTIAL_GAUGE_SEGMENTS[status || "null"];
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -41,8 +42,9 @@ function ManagerApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [threadFilter, setThreadFilter] = useState("all"); // 'all', 'owned', 'tobuy', 'lowstock'
   const [brandFilter, setBrandFilter] = useState("all"); // 'all', 'dmc', 'anchor'
-  const [patternFilter, setPatternFilter] = useState("all"); // 'all', 'wishlist', 'owned', 'inprogress', 'completed'
-  const [patternSort, setPatternSort] = useState("date_desc"); // 'date_desc', 'date_asc', 'title_asc', 'designer_asc', 'status'
+  const _UP = (k, fb) => { try { return (window.UserPrefs && window.UserPrefs.get(k)) || fb; } catch (_) { return fb; } };
+  const [patternFilter, setPatternFilter] = useState(() => _UP("patternsDefaultFilter", "all")); // 'all', 'wishlist', 'owned', 'inprogress', 'completed'
+  const [patternSort, setPatternSort] = useState(() => _UP("patternsDefaultSort", "date_desc")); // 'date_desc', 'date_asc', 'title_asc', 'designer_asc', 'status'
   const [editingPattern, setEditingPattern] = useState(null); // Pattern object currently being added/edited
   const [viewingPattern, setViewingPattern] = useState(null); // Pattern object currently being viewed for details
   const [selectedPatternsForList, setSelectedPatternsForList] = useState(new Set());
@@ -52,11 +54,14 @@ function ManagerApp() {
   const [conflicts, setConflicts] = useState(null);
   const [readyToStart, setReadyToStart] = useState(null);
   const [lowStockAlerts, setLowStockAlerts] = useState(null);
-  const [userProfile, setUserProfile] = useState({
-    fabric_count: 14,
-    strands_used: 2,
-    thread_brand: "DMC",
-    waste_factor: 0.20
+  const [userProfile, setUserProfile] = useState(() => {
+    const get = (k, fb) => { try { var v = window.UserPrefs && window.UserPrefs.get(k); return (v == null) ? fb : v; } catch (_) { return fb; } };
+    return {
+      fabric_count: get("creatorDefaultFabricCount", 14),
+      strands_used: get("stitchStrandsUsed", 2),
+      thread_brand: get("stashDefaultBrand", "DMC"),
+      waste_factor: get("stitchWasteFactor", 0.20)
+    };
   });
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
@@ -126,7 +131,7 @@ function ManagerApp() {
     window.addEventListener("cs:showWelcome", h);
     return () => window.removeEventListener("cs:showWelcome", h);
   }, []);
-  const lowStockThreshold = 1;
+  const lowStockThreshold = (() => { try { var v = window.UserPrefs && window.UserPrefs.get("stashLowStockThreshold"); return (typeof v === "number" && v >= 0) ? v : 1; } catch (_) { return 1; } })();
   const formatBrandLabel = (brand) => {
     const b = (brand || "dmc").toString().toLowerCase();
     return b === "anchor" ? "Anchor" : b === "dmc" ? "DMC" : (brand || "DMC");
@@ -148,7 +153,7 @@ function ManagerApp() {
       counts[cell.id] = (counts[cell.id] || 0) + 1;
     }
     const threadList = Object.entries(counts).map(([id, stitches]) => {
-      const dmcEntry = typeof DMC !== 'undefined' ? DMC.find(d => d.id === id) : null;
+      const dmcEntry = typeof findThreadInCatalog === 'function' ? findThreadInCatalog('dmc', id) : null;
       return { id, name: dmcEntry ? dmcEntry.name : id, qty: stitches, unit: 'stitches', brand: 'DMC' };
     });
     return {
@@ -168,10 +173,16 @@ function ManagerApp() {
     );
     const unlinked = allMeta.filter(m => !linkedIdxMap.has(m.id));
 
-    // For each project that already has a library entry, check whether its name has
+    // For each project that already has a library entry, check whether its name
     // changed (e.g. renamed on another device via sync). If so, update title only —
-    // leave user-set fields (designer, tags, status) untouched. Threads are managed
-    // exclusively by syncProjectToLibrary (auto-save) so we don't re-compute them here.
+    // leave user-set fields (designer, tags, status) untouched.
+    let reconciled = updateTitleIfChanged(basePatterns, allMeta, linkedIdxMap);
+
+    if (unlinked.length === 0) return reconciled;
+    return await addUnlinkedPatterns(reconciled, basePatterns, unlinked);
+  }, []);
+
+  function updateTitleIfChanged(basePatterns, allMeta, linkedIdxMap) {
     let reconciled = basePatterns;
     for (const meta of allMeta) {
       const idx = linkedIdxMap.get(meta.id);
@@ -183,12 +194,19 @@ function ManagerApp() {
         reconciled[idx] = { ...reconciled[idx], title: expectedTitle };
       }
     }
+    return reconciled;
+  }
 
-    if (unlinked.length === 0) return reconciled;
-
-    for (const meta of unlinked) {
+  async function addUnlinkedPatterns(reconciled, basePatterns, unlinked) {
+    // PERF (perf-5 #5): fetch all unlinked projects in parallel.
+    let fulls;
+    try {
+      fulls = await Promise.all(unlinked.map(m => ProjectStorage.get(m.id).catch(() => null)));
+    } catch (e) { fulls = []; }
+    for (let i = 0; i < unlinked.length; i++) {
+      const meta = unlinked[i];
+      const full = fulls[i];
       try {
-        const full = await ProjectStorage.get(meta.id);
         const autoPattern = buildAutoSyncedPattern(meta, full);
         if (autoPattern) {
           if (reconciled === basePatterns) reconciled = [...basePatterns];
@@ -199,7 +217,8 @@ function ManagerApp() {
       }
     }
     return reconciled;
-  }, []);
+  }
+
 
   // Storage initialization
   useEffect(() => {
@@ -249,11 +268,11 @@ function ManagerApp() {
         } else if (!threadsData) {
           finalThreads = {};
           DMC.forEach(d => {
-              finalThreads['dmc:' + d.id] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
+              finalThreads[threadKey('dmc', d.id)] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
           });
           if (typeof ANCHOR !== 'undefined') {
             ANCHOR.forEach(a => {
-              finalThreads['anchor:' + a.id] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
+              finalThreads[threadKey('anchor', a.id)] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
             });
           }
           store.put(finalThreads, "threads");
@@ -264,11 +283,11 @@ function ManagerApp() {
         if (threadsData && versionData === 3) {
           const migrated = {};
           for (const [key, val] of Object.entries(finalThreads)) {
-            migrated[key.indexOf(':') < 0 ? 'dmc:' + key : key] = val;
+            migrated[normaliseStashKey(key)] = val;
           }
           if (typeof ANCHOR !== 'undefined') {
             ANCHOR.forEach(a => {
-              const aKey = 'anchor:' + a.id;
+              const aKey = threadKey('anchor', a.id);
               if (!migrated[aKey]) migrated[aKey] = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
             });
           }
@@ -319,7 +338,7 @@ function ManagerApp() {
     // Await loadManagerData so ensurePersistence() has settled before we read the
     // storage estimate — otherwise the persistent flag races and shows false.
     loadManagerData().then(() => {
-      ProjectStorage.getStorageEstimate().then(setStorageUsage).catch(() => {});
+      ProjectStorage.getStorageEstimate().then(setStorageUsage).catch(e => console.warn('getStorageEstimate failed:', e));
     });
     loadActiveProject();
     ProjectStorage.listProjects().then(setStoredProjects).catch(err => console.error("Failed to list projects:", err));
@@ -362,7 +381,7 @@ function ManagerApp() {
     const handleBackupRestored = () => {
       loadManagerData();
       loadActiveProject();
-      ProjectStorage.listProjects().then(setStoredProjects).catch(() => {});
+      ProjectStorage.listProjects().then(setStoredProjects).catch(e => console.warn('listProjects failed:', e));
     };
     window.addEventListener('cs:backupRestored', handleBackupRestored);
     return () => {
@@ -417,25 +436,38 @@ function ManagerApp() {
   // Smart Stash Hub: refresh conflicts, ready-to-start, and low-stock alerts
   useEffect(() => {
     if (typeof StashBridge === "undefined") return;
-    StashBridge.detectConflicts().then(setConflicts).catch(() => {});
-    StashBridge.whatCanIStart().then(setReadyToStart).catch(() => {});
+    StashBridge.detectConflicts().then(setConflicts).catch(e => console.warn('detectConflicts failed:', e));
+    StashBridge.whatCanIStart().then(setReadyToStart).catch(e => console.warn('whatCanIStart failed:', e));
     // Low-stock: threads where owned > 0 but below min_stock (explicit), or below the
     // global lowStockThreshold (1 skein) when no per-thread minimum has been set.
-    const alerts = [];
-    for (const [compositeKey, t] of Object.entries(threads)) {
-      if (!t.owned || t.owned <= 0) continue; // completely missing threads handled by pattern detail
-      const minStock = t.min_stock || 0;
-      const effectiveMin = minStock > 0 ? minStock : lowStockThreshold;
-      if (t.owned < effectiveMin) {
-        const brand = compositeKey.indexOf(':') < 0 ? 'dmc' : compositeKey.split(':')[0];
-        const bareId = compositeKey.indexOf(':') < 0 ? compositeKey : compositeKey.split(':').slice(1).join(':');
-        const info = typeof getThreadByKey === 'function' ? getThreadByKey(compositeKey) : DMC.find(d => d.id === bareId);
-        alerts.push({ id: compositeKey, brand, bareId, name: info ? info.name : bareId, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: effectiveMin });
-      }
-    }
+    const alerts = Object.entries(threads)
+      .filter(([, t]) => t.owned && t.owned > 0)
+      .filter(([compositeKey, t]) => isThreadLowStock(t, lowStockThreshold))
+      .map(([compositeKey, t]) => {
+        const { brand, bareId } = extractBrandAndId(compositeKey);
+        const effectiveMin = calculateEffectiveMinStock(t, lowStockThreshold);
+        const info = typeof getThreadByKey === 'function' ? getThreadByKey(compositeKey) : findThreadInCatalog('dmc', bareId);
+        return { id: compositeKey, brand, bareId, name: info ? info.name : bareId, rgb: info ? info.rgb : [128,128,128], owned: t.owned, min_stock: effectiveMin };
+      });
     alerts.sort((a, b) => (a.min_stock - a.owned) - (b.min_stock - b.owned));
     setLowStockAlerts(alerts);
   }, [threads, patterns]);
+
+  function extractBrandAndId(compositeKey) {
+    if (compositeKey.indexOf(':') < 0) return { brand: 'dmc', bareId: compositeKey };
+    const parts = compositeKey.split(':');
+    return { brand: parts[0], bareId: parts.slice(1).join(':') };
+  }
+
+  function calculateEffectiveMinStock(thread, lowStockThreshold) {
+    const minStock = thread.min_stock || 0;
+    return minStock > 0 ? minStock : lowStockThreshold;
+  }
+
+  function isThreadLowStock(thread, lowStockThreshold) {
+    return thread.owned < calculateEffectiveMinStock(thread, lowStockThreshold);
+  }
+
 
   // Split low-stock alerts into those needed by active projects vs. not
   const { lowStockNeeded, lowStockNotNeeded } = useMemo(() => {
@@ -483,7 +515,8 @@ function ManagerApp() {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const backup = JSON.parse(reader.result);
+        // PERF (deferred-2): handles both legacy JSON and CSB1\n compressed.
+        const backup = BackupRestore.parseBackupText(reader.result);
         const check = BackupRestore.validate(backup);
         if (!check.valid) {
           setBackupStatus({ type: "error", message: check.error });
@@ -536,8 +569,8 @@ function ManagerApp() {
   };
 
   const filteredThreads = useMemo(() => {
-    const dmcItems = DMC.map(d => ({ ...d, brand: 'dmc', compositeKey: 'dmc:' + d.id }));
-    const anchorItems = typeof ANCHOR !== 'undefined' ? ANCHOR.map(a => ({ ...a, brand: 'anchor', compositeKey: 'anchor:' + a.id })) : [];
+    const dmcItems = DMC.map(d => ({ ...d, brand: 'dmc', compositeKey: threadKey('dmc', d.id) }));
+    const anchorItems = typeof ANCHOR !== 'undefined' ? ANCHOR.map(a => ({ ...a, brand: 'anchor', compositeKey: threadKey('anchor', a.id) })) : [];
     const allItems = brandFilter === 'dmc' ? dmcItems
       : brandFilter === 'anchor' ? anchorItems
       : [...dmcItems, ...anchorItems];
@@ -547,16 +580,20 @@ function ManagerApp() {
 
     return searched.filter(d => {
       if (d.compositeKey === expandedThread) return true;
-
       const t = threads[d.compositeKey] || { owned: 0, tobuy: false, partialStatus: null };
-      if (threadFilter === 'owned') return t.owned > 0 || ["mostly-full", "about-half", "remnant"].includes(t.partialStatus);
-      if (threadFilter === 'tobuy') return t.tobuy;
-      if (threadFilter === 'lowstock') return (t.owned > 0 && t.owned <= lowStockThreshold) || (t.owned === 0 && ["about-half", "remnant"].includes(t.partialStatus));
-      if (threadFilter === 'remnants') return t.partialStatus === "remnant";
-      if (threadFilter === 'usedup') return t.partialStatus === "used-up" && t.owned === 0;
-      return true;
+      return matchesThreadFilter(t, threadFilter, lowStockThreshold);
     });
   }, [searchQuery, threads, threadFilter, brandFilter, expandedThread]);
+
+  function matchesThreadFilter(t, filter, lowStockThreshold) {
+    if (filter === 'owned') return t.owned > 0 || ["mostly-full", "about-half", "remnant"].includes(t.partialStatus);
+    if (filter === 'tobuy') return t.tobuy;
+    if (filter === 'lowstock') return (t.owned > 0 && t.owned <= lowStockThreshold) || (t.owned === 0 && ["about-half", "remnant"].includes(t.partialStatus));
+    if (filter === 'remnants') return t.partialStatus === "remnant";
+    if (filter === 'usedup') return t.partialStatus === "used-up" && t.owned === 0;
+    return true;
+  }
+
 
   const totalOwnedCount = useMemo(() => {
     return Object.values(threads).reduce((sum, t) => sum + (t.owned || 0), 0);
@@ -571,35 +608,39 @@ function ManagerApp() {
   }, [patterns]);
 
   const filteredPatterns = useMemo(() => {
-    const statusOrder = { wishlist: 0, owned: 1, inprogress: 2, completed: 3 };
-
-    let result = patterns.filter(p => {
-      const q = searchQuery.toLowerCase();
-      const matchesSearch = p.title.toLowerCase().includes(q) ||
-                            (p.designer && p.designer.toLowerCase().includes(q)) ||
-                            (p.tags && p.tags.some(tag => tag.toLowerCase().includes(q)));
-
-      const matchesFilter = patternFilter === "all" || p.status === patternFilter;
-
-      return matchesSearch && matchesFilter;
-    });
-
-    result.sort((a, b) => {
-      if (patternSort === "date_desc") return (b.id || 0) - (a.id || 0); // Using ID as timestamp
-      if (patternSort === "date_asc") return (a.id || 0) - (b.id || 0);
-      if (patternSort === "title_asc") return (a.title || "").localeCompare(b.title || "");
-      if (patternSort === "designer_asc") return (a.designer || "").localeCompare(b.designer || "");
-      if (patternSort === "status") {
-        if (statusOrder[a.status] !== statusOrder[b.status]) {
-            return statusOrder[a.status] - statusOrder[b.status];
-        }
-        return (a.title || "").localeCompare(b.title || "");
-      }
-      return 0;
-    });
-
-    return result;
+    const q = searchQuery.toLowerCase();
+    return patterns
+      .filter(p => matchesSearch(p, q))
+      .filter(p => matchesPatternFilter(p, patternFilter))
+      .sort((a, b) => comparePatterns(a, b, patternSort));
   }, [patterns, searchQuery, patternFilter, patternSort]);
+
+  function matchesSearch(p, q) {
+    if (!q) return true;
+    return p.title.toLowerCase().includes(q) ||
+      (p.designer && p.designer.toLowerCase().includes(q)) ||
+      (p.tags && p.tags.some(tag => tag.toLowerCase().includes(q)));
+  }
+
+  function matchesPatternFilter(p, filter) {
+    return filter === "all" || p.status === filter;
+  }
+
+  function comparePatterns(a, b, sortKey) {
+    const statusOrder = { wishlist: 0, owned: 1, inprogress: 2, completed: 3 };
+    if (sortKey === "date_desc") return (b.id || 0) - (a.id || 0);
+    if (sortKey === "date_asc") return (a.id || 0) - (b.id || 0);
+    if (sortKey === "title_asc") return (a.title || "").localeCompare(b.title || "");
+    if (sortKey === "designer_asc") return (a.designer || "").localeCompare(b.designer || "");
+    if (sortKey === "status") {
+      if (statusOrder[a.status] !== statusOrder[b.status]) {
+        return statusOrder[a.status] - statusOrder[b.status];
+      }
+      return (a.title || "").localeCompare(b.title || "");
+    }
+    return 0;
+  }
+
 
   const addOrUpdatePattern = (patt) => {
     setPatterns(prev => {
@@ -862,7 +903,7 @@ function ManagerApp() {
               <span style={{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}>{selectedThread ? "Thread Detail" : "Thread Detail"}</span>
             </div>
             {selectedThread ? (() => {
-              const d = typeof getThreadByKey === 'function' ? getThreadByKey(selectedThread) : DMC.find(x => x.id === selectedThread);
+              const d = typeof getThreadByKey === 'function' ? getThreadByKey(selectedThread) : findThreadInCatalog('dmc', selectedThread);
               if (!d) return <div className="rp-s" style={{ color: "#94a3b8", textAlign: "center", padding: 20 }}>Thread not found</div>;
               const selBrand = selectedThread.indexOf(':') < 0 ? 'dmc' : selectedThread.split(':')[0];
               const brandLabel = selBrand === 'anchor' ? 'Anchor' : 'DMC';
@@ -1048,7 +1089,7 @@ function ManagerApp() {
                     if (!pat) return null;
                     const reqThreads = pat.threads || [];
                     const missing = reqThreads.filter(t => {
-                      const k = t.id.indexOf(":") < 0 ? "dmc:" + t.id : t.id;
+                      const k = normaliseStashKey(t.id);
                       return !((threads[k] || {}).owned > 0);
                     });
                     const isSel = selectedPatternsForList.has(pat.id);
@@ -1174,7 +1215,11 @@ function ManagerApp() {
                               // Capture full project data + any linked pattern library entries
                               // so Undo can fully restore both IndexedDB and React state.
                               let fullProject = null;
-                              try { fullProject = await ProjectStorage.get(p.id); } catch (err) { console.error("Capture before delete failed:", err); }
+                              try { fullProject = await ProjectStorage.get(p.id); } catch (err) {
+                                console.error("Capture before delete failed:", err);
+                                try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not capture project before delete \u2014 aborting.', type: 'error'}); } catch(_){}
+                                return;
+                              }
                               const removedPatterns = patterns.filter(pat => pat.linkedProjectId === p.id);
                               const projectName = p.name;
                               try {
@@ -1286,9 +1331,9 @@ function ManagerApp() {
             {viewingPattern ? (() => {
               const p = viewingPattern;
               const coverage = p.threads && p.threads.length > 0
-                ? Math.round(p.threads.filter(t => { const k = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id; return (threads[k] || {}).owned > 0; }).length / p.threads.length * 100)
+                ? Math.round(p.threads.filter(t => { const k = normaliseStashKey(t.id); return (threads[k] || {}).owned > 0; }).length / p.threads.length * 100)
                 : 0;
-              const missingThreads = p.threads ? p.threads.filter(t => { const k = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id; return !(threads[k] || {}).owned; }) : [];
+              const missingThreads = p.threads ? p.threads.filter(t => { const k = normaliseStashKey(t.id); return !(threads[k] || {}).owned; }) : [];
               return <>
                 <div className="rp-s">
                   <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 2 }}>{p.title || "Untitled"}</div>
@@ -1309,7 +1354,7 @@ function ManagerApp() {
                   <div style={{ height: 6, background: "#f1f5f9", borderRadius: 3, overflow: "hidden", border: "1px solid #e2e8f0", marginBottom: 8 }}>
                     <div style={{ height: "100%", width: coverage + "%", background: "#0d9488", borderRadius: 3 }} />
                   </div>
-                  <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.threads ? p.threads.filter(t => { const k = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id; return (threads[k] || {}).owned > 0; }).length : 0} of {p.threads ? p.threads.length : 0} threads in your stash. {missingThreads.length} missing.</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.threads ? p.threads.filter(t => { const k = normaliseStashKey(t.id); return (threads[k] || {}).owned > 0; }).length : 0} of {p.threads ? p.threads.length : 0} threads in your stash. {missingThreads.length} missing.</div>
                 </div>
                 {missingThreads.length > 0 && (
                   <div className="rp-s">
@@ -1317,7 +1362,7 @@ function ManagerApp() {
                     <div className="used-in">
                       {missingThreads.map(t => {
                         const dmc = DMC.find(x => x.id === t.id);
-                        const compositeKey = t.id.indexOf(':') < 0 ? 'dmc:' + t.id : t.id;
+                        const compositeKey = normaliseStashKey(t.id);
                         return (
                           <div key={t.id} className="ui-row" style={{ cursor: "pointer" }} title={"Open thread card for DMC " + t.id}
                             onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(compositeKey); }}>
@@ -1639,7 +1684,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 250, overflowY: "auto" }}>
               {edited.threads.map((t, idx) => {
-                const info = DMC.find(d => d.id === t.id);
+                const info = findThreadInCatalog('dmc', t.id);
                 // Backward compatibility for old format
                 const unit = t.unit || "skeins";
                 const displayUnit = unit === "stitches" ? "st" : "sk";
@@ -1705,7 +1750,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
     };
 
     return pattern.threads.map(t => {
-       const info = DMC.find(d => d.id === t.id);
+       const info = findThreadInCatalog('dmc', t.id);
        let skExact = 0;
        let skToBuy = 0;
        let skBExact = 0;
@@ -1977,7 +2022,7 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
       };
       p.threads.forEach(t => {
         const blendParts = typeof t.id === "string" && t.id.includes("+")
-          ? t.id.split("+").map(part => part.trim()).filter(Boolean)
+          ? splitBlendId(t.id)
           : null;
         const isBlend = !!t.is_blended || (blendParts && blendParts.length === 2);
         let qtyA = 0, qtyB = 0;
@@ -2008,10 +2053,10 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
       });
     });
     return Object.entries(required).map(([id, totalNeeded]) => {
-      const k = id.indexOf(':') < 0 ? 'dmc:' + id : id;
+      const k = normaliseStashKey(id);
       const invState = inventoryThreads[k] || inventoryThreads[id] || { owned: 0 };
       const owned = invState.owned || 0;
-      const info = DMC.find(d => d.id === id);
+      const info = findThreadInCatalog('dmc', id);
       const status = owned >= totalNeeded ? 'owned' : owned > 0 ? 'partial' : 'needed';
       return { id, name: info ? info.name : "", rgb: info ? info.rgb : [128,128,128],
                needed: totalNeeded, owned, status, missing: Math.max(0, totalNeeded - owned) };

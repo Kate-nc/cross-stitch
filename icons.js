@@ -276,6 +276,65 @@ window.Icons = (function() {
         p('M17.5 21H9a7 7 0 0 1-5.21-11.64'),
         p('M22 15.5A4.5 4.5 0 0 0 17.5 11h-1.79A7 7 0 0 0 7.8 5.56')
       );
+    },
+    // Person — replaces 👤 (profile)
+    user: function() {
+      return svg(
+        p('M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'),
+        c(12, 7, 4)
+      );
+    },
+    // Globe — replaces 🌐 (regional)
+    globe: function() {
+      return svg(
+        c(12, 12, 10),
+        l(2, 12, 22, 12),
+        p('M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z')
+      );
+    },
+    // Bell — replaces 🔔 (notifications)
+    bell: function() {
+      return svg(
+        p('M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9'),
+        p('M13.73 21a2 2 0 0 1-3.46 0')
+      );
+    },
+    // Accessibility person — replaces ♿ (accessibility)
+    accessibility: function() {
+      return svg(
+        c(12, 4, 2),
+        p('M12 6v6'),
+        p('M8 10h8'),
+        p('M9 22l3-10 3 10'),
+        p('M9 14h6')
+      );
+    },
+    // Needle — replaces 🪡 (tracker / stitching)
+    needle: function() {
+      return svg(
+        l(3, 21, 21, 3),
+        c(20, 4, 1.5),
+        p('M5 19l4 0 0 -4')
+      );
+    },
+    // Frame — replaces 🖼 (preview / display)
+    frame: function() {
+      return svg(
+        rc(3, 3, 18, 18, 1),
+        rc(7, 7, 10, 10),
+        l(3, 7, 7, 7),
+        l(17, 7, 21, 7),
+        l(3, 17, 7, 17),
+        l(17, 17, 21, 17)
+      );
+    },
+    // Graduation cap — replaces 🎓 (onboarding & help)
+    gradCap: function() {
+      return svg(
+        p('M2 10l10-5 10 5-10 5z'),
+        p('M6 12v4a6 3 0 0 0 12 0v-4'),
+        l(22, 10, 22, 16)
+      );
     }
   };
 })();

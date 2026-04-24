@@ -88,7 +88,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     // Brand-aware lookup: prefer DMC, fall back to Anchor. Mirrors the
     // resolution used in ShoppingListModal.
     function resolveBrand(id) {
-      if (typeof DMC !== 'undefined' && DMC.find(function(d){ return d.id === id; })) return 'dmc';
+      if (findThreadInCatalog('dmc', id)) return 'dmc';
       if (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; })) return 'anchor';
       return 'dmc';
     }
@@ -96,7 +96,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       if (!stashHas) return null;
       // Blend: status = worst component status.
       var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
-        ? p.id.split('+').map(function(s){ return s.trim(); }).filter(Boolean)
+        ? splitBlendId(p.id)
         : [p.id];
       var worst = 'owned';
       for (var i = 0; i < ids.length; i++) {
@@ -547,16 +547,16 @@ window.CreatorSidebar = function CreatorSidebar() {
             style:{flex:1,padding:"4px 8px",fontSize:12,borderRadius:6,border:"0.5px solid #e2e8f0",fontFamily:"inherit"}
           }),
           (function(){
-            var dmc = typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();});
+            var dmc = findThreadInCatalog('dmc', qaVal.trim());
             return dmc ? h(Tooltip, {text:"DMC " + dmc.id + " \u2014 " + dmc.name, width:160},
               h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
             ) : null;
           })(),
           h("button", {
-            disabled:qaLoading || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();})),
+            disabled:qaLoading || !findThreadInCatalog('dmc', qaVal.trim()),
             onClick:function(){
               var trimmed = qaVal.trim();
-              if (!trimmed || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === trimmed;}))) return;
+              if (!trimmed || !findThreadInCatalog('dmc', trimmed)) return;
               setQaLoading(true);
               StashBridge.addToStash(trimmed, 1).then(function(){
                 setQaVal(""); setQaLoading(false);
@@ -1117,7 +1117,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("input", {
             type:"text", value: app.projectName || "", maxLength:60,
             placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
-            onChange: function(e) { app.setProjectName(e.target.value.slice(0,60)); },
+            onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
             style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
           })
         ),
@@ -1126,7 +1126,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("input", {
             type:"text", value: app.projectDesigner || "", maxLength:80,
             placeholder: "Your name or studio",
-            onChange: function(e) { app.setProjectDesigner(e.target.value.slice(0,80)); },
+            onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
             style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
           })
         ),
@@ -1135,7 +1135,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("textarea", {
             value: app.projectDescription || "", maxLength:500, rows:3,
             placeholder: "Source, copyright, stitching notes\u2026",
-            onChange: function(e) { app.setProjectDescription(e.target.value.slice(0,500)); },
+            onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
             style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
           })
         )

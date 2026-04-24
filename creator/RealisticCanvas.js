@@ -382,7 +382,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
           if (!cRgb && cmap) { var cLk = cmap[cc.id]; if (cLk) cRgb = cLk.rgb; }
           if (cRgb) cKey = cRgb[0] + "," + cRgb[1] + "," + cRgb[2];
         }
-        if (cKey) colourFreq[cKey] = (colourFreq[cKey] || 0) + 1;
+        if (cKey != null) colourFreq[cKey] = (colourFreq[cKey] || 0) + 1;
       }
     }
 
@@ -402,7 +402,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
 
       if (cell.id && cell.id.indexOf("+") !== -1) {
         // Blend cell: use each thread's individual colour for bottom/top leg respectively.
-        var blendParts = cell.id.split("+");
+        var blendParts = splitBlendId(cell.id);
         var e1 = cmap && cmap[blendParts[0]];
         var e2 = cmap && cmap[blendParts[1]];
         if (e1) rgb = e1.rgb;

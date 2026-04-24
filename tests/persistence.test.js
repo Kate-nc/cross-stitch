@@ -145,7 +145,7 @@ describe('Persistence field coverage', () => {
 
   test('JSON import assigns id and createdAt before saving', () => {
     // Find the JSON import block — between the format check and processLoadedProject
-    const jsonImportMatch = trackerSrc.match(/if\(!project\.pattern\s*&&\s*!project\.p\)\s*throw[\s\S]*?(if\(!project\.id\)[\s\S]*?)processLoadedProject\(project\)/);
+    const jsonImportMatch = trackerSrc.match(/if\(!Array\.isArray\(patternField\)\)\s*throw[\s\S]*?(if\(!project\.id\)[\s\S]*?)processLoadedProject\(project\)/);
     expect(jsonImportMatch).not.toBeNull();
     const preProcess = jsonImportMatch[1];
     expect(preProcess).toMatch(/project\.id\s*=/);

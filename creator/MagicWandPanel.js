@@ -100,8 +100,8 @@ window.MagicWandPanel = function MagicWandPanel() {
       cv.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
       // Contiguous / Global toggle (wand only)
       cv.activeTool === "magicWand" && h("div", { className: "tb-grp" },
-        btn("Contiguous", function() { cv.setWandContiguous(true); }, { active: cv.wandContiguous, title: "Only select cells connected to the clicked cell" }),
-        btn("Global",     function() { cv.setWandContiguous(false); }, { active: !cv.wandContiguous, title: "Select all matching cells across the whole pattern" })
+        btn("Connected only", function() { cv.setWandContiguous(true); }, { active: cv.wandContiguous, title: "Only select stitches connected to the one you click" }),
+        btn("All matching",     function() { cv.setWandContiguous(false); }, { active: !cv.wandContiguous, title: "Select every stitch of this colour anywhere on the chart" })
       ),
       h("div", { className: "tb-sdiv" }),
       // Op mode buttons
@@ -333,14 +333,14 @@ window.MagicWandPanel = function MagicWandPanel() {
       })
     ),
     (function() {
-      var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === cv.outlineColor; }) : null;
+      var dmcEntry = findThreadInCatalog('dmc', cv.outlineColor);
       return dmcEntry ? h("span", { style: { display: "flex", alignItems: "center", gap: 3 } },
         swatch(dmcEntry.rgb), h("span", { style: { color: "#334155" } }, dmcEntry.name)
       ) : h("span", { style: { color: "#ef4444" } }, "Unknown DMC");
     })(),
     btn("Generate", cv.applyOutlineGeneration, {
       green: true,
-      disabled: !(typeof DMC !== "undefined" && DMC.find(function(d) { return d.id === cv.outlineColor; })),
+      disabled: !findThreadInCatalog('dmc', cv.outlineColor),
       style: { fontSize: 10 }
     }),
     btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })

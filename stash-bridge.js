@@ -11,9 +11,11 @@ const StashBridge = (() => {
   }
 
   function _getOwnedCount(threadsData, key, fallbackId) {
-    const byKey = (threadsData[key] || {}).owned || 0;
+    var entry = threadsData[key];
+    var byKey = (entry && typeof entry === 'object' && typeof entry.owned === 'number') ? entry.owned : 0;
     if (byKey > 0) return byKey;
-    return (threadsData[fallbackId] || {}).owned || 0;
+    var fallback = threadsData[fallbackId];
+    return (fallback && typeof fallback === 'object' && typeof fallback.owned === 'number') ? fallback.owned : 0;
   }
 
   function _parseThreadKey(key) {
@@ -28,8 +30,18 @@ const StashBridge = (() => {
   function _getThreadInfoByKey(key) {
     if (typeof getThreadByKey === "function") return getThreadByKey(key);
     const parsed = _parseThreadKey(key);
+    // PERF (perf-2 #3): prefer cached id-maps from helpers.js (O(1)) over O(n)
+    // Array.find scans across the full DMC/ANCHOR palettes.
     if (parsed.brand === "anchor") {
+      if (typeof _getAnchorById === "function") {
+        const m = _getAnchorById();
+        if (m) return m[parsed.id] || null;
+      }
       return typeof ANCHOR !== "undefined" ? ANCHOR.find(x => x.id === parsed.id) : null;
+    }
+    if (typeof _getDmcById === "function") {
+      const m = _getDmcById();
+      if (m) return m[parsed.id] || null;
     }
     return typeof DMC !== "undefined" ? DMC.find(x => x.id === parsed.id) : null;
   }
@@ -236,8 +248,11 @@ const StashBridge = (() => {
       // 1. Check ProjectStorage (generated patterns from Creator/Tracker)
       try {
         const allMeta = await ProjectStorage.listProjects();
-        for (const meta of allMeta) {
-          const full = await ProjectStorage.get(meta.id);
+        // PERF (perf-5 #3): parallel fetch instead of N sequential awaits.
+        const fulls = await Promise.all(allMeta.map(m => ProjectStorage.get(m.id).catch(() => null)));
+        for (let i = 0; i < allMeta.length; i++) {
+          const meta = allMeta[i];
+          const full = fulls[i];
           if (!full || !full.pattern) continue;
           const uses = full.pattern.some(cell =>
             cell && cell.id === dmcId
@@ -477,12 +492,9 @@ const StashBridge = (() => {
       const srcBrand = colon < 0 ? 'dmc' : normKey.slice(0, colon);
       const srcId = colon < 0 ? normKey : normKey.slice(colon + 1);
       // Resolve source thread
-      let target = null;
-      if (srcBrand === 'anchor' && typeof ANCHOR !== 'undefined') {
-        target = ANCHOR.find(d => d.id === srcId);
-      } else if (typeof DMC !== 'undefined') {
-        target = DMC.find(d => d.id === srcId);
-      }
+      const target = (typeof findThreadInCatalog === 'function')
+        ? findThreadInCatalog(srcBrand, srcId)
+        : null;
       if (!target || typeof rgbToLab !== 'function') return [];
       const targetLab = target.lab || rgbToLab(target.rgb[0], target.rgb[1], target.rgb[2]);
       const distFn = typeof dE2000 === 'function' ? dE2000 : (typeof dE === 'function' ? dE : null);
@@ -493,12 +505,7 @@ const StashBridge = (() => {
         const c2 = key.indexOf(':');
         const brand = c2 < 0 ? 'dmc' : key.slice(0, c2);
         const id = c2 < 0 ? key : key.slice(c2 + 1);
-        let info = null;
-        if (brand === 'anchor' && typeof ANCHOR !== 'undefined') {
-          info = ANCHOR.find(d => d.id === id);
-        } else if (typeof DMC !== 'undefined') {
-          info = DMC.find(d => d.id === id);
-        }
+        const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(brand, id) : null;
         if (!info) continue;
         const lab = info.lab || rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]);
         const dist = distFn(targetLab, lab);
@@ -600,8 +607,9 @@ const StashBridge = (() => {
       if (typeof ProjectStorage !== 'undefined' && ProjectStorage.listProjects) {
         try {
           const projects = await ProjectStorage.listProjects();
-          for (const meta of projects) {
-            const proj = await ProjectStorage.get(meta.id);
+          // PERF (perf-5 #4): parallel fetch.
+          const fulls = await Promise.all(projects.map(m => ProjectStorage.get(m.id).catch(() => null)));
+          for (const proj of fulls) {
             if (!proj || !proj.stitchLog) continue;
             for (const log of proj.stitchLog) {
               const m = log.date.slice(0, 7);

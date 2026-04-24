@@ -11,6 +11,9 @@
 (function (root) {
   "use strict";
 
+  // Hoisted: leading-digits regex used for stable palette sort by numeric id prefix.
+  var LEADING_DIGITS = /^(\d+)/;
+
   // mm → PDF points (1pt = 1/72 inch, 25.4mm = 1in)
   function mmToPt(mm) { return mm * 72 / 25.4; }
   function ptToMm(pt) { return pt * 25.4 / 72; }
@@ -195,7 +198,7 @@
       if (e.type === "blend") blends.push(e); else solids.push(e);
     });
     function numericKey(id) {
-      var m = String(id).match(/^(\d+)/);
+      var m = String(id).match(LEADING_DIGITS);
       return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
     }
     solids.sort(function (a, b) {

@@ -900,7 +900,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           for (const tid of threadIds) {
             totalThreads++;
             // Check if this thread (or a close substitute) is in the stash
-            const compositeKey = tid.indexOf(':') >= 0 ? tid : 'dmc:' + tid;
+            const compositeKey = normaliseStashKey(tid);
             const entry = stashData[compositeKey];
             if (entry && entry.owned > 0) { coveredThreads++; continue; }
             // Check cross-brand substitutes
@@ -938,13 +938,16 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       try {
         const metas = await ProjectStorage.listProjects();
         const usedKeys = new Set();
-        for (const meta of metas) {
-          const proj = await ProjectStorage.get(meta.id);
+        // Load projects sequentially to avoid retaining all large pattern arrays in
+        // memory at once (peak-memory concern on mobile / large libraries).
+        for (const m of metas) {
+          let proj = null;
+          try { proj = await ProjectStorage.get(m.id); } catch (_) { proj = null; }
           if (!proj || !proj.pattern) continue;
           if (proj.finishStatus === 'planned') continue;
           for (const cell of proj.pattern) {
             if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
-            const normalized = cell.id.indexOf(':') >= 0 ? cell.id : 'dmc:' + cell.id;
+            const normalized = normaliseStashKey(cell.id);
             usedKeys.add(normalized);
             usedKeys.add(cell.id.indexOf(':') >= 0 ? cell.id.split(':').slice(1).join(':') : cell.id);
           }
@@ -966,9 +969,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           const colon = key.indexOf(':');
           const brand = colon >= 0 ? key.slice(0, colon) : 'dmc';
           const id = colon >= 0 ? key.slice(colon + 1) : key;
-          let info = null;
-          if (brand === 'anchor' && typeof ANCHOR !== 'undefined') info = ANCHOR.find(d => d.id === id);
-          else if (typeof DMC !== 'undefined') info = DMC.find(d => d.id === id);
+          const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(brand, id) : null;
           return { key, brand, id, name: info ? info.name : id, rgb: info ? info.rgb : [128, 128, 128] };
         });
         if (!cancelled) setNeverUsedData({ count: neverUsed.length + legacyCount, trackedCount: neverUsed.length, legacyCount, samples });
@@ -989,8 +990,9 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         const designerMap = {};
         const genreMap = {};
         let hasAny = false;
-        for (const meta of metas) {
-          const proj = await ProjectStorage.get(meta.id);
+        // PERF (perf-5 #7): parallel fetch.
+        const fulls = await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
+        for (const proj of fulls) {
           if (!proj) continue;
           const stitches = (proj.w || 0) * (proj.h || 0);
           if (stitches > 0) {
@@ -1050,8 +1052,9 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     async function loadDetails() {
       const metas = await ProjectStorage.listProjects();
       const details = [];
-      for (const m of metas) {
-        const p = await ProjectStorage.get(m.id);
+      // PERF (perf-5 #7): parallel fetch.
+      const fulls = await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
+      for (const p of fulls) {
         if (p) details.push({ id: p.id, name: p.name, finishStatus: p.finishStatus || 'active', completedAt: p.completedAt, startedAt: p.startedAt });
       }
       if (!cancelled) setProjectDetails(details);
@@ -1073,9 +1076,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     for (const [key, entry] of Object.entries(stash)) {
       if (!entry.owned || entry.owned <= 0) continue;
       const parsed = key.indexOf(':') >= 0 ? { brand: key.split(':')[0], id: key.split(':').slice(1).join(':') } : { brand: 'dmc', id: key };
-      let info = null;
-      if (parsed.brand === 'anchor' && typeof ANCHOR !== 'undefined') info = ANCHOR.find(d => d.id === parsed.id);
-      else if (typeof DMC !== 'undefined') info = DMC.find(d => d.id === parsed.id);
+      const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(parsed.brand, parsed.id) : null;
       if (!info) continue;
       const lab = info.lab || (typeof rgbToLab === 'function' ? rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]) : null);
       if (!lab) continue;
@@ -1114,9 +1115,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       const adds = entry.history.filter(h => h.delta > 0).map(h => new Date(h.date).getTime()).sort((a, b) => a - b);
       if (adds.length >= 2 && (adds[adds.length - 1] - adds[0]) > THIRTY_DAYS) {
         const parsed = key.indexOf(':') >= 0 ? { brand: key.split(':')[0], id: key.split(':').slice(1).join(':') } : { brand: 'dmc', id: key };
-        let info = null;
-        if (parsed.brand === 'anchor' && typeof ANCHOR !== 'undefined') info = ANCHOR.find(d => d.id === parsed.id);
-        else if (typeof DMC !== 'undefined') info = DMC.find(d => d.id === parsed.id);
+        const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(parsed.brand, parsed.id) : null;
         results.push({
           key, brand: parsed.brand, id: parsed.id,
           name: info ? info.name : parsed.id,
@@ -1138,8 +1137,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         // Get colour info for both
         const getInfo = (k) => {
           const p = k.indexOf(':') >= 0 ? { brand: k.split(':')[0], id: k.split(':').slice(1).join(':') } : { brand: 'dmc', id: k };
-          if (p.brand === 'anchor' && typeof ANCHOR !== 'undefined') return ANCHOR.find(d => d.id === p.id);
-          return typeof DMC !== 'undefined' ? DMC.find(d => d.id === p.id) : null;
+          return (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(p.brand, p.id) : null;
         };
         const info1 = getInfo(k1), info2 = getInfo(k2);
         if (!info1 || !info2) continue;
@@ -1364,7 +1362,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               ))
             )
           : h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)' } },
-              h('span', { style: { color: '#0d9488', fontSize: 18 } }, '✓'),
+              h('span', { style: { color: '#0d9488', fontSize: 18, display:'inline-flex', alignItems:'center' } }, window.Icons ? window.Icons.check() : null),
               'No duplicates spotted — nicely done'
             )
       ),

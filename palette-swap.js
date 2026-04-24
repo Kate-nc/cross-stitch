@@ -1198,7 +1198,14 @@ function usePaletteSwap(props) {
         changes.push({ idx: i, old: Object.assign({}, pat[i]) });
       }
     }
-    if (changes.length === 0) return;
+    if (changes.length === 0) {
+      try {
+        if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+          window.Toast.show({ message: "No matching cells found." });
+        }
+      } catch (_) {}
+      return;
+    }
 
     setEditHistory(function(prev) {
       var n = prev.concat([{ type: "palette_swap", changes: changes }]);

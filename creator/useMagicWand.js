@@ -505,7 +505,7 @@ window.useMagicWand = function useMagicWand(state) {
     }
     if (!newLines.length) return;
 
-    var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === colorId; }) : null;
+    var dmcEntry = findThreadInCatalog('dmc', colorId);
     var rgb = dmcEntry ? dmcEntry.rgb : [0, 0, 0];
     var coloredLines = newLines.map(function(l) {
       return { x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2, color: rgb };

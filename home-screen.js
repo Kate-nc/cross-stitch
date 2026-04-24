@@ -263,7 +263,7 @@ function CompactProjectRow({ proj, state, onOpen, onChangeState }) {
 // ─────────────────────────────────────────────────────────────────
 // StateChangeMenu — inline popover for moving a project to a new state
 // ─────────────────────────────────────────────────────────────────
-function StateChangeMenu({ proj, currentState, onSelect, onClose }) {
+function StateChangeMenu({ proj, currentState, onSelect, onClose, onEditDetails }) {
   var h = React.createElement;
   var options = [
     { value: 'active',   label: 'Mark as Active' },
@@ -280,6 +280,11 @@ function StateChangeMenu({ proj, currentState, onSelect, onClose }) {
   }, []);
 
   return h('div', { className: 'mpd-state-menu', onClick: function(e) { e.stopPropagation(); } },
+    onEditDetails && h('button', {
+      className: 'mpd-state-menu-item mpd-state-menu-item--edit',
+      onClick: function() { onClose(); onEditDetails(proj); }
+    }, Icons.pencil(), ' Edit details…'),
+    onEditDetails && h('div', { className: 'mpd-state-menu-sep' }),
     h('div', { className: 'mpd-state-menu-title' }, 'Move to\u2026'),
     options.map(function(o) {
       return h('button', {
@@ -309,6 +314,10 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
   var _menuProj = useState(null);
   var menuProj = _menuProj[0], setMenuProj = _menuProj[1];
 
+  // Project currently open in the Edit Details modal
+  var _editingProj = useState(null);
+  var editingProj = _editingProj[0], setEditingProj = _editingProj[1];
+
   // collapsed sections
   var _pausedOpen = useState(false);
   var pausedOpen = _pausedOpen[0], setPausedOpen = _pausedOpen[1];
@@ -336,8 +345,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     // Streak from localStorage (written by tracker)
     var streak = 0;
     try {
-      var streakData = JSON.parse(localStorage.getItem('cs_globalStreak') || 'null');
-      if (streakData && streakData.current) streak = streakData.current;
+      var streakData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.globalStreak) || 'null');
+      if (streakData && typeof streakData === 'object' && typeof streakData.current === 'number' && streakData.current > 0) streak = streakData.current;
     } catch(e) {}
     var activeCount = projects.filter(function(p) { return getProjectState(p, states) === 'active'; }).length;
     return { activeCount: activeCount, monthStitches: monthSt, streak: streak };
@@ -381,6 +390,10 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
 
   function openMenu(proj) {
     setMenuProj(proj.id);
+  }
+
+  function openEditDetails(proj) {
+    setEditingProj(proj);
   }
 
   function handleOpenProject(proj, mode) {
@@ -471,7 +484,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
                 proj: proj,
                 currentState: getProjectState(proj, states),
                 onSelect: handleChangeState,
-                onClose: function() { setMenuProj(null); }
+                onClose: function() { setMenuProj(null); },
+                onEditDetails: openEditDetails
               })
             );
           })
@@ -500,7 +514,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
               menuProj === proj.id && h(StateChangeMenu, {
                 proj: proj, currentState: 'queued',
                 onSelect: handleChangeState,
-                onClose: function() { setMenuProj(null); }
+                onClose: function() { setMenuProj(null); },
+                onEditDetails: openEditDetails
               })
             );
           })
@@ -530,7 +545,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
           menuProj === proj.id && h(StateChangeMenu, {
             proj: proj, currentState: 'paused',
             onSelect: handleChangeState,
-            onClose: function() { setMenuProj(null); }
+            onClose: function() { setMenuProj(null); },
+            onEditDetails: openEditDetails
           })
         );
       })
@@ -560,7 +576,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
           menuProj === proj.id && h(StateChangeMenu, {
             proj: proj, currentState: 'complete',
             onSelect: handleChangeState,
-            onClose: function() { setMenuProj(null); }
+            onClose: function() { setMenuProj(null); },
+            onEditDetails: openEditDetails
           })
         );
       })
@@ -588,7 +605,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
           menuProj === proj.id && h(StateChangeMenu, {
             proj: proj, currentState: 'design',
             onSelect: handleChangeState,
-            onClose: function() { setMenuProj(null); }
+            onClose: function() { setMenuProj(null); },
+            onEditDetails: openEditDetails
           })
         );
       })
@@ -598,7 +616,22 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     onOpenGlobalStats && h('button', {
       className: 'mpd-stats-link',
       onClick: onOpenGlobalStats
-    }, '\uD83D\uDCCA View detailed stats across all projects \u2192')
+    }, '\uD83D\uDCCA View detailed stats across all projects \u2192'),
+
+    // ── Edit Project Details modal ──
+    editingProj && typeof EditProjectDetailsModal !== 'undefined' && h(EditProjectDetailsModal, {
+      projectId: editingProj.id,
+      name: editingProj.name || '',
+      designer: editingProj.designer || '',
+      description: editingProj.description || '',
+      onSave: function(updated) {
+        // Refresh the local project entry name so the card updates immediately
+        // (the cs:projectsChanged event from ProjectStorage.save will trigger
+        // a full reload shortly after, but this avoids a visible flash).
+        setEditingProj(null);
+      },
+      onClose: function() { setEditingProj(null); }
+    })
   );
 }
 
@@ -669,7 +702,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     var cancelled = false;
     Promise.all([
       typeof ProjectStorage !== 'undefined' ? ProjectStorage.listProjects() : Promise.resolve([]),
-      typeof StashBridge !== 'undefined' ? StashBridge.getGlobalStash().catch(function() { return null; }) : Promise.resolve(null),
+      typeof StashBridge !== 'undefined' ? StashBridge.getGlobalStash().catch(function(e) { console.warn('home-screen: getGlobalStash failed:', e); return null; }) : Promise.resolve(null),
       typeof StashBridge !== 'undefined' ? (function() {
         // Try to get patterns from stash manager DB
         return new Promise(function(resolve) {
@@ -942,11 +975,11 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     var total = 0;
     var owned = 0;
     pat.threads.forEach(function(t) {
-      var ids = String((t && t.id) || '').split('+').map(function(id) { return id.trim(); }).filter(Boolean);
+      var ids = splitBlendId((t && t.id) || '');
       if (ids.length === 0) return;
       ids.forEach(function(id) {
         total++;
-        var k = id.indexOf(':') < 0 ? 'dmc:' + id : id;
+        var k = normaliseStashKey(id);
         if (stash[k] && stash[k].owned > 0) owned++;
       });
     });
@@ -960,7 +993,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     if (!hasStash) return null;
     // Normalise a bare DMC id like '310' to the composite stash key 'dmc:310'.
     // Pattern threads are stored with bare ids; stash keys are always composite.
-    function normKey(id) { return id && id.indexOf(':') < 0 ? 'dmc:' + id : id; }
+    var normKey = (typeof normaliseStashKey === 'function') ? normaliseStashKey : function(id) { return id && id.indexOf(':') < 0 ? 'dmc:' + id : id; };
     // Build set of thread IDs required by any non-completed pattern
     var activeIds = new Set();
     if (patterns && patterns.length > 0) {

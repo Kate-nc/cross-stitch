@@ -133,14 +133,14 @@
     // the countdown elapses without further input do we surface the hint.
     React.useEffect(function () {
       var dismissed = false;
-      try { dismissed = !!localStorage.getItem(HINT_KEY); } catch (_) {}
+      try { dismissed = !!localStorage.getItem(HINT_KEY); } catch (_) { /* localStorage may be unavailable */ }
       if (dismissed) return;
       var t = null;
       function scheduleShow() {
         if (t) clearTimeout(t);
         t = setTimeout(function () {
           // Re-check at fire time in case another tab dismissed it.
-          try { if (localStorage.getItem(HINT_KEY)) return; } catch (_) {}
+          try { if (localStorage.getItem(HINT_KEY)) return; } catch (_) { /* localStorage may be unavailable */ }
           setVisible(true);
         }, HINT_IDLE_MS);
       }
@@ -162,7 +162,7 @@
     // (provided it has already become visible via the idle timer).
     React.useEffect(function () {
       function check() {
-        try { setTyping(isTypingTarget(document.activeElement)); } catch (_) {}
+        try { setTyping(isTypingTarget(document.activeElement)); } catch (_) { /* cross-origin frame access may fail */ }
       }
       document.addEventListener("focusin", check, true);
       document.addEventListener("focusout", check, true);
@@ -174,10 +174,10 @@
     if (!visible || typing) return null;
     function dismiss() {
       setVisible(false);
-      try { localStorage.setItem(HINT_KEY, "1"); } catch (_) {}
+      try { localStorage.setItem(HINT_KEY, "1"); } catch (_) { /* localStorage quota exceeded */ }
     }
     function open() {
-      try { window.dispatchEvent(new CustomEvent("cs:openHelp")); } catch (_) {}
+      try { window.dispatchEvent(new CustomEvent("cs:openHelp")); } catch (_) { console.warn('keyboard-utils: failed to dispatch cs:openHelp', _); }
       dismiss();
     }
     return React.createElement("div", {

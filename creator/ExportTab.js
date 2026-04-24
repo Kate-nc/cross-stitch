@@ -12,6 +12,15 @@
  *   window.UserPrefs          — pref persistence
  *   window.CreatorDesignerBrandingSection — branding component
  */
+
+// Module-scope hoisted values (regex / style objects).
+var EXPORT_UNSAFE_FILENAME_CHARS = /[^\w\-]+/g;
+var EXPORT_PRESET_CARD_BASE = { flex: 1, padding: 14, borderRadius: 10, border: "1.5px solid #cbd5e1", background: "#fff", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 };
+var EXPORT_PRESET_CARD_ACTIVE = { background: "#0d9488", color: "#fff", borderColor: "#0d9488" };
+var EXPORT_CTA_STYLE = { padding: "14px 22px", fontSize: 16, borderRadius: 10, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
+var EXPORT_DISABLED_CTA = Object.assign({}, EXPORT_CTA_STYLE, { background: "#94a3b8", cursor: "not-allowed" });
+var EXPORT_SECTION_TOGGLE = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "#0f172a" };
+
 window.CreatorExportTab = function CreatorExportTab() {
   var ctx = window.usePatternData();
   var app = window.useApp();
@@ -113,7 +122,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       projectDescription: app.projectDescription,
     });
     var project = window.PdfExport.buildExportProject(exportCtx);
-    if (!project) { setError("No pattern to export."); return; }
+    if (!project) { setError("Nothing to export yet — create or open a pattern first."); return; }
     project.coverPreviewJpeg = window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
     var branding = window.PdfExport.readBranding();
     // Per-project designer overrides global designer branding when set.
@@ -136,7 +145,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     }).then(function (bytes) {
       if (runningRef.current !== tag) return;
       setProgress(null); runningRef.current = null;
-      var fname = (project.name || "pattern").replace(/[^\w\-]+/g, "_") + ".pdf";
+      var fname = (project.name || "pattern").replace(EXPORT_UNSAFE_FILENAME_CHARS, "_") + ".pdf";
       window.PdfExport.downloadBytes(bytes, fname);
     }).catch(function (err) {
       if (runningRef.current !== tag) return;
@@ -147,7 +156,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       // if the Export tab is scrolled away.
       try {
         if (typeof Toast !== 'undefined' && Toast.show && /symbol font/i.test(msg)) {
-          Toast.show({ message: 'PDF export failed \u2014 symbol font missing. Please reload and try again.', type: 'error', duration: 6000 });
+          Toast.show({ message: 'PDF export failed. Please refresh the page and try again.', type: 'error', duration: 6000 });
         }
       } catch (_) { /* best-effort */ }
     });
@@ -161,7 +170,7 @@ window.CreatorExportTab = function CreatorExportTab() {
 
   function doExportPng() {
     setError(null);
-    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("No pattern to export."); return; }
+    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("Nothing to export yet — create or open a pattern first."); return; }
     var CELL = 10;
     var c = document.createElement("canvas");
     c.width = ctx.sW * CELL;
@@ -181,7 +190,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     }
     c.toBlob(function (blob) {
       if (!blob) { setError("Failed to create PNG."); return; }
-      var name = ((app.projectName || "pattern") + "").replace(/[^\w\-]+/g, "_") + ".png";
+      var name = ((app.projectName || "pattern") + "").replace(EXPORT_UNSAFE_FILENAME_CHARS, "_") + ".png";
       var a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = name;
@@ -195,11 +204,11 @@ window.CreatorExportTab = function CreatorExportTab() {
   if (!(ctx && ctx.pat && ctx.pal)) return null;
   if (app.tab !== "export") return null;
 
-  var presetCardActive = { background: "#0d9488", color: "#fff", borderColor: "#0d9488" };
-  var presetCardBase = { flex: 1, padding: 14, borderRadius: 10, border: "1.5px solid #cbd5e1", background: "#fff", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 };
-  var ctaStyle = { padding: "14px 22px", fontSize: 16, borderRadius: 10, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
-  var disabledCta = Object.assign({}, ctaStyle, { background: "#94a3b8", cursor: "not-allowed" });
-  var sectionToggle = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "#0f172a" };
+  var presetCardActive = EXPORT_PRESET_CARD_ACTIVE;
+  var presetCardBase = EXPORT_PRESET_CARD_BASE;
+  var ctaStyle = EXPORT_CTA_STYLE;
+  var disabledCta = EXPORT_DISABLED_CTA;
+  var sectionToggle = EXPORT_SECTION_TOGGLE;
 
   return h("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
     app.copied && h("div", { style: { background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "#16a34a", fontWeight: 600 } }, "Copied!"),

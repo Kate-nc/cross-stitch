@@ -48,6 +48,71 @@
     exportIncludeInfo:      true,
     exportIncludeIndex:     true,
     exportMiniLegend:       true,
+    exportGridInterval:     10,
+    exportCentreMarks:      true,
+
+    // ─── Pattern Creator generation defaults (read by Sidebar on init) ──
+    creatorDefaultPaletteSize:    24,
+    creatorDefaultFabricCount:    16,
+    creatorAllowBlends:           true,
+    creatorStashOnlyDefault:      false,
+    creatorDefaultDithering:      "balanced",   // off | weak | balanced | strong
+    creatorSmoothDithering:       true,
+    creatorOrphanRemovalStrength: 2,            // 0..3
+    creatorMinStitchesPerColour:  6,
+    creatorProtectDetails:        true,
+    creatorStitchCleanup:         true,
+    creatorDefaultViewMode:       "colour",     // colour | symbol | both
+    creatorReferenceOpacity:      35,           // 0..100
+
+    // ─── Stitch Tracker behaviour defaults ──────────────────────────────
+    trackerStitchingStyle: "freestyle",         // freestyle | block | crosscountry | royal
+    trackerBlockShape:     "10x10",             // WxH; "10x10" | "5x5" | etc.
+    trackerStartCorner:    "TL",                // TL | TR | BL | BR | C
+    trackerHalfStitchMode: "full",              // half | full | ignore
+    trackerShowParking:    true,
+    trackerUndoDepth:      50,
+    trackerCelebrate:      true,
+
+    // ─── Stash Manager defaults ─────────────────────────────────────────
+    stashDefaultBrand:        "DMC",            // DMC | Anchor | both
+    stashLowStockThreshold:   1,
+    stitchStrandsUsed:        2,
+    stitchWasteFactor:        0.20,             // fraction (0..1)
+    skeinPriceDefault:        0.95,
+    patternsDefaultSort:      "date_desc",      // date_desc | date_asc | title_asc | designer_asc | status
+    patternsDefaultFilter:    "all",            // all | wishlist | owned | inprogress | completed
+    managerDetailGrid:        false,
+
+    // ─── Accessibility ──────────────────────────────────────────────────
+    a11yFontScale:        "m",                  // s | m | l | xl
+    a11yHighContrast:     false,
+    a11yReducedMotion:    false,
+    a11yColourBlindAid:   "off",                // off | protan | deutan | tritan
+    a11ySymbolOnly:       false,
+    a11yDarkMode:         "system",             // system | light | dark
+
+    // ─── Notifications ──────────────────────────────────────────────────
+    toastsEnabled:    true,
+    toastMaxVisible:  3,
+    notifSound:       false,
+    notifHaptic:      true,
+    notifMilestones:  true,
+    notifLowStock:    true,
+
+    // ─── Regional & units ───────────────────────────────────────────────
+    currency:               "GBP",              // GBP | USD | EUR | CAD | AUD
+    threadLengthUnit:       "in",               // in | cm
+    fabricMeasurementUnit:  "in",               // in | cm
+
+    // ─── Sync, branding ─────────────────────────────────────────────────
+    autoSyncEnabled:        true,
+    autoLibraryLink:        true,
+    appAccentColour:        "#0d9488",
+
+    // ─── Advanced ───────────────────────────────────────────────────────
+    commandPaletteHotkey:     "ctrl+k",         // ctrl+k | ctrl+/ | off
+    flagExperimentalPreview:  false,
   };
 
   var PVIEW_DEFAULTS = {

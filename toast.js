@@ -3,7 +3,25 @@
 (function () {
   "use strict";
 
-  var MAX_VISIBLE = 3;
+  var DEFAULT_MAX_VISIBLE = 3;
+  function getMaxVisible() {
+    try {
+      if (window.UserPrefs && typeof window.UserPrefs.get === "function") {
+        var v = window.UserPrefs.get("toastMaxVisible");
+        if (typeof v === "number" && v >= 1 && v <= 10) return v;
+      }
+    } catch (_) {}
+    return DEFAULT_MAX_VISIBLE;
+  }
+  function toastsEnabled() {
+    try {
+      if (window.UserPrefs && typeof window.UserPrefs.get === "function") {
+        var v = window.UserPrefs.get("toastsEnabled");
+        if (v === false) return false;
+      }
+    } catch (_) {}
+    return true;
+  }
   var toasts = []; // { id, el, timer }
   var nextId = 1;
 
@@ -65,10 +83,17 @@
     var undoAction = (typeof opts.undoAction === "function") ? opts.undoAction : null;
     var undoLabel = opts.undoLabel || "Undo";
 
+    // Honour the user's "show toasts" preference. Errors always show so
+    // users still see why something failed.
+    if (!toastsEnabled() && type !== "error") {
+      return null;
+    }
+
     var container = ensureContainer();
 
     // Cap visible toasts: dismiss oldest beyond limit.
-    while (toasts.length >= MAX_VISIBLE) {
+    var maxVisible = getMaxVisible();
+    while (toasts.length >= maxVisible) {
       removeToast(toasts[0], false);
     }
 

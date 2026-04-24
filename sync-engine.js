@@ -7,6 +7,9 @@ const SyncEngine = (() => {
   const SYNC_FORMAT = "cross-stitch-sync";
   const SYNC_VERSION = 1;
 
+  // Prefer structuredClone (faster) but fall back to JSON round-trip for older browsers.
+  var _clone = typeof structuredClone === 'function' ? structuredClone : function(x) { return JSON.parse(JSON.stringify(x)); };
+
   // localStorage keys for sync state
   const LS_LAST_EXPORT = "cs_sync_lastExportAt";
   const LS_LAST_IMPORT = "cs_sync_lastImportAt";
@@ -15,7 +18,7 @@ const SyncEngine = (() => {
 
   // localStorage keys to include in sync (same safe set as backup-restore)
   const SYNC_LS_KEYS = [
-    "crossstitch_active_project",
+    (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.activeProject : "crossstitch_active_project",
     "crossstitch_custom_palettes"
   ];
 
@@ -45,6 +48,22 @@ const SyncEngine = (() => {
   // project's pattern data. This detects whether the chart grid itself changed
   // (colours re-arranged, cells edited) vs. only tracking progress changing.
 
+  function stringToUint8Array(str) {
+    if (typeof TextEncoder !== "undefined") return new TextEncoder().encode(str);
+    var arr = new Uint8Array(str.length);
+    for (var ci = 0; ci < str.length; ci++) arr[ci] = str.charCodeAt(ci) & 0xff;
+    return arr;
+  }
+
+  function computeDeflateFingerprint(bytes, w, h) {
+    var deflated = pako.deflate(bytes);
+    var hex = "";
+    for (var di = 0; di < Math.min(8, deflated.length); di++) {
+      hex += ("0" + deflated[di].toString(16)).slice(-2);
+    }
+    return "fp_" + w + "x" + h + "_" + hex + "_" + deflated.length;
+  }
+
   function computeFingerprint(project) {
     if (!project || !project.pattern) return "empty";
     try {
@@ -61,28 +80,10 @@ const SyncEngine = (() => {
       const h = (project.settings && project.settings.sH) || project.h || 0;
       const raw = w + "x" + h + ":" + parts.join(",");
 
-      // pako.deflate internally uses CRC32 but we can also compute it directly
-      // via the undocumented pako.crc32 — fall back to a simple hash if missing
-      if (typeof pako !== "undefined" && typeof pako.deflate === "function") {
-        // Use deflated length + crc as fingerprint (fast, collision-resistant enough)
-        var bytes;
-        if (typeof TextEncoder !== "undefined") {
-          bytes = new TextEncoder().encode(raw);
-        } else {
-          bytes = [];
-          for (var ci = 0; ci < raw.length; ci++) bytes.push(raw.charCodeAt(ci) & 0xff);
-          bytes = new Uint8Array(bytes);
-        }
-        var deflated = pako.deflate(bytes);
-        // Use first 8 bytes of deflated output as fingerprint (includes checksum)
-        var hex = "";
-        for (var di = 0; di < Math.min(8, deflated.length); di++) {
-          hex += ("0" + deflated[di].toString(16)).slice(-2);
-        }
-        return "fp_" + w + "x" + h + "_" + hex + "_" + deflated.length;
+      if (typeof pako === "undefined" || typeof pako.deflate !== "function") {
+        return "fp_" + w + "x" + h + "_" + simpleHash(raw);
       }
-      // Fallback: simple string hash
-      return "fp_" + w + "x" + h + "_" + simpleHash(raw);
+      return computeDeflateFingerprint(stringToUint8Array(raw), w, h);
     } catch (e) {
       return "fp_error";
     }
@@ -154,10 +155,10 @@ const SyncEngine = (() => {
     var allProjects = [];
     try {
       var metaList = await ProjectStorage.listProjects();
-      for (var i = 0; i < metaList.length; i++) {
-        var full = await ProjectStorage.get(metaList[i].id);
-        if (full) allProjects.push(full);
-      }
+      // PERF (perf-5 #1): batch project fetches in parallel via Promise.all
+      // instead of awaiting each get() sequentially.
+      var fetched = await Promise.all(metaList.map(function(m){ return ProjectStorage.get(m.id); }));
+      for (var i = 0; i < fetched.length; i++) { if (fetched[i]) allProjects.push(fetched[i]); }
     } catch (e) {
       console.error("SyncEngine.export: failed to read projects:", e);
       throw new Error("Could not read projects from database.");
@@ -394,10 +395,12 @@ const SyncEngine = (() => {
     // Take the LOCAL project as base, deep-clone mutable sub-objects to avoid
     // mutating the original local data.
     var merged = Object.assign({}, local);
-    merged.halfDone = local.halfDone ? JSON.parse(JSON.stringify(local.halfDone)) : {};
-    merged.threadOwned = local.threadOwned ? JSON.parse(JSON.stringify(local.threadOwned)) : {};
-    merged.parkMarkers = local.parkMarkers ? JSON.parse(JSON.stringify(local.parkMarkers)) : [];
-    merged.achievedMilestones = local.achievedMilestones ? JSON.parse(JSON.stringify(local.achievedMilestones)) : [];
+    // PERF (perf-6 #5): structuredClone is ~2-5x faster than JSON parse/stringify
+    // for these merge buffers and avoids round-tripping through string form.
+    merged.halfDone = local.halfDone ? _clone(local.halfDone) : {};
+    merged.threadOwned = local.threadOwned ? _clone(local.threadOwned) : {};
+    merged.parkMarkers = local.parkMarkers ? _clone(local.parkMarkers) : [];
+    merged.achievedMilestones = local.achievedMilestones ? _clone(local.achievedMilestones) : [];
 
     // Merge done arrays (union — stitches completed on either device stay done)
     var patLen = (merged.pattern && merged.pattern.length) || 0;
@@ -557,10 +560,9 @@ const SyncEngine = (() => {
     var localMap = {};
     try {
       var metaList = await ProjectStorage.listProjects();
-      for (var i = 0; i < metaList.length; i++) {
-        var full = await ProjectStorage.get(metaList[i].id);
-        if (full) localMap[full.id] = full;
-      }
+      // PERF (perf-5 #2): parallel fetch of all local projects.
+      var fetched = await Promise.all(metaList.map(function(m){ return ProjectStorage.get(m.id); }));
+      for (var i = 0; i < fetched.length; i++) { if (fetched[i]) localMap[fetched[i].id] = fetched[i]; }
     } catch (e) {
       console.error("SyncEngine.prepareImport: failed to read local projects:", e);
     }
@@ -630,7 +632,7 @@ const SyncEngine = (() => {
         await ProjectStorage.save(cEntry.remote.data);
       } else if (resolution === "keep-both") {
         // Keep local as-is; import remote as a new project via normal save logic
-        var remoteCopy = JSON.parse(JSON.stringify(cEntry.remote.data));
+        var remoteCopy = _clone(cEntry.remote.data); // PERF (perf-6 #5)
         delete remoteCopy.id;
         delete remoteCopy.createdAt;
         remoteCopy.name = (remoteCopy.name || "Untitled") + " (synced)";
@@ -703,7 +705,7 @@ const SyncEngine = (() => {
         var tx = db.transaction("sync_state", "readonly");
         var req = tx.objectStore("sync_state").get("watchDirHandle");
         req.onsuccess = function () { resolve(req.result || null); };
-        req.onerror = function () { resolve(null); };
+        req.onerror = function () { console.warn('SyncEngine: read watchDirHandle failed:', req.error); resolve(null); };
         tx.oncomplete = function () { db.close(); };
       });
       _watchDirHandle = handle;

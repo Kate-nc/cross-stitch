@@ -9,6 +9,14 @@
 window.BulkAddModal = (function () {
   const { useState, useMemo, useCallback } = React;
 
+  // Hoisted: regexes used per-token by parseBulkThreadList. Avoids recompiling
+  // five regexes for every token in the input.
+  const BULK_TOKEN_DELIM = /[\s,;\n]+/;
+  const BULK_PREFIX_ANCHOR = /^anchor\s*/i;
+  const BULK_PREFIX_ANCH = /^anch\.?\s*/i;
+  const BULK_PREFIX_DMC = /^dmc\.?\s*/i;
+  const BULK_PREFIX_HASH = /^#/;
+
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
   /**
@@ -20,16 +28,16 @@ window.BulkAddModal = (function () {
   function parseBulkThreadList(text, brand) {
     brand = brand || 'dmc';
     return text
-      .split(/[\s,;\n]+/)
+      .split(BULK_TOKEN_DELIM)
       .map(function (token) { return token.trim(); })
       .filter(function (token) { return token.length > 0; })
       .map(function (token) {
         // Strip brand prefix
         var clean = token
-          .replace(/^anchor\s*/i, '')
-          .replace(/^anch\.?\s*/i, '')
-          .replace(/^dmc\.?\s*/i, '')
-          .replace(/^#/, '');
+          .replace(BULK_PREFIX_ANCHOR, '')
+          .replace(BULK_PREFIX_ANCH, '')
+          .replace(BULK_PREFIX_DMC, '')
+          .replace(BULK_PREFIX_HASH, '');
         return { raw: token, normalised: clean };
       })
       .filter(function (r) { return r.normalised.length > 0; });

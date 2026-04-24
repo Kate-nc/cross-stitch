@@ -1,10 +1,14 @@
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
+// deepClone: prefer structuredClone (faster) with JSON fallback for older browsers.
+const deepClone=typeof structuredClone==='function'?structuredClone:(x)=>JSON.parse(JSON.stringify(x));
 
-function uint8ToBase64(bytes){
-  var CHUNK=0x8000,out='';
-  for(var i=0;i<bytes.length;i+=CHUNK)out+=String.fromCharCode.apply(null,bytes.subarray(i,i+CHUNK));
-  return btoa(out);
-}
+// Hoisted module-scope constants (avoid per-render allocation).
+const START_CORNERS=[["TL","Top-left"],["TR","Top-right"],["C","Centre"],["BL","Bottom-left"],["BR","Bottom-right"]];
+const DEFAULT_PDF_SETTINGS={chartStyle:'symbols',cellSize:3,paper:'a4',orientation:'portrait',gridInterval:10,gridNumbers:true,centerMarks:true,legendLocation:'separate',legendColumns:2,coverPage:true,progressOverlay:false,separateBackstitch:false};
+const PDF_MODAL_LABEL_STYLE={fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6};
+const PDF_MODAL_SELECT_STYLE={padding:"6px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:13,background:"#fff"};
+const PDF_MODAL_CHECKBOX_LABEL_STYLE={fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"};
+const PDF_MODAL_EXPORT_BTN_STYLE={flex:1,padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer"};
 
 // Standalone realistic preview modal for the tracker.
 // Adapted from creator/RealisticCanvas.js — no CreatorContext required.
@@ -48,8 +52,8 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
         oc.fillStyle=weavePattern||("rgb("+FR+","+FG+","+FB+")");
         oc.fillRect(0,0,canvasW,canvasH);
       }
-      var SC;var fc=fabricCt||14;
-      if(fc<=11){SC=3;}else if(fc<=17){SC=2;}else{SC=1;}
+      var fc=fabricCt||14;
+      var SC=fc<=11?3:(fc<=17?2:1);
       function _lerp(a,b,t){return a+(b-a)*t;}
       function _clamp01(v){return v<0?0:v>1?1:v;}
       var autoCoverage=_clamp01(_clamp01((fc-8)/24)*(SC/2));
@@ -60,77 +64,82 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
       var haloOpacity=_lerp(0.06,0.18,coverage);
       var twistAmpMult=_lerp(1.0,0.7,coverage);
       var lvl=level;
+      function drawCross_L1(tc,r1,g1,b1,r2,g2,b2,x0,y0,x1,y1){
+        tc.lineWidth=sw;tc.strokeStyle="rgb("+r1+","+g1+","+b1+")";
+        tc.beginPath();tc.moveTo(x0,y1);tc.lineTo(x1,y0);tc.stroke();
+        tc.lineWidth=sw;tc.strokeStyle="rgb("+r2+","+g2+","+b2+")";
+        tc.beginPath();tc.moveTo(x0,y0);tc.lineTo(x1,y1);tc.stroke();
+      }
+      function drawCross_L2(tc,r1,g1,b1,r2,g2,b2,x0,y0,x1,y1){
+        var INV_SQ2=0.7071;var hs=sw/2;var cx=CELL_SIZE/2,cy=CELL_SIZE/2;
+        function makeGrad(perpX,perpY,r,g,b,factor){
+          var gx0=cx-perpX*hs,gy0=cy-perpY*hs,gx1=cx+perpX*hs,gy1=cy+perpY*hs;
+          var grad=tc.createLinearGradient(gx0,gy0,gx1,gy1);
+          function stop(f){return "rgb("+Math.min(255,Math.max(0,Math.round(r*f)))+","+Math.min(255,Math.max(0,Math.round(g*f)))+","+Math.min(255,Math.max(0,Math.round(b*f)))+")"}
+          grad.addColorStop(0.00,stop(factor*0.38));grad.addColorStop(0.28,stop(factor*0.90));
+          grad.addColorStop(0.50,stop(factor*1.22));grad.addColorStop(0.72,stop(factor*0.90));
+          grad.addColorStop(1.00,stop(factor*0.38));return grad;
+        }
+        tc.lineWidth=sw;tc.strokeStyle=makeGrad(INV_SQ2,INV_SQ2,r1,g1,b1,0.72);
+        tc.beginPath();tc.moveTo(x0,y1);tc.lineTo(x1,y0);tc.stroke();
+        tc.fillStyle="rgba(0,0,0,0.28)";tc.beginPath();tc.arc(cx,cy,sw*0.75,0,Math.PI*2);tc.fill();
+        tc.lineWidth=sw;tc.strokeStyle=makeGrad(INV_SQ2,-INV_SQ2,r2,g2,b2,1.15);
+        tc.beginPath();tc.moveTo(x0,y0);tc.lineTo(x1,y1);tc.stroke();
+      }
+      function drawCross_L34(tc,r1,g1,b1,r2,g2,b2,variant,x0,y0,x1,y1){
+        var SN=20,TF=2.5,TA=sw*0.3*twistAmpMult,ISW=sw/SC*1.2;
+        var IS_BLEND=!(r1===r2&&g1===g2&&b1===b2);
+        var lCX=CELL_SIZE/2,lCY=CELL_SIZE/2;
+        function hashVar(seed,si){var hv=((seed*1619)^(si*31337))|0;hv=(hv^(hv>>>13))*1540483477|0;hv=hv^(hv>>>15);return(((hv%8)+8)%8)-4;}
+        function mkPts(lsx,lsy,lex,ley,angle,si){var px=-Math.sin(angle),py=Math.cos(angle);var phase=si*(2*Math.PI/SC);var pts=[];for(var n=0;n<=SN;n++){var t=n/SN;var off=Math.sin(t*TF*2*Math.PI+phase)*TA;pts.push(lsx+(lex-lsx)*t+px*off,lsy+(ley-lsy)*t+py*off);}return pts;}
+        function drawStrand3(pts,fR,fGc,fBlu){
+          tc.beginPath();tc.moveTo(pts[0],pts[1]);for(var k=2;k<pts.length;k+=2)tc.lineTo(pts[k],pts[k+1]);
+          tc.lineWidth=ISW*haloWidthMult;tc.strokeStyle="rgba("+fR+","+fGc+","+fBlu+","+haloOpacity+")";tc.stroke();
+          tc.beginPath();tc.moveTo(pts[0],pts[1]);for(var k=2;k<pts.length;k+=2)tc.lineTo(pts[k],pts[k+1]);
+          tc.lineWidth=ISW;tc.strokeStyle="rgb("+fR+","+fGc+","+fBlu+")";tc.stroke();
+        }
+        function drawLeg3(lsx,lsy,lex,ley,angle,aR,aG,aB,bR,bG,bB,bright){
+          for(var si=0;si<SC;si++){
+            var sR,sGv,sB;
+            if(IS_BLEND){if(si%2===0){sR=aR;sGv=aG;sB=aB;}else{sR=bR;sGv=bG;sB=bB;}}
+            else{var vv=hashVar(variant*17+si,si);sR=Math.min(255,Math.max(0,aR+vv));sGv=Math.min(255,Math.max(0,aG+vv));sB=Math.min(255,Math.max(0,aB+vv));}
+            var dfR=Math.min(255,Math.max(0,Math.round(sR*bright)));
+            var dfG=Math.min(255,Math.max(0,Math.round(sGv*bright)));
+            var dfBlu=Math.min(255,Math.max(0,Math.round(sB*bright)));
+            drawStrand3(mkPts(lsx,lsy,lex,ley,angle,si),dfR,dfG,dfBlu);
+          }
+        }
+        function drawLeg3a(lsx,lsy,lex,ley,angle,aR,aG,aB,bR,bG,bB,bright){
+          if(!IS_BLEND||SC<2){drawLeg3(lsx,lsy,lex,ley,angle,aR,aG,aB,bR,bG,bB,bright);return;}
+          var pts0=mkPts(lsx,lsy,lex,ley,angle,0);var pts1=mkPts(lsx,lsy,lex,ley,angle,1);
+          function applyBright(r,g,b){return "rgb("+Math.min(255,Math.max(0,Math.round(r*bright)))+","+Math.min(255,Math.max(0,Math.round(g*bright)))+","+Math.min(255,Math.max(0,Math.round(b*bright)))+")"}
+          var cssA=applyBright(aR,aG,aB),cssB=applyBright(bR,bG,bB);
+          var crossIdx=[0];
+          for(var ck=1;ck<=Math.ceil(2*TF);ck++){var ci=Math.round(ck/(2*TF)*SN);if(ci>0&&ci<SN)crossIdx.push(ci);}
+          crossIdx.push(SN);
+          function drawSeg(pts,n0,n1,css){if(n1<=n0)return;tc.beginPath();tc.moveTo(pts[n0*2],pts[n0*2+1]);for(var k=n0+1;k<=n1;k++)tc.lineTo(pts[k*2],pts[k*2+1]);tc.lineWidth=ISW;tc.strokeStyle=css;tc.stroke();}
+          for(var seg=0;seg<crossIdx.length-1;seg++){
+            var n0=crossIdx[seg],n1=crossIdx[seg+1];
+            var midT=(n0+n1)/2/SN;var s0Front=Math.sin(midT*TF*2*Math.PI)>=0;
+            if(s0Front){drawSeg(pts1,n0,n1,cssB);drawSeg(pts0,n0,n1,cssA);}
+            else{drawSeg(pts0,n0,n1,cssA);drawSeg(pts1,n0,n1,cssB);}
+          }
+        }
+        tc.lineCap="round";tc.lineJoin="round";
+        var drawLegFn=(lvl===4)?drawLeg3a:drawLeg3;
+        drawLegFn(x0,y1,x1,y0,-Math.PI/4,r1,g1,b1,r2,g2,b2,0.78);
+        tc.fillStyle="rgba("+FR+","+FG+","+FB+",0.15)";tc.beginPath();tc.arc(lCX,lCY,sw*0.75,0,Math.PI*2);tc.fill();
+        drawLegFn(x0,y0,x1,y1,Math.PI/4,r1,g1,b1,r2,g2,b2,1.15);
+        var hlPts=mkPts(x0,y0,x1,y1,Math.PI/4,0);
+        tc.lineWidth=ISW*0.3;tc.strokeStyle="rgba(255,255,255,0.13)";
+        tc.beginPath();tc.moveTo(hlPts[0],hlPts[1]);for(var k=2;k<hlPts.length;k+=2)tc.lineTo(hlPts[k],hlPts[k+1]);tc.stroke();
+      }
       function drawCross(tc,r1,g1,b1,r2,g2,b2,variant){
         var x0=padding,y0=padding,x1=CELL_SIZE-padding,y1=CELL_SIZE-padding;
         tc.lineCap="round";
-        if(lvl===1){
-          tc.lineWidth=sw;tc.strokeStyle="rgb("+r1+","+g1+","+b1+")";
-          tc.beginPath();tc.moveTo(x0,y1);tc.lineTo(x1,y0);tc.stroke();
-          tc.lineWidth=sw;tc.strokeStyle="rgb("+r2+","+g2+","+b2+")";
-          tc.beginPath();tc.moveTo(x0,y0);tc.lineTo(x1,y1);tc.stroke();
-        }else if(lvl===2){
-          var INV_SQ2=0.7071;var hs=sw/2;var cx=CELL_SIZE/2,cy=CELL_SIZE/2;
-          function makeGrad(perpX,perpY,r,g,b,factor){
-            var gx0=cx-perpX*hs,gy0=cy-perpY*hs,gx1=cx+perpX*hs,gy1=cy+perpY*hs;
-            var grad=tc.createLinearGradient(gx0,gy0,gx1,gy1);
-            function stop(f){return "rgb("+Math.min(255,Math.max(0,Math.round(r*f)))+","+Math.min(255,Math.max(0,Math.round(g*f)))+","+Math.min(255,Math.max(0,Math.round(b*f)))+")"}
-            grad.addColorStop(0.00,stop(factor*0.38));grad.addColorStop(0.28,stop(factor*0.90));
-            grad.addColorStop(0.50,stop(factor*1.22));grad.addColorStop(0.72,stop(factor*0.90));
-            grad.addColorStop(1.00,stop(factor*0.38));return grad;
-          }
-          tc.lineWidth=sw;tc.strokeStyle=makeGrad(INV_SQ2,INV_SQ2,r1,g1,b1,0.72);
-          tc.beginPath();tc.moveTo(x0,y1);tc.lineTo(x1,y0);tc.stroke();
-          tc.fillStyle="rgba(0,0,0,0.28)";tc.beginPath();tc.arc(cx,cy,sw*0.75,0,Math.PI*2);tc.fill();
-          tc.lineWidth=sw;tc.strokeStyle=makeGrad(INV_SQ2,-INV_SQ2,r2,g2,b2,1.15);
-          tc.beginPath();tc.moveTo(x0,y0);tc.lineTo(x1,y1);tc.stroke();
-        }else{
-          var SN=20,TF=2.5,TA=sw*0.3*twistAmpMult,ISW=sw/SC*1.2;
-          var IS_BLEND=!(r1===r2&&g1===g2&&b1===b2);
-          var lCX=CELL_SIZE/2,lCY=CELL_SIZE/2;
-          function hashVar(seed,si){var hv=((seed*1619)^(si*31337))|0;hv=(hv^(hv>>>13))*1540483477|0;hv=hv^(hv>>>15);return(((hv%8)+8)%8)-4;}
-          function mkPts(lsx,lsy,lex,ley,angle,si){var px=-Math.sin(angle),py=Math.cos(angle);var phase=si*(2*Math.PI/SC);var pts=[];for(var n=0;n<=SN;n++){var t=n/SN;var off=Math.sin(t*TF*2*Math.PI+phase)*TA;pts.push(lsx+(lex-lsx)*t+px*off,lsy+(ley-lsy)*t+py*off);}return pts;}
-          function drawStrand3(pts,fR,fGc,fBlu){
-            tc.beginPath();tc.moveTo(pts[0],pts[1]);for(var k=2;k<pts.length;k+=2)tc.lineTo(pts[k],pts[k+1]);
-            tc.lineWidth=ISW*haloWidthMult;tc.strokeStyle="rgba("+fR+","+fGc+","+fBlu+","+haloOpacity+")";tc.stroke();
-            tc.beginPath();tc.moveTo(pts[0],pts[1]);for(var k=2;k<pts.length;k+=2)tc.lineTo(pts[k],pts[k+1]);
-            tc.lineWidth=ISW;tc.strokeStyle="rgb("+fR+","+fGc+","+fBlu+")";tc.stroke();
-          }
-          function drawLeg3(lsx,lsy,lex,ley,angle,aR,aG,aB,bR,bG,bB,bright){
-            for(var si=0;si<SC;si++){
-              var sR,sGv,sB;
-              if(IS_BLEND){if(si%2===0){sR=aR;sGv=aG;sB=aB;}else{sR=bR;sGv=bG;sB=bB;}}
-              else{var vv=hashVar(variant*17+si,si);sR=Math.min(255,Math.max(0,aR+vv));sGv=Math.min(255,Math.max(0,aG+vv));sB=Math.min(255,Math.max(0,aB+vv));}
-              var dfR=Math.min(255,Math.max(0,Math.round(sR*bright)));
-              var dfG=Math.min(255,Math.max(0,Math.round(sGv*bright)));
-              var dfBlu=Math.min(255,Math.max(0,Math.round(sB*bright)));
-              drawStrand3(mkPts(lsx,lsy,lex,ley,angle,si),dfR,dfG,dfBlu);
-            }
-          }
-          function drawLeg3a(lsx,lsy,lex,ley,angle,aR,aG,aB,bR,bG,bB,bright){
-            if(!IS_BLEND||SC<2){drawLeg3(lsx,lsy,lex,ley,angle,aR,aG,aB,bR,bG,bB,bright);return;}
-            var pts0=mkPts(lsx,lsy,lex,ley,angle,0);var pts1=mkPts(lsx,lsy,lex,ley,angle,1);
-            function applyBright(r,g,b){return "rgb("+Math.min(255,Math.max(0,Math.round(r*bright)))+","+Math.min(255,Math.max(0,Math.round(g*bright)))+","+Math.min(255,Math.max(0,Math.round(b*bright)))+")"}
-            var cssA=applyBright(aR,aG,aB),cssB=applyBright(bR,bG,bB);
-            var crossIdx=[0];
-            for(var ck=1;ck<=Math.ceil(2*TF);ck++){var ci=Math.round(ck/(2*TF)*SN);if(ci>0&&ci<SN)crossIdx.push(ci);}
-            crossIdx.push(SN);
-            function drawSeg(pts,n0,n1,css){if(n1<=n0)return;tc.beginPath();tc.moveTo(pts[n0*2],pts[n0*2+1]);for(var k=n0+1;k<=n1;k++)tc.lineTo(pts[k*2],pts[k*2+1]);tc.lineWidth=ISW;tc.strokeStyle=css;tc.stroke();}
-            for(var seg=0;seg<crossIdx.length-1;seg++){
-              var n0=crossIdx[seg],n1=crossIdx[seg+1];
-              var midT=(n0+n1)/2/SN;var s0Front=Math.sin(midT*TF*2*Math.PI)>=0;
-              if(s0Front){drawSeg(pts1,n0,n1,cssB);drawSeg(pts0,n0,n1,cssA);}
-              else{drawSeg(pts0,n0,n1,cssA);drawSeg(pts1,n0,n1,cssB);}
-            }
-          }
-          tc.lineCap="round";tc.lineJoin="round";
-          var drawLegFn=(lvl===4)?drawLeg3a:drawLeg3;
-          drawLegFn(x0,y1,x1,y0,-Math.PI/4,r1,g1,b1,r2,g2,b2,0.78);
-          tc.fillStyle="rgba("+FR+","+FG+","+FB+",0.15)";tc.beginPath();tc.arc(lCX,lCY,sw*0.75,0,Math.PI*2);tc.fill();
-          drawLegFn(x0,y0,x1,y1,Math.PI/4,r1,g1,b1,r2,g2,b2,1.15);
-          var hlPts=mkPts(x0,y0,x1,y1,Math.PI/4,0);
-          tc.lineWidth=ISW*0.3;tc.strokeStyle="rgba(255,255,255,0.13)";
-          tc.beginPath();tc.moveTo(hlPts[0],hlPts[1]);for(var k=2;k<hlPts.length;k+=2)tc.lineTo(hlPts[k],hlPts[k+1]);tc.stroke();
-        }
+        if(lvl===1)return drawCross_L1(tc,r1,g1,b1,r2,g2,b2,x0,y0,x1,y1);
+        if(lvl===2)return drawCross_L2(tc,r1,g1,b1,r2,g2,b2,x0,y0,x1,y1);
+        return drawCross_L34(tc,r1,g1,b1,r2,g2,b2,variant,x0,y0,x1,y1);
       }
       var tileCache={};
       function getTile(rgb,rgb2,variant){
@@ -162,7 +171,7 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
         var cellX=cellCol*CELL_SIZE,cellY=cellRow*CELL_SIZE;
         var rgb=cell.rgb,rgb2=null;
         if(cell.id&&cell.id.indexOf("+")!==-1){
-          var blendParts=cell.id.split("+");
+          var blendParts=splitBlendId(cell.id);
           var e1=cmap&&cmap[blendParts[0]];var e2=cmap&&cmap[blendParts[1]];
           if(e1)rgb=e1.rgb;if(e2)rgb2=e2.rgb;
         }
@@ -274,7 +283,7 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
     </div>
   );
   // Screen 3 — start-corner picker; commits on selection.
-  const CORNERS=[["TL","Top-left"],["TR","Top-right"],["C","Centre"],["BL","Bottom-left"],["BR","Bottom-right"]];
+  const CORNERS=START_CORNERS;
   return(
     <div>
       <h3 style={{marginTop:0,fontSize:17}}>Where do you usually start?</h3>
@@ -411,14 +420,18 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
 }
 
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
-const[sW,setSW]=useState(80),[sH,setSH]=useState(80);
-const[pat,setPat]=useState(null),[pal,setPal]=useState(null),[cmap,setCmap]=useState(null);
+const[sW,setSW]=useState(80);
+const[sH,setSH]=useState(80);
+const[pat,setPat]=useState(null);
+const[pal,setPal]=useState(null);
+const[cmap,setCmap]=useState(null);
 const incomingProjectRef=useRef(incomingProject);
 const[fabricCt,setFabricCt]=useState(14);
 const[skeinPrice,setSkeinPrice]=useState(DEFAULT_SKEIN_PRICE);
 const[stitchSpeed,setStitchSpeed]=useState(40);
 
-const[loadError,setLoadError]=useState(null),[copied,setCopied]=useState(null);
+const[loadError,setLoadError]=useState(null);
+const[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
 // ── Mobile: bottom action bar + colour quick-switcher state ──
 // `quickColourOpen` toggles a dedicated bottom drawer that lets the user pick
@@ -514,7 +527,7 @@ const[projectPickerOpen,setProjectPickerOpen]=useState(false);
 const[projectPickerList,setProjectPickerList]=useState([]);
 const[preferencesOpen,setPreferencesOpen]=useState(false);
 const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
-const [pdfSettings, setPdfSettings] = useState({ chartStyle: 'symbols', cellSize: 3, paper: 'a4', orientation: 'portrait', gridInterval: 10, gridNumbers: true, centerMarks: true, legendLocation: 'separate', legendColumns: 2, coverPage: true, progressOverlay: false, separateBackstitch: false });
+const [pdfSettings, setPdfSettings] = useState(DEFAULT_PDF_SETTINGS);
 const showCtr=true;
 const[bsLines,setBsLines]=useState([]);
 
@@ -605,7 +618,9 @@ const inactivityTimerRef = useRef(null);
 const inactivityPausedRef = useRef(false);
 const inactivityPauseTimeRef = useRef(null);
 
-const[stitchMode,setStitchMode]=useState("track"),[stitchView,setStitchView]=useState("symbol"),[stitchZoom,setStitchZoom]=useState(1);
+const[stitchMode,setStitchMode]=useState("track");
+const[stitchView,setStitchView]=useState("symbol");
+const[stitchZoom,setStitchZoom]=useState(1);
 useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
 const[isEditMode,setIsEditMode]=useState(false);
 const[originalPaletteState,setOriginalPaletteState]=useState(null);
@@ -619,7 +634,8 @@ const[cellEditPopover,setCellEditPopover]=useState(null);
 const[sessionStartSnapshot,setSessionStartSnapshot]=useState(null);
 const[editModalColor,setEditModalColor]=useState(null);
 const[showExitEditModal,setShowExitEditModal]=useState(false);
-const[drawer,setDrawer]=useState(false),[focusColour,setFocusColour]=useState(null);
+const[drawer,setDrawer]=useState(false);
+const[focusColour,setFocusColour]=useState(null);
 const[showNavHelp,setShowNavHelp]=useState(false);
 const[highlightSkipDone,setHighlightSkipDone]=useState(true);
 const[onlyStarted,setOnlyStarted]=useState(false);
@@ -646,13 +662,13 @@ useEffect(()=>{manuallyPausedRef.current=manuallyPaused;},[manuallyPaused]);
 const[advanceToast,setAdvanceToast]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
 // ── Stitching Style & Spatial Focus Area ──
-const[stitchingStyle,setStitchingStyle]=useState(()=>{try{return localStorage.getItem("cs_stitchStyle")||"block";}catch(_){return"block";}});
-const[blockW,setBlockW]=useState(()=>{try{return Math.max(5,Math.min(100,parseInt(localStorage.getItem("cs_blockW")||"10")));}catch(_){return 10;}});
-const[blockH,setBlockH]=useState(()=>{try{return Math.max(5,Math.min(100,parseInt(localStorage.getItem("cs_blockH")||"10")));}catch(_){return 10;}});
+const[stitchingStyle,setStitchingStyle]=useState(()=>{try{var ls=localStorage.getItem("cs_stitchStyle");if(ls)return ls;var p=window.UserPrefs&&window.UserPrefs.get("trackerStitchingStyle");return p||"block";}catch(_){return"block";}});
+const[blockW,setBlockW]=useState(()=>{try{var ls=localStorage.getItem("cs_blockW");if(ls)return Math.max(5,Math.min(100,parseInt(ls)));var bs=(window.UserPrefs&&window.UserPrefs.get("trackerBlockShape"))||"10x10";var w=parseInt(String(bs).split("x")[0],10);return isFinite(w)?Math.max(5,Math.min(100,w)):10;}catch(_){return 10;}});
+const[blockH,setBlockH]=useState(()=>{try{var ls=localStorage.getItem("cs_blockH");if(ls)return Math.max(5,Math.min(100,parseInt(ls)));var bs=(window.UserPrefs&&window.UserPrefs.get("trackerBlockShape"))||"10x10";var hh=parseInt(String(bs).split("x")[1],10);return isFinite(hh)?Math.max(5,Math.min(100,hh)):10;}catch(_){return 10;}});
 const[focusBlock,setFocusBlock]=useState(null); // {bx,by} | null
 const[focusEnabled,setFocusEnabled]=useState(()=>{try{return localStorage.getItem("cs_focusEnabled")==="1";}catch(_){return false;}});
 const[colourSequence,setColourSequence]=useState(()=>{try{return localStorage.getItem("cs_colourSeq")||"fewest";}catch(_){return"fewest";}});
-const[startCorner,setStartCorner]=useState(()=>{try{return localStorage.getItem("cs_startCorner")||"TL";}catch(_){return"TL";}});
+const[startCorner,setStartCorner]=useState(()=>{try{var ls=localStorage.getItem("cs_startCorner");if(ls)return ls;var p=window.UserPrefs&&window.UserPrefs.get("trackerStartCorner");return p||"TL";}catch(_){return"TL";}});
 // Gate the style picker on the generic Welcome wizard so they appear
 // sequentially: Welcome first, style picker after dismissal. If the user has
 // already seen the Welcome wizard (or never needed it on this build), the
@@ -693,7 +709,8 @@ const[sessionGoalInput,setSessionGoalInput]=useState("");
 const[sessionSummaryData,setSessionSummaryData]=useState(null);
 const focusOverlayCanvasRef=useRef(null);
 const breadcrumbCanvasRef=useRef(null);
-const[hlRow,setHlRow]=useState(-1),[hlCol,setHlCol]=useState(-1);
+const[hlRow,setHlRow]=useState(-1);
+const[hlCol,setHlCol]=useState(-1);
 const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
 const scrollRafRef=useRef(null);
@@ -774,7 +791,10 @@ const createdAtRef=useRef(null);    // stable createdAt ISO string for the activ
 const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunload
 const v3FieldsRef=useRef({});       // preserve v3 stats fields across save round-trips
 const[projectName,setProjectName]=useState("");
+const[projectDesigner,setProjectDesigner]=useState("");
+const[projectDescription,setProjectDescription]=useState("");
 const[namePromptOpen,setNamePromptOpen]=useState(false);
+const[editDetailsOpen,setEditDetailsOpen]=useState(false);
 const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
 const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});
@@ -824,8 +844,13 @@ useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfSti
 useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_layerVis_'+pid,JSON.stringify(layerVis));}catch(_){}},[layerVis]);
 useEffect(()=>{try{localStorage.setItem('cs_bsThickness',String(bsThickness));}catch(_){}},[bsThickness]);
 // ── Zoom-adaptive detail level ──
-const[lockDetailLevel,setLockDetailLevel]=useState(()=>{try{return !!JSON.parse(localStorage.getItem('cs_lockDetail')||'false');}catch(_){return false;}});
+const[lockDetailLevel,setLockDetailLevel]=useState(()=>{try{return !!JSON.parse(localStorage.getItem('cs_lockDetail')||'false');}catch(e){console.warn('cs_lockDetail corrupted, resetting:',e);try{localStorage.removeItem('cs_lockDetail');}catch(_){}return false;}});
 useEffect(()=>{try{localStorage.setItem('cs_lockDetail',String(lockDetailLevel));}catch(_){}},[lockDetailLevel]);
+// Tier 1 (zoomed-out) fade strength for un-stitched cells. 0 = off (full colour),
+// 0.15 = subtle, 0.55 = strong (legacy behaviour). Default 0 keeps the colour
+// view at full saturation when zoomed out.
+const[lowZoomFade,setLowZoomFade]=useState(()=>{try{const v=parseFloat(localStorage.getItem('cs_lowZoomFade')||'0');return Number.isFinite(v)?Math.max(0,Math.min(0.9,v)):0;}catch(_){return 0;}});
+useEffect(()=>{try{localStorage.setItem('cs_lowZoomFade',String(lowZoomFade));}catch(_){}},[lowZoomFade]);
 // tierRef: current render tier (1–4) with hysteresis; default zoom=1→scs=20→Tier 3
 const tierRef=useRef(3);
 const tierFadeRef=useRef({symbolOpacity:1.0,bsHsOpacity:1.0,animRafId:null});
@@ -895,11 +920,11 @@ const skeinData=useMemo(()=>{
     if(p.type==="solid"){map[p.id]=(map[p.id]||0)+p.count;}
     else if(p.type==="blend"&&p.threads){p.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+p.count;});}
   });
-  return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{let t=DMC.find(d=>d.id===id);return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
+  return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{let t=findThreadInCatalog('dmc',id);return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
 },[pal,fabricCt]);
 
 useEffect(()=>{
-  if(typeof StashBridge!=="undefined"){StashBridge.getGlobalStash().then(setGlobalStash).catch(()=>{});}
+  if(typeof StashBridge!=="undefined"){StashBridge.getGlobalStash().then(setGlobalStash).catch(e=>console.warn('getGlobalStash failed:',e));}
 },[]);
 
 // Detect project completion and offer stash deduction
@@ -1148,7 +1173,7 @@ useEffect(()=>{
             date:lastSnapshotDateRef.current,
             label:'auto',
             doneCount:curDone,
-            data:uint8ToBase64(pako.deflate(done))
+            data:(function(b){var C=0x8000,o='';for(var i=0;i<b.length;i+=C)o+=String.fromCharCode.apply(null,b.subarray(i,i+C));return btoa(o);})(pako.deflate(done))
           };
           setDoneSnapshots(prev=>{
             const updated=[...prev,snapshot];
@@ -1594,7 +1619,8 @@ function doSaveProject(finalName){
     createdAt:createdAtRef.current||new Date().toISOString(),
     updatedAt:new Date().toISOString(),
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
-    pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),
+    // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
+    pattern:(window.PatternIO?window.PatternIO.serializePattern(pat):pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb})),
     bsLines,
     done:done?Array.from(done):null,
     parkMarkers,
@@ -2084,8 +2110,8 @@ function handleEditInCreator(){
     const project=buildSnapshot();
     if(project){
       lastSnapshotRef.current=project;
-      saveProjectToDB(project).catch(()=>{});
-      ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(()=>{});
+      saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
+      ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
       // Push ALL tracker-specific fields to Creator so its auto-save doesn't overwrite them
       try{
         if(typeof window.__updateCreatorTrackerFields==='function'){
@@ -2141,8 +2167,8 @@ function handleSymbolReassignment(oldColorId, newThread) {
   if (!pat || !pal || !cmap) return;
 
   // 1. Snapshot for undo — V2 single-level undoSnapshot
-  const currentPalState = JSON.parse(JSON.stringify(pal));
-  const currentThreadOwnedState = JSON.parse(JSON.stringify(threadOwned));
+  const currentPalState = deepClone(pal); // PERF (perf-6 #5): deepClone > JSON round-trip
+  const currentThreadOwnedState = deepClone(threadOwned); // PERF (perf-6 #5)
   setUndoSnapshot({ type:"bulk_reassignment", pal: currentPalState, threadOwned: currentThreadOwnedState, oldId: oldColorId, newId: newThread.id });
 
   // 2. Map grid values
@@ -2233,7 +2259,7 @@ function processLoadedProject(project){
   if (project.originalPaletteState) {
     setOriginalPaletteState(project.originalPaletteState);
   } else {
-    setOriginalPaletteState(JSON.parse(JSON.stringify(newPal)));
+    setOriginalPaletteState(deepClone(newPal)); // PERF (perf-6 #5)
   }
   // V2: restore sparse diff of single-stitch edits
   if (project.singleStitchEdits && project.singleStitchEdits.length > 0) {
@@ -2280,7 +2306,15 @@ function processLoadedProject(project){
   if(project.startCorner)setStartCorner(project.startCorner);
   if(project.colourSequence)setColourSequence(project.colourSequence);
   // Legacy migration: if no statsSessions but totalTime exists, create a synthetic session
-  var rawStatsSessions=project.statsSessions||[];
+  var rawStatsSessions=(project.statsSessions||[]).filter(function(s){
+    if(!s)return false;
+    if(s.startTime==null&&s.date==null)return true;
+    if(s.startTime!=null){
+      var t=new Date(s.startTime).getTime();
+      if(Number.isNaN(t))return false;
+    }
+    return true;
+  });
   if(rawStatsSessions.length===0&&project.totalTime>0){
     var legacyDone=project.done?Array.from(project.done).filter(function(v){return v===1;}).length:0;
     var normaliseSessionTime=(function(value){
@@ -2378,6 +2412,8 @@ function processLoadedProject(project){
   if(project.hlRow>=0)setHlRow(project.hlRow);
   if(project.hlCol>=0)setHlCol(project.hlCol);
   setProjectName(project.name||"");
+  setProjectDesigner(project.designer||"");
+  setProjectDescription(project.description||"");
   projectIdRef.current = project.id || null;
   try{const saved=localStorage.getItem('cs_layerVis_'+(project.id||''));if(saved)setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);}catch(_){setLayerVis(ALL_LAYERS_VISIBLE);}
   const normalisedCreatedAt=(()=>{
@@ -2429,7 +2465,9 @@ function loadProject(e){
     rd.onload=ev=>{
       try{
         let project=JSON.parse(ev.target.result);
-        if(!project.pattern && !project.p)throw new Error("Invalid format");
+        const patternField = project.pattern || project.p;
+        if(!patternField) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
+        if(!Array.isArray(patternField)) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
         if(!project.id) project.id = ProjectStorage.newId();
         if(!project.createdAt) project.createdAt = new Date().toISOString();
         processLoadedProject(project);
@@ -2616,9 +2654,11 @@ const buildSnapshot = () => {
   if (v3FieldsRef.current) v3FieldsRef.current.stitchLog = _derivedLog;
   return {
     version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
+    designer: projectDesigner, description: projectDescription,
     createdAt: createdAtRef.current, updatedAt: new Date().toISOString(),
     settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
-    pattern: pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb }),
+    // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
+    pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb })),
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
     hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
@@ -2747,7 +2787,7 @@ useEffect(() => {
       const project = lastSnapshotRef.current;
       if (project) {
         await ProjectStorage.save(project);
-        await saveProjectToDB(project).catch(() => {});
+        await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
       }
       return;
     }
@@ -2763,7 +2803,8 @@ useEffect(() => {
       createdAt: createdAtRef.current,
       updatedAt: new Date().toISOString(),
       settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
-      pattern: pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb }),
+      // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
+      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb })),
       bsLines, done: done ? Array.from(done) : null, parkMarkers,
       hlRow, hlCol, threadOwned, originalPaletteState,
       singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
@@ -2774,7 +2815,7 @@ useEffect(() => {
     };
     lastSnapshotRef.current = project;
     await ProjectStorage.save(project);
-    await saveProjectToDB(project).catch(() => {});
+    await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
   };
   return () => {
     // Replace with a snapshot-based fallback rather than deleting outright.
@@ -2784,7 +2825,7 @@ useEffect(() => {
     window.__flushProjectToIDB = async function() {
       if (last) {
         await ProjectStorage.save(last);
-        await saveProjectToDB(last).catch(() => {});
+        await saveProjectToDB(last).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
       }
     };
   };
@@ -2937,8 +2978,8 @@ function drawStitch(ctx,cSz,viewportRect){
       // ── Tier 1 fast path: flat color blocks, no symbols, no cell borders ──
       if(tier===1){
         if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle="#f0f4f8";ctx.fillRect(px,py,cSz,cSz);continue;}
-        if(isDn){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-        else{const r2=Math.round(m.rgb[0]*0.45+255*0.55),g2=Math.round(m.rgb[1]*0.45+255*0.55),b2=Math.round(m.rgb[2]*0.45+255*0.55);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
+        if(isDn||lowZoomFade<=0){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+        else{const f=lowZoomFade,inv=1-f,r2=Math.round(m.rgb[0]*inv+255*f),g2=Math.round(m.rgb[1]*inv+255*f),b2=Math.round(m.rgb[2]*inv+255*f);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
         continue;
       }
 
@@ -3092,7 +3133,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade]);
 useEffect(()=>renderStitch(),[renderStitch]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
@@ -3222,7 +3263,7 @@ useEffect(()=>{
     const nbx=bx+dx,nby=by+dy;
     if(nbx<0||nbx>=bCols||nby<0||nby>=bRows)continue;
     let op=0.54; // default: raises from 6% to ~40%
-    if(stitchingStyle==="royal"){if(dx===0&&dy===1)op=0.88;else if(dx===1&&dy===0)op=0.81;else op=0.31;}
+    if(stitchingStyle==="royal"){const ROYAL_OP={"0,1":0.88,"1,0":0.81};op=ROYAL_OP[dx+","+dy]??0.31;}
     ctx.globalAlpha=op;ctx.fillStyle="black";
     const nx=G+nbx*blockW*scs,ny=G+nby*blockH*scs;
     const nw=Math.min(blockW,sW-nbx*blockW)*scs,nh=Math.min(blockH,sH-nby*blockH)*scs;
@@ -4192,6 +4233,19 @@ return(
   onConfirm={name=>{setProjectName(name);setNamePromptOpen(false);doSaveProject(name);}}
   onCancel={()=>setNamePromptOpen(false)}
 />}
+{editDetailsOpen&&typeof EditProjectDetailsModal!=='undefined'&&<EditProjectDetailsModal
+  projectId={projectIdRef.current}
+  name={projectName || (sW+'×'+sH+' pattern')}
+  designer={projectDesigner}
+  description={projectDescription}
+  onSave={({name,designer,description})=>{
+    setProjectName(name);
+    setProjectDesigner(designer);
+    setProjectDescription(description);
+    setEditDetailsOpen(false);
+  }}
+  onClose={()=>setEditDetailsOpen(false)}
+/>}
 {pat&&pal&&<>
 {/* ═══ TRACKER PILL TOOLBAR ═══ */}
 <div className="toolbar-row"><div className="pill-row" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -4224,6 +4278,7 @@ return(
   <div className="tb-overflow-wrap" ref={tOverflowRef}>
     <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
     {tOverflowOpen&&<div className="tb-overflow-menu">
+      {!isEditMode&&pat&&pal&&<><button className="tb-ovf-item" onClick={()=>{setTOverflowOpen(false);setEditDetailsOpen(true);}}>{Icons.pencil()} Edit project details…</button><div className="tb-ovf-sep"/></>}
       {!isEditMode&&<>
         {tStripCollapsed.stitch&&<><span className="tb-ovf-lbl">Stitch</span>
           <button className={"tb-ovf-item"+(stitchMode==="track"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setTOverflowOpen(false);}}>Mark{stitchMode==="track"?" ✓":""}</button>
@@ -4254,7 +4309,7 @@ return(
         <div className="tb-ovf-sep"/>
       </>}
       {!isEditMode&&<><button className="tb-ovf-item" style={{color:"#475569"}} onClick={()=>{
-        setSessionStartSnapshot({pat:[...pat],pal:JSON.parse(JSON.stringify(pal)),threadOwned:JSON.parse(JSON.stringify(threadOwned)),singleStitchEdits:new Map(singleStitchEdits)});
+        setSessionStartSnapshot({pat:[...pat],pal:deepClone(pal),threadOwned:deepClone(threadOwned),singleStitchEdits:new Map(singleStitchEdits)}); // PERF (perf-6 #5)
         setStitchMode("navigate");setFocusColour(null);setHoverInfo(null);setIsEditMode(true);setDrawer(true);setTOverflowOpen(false);
       }} title="Correct individual stitch colours — for imported patterns">Correct pattern colours…</button><div className="tb-ovf-sep"/></>
       }
@@ -4263,12 +4318,12 @@ return(
       <span className="tb-ovf-lbl">Tools</span>
       <button className={"tb-ovf-item"+(trackerPreviewOpen?" tb-ovf-item--on":"")} onClick={()=>{setTrackerPreviewOpen(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Realistic preview{trackerPreviewOpen?" ✓":""}</button>
       <button className={"tb-ovf-item"+(threadUsageMode?" tb-ovf-item--on":"")} onClick={()=>{setThreadUsageMode(m=>m?null:"cluster");setTOverflowOpen(false);}}>Thread usage{threadUsageMode?" ✓":""}</button>
-      <button className={"tb-ovf-item"+(countingAidsEnabled?" tb-ovf-item--on":"")} onClick={()=>{setCountingAidsEnabled(v=>!v);setTOverflowOpen(false);}}>🔢 Counting aids{countingAidsEnabled?" ✓":""}</button>
+      <button className={"tb-ovf-item"+(countingAidsEnabled?" tb-ovf-item--on":"")} onClick={()=>{setCountingAidsEnabled(v=>!v);setTOverflowOpen(false);}}>{Icons.barChart()} Counting aids{countingAidsEnabled?" ":""}{countingAidsEnabled?Icons.check():null}</button>
       <button className={"tb-ovf-item"} onClick={()=>{setRpanelTab("more");setMobileDrawerOpen(true);setTOverflowOpen(false);}}>Layers{!Object.values(layerVis).every(Boolean)?" (filtered)":""}</button>
-      <button className={"tb-ovf-item"+(statsView?" tb-ovf-item--on":"")} onClick={()=>{setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);setTOverflowOpen(false);}}>📊 Stats{statsView?" ✓":""}</button>
+      <button className={"tb-ovf-item"+(statsView?" tb-ovf-item--on":"")} onClick={()=>{setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);setTOverflowOpen(false);}}>{Icons.barChart()} Stats{statsView?" ":""}{statsView?Icons.check():null}</button>
       <div className="tb-ovf-sep"/>
       <span className="tb-ovf-lbl">Focus Area</span>
-      <button className={"tb-ovf-item"+(focusEnabled?" tb-ovf-item--on":"")} onClick={()=>{setFocusEnabled(v=>!v);setTOverflowOpen(false);}}>🔦 Spotlight{focusEnabled?" ✓":""}</button>
+      <button className={"tb-ovf-item"+(focusEnabled?" tb-ovf-item--on":"")} onClick={()=>{setFocusEnabled(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Spotlight{focusEnabled?" ":""}{focusEnabled?Icons.check():null}</button>
       {focusEnabled&&!focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(_getStartBlock());setTOverflowOpen(false);}}>Set focus to start block</button>}
       {focusEnabled&&focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(null);setTOverflowOpen(false);}}>Clear focus block</button>}
       <button className={"tb-ovf-item"+(breadcrumbVisible?" tb-ovf-item--on":"")} onClick={()=>{setBreadcrumbVisible(v=>!v);setTOverflowOpen(false);}}>Breadcrumbs{breadcrumbVisible?" ✓":""}</button>
@@ -4622,7 +4677,7 @@ return(
             {rank===0&&rec.reg.dominantColour&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>Dominant: DMC {rec.reg.dominantColour}</div>}
           </div>;
         })}
-        {recommendations.top.length>1&&<button onClick={()=>setRecShowMore(v=>!v)} style={{fontSize:10,color:"#0d9488",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontWeight:600}}>{recShowMore?"▲ Fewer":"→ More suggestions"}</button>}
+        {recommendations.top.length>1&&<button onClick={()=>setRecShowMore(v=>!v)} style={{fontSize:10,color:"#0d9488",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontWeight:600}}>{recShowMore?"Fewer suggestions":"More suggestions"}</button>}
         {recommendations.quickWins.length>0&&<div style={{marginTop:8,paddingTop:8,borderTop:"0.5px solid #e2e8f0"}}>
           <div style={{fontWeight:600,fontSize:11,color:"#475569",marginBottom:4}}>🎨 Quick wins</div>
           {recommendations.quickWins.map(c=>{
@@ -4721,7 +4776,15 @@ return(
             <button key={k} className={stitchView===k?"on":""} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>
           )}
         </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",marginBottom:4}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:10,marginBottom:4}}>
+          <label title="Fade un-stitched cells when zoomed out so completed cells stand out. Off keeps the chart at full colour." style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:lockDetailLevel?"#cbd5e1":(lowZoomFade>0?"#0d9488":"#94a3b8"),userSelect:"none",cursor:lockDetailLevel?"not-allowed":"pointer"}}>
+            <span>Zoomed-out fade</span>
+            <select value={String(lowZoomFade)} disabled={lockDetailLevel} onChange={e=>setLowZoomFade(parseFloat(e.target.value))} style={{fontSize:10,padding:"1px 2px",border:"1px solid #e2e8f0",borderRadius:3,background:lockDetailLevel?"#f1f5f9":"#fff",cursor:lockDetailLevel?"not-allowed":"pointer"}}>
+              <option value="0">Off</option>
+              <option value="0.15">Subtle</option>
+              <option value="0.55">Strong</option>
+            </select>
+          </label>
           <label title="Disable zoom-adaptive rendering — always use Tier 3 (Detail) regardless of zoom level" style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:lockDetailLevel?"#0d9488":"#94a3b8",cursor:"pointer",userSelect:"none"}}>
             <input type="checkbox" checked={lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>Lock detail
           </label>
@@ -5138,27 +5201,27 @@ return(
       <button className="modal-close" onClick={()=>setModal(null)}>×</button>
       <h3 style={{marginTop:0,marginBottom:15}}>Export PDF</h3>
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6}}>
+        <label style={PDF_MODAL_LABEL_STYLE}>
           Chart Mode:
-          <select value={pdfSettings.chartStyle||"color_symbol"} onChange={e=>setPdfSettings({...pdfSettings,chartStyle:e.target.value})} style={{padding:"6px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:13,background:"#fff"}}>
+          <select value={pdfSettings.chartStyle||"color_symbol"} onChange={e=>setPdfSettings({...pdfSettings,chartStyle:e.target.value})} style={PDF_MODAL_SELECT_STYLE}>
             <option value="color_symbol">Colour + Symbols</option>
             <option value="symbol">Symbols Only</option>
             <option value="color">Colour Blocks Only</option>
           </select>
         </label>
-        <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6}}>
+        <label style={PDF_MODAL_LABEL_STYLE}>
           Cell Size:
-          <select value={pdfSettings.cellSize||3} onChange={e=>setPdfSettings({...pdfSettings,cellSize:Number(e.target.value)})} style={{padding:"6px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:13,background:"#fff"}}>
+          <select value={pdfSettings.cellSize||3} onChange={e=>setPdfSettings({...pdfSettings,cellSize:Number(e.target.value)})} style={PDF_MODAL_SELECT_STYLE}>
             <option value={2.5}>Small (2.5mm)</option>
             <option value={3}>Medium (3mm)</option>
             <option value={4.5}>Large (4.5mm)</option>
           </select>
         </label>
-        <label style={{fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}>
+        <label style={PDF_MODAL_CHECKBOX_LABEL_STYLE}>
           <input type="checkbox" checked={pdfSettings.singlePage||false} onChange={e=>setPdfSettings({...pdfSettings,singlePage:e.target.checked})}/> Single Page
         </label>
         <div style={{display:"flex",gap:10,marginTop:8}}>
-          <button onClick={()=>{setModal(null);exportPDF({displayMode:pdfSettings.chartStyle||"color_symbol",cellSize:pdfSettings.cellSize||3,singlePage:pdfSettings.singlePage||false});}} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer"}}>Export PDF</button>
+          <button onClick={()=>{setModal(null);exportPDF({displayMode:pdfSettings.chartStyle||"color_symbol",cellSize:pdfSettings.cellSize||3,singlePage:pdfSettings.singlePage||false});}} style={PDF_MODAL_EXPORT_BTN_STYLE}>Export PDF</button>
         </div>
       </div>
     </div>
