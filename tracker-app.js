@@ -1340,6 +1340,18 @@ function _getRoyalRowsNext(bx,by){
   if(by+1<bRows)return{bx:0,by:by+1};
   return null;
 }
+// Move the spotlight focus block by one block in (dx,dy). No-op when spotlight
+// is disabled or stitching style is cross-country (which has no concept of
+// spatial blocks). If no focus block is set yet, falls back to the start block.
+function _stepFocusBlock(dx,dy){
+  if(!focusEnabled||stitchingStyle==="crosscountry"||!sW||!sH)return;
+  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
+  const cur=focusBlock||_getStartBlock();
+  const bx=Math.max(0,Math.min(bCols-1,cur.bx+dx));
+  const by=Math.max(0,Math.min(bRows-1,cur.by+dy));
+  if(bx===cur.bx&&by===cur.by&&focusBlock)return;
+  setFocusBlock({bx,by});
+}
 
 // ── Block auto-advance effect ──
 useEffect(()=>{
@@ -3729,6 +3741,20 @@ function halfStitchMatchesFocus(idx, dir) {
 function handleStitchMouseDown(e){
   if(!stitchRef.current||!pat)return;
   if(e.button===1||isSpaceDownRef.current){e.preventDefault();startPan(e);return;}
+  // Alt+click: relocate the spotlight focus block to the clicked cell's block.
+  // Works in both Mark and Navigate modes; bypasses edit-mode cell editor too.
+  // No-op when spotlight is off or the stitching style has no spatial blocks.
+  if(e.altKey&&e.button===0&&focusEnabled&&stitchingStyle!=="crosscountry"&&sW&&sH){
+    const gcA=gridCoord(stitchRef,e,scs,G,false);
+    if(gcA&&gcA.gx>=0&&gcA.gx<sW&&gcA.gy>=0&&gcA.gy<sH){
+      e.preventDefault();
+      const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
+      const bx=Math.max(0,Math.min(bCols-1,Math.floor(gcA.gx/blockW)));
+      const by=Math.max(0,Math.min(bRows-1,Math.floor(gcA.gy/blockH)));
+      setFocusBlock({bx,by});
+      return;
+    }
+  }
   // Edit Mode: left-click on grid opens cell edit popover instead of any navigate/track action
   if(isEditMode){
     if(e.button!==0)return;
@@ -4145,6 +4171,28 @@ useShortcuts(!isActive ? [] : [
   { id: "tracker.counting", keys: "c", scope: "tracker",
     description: "Toggle counting aids",
     run: () => setCountingAidsEnabled(v=>!v) },
+  { id: "tracker.focus.toggle", keys: "f", scope: "tracker",
+    description: "Toggle spotlight focus area",
+    run: () => {
+      if(stitchingStyle==="crosscountry")return;
+      setFocusEnabled(v=>{
+        const next=!v;
+        if(next&&!focusBlock)setFocusBlock(_getStartBlock());
+        return next;
+      });
+    } },
+  { id: "tracker.focus.left", keys: "alt+arrowleft", scope: "tracker",
+    description: "Move spotlight one block left",
+    run: () => _stepFocusBlock(-1,0) },
+  { id: "tracker.focus.right", keys: "alt+arrowright", scope: "tracker",
+    description: "Move spotlight one block right",
+    run: () => _stepFocusBlock(+1,0) },
+  { id: "tracker.focus.up", keys: "alt+arrowup", scope: "tracker",
+    description: "Move spotlight one block up",
+    run: () => _stepFocusBlock(0,-1) },
+  { id: "tracker.focus.down", keys: "alt+arrowdown", scope: "tracker",
+    description: "Move spotlight one block down",
+    run: () => _stepFocusBlock(0,+1) },
   { id: "tracker.zoom.in", keys: ["=", "+"], scope: "tracker",
     description: "Zoom in",
     run: () => setStitchZoom(z=>Math.min(4,+(z+0.1).toFixed(2))) },
@@ -4174,7 +4222,7 @@ useShortcuts(!isActive ? [] : [
   { id: "tracker.hl.spotlight", keys: "4", scope: "tracker.view.highlight",
     description: "Highlight: spotlight",
     run: () => { ensureFocusColour(); setHighlightMode("spotlight"); } },
-],[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,layerVis,colourDoneCounts]);
+],[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,layerVis,colourDoneCounts,focusEnabled,focusBlock,stitchingStyle,blockW,blockH,sW,sH,startCorner]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
@@ -4438,6 +4486,14 @@ return(
     <button className="tb-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];setFocusColour(next.id);}} title="Next colour ([)">▶</button>
     <button className={"tb-btn"+(countingAidsEnabled?" tb-btn--on":"")} onClick={()=>setCountingAidsEnabled(v=>!v)} title="Toggle counting aids (C)" style={{fontSize:12,padding:"0 6px"}}>⊞</button>
   </>}
+  {stitchingStyle!=="crosscountry"&&<button
+    className={"tb-btn"+(focusEnabled?" tb-btn--on":"")}
+    onClick={()=>{const next=!focusEnabled;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());}}
+    title={"Spotlight focus area (F)"+(focusEnabled?" — Alt+click to move, Alt+Arrow to step":"")}
+    aria-pressed={focusEnabled}
+    aria-label="Toggle spotlight focus area"
+    style={{padding:"0 6px"}}
+  >{Icons.eye()}</button>}
   <div className="tb-flex"/>
   <div className="tb-zoom-grp tb-desktop-only">
     <span className="tb-zoom-lbl">Zoom</span>
@@ -4495,7 +4551,7 @@ return(
       <button className={"tb-ovf-item"+(statsView?" tb-ovf-item--on":"")} onClick={()=>{setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);setTOverflowOpen(false);}}>{Icons.barChart()} Stats{statsView?" ":""}{statsView?Icons.check():null}</button>
       <div className="tb-ovf-sep"/>
       <span className="tb-ovf-lbl">Focus Area</span>
-      <button className={"tb-ovf-item"+(focusEnabled?" tb-ovf-item--on":"")} onClick={()=>{setFocusEnabled(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Spotlight{focusEnabled?" ":""}{focusEnabled?Icons.check():null}</button>
+      <button className={"tb-ovf-item"+(focusEnabled?" tb-ovf-item--on":"")} onClick={()=>{const next=!focusEnabled;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());setTOverflowOpen(false);}}>{Icons.eye()} Spotlight{focusEnabled?" ":""}{focusEnabled?Icons.check():null}</button>
       {focusEnabled&&!focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(_getStartBlock());setTOverflowOpen(false);}}>Set focus to start block</button>}
       {focusEnabled&&focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(null);setTOverflowOpen(false);}}>Clear focus block</button>}
       <button className={"tb-ovf-item"+(breadcrumbVisible?" tb-ovf-item--on":"")} onClick={()=>{setBreadcrumbVisible(v=>!v);setTOverflowOpen(false);}}>Breadcrumbs{breadcrumbVisible?" ✓":""}</button>

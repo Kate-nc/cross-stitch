@@ -375,6 +375,9 @@
       if (typeof cellAtPoint !== 'function') return;
       // Only respond to primary mouse / pen / touch.
       if (e.button !== undefined && e.button > 0) return;
+      // Alt+click is reserved for relocating the spotlight focus block (see
+      // tracker-app.js handleStitchMouseDown). Don't start a drag-mark on it.
+      if (e.altKey) return;
       var t = (typeof performance !== 'undefined' && performance.now)
               ? performance.now() : Date.now();
       if (e.pointerType === 'touch') {
