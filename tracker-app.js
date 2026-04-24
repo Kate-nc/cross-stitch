@@ -319,9 +319,10 @@ function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
   const[timeChoice,setTimeChoice]=useState(null);
   const[goalStitches,setGoalStitches]=useState("");
   return(
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>×</button>
+    <div className="modal-overlay modal-overlay--sheet" onClick={onClose}>
+      <div className="modal-content modal-content--sheet" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
+        <div className="sheet-handle" aria-hidden="true"/>
+        <button className="modal-close" onClick={onClose}>{Icons.x?Icons.x():"\u00D7"}</button>
         <h3 style={{marginTop:0,fontSize:17}}>Start Session</h3>
         <div style={{marginBottom:16}}>
           <div style={{fontWeight:600,fontSize:12,color:"#475569",marginBottom:8}}>Time available</div>
@@ -810,6 +811,21 @@ const[legendSort,setLegendSort]=useState(()=>{
   try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLegendSort");return p||"id";}catch(_){return"id";}
 });
 useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLegendSort",legendSort);}catch(_){}},[legendSort]);
+
+// Phase 5: ESC closes the mobile lpanel drawer. Desktop ignores it
+// (the panel is sticky / persistent and ESC could clobber other modal
+// dismiss semantics).
+useEffect(()=>{
+  if(!leftSidebarOpen)return;
+  const onKey=e=>{
+    if(e.key!=="Escape")return;
+    if(typeof window==='undefined'||!window.matchMedia)return;
+    if(!window.matchMedia("(max-width: 899px)").matches)return;
+    setLeftSidebarOpen(false);
+  };
+  window.addEventListener("keydown",onKey);
+  return()=>window.removeEventListener("keydown",onKey);
+},[leftSidebarOpen]);
 
 const [importDialog, setImportDialog] = useState(null);
 const [importImage, setImportImage] = useState(null);
@@ -4723,6 +4739,10 @@ return(
   </div>}
 
   {!statsView&&pat&&pal&&<><div className="cs-main">
+    {/* Phase 5: backdrop scrim — only visible on mobile while the
+        drawer is open. Tap to close. CSS controls visibility (hidden
+        on >=900px) so desktop layout is untouched. */}
+    {leftSidebarOpen&&<div className="lpanel-backdrop" onClick={()=>setLeftSidebarOpen(false)} aria-hidden="true"/>}
     {/* ═══ LEFT SIDEBAR (toolbar-rework phase 1) ═══
         Mirrors Highlight / View / Session controls so the toolbar pill
         and the rpanel "More" tab can be trimmed in later phases. The
@@ -4730,8 +4750,8 @@ return(
         in-flight sessions during the migration. */}
     {leftSidebarOpen&&<div className={"lpanel"+(leftSidebarOpen?" lpanel--open":"")} role="complementary" aria-label="Tracker sidebar">
       <div className="lp-tabs" role="tablist">
-        {[["highlight","Highlight"],["view","View"],["session","Session"],["tools","Tools"],["notes","Notes"]].map(([k,l])=>
-          <button key={k} role="tab" aria-selected={leftSidebarTab===k} className={"lp-tab"+(leftSidebarTab===k?" lp-tab--on":"")} onClick={()=>setLeftSidebarTab(k)}>{l}</button>
+        {[["highlight","Highlight"],["view","View"],["session","Session"],["tools","Tools"],["notes","Notes"],["legend","Legend"]].map(([k,l])=>
+          <button key={k} role="tab" aria-selected={leftSidebarTab===k} className={"lp-tab"+(leftSidebarTab===k?" lp-tab--on":"")+(k==="legend"?" lp-tab--mobile-only":"")} onClick={()=>setLeftSidebarTab(k)}>{l}</button>
         )}
         <button type="button" className="lp-close" onClick={()=>setLeftSidebarOpen(false)} aria-label="Close sidebar" title="Close sidebar">{Icons.x?Icons.x():"\u00D7"}</button>
       </div>
@@ -5007,6 +5027,59 @@ return(
         <div style={{display:"flex",gap:6,marginTop:6}}>
           <button className="lp-btn" style={{flex:1}} onClick={()=>copyProgressSummary()}>{Icons.clipboard?Icons.clipboard():null}{" "}Copy summary</button>
           <button className="lp-btn" style={{flex:1}} onClick={handleEditInCreator}>{Icons.pencil?Icons.pencil():null}{" "}Edit in Creator</button>
+        </div>
+      </div>}
+
+      {/* ── Tab: Legend (phase 5, mobile only) ──
+          On <=899px the rpanel is hidden (CSS) and the palette legend
+          folds into the left drawer as its own tab. The tab button is
+          also CSS-hidden on desktop, so the tab is unreachable in the
+          desktop layout where the rpanel is already showing the same
+          list. */}
+      {leftSidebarTab==="legend"&&<div className="lp-section lp-section--mobile-only" style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <span className="lp-heading" style={{margin:0}}>Palette legend <span className="badge">{pal.length}</span></span>
+          <label style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:"var(--text-tertiary)"}}>
+            <span>Sort</span>
+            <select value={legendSort} onChange={e=>setLegendSort(e.target.value)} style={{fontSize:11,padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontFamily:"inherit"}} aria-label="Sort palette legend">
+              <option value="id">DMC ID</option>
+              <option value="done">% done</option>
+              <option value="count">Stitch count</option>
+            </select>
+          </label>
+        </div>
+        <div className="col-list" style={{maxHeight:"none",flex:1,overflowY:"auto"}}>
+          {(()=>{
+            const rows=pal.map(p=>{
+              const dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
+              const totalWithHalf=dc.total+dc.halfTotal*0.5;
+              const doneWithHalf=dc.done+dc.halfDone*0.5;
+              const pct=totalWithHalf>0?Math.round(doneWithHalf/totalWithHalf*100):0;
+              return {p,dc,pct,total:dc.total,complete:doneWithHalf>=totalWithHalf&&totalWithHalf>0};
+            });
+            if(legendSort==="done"){rows.sort((a,b)=>b.pct-a.pct);}
+            else if(legendSort==="count"){rows.sort((a,b)=>b.total-a.total);}
+            else{rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});}
+            return rows.map(({p,dc,pct,complete})=>{
+              const isFocused=focusColour===p.id;
+              return <div key={p.id} className={"col-row"+(isFocused?" focus":"")} style={{opacity:complete&&!isFocused?0.55:1}} onClick={()=>{
+                if(isEditMode){setEditModalColor(p);return;}
+                setStitchView("highlight");
+                setFocusColour(p.id);
+                setLeftSidebarTab("highlight");
+              }} title={"Focus DMC "+p.id+" and open Highlight tab"}>
+                <div className="sw" style={{background:`rgb(${p.rgb})`}}/>
+                <span className="sym">{p.symbol}</span>
+                <span className="cid" style={{color:isFocused?"#0d9488":complete?"#16a34a":"inherit"}}>{p.id}</span>
+                <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
+                {!isEditMode&&<>
+                  <div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
+                  <span className="ct">{dc.done}/{dc.total}</span>
+                  <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
+                </>}
+              </div>;
+            });
+          })()}
         </div>
       </div>}
 

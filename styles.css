@@ -119,6 +119,26 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   overflow-y: auto;
   box-shadow: var(--shadow-md);
 }
+/* Phase 5 — bottom-sheet modal variant. Defaults to a normal centred
+   modal on desktop (so the styles are no-ops) and re-anchors to the
+   bottom of the viewport on mobile, with a small drag-handle bar.
+   Used by SessionConfigModal so "Start session" is reachable
+   one-handed on phones. */
+.sheet-handle{
+  width:36px;height:4px;border-radius:2px;background:var(--border);
+  margin:-8px auto 12px;
+}
+@media(max-width:899px){
+  .modal-overlay--sheet{align-items:flex-end;}
+  .modal-content--sheet{
+    width:100%;max-width:100%;
+    border-bottom-left-radius:0;border-bottom-right-radius:0;
+    border-bottom:none;
+    padding:16px 18px calc(20px + env(safe-area-inset-bottom,0px));
+    animation:sheet-slide-up 0.22s ease-out;
+  }
+  @keyframes sheet-slide-up{from{transform:translateY(100%);}to{transform:translateY(0);}}
+}
 /* .modal-box, .modal-header, .modal-title — used by ConvertPaletteModal and other
    class-based modals. Without these the modal renders transparent and unstyled. */
 .modal-box {
@@ -312,6 +332,26 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
     z-index:1000;border-right:1px solid var(--border);
     box-shadow:2px 0 16px rgba(0,0,0,0.12);max-height:none;
   }
+}
+/* Phase 5 — desktop hides the mobile-only Legend tab + section. */
+.lp-tab--mobile-only,.lp-section--mobile-only{display:none;}
+@media(max-width:899px){
+  /* Phase 5 — backdrop scrim behind the drawer. Tap to close. */
+  .lpanel-backdrop{
+    position:fixed;inset:0;z-index:999;background:rgba(15,23,42,0.45);
+    backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+    animation:lpanel-fade-in 0.18s ease-out;
+  }
+  @keyframes lpanel-fade-in{from{opacity:0;}to{opacity:1;}}
+  /* Phase 5 — show the Legend tab + section only on mobile. */
+  .lp-tab--mobile-only{display:inline-flex;}
+  .lp-section--mobile-only{display:flex;}
+  /* Phase 5 — palette legend lives in the lpanel on mobile, so the
+     standalone rpanel is redundant. Hide it entirely. */
+  .rpanel{display:none!important;}
+  /* Phase 5 — touch-friendly hit targets inside the lpanel. */
+  .lp-btn,.lp-tab,.lp-seg{min-height:44px;}
+  .lp-row input[type="range"]{min-height:32px;}
 }
 @media(pointer:coarse){.fab-undo{display:flex;position:fixed;bottom:60px;left:16px;width:48px;height:48px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:20px;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.2);z-index:400;cursor:pointer;touch-action:manipulation;}}
 .tb-btn{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;font-size:11px;font-weight:400;border:none;border-radius:5px;background:transparent;color:var(--text-secondary);cursor:pointer;white-space:nowrap;line-height:1.4;font-family:inherit;}
