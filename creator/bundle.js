@@ -7653,10 +7653,17 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         }, "\xD7")
       ),
 
-      // Preview pane (collapsible)
-      previewOpen && h("div", {
+      // Preview pane: stays mounted when collapsed (visibility:hidden +
+      // position:absolute) so canvas state, scroll position, and any
+      // in-flight async work survive the toggle. Replaces the previous
+      // `previewOpen && ...` conditional render that lost state on every
+      // close. (mobile-6 perf #5)
+      h("div", {
         ref: rightScrollRef,
-        style: { overflow: "auto", maxHeight: 220, border: "0.5px solid #e2e8f0", borderRadius: "0 0 8px 8px", background: "#f1f5f9" },
+        "aria-hidden": previewOpen ? "false" : "true",
+        style: previewOpen
+          ? { overflow: "auto", maxHeight: 220, border: "0.5px solid #e2e8f0", borderRadius: "0 0 8px 8px", background: "#f1f5f9" }
+          : { position: "absolute", left: -99999, top: -99999, width: 1, height: 1, overflow: "hidden", visibility: "hidden", pointerEvents: "none" },
       }, rightPaneCanvas())
     );
   }
