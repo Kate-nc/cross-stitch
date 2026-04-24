@@ -12,6 +12,16 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // Local state
   var _swe = React.useState(false); var swatchExpanded = _swe[0], setSwatchExpanded = _swe[1];
+  // Click-to-toggle state for hover dropdowns (touch-friendly).
+  var _od = React.useState(null); var openDrop = _od[0], setOpenDrop = _od[1];
+  React.useEffect(function() {
+    if (!openDrop) return;
+    function close(e) {
+      if (!e.target || !e.target.closest || !e.target.closest('.tb-drop-wrap--open')) setOpenDrop(null);
+    }
+    document.addEventListener('pointerdown', close);
+    return function(){ document.removeEventListener('pointerdown', close); };
+  }, [openDrop]);
 
   // ResizeObserver: progressively collapse strip groups when narrow
   React.useEffect(function() {
@@ -190,18 +200,21 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var activeSM = stitchMeta[cv.stitchType] || stitchMeta["cross"];
   var stitchDrop = showStitchGrp ? [
     h("div", {key:"sdiv-stitch", className:"tb-sdiv"}),
-    h("div", {key:"stitch-drop", className:"tb-drop-wrap"},
+    h("div", {key:"stitch-drop", className:"tb-drop-wrap" + (openDrop==="stitch"?" tb-drop-wrap--open":"")},
       h("button", {
         className:"tb-btn tb-drop-btn " + activeSM.cls,
-        title:"Stitch type"
+        title:"Stitch type",
+        "aria-haspopup":"menu",
+        "aria-expanded":openDrop==="stitch",
+        onClick:function(){setOpenDrop(openDrop==="stitch"?null:"stitch");}
       }, activeSM.icon, activeSM.label, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
-      h("div", {className:"tb-dropdown"},
+      h("div", {className:"tb-dropdown", role:"menu"},
         Object.keys(stitchMeta).map(function(k) {
           var m = stitchMeta[k];
           return h("button", {
             key:k,
             className:"tb-drop-item" + (cv.stitchType===k?" tb-drop-item--on":""),
-            onClick:function(){cv.selectStitchType(k);}
+            onClick:function(){cv.selectStitchType(k);setOpenDrop(null);}
           }, m.icon, m.label);
         })
       )
@@ -300,12 +313,15 @@ window.CreatorToolStrip = function CreatorToolStrip() {
                  "Select";
   var selectDrop = [
     h("div", {key:"sdiv-select", className:"tb-sdiv"}),
-    h("div", {key:"select-drop", className:"tb-drop-wrap"},
+    h("div", {key:"select-drop", className:"tb-drop-wrap" + (openDrop==="select"?" tb-drop-wrap--open":"")},
       h("button", {
         className:"tb-btn tb-drop-btn" + (isSelectActive ? " tb-btn--on" : ""),
-        title:"Selection tools"
+        title:"Selection tools",
+        "aria-haspopup":"menu",
+        "aria-expanded":openDrop==="select",
+        onClick:function(){setOpenDrop(openDrop==="select"?null:"select");}
       }, selIcon, selLabel, h("span", {className:"tb-drop-arrow"}, "\u25BE")),
-      h("div", {className:"tb-dropdown"},
+      h("div", {className:"tb-dropdown", role:"menu", onClick:function(e){if(e.target.closest&&e.target.closest('.tb-drop-item'))setOpenDrop(null);}},
         h("button", {
           className:"tb-drop-item"+(cv.activeTool==="magicWand"?" tb-drop-item--on":""),
           onClick:function(){
