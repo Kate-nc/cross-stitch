@@ -176,6 +176,14 @@ window.Icons = (function() {
     pause: function() {
       return svg(rc(6,4,4,16,1), rc(14,4,4,16,1));
     },
+    // Archive box — used for bulk-archive on the dashboard
+    archive: function() {
+      return svg(
+        rc(2, 4, 20, 5, 1),
+        p('M4 9v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9'),
+        l(10, 13, 14, 13)
+      );
+    },
     // Play triangle — replaces ▶ in creator
     play: function() {
       return svg(poly('5 3 19 12 5 21 5 3'));

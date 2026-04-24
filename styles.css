@@ -3516,3 +3516,105 @@ html.pref-dark a { color: #5eead4; }
     display: none !important;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   B5 — Multi-select dashboard + rich cards
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Bulk action bar — sits above the dashboard while selection mode is on. */
+.mpd-bulk-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  margin-bottom: 12px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--accent-border, #c7d2fe);
+  border-radius: var(--radius-lg, 10px);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  flex-wrap: wrap;
+}
+.mpd-bulk-bar-left,
+.mpd-bulk-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mpd-bulk-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  margin-right: 4px;
+}
+.mpd-bulk-delete {
+  color: #b91c1c;
+}
+.mpd-bulk-delete:hover:not(:disabled) {
+  background: #fee2e2;
+}
+.mpd-bulk-bar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Card selection affordance — checkbox sits in the top-left corner.
+   Hidden by default, shown on hover (desktop) and always shown when
+   the dashboard is in selection mode. */
+.mpd-card {
+  position: relative;
+}
+.mpd-card-select {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border, #cbd5e1);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--accent, #0d9488);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  transition: background 0.12s, border-color 0.12s;
+}
+.mpd-card:hover .mpd-card-select,
+.mpd--selection-mode .mpd-card-select {
+  display: inline-flex;
+}
+.mpd-card-select--checked {
+  background: var(--accent, #0d9488);
+  border-color: var(--accent, #0d9488);
+  color: #fff;
+}
+.mpd-card--selected {
+  outline: 2px solid var(--accent, #0d9488);
+  outline-offset: 2px;
+}
+.mpd--selection-mode .mpd-card {
+  cursor: pointer;
+}
+
+/* Continue button in the card footer — make sure it stays tap-friendly on
+   mobile (no hover-only visibility tricks should ever hide it). */
+@media (max-width: 480px) {
+  .mpd-card-actions .mpd-btn { min-height: 36px; }
+  .mpd-bulk-bar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mpd-bulk-bar-left,
+  .mpd-bulk-bar-right {
+    flex-shrink: 0;
+  }
+}

@@ -182,7 +182,9 @@ function getSuggestion(activeProjects, stashMap) {
 // ─────────────────────────────────────────────────────────────────
 // ProjectCard
 // ─────────────────────────────────────────────────────────────────
-function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtras }) {
+function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtras,
+                       selectionMode, selected, onToggleSelect, onLongPress,
+                       payloadCache }) {
   var h = React.createElement;
   var cs = proj.completedStitches || 0;
   var ts = proj.totalStitches || 0;
@@ -194,23 +196,139 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
   var weekSess = 0; // not stored in meta, skip for now
   var dim = proj.dimensions ? (proj.dimensions.width + '\u00D7' + proj.dimensions.height) : '';
   var fabricCt = proj.fabricCt ? proj.fabricCt + '-count' : '';
+  // Thread count — meta sometimes carries it as `colourCount` or `threadCount`.
+  var threadCount = proj.colourCount || proj.threadCount || (proj.threads && proj.threads.length) || 0;
   var stashColor = stashOk === true ? '#16a34a' : stashOk === false ? '#b45309' : '#a1a1aa';
   var stashIconEl = stashOk === true ? (window.Icons && window.Icons.check && window.Icons.check())
     : stashOk === false ? (window.Icons && window.Icons.warning && window.Icons.warning())
     : (window.Icons && window.Icons.info && window.Icons.info());
 
-  return h('div', { className: 'mpd-card' },
+  // ── PERF NOTE (B5 Option A): lazy-load full project payload for the
+  // PartialStitchThumb only after the card mounts. The dashboard meta store
+  // intentionally omits `pattern`/`done` so listProjects() stays cheap; we
+  // fetch each project's payload once and memoise it on a Map ref shared at
+  // the dashboard level (`payloadCache`) so re-renders never refetch.
+  // Falls back to the static `proj.thumbnail` while loading.
+  var _payload = React.useState(function() {
+    if (payloadCache && payloadCache.has(proj.id)) return payloadCache.get(proj.id);
+    return null;
+  });
+  var payload = _payload[0], setPayload = _payload[1];
+  React.useEffect(function() {
+    if (payload || proj.managerOnly) return;
+    if (typeof ProjectStorage === 'undefined' || !ProjectStorage.get) return;
+    var cancelled = false;
+    ProjectStorage.get(proj.id).then(function(full) {
+      if (cancelled || !full) return;
+      var p = { pattern: full.pattern, done: full.done, w: full.w, h: full.h };
+      if (payloadCache) payloadCache.set(proj.id, p);
+      setPayload(p);
+    }).catch(function() {});
+    return function() { cancelled = true; };
+  }, [proj.id]);
+
+  // ── Long-press / multi-select interaction ──
+  var pressTimerRef = React.useRef(null);
+  var pressMovedRef = React.useRef(false);
+  var pressStartRef = React.useRef({ x: 0, y: 0 });
+  function clearPressTimer() {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+  }
+  function onTouchStart(e) {
+    if (!e.touches || e.touches.length !== 1) return;
+    pressMovedRef.current = false;
+    pressStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    clearPressTimer();
+    pressTimerRef.current = setTimeout(function() {
+      pressTimerRef.current = null;
+      if (!pressMovedRef.current && onLongPress) onLongPress(proj);
+    }, 500);
+  }
+  function onTouchMove(e) {
+    if (!e.touches || e.touches.length !== 1) return;
+    var dx = e.touches[0].clientX - pressStartRef.current.x;
+    var dy = e.touches[0].clientY - pressStartRef.current.y;
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+      pressMovedRef.current = true;
+      clearPressTimer();
+    }
+  }
+  function onTouchEnd() { clearPressTimer(); }
+
+  function handleCardClick(e) {
+    // Cmd/Ctrl-click toggles selection without entering selection mode.
+    if ((e.metaKey || e.ctrlKey) && onToggleSelect) {
+      e.preventDefault();
+      e.stopPropagation();
+      onToggleSelect(proj.id);
+      return true;
+    }
+    if (selectionMode && onToggleSelect) {
+      e.preventDefault();
+      e.stopPropagation();
+      onToggleSelect(proj.id);
+      return true;
+    }
+    return false;
+  }
+  function thumbClick(e) {
+    if (handleCardClick(e)) return;
+    onOpen(proj, 'tracker');
+  }
+  function nameClick(e) {
+    if (handleCardClick(e)) return;
+    onOpen(proj, 'tracker');
+  }
+
+  var cardClassName = 'mpd-card'
+    + (selected ? ' mpd-card--selected' : '')
+    + (selectionMode ? ' mpd-card--selectable' : '');
+
+  return h('div', {
+      className: cardClassName,
+      onTouchStart: onTouchStart,
+      onTouchMove: onTouchMove,
+      onTouchEnd: onTouchEnd,
+      onTouchCancel: onTouchEnd
+    },
+    // Selection checkbox (top-left, visible in selection mode or on hover)
+    h('button', {
+      type: 'button',
+      className: 'mpd-card-select' + (selected ? ' mpd-card-select--checked' : ''),
+      'aria-label': selected ? 'Deselect project' : 'Select project',
+      'aria-pressed': !!selected,
+      onClick: function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (onToggleSelect) onToggleSelect(proj.id);
+      }
+    }, selected && window.Icons && window.Icons.check ? window.Icons.check() : null),
+
     // Thumbnail
-    h('div', { className: 'mpd-card-thumb', onClick: function() { onOpen(proj, 'tracker'); } },
-      proj.thumbnail
-        ? h('img', { src: proj.thumbnail, alt: '', className: 'mpd-card-thumb-img' })
-        : h('div', { className: 'mpd-card-thumb-placeholder' })
+    h('div', { className: 'mpd-card-thumb', onClick: thumbClick },
+      (payload && payload.pattern && window.PartialStitchThumb)
+        ? h(window.PartialStitchThumb, {
+            pattern: payload.pattern,
+            done: payload.done,
+            w: payload.w,
+            h: payload.h,
+            size: 96,
+            projectId: proj.id,
+            className: 'mpd-card-thumb-img',
+            alt: ''
+          })
+        : (proj.thumbnail
+            ? h('img', { src: proj.thumbnail, alt: '', className: 'mpd-card-thumb-img' })
+            : h('div', { className: 'mpd-card-thumb-placeholder' }))
     ),
     // Body
     h('div', { className: 'mpd-card-body' },
       // Top row: name + progress
       h('div', { className: 'mpd-card-top' },
-        h('div', { className: 'mpd-card-name', onClick: function() { onOpen(proj, 'tracker'); } },
+        h('div', { className: 'mpd-card-name', onClick: nameClick },
           proj.name || 'Untitled'
         ),
         h('div', { className: 'mpd-card-pct' + (pct >= 100 ? ' mpd-card-pct--done' : '') },
@@ -231,10 +349,12 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
         h('div', { className: 'mpd-card-progress-fill', style: { width: Math.min(100, pct) + '%' } })
       ),
       // Metadata row
-      dim || fabricCt ? h('div', { className: 'mpd-card-meta' },
+      (dim || fabricCt || threadCount > 0) ? h('div', { className: 'mpd-card-meta' },
         dim && h('span', null, dim),
         dim && fabricCt && h('span', { className: 'mpd-card-sep' }, '\u00B7'),
-        fabricCt && h('span', null, fabricCt)
+        fabricCt && h('span', null, fabricCt),
+        threadCount > 0 && (dim || fabricCt) && h('span', { className: 'mpd-card-sep' }, '\u00B7'),
+        threadCount > 0 && h('span', null, threadCount + ' colour' + (threadCount === 1 ? '' : 's'))
       ) : null,
       // Recency
       h('div', { className: 'mpd-card-recency' + (isNeglected ? ' mpd-card-recency--warn' : '') },
@@ -388,6 +508,77 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
   var _designOpen = useState(false);
   var designOpen = _designOpen[0], setDesignOpen = _designOpen[1];
 
+  // ── Multi-select dashboard state (B5) ──
+  // `selected` is a Set<projectId>. `selectionMode` flips the bulk-action bar
+  // on; cards expose checkboxes and clicks toggle selection rather than open.
+  var _selected = useState(function() { return new Set(); });
+  var selected = _selected[0], setSelected = _selected[1];
+  var _selectionMode = useState(false);
+  var selectionMode = _selectionMode[0], setSelectionMode = _selectionMode[1];
+  var _confirmDelete = useState(false);
+  var confirmDelete = _confirmDelete[0], setConfirmDelete = _confirmDelete[1];
+
+  // Lazy-loaded project payload cache, shared across all rendered cards so
+  // re-renders never refetch. PERF NOTE (Option A): only loads when a card
+  // actually mounts — avoids the full-payload fan-out that would re-introduce
+  // the perf problem the meta store was designed to solve.
+  var payloadCacheRef = React.useRef(null);
+  if (!payloadCacheRef.current) payloadCacheRef.current = new Map();
+
+  // Reset / intersect the selection set whenever the project list changes
+  // (e.g. after a bulk delete or archive) so the bulk bar never references
+  // ghost IDs.
+  useEffect(function() {
+    var ids = new Set(projects.map(function(p) { return p.id; }));
+    setSelected(function(prev) {
+      var next = new Set();
+      prev.forEach(function(id) { if (ids.has(id)) next.add(id); });
+      if (next.size === prev.size) return prev;
+      return next;
+    });
+    if (selectionMode && projects.length === 0) setSelectionMode(false);
+  }, [projects]);
+
+  // Escape exits selection mode (mounts/unmounts with the mode).
+  useEffect(function() {
+    if (!selectionMode) return;
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        setSelectionMode(false);
+        setSelected(new Set());
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return function() { window.removeEventListener('keydown', onKey); };
+  }, [selectionMode]);
+
+  function toggleSelect(id) {
+    setSelected(function(prev) {
+      var next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      // Auto-exit selection mode when nothing is selected.
+      if (next.size === 0) setSelectionMode(false);
+      else if (!selectionMode) setSelectionMode(true);
+      return next;
+    });
+  }
+  function enterSelectionMode(proj) {
+    setSelectionMode(true);
+    setSelected(function(prev) {
+      var next = new Set(prev);
+      next.add(proj.id);
+      return next;
+    });
+  }
+  function selectAll() {
+    var ids = new Set(projects.filter(function(p) { return !p.managerOnly; }).map(function(p) { return p.id; }));
+    setSelected(ids);
+  }
+  function clearSelection() {
+    setSelected(new Set());
+    setSelectionMode(false);
+  }
+
   // Stash readiness lookup: { projectId → true/false/null }
   var stashReadiness = useMemo(function() {
     if (!stash) return {};
@@ -450,6 +641,52 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     });
   }
 
+  // ── Bulk handlers (B5) ──
+  function showToast(message, type) {
+    if (window.Toast && typeof window.Toast.show === 'function') {
+      window.Toast.show({ message: message, type: type || 'success' });
+    }
+  }
+  function handleBulkArchive() {
+    var ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (typeof ProjectStorage !== 'undefined' && ProjectStorage.setStateMany) {
+      ProjectStorage.setStateMany(ids, 'paused');
+    }
+    setStates(function(prev) {
+      var next = Object.assign({}, prev);
+      ids.forEach(function(id) { next[id] = 'paused'; });
+      return next;
+    });
+    setSelected(new Set());
+    setSelectionMode(false);
+    showToast(ids.length + ' project' + (ids.length === 1 ? '' : 's') + ' archived', 'success');
+  }
+  function handleBulkDelete() {
+    var ids = Array.from(selected);
+    if (ids.length === 0) return;
+    // Confirmation modal — uses window.confirm (matches preferences-modal pattern).
+    var msg = 'Delete ' + ids.length + ' project' + (ids.length === 1 ? '' : 's') + '? This cannot be undone.';
+    var ok = typeof window !== 'undefined' && typeof window.confirm === 'function'
+      ? window.confirm(msg)
+      : true;
+    if (!ok) return;
+    setConfirmDelete(false);
+    if (typeof ProjectStorage !== 'undefined' && ProjectStorage.deleteMany) {
+      ProjectStorage.deleteMany(ids).then(function() {
+        showToast(ids.length + ' project' + (ids.length === 1 ? '' : 's') + ' deleted', 'success');
+      }).catch(function() {
+        showToast('Bulk delete failed', 'error');
+      });
+    }
+    setSelected(new Set());
+    setSelectionMode(false);
+  }
+  function handleBulkExport() {
+    // Bulk export lands in B4 — surface a placeholder toast for now.
+    showToast('Bulk export coming in B4', 'info');
+  }
+
   function openMenu(proj) {
     setMenuProj(proj.id);
   }
@@ -483,9 +720,61 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     ? Math.round((continueProj.completedStitches || 0) / continueProj.totalStitches * 100)
     : 0;
 
-  return h('div', { className: 'mpd' },
+  return h('div', { className: 'mpd' + (selectionMode ? ' mpd--selection-mode' : '') },
+    // ── Bulk action bar (B5) — only when in selection mode ──
+    selectionMode && h('div', {
+      className: 'mpd-bulk-bar',
+      role: 'toolbar',
+      'aria-label': 'Bulk project actions'
+    },
+      h('div', { className: 'mpd-bulk-bar-left' },
+        h('span', { className: 'mpd-bulk-count' },
+          selected.size + ' selected'),
+        h('button', {
+          type: 'button',
+          className: 'mpd-btn mpd-btn--ghost',
+          onClick: selectAll
+        }, 'Select all'),
+        h('button', {
+          type: 'button',
+          className: 'mpd-btn mpd-btn--ghost',
+          onClick: clearSelection
+        }, 'Clear')
+      ),
+      h('div', { className: 'mpd-bulk-bar-right' },
+        h('button', {
+          type: 'button',
+          className: 'mpd-btn mpd-btn--ghost',
+          onClick: handleBulkArchive,
+          disabled: selected.size === 0,
+          title: 'Move selected projects to Paused'
+        },
+          window.Icons && window.Icons.archive ? window.Icons.archive() : null,
+          h('span', null, ' Archive')
+        ),
+        h('button', {
+          type: 'button',
+          className: 'mpd-btn mpd-btn--ghost mpd-bulk-delete',
+          onClick: handleBulkDelete,
+          disabled: selected.size === 0,
+          title: 'Delete selected projects'
+        },
+          window.Icons && window.Icons.trash ? window.Icons.trash() : null,
+          h('span', null, ' Delete')
+        ),
+        h('button', {
+          type: 'button',
+          className: 'mpd-btn mpd-btn--ghost',
+          onClick: handleBulkExport,
+          disabled: selected.size === 0,
+          title: 'Export selected projects'
+        }, 'Export')
+      )
+    ),
+
     // ── Sticky Continue bar (most recent active project) ──
-    continueProj && h('div', {
+    // Hidden while selection mode is active to keep the bulk bar uncluttered.
+    !selectionMode && continueProj && h('div', {
       className: 'mpd-continue-bar',
       style: {
         background: 'var(--accent-light)', border: '1px solid var(--accent-border)',
@@ -546,7 +835,12 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
                 onChangeState: openMenu,
                 stashOk: stashReadiness[proj.id],
                 stashMsg: stashReadiness[proj.id] === true ? 'Ready (all in stash)' : stashReadiness[proj.id] === false ? 'Need threads' : null,
-                cardExtras: cardExtras
+                cardExtras: cardExtras,
+                selectionMode: selectionMode,
+                selected: selected.has(proj.id),
+                onToggleSelect: toggleSelect,
+                onLongPress: enterSelectionMode,
+                payloadCache: payloadCacheRef.current
               }),
               menuProj === proj.id && h(StateChangeMenu, {
                 proj: proj,
@@ -1132,6 +1426,22 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   }
   var heroIsPrimaryTracker = heroProject && (heroProject.source === 'tracker' || heroProject.source === 'unknown');
 
+  // Lazy-load the hero project's full payload so the PartialStitchThumb can
+  // ghost unstitched cells. PERF NOTE (B5 Option A): the meta store omits
+  // pattern/done; we only fetch when there's a hero card actually rendering.
+  var _heroPayload = useState(null);
+  var heroPayload = _heroPayload[0], setHeroPayload = _heroPayload[1];
+  useEffect(function() {
+    if (!heroProject || heroProject.managerOnly) { setHeroPayload(null); return; }
+    if (typeof ProjectStorage === 'undefined' || !ProjectStorage.get) return;
+    var cancelled = false;
+    ProjectStorage.get(heroProject.id).then(function(full) {
+      if (cancelled || !full) return;
+      setHeroPayload({ pattern: full.pattern, done: full.done, w: full.w, h: full.h });
+    }).catch(function() {});
+    return function() { cancelled = true; };
+  }, [heroProject ? heroProject.id : null]);
+
   if (loading) return null;
 
   // When multiple projects exist, show the rich multi-project dashboard instead of the simple hero layout.
@@ -1205,9 +1515,20 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       h('div', { className: 'home-hero-inner' },
         // Thumbnail
         h('div', { className: 'home-hero-thumb' },
-          heroProject.thumbnail
-            ? h('img', { src: heroProject.thumbnail, alt: '', className: 'home-hero-thumb-img' })
-            : h('div', { className: 'home-hero-thumb-placeholder' })
+          (heroPayload && heroPayload.pattern && window.PartialStitchThumb)
+            ? h(window.PartialStitchThumb, {
+                pattern: heroPayload.pattern,
+                done: heroPayload.done,
+                w: heroPayload.w,
+                h: heroPayload.h,
+                size: 96,
+                projectId: heroProject.id,
+                className: 'home-hero-thumb-img',
+                alt: ''
+              })
+            : (heroProject.thumbnail
+                ? h('img', { src: heroProject.thumbnail, alt: '', className: 'home-hero-thumb-img' })
+                : h('div', { className: 'home-hero-thumb-placeholder' }))
         ),
         // Content
         h('div', { className: 'home-hero-content' },
