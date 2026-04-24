@@ -195,6 +195,16 @@ window.CreatorProjectTab = function CreatorProjectTab() {
 
   // ── Thread Organiser ────────────────────────────────────────────────────────
   function renderThreadOrganiser() {
+    // Cache: scanning the global stash is O(n) and was previously called 3x per render
+    // (disabled / title / opacity props on the substitute button below).
+    var hasOwnedStash = false;
+    if (ctx.globalStash) {
+      var _stashKeys = Object.keys(ctx.globalStash);
+      for (var _i = 0; _i < _stashKeys.length; _i++) {
+        var _e = ctx.globalStash[_stashKeys[_i]];
+        if (_e && _e.owned > 0) { hasOwnedStash = true; break; }
+      }
+    }
     return h(Section, {title:"Thread Organiser"},
       h("div", {style:{marginTop:8,display:"flex",gap:12,marginBottom:10}},
         h("div", {style:{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}},
@@ -304,19 +314,19 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             if (typeof StashBridge === "undefined") return true;
             if (!ctx.pat) return true;
             if (ctx.toBuyList.length === 0) return true;
-            return !Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; });
+            return !hasOwnedStash;
           })(),
           title: (function() {
             if (typeof StashBridge === "undefined") return "Stash bridge not available";
             if (!ctx.pat) return "No pattern loaded";
             if (ctx.toBuyList.length === 0) return "All threads are already marked as owned";
-            if (!Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; })) return "Add threads to your stash first";
+            if (!hasOwnedStash) return "Add threads to your stash first";
             return "Find stash alternatives for unowned threads";
           })(),
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600,
             opacity:(function() {
               if (typeof StashBridge === "undefined" || !ctx.pat || ctx.toBuyList.length === 0) return 0.5;
-              if (!Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; })) return 0.5;
+              if (!hasOwnedStash) return 0.5;
               return 1;
             })()
           }
@@ -327,7 +337,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             StashBridge.getGlobalStash().then(function(stash) {
               var missing = [], short = [];
               ctx.skeinData.forEach(function(d) {
-                var owned2 = (stash[d.id] || {}).owned || 0;
+                var stashEntry2 = stash[d.id];
+                var owned2 = (stashEntry2 && typeof stashEntry2 === 'object' && typeof stashEntry2.owned === 'number') ? stashEntry2.owned : 0;
                 if (owned2 === 0) missing.push("DMC "+d.id+" (need "+d.skeins+"sk)");
                 else if (owned2 < d.skeins) short.push("DMC "+d.id+" (have "+owned2+", need "+d.skeins+"sk)");
               });
@@ -409,7 +420,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("input", {
           type:"text", value: app.projectName || "", maxLength:60,
           placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
-          onChange: function(e) { app.setProjectName(e.target.value.slice(0,60)); },
+          onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
           style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),
@@ -418,7 +429,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("input", {
           type:"text", value: app.projectDesigner || "", maxLength:80,
           placeholder: "Your name or studio",
-          onChange: function(e) { app.setProjectDesigner(e.target.value.slice(0,80)); },
+          onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
           style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),
@@ -427,7 +438,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("textarea", {
           value: app.projectDescription || "", maxLength:500, rows:3,
           placeholder: "Source, copyright, stitching notes\u2026",
-          onChange: function(e) { app.setProjectDescription(e.target.value.slice(0,500)); },
+          onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
           style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
         })
       )

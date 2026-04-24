@@ -67,7 +67,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
       var rgb = cell.rgb;
       if (!rgb && cmap) {
         var lookupId = cell.id;
-        if (lookupId.indexOf("+") !== -1) lookupId = lookupId.split("+")[0];
+        if (isBlendId(lookupId)) lookupId = splitBlendId(lookupId)[0];
         var entry = cmap[lookupId];
         if (entry) rgb = entry.rgb;
       }

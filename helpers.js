@@ -13,6 +13,27 @@ function drawCk(ctx,x,y,s){
 function fmtTime(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?`${h}h ${m}m`:`${m}m`;}
 function fmtTimeL(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);if(h>0)return`${h} hr${h>1?"s":""} ${m} min`;return`${m} min`;}
 
+// Hoisted shared regexes (avoid recompiling per call).
+var CSV_QUOTE_RE=/"/g;
+var FILENAME_SAFE_RE=/[^a-zA-Z0-9]/g;
+
+// Lazily-built lookup maps for thread palettes; avoids O(n) Array.find per call.
+var _DMC_BY_ID=null,_ANCHOR_BY_ID=null;
+function _getDmcById(){
+  if(_DMC_BY_ID)return _DMC_BY_ID;
+  if(typeof DMC==='undefined')return null;
+  _DMC_BY_ID=Object.create(null);
+  for(var i=0;i<DMC.length;i++)_DMC_BY_ID[DMC[i].id]=DMC[i];
+  return _DMC_BY_ID;
+}
+function _getAnchorById(){
+  if(_ANCHOR_BY_ID)return _ANCHOR_BY_ID;
+  if(typeof ANCHOR==='undefined')return null;
+  _ANCHOR_BY_ID=Object.create(null);
+  for(var j=0;j<ANCHOR.length;j++)_ANCHOR_BY_ID[ANCHOR[j].id]=ANCHOR[j];
+  return _ANCHOR_BY_ID;
+}
+
 function skeinEst(stitchCount,fabricCt){if(typeof stitchesToSkeins==='function'){const result=stitchesToSkeins({stitchCount:stitchCount,fabricCount:fabricCt,strandsUsed:2,wasteFactor:0.20});return Math.max(1,result.skeinsToBuy);}return 1;}
 
 function confettiTier(pct){
@@ -551,14 +572,19 @@ function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useA
   };
 }
 
+// Shared helper: filter sessions by a date matcher and sum netStitches.
+function filterSessionsByDateRange(sessions, matcher) {
+  return (sessions || []).filter(matcher).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+}
+
 function getStatsTodayStitches(sessions, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
-  return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+  return filterSessionsByDateRange(sessions, function(s) { return s.date === today; });
 }
 
 function getStatsTodaySeconds(sessions, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
-  return sessions.filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + getSessionSeconds(s); }, 0);
+  return (sessions || []).filter(function(s) { return s.date === today; }).reduce(function(sum, s) { return sum + getSessionSeconds(s); }, 0);
 }
 
 function getStatsThisWeekStitches(sessions, dayEndHour) {
@@ -569,13 +595,13 @@ function getStatsThisWeekStitches(sessions, dayEndHour) {
   var monday = new Date(today);
   monday.setDate(today.getDate() - mondayOffset);
   var mondayStr = formatLocalDateYYYYMMDD(monday);
-  return (sessions || []).filter(function(s) { return s.date >= mondayStr; }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+  return filterSessionsByDateRange(sessions, function(s) { return s.date >= mondayStr; });
 }
 
 function getStatsThisMonthStitches(sessions, dayEndHour) {
   var today = getStitchingDate(new Date(), dayEndHour || 0);
   var monthPrefix = today.slice(0, 7);
-  return (sessions || []).filter(function(s) { return s.date && s.date.startsWith(monthPrefix); }).reduce(function(sum, s) { return sum + s.netStitches; }, 0);
+  return filterSessionsByDateRange(sessions, function(s) { return s.date && s.date.startsWith(monthPrefix); });
 }
 
 function groupSessionsByDate(sessions) {
@@ -876,7 +902,7 @@ function generateSessionCSV(sessions) {
     var s = sorted[i];
     var startT = new Date(s.startTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     var endT = new Date(s.endTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    var note = (s.note || '').replace(/"/g, '""');
+    var note = (s.note || '').replace(CSV_QUOTE_RE, '""');
     rows.push([
       s.date, startT, endT, s.durationMinutes,
       s.stitchesCompleted, s.stitchesUndone, s.netStitches,
@@ -892,7 +918,7 @@ function downloadCSV(sessions, projectName) {
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
-  var safeName = (projectName || 'cross-stitch').replace(/[^a-zA-Z0-9]/g, '_');
+  var safeName = (projectName || 'cross-stitch').replace(FILENAME_SAFE_RE, '_');
   a.download = safeName + '_sessions.csv';
   document.body.appendChild(a);
   a.click();
@@ -1103,6 +1129,8 @@ if(typeof window!=='undefined')window.threadKey=threadKey;
 
 // parseThreadKey('dmc:310') → {brand:'dmc',id:'310'}
 // parseThreadKey('310')     → {brand:'dmc',id:'310'}  ← legacy bare key falls back to DMC
+// Note: non-string keys are coerced to strings as a defensive fallback for legacy
+// data (numeric ids); callers should pass strings.
 function parseThreadKey(key){
   if(typeof key!=='string')return{brand:'dmc',id:String(key)};
   var i=key.indexOf(':');
@@ -1115,15 +1143,11 @@ if(typeof window!=='undefined')window.parseThreadKey=parseThreadKey;
 function getThreadByKey(key){
   var p=parseThreadKey(key);
   if(p.brand==='anchor'){
-    if(typeof ANCHOR!=='undefined'){
-      return ANCHOR.find(function(t){return t.id===p.id;})||null;
-    }
-    return null;
+    var aMap=_getAnchorById();
+    return aMap?(aMap[p.id]||null):null;
   }
-  if(typeof DMC!=='undefined'){
-    return DMC.find(function(t){return t.id===p.id;})||null;
-  }
-  return null;
+  var dMap=_getDmcById();
+  return dMap?(dMap[p.id]||null):null;
 }
 if(typeof window!=='undefined')window.getThreadByKey=getThreadByKey;
 
@@ -1141,6 +1165,48 @@ function classifyMatch(deltaE,isOfficial){
   return{kind:kind,deltaE:deltaE,label:label};
 }
 if(typeof window!=='undefined')window.classifyMatch=classifyMatch;
+
+// ═══ Thread catalogue & blend helpers (cross-file consolidation) ═══════════
+// Single source of truth for catalogue lookup, brand resolution, blend
+// parsing and stash-key normalisation. See reports/code-quality-02-duplication.md.
+
+// Looks up a thread by brand+id in the appropriate catalogue (DMC or ANCHOR).
+// Returns the thread object or null. Uses the pre-indexed maps from helpers.js.
+function findThreadInCatalog(brand,id){
+  if(brand==='anchor'){var aMap=_getAnchorById();return aMap?(aMap[id]||null):null;}
+  var dMap=_getDmcById();return dMap?(dMap[id]||null):null;
+}
+if(typeof window!=='undefined')window.findThreadInCatalog=findThreadInCatalog;
+
+// Determines which brand a bare id belongs to. Tries DMC first, then ANCHOR.
+// Returns 'dmc' (default) or 'anchor'.
+function resolveBrandForId(id){
+  if(typeof DMC!=='undefined'){var dMap=_getDmcById();if(dMap&&dMap[id])return 'dmc';}
+  if(typeof ANCHOR!=='undefined'){var aMap=_getAnchorById();if(aMap&&aMap[id])return 'anchor';}
+  return 'dmc';
+}
+if(typeof window!=='undefined')window.resolveBrandForId=resolveBrandForId;
+
+// True if the id contains a '+' indicating a 2-thread blend (e.g. '310+550').
+function isBlendId(id){return typeof id==='string'&&id.indexOf('+')>=0;}
+if(typeof window!=='undefined')window.isBlendId=isBlendId;
+
+// Splits a blend id into its component base ids; returns [id] for non-blends.
+// Trims whitespace and drops empty parts so '310 + 550' → ['310','550'].
+function splitBlendId(id){
+  if(typeof id!=='string'||id.indexOf('+')<0)return[String(id||'')];
+  return id.split('+').map(function(s){return s.trim();}).filter(Boolean);
+}
+if(typeof window!=='undefined')window.splitBlendId=splitBlendId;
+
+// Normalises any thread reference (bare id or composite key) to a composite
+// stash key. Bare ids fall back to the 'dmc' brand. Returns null for null/undefined.
+function normaliseStashKey(idOrKey){
+  if(idOrKey==null)return null;
+  var s=String(idOrKey);
+  return s.indexOf(':')<0?('dmc:'+s):s;
+}
+if(typeof window!=='undefined')window.normaliseStashKey=normaliseStashKey;
 
 // ── Premium feature gate ─────────────────────────────────────────
 // Stub: always returns true. Flip this to add gating later.

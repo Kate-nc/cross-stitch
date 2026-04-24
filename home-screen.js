@@ -336,8 +336,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     // Streak from localStorage (written by tracker)
     var streak = 0;
     try {
-      var streakData = JSON.parse(localStorage.getItem('cs_globalStreak') || 'null');
-      if (streakData && streakData.current) streak = streakData.current;
+      var streakData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.globalStreak) || 'null');
+      if (streakData && typeof streakData === 'object' && typeof streakData.current === 'number' && streakData.current > 0) streak = streakData.current;
     } catch(e) {}
     var activeCount = projects.filter(function(p) { return getProjectState(p, states) === 'active'; }).length;
     return { activeCount: activeCount, monthStitches: monthSt, streak: streak };
@@ -669,7 +669,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     var cancelled = false;
     Promise.all([
       typeof ProjectStorage !== 'undefined' ? ProjectStorage.listProjects() : Promise.resolve([]),
-      typeof StashBridge !== 'undefined' ? StashBridge.getGlobalStash().catch(function() { return null; }) : Promise.resolve(null),
+      typeof StashBridge !== 'undefined' ? StashBridge.getGlobalStash().catch(function(e) { console.warn('home-screen: getGlobalStash failed:', e); return null; }) : Promise.resolve(null),
       typeof StashBridge !== 'undefined' ? (function() {
         // Try to get patterns from stash manager DB
         return new Promise(function(resolve) {
@@ -942,11 +942,11 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     var total = 0;
     var owned = 0;
     pat.threads.forEach(function(t) {
-      var ids = String((t && t.id) || '').split('+').map(function(id) { return id.trim(); }).filter(Boolean);
+      var ids = splitBlendId((t && t.id) || '');
       if (ids.length === 0) return;
       ids.forEach(function(id) {
         total++;
-        var k = id.indexOf(':') < 0 ? 'dmc:' + id : id;
+        var k = normaliseStashKey(id);
         if (stash[k] && stash[k].owned > 0) owned++;
       });
     });
@@ -960,7 +960,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     if (!hasStash) return null;
     // Normalise a bare DMC id like '310' to the composite stash key 'dmc:310'.
     // Pattern threads are stored with bare ids; stash keys are always composite.
-    function normKey(id) { return id && id.indexOf(':') < 0 ? 'dmc:' + id : id; }
+    var normKey = (typeof normaliseStashKey === 'function') ? normaliseStashKey : function(id) { return id && id.indexOf(':') < 0 ? 'dmc:' + id : id; };
     // Build set of thread IDs required by any non-completed pattern
     var activeIds = new Set();
     if (patterns && patterns.length > 0) {

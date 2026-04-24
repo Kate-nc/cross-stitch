@@ -11,9 +11,11 @@ const StashBridge = (() => {
   }
 
   function _getOwnedCount(threadsData, key, fallbackId) {
-    const byKey = (threadsData[key] || {}).owned || 0;
+    var entry = threadsData[key];
+    var byKey = (entry && typeof entry === 'object' && typeof entry.owned === 'number') ? entry.owned : 0;
     if (byKey > 0) return byKey;
-    return (threadsData[fallbackId] || {}).owned || 0;
+    var fallback = threadsData[fallbackId];
+    return (fallback && typeof fallback === 'object' && typeof fallback.owned === 'number') ? fallback.owned : 0;
   }
 
   function _parseThreadKey(key) {
@@ -477,12 +479,9 @@ const StashBridge = (() => {
       const srcBrand = colon < 0 ? 'dmc' : normKey.slice(0, colon);
       const srcId = colon < 0 ? normKey : normKey.slice(colon + 1);
       // Resolve source thread
-      let target = null;
-      if (srcBrand === 'anchor' && typeof ANCHOR !== 'undefined') {
-        target = ANCHOR.find(d => d.id === srcId);
-      } else if (typeof DMC !== 'undefined') {
-        target = DMC.find(d => d.id === srcId);
-      }
+      const target = (typeof findThreadInCatalog === 'function')
+        ? findThreadInCatalog(srcBrand, srcId)
+        : null;
       if (!target || typeof rgbToLab !== 'function') return [];
       const targetLab = target.lab || rgbToLab(target.rgb[0], target.rgb[1], target.rgb[2]);
       const distFn = typeof dE2000 === 'function' ? dE2000 : (typeof dE === 'function' ? dE : null);
@@ -493,12 +492,7 @@ const StashBridge = (() => {
         const c2 = key.indexOf(':');
         const brand = c2 < 0 ? 'dmc' : key.slice(0, c2);
         const id = c2 < 0 ? key : key.slice(c2 + 1);
-        let info = null;
-        if (brand === 'anchor' && typeof ANCHOR !== 'undefined') {
-          info = ANCHOR.find(d => d.id === id);
-        } else if (typeof DMC !== 'undefined') {
-          info = DMC.find(d => d.id === id);
-        }
+        const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(brand, id) : null;
         if (!info) continue;
         const lab = info.lab || rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]);
         const dist = distFn(targetLab, lab);

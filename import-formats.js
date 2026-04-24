@@ -52,46 +52,58 @@ function detectImportFormat(file) {
   return "unknown";
 }
 
+function _oxsExtractDimension(doc, chart, sizeEls, attrPair) {
+  const props = doc.querySelector("properties") || chart;
+  let value = null;
+  for (const a of attrPair.props) {
+    value = value || props.getAttribute(a);
+  }
+  for (const a of attrPair.chart) {
+    value = value || chart.getAttribute(a);
+  }
+  if (!value) {
+    for (const sel of sizeEls) {
+      const el = doc.querySelector(sel);
+      if (!el) continue;
+      for (const a of attrPair.fallback) {
+        value = value || el.getAttribute(a);
+      }
+      if (value) break;
+    }
+  }
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed) || parsed <= 0) return null;
+  if (parsed > 5000) return { tooLarge: true, value: parsed };
+  return { value: parsed };
+}
+
 function parseOXS(xmlString) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlString, "application/xml");
   const parserError = doc.querySelector("parsererror");
   if (parserError) {
-    throw new Error("Invalid XML format");
+    throw new Error("Invalid OXS file: malformed XML");
   }
 
   const chart = doc.querySelector("chart") || doc.documentElement;
   if (!chart) throw new Error("Could not find chart element");
 
-  // Extract dimensions
-  let width = null;
-  let height = null;
+  const sizeEls = ['format', 'size', 'grid'];
+  const wResult = _oxsExtractDimension(doc, chart, sizeEls, {
+    props: ["chartwidth", "width"], chart: ["width", "w"], fallback: ["width", "w"]
+  });
+  const hResult = _oxsExtractDimension(doc, chart, sizeEls, {
+    props: ["chartheight", "height"], chart: ["height", "h"], fallback: ["height", "h"]
+  });
 
-  const props = doc.querySelector("properties") || chart;
-  width = props.getAttribute("chartwidth") || props.getAttribute("width") || chart.getAttribute("width") || chart.getAttribute("w");
-  height = props.getAttribute("chartheight") || props.getAttribute("height") || chart.getAttribute("height") || chart.getAttribute("h");
-
-  if (!width || !height) {
-    const sizeEls = ['format', 'size', 'grid'];
-    for (const sel of sizeEls) {
-      const el = doc.querySelector(sel);
-      if (el) {
-        width = width || el.getAttribute("width") || el.getAttribute("w");
-        height = height || el.getAttribute("height") || el.getAttribute("h");
-      }
-    }
-  }
-
-  width = parseInt(width);
-  height = parseInt(height);
-
-  if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
+  if (!wResult || !hResult) {
     throw new Error("Could not determine chart dimensions");
   }
-
-  if (width > 5000 || height > 5000) {
-    throw new Error("Chart dimensions too large (max 5000×5000): " + width + "×" + height);
+  if (wResult.tooLarge || hResult.tooLarge) {
+    throw new Error("Chart dimensions too large (max 5000×5000): " + (wResult.value || '?') + "×" + (hResult.value || '?'));
   }
+  let width = wResult.value;
+  let height = hResult.value;
 
   // Parse palette
   const paletteMap = {};
@@ -201,6 +213,21 @@ function parseOXS(xmlString) {
     });
   }
 
+  // Dedupe palette entries by DMC id (first-wins). Multiple palette indexes
+  // pointing at the same DMC colour can otherwise inflate the reported
+  // palette size and hide legitimate colour collisions.
+  const _seenPaletteId = {};
+  const _paletteIndexRedirect = {};
+  for (const _idx in paletteMap) {
+    const _id = paletteMap[_idx].dmcThread.id;
+    if (_seenPaletteId[_id] == null) {
+      _seenPaletteId[_id] = _idx;
+    } else {
+      _paletteIndexRedirect[_idx] = _seenPaletteId[_id];
+      delete paletteMap[_idx];
+    }
+  }
+
   // Parse stitches
   const pattern = new Array(width * height).fill(null).map(() => ({
     type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0]
@@ -221,6 +248,7 @@ function parseOXS(xmlString) {
 
     if (isNaN(x) || isNaN(y) || x < 0 || x >= width || y < 0 || y >= height) return;
 
+    if (_paletteIndexRedirect[palIdx] != null) palIdx = _paletteIndexRedirect[palIdx];
     const palEntry = paletteMap[palIdx];
     if (palEntry && palEntry.dmcThread) {
       const t = palEntry.dmcThread;
@@ -251,9 +279,13 @@ function parseOXS(xmlString) {
       let y1 = parseFloat(el.getAttribute("y1") || el.getAttribute("starty"));
       let x2 = parseFloat(el.getAttribute("x2") || el.getAttribute("endx"));
       let y2 = parseFloat(el.getAttribute("y2") || el.getAttribute("endy"));
-      if (!isNaN(x1) && !isNaN(y1) && !isNaN(x2) && !isNaN(y2)) {
-        bsLines.push({x1, y1, x2, y2});
-      }
+      if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) return;
+      // Reject zero-length lines (x1===x2 && y1===y2) and any line whose
+      // endpoints fall outside the chart grid.
+      if (x1 === x2 && y1 === y2) return;
+      if (x1 < 0 || x2 < 0 || y1 < 0 || y2 < 0) return;
+      if (x1 > width || x2 > width || y1 > height || y2 > height) return;
+      bsLines.push({x1, y1, x2, y2});
     });
   }
 

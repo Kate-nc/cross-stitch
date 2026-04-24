@@ -8,7 +8,7 @@ const ProjectStorage = (() => {
   const STORE_NAME = "projects";
   const META_STORE = "project_meta";
   const STATS_STORE = "stats_summaries";
-  const ACTIVE_KEY = "crossstitch_active_project";
+  const ACTIVE_KEY = (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.activeProject : "crossstitch_active_project";
 
   // Legacy epoch: same constant as stash-bridge.js for consistent 'before tracking' display
   const LEGACY_EPOCH = '2020-01-01T00:00:00Z';
@@ -227,7 +227,7 @@ const ProjectStorage = (() => {
                 }
                 const fc = (project.settings && project.settings.fabricCt) || 14;
                 const skeinData = Object.entries(counts).map(([id, stitches]) => {
-                  const dmcEntry = typeof DMC !== "undefined" ? DMC.find(d => d.id === id) : null;
+                  const dmcEntry = typeof findThreadInCatalog === "function" ? findThreadInCatalog('dmc', id) : null;
                   return {
                     id,
                     name: dmcEntry ? dmcEntry.name : id,
@@ -680,7 +680,7 @@ const ProjectStorage = (() => {
           for (const cell of proj.pattern) {
             if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
             const ids = (typeof cell.id === 'string' && cell.id.indexOf('+') !== -1)
-              ? cell.id.split('+').map(s => s.trim()).filter(Boolean)
+              ? splitBlendId(cell.id)
               : [cell.id];
             const share = ids.length > 1 ? 1 / ids.length : 1;
             for (const tid of ids) {
@@ -746,7 +746,8 @@ const ProjectStorage = (() => {
     // States: 'active' | 'queued' | 'paused' | 'complete' | 'design'
     // Stored in localStorage so it's fast to read without loading full project data.
     getProjectStates() {
-      try { return JSON.parse(localStorage.getItem('cs_projectStates') || '{}'); } catch(e) { return {}; }
+      try { return JSON.parse(localStorage.getItem('cs_projectStates') || '{}'); }
+      catch(e) { console.warn('cs_projectStates corrupted, resetting:', e); try { localStorage.removeItem('cs_projectStates'); } catch(_) {} return {}; }
     },
 
     setProjectState(id, state) {

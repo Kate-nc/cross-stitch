@@ -24,8 +24,8 @@
           body: "Convert any image into a cross-stitch pattern. Adjust dimensions, palette size, and apply filters to get the perfect design.",
           bullets: [
             ["Palette Control", "Limit the maximum number of colours to keep the project manageable."],
-            ["Min Stitches/Colour", "Remove colours that are only used for a few stitches (useful for cleaning up noise)."],
-            ["Skip Background", "Select a colour from your image to be treated as empty canvas. Click 'Pick' and then click on your image."]
+            ["Minimum stitches per colour", "Drops colours that are only used a few times — useful for tidying up speckled areas."],
+            ["Remove background colour", "Pick a colour from your image to treat as empty fabric. Click ‘Pick’ then click on the image."]
           ]
         },
         {

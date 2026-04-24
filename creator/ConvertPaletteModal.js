@@ -57,7 +57,7 @@ window.ConvertPaletteModal = (function () {
     palette.forEach(function (cell) {
       if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') return;
       // Strip blend IDs (e.g. "310+550") — take first component
-      var id = cell.id.indexOf('+') >= 0 ? cell.id.split('+')[0] : cell.id;
+      var id = isBlendId(cell.id) ? splitBlendId(cell.id)[0] : cell.id;
       if (!seenIds[id]) { seenIds[id] = true; sourceIds.push(id); }
     });
 
@@ -141,10 +141,10 @@ window.ConvertPaletteModal = (function () {
 
   function ConfidenceBadge({ confidence }) {
     var colours = {
-      official: { bg: '#dcfce7', text: '#166534', label: 'Official' },
-      reconciled: { bg: '#fef9c3', text: '#854d0e', label: 'Reconciled' },
-      'single-source': { bg: '#fef3c7', text: '#92400e', label: 'Single source' },
-      nearest: { bg: '#f1f5f9', text: '#475569', label: 'Nearest colour' },
+      official: { bg: '#dcfce7', text: '#166534', label: 'Exact match' },
+      reconciled: { bg: '#fef9c3', text: '#854d0e', label: 'Best match' },
+      'single-source': { bg: '#fef3c7', text: '#92400e', label: 'One source' },
+      nearest: { bg: '#f1f5f9', text: '#475569', label: 'Closest colour' },
     };
     var c = colours[confidence] || colours.nearest;
     return React.createElement('span', {

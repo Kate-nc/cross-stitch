@@ -15,7 +15,7 @@ const SyncEngine = (() => {
 
   // localStorage keys to include in sync (same safe set as backup-restore)
   const SYNC_LS_KEYS = [
-    "crossstitch_active_project",
+    (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.activeProject : "crossstitch_active_project",
     "crossstitch_custom_palettes"
   ];
 
@@ -45,6 +45,22 @@ const SyncEngine = (() => {
   // project's pattern data. This detects whether the chart grid itself changed
   // (colours re-arranged, cells edited) vs. only tracking progress changing.
 
+  function stringToUint8Array(str) {
+    if (typeof TextEncoder !== "undefined") return new TextEncoder().encode(str);
+    var arr = new Uint8Array(str.length);
+    for (var ci = 0; ci < str.length; ci++) arr[ci] = str.charCodeAt(ci) & 0xff;
+    return arr;
+  }
+
+  function computeDeflateFingerprint(bytes, w, h) {
+    var deflated = pako.deflate(bytes);
+    var hex = "";
+    for (var di = 0; di < Math.min(8, deflated.length); di++) {
+      hex += ("0" + deflated[di].toString(16)).slice(-2);
+    }
+    return "fp_" + w + "x" + h + "_" + hex + "_" + deflated.length;
+  }
+
   function computeFingerprint(project) {
     if (!project || !project.pattern) return "empty";
     try {
@@ -61,28 +77,10 @@ const SyncEngine = (() => {
       const h = (project.settings && project.settings.sH) || project.h || 0;
       const raw = w + "x" + h + ":" + parts.join(",");
 
-      // pako.deflate internally uses CRC32 but we can also compute it directly
-      // via the undocumented pako.crc32 — fall back to a simple hash if missing
-      if (typeof pako !== "undefined" && typeof pako.deflate === "function") {
-        // Use deflated length + crc as fingerprint (fast, collision-resistant enough)
-        var bytes;
-        if (typeof TextEncoder !== "undefined") {
-          bytes = new TextEncoder().encode(raw);
-        } else {
-          bytes = [];
-          for (var ci = 0; ci < raw.length; ci++) bytes.push(raw.charCodeAt(ci) & 0xff);
-          bytes = new Uint8Array(bytes);
-        }
-        var deflated = pako.deflate(bytes);
-        // Use first 8 bytes of deflated output as fingerprint (includes checksum)
-        var hex = "";
-        for (var di = 0; di < Math.min(8, deflated.length); di++) {
-          hex += ("0" + deflated[di].toString(16)).slice(-2);
-        }
-        return "fp_" + w + "x" + h + "_" + hex + "_" + deflated.length;
+      if (typeof pako === "undefined" || typeof pako.deflate !== "function") {
+        return "fp_" + w + "x" + h + "_" + simpleHash(raw);
       }
-      // Fallback: simple string hash
-      return "fp_" + w + "x" + h + "_" + simpleHash(raw);
+      return computeDeflateFingerprint(stringToUint8Array(raw), w, h);
     } catch (e) {
       return "fp_error";
     }
@@ -703,7 +701,7 @@ const SyncEngine = (() => {
         var tx = db.transaction("sync_state", "readonly");
         var req = tx.objectStore("sync_state").get("watchDirHandle");
         req.onsuccess = function () { resolve(req.result || null); };
-        req.onerror = function () { resolve(null); };
+        req.onerror = function () { console.warn('SyncEngine: read watchDirHandle failed:', req.error); resolve(null); };
         tx.oncomplete = function () { db.close(); };
       });
       _watchDirHandle = handle;

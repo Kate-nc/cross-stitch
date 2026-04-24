@@ -57,9 +57,19 @@ class PdfLoader {
         data = file;
       }
       const loadingTask = pdfjsLib.getDocument({ data: data });
-      return await loadingTask.promise;
+      const pdfData = await loadingTask.promise;
+      if (!pdfData || !pdfData.numPages || pdfData.numPages <= 0) {
+        throw new Error("PDF contains no pages.");
+      }
+      return pdfData;
     } catch (err) {
-      throw new Error("Failed to parse PDF: " + err.message);
+      // Detect pdf.js password protection so the user gets a clear message
+      // instead of "Failed to parse PDF: No password given".
+      const name = err && (err.name || (err.constructor && err.constructor.name));
+      if (name === "PasswordException" || /password/i.test(err && err.message || "")) {
+        throw new Error("This PDF is password-protected. Please unlock it before importing.");
+      }
+      throw new Error("Failed to parse PDF: " + (err && err.message ? err.message : String(err)));
     }
   }
 }

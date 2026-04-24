@@ -582,6 +582,9 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
 (function (root) {
   "use strict";
 
+  // Hoisted: leading-digits regex used for stable palette sort by numeric id prefix.
+  var LEADING_DIGITS = /^(\d+)/;
+
   // mm → PDF points (1pt = 1/72 inch, 25.4mm = 1in)
   function mmToPt(mm) { return mm * 72 / 25.4; }
   function ptToMm(pt) { return pt * 25.4 / 72; }
@@ -766,7 +769,7 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
       if (e.type === "blend") blends.push(e); else solids.push(e);
     });
     function numericKey(id) {
-      var m = String(id).match(/^(\d+)/);
+      var m = String(id).match(LEADING_DIGITS);
       return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
     }
     solids.sort(function (a, b) {
@@ -836,6 +839,9 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
  */
 (function () {
   "use strict";
+
+  // Hoisted: regex for sanitising filename characters; reused across runExport calls.
+  var UNSAFE_FILENAME_CHARS = /[^\w\-]+/g;
 
   var workerRef = null;
   var nextReqId = 1;
@@ -1076,7 +1082,7 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
       locale: (typeof navigator !== "undefined" && navigator.language) || "en-GB",
     };
     return runExport(project, opts).then(function (bytes) {
-      downloadBytes(bytes, (project.name || "pattern").replace(/[^\w\-]+/g, "_") + ".pdf");
+      downloadBytes(bytes, (project.name || "pattern").replace(UNSAFE_FILENAME_CHARS, "_") + ".pdf");
       return bytes;
     }).catch(function (err) {
       // M9: Surface font-missing errors via Toast for legacy callers
@@ -1085,7 +1091,7 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
       try {
         var msg = (err && err.message) || String(err);
         if (typeof Toast !== 'undefined' && Toast.show && /symbol font/i.test(msg)) {
-          Toast.show({ message: 'PDF export failed \u2014 symbol font missing. Please reload and try again.', type: 'error', duration: 6000 });
+          Toast.show({ message: 'PDF export failed. Please refresh the page and try again.', type: 'error', duration: 6000 });
         }
       } catch (_) { /* best-effort */ }
       throw err;
@@ -1152,7 +1158,7 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
       branding: readBranding(),
     });
     return runExport(project, opts).then(function (bytes) {
-      downloadBytes(bytes, (project.name || "pattern").replace(/[^\w\-]+/g, "_") + "_cover.pdf");
+      downloadBytes(bytes, (project.name || "pattern").replace(UNSAFE_FILENAME_CHARS, "_") + "_cover.pdf");
     });
   };
 })();
@@ -1238,6 +1244,52 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds };
 };
 
+// Collect the unique set of thread ids referenced by a mapped pattern.
+// Blend cells expand to their constituent thread ids.
+function collectPaletteIds(mapped) {
+  var ids = new Set();
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i];
+    if (m.id === "__skip__") continue;
+    if (m.type === "blend" && m.threads) m.threads.forEach(function(t) { ids.add(t.id); });
+    else ids.add(m.id);
+  }
+  return ids;
+}
+
+// Build an id → usage-count map for a mapped pattern.
+function buildPaletteUsageMap(mapped) {
+  var tu = {};
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i];
+    if (m.id === "__skip__") continue;
+    if (m.type === "blend" && m.threads) m.threads.forEach(function(t) { tu[t.id] = (tu[t.id] || 0) + 1; });
+    else tu[m.id] = (tu[m.id] || 0) + 1;
+  }
+  return tu;
+}
+
+// Pick the top `maxC` thread ids by usage. Returns a Set of id strings.
+function findTopThreads(usageMap, maxC) {
+  var sorted = Object.entries(usageMap).sort(function(a, b) { return b[1] - a[1]; });
+  return new Set(sorted.slice(0, maxC).map(function(e) { return e[0]; }));
+}
+
+// In-place: rewrite any cell whose colour isn't in `keptIds` to its nearest
+// solid in `keptPalette`. Mutates `mapped`.
+function migrateNonKeptColors(mapped, keptIds, keptPalette, raw) {
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i];
+    if (m.id === "__skip__") continue;
+    var notRetained = m.type === "blend" && m.threads
+      ? m.threads.some(function(t) { return !keptIds.has(t.id); })
+      : !keptIds.has(m.id);
+    if (notRetained) {
+      mapped[i] = findSolid(m.lab || rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), keptPalette);
+    }
+  }
+}
+
 /**
  * Run the full image-to-pattern generation pipeline.
  *
@@ -1251,6 +1303,11 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var dith = opts.dith, skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var minSt = opts.minSt, smooth = opts.smooth, smoothType = opts.smoothType;
   var stitchCleanup = opts.stitchCleanup, allowBlends = opts.allowBlends;
+
+  // Boundary validation: a 0-width or 0-height grid produces no stitches and
+  // would crash quantize() when it indexes data[i*4]. Bail out early so the
+  // caller can surface a friendly error.
+  if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
 
   var c = document.createElement("canvas");
   c.width = sW; c.height = sH;
@@ -1300,33 +1357,13 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
 
   // Safety check: enforce maxC
   for (var safe = 0; safe < 5; safe++) {
-    var ids = new Set();
-    for (var k = 0; k < mapped.length; k++) {
-      var m = mapped[k];
-      if (m.id === "__skip__") continue;
-      if (m.type === "blend" && m.threads) m.threads.forEach(function(t) { ids.add(t.id); });
-      else ids.add(m.id);
-    }
+    var ids = collectPaletteIds(mapped);
     if (ids.size <= maxC) break;
-    var tu = {};
-    for (var k2 = 0; k2 < mapped.length; k2++) {
-      var m2 = mapped[k2];
-      if (m2.id === "__skip__") continue;
-      if (m2.type === "blend" && m2.threads) m2.threads.forEach(function(t) { tu[t.id] = (tu[t.id] || 0) + 1; });
-      else tu[m2.id] = (tu[m2.id] || 0) + 1;
-    }
-    var sorted = Object.entries(tu).sort(function(a, b) { return b[1] - a[1]; });
-    var ks = new Set(sorted.slice(0, maxC).map(function(e) { return e[0]; }));
+    var tu = buildPaletteUsageMap(mapped);
+    var ks = findTopThreads(tu, maxC);
     var kp = p.filter(function(t) { return ks.has(t.id); });
     if (!kp.length) break;
-    for (var k3 = 0; k3 < mapped.length; k3++) {
-      var m3 = mapped[k3];
-      if (m3.id === "__skip__") continue;
-      var nr = m3.type === "blend" && m3.threads
-        ? m3.threads.some(function(t) { return !ks.has(t.id); })
-        : !ks.has(m3.id);
-      if (nr) mapped[k3] = findSolid(m3.lab || rgbToLab(raw[k3 * 4], raw[k3 * 4 + 1], raw[k3 * 4 + 2]), kp);
-    }
+    migrateNonKeptColors(mapped, ks, kp, raw);
   }
 
   var palResult = buildPalette(mapped);
@@ -2407,7 +2444,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
       var rgb = cell.rgb;
       if (!rgb && cmap) {
         var lookupId = cell.id;
-        if (lookupId.indexOf("+") !== -1) lookupId = lookupId.split("+")[0];
+        if (isBlendId(lookupId)) lookupId = splitBlendId(lookupId)[0];
         var entry = cmap[lookupId];
         if (entry) rgb = entry.rgb;
       }
@@ -2891,7 +2928,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
           if (!cRgb && cmap) { var cLk = cmap[cc.id]; if (cLk) cRgb = cLk.rgb; }
           if (cRgb) cKey = cRgb[0] + "," + cRgb[1] + "," + cRgb[2];
         }
-        if (cKey) colourFreq[cKey] = (colourFreq[cKey] || 0) + 1;
+        if (cKey != null) colourFreq[cKey] = (colourFreq[cKey] || 0) + 1;
       }
     }
 
@@ -2911,7 +2948,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
 
       if (cell.id && cell.id.indexOf("+") !== -1) {
         // Blend cell: use each thread's individual colour for bottom/top leg respectively.
-        var blendParts = cell.id.split("+");
+        var blendParts = splitBlendId(cell.id);
         var e1 = cmap && cmap[blendParts[0]];
         var e2 = cmap && cmap[blendParts[1]];
         if (e1) rgb = e1.rgb;
@@ -3525,7 +3562,7 @@ window.useMagicWand = function useMagicWand(state) {
     }
     if (!newLines.length) return;
 
-    var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === colorId; }) : null;
+    var dmcEntry = findThreadInCatalog('dmc', colorId);
     var rgb = dmcEntry ? dmcEntry.rgb : [0, 0, 0];
     var coloredLines = newLines.map(function(l) {
       return { x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2, color: rgb };
@@ -3989,6 +4026,16 @@ function _extractDmcId(key) {
   return key.slice(idx + 1);
 }
 
+// Plain helper (not a hook) — safe to call inside useState lazy initializers.
+// Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
+// (e.g. SSR or test environments) never throws during render.
+function loadUserPref(key, fallback) {
+  try {
+    if (typeof UserPrefs === "undefined") return fallback;
+    return UserPrefs.get(key);
+  } catch (_) { return fallback; }
+}
+
 window.useCreatorState = function useCreatorState() {
   var useState    = React.useState;
   var useRef      = React.useRef;
@@ -4005,21 +4052,26 @@ window.useCreatorState = function useCreatorState() {
   var _arLock = useState(true);       var arLock = _arLock[0], setArLock = _arLock[1];
   var _ar     = useState(1);          var ar     = _ar[0],     setAr     = _ar[1];
 
-  // Generation parameters
-  var _maxC   = useState(30);         var maxC   = _maxC[0],   setMaxC   = _maxC[1];
+  // Generation parameters (initial values come from Preferences › Pattern Creator)
+  var _maxC   = useState(function () { var v = loadUserPref("creatorDefaultPaletteSize", 30); return (typeof v === "number" && v > 0) ? v : 30; });
+  var maxC   = _maxC[0],   setMaxC   = _maxC[1];
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
   var _sat    = useState(0);          var sat    = _sat[0],    setSat    = _sat[1];
-  var _dith   = useState(false);      var dith   = _dith[0],   setDith   = _dith[1];
+  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); return v && v !== "off"; });
+  var dith   = _dith[0],   setDith   = _dith[1];
   var _skipBg = useState(false);      var skipBg = _skipBg[0], setSkipBg = _skipBg[1];
   var _bgTh   = useState(15);         var bgTh   = _bgTh[0],   setBgTh   = _bgTh[1];
   var _bgCol  = useState([255,255,255]); var bgCol = _bgCol[0], setBgCol = _bgCol[1];
   var _pickBg = useState(false);      var pickBg = _pickBg[0], setPickBg = _pickBg[1];
-  var _minSt  = useState(0);          var minSt  = _minSt[0],  setMinSt  = _minSt[1];
+  var _minSt  = useState(function () { var v = loadUserPref("creatorMinStitchesPerColour", 0); return (typeof v === "number" && v >= 0) ? v : 0; });
+  var minSt  = _minSt[0],  setMinSt  = _minSt[1];
   var _smooth = useState(0);          var smooth = _smooth[0], setSmooth = _smooth[1];
   var _sType  = useState("median");   var smoothType = _sType[0], setSmoothType = _sType[1];
-  var _orphans= useState(0);          var orphans = _orphans[0], setOrphans = _orphans[1];
-  var _blends = useState(true);       var allowBlends = _blends[0], setAllowBlends = _blends[1];
+  var _orphans= useState(function () { var v = loadUserPref("creatorOrphanRemovalStrength", 0); return (typeof v === "number" && v >= 0) ? v : 0; });
+  var orphans = _orphans[0], setOrphans = _orphans[1];
+  var _blends = useState(function () { var v = loadUserPref("creatorAllowBlends", true); return v !== false; });
+  var allowBlends = _blends[0], setAllowBlends = _blends[1];
 
   // Pattern data
   var _pat  = useState(null);         var pat  = _pat[0],  setPat  = _pat[1];
@@ -4030,8 +4082,13 @@ window.useCreatorState = function useCreatorState() {
   var _oH   = useState(0);            var origH = _oH[0],  setOrigH = _oH[1];
 
   // Fabric / floss settings
-  var _fabricCt    = useState(14);    var fabricCt = _fabricCt[0], setFabricCt = _fabricCt[1];
-  var _skeinPrice  = useState(typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 1.0);
+  var _fabricCt    = useState(function () { var v = loadUserPref("creatorDefaultFabricCount", 14); return (typeof v === "number" && v > 0) ? v : 14; });
+  var fabricCt = _fabricCt[0], setFabricCt = _fabricCt[1];
+  var _skeinPrice  = useState(function () {
+    var v = loadUserPref("skeinPriceDefault", undefined);
+    if (typeof v === "number" && isFinite(v) && v >= 0) return v;
+    return typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 1.0;
+  });
   var skeinPrice = _skeinPrice[0], setSkeinPrice = _skeinPrice[1];
   var _stitchSpeed = useState(40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
 
@@ -4047,12 +4104,14 @@ window.useCreatorState = function useCreatorState() {
   var _loadErr    = useState(null);      var loadError  = _loadErr[0],    setLoadError  = _loadErr[1];
   var _copied     = useState(null);      var copied     = _copied[0],     setCopied     = _copied[1];
   var _modal      = useState(null);      var modal      = _modal[0],      setModal      = _modal[1];
-  var _view       = useState("color");   var view       = _view[0],       setView       = _view[1];
+  var _view       = useState(function () { var v = loadUserPref("creatorDefaultViewMode", "colour"); return v === "colour" ? "color" : (v || "color"); });
+  var view       = _view[0],       setView       = _view[1];
   var _zoom       = useState(1);         var zoom       = _zoom[0],       setZoom       = _zoom[1];
   var _hiId       = useState(null);      var hiId       = _hiId[0],       setHiId       = _hiId[1];
   var _showCtr    = useState(true);      var showCtr    = _showCtr[0],    setShowCtr    = _showCtr[1];
   var _showOvl    = useState(false);     var showOverlay = _showOvl[0],   setShowOverlay = _showOvl[1];
-  var _ovlOp      = useState(0.3);       var overlayOpacity = _ovlOp[0], setOverlayOpacity = _ovlOp[1];
+  var _ovlOp      = useState(function () { var v = loadUserPref("creatorReferenceOpacity", 30); return (typeof v === "number" && v >= 0 && v <= 100) ? v / 100 : 0.3; });
+  var overlayOpacity = _ovlOp[0], setOverlayOpacity = _ovlOp[1];
   var _prevActive = useState(false);     var previewActive = _prevActive[0], setPreviewActive = _prevActive[1];
   var _prevGrid   = useState(false);     var previewShowGrid = _prevGrid[0], setPreviewShowGrid = _prevGrid[1];
   var _prevFabric = useState(false);     var previewFabricBg = _prevFabric[0], setPreviewFabricBg = _prevFabric[1];
@@ -4062,13 +4121,13 @@ window.useCreatorState = function useCreatorState() {
   var _covOvr     = useState(null);      var coverageOverride = _covOvr[0], setCoverageOverride = _covOvr[1];
 
   // Split-pane state — loaded from UserPrefs on init
-  var _spEn = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneEnabled") : false; } catch(_) { return false; } });
+  var _spEn = useState(function() { return loadUserPref("splitPaneEnabled", false); });
   var splitPaneEnabled = _spEn[0], setSplitPaneEnabled = _spEn[1];
-  var _spRatio = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneRatio") : 0.5; } catch(_) { return 0.5; } });
+  var _spRatio = useState(function() { return loadUserPref("splitPaneRatio", 0.5); });
   var splitPaneRatio = _spRatio[0], setSplitPaneRatio = _spRatio[1];
-  var _spSync = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("splitPaneSyncEnabled") : true; } catch(_) { return true; } });
+  var _spSync = useState(function() { return loadUserPref("splitPaneSyncEnabled", true); });
   var splitPaneSyncEnabled = _spSync[0], setSplitPaneSyncEnabled = _spSync[1];
-  var _rpMode = useState(function() { try { return typeof UserPrefs !== "undefined" ? UserPrefs.get("rightPaneMode") : "level2"; } catch(_) { return "level2"; } });
+  var _rpMode = useState(function() { return loadUserPref("rightPaneMode", "level2"); });
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
   // Section open states
@@ -4079,7 +4138,14 @@ window.useCreatorState = function useCreatorState() {
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
   var _clOpen   = useState(false);   var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
-  var _sc       = useState({enabled:true,strength:"balanced",protectDetails:true,smoothDithering:true});
+  var _sc       = useState(function () {
+    return {
+      enabled:        loadUserPref("creatorStitchCleanup", true) !== false,
+      strength:       "balanced",
+      protectDetails: loadUserPref("creatorProtectDetails", true) !== false,
+      smoothDithering:loadUserPref("creatorSmoothDithering", true) !== false
+    };
+  });
   var stitchCleanup = _sc[0], setStitchCleanup = _sc[1];
   var _hasGen   = useState(false);   var hasGenerated = _hasGen[0], setHasGenerated = _hasGen[1];
 
@@ -4154,7 +4220,14 @@ window.useCreatorState = function useCreatorState() {
   var _altOpen  = useState(null);    var altOpen = _altOpen[0], setAltOpen = _altOpen[1];
 
   // Substitute from stash
-  var _stashOnly = useState(function() { try { return localStorage.getItem("cs_stashConstrained") === "true"; } catch(_) { return false; } });
+  var _stashOnly = useState(function() {
+    try {
+      var ls = localStorage.getItem("cs_stashConstrained");
+      if (ls === "true") return true;
+      if (ls === "false") return false;
+    } catch(_) {}
+    return loadUserPref("creatorStashOnlyDefault", false) === true;
+  });
   var stashConstrained = _stashOnly[0];
   function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
   var _subOpen  = useState(false);   var substituteModalOpen = _subOpen[0], setSubstituteModalOpen = _subOpen[1];
@@ -4319,7 +4392,7 @@ window.useCreatorState = function useCreatorState() {
       .sort(function(a, b) { var na = parseInt(a[0]) || 0, nb = parseInt(b[0]) || 0; if (na && nb) return na - nb; return a[0].localeCompare(b[0]); })
       .map(function(e) {
         var id = e[0], ct = e[1];
-        var t = DMC.find(function(d) { return d.id === id; });
+        var t = findThreadInCatalog('dmc', id);
         return { id: id, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: ct, skeins: skeinEst(ct, fabricCt) };
       });
   }, [pal, fabricCt]);
@@ -4656,7 +4729,7 @@ window.useCreatorState = function useCreatorState() {
           if ((globalStash[key].owned || 0) <= 0) return;
           var bareId = _extractDmcId(key);
           if (!bareId) return;
-          var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+          var dmcEntry = findThreadInCatalog('dmc', bareId);
           if (dmcEntry) allowedPalette.push(dmcEntry);
         });
       }
@@ -4743,7 +4816,7 @@ window.useCreatorState = function useCreatorState() {
       if ((globalStash[key].owned || 0) <= 0) return;
       var bareId = _extractDmcId(key);
       if (!bareId) return;
-      var d = DMC.find(function(e) { return e.id === bareId; });
+      var d = findThreadInCatalog('dmc', bareId);
       if (d) pool.push(d);
     });
     if (!pool.length) return;
@@ -4792,7 +4865,7 @@ window.useCreatorState = function useCreatorState() {
       if ((globalStash[key].owned || 0) <= 0) return;
       var bareId = _extractDmcId(key);
       if (!bareId) return;
-      var d = DMC.find(function(e) { return e.id === bareId; });
+      var d = findThreadInCatalog('dmc', bareId);
       if (d) pool.push(d);
     });
     if (!pool.length) return;
@@ -4862,7 +4935,7 @@ window.useCreatorState = function useCreatorState() {
       if ((globalStash[key].owned || 0) <= 0) return;
       var bareId = _extractDmcId(key);
       if (!bareId) return;
-      var d = DMC.find(function(e) { return e.id === bareId; });
+      var d = findThreadInCatalog('dmc', bareId);
       if (d) stashPal.push(d);
     });
     if (!stashPal.length) { setCoverageGaps(null); return; }
@@ -5041,7 +5114,7 @@ window.useCreatorState = function useCreatorState() {
         if ((globalStash[key].owned || 0) <= 0) return;
         var bareId = _extractDmcId(key);
         if (!bareId) return;
-        var dmcEntry = DMC.find(function(d) { return d.id === bareId; });
+        var dmcEntry = findThreadInCatalog('dmc', bareId);
         if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[key].owned });
       });
       entries.sort(function(a, b) {
@@ -6100,6 +6173,11 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       state.setIsCropping(false);
       state.setCropRect(null);
       state.setPat(null); state.setPal(null); state.setCmap(null);
+      // Annotations authored against the previous coordinate system are no
+      // longer meaningful after crop + regenerate; clear them so they aren't
+      // rendered at stale positions.
+      if (typeof state.setBsLines === "function") state.setBsLines([]);
+      if (typeof state.setParkMarkers === "function") state.setParkMarkers([]);
     };
     newImg.src = c.toDataURL();
   }
@@ -6638,7 +6716,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     rd.onload = function(ev) {
       try {
         var project = JSON.parse(ev.target.result);
-        if (!project.pattern || !project.settings) throw new Error("Invalid");
+        if (!project.pattern || !Array.isArray(project.pattern)) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
+        if (!project.settings) throw new Error("Invalid");
         processLoadedProject(project);
       } catch (err) {
         console.error(err);
@@ -6725,7 +6804,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       rd2.onload = function(ev2) {
         try {
           var project2 = JSON.parse(ev2.target.result);
-          if (!project2.pattern || !project2.settings) throw new Error("Invalid");
+          if (!project2.pattern || !Array.isArray(project2.pattern)) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
+          if (!project2.settings) throw new Error("Invalid");
           processLoadedProject(project2);
         } catch (err2) {
           console.error(err2);
@@ -7052,7 +7132,7 @@ window.usePreview = function usePreview(state) {
         allowedPalette = [];
         Object.keys(globalStash).forEach(function(id) {
           if ((globalStash[id].owned || 0) > 0) {
-            var dmcEntry = DMC.find(function(d) { return d.id === id; });
+            var dmcEntry = findThreadInCatalog('dmc', id);
             if (dmcEntry) allowedPalette.push(dmcEntry);
           }
         });
@@ -8532,8 +8612,8 @@ window.MagicWandPanel = function MagicWandPanel() {
       cv.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
       // Contiguous / Global toggle (wand only)
       cv.activeTool === "magicWand" && h("div", { className: "tb-grp" },
-        btn("Contiguous", function() { cv.setWandContiguous(true); }, { active: cv.wandContiguous, title: "Only select cells connected to the clicked cell" }),
-        btn("Global",     function() { cv.setWandContiguous(false); }, { active: !cv.wandContiguous, title: "Select all matching cells across the whole pattern" })
+        btn("Connected only", function() { cv.setWandContiguous(true); }, { active: cv.wandContiguous, title: "Only select stitches connected to the one you click" }),
+        btn("All matching",     function() { cv.setWandContiguous(false); }, { active: !cv.wandContiguous, title: "Select every stitch of this colour anywhere on the chart" })
       ),
       h("div", { className: "tb-sdiv" }),
       // Op mode buttons
@@ -8765,14 +8845,14 @@ window.MagicWandPanel = function MagicWandPanel() {
       })
     ),
     (function() {
-      var dmcEntry = (typeof DMC !== "undefined") ? DMC.find(function(d) { return d.id === cv.outlineColor; }) : null;
+      var dmcEntry = findThreadInCatalog('dmc', cv.outlineColor);
       return dmcEntry ? h("span", { style: { display: "flex", alignItems: "center", gap: 3 } },
         swatch(dmcEntry.rgb), h("span", { style: { color: "#334155" } }, dmcEntry.name)
       ) : h("span", { style: { color: "#ef4444" } }, "Unknown DMC");
     })(),
     btn("Generate", cv.applyOutlineGeneration, {
       green: true,
-      disabled: !(typeof DMC !== "undefined" && DMC.find(function(d) { return d.id === cv.outlineColor; })),
+      disabled: !findThreadInCatalog('dmc', cv.outlineColor),
       style: { fontSize: 10 }
     }),
     btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
@@ -9290,7 +9370,7 @@ function SubstituteFromStashModalInner(props) {
       localProposal.substitutions.forEach(function(sub) {
         if (enabledMap[makeKey(sub)] === false) return;
         var target = overrides[makeKey(sub)] || sub.selectedTarget;
-        var dmcEntry = DMC.find(function(d) { return d.id === target.id; });
+        var dmcEntry = findThreadInCatalog('dmc', target.id);
         if (dmcEntry) remap[sub.sourceId] = dmcEntry;
       });
       setSubstitutedThumb(renderSubstitutionPreview(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches, remap));
@@ -9848,7 +9928,7 @@ window.ConvertPaletteModal = (function () {
     palette.forEach(function (cell) {
       if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') return;
       // Strip blend IDs (e.g. "310+550") — take first component
-      var id = cell.id.indexOf('+') >= 0 ? cell.id.split('+')[0] : cell.id;
+      var id = isBlendId(cell.id) ? splitBlendId(cell.id)[0] : cell.id;
       if (!seenIds[id]) { seenIds[id] = true; sourceIds.push(id); }
     });
 
@@ -9932,10 +10012,10 @@ window.ConvertPaletteModal = (function () {
 
   function ConfidenceBadge({ confidence }) {
     var colours = {
-      official: { bg: '#dcfce7', text: '#166534', label: 'Official' },
-      reconciled: { bg: '#fef9c3', text: '#854d0e', label: 'Reconciled' },
-      'single-source': { bg: '#fef3c7', text: '#92400e', label: 'Single source' },
-      nearest: { bg: '#f1f5f9', text: '#475569', label: 'Nearest colour' },
+      official: { bg: '#dcfce7', text: '#166534', label: 'Exact match' },
+      reconciled: { bg: '#fef9c3', text: '#854d0e', label: 'Best match' },
+      'single-source': { bg: '#fef3c7', text: '#92400e', label: 'One source' },
+      nearest: { bg: '#f1f5f9', text: '#475569', label: 'Closest colour' },
     };
     var c = colours[confidence] || colours.nearest;
     return React.createElement('span', {
@@ -10102,6 +10182,14 @@ window.ConvertPaletteModal = (function () {
 window.BulkAddModal = (function () {
   const { useState, useMemo, useCallback } = React;
 
+  // Hoisted: regexes used per-token by parseBulkThreadList. Avoids recompiling
+  // five regexes for every token in the input.
+  const BULK_TOKEN_DELIM = /[\s,;\n]+/;
+  const BULK_PREFIX_ANCHOR = /^anchor\s*/i;
+  const BULK_PREFIX_ANCH = /^anch\.?\s*/i;
+  const BULK_PREFIX_DMC = /^dmc\.?\s*/i;
+  const BULK_PREFIX_HASH = /^#/;
+
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
   /**
@@ -10113,16 +10201,16 @@ window.BulkAddModal = (function () {
   function parseBulkThreadList(text, brand) {
     brand = brand || 'dmc';
     return text
-      .split(/[\s,;\n]+/)
+      .split(BULK_TOKEN_DELIM)
       .map(function (token) { return token.trim(); })
       .filter(function (token) { return token.length > 0; })
       .map(function (token) {
         // Strip brand prefix
         var clean = token
-          .replace(/^anchor\s*/i, '')
-          .replace(/^anch\.?\s*/i, '')
-          .replace(/^dmc\.?\s*/i, '')
-          .replace(/^#/, '');
+          .replace(BULK_PREFIX_ANCHOR, '')
+          .replace(BULK_PREFIX_ANCH, '')
+          .replace(BULK_PREFIX_DMC, '')
+          .replace(BULK_PREFIX_HASH, '');
         return { raw: token, normalised: clean };
       })
       .filter(function (r) { return r.normalised.length > 0; });
@@ -10469,7 +10557,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     // Brand-aware lookup: prefer DMC, fall back to Anchor. Mirrors the
     // resolution used in ShoppingListModal.
     function resolveBrand(id) {
-      if (typeof DMC !== 'undefined' && DMC.find(function(d){ return d.id === id; })) return 'dmc';
+      if (findThreadInCatalog('dmc', id)) return 'dmc';
       if (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; })) return 'anchor';
       return 'dmc';
     }
@@ -10477,7 +10565,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       if (!stashHas) return null;
       // Blend: status = worst component status.
       var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
-        ? p.id.split('+').map(function(s){ return s.trim(); }).filter(Boolean)
+        ? splitBlendId(p.id)
         : [p.id];
       var worst = 'owned';
       for (var i = 0; i < ids.length; i++) {
@@ -10928,16 +11016,16 @@ window.CreatorSidebar = function CreatorSidebar() {
             style:{flex:1,padding:"4px 8px",fontSize:12,borderRadius:6,border:"0.5px solid #e2e8f0",fontFamily:"inherit"}
           }),
           (function(){
-            var dmc = typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();});
+            var dmc = findThreadInCatalog('dmc', qaVal.trim());
             return dmc ? h(Tooltip, {text:"DMC " + dmc.id + " \u2014 " + dmc.name, width:160},
               h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
             ) : null;
           })(),
           h("button", {
-            disabled:qaLoading || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === qaVal.trim();})),
+            disabled:qaLoading || !findThreadInCatalog('dmc', qaVal.trim()),
             onClick:function(){
               var trimmed = qaVal.trim();
-              if (!trimmed || !(typeof DMC !== "undefined" && DMC.find(function(d){return d.id === trimmed;}))) return;
+              if (!trimmed || !findThreadInCatalog('dmc', trimmed)) return;
               setQaLoading(true);
               StashBridge.addToStash(trimmed, 1).then(function(){
                 setQaVal(""); setQaLoading(false);
@@ -11498,7 +11586,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("input", {
             type:"text", value: app.projectName || "", maxLength:60,
             placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
-            onChange: function(e) { app.setProjectName(e.target.value.slice(0,60)); },
+            onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
             style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
           })
         ),
@@ -11507,7 +11595,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("input", {
             type:"text", value: app.projectDesigner || "", maxLength:80,
             placeholder: "Your name or studio",
-            onChange: function(e) { app.setProjectDesigner(e.target.value.slice(0,80)); },
+            onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
             style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
           })
         ),
@@ -11516,7 +11604,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("textarea", {
             value: app.projectDescription || "", maxLength:500, rows:3,
             placeholder: "Source, copyright, stitching notes\u2026",
-            onChange: function(e) { app.setProjectDescription(e.target.value.slice(0,500)); },
+            onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
             style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
           })
         )
@@ -12350,6 +12438,16 @@ window.CreatorProjectTab = function CreatorProjectTab() {
 
   // ── Thread Organiser ────────────────────────────────────────────────────────
   function renderThreadOrganiser() {
+    // Cache: scanning the global stash is O(n) and was previously called 3x per render
+    // (disabled / title / opacity props on the substitute button below).
+    var hasOwnedStash = false;
+    if (ctx.globalStash) {
+      var _stashKeys = Object.keys(ctx.globalStash);
+      for (var _i = 0; _i < _stashKeys.length; _i++) {
+        var _e = ctx.globalStash[_stashKeys[_i]];
+        if (_e && _e.owned > 0) { hasOwnedStash = true; break; }
+      }
+    }
     return h(Section, {title:"Thread Organiser"},
       h("div", {style:{marginTop:8,display:"flex",gap:12,marginBottom:10}},
         h("div", {style:{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}},
@@ -12459,19 +12557,19 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             if (typeof StashBridge === "undefined") return true;
             if (!ctx.pat) return true;
             if (ctx.toBuyList.length === 0) return true;
-            return !Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; });
+            return !hasOwnedStash;
           })(),
           title: (function() {
             if (typeof StashBridge === "undefined") return "Stash bridge not available";
             if (!ctx.pat) return "No pattern loaded";
             if (ctx.toBuyList.length === 0) return "All threads are already marked as owned";
-            if (!Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; })) return "Add threads to your stash first";
+            if (!hasOwnedStash) return "Add threads to your stash first";
             return "Find stash alternatives for unowned threads";
           })(),
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600,
             opacity:(function() {
               if (typeof StashBridge === "undefined" || !ctx.pat || ctx.toBuyList.length === 0) return 0.5;
-              if (!Object.keys(ctx.globalStash).some(function(id) { return ctx.globalStash[id] && ctx.globalStash[id].owned > 0; })) return 0.5;
+              if (!hasOwnedStash) return 0.5;
               return 1;
             })()
           }
@@ -12482,7 +12580,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             StashBridge.getGlobalStash().then(function(stash) {
               var missing = [], short = [];
               ctx.skeinData.forEach(function(d) {
-                var owned2 = (stash[d.id] || {}).owned || 0;
+                var stashEntry2 = stash[d.id];
+                var owned2 = (stashEntry2 && typeof stashEntry2 === 'object' && typeof stashEntry2.owned === 'number') ? stashEntry2.owned : 0;
                 if (owned2 === 0) missing.push("DMC "+d.id+" (need "+d.skeins+"sk)");
                 else if (owned2 < d.skeins) short.push("DMC "+d.id+" (have "+owned2+", need "+d.skeins+"sk)");
               });
@@ -12564,7 +12663,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("input", {
           type:"text", value: app.projectName || "", maxLength:60,
           placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
-          onChange: function(e) { app.setProjectName(e.target.value.slice(0,60)); },
+          onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
           style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),
@@ -12573,7 +12672,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("input", {
           type:"text", value: app.projectDesigner || "", maxLength:80,
           placeholder: "Your name or studio",
-          onChange: function(e) { app.setProjectDesigner(e.target.value.slice(0,80)); },
+          onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
           style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),
@@ -12582,7 +12681,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("textarea", {
           value: app.projectDescription || "", maxLength:500, rows:3,
           placeholder: "Source, copyright, stitching notes\u2026",
-          onChange: function(e) { app.setProjectDescription(e.target.value.slice(0,500)); },
+          onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
           style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
         })
       )
@@ -12697,7 +12796,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
         needed = (typeof skeinEst === "function") ? skeinEst(p.count, effectiveFabric) : Math.ceil(p.count / 800);
       }
       if (needed < 1) needed = 1;
-      var stashEntry = stash["dmc:" + p.id] || {};
+      var stashEntry = stash[threadKey('dmc', p.id)] || {};
       var owned      = stashEntry.owned || 0;
       var status     = owned >= needed ? "owned" : owned > 0 ? "partial" : "needed";
       var name = (p.type === "blend" && p.threads)
@@ -13086,7 +13185,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var rows = useMemo(function() {
     if (!(ctx.pat && ctx.pal)) return [];
     return ctx.pal.map(function(p) {
-      var key = 'dmc:' + p.id;
+      var key = threadKey('dmc', p.id);
       var stashEntry = stash[key] || {};
       var owned = stashEntry.owned || 0;
 
@@ -13237,8 +13336,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Status badge
   function statusBadge(status) {
     var map = {
-      owned: { label: 'In stash \u2713', bg: '#f0fdf4', color: '#16a34a' },
-      partial: { label: 'Partial', bg: '#fff7ed', color: '#ea580c' },
+      owned: { label: 'You own this', bg: '#f0fdf4', color: '#16a34a' },
+      partial: { label: 'Low stock', bg: '#fff7ed', color: '#ea580c' },
       needed: { label: 'Need to buy', bg: '#fef2f2', color: '#dc2626' }
     };
     var s = map[status] || map.needed;
@@ -13604,6 +13703,15 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
  *   window.UserPrefs          — pref persistence
  *   window.CreatorDesignerBrandingSection — branding component
  */
+
+// Module-scope hoisted values (regex / style objects).
+var EXPORT_UNSAFE_FILENAME_CHARS = /[^\w\-]+/g;
+var EXPORT_PRESET_CARD_BASE = { flex: 1, padding: 14, borderRadius: 10, border: "1.5px solid #cbd5e1", background: "#fff", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 };
+var EXPORT_PRESET_CARD_ACTIVE = { background: "#0d9488", color: "#fff", borderColor: "#0d9488" };
+var EXPORT_CTA_STYLE = { padding: "14px 22px", fontSize: 16, borderRadius: 10, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
+var EXPORT_DISABLED_CTA = Object.assign({}, EXPORT_CTA_STYLE, { background: "#94a3b8", cursor: "not-allowed" });
+var EXPORT_SECTION_TOGGLE = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "#0f172a" };
+
 window.CreatorExportTab = function CreatorExportTab() {
   var ctx = window.usePatternData();
   var app = window.useApp();
@@ -13705,7 +13813,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       projectDescription: app.projectDescription,
     });
     var project = window.PdfExport.buildExportProject(exportCtx);
-    if (!project) { setError("No pattern to export."); return; }
+    if (!project) { setError("Nothing to export yet — create or open a pattern first."); return; }
     project.coverPreviewJpeg = window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
     var branding = window.PdfExport.readBranding();
     // Per-project designer overrides global designer branding when set.
@@ -13728,7 +13836,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     }).then(function (bytes) {
       if (runningRef.current !== tag) return;
       setProgress(null); runningRef.current = null;
-      var fname = (project.name || "pattern").replace(/[^\w\-]+/g, "_") + ".pdf";
+      var fname = (project.name || "pattern").replace(EXPORT_UNSAFE_FILENAME_CHARS, "_") + ".pdf";
       window.PdfExport.downloadBytes(bytes, fname);
     }).catch(function (err) {
       if (runningRef.current !== tag) return;
@@ -13739,7 +13847,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       // if the Export tab is scrolled away.
       try {
         if (typeof Toast !== 'undefined' && Toast.show && /symbol font/i.test(msg)) {
-          Toast.show({ message: 'PDF export failed \u2014 symbol font missing. Please reload and try again.', type: 'error', duration: 6000 });
+          Toast.show({ message: 'PDF export failed. Please refresh the page and try again.', type: 'error', duration: 6000 });
         }
       } catch (_) { /* best-effort */ }
     });
@@ -13753,7 +13861,7 @@ window.CreatorExportTab = function CreatorExportTab() {
 
   function doExportPng() {
     setError(null);
-    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("No pattern to export."); return; }
+    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("Nothing to export yet — create or open a pattern first."); return; }
     var CELL = 10;
     var c = document.createElement("canvas");
     c.width = ctx.sW * CELL;
@@ -13773,7 +13881,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     }
     c.toBlob(function (blob) {
       if (!blob) { setError("Failed to create PNG."); return; }
-      var name = ((app.projectName || "pattern") + "").replace(/[^\w\-]+/g, "_") + ".png";
+      var name = ((app.projectName || "pattern") + "").replace(EXPORT_UNSAFE_FILENAME_CHARS, "_") + ".png";
       var a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = name;
@@ -13787,11 +13895,11 @@ window.CreatorExportTab = function CreatorExportTab() {
   if (!(ctx && ctx.pat && ctx.pal)) return null;
   if (app.tab !== "export") return null;
 
-  var presetCardActive = { background: "#0d9488", color: "#fff", borderColor: "#0d9488" };
-  var presetCardBase = { flex: 1, padding: 14, borderRadius: 10, border: "1.5px solid #cbd5e1", background: "#fff", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 };
-  var ctaStyle = { padding: "14px 22px", fontSize: 16, borderRadius: 10, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
-  var disabledCta = Object.assign({}, ctaStyle, { background: "#94a3b8", cursor: "not-allowed" });
-  var sectionToggle = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "#0f172a" };
+  var presetCardActive = EXPORT_PRESET_CARD_ACTIVE;
+  var presetCardBase = EXPORT_PRESET_CARD_BASE;
+  var ctaStyle = EXPORT_CTA_STYLE;
+  var disabledCta = EXPORT_DISABLED_CTA;
+  var sectionToggle = EXPORT_SECTION_TOGGLE;
 
   return h("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
     app.copied && h("div", { style: { background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "#16a34a", fontWeight: 600 } }, "Copied!"),
@@ -13992,7 +14100,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         if (!p || p.id === '__skip__' || p.id === '__empty__') return;
         var stitches = p.count || 0;
         var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
-          ? p.id.split('+').map(function (s) { return s.trim(); }).filter(Boolean)
+          ? splitBlendId(p.id)
           : [p.id];
         ids.forEach(function (id) {
           if (!perId[id]) perId[id] = { stitches: 0, fromBlend: ids.length > 1 };
@@ -14013,7 +14121,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         // Brand resolution: try DMC first, then Anchor. The matching brand's
         // composite stash key is used to look up owned counts.
         var info = null, brand = 'dmc';
-        if (typeof DMC !== 'undefined') info = DMC.find(function (d) { return d.id === id; });
+        info = findThreadInCatalog('dmc', id);
         if (!info && typeof ANCHOR !== 'undefined') {
           info = ANCHOR.find(function (d) { return d.id === id; });
           if (info) brand = 'anchor';

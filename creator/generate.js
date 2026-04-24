@@ -77,6 +77,52 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds };
 };
 
+// Collect the unique set of thread ids referenced by a mapped pattern.
+// Blend cells expand to their constituent thread ids.
+function collectPaletteIds(mapped) {
+  var ids = new Set();
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i];
+    if (m.id === "__skip__") continue;
+    if (m.type === "blend" && m.threads) m.threads.forEach(function(t) { ids.add(t.id); });
+    else ids.add(m.id);
+  }
+  return ids;
+}
+
+// Build an id → usage-count map for a mapped pattern.
+function buildPaletteUsageMap(mapped) {
+  var tu = {};
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i];
+    if (m.id === "__skip__") continue;
+    if (m.type === "blend" && m.threads) m.threads.forEach(function(t) { tu[t.id] = (tu[t.id] || 0) + 1; });
+    else tu[m.id] = (tu[m.id] || 0) + 1;
+  }
+  return tu;
+}
+
+// Pick the top `maxC` thread ids by usage. Returns a Set of id strings.
+function findTopThreads(usageMap, maxC) {
+  var sorted = Object.entries(usageMap).sort(function(a, b) { return b[1] - a[1]; });
+  return new Set(sorted.slice(0, maxC).map(function(e) { return e[0]; }));
+}
+
+// In-place: rewrite any cell whose colour isn't in `keptIds` to its nearest
+// solid in `keptPalette`. Mutates `mapped`.
+function migrateNonKeptColors(mapped, keptIds, keptPalette, raw) {
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i];
+    if (m.id === "__skip__") continue;
+    var notRetained = m.type === "blend" && m.threads
+      ? m.threads.some(function(t) { return !keptIds.has(t.id); })
+      : !keptIds.has(m.id);
+    if (notRetained) {
+      mapped[i] = findSolid(m.lab || rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), keptPalette);
+    }
+  }
+}
+
 /**
  * Run the full image-to-pattern generation pipeline.
  *
@@ -90,6 +136,11 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var dith = opts.dith, skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var minSt = opts.minSt, smooth = opts.smooth, smoothType = opts.smoothType;
   var stitchCleanup = opts.stitchCleanup, allowBlends = opts.allowBlends;
+
+  // Boundary validation: a 0-width or 0-height grid produces no stitches and
+  // would crash quantize() when it indexes data[i*4]. Bail out early so the
+  // caller can surface a friendly error.
+  if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
 
   var c = document.createElement("canvas");
   c.width = sW; c.height = sH;
@@ -139,33 +190,13 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
 
   // Safety check: enforce maxC
   for (var safe = 0; safe < 5; safe++) {
-    var ids = new Set();
-    for (var k = 0; k < mapped.length; k++) {
-      var m = mapped[k];
-      if (m.id === "__skip__") continue;
-      if (m.type === "blend" && m.threads) m.threads.forEach(function(t) { ids.add(t.id); });
-      else ids.add(m.id);
-    }
+    var ids = collectPaletteIds(mapped);
     if (ids.size <= maxC) break;
-    var tu = {};
-    for (var k2 = 0; k2 < mapped.length; k2++) {
-      var m2 = mapped[k2];
-      if (m2.id === "__skip__") continue;
-      if (m2.type === "blend" && m2.threads) m2.threads.forEach(function(t) { tu[t.id] = (tu[t.id] || 0) + 1; });
-      else tu[m2.id] = (tu[m2.id] || 0) + 1;
-    }
-    var sorted = Object.entries(tu).sort(function(a, b) { return b[1] - a[1]; });
-    var ks = new Set(sorted.slice(0, maxC).map(function(e) { return e[0]; }));
+    var tu = buildPaletteUsageMap(mapped);
+    var ks = findTopThreads(tu, maxC);
     var kp = p.filter(function(t) { return ks.has(t.id); });
     if (!kp.length) break;
-    for (var k3 = 0; k3 < mapped.length; k3++) {
-      var m3 = mapped[k3];
-      if (m3.id === "__skip__") continue;
-      var nr = m3.type === "blend" && m3.threads
-        ? m3.threads.some(function(t) { return !ks.has(t.id); })
-        : !ks.has(m3.id);
-      if (nr) mapped[k3] = findSolid(m3.lab || rgbToLab(raw[k3 * 4], raw[k3 * 4 + 1], raw[k3 * 4 + 2]), kp);
-    }
+    migrateNonKeptColors(mapped, ks, kp, raw);
   }
 
   var palResult = buildPalette(mapped);

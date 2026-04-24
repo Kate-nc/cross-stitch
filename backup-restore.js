@@ -40,11 +40,11 @@ const BackupRestore = (() => {
 
   // LocalStorage keys worth backing up (excludes Babel caches & temp handoffs)
   const LS_KEYS = [
-    "crossstitch_active_project",
+    LOCAL_STORAGE_KEYS.activeProject,
     "crossstitch_custom_palettes",
-    "shortcuts_hint_dismissed",
-    "cs_global_goals",
-    "cs_stats_settings"
+    LOCAL_STORAGE_KEYS.shortcutsHint,
+    LOCAL_STORAGE_KEYS.globalGoals,
+    LOCAL_STORAGE_KEYS.globalGoalsCompat
   ];
 
   return {
@@ -93,7 +93,7 @@ const BackupRestore = (() => {
         try {
           const val = localStorage.getItem(key);
           if (val !== null) backup.localStorage[key] = val;
-        } catch (e) {}
+        } catch (e) { console.warn("Backup: failed to read localStorage key", key, e); }
       });
 
       return backup;
@@ -102,17 +102,35 @@ const BackupRestore = (() => {
     // Downloads the backup as a .json file
     async downloadBackup() {
       const backup = await this.createBackup();
-      const json = JSON.stringify(backup);
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "cross-stitch-backup-" + new Date().toISOString().slice(0, 10) + ".json";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      return backup;
+      let url = null;
+      try {
+        const json = JSON.stringify(backup);
+        const blob = new Blob([json], { type: "application/json" });
+        url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "cross-stitch-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return backup;
+      } catch (err) {
+        // QuotaExceededError, RangeError (string-too-long), or OOM during
+        // serialisation — surface a clear, user-visible message rather than a
+        // silent failure.
+        const msg = "Backup export failed: " + (err && err.message ? err.message
+          : "browser ran out of space serialising the backup. Try closing other tabs and retrying.");
+        try {
+          if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+            window.Toast.show({ message: msg, type: "error", duration: 8000 });
+          } else if (typeof window !== "undefined" && window.alert) {
+            window.alert(msg);
+          }
+        } catch (_) {}
+        throw err;
+      } finally {
+        if (url) { try { URL.revokeObjectURL(url); } catch (_) {} }
+      }
     },
 
     // Validates a backup object. Returns { valid: bool, error?: string, summary?: {} }
@@ -149,7 +167,7 @@ const BackupRestore = (() => {
             summary.patternCount = patternsEntry.value.length;
           }
         }
-      } catch (e) {}
+      } catch (e) { console.warn("Backup: failed to summarise backup contents", e); }
       return { valid: true, summary };
     },
 
@@ -199,7 +217,7 @@ const BackupRestore = (() => {
         for (const [key, val] of Object.entries(backup.localStorage)) {
           // Only restore known safe keys
           if (LS_KEYS.includes(key)) {
-            try { localStorage.setItem(key, val); } catch (e) {}
+            try { localStorage.setItem(key, val); } catch (e) { console.warn("Restore: failed to write localStorage key", key, e); }
           }
         }
       }
@@ -224,7 +242,7 @@ const BackupRestore = (() => {
           // Representative check: any proj_ entry that already has finishStatus
           // means the export was taken after the v3 project migration.
           projectsAreV3 = csdb.projects.some(e =>
-            e && e.key && String(e.key).startsWith('proj_') && e.value && e.value.finishStatus
+            e && typeof e.key === 'string' && e.key.startsWith('proj_') && e.value && e.value.finishStatus
           );
         }
       } catch (_) { /* fall through to force-migrate */ }
@@ -234,14 +252,28 @@ const BackupRestore = (() => {
           if (typeof StashBridge !== 'undefined' && StashBridge.migrateSchemaToV3) {
             await StashBridge.migrateSchemaToV3();
           }
-        } catch (e) { console.warn('Post-restore stash migration failed:', e); }
+        } catch (e) {
+          console.warn('Post-restore stash migration failed:', e);
+          try {
+            if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+              window.Toast.show({ message: "Restore: stash migration failed \u2014 some thread data may need a manual refresh.", type: "error" });
+            }
+          } catch (_) {}
+        }
       }
       if (!projectsAreV3) {
         try {
           if (typeof ProjectStorage !== 'undefined' && ProjectStorage.migrateProjectsToV3) {
             await ProjectStorage.migrateProjectsToV3();
           }
-        } catch (e) { console.warn('Post-restore project migration failed:', e); }
+        } catch (e) {
+          console.warn('Post-restore project migration failed:', e);
+          try {
+            if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+              window.Toast.show({ message: "Restore: project migration failed \u2014 some projects may need a manual refresh.", type: "error" });
+            }
+          } catch (_) {}
+        }
       } else {
         // Projects are already v3 — mark the migration flag so subsequent
         // page loads don't re-run unnecessarily.

@@ -12,6 +12,16 @@
   'use strict';
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+  // Hoisted: reused by fmtDate; avoids reallocating the options object per call.
+  var DATE_FORMAT_OPTIONS = { day: 'numeric', month: 'short', year: 'numeric' };
+
+  // Single back-compat path for v1 (durationMinutes) and v2/v3 (durationSeconds)
+  // session schemas. See helpers.js getSessionSeconds() for the browser equivalent.
+  function getSessionDurationSeconds(s) {
+    if (!s) return 0;
+    return s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60;
+  }
+
   function ymd(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
@@ -31,7 +41,7 @@
   }
   function fmtDate(d) {
     if (!(d instanceof Date) || isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString('en-GB', DATE_FORMAT_OPTIONS);
   }
 
   // ── Weekly summary ──────────────────────────────────────────────────────────
@@ -134,6 +144,41 @@
   // ── Projections per project ────────────────────────────────────────────────
   // projects: [{ id, name, totalStitches, completedStitches, statsSessions, projectColor? }]
   // Returns: [{ id, name, completionDate, daysRemaining, stitchesPerHour, recentPaceStPerDay, percent, status, projectedText }]
+  function calculateRecentPace(sessions, now, dayMs) {
+    var windowStart = new Date(now.getTime() - 14 * dayMs);
+    var recentSessions = sessions.filter(function (s) {
+      if (!s || !s.date) return false;
+      return new Date(s.date + 'T12:00:00').getTime() >= windowStart.getTime();
+    });
+    var activeDays = new Set(recentSessions.map(function (s) { return s.date; })).size;
+    var recentStitches = recentSessions.reduce(function (a, s) { return a + (s.netStitches || 0); }, 0);
+    var recentSeconds = recentSessions.reduce(function (a, s) {
+      return a + getSessionDurationSeconds(s);
+    }, 0);
+    var stitchesPerHour = recentSeconds > 0 ? Math.round(recentStitches / (recentSeconds / 3600)) : 0;
+    var pacePerDay = activeDays > 0 ? recentStitches / activeDays : 0;
+    return { activeDays: activeDays, stitchesPerHour: stitchesPerHour, pacePerDay: pacePerDay };
+  }
+
+  function computeCompletionProjection(total, done, remaining, pace, now, dayMs) {
+    if (total > 0 && done >= total) {
+      return { status: 'complete', completionDate: null, daysRemaining: null, projectedText: 'Complete!' };
+    }
+    if (pace.activeDays < 3 || pace.pacePerDay <= 0) {
+      return { status: 'paused', completionDate: null, daysRemaining: null, projectedText: 'No recent sessions \u2014 can\u2019t project.' };
+    }
+    var perCalendarDay = pace.pacePerDay * (pace.activeDays / 14);
+    if (perCalendarDay <= 0) perCalendarDay = pace.pacePerDay / 7;
+    var daysRemaining = Math.ceil(remaining / perCalendarDay);
+    var completionDate = new Date(now.getTime() + daysRemaining * dayMs);
+    return {
+      status: 'projected',
+      completionDate: completionDate,
+      daysRemaining: daysRemaining,
+      projectedText: '~' + fmtDate(completionDate) + ' at current pace'
+    };
+  }
+
   function generateProjections(projects, opts) {
     if (!Array.isArray(projects)) return [];
     var now = (opts && opts.now) ? new Date(opts.now) : new Date();
@@ -145,39 +190,9 @@
       var remaining = Math.max(0, total - done);
       var sessions = Array.isArray(p.statsSessions) ? p.statsSessions : [];
 
-      // Recent pace: weighted (recent days count more), 14-day window.
-      // Active days = unique session dates in the window.
-      var windowStart = new Date(now.getTime() - 14 * dayMs);
-      var recentSessions = sessions.filter(function (s) {
-        if (!s || !s.date) return false;
-        return new Date(s.date + 'T12:00:00').getTime() >= windowStart.getTime();
-      });
-      var activeDays = new Set(recentSessions.map(function (s) { return s.date; })).size;
-      var recentStitches = recentSessions.reduce(function (a, s) { return a + (s.netStitches || 0); }, 0);
-      var recentSeconds = recentSessions.reduce(function (a, s) {
-        return a + (s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60);
-      }, 0);
-      var stitchesPerHour = recentSeconds > 0 ? Math.round(recentStitches / (recentSeconds / 3600)) : 0;
-      var pacePerDay = activeDays > 0 ? recentStitches / activeDays : 0;
+      var pace = calculateRecentPace(sessions, now, dayMs);
+      var proj = computeCompletionProjection(total, done, remaining, pace, now, dayMs);
 
-      var status, completionDate = null, daysRemaining = null, projectedText;
-      if (total > 0 && done >= total) {
-        status = 'complete';
-        projectedText = 'Complete!';
-      } else if (activeDays < 3 || pacePerDay <= 0) {
-        status = 'paused';
-        projectedText = 'No recent sessions \u2014 can\u2019t project.';
-      } else {
-        status = 'projected';
-        // Project forward using calendar-day pace (stitches per active day,
-        // assumed to recur weekly). Use 7/active days as a rough multiplier
-        // so a user who stitches 2 days/week gets a realistic estimate.
-        var perCalendarDay = pacePerDay * (activeDays / 14); // active days per calendar day
-        if (perCalendarDay <= 0) perCalendarDay = pacePerDay / 7;
-        daysRemaining = Math.ceil(remaining / perCalendarDay);
-        completionDate = new Date(now.getTime() + daysRemaining * dayMs);
-        projectedText = '~' + fmtDate(completionDate) + ' at current pace';
-      }
       return {
         id: p.id,
         name: p.name || 'Untitled',
@@ -186,13 +201,13 @@
         completedStitches: done,
         remaining: remaining,
         percent: pct,
-        status: status,
-        completionDate: completionDate,
-        daysRemaining: daysRemaining,
-        stitchesPerHour: stitchesPerHour,
-        recentPacePerDay: Math.round(pacePerDay),
-        activeDaysLast14: activeDays,
-        projectedText: projectedText
+        status: proj.status,
+        completionDate: proj.completionDate,
+        daysRemaining: proj.daysRemaining,
+        stitchesPerHour: pace.stitchesPerHour,
+        recentPacePerDay: Math.round(pace.pacePerDay),
+        activeDaysLast14: pace.activeDays,
+        projectedText: proj.projectedText
       };
     });
   }
@@ -299,7 +314,7 @@
       });
       function avgSpeed(arr) {
         var st = arr.reduce(function (a, s) { return a + (s.netStitches || 0); }, 0);
-        var sec = arr.reduce(function (a, s) { return a + (s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60); }, 0);
+        var sec = arr.reduce(function (a, s) { return a + getSessionDurationSeconds(s); }, 0);
         return sec > 0 ? st / (sec / 3600) : 0;
       }
       var first = avgSpeed(sorted.slice(0, 5));

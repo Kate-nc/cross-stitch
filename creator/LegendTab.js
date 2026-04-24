@@ -40,7 +40,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
         needed = (typeof skeinEst === "function") ? skeinEst(p.count, effectiveFabric) : Math.ceil(p.count / 800);
       }
       if (needed < 1) needed = 1;
-      var stashEntry = stash["dmc:" + p.id] || {};
+      var stashEntry = stash[threadKey('dmc', p.id)] || {};
       var owned      = stashEntry.owned || 0;
       var status     = owned >= needed ? "owned" : owned > 0 ? "partial" : "needed";
       var name = (p.type === "blend" && p.threads)

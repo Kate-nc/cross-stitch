@@ -58,6 +58,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="project-library.js"></script>
 <script src="palette-swap.js"></script>
 <script src="user-prefs.js"></script>
+<script src="apply-prefs.js"></script>
 <script src="toast.js"></script>
 <script src="onboarding.js"></script>
 <script>window.__csPageKind = 'creator';</script>
@@ -84,7 +85,7 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_v16';
+var TRACKER_CACHE_KEY = 'babel_tracker_e87d0f9b5c';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -116,7 +117,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_57fb0b6bc3';
+var CREATOR_CACHE_KEY = 'babel_creator_70f81f1a16';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;
@@ -141,7 +142,7 @@ window.loadCreatorMain = function() {
   });
 };/* Loads stats-activity.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var ACTIVITY_CACHE_KEY = 'babel_activity_v1';
+var ACTIVITY_CACHE_KEY = 'babel_activity_1fae160664';
 window.loadStatsActivity = function() {
   if (window.__statsActivityLoading || window.__statsActivityLoaded) return;
   window.__statsActivityLoading = true;
@@ -165,7 +166,7 @@ window.loadStatsActivity = function() {
   });
 };/* Loads stats-insights.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. (Brief E) */
-var INSIGHTS_CACHE_KEY = 'babel_insights_v1';
+var INSIGHTS_CACHE_KEY = 'babel_insights_0b35c58acb';
 window.loadStatsInsights = function() {
   if (window.__statsInsightsLoading || window.__statsInsightsLoaded) return;
   window.__statsInsightsLoading = true;
@@ -189,7 +190,7 @@ window.loadStatsInsights = function() {
   });
 };/* Loads stats-page.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var STATS_CACHE_KEY = 'babel_stats_v5';
+var STATS_CACHE_KEY = 'babel_stats_7372541d79';
 window.loadStatsPage = function() {
   if (window.__statsPageLoading || window.__statsPageLoaded) return;
   window.__statsPageLoading = true;

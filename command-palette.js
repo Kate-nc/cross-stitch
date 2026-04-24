@@ -56,7 +56,7 @@
 
   function _navigate(href, sameDocFn) {
     if (typeof sameDocFn === 'function' && location.pathname.toLowerCase().indexOf('index.html') !== -1) {
-      try { sameDocFn(); return; } catch (_) {}
+      try { sameDocFn(); return; } catch (_) { console.warn('CommandPalette: same-doc nav failed, falling back to full nav', _); }
     }
     location.href = href;
   }
@@ -311,7 +311,12 @@
     input.className = 'cs-cmdp-input';
     input.placeholder = 'Search actions…';
     input.setAttribute('aria-label', 'Search actions');
-    input.addEventListener('input', function () { renderResults(); });
+    input.addEventListener('input', function (e) {
+      // Skip while an IME composition is active so we don't search on partial
+      // characters (Japanese, Chinese, Korean keyboards etc.).
+      if (e && e.isComposing) return;
+      renderResults();
+    });
     input.addEventListener('keydown', onInputKey);
     inputWrap.appendChild(input);
 
@@ -346,7 +351,7 @@
       // Focus trap: there is only one focusable element in the dialog (the
       // input), so Tab and Shift+Tab both keep focus on the input itself.
       e.preventDefault();
-      try { inputEl.focus(); } catch (_) {}
+      try { inputEl.focus(); } catch (_) { /* race: input may be unmounted */ }
       return;
     }
     if (e.key === 'ArrowDown') {
@@ -373,7 +378,10 @@
 
   function executeAction(a) {
     closePalette();
-    try { a.action(); } catch (e) { console.error('CommandPalette action failed', e); }
+    try { a.action(); } catch (e) {
+      console.error('CommandPalette action failed', e);
+      try { window.Toast && window.Toast.show && window.Toast.show({message: 'Action failed: ' + (e && e.message || 'unknown error'), type: 'error'}); } catch(_){}
+    }
   }
 
   function paintHighlight() {
@@ -477,7 +485,7 @@
     loadingRecent = true;
     renderResults();
     // focus after attach so the autofocus actually takes
-    setTimeout(function () { try { inputEl.focus(); inputEl.select(); } catch (_) {} }, 0);
+    setTimeout(function () { try { inputEl.focus(); inputEl.select(); } catch (_) { /* race: input may be unmounted */ } }, 0);
     recentProjectActions(function (acts) {
       loadingRecent = false;
       currentRecentActions = acts;
@@ -499,7 +507,7 @@
           if (document.activeElement === document.body || document.activeElement === null) {
             toFocus.focus();
           }
-        } catch (_) {}
+        } catch (_) { console.warn('CommandPalette: close DOM error', _); }
       }, 0);
     }
   }

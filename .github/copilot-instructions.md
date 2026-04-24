@@ -1,5 +1,21 @@
 # Copilot Instructions — Cross Stitch Pattern Generator
 
+> **No emojis in user-facing UI.** Use the SVG icons in [icons.js](../icons.js)
+> via `window.Icons.{name}()`. If a suitable icon doesn't exist, ADD one to
+> `icons.js` (24×24 viewBox, 1.6 stroke-width, currentColor) rather than
+> reaching for an emoji. This includes:
+> - Button labels, menu items, badges, status indicators
+> - Toast and modal copy
+> - Category lists and tab headers
+> - Comments shown to end users (Markdown rendered in the help overlay)
+>
+> Emojis are forbidden because they render inconsistently across OS/browser,
+> can't be coloured to match the theme, and clash with the rest of the app's
+> visual language. The unicode characters ✓ ✗ → ← ▸ etc. count as emoji for
+> this rule — use [icons.js](../icons.js)'s `check`, `x`, `pointing` etc instead.
+> The only acceptable place for emoji-like characters is the box-drawing
+> separators inside source-file headers (e.g. ════ section dividers in JS).
+
 ## Project Overview
 
 A fully client-side Progressive Web App (PWA) for creating, managing, and tracking cross-stitch patterns. No build step is required to run the application — open an HTML file in a browser. The only build step in this project is bundling the `creator/` module (see below).

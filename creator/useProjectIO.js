@@ -363,7 +363,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     rd.onload = function(ev) {
       try {
         var project = JSON.parse(ev.target.result);
-        if (!project.pattern || !project.settings) throw new Error("Invalid");
+        if (!project.pattern || !Array.isArray(project.pattern)) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
+        if (!project.settings) throw new Error("Invalid");
         processLoadedProject(project);
       } catch (err) {
         console.error(err);
@@ -450,7 +451,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       rd2.onload = function(ev2) {
         try {
           var project2 = JSON.parse(ev2.target.result);
-          if (!project2.pattern || !project2.settings) throw new Error("Invalid");
+          if (!project2.pattern || !Array.isArray(project2.pattern)) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
+          if (!project2.settings) throw new Error("Invalid");
           processLoadedProject(project2);
         } catch (err2) {
           console.error(err2);
