@@ -110,9 +110,9 @@ describe("useImportWizard hook", () => {
     expect(obj.name).toBe("Hello world");
     expect(obj.step).toBe(2);
 
-    // Fresh mount should pick up the draft.
+    // Fresh mount should pick up the draft (same image + baseName).
     reset();
-    const resumed = win.useImportWizard({ image: { width: 200, height: 200 } });
+    const resumed = win.useImportWizard({ image: { width: 200, height: 200 }, baseName: "x" });
     expect(resumed.step).toBe(2);
     expect(resumed.name).toBe("Hello world");
   });
@@ -169,5 +169,43 @@ describe("useImportWizard hook", () => {
     expect(wiz.step).toBe(1);
     expect(wiz.name).toBe("fresh");
     expect(storage.getItem("cs_import_wizard_draft")).toBeNull();
+  });
+
+  test("draft for a different image is discarded (bug-hunt D2)", () => {
+    // First mount: image A 320x240, advance to step 3 with custom name.
+    const { win, storage, reset } = loadHook(); reset();
+    const wA = win.useImportWizard({ image: { width: 320, height: 240 }, baseName: "rose" });
+    wA.setName("Rose v1");
+    wA.next(); wA.next();
+    const draft = JSON.parse(storage.getItem("cs_import_wizard_draft"));
+    expect(draft.imageW).toBe(320);
+    expect(draft.imageH).toBe(240);
+    expect(draft.baseName).toBe("rose");
+    expect(draft.step).toBe(3);
+
+    // Second mount: image B (different dimensions). Draft must be ignored
+    // and the wizard must auto-fit to image B's defaults, not image A's.
+    reset();
+    const wB = win.useImportWizard({ image: { width: 800, height: 400 }, baseName: "tulip" });
+    expect(wB.step).toBe(1);
+    expect(wB.name).toBe("tulip");
+    expect(wB.size.w).toBe(80);   // 800 -> 80
+    expect(wB.size.h).toBe(40);   // 400 -> 40
+    expect(storage.getItem("cs_import_wizard_draft")).toBeNull();
+  });
+
+  test("draft for the same image (after reload) is honoured", () => {
+    // First mount: write a draft.
+    const { win, storage, reset } = loadHook(); reset();
+    const w1 = win.useImportWizard({ image: { width: 300, height: 200 }, baseName: "cat" });
+    w1.setName("Cat session");
+    w1.next();
+
+    // Same image+name on second mount -> draft restored.
+    reset();
+    const w2 = win.useImportWizard({ image: { width: 300, height: 200 }, baseName: "cat" });
+    expect(w2.step).toBe(2);
+    expect(w2.name).toBe("Cat session");
+    expect(storage.getItem("cs_import_wizard_draft")).not.toBeNull();
   });
 });

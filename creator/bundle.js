@@ -5546,7 +5546,7 @@ window.useCreatorState = function useCreatorState() {
   var DRAFT_KEY = "cs_import_wizard_draft";
   var DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // 7 days
 
-  function _readDraft() {
+  function _readDraft(match) {
     try {
       var raw = (typeof localStorage !== "undefined") ? localStorage.getItem(DRAFT_KEY) : null;
       if (!raw) return null;
@@ -5556,17 +5556,32 @@ window.useCreatorState = function useCreatorState() {
         try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
         return null;
       }
+      // Bug-hunt D2 — reject drafts that were written for a different
+      // source image. Without this, importing image A then image B would
+      // resume image B mid-wizard with image A's settings (auto-fit size,
+      // base name, crop rectangle) silently applied.
+      if (match && (typeof obj.imageW === "number" || typeof obj.imageH === "number")) {
+        if (obj.imageW !== (match.imageW | 0) ||
+            obj.imageH !== (match.imageH | 0) ||
+            (obj.baseName || "") !== (match.baseName || "")) {
+          try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
+          return null;
+        }
+      }
       return obj;
     } catch (_) { return null; }
   }
 
-  function _writeDraft(state) {
+  function _writeDraft(state, match) {
     try {
       if (typeof localStorage === "undefined") return;
       var payload = {
         v: 1, ts: Date.now(),
         step: state.step, crop: state.crop, palette: state.palette,
-        size: state.size, settings: state.settings, name: state.name
+        size: state.size, settings: state.settings, name: state.name,
+        imageW: match ? (match.imageW | 0) : 0,
+        imageH: match ? (match.imageH | 0) : 0,
+        baseName: match ? (match.baseName || "") : ""
       };
       localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
     } catch (_) { /* QuotaExceededError etc. — fail silently */ }
@@ -5611,11 +5626,16 @@ window.useCreatorState = function useCreatorState() {
     var React = window.React;
     var image = (opts && opts.image) || null;
     var baseName = (opts && opts.baseName) || "";
+    var match = {
+      imageW: image && image.width  ? image.width  : 0,
+      imageH: image && image.height ? image.height : 0,
+      baseName: baseName
+    };
 
     // Single state object so we can persist atomically on every action.
     var initial = (React && React.useMemo)
-      ? React.useMemo(function () { return _initialState(image, baseName, _readDraft()); }, [])
-      : _initialState(image, baseName, _readDraft());
+      ? React.useMemo(function () { return _initialState(image, baseName, _readDraft(match)); }, [])
+      : _initialState(image, baseName, _readDraft(match));
 
     var st = React.useState(initial);
     var state = st[0], setState = st[1];
@@ -5631,20 +5651,20 @@ window.useCreatorState = function useCreatorState() {
     function _apply(patch) {
       setState(function (prev) {
         var next = Object.assign({}, prev, patch);
-        _writeDraft(next);
+        _writeDraft(next, match);
         return next;
       });
     }
 
-    function next() { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(prev.step + 1) }); _writeDraft(n); return n; }); }
-    function back() { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(prev.step - 1) }); _writeDraft(n); return n; }); }
-    function goto_(target) { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(target) }); _writeDraft(n); return n; }); }
+    function next() { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(prev.step + 1) }); _writeDraft(n, match); return n; }); }
+    function back() { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(prev.step - 1) }); _writeDraft(n, match); return n; }); }
+    function goto_(target) { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(target) }); _writeDraft(n, match); return n; }); }
 
-    function setCrop(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.crop)     : v; var n = Object.assign({}, prev, { crop: nv });     _writeDraft(n); return n; }); }
-    function setPalette(v)  { setState(function (prev) { var nv = typeof v === "function" ? v(prev.palette)  : v; var n = Object.assign({}, prev, { palette: nv });  _writeDraft(n); return n; }); }
-    function setSize(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.size)     : v; var n = Object.assign({}, prev, { size: nv });     _writeDraft(n); return n; }); }
-    function setSettings(v) { setState(function (prev) { var nv = typeof v === "function" ? v(prev.settings) : v; var n = Object.assign({}, prev, { settings: nv }); _writeDraft(n); return n; }); }
-    function setName(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.name)     : v; var n = Object.assign({}, prev, { name: nv });     _writeDraft(n); return n; }); }
+    function setCrop(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.crop)     : v; var n = Object.assign({}, prev, { crop: nv });     _writeDraft(n, match); return n; }); }
+    function setPalette(v)  { setState(function (prev) { var nv = typeof v === "function" ? v(prev.palette)  : v; var n = Object.assign({}, prev, { palette: nv });  _writeDraft(n, match); return n; }); }
+    function setSize(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.size)     : v; var n = Object.assign({}, prev, { size: nv });     _writeDraft(n, match); return n; }); }
+    function setSettings(v) { setState(function (prev) { var nv = typeof v === "function" ? v(prev.settings) : v; var n = Object.assign({}, prev, { settings: nv }); _writeDraft(n, match); return n; }); }
+    function setName(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.name)     : v; var n = Object.assign({}, prev, { name: nv });     _writeDraft(n, match); return n; }); }
 
     function reset() {
       _clearDraft();
