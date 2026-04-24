@@ -3481,3 +3481,38 @@ html.pref-dark a { color: #5eead4; }
 @media (prefers-reduced-motion: reduce) {
   .drag-mark-pulse, .cell-pulse { animation: none; opacity: 0; }
 }
+
+
+/* ════ B6 — Help & Shortcuts drawer ════════════════════════════════════ */
+/* Side drawer for unified Help, Shortcuts, and Getting Started.          */
+/* Most layout is inline (see help-drawer.js) so it works without a CSS   */
+/* dependency; this block adds the slide animation and mobile full-screen */
+/* override.                                                              */
+
+.cs-help-drawer {
+  animation: cs-help-drawer-slide-in 180ms ease-out;
+}
+@keyframes cs-help-drawer-slide-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.cs-help-drawer kbd {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.cs-help-drawer button:focus-visible,
+.cs-help-drawer input:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .cs-help-drawer {
+    width: 100vw !important;
+    border-left: none !important;
+  }
+  /* On mobile the click-outside scrim has no width — there's no app surface
+     visible behind the drawer — so hide it to keep the tap target clean. */
+  .cs-help-drawer-scrim {
+    display: none !important;
+  }
+}
