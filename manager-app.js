@@ -1571,6 +1571,8 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
 
                 <input
                   type="number"
+                  inputMode="numeric"
+                  enterKeyHint="done"
                   min={1}
                   value={threadQty}
                   onChange={e => setThreadQty(e.target.value)}
@@ -1653,6 +1655,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <input
                         type="number"
+                        inputMode="numeric"
                         min={0}
                         value={t.qty}
                         onChange={e => updateThreadQty(idx, parseInt(e.target.value))}

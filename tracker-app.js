@@ -263,9 +263,9 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
         <button className="modal-choice-btn" onClick={()=>setShowCustom(v=>!v)}>Other size…</button>
         {showCustom&&<div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 12px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
           <label style={{fontSize:12,fontWeight:600}}>W:</label>
-          <input type="number" value={customW} onChange={e=>setCustomW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
+          <input type="number" inputMode="numeric" value={customW} onChange={e=>setCustomW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
           <label style={{fontSize:12,fontWeight:600}}>H:</label>
-          <input type="number" value={customH} onChange={e=>setCustomH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
+          <input type="number" inputMode="numeric" value={customH} onChange={e=>setCustomH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
           <button onClick={()=>{setStyle("block");setBw(customW);setBh(customH);setScreen(3);}} style={{padding:"4px 10px",borderRadius:4,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}>OK</button>
         </div>}
         {showCustom&&(customW%10!==0||customH%10!==0)&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>Custom sizes may not align with the 10-stitch grid lines.</div>}
@@ -319,7 +319,7 @@ function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
         </div>
         <div style={{marginBottom:16}}>
           <div style={{fontWeight:600,fontSize:12,color:"#475569",marginBottom:8}}>Stitch goal (optional)</div>
-          <input type="number" value={goalStitches} onChange={e=>setGoalStitches(e.target.value)} placeholder="e.g. 200" min={1} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #e2e8f0",fontSize:13,width:"100%",boxSizing:"border-box"}}/>
+          <input type="number" inputMode="numeric" enterKeyHint="done" value={goalStitches} onChange={e=>setGoalStitches(e.target.value)} placeholder="e.g. 200" min={1} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #e2e8f0",fontSize:13,width:"100%",boxSizing:"border-box"}}/>
         </div>
         <button onClick={()=>onStart({timeAvail:timeChoice,stitchGoal:goalStitches?parseInt(goalStitches)||null:null})} style={{width:"100%",padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer",fontSize:14}}>Start</button>
       </div>
@@ -4276,9 +4276,9 @@ return(
       {stitchingStyle!=="crosscountry"&&stitchingStyle!=="freestyle"&&<div style={{padding:"4px 14px 6px",fontSize:11,color:"#475569"}}>Block size: {blockW}×{blockH}
         <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}>
           {[[10,10,"10×10"],[20,20,"20×20"]].map(([w,h,l])=><button key={l} onClick={()=>{setBlockW(w);setBlockH(h);}} style={{padding:"2px 7px",borderRadius:5,border:"1px solid "+(blockW===w&&blockH===h?"#0d9488":"#e2e8f0"),background:blockW===w&&blockH===h?"#f0fdfa":"#fff",fontSize:10,cursor:"pointer"}}>{l}</button>)}
-          <input type="number" title="Custom width" placeholder="W" value={blockW} onChange={e=>setBlockW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:10}} min={5} max={100}/>
+          <input type="number" inputMode="numeric" title="Custom width" placeholder="W" value={blockW} onChange={e=>setBlockW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:10}} min={5} max={100}/>
           <span style={{fontSize:10,lineHeight:"22px"}}>×</span>
-          <input type="number" title="Custom height" placeholder="H" value={blockH} onChange={e=>setBlockH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:10}} min={5} max={100}/>
+          <input type="number" inputMode="numeric" title="Custom height" placeholder="H" value={blockH} onChange={e=>setBlockH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:10}} min={5} max={100}/>
         </div>
         {(blockW%10!==0||blockH%10!==0)&&<div style={{fontSize:10,color:"#92400e",marginTop:3}}>May not align with 10-stitch grid lines.</div>}
       </div>}
@@ -5020,7 +5020,7 @@ return(
           <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
             <div style={{display:"flex", flexDirection:"column", gap:4}}>
               <label style={{fontSize:12, fontWeight:600, color:"#475569"}}>Max Width (stitches)</label>
-              <input type="number" min={10} max={300} value={importMaxW} onChange={e=>{
+              <input type="number" inputMode="numeric" min={10} max={300} value={importMaxW} onChange={e=>{
                 let val = Number(e.target.value);
                 setImportMaxW(val);
                 if (importArLock) setImportMaxH(Math.max(10, Math.floor(val * (importImage.height / importImage.width))));
@@ -5028,7 +5028,7 @@ return(
             </div>
             <div style={{display:"flex", flexDirection:"column", gap:4}}>
               <label style={{fontSize:12, fontWeight:600, color:"#475569"}}>Max Height (stitches)</label>
-              <input type="number" min={10} max={300} value={importMaxH} onChange={e=>{
+              <input type="number" inputMode="numeric" min={10} max={300} value={importMaxH} onChange={e=>{
                 let val = Number(e.target.value);
                 setImportMaxH(val);
                 if (importArLock) setImportMaxW(Math.max(10, Math.floor(val * (importImage.width / importImage.height))));

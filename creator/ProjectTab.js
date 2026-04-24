@@ -165,7 +165,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
           h("span", {style:{fontSize:12,color:"#475569"}}, "Price per skein (\xA3)"),
           h("input", {
-            type:"number", value:ctx.skeinPrice, min:0, step:0.05,
+            type:"number", inputMode:"decimal", value:ctx.skeinPrice, min:0, step:0.05,
             onChange:function(e){ctx.setSkeinPrice(Math.max(0,parseFloat(e.target.value)||0));},
             style:{width:70,padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13,textAlign:"right"}
           })
