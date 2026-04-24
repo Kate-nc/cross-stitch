@@ -679,24 +679,9 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var openFileInputRef = React.useRef(null);
   var importInputRef = React.useRef(null);
 
-  // Phase 5: keyboard shortcut "B" opens Bulk Add Threads from anywhere on
-  // the home screen, provided no input/textarea/contenteditable is focused
-  // and no modifier key is held (so it doesn't intercept browser shortcuts).
-  useEffect(function() {
-    if (typeof onBulkAddThreads !== 'function') return;
-    function onKey(e) {
-      if (e.defaultPrevented) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      var key = (e.key || '').toLowerCase();
-      if (key !== 'b') return;
-      var t = e.target;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-      e.preventDefault();
-      onBulkAddThreads();
-    }
-    window.addEventListener('keydown', onKey);
-    return function() { window.removeEventListener('keydown', onKey); };
-  }, [onBulkAddThreads]);
+  // The "B = Open Bulk Add Threads" shortcut is registered globally from
+  // the parent CreatorApp shell (creator-main.js). We don't re-register it
+  // here to avoid a duplicate-scope conflict reported by Shortcuts.register.
 
   useEffect(function() {
     var cancelled = false;

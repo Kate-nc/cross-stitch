@@ -109,22 +109,14 @@ function ManagerApp() {
   }, []);
 
   // Global "B" shortcut → open Bulk Add Threads from anywhere on the Manager
-  // page. Skipped while typing in inputs / with any modifier key held so we
-  // never intercept browser shortcuts (Ctrl+B etc).
-  useEffect(() => {
-    if (typeof window.BulkAddModal === 'undefined') return;
-    const onKey = (e) => {
-      if (e.defaultPrevented) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if ((e.key || '').toLowerCase() !== 'b') return;
-      const t = e.target;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-      e.preventDefault();
-      setBulkAddOpen(true);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  // page. Registered through the central shortcuts registry.
+  if(typeof window.useShortcuts==='function'){
+    window.useShortcuts(typeof window.BulkAddModal==='undefined'?[]:[
+      { id: 'global.bulkAdd.manager', keys: 'b', scope: 'global',
+        description: 'Open Bulk Add Threads',
+        run: ()=>setBulkAddOpen(true) }
+    ],[]);
+  }
   // "Show welcome tour again" from HelpCentre → re-open the wizard.
   useEffect(() => {
     const h = (e) => { if (!e || !e.detail || e.detail.page === "manager") setWelcomeOpen(true); };

@@ -1,4 +1,9 @@
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
+// Central shortcut registry hooks (loaded by shortcuts.js before tracker-app.js).
+// Fall back to no-op stubs in case the script failed to load — tracker still
+// renders, just without keyboard shortcuts.
+const useShortcuts = (typeof window!=='undefined' && window.useShortcuts) || (function(){});
+const useScope     = (typeof window!=='undefined' && window.useScope)     || (function(){});
 // deepClone: prefer structuredClone (faster) with JSON fallback for older browsers.
 const deepClone=typeof structuredClone==='function'?structuredClone:(x)=>JSON.parse(JSON.stringify(x));
 
@@ -4080,16 +4085,69 @@ function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur
 const ownedCount=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")==="owned").length,[skeinData,threadOwned]);
 const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned"),[skeinData,threadOwned]);
 
+// ─── Keyboard shortcuts (migrated to central registry) ──────────────
+// Scope hierarchy:
+//   tracker                    — active whenever the tracker is mounted
+//   tracker.notedit            — !isEditMode
+//   tracker.view.highlight     — stitchView === 'highlight'
+//
+// The registry handles dispatch, the canonical input-element guard
+// (text inputs / contenteditable only — NOT BUTTON or A), and conflict
+// detection. Keyup for Space-pan stays in a sibling effect because
+// the registry is keydown-only.
+//
+// Behaviour changes vs. pre-migration (see reports/shortcuts-4-redesign-spec.md):
+//   • Single-key shortcuts no longer die when focus is on a button/link.
+//   • '?' now opens the Shortcuts modal (was: Help) for cross-page consistency.
+//   • Backstitch layer toggle moved 'B' → 'L' (B reserved for global Bulk Add).
+//   • All-layers toggle moved bare 'A' → 'Shift+A' (avoids browser select-all clash).
+//   • Counting aids 'C' works in any tracker view (was: highlight + focused only).
+//   • Highlight modes 1–4 auto-pick the first focusable colour if none is set.
+//   • Ctrl/Cmd+Z, +S etc. now fire even from inside text inputs.
+useScope("tracker", !!isActive);
+useScope("tracker.notedit", !!isActive && !isEditMode);
+useScope("tracker.view.highlight", !!isActive && stitchView === "highlight");
+
+// Keyup handler for Space-pan release stays imperative (registry is keydown-only).
 useEffect(()=>{
-  function handleKeyDown(e){
-    if(["INPUT","SELECT","TEXTAREA","BUTTON","A"].includes(document.activeElement?.tagName)||document.activeElement?.isContentEditable)return;
-    const mod=e.ctrlKey||e.metaKey;
-    if(mod&&!e.shiftKey&&e.key==="z"){e.preventDefault();if(isEditMode&&undoSnapshot){applyUndo();}else if(!isEditMode){undoTrack();}return;}
-    if((mod&&e.key==="y")||(mod&&e.shiftKey&&e.key==="z")){e.preventDefault();if(!isEditMode)redoTrack();return;}
-    if(mod&&e.key==="s"){e.preventDefault();if(pat&&pal)saveProject();return;}
-    if(mod)return;
-    if(e.code==="Space"){e.preventDefault();if(!isSpaceDownRef.current){isSpaceDownRef.current=true;spaceDownTimeRef.current=Date.now();spacePannedRef.current=false;}return;}
-    if(e.key==="Escape"){
+  if(!isActive)return;
+  function handleKeyUp(e){
+    if(e.code==="Space"){isSpaceDownRef.current=false;spacePannedRef.current=false;}
+  }
+  window.addEventListener("keyup",handleKeyUp);
+  return()=>window.removeEventListener("keyup",handleKeyUp);
+},[isActive]);
+
+// Helper: cycle to the next/previous focusable colour, auto-picking the
+// first when none is currently set (so [/] always do something useful).
+function cycleFocusColour(direction){
+  setFocusColour(prev=>{
+    if(!focusableColors.length)return prev;
+    if(!prev){
+      const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+      return first?first.id:prev;
+    }
+    const idx=focusableColors.findIndex(p=>p.id===prev);
+    if(idx<0)return focusableColors[0].id;
+    if(direction>0)return focusableColors[(idx+1)%focusableColors.length].id;
+    return focusableColors[(idx<=0?focusableColors.length:idx)-1].id;
+  });
+}
+// Helper: ensure a focus colour is set (used when user presses 1-4 in
+// highlight view without first picking one). Same first-focusable logic
+// as the V key transition.
+function ensureFocusColour(){
+  if(focusColour)return;
+  const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+  if(first)setFocusColour(first.id);
+}
+
+useShortcuts(!isActive ? [] : [
+  // Esc cascade — preserves original priority order. Listed hidden because
+  // Esc semantics are implicit and documented in every modal.
+  { id: "tracker.esc", keys: "esc", scope: "tracker", hidden: true,
+    description: "Cancel / dismiss",
+    run: () => {
       if(rangeModeActive){setRangeModeActive(false);setRangeAnchor(null);return;}
       if(halfDisambig){setHalfDisambig(null);return;}
       if(namePromptOpen){setNamePromptOpen(false);return;}
@@ -4100,27 +4158,79 @@ useEffect(()=>{
       if(tOverflowOpen){setTOverflowOpen(false);return;}
       if(focusColour&&stitchView==="highlight"){setFocusColour(null);return;}
       if(drawer){setDrawer(false);return;}
-      return;
-    }
-    if(e.key==="?"){e.preventDefault();e.stopPropagation();setModal("help");return;}
-    if(!isEditMode){
-      if(e.key==="t"||e.key==="T"){setStitchMode("track");return;}
-      if(e.key==="n"||e.key==="N"){setStitchMode("navigate");return;}
-      if(e.key==="v"||e.key==="V"){
-        const nextView=stitchView==="symbol"?"colour":stitchView==="colour"?"highlight":"symbol";
-        setStitchView(nextView);
-        if(nextView==="highlight"&&!focusColour){const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];if(first)setFocusColour(first.id);}
-        return;
+    } },
+
+  // History / save (modified — fire from inputs by default).
+  { id: "tracker.undo", keys: "mod+z", scope: "tracker",
+    description: "Undo",
+    run: () => { if(isEditMode&&undoSnapshot){applyUndo();}else if(!isEditMode){undoTrack();} } },
+  { id: "tracker.redo", keys: ["mod+y", "mod+shift+z"], scope: "tracker.notedit",
+    description: "Redo",
+    run: () => { redoTrack(); } },
+  { id: "tracker.save", keys: "mod+s", scope: "tracker",
+    description: "Save project",
+    run: () => { if(pat&&pal)saveProject(); } },
+
+  // Hold-Space to pan (preventDefault so page doesn't scroll).
+  { id: "tracker.space", keys: "space", scope: "tracker",
+    description: "Hold to pan canvas",
+    run: () => { if(!isSpaceDownRef.current){isSpaceDownRef.current=true;spaceDownTimeRef.current=Date.now();spacePannedRef.current=false;} } },
+
+  // Shortcuts panel.
+  { id: "tracker.shortcuts", keys: "?", scope: "tracker",
+    description: "Toggle shortcuts panel",
+    run: () => setModal("shortcuts") },
+
+  // Stitch mode tabs.
+  { id: "tracker.mode.track", keys: "t", scope: "tracker.notedit",
+    description: "Track mode",
+    run: () => setStitchMode("track") },
+  { id: "tracker.mode.navigate", keys: "n", scope: "tracker.notedit",
+    description: "Navigate mode",
+    run: () => setStitchMode("navigate") },
+
+  // View cycle.
+  { id: "tracker.view.cycle", keys: "v", scope: "tracker.notedit",
+    description: "Cycle view: symbol → colour → highlight",
+    run: () => {
+      const nextView=stitchView==="symbol"?"colour":stitchView==="colour"?"highlight":"symbol";
+      setStitchView(nextView);
+      if(nextView==="highlight"&&!focusColour){
+        const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+        if(first)setFocusColour(first.id);
       }
-      // Layer toggle shortcuts
-      if(e.key==="f"||e.key==="F"){setLayerVis(v=>({...v,full:!v.full}));return;}
-      if(e.key==="h"||e.key==="H"){setLayerVis(v=>({...v,half:!v.half}));return;}
-      if(e.key==="b"||e.key==="B"){setLayerVis(v=>({...v,backstitch:!v.backstitch}));return;}
-      if(e.key==="k"||e.key==="K"){setLayerVis(v=>({...v,french_knot:!v.french_knot}));return;}
-      if(e.key==="a"||e.key==="A"){if(Object.values(layerVis).every(Boolean)){const allOff=Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,false]));setLayerVis(allOff);}else{setLayerVis(ALL_LAYERS_VISIBLE);}return;}
-    }
-    if(e.key==="d"||e.key==="D"){setDrawer(d=>!d);return;}
-    if((e.key==="p"||e.key==="P")&&!isEditMode&&currentAutoSessionRef.current){
+    } },
+
+  // Layer toggles. Backstitch moved B→L; all-layers moved A→Shift+A.
+  { id: "tracker.layer.full",   keys: "f", scope: "tracker.notedit",
+    description: "Toggle full-stitch layer",
+    run: () => setLayerVis(v=>({...v,full:!v.full})) },
+  { id: "tracker.layer.half",   keys: "h", scope: "tracker.notedit",
+    description: "Toggle half-stitch layer",
+    run: () => setLayerVis(v=>({...v,half:!v.half})) },
+  { id: "tracker.layer.knot",   keys: "k", scope: "tracker.notedit",
+    description: "Toggle French-knot layer",
+    run: () => setLayerVis(v=>({...v,french_knot:!v.french_knot})) },
+  { id: "tracker.layer.bs",     keys: "l", scope: "tracker.notedit",
+    description: "Toggle backstitch layer",
+    run: () => setLayerVis(v=>({...v,backstitch:!v.backstitch})) },
+  { id: "tracker.layer.all",    keys: "shift+a", scope: "tracker.notedit",
+    description: "Toggle all layers on/off",
+    run: () => {
+      if(Object.values(layerVis).every(Boolean)){
+        const allOff=Object.fromEntries(STITCH_LAYERS.map(l=>[l.id,false]));
+        setLayerVis(allOff);
+      }else{setLayerVis(ALL_LAYERS_VISIBLE);}
+    } },
+
+  // Drawer / pause / counting aids / zoom.
+  { id: "tracker.drawer", keys: "d", scope: "tracker",
+    description: "Toggle colour drawer",
+    run: () => setDrawer(d=>!d) },
+  { id: "tracker.pause", keys: "p", scope: "tracker.notedit",
+    description: "Pause / resume session timer",
+    when: () => !!currentAutoSessionRef.current,
+    run: () => {
       if(manuallyPausedRef.current){
         const pausedMs=Date.now()-manualPauseTimeRef.current;
         currentAutoSessionRef.current.totalPausedMs=(currentAutoSessionRef.current.totalPausedMs||0)+pausedMs;
@@ -4133,36 +4243,40 @@ useEffect(()=>{
         setManuallyPaused(true);
         setLiveAutoIsPaused(true);
       }
-      return;
-    }
-    if(e.key==="="||e.key==="+"){setStitchZoom(z=>Math.min(4,+(z+0.1).toFixed(2)));return;}
-    if(e.key==="-"){setStitchZoom(z=>Math.max(0.3,+(z-0.1).toFixed(2)));return;}
-    if(e.key==="0"){fitSZ();return;}
-    if(stitchView==="highlight"&&!isEditMode){
-      if(focusColour){
-        if(e.key==="1"){setHighlightMode("isolate");return;}
-        if(e.key==="2"){setHighlightMode("outline");return;}
-        if(e.key==="3"){setHighlightMode("tint");return;}
-        if(e.key==="4"){setHighlightMode("spotlight");return;}
-        if(e.key==="c"||e.key==="C"){setCountingAidsEnabled(v=>!v);return;}
-      }
-      if(e.key==="ArrowRight"||e.key==="]"){
-        e.preventDefault();
-        setFocusColour(prev=>{if(!focusableColors.length)return prev;const idx=focusableColors.findIndex(p=>p.id===prev);return focusableColors[(idx+1)%focusableColors.length].id;});
-      }else if(e.key==="ArrowLeft"||e.key==="["){
-        e.preventDefault();
-        setFocusColour(prev=>{if(!focusableColors.length)return prev;const idx=focusableColors.findIndex(p=>p.id===prev);return focusableColors[(idx<=0?focusableColors.length:idx)-1].id;});
-      }
-    }
-  }
-  function handleKeyUp(e){
-    if(e.code==="Space"){isSpaceDownRef.current=false;spacePannedRef.current=false;}
-  }
-  if(!isActive)return;
-  window.addEventListener("keydown",handleKeyDown);
-  window.addEventListener("keyup",handleKeyUp);
-  return()=>{window.removeEventListener("keydown",handleKeyDown);window.removeEventListener("keyup",handleKeyUp);};
-},[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive,layerVis]);
+    } },
+  { id: "tracker.counting", keys: "c", scope: "tracker",
+    description: "Toggle counting aids",
+    run: () => setCountingAidsEnabled(v=>!v) },
+  { id: "tracker.zoom.in", keys: ["=", "+"], scope: "tracker",
+    description: "Zoom in",
+    run: () => setStitchZoom(z=>Math.min(4,+(z+0.1).toFixed(2))) },
+  { id: "tracker.zoom.out", keys: "-", scope: "tracker",
+    description: "Zoom out",
+    run: () => setStitchZoom(z=>Math.max(0.3,+(z-0.1).toFixed(2))) },
+  { id: "tracker.zoom.fit", keys: "0", scope: "tracker",
+    description: "Zoom to fit",
+    run: () => fitSZ() },
+
+  // Highlight-view-only: focus-colour cycling and highlight modes.
+  { id: "tracker.hl.next", keys: ["]", "arrowright"], scope: "tracker.view.highlight",
+    description: "Next focus colour",
+    run: () => cycleFocusColour(+1) },
+  { id: "tracker.hl.prev", keys: ["[", "arrowleft"], scope: "tracker.view.highlight",
+    description: "Previous focus colour",
+    run: () => cycleFocusColour(-1) },
+  { id: "tracker.hl.isolate", keys: "1", scope: "tracker.view.highlight",
+    description: "Highlight: isolate",
+    run: () => { ensureFocusColour(); setHighlightMode("isolate"); } },
+  { id: "tracker.hl.outline", keys: "2", scope: "tracker.view.highlight",
+    description: "Highlight: outline",
+    run: () => { ensureFocusColour(); setHighlightMode("outline"); } },
+  { id: "tracker.hl.tint", keys: "3", scope: "tracker.view.highlight",
+    description: "Highlight: tint",
+    run: () => { ensureFocusColour(); setHighlightMode("tint"); } },
+  { id: "tracker.hl.spotlight", keys: "4", scope: "tracker.view.highlight",
+    description: "Highlight: spotlight",
+    run: () => { ensureFocusColour(); setHighlightMode("spotlight"); } },
+],[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,rangeModeActive,layerVis,colourDoneCounts]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
