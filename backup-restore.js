@@ -159,13 +159,20 @@ const BackupRestore = (() => {
         }
         const mdb = backup.databases.stitch_manager_db;
         if (mdb && mdb.manager_state) {
-          const threadsEntry = mdb.manager_state.find(e => e.key === "threads");
+          // PERF (perf-4 #7): index manager_state by key once instead of three
+          // separate Array.find() scans.
+          const msMap = new Map();
+          for (let i = 0; i < mdb.manager_state.length; i++) {
+            const e = mdb.manager_state[i];
+            if (e && e.key) msMap.set(e.key, e);
+          }
+          const threadsEntry = msMap.get("threads");
           if (threadsEntry && threadsEntry.value) {
             summary.threadCount = Object.keys(threadsEntry.value).filter(
               id => threadsEntry.value[id].owned > 0
             ).length;
           }
-          const patternsEntry = mdb.manager_state.find(e => e.key === "patterns");
+          const patternsEntry = msMap.get("patterns");
           if (patternsEntry && Array.isArray(patternsEntry.value)) {
             summary.patternCount = patternsEntry.value.length;
           }
@@ -237,7 +244,12 @@ const BackupRestore = (() => {
       try {
         const mdb = backup.databases && backup.databases.stitch_manager_db;
         if (mdb && mdb.manager_state) {
-          const sv = mdb.manager_state.find(e => e.key === 'schema_version');
+          // PERF (perf-4 #7): same single-pass index pattern as in validate().
+          let sv = null;
+          for (let i = 0; i < mdb.manager_state.length; i++) {
+            const e = mdb.manager_state[i];
+            if (e && e.key === 'schema_version') { sv = e; break; }
+          }
           stashIsV3 = sv && Number(sv.value) >= 3;
         }
         const csdb = backup.databases && backup.databases.CrossStitchDB;

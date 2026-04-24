@@ -214,7 +214,9 @@ function analysePartialStitches(psEntry, baseCell) {
   Object.keys(colourGroups).forEach(function(id) {
     var group = colourGroups[id];
     if (group.corners.length === 3) {
-      var emptyCorner = quadrants.filter(function(q) { return group.corners.indexOf(q) === -1; })[0];
+      // PERF (perf-4 #9): O(1) Set membership beats Array.indexOf scan.
+      var cornerSet = new Set(group.corners);
+      var emptyCorner = quadrants.filter(function(q) { return !cornerSet.has(q); })[0];
       instructions.push({ type: "three-quarter", colour: group.colour, emptyCorner: emptyCorner });
       group.corners.forEach(function(q) { handled[q] = true; });
     }

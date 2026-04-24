@@ -9932,8 +9932,13 @@ window.ConvertPaletteModal = (function () {
       if (!seenIds[id]) { seenIds[id] = true; sourceIds.push(id); }
     });
 
+    // PERF (perf-4 #3): build srcMap once and reuse for srcId lookups instead
+    // of an O(n) Array.find per source thread.
+    var srcMap = Object.create(null);
+    for (var si = 0; si < srcArr.length; si++) srcMap[srcArr[si].id] = srcArr[si];
+
     sourceIds.forEach(function (srcId) {
-      var srcThread = srcArr.find(function (d) { return d.id === srcId; });
+      var srcThread = srcMap[srcId];
       if (!srcThread) return; // unknown ID — skip
 
       var proposal = {
