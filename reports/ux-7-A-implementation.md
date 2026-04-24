@@ -71,3 +71,61 @@
 
 ---
 
+## A2 · Bold edit-mode banner + "Modify" relabel
+
+**Closes:** D5 🔴 (silent edit-mode mishit)
+**Wireframe:** [a-tracker-editmode](wireframes/a-tracker-editmode.html)
+
+### What changed
+
+- [tracker-app.js](../tracker-app.js)
+  - When `isEditMode` is true, renders a **40 px red strip** directly above
+    the toolbar (`role="status" aria-live="polite"`) carrying:
+    - the `Icons.warning` glyph + "**Edit mode** — grid taps modify the
+      pattern, not your progress",
+    - a prominent "Exit edit mode" button that triggers the existing
+      `showExitEditModal` confirmation when there are unapplied edits, or
+      clears edit-mode state directly otherwise.
+  - The toolbar row picks up `toolbar-row--edit` and the inner pill picks up
+    `pill--edit`, both lightly tinted in the same red family for continuity
+    with the strip.
+  - The primary "Mark" button relabels to "**Modify**" and switches its
+    variant from `tb-btn--green` → `tb-btn--red` while editing. Its `title`
+    tooltip changes to "Modify stitches (T)".
+- [styles.css](../styles.css) — appended A2 block:
+  - `.edit-mode-strip`, `.edit-mode-strip__label`, `.edit-mode-strip__hint`,
+    `.edit-mode-strip__exit`
+  - `.toolbar-row--edit`, `.pill--edit`
+  - `@media (max-width: 480px)` collapses the explanatory hint and lets the
+    strip wrap so the Exit button stays reachable on phones.
+- [tests/editModeBanner.test.js](../tests/editModeBanner.test.js) — new.
+  Source-content assertions on `tracker-app.js` and `styles.css`. Verifies
+  the strip is gated on `isEditMode`, carries `aria-live="polite"`, exposes
+  an exit affordance that calls `setIsEditMode(false)` (or the existing
+  confirm-exit modal), the "Mark"→"Modify" relabel, the variant swap, and
+  the matching CSS rules including the 40 px height and red border-bottom.
+
+### Acceptance check
+
+- [x] Strip is announced on enter via `aria-live="polite"` (DOM-level).
+- [x] "Exit edit mode" returns to normal mode in one tap (or one tap + a
+  Discard/Apply confirmation if there are pending edits).
+- [x] Action-bar primary reads "Modify" only in edit mode; "Mark" otherwise.
+- [x] Mobile layout exposes the Exit button without horizontal scroll.
+- [x] Touch target on the Exit button — `.edit-mode-strip` min-height 40 px
+  + 8 px padding (≥ 48 px hit), button itself min-height 32 px so the strip
+  stays compact on desktop. The 44 × 44 audit lands in A4.
+- [x] No new emoji; uses `Icons.warning`.
+
+### Test status
+
+- 742 / 742 Jest tests pass (`npm test -- --runInBand`), including
+  7 new cases in `editModeBanner.test.js`.
+
+### Out of scope (deferred to A4)
+
+- Header-wide 44 × 44 touch-target enforcement; A2 only sizes its own strip
+  affordances.
+
+---
+

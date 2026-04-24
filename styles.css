@@ -3248,3 +3248,28 @@ html.pref-dark button:not(.btn-primary):not([data-pref-modal] *) {
   background: #1f2937 !important; color: #e5e7eb !important; border-color: #334155 !important;
 }
 html.pref-dark a { color: #5eead4; }
+
+/* --- A2 (UX Phase 5) --- Bold edit-mode strip in the Tracker.
+   Sits directly under the global header, above the toolbar, so users
+   cannot mistake destructive "Modify" actions for normal "Mark" tracking. */
+.edit-mode-strip {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 8px 16px; min-height: 40px;
+  background: #fef2f2; border-bottom: 2px solid #dc2626;
+  color: #991b1b; font-size: 13px; font-weight: 600;
+}
+.edit-mode-strip__label { display: inline-flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.edit-mode-strip__label svg { color: #dc2626; flex-shrink: 0; }
+.edit-mode-strip__hint { color: #b91c1c; font-weight: 500; font-size: 12px; }
+.edit-mode-strip__exit {
+  border: 1px solid #dc2626; background: #fff; color: #b91c1c;
+  font-weight: 600; font-size: 12px; padding: 6px 12px; border-radius: 6px;
+  cursor: pointer; min-height: 32px;
+}
+.edit-mode-strip__exit:hover { background: #fef2f2; }
+.toolbar-row--edit { background: #fff5f5; }
+.pill--edit { box-shadow: inset 0 0 0 1px #fecaca; }
+@media (max-width: 480px) {
+  .edit-mode-strip { flex-wrap: wrap; padding: 8px 12px; }
+  .edit-mode-strip__hint { display: none; }
+}

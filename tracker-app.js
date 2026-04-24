@@ -4372,12 +4372,30 @@ return(
   onClose={()=>setEditDetailsOpen(false)}
 />}
 {pat&&pal&&<>
+{/* A2 (UX Phase 5) — bold edit-mode strip. Sits directly above the toolbar so
+    users cannot miss that "Mark"/grid actions now overwrite stitches rather
+    than record progress. aria-live="polite" announces entry once. */}
+{isEditMode&&<div className="edit-mode-strip" role="status" aria-live="polite">
+  <span className="edit-mode-strip__label">
+    {Icons.warning&&Icons.warning()}
+    <strong>Edit mode</strong>
+    <span className="edit-mode-strip__hint">— grid taps modify the pattern, not your progress</span>
+  </span>
+  <button
+    type="button"
+    className="edit-mode-strip__exit"
+    onClick={()=>{
+      if(undoSnapshot!==null){setShowExitEditModal(true);}
+      else{setIsEditMode(false);setUndoSnapshot(null);setSessionStartSnapshot(null);}
+    }}
+  >Exit edit mode</button>
+</div>}
 {/* ═══ TRACKER PILL TOOLBAR ═══ */}
-<div className="toolbar-row"><div className="pill-row" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
-  <div ref={tStripRef} className="pill">
+<div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")}><div className="pill-row" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
+  <div ref={tStripRef} className={"pill"+(isEditMode?" pill--edit":"")}>
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
-    <button className={"tb-btn"+(stitchMode==="track"?" tb-btn--green":"")} onClick={()=>{setStitchMode("track");}} title="Mark stitch (T)">
-      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>Mark
+    <button className={"tb-btn"+(stitchMode==="track"?(isEditMode?" tb-btn--red":" tb-btn--green"):"")} onClick={()=>{setStitchMode("track");}} title={isEditMode?"Modify stitches (T)":"Mark stitch (T)"}>
+      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>{isEditMode?"Modify":"Mark"}
     </button>
     <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");}} title="Navigate (N)">Nav</button>
     {stitchMode==="track"&&<button className={"tb-btn"+(rangeModeActive?" tb-btn--blue":"")} onClick={()=>{setRangeModeActive(r=>!r);setRangeAnchor(null);}} title="Range select mode">⊞ Range</button>}
