@@ -65,11 +65,14 @@ const BackupRestore = (() => {
       // 1. CrossStitchDB
       try {
         const db = await openDB("CrossStitchDB", 3, ["projects", "project_meta", "stats_summaries"]);
-        backup.databases.CrossStitchDB = {
-          projects: await readStore(db, "projects"),
-          project_meta: await readStore(db, "project_meta"),
-          stats_summaries: await readStore(db, "stats_summaries")
-        };
+        // PERF (perf-3 #4 / perf-5): read all three stores in parallel rather
+        // than awaiting them sequentially.
+        const [projects, project_meta, stats_summaries] = await Promise.all([
+          readStore(db, "projects"),
+          readStore(db, "project_meta"),
+          readStore(db, "stats_summaries")
+        ]);
+        backup.databases.CrossStitchDB = { projects, project_meta, stats_summaries };
         db.close();
       } catch (e) {
         console.warn("Backup: could not read CrossStitchDB:", e);
