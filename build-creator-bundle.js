@@ -15,6 +15,7 @@ const ORDER = [
   'symbolFontSpec.js',
   'pdfChartLayout.js',
   'pdfExport.js',
+  'zipBundle.js',
   'generate.js',
   'canvasRenderer.js',
   'PreviewCanvas.js',

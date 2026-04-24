@@ -168,28 +168,38 @@ window.CreatorExportTab = function CreatorExportTab() {
     setProgress(null);
   }
 
+  // Render the pattern to a PNG Blob at CELL px per stitch (default 10).
+  // Used by the standalone PNG export and by the C6 zip bundle.
+  function renderPatternPng(cellPx) {
+    return new Promise(function (resolve, reject) {
+      if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { reject(new Error("No pattern")); return; }
+      var CELL = cellPx || 10;
+      var c = document.createElement("canvas");
+      c.width = ctx.sW * CELL;
+      c.height = ctx.sH * CELL;
+      var g = c.getContext("2d");
+      g.fillStyle = "#ffffff";
+      g.fillRect(0, 0, c.width, c.height);
+      for (var y = 0; y < ctx.sH; y++) {
+        for (var x = 0; x < ctx.sW; x++) {
+          var cell = ctx.pat[y * ctx.sW + x];
+          if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+          var rgb = cell.rgb;
+          if (!rgb || rgb.length < 3) continue;
+          g.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+          g.fillRect(x * CELL, y * CELL, CELL, CELL);
+        }
+      }
+      c.toBlob(function (blob) {
+        if (!blob) { reject(new Error("Failed to create PNG")); return; }
+        resolve(blob);
+      }, "image/png");
+    });
+  }
+
   function doExportPng() {
     setError(null);
-    if (!ctx || !ctx.pat || !ctx.sW || !ctx.sH) { setError("Nothing to export yet — create or open a pattern first."); return; }
-    var CELL = 10;
-    var c = document.createElement("canvas");
-    c.width = ctx.sW * CELL;
-    c.height = ctx.sH * CELL;
-    var g = c.getContext("2d");
-    g.fillStyle = "#ffffff";
-    g.fillRect(0, 0, c.width, c.height);
-    for (var y = 0; y < ctx.sH; y++) {
-      for (var x = 0; x < ctx.sW; x++) {
-        var cell = ctx.pat[y * ctx.sW + x];
-        if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-        var rgb = cell.rgb;
-        if (!rgb || rgb.length < 3) continue;
-        g.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
-        g.fillRect(x * CELL, y * CELL, CELL, CELL);
-      }
-    }
-    c.toBlob(function (blob) {
-      if (!blob) { setError("Failed to create PNG."); return; }
+    renderPatternPng(10).then(function (blob) {
       var name = ((app.projectName || "pattern") + "").replace(EXPORT_UNSAFE_FILENAME_CHARS, "_") + ".png";
       var a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -198,8 +208,167 @@ window.CreatorExportTab = function CreatorExportTab() {
       a.click();
       document.body.removeChild(a);
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-    }, "image/png");
+    }).catch(function (err) {
+      setError(err.message || "Failed to create PNG");
+    });
   }
+
+  // ── C6: Download bundle (PDF + OXS + PNG + JSON + manifest.json) ──────
+  var bundleState = React.useState(null); // {stage, msg} or null
+  var setBundleState = bundleState[1];
+
+  function buildProjectJson() {
+    // Mirrors the shape produced by useProjectIO.doSaveProject (version 11).
+    // Kept inline (rather than refactored into useProjectIO) to keep C6 a
+    // single-file change in ExportTab; can be lifted later.
+    var psArr = [];
+    if (ctx.partialStitches && typeof ctx.partialStitches.forEach === "function") {
+      ctx.partialStitches.forEach(function (v, k) {
+        var e = {};
+        ["TL", "TR", "BL", "BR"].forEach(function (q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+        psArr.push([k, e]);
+      });
+    }
+    var pattern = (window.PatternIO && window.PatternIO.serializePattern)
+      ? window.PatternIO.serializePattern(ctx.pat)
+      : ctx.pat.map(function (m) { return m && m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; });
+    return {
+      version: 11,
+      page: "creator",
+      name: app.projectName || "Untitled pattern",
+      designer: app.projectDesigner || "",
+      description: app.projectDescription || "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      settings: { sW: ctx.sW, sH: ctx.sH, fabricCt: ctx.fabricCt },
+      pattern: pattern,
+      bsLines: ctx.bsLines || [],
+      partialStitches: psArr,
+    };
+  }
+
+  function shareOrDownload(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    function cleanup() { setTimeout(function () { URL.revokeObjectURL(url); }, 5000); }
+    try {
+      if (typeof navigator !== "undefined" && navigator.canShare && typeof File === "function") {
+        var file = new File([blob], filename, { type: "application/zip" });
+        if (navigator.canShare({ files: [file] })) {
+          return navigator.share({ files: [file], title: filename })
+            .then(cleanup)
+            .catch(function () {
+              // User dismissed or share failed — fall back to download.
+              var a = document.createElement("a");
+              a.href = url; a.download = filename;
+              document.body.appendChild(a); a.click(); document.body.removeChild(a);
+              cleanup();
+            });
+        }
+      }
+    } catch (_) { /* fall through to download */ }
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    cleanup();
+    return Promise.resolve();
+  }
+
+  function doExportBundle() {
+    setError(null);
+    if (!window.ZipBundle) { setError("Bundle export unavailable — JSZip failed to load."); return; }
+    if (!ctx || !ctx.pat || !ctx.pal || !ctx.sW || !ctx.sH) {
+      setError("Nothing to export yet — create or open a pattern first.");
+      return;
+    }
+    setBundleState({ stage: "init", msg: "Preparing bundle…" });
+
+    // Assemble project payload + PDF options (same as doExport).
+    var exportCtx = Object.assign({}, ctx, {
+      projectName: app.projectName,
+      projectDesigner: app.projectDesigner,
+      projectDescription: app.projectDescription,
+    });
+    var project = window.PdfExport.buildExportProject(exportCtx);
+    if (!project) { setBundleState(null); setError("Nothing to export yet — create or open a pattern first."); return; }
+    project.coverPreviewJpeg = window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
+    var branding = window.PdfExport.readBranding();
+    if (app.projectDesigner) branding = Object.assign({}, branding, { designerName: app.projectDesigner });
+    var pdfOpts = {
+      pageSize: pageSize[0], marginsMm: marginsMm[0],
+      stitchesPerPage: stPerPg[0], customCols: customCols[0], customRows: customRows[0],
+      chartModes: modesArr.length ? modesArr : ["bw", "colour"], overlap: overlap[0],
+      includeCover: includeCover[0], includeInfo: includeInfo[0],
+      includeIndex: includeIndex[0], miniLegend: miniLegend[0],
+      branding: branding,
+      locale: navigator.language || "en-GB",
+    };
+
+    setBundleState({ stage: "pdf", msg: "Rendering PDF…" });
+    var pdfPromise = window.PdfExport.runExport(project, pdfOpts).catch(function (err) {
+      // PDF failure does not abort — bundle ships without it.
+      console.warn("Bundle: PDF export failed, continuing without PDF:", err);
+      return null;
+    });
+    var pngPromise = renderPatternPng(10).catch(function (err) {
+      console.warn("Bundle: PNG render failed:", err);
+      return null;
+    });
+
+    var oxsString = null;
+    try {
+      oxsString = window.ZipBundle._serializeOxs({
+        width: ctx.sW, height: ctx.sH, pattern: ctx.pat,
+        bsLines: ctx.bsLines || [], palette: ctx.pal
+      });
+    } catch (e) {
+      console.warn("Bundle: OXS serialise failed:", e);
+    }
+    var jsonObj = null;
+    try { jsonObj = buildProjectJson(); } catch (e) { console.warn("Bundle: JSON snapshot failed:", e); }
+
+    Promise.all([pdfPromise, pngPromise]).then(function (parts) {
+      var pdfBytes = parts[0];
+      var pngBlob = parts[1];
+
+      // Mobile: warn before producing very large bundles.
+      var estBytes = (pdfBytes ? pdfBytes.byteLength : 0)
+        + (pngBlob ? pngBlob.size : 0)
+        + (oxsString ? oxsString.length : 0)
+        + (jsonObj ? JSON.stringify(jsonObj).length : 0);
+      var isCoarse = (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+      if (estBytes > 50 * 1024 * 1024 && isCoarse) {
+        var ok = window.confirm("Bundle is roughly " + (estBytes / 1024 / 1024).toFixed(1)
+          + " MB. Large bundles can be slow on phones. Continue?");
+        if (!ok) { setBundleState(null); return null; }
+      }
+
+      setBundleState({ stage: "zip", msg: "Compressing…" });
+      return window.ZipBundle.build({
+        projectName: project.name,
+        schemaVersion: 11,
+        pdfBytes: pdfBytes,
+        oxsString: oxsString,
+        pngBlob: pngBlob,
+        projectJson: jsonObj,
+      }, {
+        onProgress: function (stage, msg) { setBundleState({ stage: stage, msg: msg }); }
+      });
+    }).then(function (zipBlob) {
+      if (!zipBlob) return;
+      var filename = window.ZipBundle._filename(project.name, 11, new Date());
+      setBundleState(null);
+      try {
+        if (typeof Toast !== "undefined" && Toast.show) {
+          Toast.show({ message: "Bundle saved (" + (zipBlob.size / 1024 / 1024).toFixed(1) + " MB)", type: "success", duration: 3000 });
+        }
+      } catch (_) {}
+      shareOrDownload(zipBlob, filename);
+    }).catch(function (err) {
+      setBundleState(null);
+      setError("Bundle export failed: " + (err && err.message ? err.message : err));
+    });
+  }
+
 
   if (!(ctx && ctx.pat && ctx.pal)) return null;
   // B3/B4: rendered as the 'output' sub-tab inside MaterialsHub.
@@ -341,6 +510,22 @@ window.CreatorExportTab = function CreatorExportTab() {
       style: (exportFormat[0] === "pdf" && modesArr.length === 0) ? disabledCta : ctaStyle,
       disabled: exportFormat[0] === "pdf" && modesArr.length === 0,
     }, exportFormat[0] === "png" ? "Export PNG" : "Export PDF"),
+
+    // C6: Download bundle (zip with PDF + OXS + PNG + JSON + manifest).
+    h("div", { style: { borderTop: "1px solid #e2e8f0", marginTop: 4, paddingTop: 14, display: "flex", flexDirection: "column", gap: 8 } },
+      h("div", { style: { fontSize: 13, fontWeight: 600, color: "#0f172a" } }, "Download as bundle"),
+      h("div", { style: { fontSize: 11, color: "#64748b" } },
+        "One .zip with the PDF chart, OXS pattern, PNG preview, JSON snapshot, and a manifest. Useful for archiving or sharing the finished project."),
+      bundleState[0]
+        ? h("div", { style: { background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 8, padding: 10, fontSize: 12, color: "#0f172a" } },
+            (bundleState[0].msg || "Working…"))
+        : h("button", {
+            onClick: doExportBundle,
+            style: Object.assign({}, ctaStyle, { display: "inline-flex", alignItems: "center", gap: 8, alignSelf: "flex-start" }),
+          },
+          window.Icons && Icons.archive && Icons.archive(),
+          h("span", null, "Download bundle"))
+    ),
 
     errorState[0] && h("div", { style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, fontSize: 12, color: "#b91c1c" } }, errorState[0])
   );
