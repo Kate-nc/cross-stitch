@@ -21,17 +21,19 @@ const SharedModals = {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     if (!showFallback) return null;
-    return React.createElement("div", { className: "modal-overlay", onClick: onClose },
-      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 460 } },
-        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
-        React.createElement("h3", { style: { marginTop: 0, marginBottom: 12, fontSize: 20, color: "#1B1814" } }, "Help"),
-        React.createElement("p", { style: { margin: 0, color: "#5C5448", fontSize: 14, lineHeight: 1.6 } },
-          "The help panel could not be opened. Please reload the page to restore full functionality."
-        ),
-        React.createElement("div", { style: { marginTop: 16, textAlign: "right" } },
-          React.createElement("button", { className: "btn btn-primary", onClick: onClose }, "Close")
+    return React.createElement(window.Overlay, {
+      onClose: onClose, variant: 'dialog', maxWidth: 460, labelledBy: 'help-fallback-title'
+    },
+        React.createElement(window.Overlay.CloseButton, { onClose: onClose }),
+        React.createElement('div', { style: { padding: 24 } },
+          React.createElement("h3", { id: 'help-fallback-title', style: { marginTop: 0, marginBottom: 12, fontSize: 20, color: "#1B1814" } }, "Help"),
+          React.createElement("p", { style: { margin: 0, color: "#5C5448", fontSize: 14, lineHeight: 1.6 } },
+            "The help panel could not be opened. Please reload the page to restore full functionality."
+          ),
+          React.createElement("div", { style: { marginTop: 16, textAlign: "right" } },
+            React.createElement("button", { className: "btn btn-primary", onClick: onClose }, "Close")
+          )
         )
-      )
     );
   },
 
@@ -161,10 +163,14 @@ const SharedModals = {
       );
     }
 
-    return React.createElement("div", { className: "modal-overlay", onClick: onClose },
-      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "80vh" } },
-        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
-        React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 20, color: "#1B1814" } },
+    return React.createElement(window.Overlay, {
+      onClose: onClose, variant: 'dialog',
+      labelledBy: 'thread-selector-title',
+      style: { maxWidth: 500, width: '100%', display: "flex", flexDirection: "column", maxHeight: "80vh" }
+    },
+        React.createElement(window.Overlay.CloseButton, { onClose: onClose }),
+        React.createElement('div', { style: { padding: 24, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 } },
+        React.createElement("h3", { id: 'thread-selector-title', style: { marginTop: 0, marginBottom: 15, fontSize: 20, color: "#1B1814" } },
           "Choose a different colour for ",
           React.createElement("span", { style: { fontFamily: "monospace", background: "#EFE7D6", padding: "2px 6px", borderRadius: 4, border: "1px solid #E5DCCB" } }, currentSymbol)
         ),
@@ -273,10 +279,14 @@ const SharedModals = {
             'No shortcuts available in the current view.');
     }
 
-    return React.createElement('div', { className: 'modal-overlay', onClick: onClose },
-      React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 460, maxHeight: '80vh', overflowY: 'auto' } },
-        React.createElement('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '×'),
-        React.createElement('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 20, color: '#1B1814' } }, 'Keyboard Shortcuts'),
+    return React.createElement(window.Overlay, {
+      onClose: onClose, variant: 'dialog',
+      labelledBy: 'shortcuts-title',
+      style: { maxWidth: 460, width: '100%', maxHeight: '80vh', overflowY: 'auto' }
+    },
+        React.createElement(window.Overlay.CloseButton, { onClose: onClose }),
+        React.createElement('div', { style: { padding: 24 } },
+        React.createElement('h3', { id: 'shortcuts-title', style: { marginTop: 0, marginBottom: 16, fontSize: 20, color: '#1B1814' } }, 'Keyboard Shortcuts'),
         content,
         React.createElement('p', { style: { margin: '8px 0 0', fontSize: 12, color: '#A89E89', textAlign: 'center' } },
           'Press ', React.createElement('kbd', null, '?'), ' anytime to toggle this panel'
@@ -293,7 +303,7 @@ const SharedModals = {
             style: { fontSize: 11, color: '#A89E89', background: 'none', border: '1px solid #E5DCCB', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }
           }, 'Reset preview preferences…')
         )
-      )
+        )
     );
   },
 
@@ -351,7 +361,7 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
   var applying = _applying[0], setApplying = _applying[1];
 
   // Block ESC during apply so the user can't dismiss mid-import.
-  window.useEscape(function() { if (!applying) onCancel(); });
+  // (Routed through <Overlay> via escapeOptions below.)
 
   function setResolution(id, val) {
     setResolutions(function(prev) {
@@ -380,10 +390,15 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
     return h('span', { className: 'sync-stat-badge' + (cls ? ' ' + cls : '') }, count + ' ' + label);
   }
 
-  return h('div', { className: 'modal-overlay', onClick: onCancel },
-    h('div', { className: 'modal-content sync-summary-modal', onClick: function(e) { e.stopPropagation(); } },
-      h('button', { className: 'modal-close', onClick: onCancel, 'aria-label': 'Close' }, '\u00d7'),
-      h('h3', { className: 'sync-summary-title' },
+  return h(window.Overlay, {
+    onClose: function() { if (!applying) onCancel(); },
+    variant: 'dialog',
+    className: 'sync-summary-modal',
+    labelledBy: 'sync-summary-title',
+    dismissOnScrim: !applying
+  },
+      h(window.Overlay.CloseButton, { onClose: onCancel }),
+      h('h3', { id: 'sync-summary-title', className: 'sync-summary-title' },
         Icons.cloudSync(), ' Import Sync File'
       ),
 
@@ -481,7 +496,6 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
           applying ? 'Applying\u2026' : hasChanges ? 'Apply Sync' : 'Nothing to sync'
         )
       )
-    )
   );
 }
 
@@ -605,7 +619,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
 
   var nameRef = React.useRef(null);
   React.useEffect(function() { if (nameRef.current) nameRef.current.select(); }, []);
-  window.useEscape(onClose);
+  // ESC delegated to <Overlay>.
 
   function handleSave() {
     var trimmedName = (name || '').trim().slice(0, 60);
@@ -638,10 +652,14 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
   var inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border, #E5DCCB)', fontSize: 14, boxSizing: 'border-box', background: 'var(--surface, #fff)', color: 'var(--text-primary, #1B1814)' };
   var labelStyle = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #5C5448)' };
 
-  return h('div', { className: 'modal-overlay', onClick: onClose },
-    h('div', { className: 'modal-content', onClick: function(e) { e.stopPropagation(); }, style: { maxWidth: 420 } },
-      h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '\u00d7'),
-      h('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 18, color: 'var(--text-primary, #1B1814)', display: 'flex', alignItems: 'center', gap: 8 } },
+  return h(window.Overlay, {
+    onClose: onClose, variant: 'dialog', maxWidth: 420,
+    labelledBy: 'edit-proj-title',
+    escapeOptions: { skipWhenEditingTextField: false }
+  },
+      h(window.Overlay.CloseButton, { onClose: onClose }),
+      h('div', { style: { padding: 24 } },
+      h('h3', { id: 'edit-proj-title', style: { marginTop: 0, marginBottom: 16, fontSize: 18, color: 'var(--text-primary, #1B1814)', display: 'flex', alignItems: 'center', gap: 8 } },
         Icons.pencil(), ' Edit project details'
       ),
       h('div', { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
@@ -683,6 +701,6 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
         h('button', { onClick: onClose, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border, #E5DCCB)', background: 'var(--surface, #fff)', cursor: 'pointer', color: 'var(--text-primary, #1B1814)' } }, 'Cancel'),
         h('button', { onClick: handleSave, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#B85C38', color: '#fff', cursor: saving ? 'wait' : 'pointer', fontWeight: 600 } }, saving ? 'Saving\u2026' : 'Save')
       )
-    )
+      )
   );
 }

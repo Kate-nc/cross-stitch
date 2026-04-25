@@ -37,6 +37,17 @@ function flatten(arr) {
 }
 global.React = { createElement: ce, useEffect: () => {} };
 
+// Stub window.Overlay primitive (UX-12 Phase 3b) — modals.js wraps the
+// Shortcuts dialog in <Overlay> and renders Overlay.CloseButton.
+function OverlayStub(props /*, ...children */) {
+  return ce('div', { 'data-overlay': true }, ...Array.prototype.slice.call(arguments, 1));
+}
+OverlayStub.CloseButton = function CloseButtonStub(p) { return ce('button', p, '×'); };
+OverlayStub.Title = function (p) { return ce('h2', p); };
+OverlayStub.Body = function (p) { return ce('div', p); };
+OverlayStub.Footer = function (p) { return ce('div', p); };
+global.Overlay = OverlayStub;
+
 // Load the registry + modals. Replace `const SharedModals` with a global
 // assignment so we can reach it from the test scope after eval.
 eval(fs.readFileSync(path.join(__dirname, '..', 'shortcuts.js'), 'utf8'));

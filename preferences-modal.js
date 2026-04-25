@@ -1064,7 +1064,7 @@
     })();
     var t = useState(defaultId); var tab = t[0], setTab = t[1];
 
-    if (window.useEscape) window.useEscape(function () { onClose && onClose(); });
+    // ESC + scrim + focus trap + body-scroll-lock delegated to <Overlay>.
 
     var groups = useMemo(function () {
       var byGroup = {};
@@ -1098,30 +1098,27 @@
 
     var isMobile = useIsMobile();
 
-    return h("div", {
-      onClick: onClose,
-      "data-pref-modal": true,
-      style: { position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1100, display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", padding: isMobile ? 0 : 20 }
+    return h(window.Overlay, {
+      onClose: onClose,
+      variant: isMobile ? "sheet" : "dialog",
+      zIndex: 1100,
+      labelledBy: "prefs-modal-title",
+      style: isMobile ? {
+        background: COLOURS.card, borderRadius: "12px 12px 0 0",
+        width: "100%", maxHeight: "92vh",
+        display: "flex", flexDirection: "column",
+        boxShadow: "0 -8px 40px rgba(0,0,0,0.35)", overflow: "hidden", padding: 0
+      } : {
+        background: COLOURS.card, borderRadius: 14,
+        width: "100%", maxWidth: 1100, height: "min(92vh, 720px)",
+        display: "grid", gridTemplateRows: "auto 1fr auto",
+        boxShadow: "0 24px 60px rgba(0,0,0,0.45)", overflow: "hidden", padding: 0
+      }
     },
-      h("div", {
-        onClick: function (e) { e.stopPropagation(); },
-        style: isMobile ? {
-          background: COLOURS.card, borderRadius: "12px 12px 0 0",
-          width: "100%", maxHeight: "92vh",
-          display: "flex", flexDirection: "column",
-          boxShadow: "0 -8px 40px rgba(0,0,0,0.35)", overflow: "hidden"
-        } : {
-          background: COLOURS.card, borderRadius: 14,
-          width: "100%", maxWidth: 1100, height: "min(92vh, 720px)",
-          display: "grid", gridTemplateRows: "auto 1fr auto",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.45)", overflow: "hidden"
-        }
-      },
         // Header
         h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1px solid " + COLOURS.line } },
-          h("h2", { style: { margin: 0, fontSize: 18, color: COLOURS.ink } }, "Settings"),
-          h("button", { onClick: onClose, "aria-label": "Close",
-            style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: COLOURS.slate2, padding: "0 4px", minWidth: 44, minHeight: 44 } }, "×")
+          h("h2", { id: "prefs-modal-title", style: { margin: 0, fontSize: 18, color: COLOURS.ink } }, "Settings"),
+          h(window.Overlay.CloseButton, { onClose: onClose, style: { position: "static" } })
         ),
 
         // Body: on mobile stack nav above panel, on desktop use sidebar grid
@@ -1156,7 +1153,6 @@
           h("span", { style: { fontSize: 11, color: COLOURS.hint } }, "Changes save automatically. ‘Coming soon’ settings are remembered but not yet active in the app."),
           h("button", { style: styles.btnPrimary, onClick: onClose }, "Done")
         )
-      )
     );
   }
 
