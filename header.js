@@ -348,12 +348,16 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   ];
   const activeLabel = (creatorPages.find(p => p[0] === tab) || (tab === 'prepare' || tab === 'legend' || tab === 'export' ? ['materials','Materials & Output'] : null) || ['pattern', 'Pattern'])[1];
 
-  // App-section nav tabs — include Edit between Create and Track
+  // App-section nav tabs — include Edit between Create and Track.
+  // Hrefs use `?action=…` / `?from=home` so the per-tool no-project redirect
+  // in index.html / stitch.html / manager.html doesn't bounce users back to
+  // /home — Create opens the image picker, Edit opens the project file
+  // picker, Track and Stash drop straight into their empty states.
   const appSections = [
-    { id: 'creator', label: 'Create', href: 'index.html' },
-    { id: 'editor', label: 'Edit', href: 'index.html' },
-    { id: 'tracker', label: 'Track',  href: 'stitch.html' },
-    { id: 'manager', label: 'Stash',  href: 'manager.html' },
+    { id: 'creator', label: 'Create', href: 'index.html?action=new-from-image' },
+    { id: 'editor', label: 'Edit', href: 'index.html?action=open' },
+    { id: 'tracker', label: 'Track',  href: 'stitch.html?from=home' },
+    { id: 'manager', label: 'Stash',  href: 'manager.html?from=home' },
     { id: 'stats', label: 'Stats', href: 'index.html?mode=stats' },
   ];
 

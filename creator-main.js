@@ -969,8 +969,47 @@ function UnifiedApp(){
     if(p.get('mode')==='track') return 'track';
     if(p.get('mode')==='stats') return 'stats';
     if(p.get('mode')==='showcase'){window.history.replaceState({},'','?mode=stats&tab=showcase');return 'stats';}
+    // /home tile clicks land here with ?action=new-from-image / new-blank.
+    // Skip the legacy in-tool home screen and drop the user straight into Creator.
+    var act=p.get('action');
+    if(act==='new-from-image'||act==='new-blank'||act==='open') return 'design';
     return 'home';
   });
+  // Process ?action= deep links from /home so the user lands directly in Creator
+  // instead of bouncing through the legacy in-tool home screen.
+  React.useEffect(()=>{
+    var p=new URLSearchParams(window.location.search);
+    var act=p.get('action');
+    if(!act) return;
+    window.history.replaceState({},'',window.location.pathname);
+    if(typeof ProjectStorage!=='undefined'){try{ProjectStorage.clearActiveProject();}catch(_){}}
+    if(act==='new-blank'){
+      window.__pendingCreatorAction='scratch';
+      // Match handleHomeOpenCreatorBlank: scratch defaults to Edit, not Create.
+      setTimeout(()=>{if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');},0);
+    } else if(act==='new-from-image'){
+      // Open the image file picker as soon as Creator mounts. Poll briefly
+      // because the file input ref is created inside the lazy Creator subtree.
+      var tries=0;
+      var poll=setInterval(function(){
+        tries++;
+        var input=document.querySelector('input[type="file"][accept^="image/"]');
+        if(input){clearInterval(poll);try{input.click();}catch(_){}}
+        else if(tries>40) clearInterval(poll); // ~2s, then give up silently
+      },50);
+    } else if(act==='open'){
+      // Edit existing project — open the project-load file picker (.json/.oxs/.pdf/image)
+      // mounted on state.loadRef in the Creator subtree.
+      setTimeout(()=>{if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');},0);
+      var tries2=0;
+      var poll2=setInterval(function(){
+        tries2++;
+        var input=document.querySelector('input[type="file"][accept*=".json"]');
+        if(input){clearInterval(poll2);try{input.click();}catch(_){}}
+        else if(tries2>40) clearInterval(poll2);
+      },50);
+    }
+  },[]);
   const[creatorResetKey,setCreatorResetKey]=React.useState(0);
   const[trackerMounted,setTrackerMounted]=React.useState(()=>{
     const p=new URLSearchParams(window.location.search);

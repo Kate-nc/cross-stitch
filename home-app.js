@@ -226,6 +226,15 @@
     var list = listState[0]; var setList = listState[1];
     var stashState = React.useState(null);
     var stash = stashState[0]; var setStash = stashState[1];
+    var prefsState = React.useState(false);
+    var prefsOpen = prefsState[0]; var setPrefsOpen = prefsState[1];
+
+    // Listen for cs:openPreferences from the footer link, command palette, and Header.
+    React.useEffect(function () {
+      var open = function () { if (typeof window.PreferencesModal !== 'undefined') setPrefsOpen(true); };
+      window.addEventListener('cs:openPreferences', open);
+      return function () { window.removeEventListener('cs:openPreferences', open); };
+    }, []);
 
     React.useEffect(function () {
       var cancelled = false;
@@ -291,7 +300,10 @@
         h(QuickTiles, null),
         stash ? h(StashSummary, { stash: stash }) : null,
         h(HomeFooter, null)
-      )
+      ),
+      prefsOpen && typeof window.PreferencesModal !== 'undefined'
+        ? h(window.PreferencesModal, { onClose: function () { setPrefsOpen(false); } })
+        : null
     );
   }
 

@@ -502,7 +502,14 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .canvas-area{flex:1;min-width:0;min-height:0;overflow:auto;}
 .materials-cols{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px;align-items:start;}
 @media(max-width:599px){.materials-cols{grid-template-columns:1fr;}}
-.rpanel{width:280px;background:var(--surface);border-left:1px solid var(--border);flex-shrink:0;position:sticky;top:128px;max-height:calc(100vh - 128px);overflow-y:auto;align-self:flex-start;}
+.rpanel{width:280px;background:var(--surface);border-left:1px solid var(--border);flex-shrink:0;position:sticky;top:128px;max-height:calc(100vh - 128px);overflow-y:auto;align-self:flex-start;transition:width 0.18s ease;}
+.rpanel--collapsed{width:44px;}
+.rpanel--collapsed .rp-tabs{padding:4px!important;}
+.rpanel--collapsed .rp-tabs > span{display:none;}
+.rpanel-collapse-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-secondary);cursor:pointer;flex-shrink:0;padding:0;}
+.rpanel-collapse-btn:hover{background:var(--surface-tertiary);color:var(--accent);}
+.rpanel-collapse-btn svg{width:16px;height:16px;}
+@media(prefers-reduced-motion:reduce){.rpanel{transition:none;}}
 .rp-tabs{display:flex;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:10;}
 .rp-tab{flex:1;padding:8px 0;font-size:11px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--text-tertiary);border-bottom:2px solid transparent;font-family:inherit;}
 .rp-tab--on{color:var(--accent);border-bottom-color:var(--accent);}
@@ -577,10 +584,22 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .lp-seg:hover:not(.lp-seg--on){background:#EFE7D6;}
 
 @media(max-width:899px){
+  /* Mobile: present the tracker sidebar as a bottom sheet so the canvas
+     stays visible above it (rather than the side-drawer that ate horizontal
+     screen real estate). */
   .lpanel{
-    position:fixed;top:0;left:0;bottom:0;width:280px;max-width:85vw;
-    z-index:1000;border-right:1px solid var(--border);
-    box-shadow:2px 0 16px rgba(0,0,0,0.12);max-height:none;
+    position:fixed;left:0;right:0;bottom:0;top:auto;
+    width:100%;max-width:100%;max-height:70dvh;
+    border-right:none;border-top:1px solid var(--border);
+    border-radius:16px 16px 0 0;
+    z-index:1000;
+    box-shadow:0 -4px 16px rgba(0,0,0,0.12);
+    overflow-y:auto;
+    animation:lpanel-slide-up 0.22s ease-out;
+  }
+  @keyframes lpanel-slide-up{from{transform:translateY(100%);}to{transform:translateY(0);}}
+  @media(prefers-reduced-motion:reduce){
+    .lpanel{animation:none;}
   }
 }
 /* Phase 5 — desktop hides the mobile-only Legend tab + section. */

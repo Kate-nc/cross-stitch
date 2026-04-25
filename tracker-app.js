@@ -963,6 +963,12 @@ const[legendSort,setLegendSort]=useState(()=>{
 });
 useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLegendSort",legendSort);}catch(_){}},[legendSort]);
 
+// Issue #6 — desktop palette legend collapsible. Persists via UserPrefs.
+const[legendCollapsed,setLegendCollapsed]=useState(()=>{
+  try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLegendCollapsed");return !!p;}catch(_){return false;}
+});
+useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLegendCollapsed",!!legendCollapsed);}catch(_){}},[legendCollapsed]);
+
 // Phase 5: ESC closes the mobile lpanel drawer. Desktop ignores it
 // (the panel is sticky / persistent and ESC could clobber other modal
 // dismiss semantics).
@@ -5459,19 +5465,29 @@ return(
         the lpanel Notes and View tabs. The right panel is now a
         single sortable legend; tapping a row sets the focus colour
         AND opens the Highlight tab on the left. */}
-    <div className={"rpanel"+(mobileDrawerOpen?" rpanel--drawer-open":"")}>
+    <div className={"rpanel"+(mobileDrawerOpen?" rpanel--drawer-open":"")+(legendCollapsed?" rpanel--collapsed":"")}>
       <div className="rp-tabs" style={{paddingLeft:10,paddingRight:6,gap:6,alignItems:"center"}}>
+        <button
+          type="button"
+          onClick={()=>setLegendCollapsed(c=>!c)}
+          className="rpanel-collapse-btn"
+          aria-expanded={!legendCollapsed}
+          aria-label={legendCollapsed?"Expand palette legend":"Collapse palette legend"}
+          title={legendCollapsed?"Expand palette legend":"Collapse palette legend"}
+        >
+          {window.Icons && (legendCollapsed?window.Icons.chevronLeft():window.Icons.chevronRight())}
+        </button>
         <span style={{flex:1,fontSize:11,fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",color:"var(--text-tertiary)"}}>Palette legend <span className="badge">{pal.length}</span></span>
-        <label style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,color:"var(--text-tertiary)"}}>
+        {!legendCollapsed && <label style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,color:"var(--text-tertiary)"}}>
           <span>Sort</span>
           <select value={legendSort} onChange={e=>setLegendSort(e.target.value)} style={{fontSize:10,padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontFamily:"inherit"}} aria-label="Sort palette legend">
             <option value="id">DMC ID</option>
             <option value="done">% done</option>
             <option value="count">Stitch count</option>
           </select>
-        </label>
+        </label>}
       </div>
-      <div className="rp-tab-content">
+      {!legendCollapsed && <div className="rp-tab-content">
       {/* Palette legend (sortable). Single list — focus + highlight in one tap. */}
       <div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
         <div className="col-list" style={{maxHeight:"none",flex:1}}>
@@ -5513,7 +5529,7 @@ return(
           })()}
         </div>
       </div>
-      </div>{/* end rp-tab-content */}
+      </div>}{/* end rp-tab-content (collapsed when legendCollapsed) */}
     </div>{/* end rpanel */}
   </div>{/* end cs-main */}
   {/* Phase 4 (UX-12) — tablet/desktop project rail (left) and side panel (right).

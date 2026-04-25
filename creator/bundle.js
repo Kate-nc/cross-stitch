@@ -10784,6 +10784,7 @@ function SubstituteFromStashModalInner(props) {
           }
         }, applyLabel)
       )
+    )
   );
 }
 
