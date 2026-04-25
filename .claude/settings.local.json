@@ -6,7 +6,17 @@
       "WebSearch",
       "WebFetch(domain:lordlibidan.com)",
       "WebFetch(domain:www.gathered.how)",
-      "Bash(node -e ':*)"
+      "Bash(node -e ':*)",
+      "Bash(node -e ' *)",
+      "Bash(node _fix_a11y2.js)",
+      "Bash(node _fix_a11y3.js)",
+      "Bash(node _fix_section_cells.js)",
+      "Bash(node _fix_home_buttons.js)",
+      "Bash(node -e \"const d=require\\('/dev/stdin'\\); console.log\\(JSON.stringify\\(d.scripts,null,2\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(git add *)"
     ]
   }
 }

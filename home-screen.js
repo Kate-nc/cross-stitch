@@ -389,12 +389,15 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
         ),
         h('div', { className: 'mpd-card-actions' },
           h('button', {
+            type: 'button',
             className: 'mpd-btn mpd-btn--primary',
             onClick: function() { onOpen(proj, 'tracker'); }
           }, 'Continue'),
           h('button', {
+            type: 'button',
             className: 'mpd-btn mpd-btn--ghost mpd-card-menu-btn',
             title: 'Change project state',
+            'aria-label': 'Change project state',
             onClick: function(e) {
               e.stopPropagation();
               onChangeState(proj);
@@ -446,8 +449,10 @@ function CompactProjectRow({ proj, state, onOpen, onChangeState }) {
       detail && h('span', { className: 'mpd-compact-detail' }, detail)
     ),
     h('button', {
+      type: 'button',
       className: 'mpd-btn mpd-btn--ghost mpd-compact-menu-btn',
       title: 'Change project state',
+      'aria-label': 'Change project state',
       onClick: function(e) { e.stopPropagation(); onChangeState(proj); }
     }, '\u2026')
   );
@@ -474,6 +479,7 @@ function StateChangeMenu({ proj, currentState, onSelect, onClose, onEditDetails 
 
   return h('div', { className: 'mpd-state-menu', onClick: function(e) { e.stopPropagation(); } },
     onEditDetails && h('button', {
+      type: 'button',
       className: 'mpd-state-menu-item mpd-state-menu-item--edit',
       onClick: function() { onClose(); onEditDetails(proj); }
     }, Icons.pencil(), ' Edit details…'),
@@ -481,6 +487,7 @@ function StateChangeMenu({ proj, currentState, onSelect, onClose, onEditDetails 
     h('div', { className: 'mpd-state-menu-title' }, 'Move to\u2026'),
     options.map(function(o) {
       return h('button', {
+        type: 'button',
         key: o.value,
         className: 'mpd-state-menu-item',
         onClick: function() { onSelect(proj, o.value); onClose(); }

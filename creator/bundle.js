@@ -11869,7 +11869,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       !blendMode ? h(React.Fragment, null,
         h("input", {
-          type:"text", placeholder:"Search by DMC # or name\u2026",
+          type:"text", "aria-label":"Search DMC palette", placeholder:"Search by DMC # or name\u2026",
           value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);},
           style:{width:"100%",padding:"6px 10px",border:"0.5px solid #E5DCCB",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
         }),
@@ -11919,7 +11919,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, "Add blend " + blendThread1.id + "+" + blendThread2.id),
         blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:11,color:"#A53D3D",marginBottom:8}}, "Pick two different threads"),
         h("input", {
-          type:"text", placeholder:"Search DMC threads\u2026",
+          type:"text", "aria-label":"Search DMC threads", placeholder:"Search DMC threads\u2026",
           value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);},
           style:{width:"100%",padding:"6px 10px",border:"0.5px solid #E5DCCB",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
         }),

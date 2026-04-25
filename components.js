@@ -41,7 +41,7 @@ function Tooltip({text,children,width=180}){
 function InfoIcon({text,width}){
   return React.createElement("span",{style:{display:"inline-flex",alignItems:"center",flexShrink:0},onClick:function(e){e.preventDefault();e.stopPropagation();}},
     React.createElement(Tooltip,{text:text,width:width||200},
-      React.createElement("span",{style:{cursor:"help",color:"#A89E89",fontSize:12,lineHeight:1,display:"inline-flex",alignItems:"center"}},"\u24D8")
+      React.createElement("span",{role:"img","aria-label":"Information",style:{cursor:"help",color:"#A89E89",lineHeight:1,display:"inline-flex",alignItems:"center"}},window.Icons&&window.Icons.info?window.Icons.info():"\u24D8")
     )
   );
 }
@@ -61,7 +61,7 @@ function Section({title,children,isOpen,onToggle,defaultOpen=true,badge=null}){
   };
 
   return React.createElement("div", {style:{borderRadius:12,border:"0.5px solid var(--border)",background:"#fff",overflow:"hidden"}},
-    React.createElement("button", {onClick:handleToggle, style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"none",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"#1B1814",gap:8}},
+    React.createElement("button", {type:"button",onClick:handleToggle, style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"none",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"#1B1814",gap:8}},
       React.createElement("span", {style:{display:"flex",alignItems:"center",gap:8}}, title, badge),
       React.createElement("span", {style:{display:"inline-flex",alignItems:"center",justifyContent:"center",width:16,height:16,color:"var(--text-tertiary)",transform:currentOpen?"rotate(180deg)":"rotate(0deg)"},"aria-hidden":"true"}, window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
     ),
@@ -295,7 +295,7 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
     wiLine = React.createElement("line", {x1:lastX, y1:yS(last.total), x2:xDate(wiEndDate), y2:yS(totalStitches), stroke:"#C0883A", strokeWidth:"1.5", strokeDasharray:"5 3"});
   }
   return React.createElement("div", {className:"chart-container"},
-    React.createElement("svg", {viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
+    React.createElement("svg", {role:"img","aria-label":"Cumulative progress chart",viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
       React.createElement("text", {x:pl - 4, y:pt + 6, textAnchor:"end", fontSize:"9", fill:"#A89E89"}, formatCompact(totalStitches)),
       React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"#A89E89"}, formatCompact(totalStitches / 2)),
       React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"#A89E89"}, "0"),
@@ -354,7 +354,7 @@ var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysTo
   svgChildren = svgChildren.concat(barElements);
   return React.createElement("div", {className:"chart-container"},
     React.createElement("div", {style:{position:'relative'}},
-      React.createElement("svg", {viewBox:"0 0 " + width + " " + height, width:"100%", preserveAspectRatio:"none", style:{display:'block'}}, svgChildren)
+      React.createElement("svg", {role:"img","aria-label":"Daily stitches bar chart",viewBox:"0 0 " + width + " " + height, width:"100%", preserveAspectRatio:"none", style:{display:'block'}}, svgChildren)
     ),
     React.createElement("div", {className:"chart-x-labels"},
       React.createElement("span", null, formatShortDate(data[0].date)),
@@ -392,7 +392,7 @@ var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
   // Y-axis labels
   var yMid = Math.round(maxY / 2);
   return React.createElement("div", {className:"chart-container"},
-    React.createElement("svg", {viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
+    React.createElement("svg", {role:"img","aria-label":"Speed trend chart",viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
       React.createElement("text", {x:pl - 4, y:pt + 6, textAnchor:"end", fontSize:"9", fill:"#A89E89"}, maxY + '/hr'),
       React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"#A89E89"}, yMid + '/hr'),
       React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"#A89E89"}, "0"),
@@ -504,12 +504,12 @@ var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
   var monthName = targetMonth.toLocaleDateString('en-GB', {month:'long', year:'numeric'});
   return React.createElement("div", {style:{padding:'0 8px'}},
     React.createElement("div", {style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}},
-      React.createElement("button", {onClick:function(){ setMonthOffset(monthOffset - 1); },
+      React.createElement("button", {type:"button","aria-label":"Previous month",onClick:function(){ setMonthOffset(monthOffset - 1); },
         style:{background:'none',border:'1px solid #E5DCCB',borderRadius:6,cursor:'pointer',padding:'2px 8px',fontSize:13,color:'#5C5448'}}, "\u2039"),
       React.createElement("span", {style:{fontSize:13,fontWeight:600,color:'#1B1814'}}, monthName),
-      React.createElement("button", {onClick:function(){ setMonthOffset(Math.min(0, monthOffset + 1)); },
+      React.createElement("button", {type:"button","aria-label":"Next month",onClick:function(){ setMonthOffset(Math.min(0, monthOffset + 1)); },
         style:{background:'none',border:'1px solid #E5DCCB',borderRadius:6,cursor:'pointer',padding:'2px 8px',fontSize:13,color:monthOffset < 0?'#5C5448':'#CFC4AC'}}, "\u203a"),
-      monthOffset !== 0 ? React.createElement("button", {onClick:function(){ setMonthOffset(0); },
+      monthOffset !== 0 ? React.createElement("button", {type:"button","aria-label":"Jump to current month",onClick:function(){ setMonthOffset(0); },
         style:{fontSize:11,padding:'2px 6px',borderRadius:4,border:'1px solid #E5DCCB',background:'#FBF8F3',cursor:'pointer',color:'#A89E89',marginLeft:4}}, "Today") : null
     ),
     React.createElement("div", {style:{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:2}}, cells)
@@ -530,10 +530,10 @@ function StatsChartSection({statsSessions, statsSettings, totalStitches, chartVi
     React.createElement("div", {className:"chart-header"},
       React.createElement("span", {className:"chart-title"}, chartTitles[chartView] || ''),
       React.createElement("div", {className:"chart-toggle"},
-        React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'daily' ? ' active' : ''), onClick:function(){ setChartView('daily'); }}, "Daily"),
-        React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'cumulative' ? ' active' : ''), onClick:function(){ setChartView('cumulative'); }}, "Cumulative"),
-        React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'speed' ? ' active' : ''), onClick:function(){ setChartView('speed'); }}, "Speed"),
-        React.createElement("button", {className:"chart-toggle-btn" + (chartView === 'calendar' ? ' active' : ''), onClick:function(){ setChartView('calendar'); }}, "Calendar")
+        React.createElement("button", {type:"button",className:"chart-toggle-btn" + (chartView === 'daily' ? ' active' : ''), onClick:function(){ setChartView('daily'); }}, "Daily"),
+        React.createElement("button", {type:"button",className:"chart-toggle-btn" + (chartView === 'cumulative' ? ' active' : ''), onClick:function(){ setChartView('cumulative'); }}, "Cumulative"),
+        React.createElement("button", {type:"button",className:"chart-toggle-btn" + (chartView === 'speed' ? ' active' : ''), onClick:function(){ setChartView('speed'); }}, "Speed"),
+        React.createElement("button", {type:"button",className:"chart-toggle-btn" + (chartView === 'calendar' ? ' active' : ''), onClick:function(){ setChartView('calendar'); }}, "Calendar")
       )
     ),
     chartView === 'cumulative'
@@ -621,7 +621,7 @@ function DailyGoalSetting({currentGoal, avgPerDay, remaining, onSet}){
       }}, value && parseInt(value, 10) > 0 ? 'Set goal' : 'Clear goal')
     ),
     presets.length > 0 && React.createElement("div", {className:"goal-presets"},
-      presets.map(function(p){ return React.createElement("button", {key:p.label, className:"goal-preset-btn" + (currentGoal === p.value ? ' active' : ''), onClick:function(){ setValue(String(p.value)); onSet(p.value); }}, p.label + ' (' + p.value + ')'); })
+      presets.map(function(p){ return React.createElement("button", {type:"button",key:p.label, className:"goal-preset-btn" + (currentGoal === p.value ? ' active' : ''), onClick:function(){ setValue(String(p.value)); onSet(p.value); }}, p.label + ' (' + p.value + ')'); })
     ),
     currentGoal && remaining > 0 && React.createElement("p", {className:"goal-suggestion"},
       "At " + currentGoal + "/day, you\u2019d finish in ~" + Math.ceil(remaining / currentGoal) + " stitching days")
@@ -642,7 +642,7 @@ function TargetDateSetting({currentTarget, remaining, avgPerDay, onSet}){
       React.createElement("input", {type:"date", value:date, min:todayStr,
         onChange:function(e){ setDate(e.target.value); },
         className:"goal-input"}),
-      React.createElement("button", {className:"goal-set-btn", onClick:function(){ onSet(date || null); }},
+      React.createElement("button", {type:"button",className:"goal-set-btn", onClick:function(){ onSet(date || null); }},
         date ? 'Set target' : 'Clear target')
     ),
     paceNeeded && React.createElement("p", {className:"goal-suggestion"},
@@ -694,7 +694,7 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
         defaultValue: weeklyGoal != null ? String(weeklyGoal) : '',
         key: String(weeklyGoal),
         onBlur:function(e){ var v=parseInt(e.target.value); onUpdateSettings(Object.assign({},statsSettings,{weeklyGoal:v>0?v:null})); }}),
-      React.createElement("button", {className:"goal-set-btn", onClick:function(){ onUpdateSettings(Object.assign({},statsSettings,{weeklyGoal:null})); }}, "Clear")
+      React.createElement("button", {type:"button",className:"goal-set-btn", onClick:function(){ onUpdateSettings(Object.assign({},statsSettings,{weeklyGoal:null})); }}, "Clear")
     ),
     weeklyGoal && goalRow("This week so far", weekStitches, weeklyGoal),
     React.createElement("div", {style:{marginTop:12}}),
@@ -705,7 +705,7 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
         defaultValue: monthlyGoal != null ? String(monthlyGoal) : '',
         key: String(monthlyGoal),
         onBlur:function(e){ var v=parseInt(e.target.value); onUpdateSettings(Object.assign({},statsSettings,{monthlyGoal:v>0?v:null})); }}),
-      React.createElement("button", {className:"goal-set-btn", onClick:function(){ onUpdateSettings(Object.assign({},statsSettings,{monthlyGoal:null})); }}, "Clear")
+      React.createElement("button", {type:"button",className:"goal-set-btn", onClick:function(){ onUpdateSettings(Object.assign({},statsSettings,{monthlyGoal:null})); }}, "Clear")
     ),
     monthlyGoal && goalRow("This month so far", monthStitches, monthlyGoal),
     activeDays > 0 && React.createElement("div", {className:"goal-pace-context"},
@@ -900,14 +900,26 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
         var fs=Math.max(8,Math.min(11,Math.floor(60/numX)));
         return React.createElement("div",{
           key:sec.label,
-          className:"section-cell",
-          style:{background:sec.isDone?'#4F7D3F':sectionColor(sec.pct),aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderRadius:4,fontSize:fs,color:sec.pct>50?'#fff':'#1B1814',fontWeight:sec.isDone?700:400,cursor:'pointer',padding:1,overflow:'hidden',position:'relative',outline:isSelected?'2px solid #B85C38':'none',outlineOffset:1},
+          role:"button",
+          tabIndex:isEditing?-1:0,
+          className:"section-cell"+(isSelected?" section-cell--selected":""),
+          style:{background:sec.isDone?'#4F7D3F':sectionColor(sec.pct),aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderRadius:4,fontSize:fs,color:sec.pct>50?'#fff':'#1B1814',fontWeight:sec.isDone?700:400,cursor:'pointer',padding:1,overflow:'hidden',position:'relative',outlineOffset:1},
+          "aria-label":(customLabel?customLabel+' ('+sec.pct+'%)':'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)')+(isSelected?' — selected':'')+(sec.isDone?' — complete':''),
           title:customLabel?customLabel+' ('+sec.pct+'%)':'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)',
           onClick:function(){
             if(isEditing)return;
             if(isSelected&&canEdit){setEditVal(customLabel||'');setEditingKey(cellKey);}
             else if(isSelected){setSelectedKey(null);setEditingKey(null);}
             else{setSelectedKey(cellKey);setEditingKey(null);}
+          },
+          onKeyDown:function(e){
+            if(isEditing)return;
+            if(e.key==='Enter'||e.key===' '){
+              e.preventDefault();
+              if(isSelected&&canEdit){setEditVal(customLabel||'');setEditingKey(cellKey);}
+              else if(isSelected){setSelectedKey(null);setEditingKey(null);}
+              else{setSelectedKey(cellKey);setEditingKey(null);}
+            }
           }
         },
           isEditing
@@ -931,7 +943,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
     sectionThreads&&React.createElement("div",{style:{marginBottom:12,padding:10,background:'#f8faff',borderRadius:8,border:'1px solid #dbeafe'}},
       React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}},
         React.createElement("span",{style:{fontSize:12,fontWeight:600,color:'#1B1814'}},selectedLabel+' — threads'),
-        React.createElement("button",{onClick:function(){setSelectedKey(null);},style:{fontSize:11,padding:'1px 8px',borderRadius:6,border:'1px solid #dbeafe',background:'#eff6ff',cursor:'pointer',color:'#3b82f6',lineHeight:'18px'}},"\u2715")
+        React.createElement("button",{type:"button","aria-label":"Close section threads",onClick:function(){setSelectedKey(null);},style:{fontSize:11,padding:'1px 8px',borderRadius:6,border:'1px solid #dbeafe',background:'#eff6ff',cursor:'pointer',color:'#3b82f6',lineHeight:'18px'}},"\u2715")
       ),
       sectionThreads.length===0
         ? React.createElement("p",{style:{fontSize:12,color:'#A89E89',margin:0}},"No stitches in this section")
@@ -962,7 +974,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
       "\u00d7",
       React.createElement("input",{type:"number",min:5,max:200,value:secRows,disabled:!canEdit,onChange:function(e){if(!canEdit)return;var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionRows:v}));},style:{width:52,padding:'2px 6px',fontSize:12,border:'1px solid #E5DCCB',borderRadius:6}}),
       "stitches",
-      React.createElement("button",{disabled:!canEdit,onClick:function(){if(!canEdit)return;onUpdateSettings(Object.assign({},statsSettings,{sectionCols:50,sectionRows:50}));},style:{fontSize:11,padding:'2px 8px',borderRadius:6,border:'1px solid #E5DCCB',background:'#FBF8F3',cursor:canEdit?'pointer':'default',color:'#8A8270',opacity:canEdit?1:0.6}},"Reset")
+      React.createElement("button",{type:"button",disabled:!canEdit,onClick:function(){if(!canEdit)return;onUpdateSettings(Object.assign({},statsSettings,{sectionCols:50,sectionRows:50}));},style:{fontSize:11,padding:'2px 8px',borderRadius:6,border:'1px solid #E5DCCB',background:'#FBF8F3',cursor:canEdit?'pointer':'default',color:'#8A8270',opacity:canEdit?1:0.6}},"Reset")
     )
   );
 }
@@ -1066,20 +1078,20 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
     React.createElement("div",{style:{display:'flex',gap:12,flexWrap:'wrap',justifyContent:'center'}},
       React.createElement("div",{style:{textAlign:'center'}},
         React.createElement("div",{style:{fontSize:11,color:'#A89E89',marginBottom:4}},snap?snapLabel(snap):'Select snapshot'),
-        React.createElement("canvas",{ref:leftCanvasRef,style:{border:'1px solid #E5DCCB',borderRadius:4,background:'#f8f8f8',width:canvasW,height:canvasH,display:'block'}})
+        React.createElement("canvas",{ref:leftCanvasRef,role:"img","aria-label":snap?("Snapshot from "+snap.date):"Snapshot (none selected)",style:{border:'1px solid #E5DCCB',borderRadius:4,background:'#f8f8f8',width:canvasW,height:canvasH,display:'block'}})
       ),
       showDiff&&snap&&React.createElement("div",{style:{textAlign:'center'}},
         React.createElement("div",{style:{fontSize:11,color:'#A89E89',marginBottom:4}},"New stitches"),
-        React.createElement("canvas",{ref:diffCanvasRef,style:{border:'1px solid #E5DCCB',borderRadius:4,background:'#f8f8f8',width:canvasW,height:canvasH,display:'block'}})
+        React.createElement("canvas",{ref:diffCanvasRef,role:"img","aria-label":"Changes since snapshot",style:{border:'1px solid #E5DCCB',borderRadius:4,background:'#f8f8f8',width:canvasW,height:canvasH,display:'block'}})
       ),
       React.createElement("div",{style:{textAlign:'center'}},
         React.createElement("div",{style:{fontSize:11,color:'#A89E89',marginBottom:4}},"Now"),
-        React.createElement("canvas",{ref:rightCanvasRef,style:{border:'1px solid #E5DCCB',borderRadius:4,background:'#f8f8f8',width:canvasW,height:canvasH,display:'block'}})
+        React.createElement("canvas",{ref:rightCanvasRef,role:"img","aria-label":"Current progress",style:{border:'1px solid #E5DCCB',borderRadius:4,background:'#f8f8f8',width:canvasW,height:canvasH,display:'block'}})
       )
     ),
     React.createElement("div",{style:{marginTop:12,display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}},
-      React.createElement("input",{type:'text',value:labelText,onChange:function(e){setLabelText(e.target.value);},placeholder:'Snapshot label (optional)',style:{flex:1,minWidth:120,fontSize:12,padding:'4px 8px',borderRadius:6,border:'1px solid #E5DCCB'}}),
-      React.createElement("button",{onClick:saveManualSnapshot,style:{fontSize:12,padding:'4px 12px',borderRadius:6,border:'1px solid #c084fc',background:'#faf5ff',cursor:'pointer',color:'#7c3aed',fontWeight:600,flexShrink:0,display:'flex',alignItems:'center',gap:'6px'}}, Icons.camera(), "Save snapshot")
+      React.createElement("input",{"aria-label":"Snapshot label",type:'text',value:labelText,onChange:function(e){setLabelText(e.target.value);},placeholder:'Snapshot label (optional)',style:{flex:1,minWidth:120,fontSize:12,padding:'4px 8px',borderRadius:6,border:'1px solid #E5DCCB'}}),
+      React.createElement("button",{type:"button",onClick:saveManualSnapshot,style:{fontSize:12,padding:'4px 12px',borderRadius:6,border:'1px solid #c084fc',background:'#faf5ff',cursor:'pointer',color:'#7c3aed',fontWeight:600,flexShrink:0,display:'flex',alignItems:'center',gap:'6px'}}), Icons.camera(), "Save snapshot")
     ),
     (doneSnapshots&&doneSnapshots.length===0)&&React.createElement("p",{style:{fontSize:12,color:'#A89E89',margin:'8px 0 0'}},"No snapshots yet. Snapshots are saved automatically each stitching day, or tap \u201cSave snapshot\u201d to create one now.")
   );
@@ -1447,17 +1459,17 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     React.createElement("div", {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, gap:8, flexWrap:'wrap'}},
       React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'#1B1814', margin:0, display:'flex', alignItems:'center', gap:'8px'}}, Icons.barChart(), "Stats"),
       React.createElement("div", {style:{display:'flex', gap:8, flexWrap:'wrap'}},
-        hasMultiProjects && React.createElement("button", {onClick:function(){setShowComparison(true);}, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #E8B89A', background:'#F4DDCF', cursor:'pointer', color:'#B85C38', fontWeight:600, display:'flex', alignItems:'center', gap:'6px'}}, Icons.barChart(), "Compare projects"),
-        React.createElement("button", {onClick:onClose, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #E5DCCB', background:'#FBF8F3', cursor:'pointer', color:'#5C5448'}}, "\u2190 Back to grid")
+        hasMultiProjects && React.createElement("button", {type:"button",onClick:function(){setShowComparison(true);}, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #E8B89A', background:'#F4DDCF', cursor:'pointer', color:'#B85C38', fontWeight:600, display:'flex', alignItems:'center', gap:'6px'}}), Icons.barChart(), "Compare projects"),
+        React.createElement("button", {type:"button",onClick:onClose, style:{fontSize:13, padding:'4px 14px', borderRadius:8, border:'1px solid #E5DCCB', background:'#FBF8F3', cursor:'pointer', color:'#5C5448'}}), "\u2190 Back to grid")
       )
     ),
     React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts, useActiveDays:useActiveDays}),
     React.createElement("div", {className:"stats-export-bar"},
-      React.createElement("button", {className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}},
+      React.createElement("button", {type:"button",className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}}),
         copied ? [Icons.check(), ' Copied!'] : [Icons.clipboard(), ' Copy progress summary']),
-      React.createElement("button", {className:"stats-export-btn", onClick:handleCSV, style:{display:'flex', alignItems:'center', gap:'6px'}},
+      React.createElement("button", {type:"button",className:"stats-export-btn", onClick:handleCSV, style:{display:'flex', alignItems:'center', gap:'6px'}}),
         Icons.document(), ' Export sessions (CSV)'),
-      React.createElement("button", {className:"stats-export-btn", onClick:handleExportCard, style:{display:'flex', alignItems:'center', gap:'6px'}},
+      React.createElement("button", {type:"button",className:"stats-export-btn", onClick:handleExportCard, style:{display:'flex', alignItems:'center', gap:'6px'}}),
         Icons.camera(), ' Save as image')
     ),
     React.createElement("div", {style:{marginTop:20}},
