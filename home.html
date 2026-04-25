@@ -4,43 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self'; frame-src 'self';">
-<title>Stitch Tracker</title>
+<title>stitch. — Home</title>
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#B85C38">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<!-- UX-12 Phase 7 PR #13: redirect to /home when no project is active.
-     Direct URLs and PWA shortcuts continue to work when a project IS active. -->
-<script>
-(function(){
-  try {
-    var active = localStorage.getItem('crossstitch_active_project');
-    if (!active) {
-      var qs = location.search || '';
-      var skip = /(\?|&)(from=home|action=|picker=)/.test(qs);
-      if (!skip) { location.replace('home.html'); return; }
-    }
-  } catch (_) { /* localStorage blocked → load tool normally */ }
-})();
-</script>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<!-- React + Babel + pako (matches the per-tool pages so cached scripts are reused). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-<!-- pdf.js + pdf-importer are lazy-loaded on first PDF import -->
-<script>
-window.loadScript = function(src) {
-  if (document.querySelector('script[src="' + src + '"]')) return Promise.resolve();
-  return new Promise(function(res, rej) { var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
-};
-window.loadPdfStack = function() {
-  return window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
-    .then(function() { if (typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js'; return window.loadScript('pdf-importer.js'); });
-};
-</script>
 <link rel="stylesheet" href="styles.css">
+<!-- Shared chrome scripts only — /home does NOT load creator-main, creator/bundle,
+     tracker-app, or manager-app. Heavy tool bundles stay on their own pages. -->
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
 <script src="anchor-data.js"></script>
@@ -48,11 +26,9 @@ window.loadPdfStack = function() {
 <script src="starter-kits.js"></script>
 <script src="colour-utils.js"></script>
 <script src="helpers.js"></script>
-<script src="coaching.js"></script>
 <script src="keyboard-utils.js"></script>
 <script src="shortcuts.js"></script>
 <script src="icons.js"></script>
-<script src="import-formats.js"></script>
 <script src="components.js"></script>
 <script src="components/PartialStitchThumb.js"></script>
 <script src="components/Overlay.js"></script>
@@ -68,7 +44,10 @@ window.loadPdfStack = function() {
 <script src="user-prefs.js"></script>
 <script src="apply-prefs.js"></script>
 <script src="toast.js"></script>
-<script>window.__csPageKind = 'tracker';</script>
+<script src="home-screen.js"></script>
+<!-- Mark the page kind BEFORE command-palette.js loads so its pageKind()
+     heuristic returns the right registry. -->
+<script>window.__csPageKind = 'home';</script>
 <script src="command-palette.js"></script>
 <script src="preferences-modal.js"></script>
 </head>
@@ -77,8 +56,7 @@ window.loadPdfStack = function() {
 <main id="main-content" tabindex="-1">
 <div id="root"></div>
 </main>
-<script src="useDragMark.js"></script>
-<script type="text/babel" src="tracker-app.js"></script>
+<script src="home-app.js"></script>
 <script src="./sw-register.js"></script>
 </body>
 </html>

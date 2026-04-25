@@ -10,6 +10,20 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<!-- UX-12 Phase 7 PR #13: redirect to /home when no project is active.
+     Direct URLs and PWA shortcuts continue to work when a project IS active. -->
+<script>
+(function(){
+  try {
+    var active = localStorage.getItem('crossstitch_active_project');
+    if (!active) {
+      var qs = location.search || '';
+      var skip = /(\?|&)(from=home|action=)/.test(qs);
+      if (!skip) { location.replace('home.html'); return; }
+    }
+  } catch (_) { /* localStorage blocked → load tool normally */ }
+})();
+</script>
 <!-- Preconnect so CDN requests start immediately -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">

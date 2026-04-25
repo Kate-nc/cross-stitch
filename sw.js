@@ -1,7 +1,8 @@
-var CACHE_NAME = 'cross-stitch-cache-v7';
+var CACHE_NAME = 'cross-stitch-cache-v8';
 
 var PRECACHE_URLS = [
   // HTML pages
+  './home.html',
   './index.html',
   './stitch.html',
   './manager.html',
@@ -30,6 +31,7 @@ var PRECACHE_URLS = [
 
   // Page-specific local scripts
   './home-screen.js',
+  './home-app.js',
   './palette-swap.js',
   './user-prefs.js',
   './sw-register.js',

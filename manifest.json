@@ -1,7 +1,7 @@
 {
   "name": "Cross Stitch Pattern Generator",
   "short_name": "Cross Stitch",
-  "start_url": "./index.html",
+  "start_url": "./home.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

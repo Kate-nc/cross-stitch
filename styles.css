@@ -4857,3 +4857,308 @@ html.pref-dark a { color: var(--accent); }
   .tb-proj-switcher__btn,
   .tb-proj-switcher__item { transition: none; }
 }
+
+/* === UX-12 Phase 7 — /home landing ============================
+   Workshop-styled cross-mode landing page (home.html / home-app.js).
+   Workshop tokens only. 44px touch targets on coarse pointers.
+   prefers-reduced-motion suppresses transitions. */
+
+.home-shell {
+  background: var(--surface-secondary);
+  min-height: 100vh;
+}
+.home-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--s-5, 24px) var(--s-5, 24px) var(--s-7, 48px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5, 24px);
+}
+.home-hero { padding: var(--s-3, 12px) 0 0; }
+.home-hero__title {
+  margin: 0 0 4px;
+  font-size: var(--text-hero, 28px);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.home-hero__sub {
+  margin: 0;
+  font-size: var(--text-md, 13px);
+  color: var(--text-secondary);
+}
+
+.home-section__title {
+  margin: 0 0 var(--s-3, 12px);
+  font-size: var(--text-md, 13px);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+.home-section__more {
+  margin-left: auto;
+  font-size: var(--text-sm, 12px);
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  text-decoration: none;
+}
+.home-section__more:hover { text-decoration: underline; }
+
+/* Resume card */
+.home-resume__card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 10px);
+  padding: var(--s-4, 16px);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--s-4, 16px);
+  align-items: center;
+  box-shadow: var(--shadow-sm);
+}
+.home-resume__avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--accent-soft, var(--accent-light));
+  color: var(--accent-ink, var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: var(--text-lg, 14px);
+}
+.home-resume__info { min-width: 0; }
+.home-resume__name {
+  font-weight: 600;
+  font-size: var(--text-xl, 17px);
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-resume__meta {
+  font-size: var(--text-sm, 12px);
+  color: var(--text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3, 12px);
+}
+.home-resume__bar {
+  margin-top: 8px;
+  height: 6px;
+  background: var(--border-subtle);
+  border-radius: var(--radius-pill, 999px);
+  overflow: hidden;
+}
+.home-resume__bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--motion, 160ms ease-out);
+}
+.home-resume__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+.home-resume__btn { white-space: nowrap; }
+
+/* Recent grid */
+.home-recent__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-3, 12px);
+}
+.home-pj-card {
+  display: flex;
+  gap: var(--s-3, 12px);
+  padding: var(--s-3, 12px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--motion-fast, 120ms ease-out),
+              box-shadow var(--motion-fast, 120ms ease-out);
+  font: inherit;
+  color: inherit;
+}
+.home-pj-card:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
+.home-pj-card:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.home-pj-card__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-tertiary);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: var(--text-md, 13px);
+  flex-shrink: 0;
+}
+.home-pj-card__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.home-pj-card__name {
+  font-weight: 600;
+  font-size: var(--text-md, 13px);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-pj-card__meta {
+  font-size: var(--text-xs, 11px);
+  color: var(--text-tertiary);
+}
+.home-pj-card__bar {
+  display: block;
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: var(--radius-pill, 999px);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.home-pj-card__bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+/* Quick-action tiles */
+.home-quick__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-3, 12px);
+}
+.home-quick__tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2, 8px);
+  padding: var(--s-4, 16px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: border-color var(--motion-fast, 120ms ease-out),
+              box-shadow var(--motion-fast, 120ms ease-out),
+              transform var(--motion-fast, 120ms ease-out);
+}
+.home-quick__tile:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+.home-quick__tile:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.home-quick__tile--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent, #fff);
+}
+.home-quick__tile--primary:hover { background: var(--accent-2, var(--accent-hover)); border-color: var(--accent-2, var(--accent-hover)); }
+.home-quick__icon {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+}
+.home-quick__copy { display: flex; flex-direction: column; gap: 2px; }
+.home-quick__copy strong { font-size: var(--text-md, 13px); font-weight: 600; }
+.home-quick__copy span { font-size: var(--text-sm, 12px); color: var(--text-secondary); }
+.home-quick__tile--primary .home-quick__copy span { color: rgba(255, 255, 255, 0.78); }
+
+/* Stash summary */
+.home-stash__card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--s-2, 8px) var(--s-4, 16px);
+}
+.home-stash__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm, 12px);
+  color: var(--text-secondary);
+  padding: var(--s-2, 8px) 0;
+  border-bottom: 1px dashed var(--border-subtle);
+}
+.home-stash__row:last-child { border-bottom: none; }
+.home-stash__value { color: var(--text-primary); font-weight: 600; }
+
+/* Footer */
+.home-footer {
+  display: flex;
+  gap: var(--s-4, 16px);
+  justify-content: center;
+  padding: var(--s-4, 16px) 0;
+  font-size: var(--text-sm, 12px);
+}
+.home-footer__link {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  text-decoration: none;
+  font: inherit;
+  padding: 4px 8px;
+}
+.home-footer__link:hover { color: var(--accent); text-decoration: underline; }
+
+/* Mobile reflow */
+@media (max-width: 599px) {
+  .home-page { padding: var(--s-3, 12px) var(--s-3, 12px) var(--s-6, 32px); gap: var(--s-4, 16px); }
+  .home-hero__title { font-size: var(--text-h, 22px); }
+  .home-resume__card {
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+  }
+  .home-resume__actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+  }
+  .home-resume__btn { flex: 1; }
+  .home-recent__grid { grid-template-columns: 1fr; }
+  .home-quick__grid { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 600px) and (max-width: 899px) {
+  .home-recent__grid { grid-template-columns: repeat(2, 1fr); }
+  .home-quick__grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (pointer: coarse) {
+  .home-pj-card,
+  .home-quick__tile,
+  .home-resume__btn,
+  .home-footer__link { min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-pj-card,
+  .home-quick__tile,
+  .home-resume__bar-fill { transition: none; }
+  .home-quick__tile:hover { transform: none; }
+}
+
+

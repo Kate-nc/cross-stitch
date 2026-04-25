@@ -49,9 +49,10 @@ const server = http.createServer((req, res) => {
 
   let filePath = filePathResolved;
 
-  // Directory → index.html
+  // Directory → home.html (UX-12 Phase 7: /home is the new default landing).
   if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
-    filePath = path.join(filePath, 'index.html');
+    const homePath = path.join(filePath, 'home.html');
+    filePath = fs.existsSync(homePath) ? homePath : path.join(filePath, 'index.html');
   }
 
   if (!fs.existsSync(filePath)) {

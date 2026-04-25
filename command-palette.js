@@ -40,6 +40,10 @@
     if (window.__csPageKind === 'creator' || window.__csPageKind === 'tracker' || window.__csPageKind === 'manager') {
       return window.__csPageKind;
     }
+    // UX-12 Phase 7: the new /home landing identifies as 'home', but for
+    // action-registry visibility we treat it like the creator page so the
+    // standard creator-aware actions stay available.
+    if (window.__csPageKind === 'home') return 'creator';
     var p = (location.pathname || '').toLowerCase();
     if (p.indexOf('manager') !== -1) return 'manager';
     if (p.indexOf('stitch') !== -1) return 'tracker';

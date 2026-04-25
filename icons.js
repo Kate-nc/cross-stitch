@@ -162,6 +162,11 @@ window.Icons = (function() {
     magnifyPlus: function() {
       return svg(c(11,11,8), l(21,21,16.65,16.65), l(8,11,14,11), l(11,8,11,14));
     },
+    // Plus — generic "add / new" sign. Used by the /home landing tiles and
+    // any other "create new …" affordance per UX-12 Phase 7.
+    plus: function() {
+      return svg(l(12,5,12,19), l(5,12,19,12));
+    },
     // Park-marker flag — small triangular pennant. Used by the Tracker Phase 4
     // mobile dock to toggle the parking colour picker / clear marker affordance.
     parkFlag: function() {

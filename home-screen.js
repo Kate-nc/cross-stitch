@@ -86,6 +86,11 @@ function getGreeting() {
   if (h >= 12 && h <= 16) return 'Good afternoon';
   return 'Good evening';
 }
+// UX-12 Phase 7: expose helpers so home-app.js (the new /home landing) can reuse them.
+if (typeof window !== 'undefined') {
+  window.timeAgo = timeAgo;
+  window.getGreeting = getGreeting;
+}
 
 // ─────────────────────────────────────────────────────────────────
 // Helpers used by the multi-project dashboard
