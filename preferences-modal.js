@@ -1103,6 +1103,10 @@
       variant: isMobile ? "sheet" : "dialog",
       zIndex: 1100,
       labelledBy: "prefs-modal-title",
+      // Legacy hook: html.pref-dark button:not(...):not([data-pref-modal] *)
+      // in styles.css excludes buttons inside the prefs modal from the
+      // global dark-mode override so the modal can theme its own controls.
+      panelProps: { "data-pref-modal": true },
       style: isMobile ? {
         background: COLOURS.card, borderRadius: "12px 12px 0 0",
         width: "100%", maxHeight: "92vh",

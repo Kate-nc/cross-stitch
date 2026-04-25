@@ -162,7 +162,10 @@
       },
         labelledBy ? { "aria-labelledby": labelledBy } : {},
         describedBy ? { "aria-describedby": describedBy } : {},
-        Object.keys(panelStyle).length ? { style: panelStyle } : {}
+        Object.keys(panelStyle).length ? { style: panelStyle } : {},
+        // panelProps lets consumers pass arbitrary attrs through to the
+        // panel element (e.g. data-* hooks for legacy CSS selectors).
+        props.panelProps || {}
       ),
         props.children
       )
