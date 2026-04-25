@@ -17,6 +17,103 @@
   --radius-xl: 12px;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+
+  /* ════════════════════════════════════════════════════════════════
+     Workshop visual direction tokens — Phase 0 scaffold (UX-12).
+     Source of truth: reports/showcase/_workshop.css
+     Phase 1+ migrates rules from legacy --accent/--surface/etc.
+     to the --ws-* aliases below; the final cleanup PR renames
+     --ws-* → canonical Workshop names.
+     Do NOT consume these tokens yet — Phase 0 is values only.
+     ════════════════════════════════════════════════════════════════ */
+
+  /* Workshop colour — light (conflicting names get --ws- prefix) */
+  --ws-surface:        #FBF8F3;     /* linen */
+  --ws-surface-raised: #FFFFFF;
+  --ws-surface-sunken: #F2EDE3;
+  --ws-surface-ink:    #1F1B16;
+  --ws-text-primary:   #1B1814;
+  --ws-text-secondary: #5C5448;
+  --ws-accent:         #B85C38;     /* terracotta */
+  --ws-radius-sm:      4px;
+  --ws-shadow-sm:      0 1px 2px rgba(60,40,20,.06);
+
+  /* Workshop colour — light (non-conflicting; canonical names) */
+  --line:              #E5DCCB;
+  --line-2:            #D8CDB6;
+  --text-muted:        #8A8270;
+  --text-on-accent:    #FFF8F0;
+  --accent-2:          #944526;
+  --accent-soft:       #F4DDCF;
+  --accent-ink:        #5C2A14;
+  --success:           #4F7D3F;     /* sage */
+  --success-soft:      #DEE7D2;
+  --warning:           #C0883A;     /* amber */
+  --warning-soft:      #F2E2BE;
+  --danger:            #A53D3D;     /* brick */
+  --danger-soft:       #F1D2D2;
+  --tint-thread:       #E9DCC2;
+  --tint-fabric:       #EDE3D0;
+  --radius-pill:       999px;
+
+  /* Workshop type scale */
+  --font-ui:  'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --text-xs:  11px;
+  --text-sm:  12px;
+  --text-md:  13px;
+  --text-lg:  14px;
+  --text-xl:  17px;
+  --text-h:   22px;
+  --text-hero: 28px;
+
+  /* Workshop spacing scale */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 24px; --s-6: 32px; --s-7: 48px;
+
+  /* Workshop motion */
+  --motion-fast: 120ms ease-out;
+  --motion:      160ms ease-out;
+  --motion-slow: 220ms ease-out;
+
+  /* Workshop shadow (raised/lg). --ws-shadow-sm above shadows
+     legacy --shadow-sm during Phase 1 migration. */
+  --shadow:    0 2px 8px rgba(60,40,20,.08);
+  --shadow-lg: 0 12px 28px rgba(60,40,20,.14);
+
+  /* Workshop radius (lg already canonical in legacy as 10px;
+     Workshop wants 14px — exposed as --ws-radius-lg until Phase 1) */
+  --ws-radius-lg: 14px;
+}
+
+[data-theme="dark"] {
+  /* Workshop colour — dark (UX-12 Phase 2 wires these) */
+  --ws-surface:        #1C1A18;
+  --ws-surface-raised: #2A2724;
+  --ws-surface-sunken: #14120F;
+  --ws-surface-ink:    #0E0C0A;
+  --ws-text-primary:   #F4EFE7;
+  --ws-text-secondary: #B6AC9C;
+  --ws-accent:         #E2865B;
+  --ws-shadow-sm:      0 1px 2px rgba(0,0,0,.32);
+
+  --line:              #3A352E;
+  --line-2:            #4B4339;
+  --text-muted:        #847B6C;
+  --text-on-accent:    #1B1410;
+  --accent-2:          #F0A07A;
+  --accent-soft:       #3A2418;
+  --accent-ink:        #F4DDCF;
+  --success:           #88B077;
+  --success-soft:      #2C3A24;
+  --warning:           #E6B069;
+  --warning-soft:      #3A2E16;
+  --danger:            #E07474;
+  --danger-soft:       #3E1F1F;
+  --tint-thread:       #2E281D;
+  --tint-fabric:       #322B1F;
+
+  --shadow:    0 2px 8px rgba(0,0,0,.42);
+  --shadow-lg: 0 12px 28px rgba(0,0,0,.55);
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html{height:100%;}
