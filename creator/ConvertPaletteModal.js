@@ -158,7 +158,7 @@ window.ConvertPaletteModal = (function () {
   }
 
   function ConvertPaletteModal({ onClose, onApply }) {
-    if (typeof window !== 'undefined' && window.useEscape) window.useEscape(onClose);
+    // ESC + scrim + focus trap delegated to <Overlay>.
     var pd = typeof usePatternData === 'function' ? usePatternData() : null;
     var pattern = pd ? pd.pattern : [];
     var [targetBrand, setTargetBrand] = useState('anchor');
@@ -216,11 +216,13 @@ window.ConvertPaletteModal = (function () {
         })
       : proposals;
 
-    return React.createElement('div', { className: 'modal-overlay', onClick: function (e) { if (e.target === e.currentTarget) onClose(); } },
-      React.createElement('div', { className: 'modal-box', style: { maxWidth: 640, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' } },
+    return React.createElement(window.Overlay, {
+      onClose: onClose, className: 'modal-box', labelledBy: 'convert-palette-title',
+      style: { maxWidth: 640, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }
+    },
         React.createElement('div', { className: 'modal-header' },
-          React.createElement('div', { className: 'modal-title' }, 'Change Thread Brand'),
-          React.createElement('button', { className: 'modal-close', onClick: onClose }, '×')
+          React.createElement('div', { className: 'modal-title', id: 'convert-palette-title' }, 'Change Thread Brand'),
+          React.createElement(window.Overlay.CloseButton, { onClose: onClose, style: { position: 'static' } })
         ),
         React.createElement('div', { style: { padding: '12px 20px', borderBottom: '1px solid #E5DCCB', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
           React.createElement('span', { style: { fontSize: 13, color: '#5C5448', fontWeight: 600 } }, 'Convert to:'),
@@ -295,7 +297,6 @@ window.ConvertPaletteModal = (function () {
             'Apply Conversion (' + proposals.length + ' threads)'
           )
         )
-      )
     );
   }
 

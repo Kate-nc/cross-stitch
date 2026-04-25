@@ -16,7 +16,7 @@
     var useEffect = React.useEffect;
     var onClose = props.onClose;
 
-    if (typeof window.useEscape === 'function') window.useEscape(onClose);
+    // ESC + scrim + focus trap delegated to <Overlay>.
 
     var _profile = useState(null);
     var profile = _profile[0], setProfile = _profile[1];
@@ -166,18 +166,13 @@
       );
     };
 
-    return h('div', { className: 'modal-overlay', onClick: onClose, style: { zIndex: 1000 } },
-      h('div', {
-        className: 'modal-content',
-        onClick: function (e) { e.stopPropagation(); },
-        style: { maxWidth: 540, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }
-      },
+    return h(window.Overlay, {
+      onClose: onClose, className: 'modal-content', zIndex: 1000, labelledBy: 'shopping-list-title',
+      style: { maxWidth: 540, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }
+    },
         h('div', { style: { padding: '16px 20px', borderBottom: '1px solid #E5DCCB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-          h('h2', { style: { margin: 0, fontSize: 18 } }, 'What do I need to buy?'),
-          h('button', {
-            onClick: onClose,
-            style: { background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#A89E89' }
-          }, '\u00D7')
+          h('h2', { id: 'shopping-list-title', style: { margin: 0, fontSize: 18 } }, 'What do I need to buy?'),
+          h(window.Overlay.CloseButton, { onClose: onClose, style: { position: 'static' } })
         ),
         h('div', {
           style: {
@@ -215,7 +210,6 @@
             }, 'Copy list')
           )
         )
-      )
     );
   }
 

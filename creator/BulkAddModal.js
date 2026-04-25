@@ -90,7 +90,7 @@ window.BulkAddModal = (function () {
   // ─── Main modal ─────────────────────────────────────────────────────────────
 
   function BulkAddModal({ onClose }) {
-    if (typeof window !== 'undefined' && window.useEscape) window.useEscape(onClose);
+    // ESC + scrim + focus trap delegated to <Overlay>.
     var [activeTab, setActiveTab] = useState('paste');  // 'paste' | 'kit'
     var [brand, setBrand] = useState('dmc');
     var [pasteText, setPasteText] = useState('');
@@ -178,21 +178,24 @@ window.BulkAddModal = (function () {
     var invalidCount = activeItems.filter(function (i) { return !i.valid; }).length;
 
     if (done) {
-      return React.createElement('div', { className: 'modal-overlay', onClick: function (e) { if (e.target === e.currentTarget) onClose(); } },
-        React.createElement('div', { className: 'modal-box', style: { maxWidth: 440, width: '90vw', padding: '32px 24px', textAlign: 'center' } },
-          React.createElement('div', { style: { fontSize: 36, marginBottom: 12 } }, '✓'),
-          React.createElement('div', { style: { fontSize: 16, fontWeight: 700, marginBottom: 8 } }, validCount + ' thread' + (validCount === 1 ? '' : 's') + ' added to your stash'),
-          React.createElement('button', { className: 'g-btn primary', onClick: onClose }, 'Done')
-        )
+      return React.createElement(window.Overlay, {
+        onClose: onClose, className: 'modal-box', labelledBy: 'bulk-add-done-title',
+        style: { maxWidth: 440, width: '90vw', padding: '32px 24px', textAlign: 'center' }
+      },
+        (window.Icons && window.Icons.check) ? React.createElement('div', { style: { color: 'var(--success)', marginBottom: 12, display: 'flex', justifyContent: 'center' } }, window.Icons.check()) : null,
+        React.createElement('div', { id: 'bulk-add-done-title', style: { fontSize: 16, fontWeight: 700, marginBottom: 8 } }, validCount + ' thread' + (validCount === 1 ? '' : 's') + ' added to your stash'),
+        React.createElement('button', { className: 'g-btn primary', onClick: onClose, 'data-autofocus': true }, 'Done')
       );
     }
 
-    return React.createElement('div', { className: 'modal-overlay', onClick: function (e) { if (e.target === e.currentTarget) onClose(); } },
-      React.createElement('div', { className: 'modal-box', style: { maxWidth: 560, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' } },
+    return React.createElement(window.Overlay, {
+      onClose: onClose, className: 'modal-box', labelledBy: 'bulk-add-title',
+      style: { maxWidth: 560, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }
+    },
         // Header
         React.createElement('div', { className: 'modal-header' },
-          React.createElement('div', { className: 'modal-title' }, 'Bulk Add to Stash'),
-          React.createElement('button', { className: 'modal-close', onClick: onClose }, '×')
+          React.createElement('div', { className: 'modal-title', id: 'bulk-add-title' }, 'Bulk Add to Stash'),
+          React.createElement(window.Overlay.CloseButton, { onClose: onClose, style: { position: 'static' } })
         ),
         // Tabs
         React.createElement('div', { style: { display: 'flex', borderBottom: '1px solid #E5DCCB', padding: '0 20px' } },
@@ -284,7 +287,6 @@ window.BulkAddModal = (function () {
             disabled: saving || validCount === 0
           }, saving ? 'Saving…' : 'Add ' + validCount + ' thread' + (validCount === 1 ? '' : 's'))
         )
-      )
     );
   }
 

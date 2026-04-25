@@ -5812,22 +5812,12 @@ window.useCreatorState = function useCreatorState() {
     }, [wizard.step]);
 
     // Escape -> confirm discard (don't lose the user's work silently).
-    React.useEffect(function () {
-      function onKey(e) {
-        if (e.key === "Escape") {
-          e.stopPropagation();
-          setDiscardOpen(true);
-        }
-      }
-      if (typeof document !== "undefined" && document.addEventListener) {
-        document.addEventListener("keydown", onKey, true);
-      }
-      return function () {
-        if (typeof document !== "undefined" && document.removeEventListener) {
-          document.removeEventListener("keydown", onKey, true);
-        }
-      };
-    }, []);
+    // Routed through the central useEscape stack so it composes correctly
+    // with any modal opened on top of the wizard (e.g. the discard
+    // confirmation, nested toasts).
+    if (typeof window !== "undefined" && window.useEscape) {
+      window.useEscape(function () { setDiscardOpen(true); }, { skipWhenEditingTextField: false });
+    }
 
     function onCancel() {
       wizard.reset();
@@ -10392,7 +10382,7 @@ function SubstituteFromStashModalInner(props) {
 
   // Stack-aware ESC support — defined after closeModal so the callback is
   // already available when registering with the global useEscape stack.
-  if (typeof window !== "undefined" && window.useEscape) window.useEscape(closeModal);
+  // ESC handling delegated to <Overlay>.
 
   // ─── Render helpers ───────────────────────────────────────────────────────────
   function swatch(rgb, size) {
@@ -10756,7 +10746,6 @@ function SubstituteFromStashModalInner(props) {
           }
         }, applyLabel)
       )
-    )
   );
 }
 
@@ -10922,7 +10911,7 @@ window.ConvertPaletteModal = (function () {
   }
 
   function ConvertPaletteModal({ onClose, onApply }) {
-    if (typeof window !== 'undefined' && window.useEscape) window.useEscape(onClose);
+    // ESC + scrim + focus trap delegated to <Overlay>.
     var pd = typeof usePatternData === 'function' ? usePatternData() : null;
     var pattern = pd ? pd.pattern : [];
     var [targetBrand, setTargetBrand] = useState('anchor');
@@ -10980,11 +10969,13 @@ window.ConvertPaletteModal = (function () {
         })
       : proposals;
 
-    return React.createElement('div', { className: 'modal-overlay', onClick: function (e) { if (e.target === e.currentTarget) onClose(); } },
-      React.createElement('div', { className: 'modal-box', style: { maxWidth: 640, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' } },
+    return React.createElement(window.Overlay, {
+      onClose: onClose, className: 'modal-box', labelledBy: 'convert-palette-title',
+      style: { maxWidth: 640, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }
+    },
         React.createElement('div', { className: 'modal-header' },
-          React.createElement('div', { className: 'modal-title' }, 'Change Thread Brand'),
-          React.createElement('button', { className: 'modal-close', onClick: onClose }, '×')
+          React.createElement('div', { className: 'modal-title', id: 'convert-palette-title' }, 'Change Thread Brand'),
+          React.createElement(window.Overlay.CloseButton, { onClose: onClose, style: { position: 'static' } })
         ),
         React.createElement('div', { style: { padding: '12px 20px', borderBottom: '1px solid #E5DCCB', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
           React.createElement('span', { style: { fontSize: 13, color: '#5C5448', fontWeight: 600 } }, 'Convert to:'),
@@ -11059,7 +11050,6 @@ window.ConvertPaletteModal = (function () {
             'Apply Conversion (' + proposals.length + ' threads)'
           )
         )
-      )
     );
   }
 
@@ -11161,7 +11151,7 @@ window.BulkAddModal = (function () {
   // ─── Main modal ─────────────────────────────────────────────────────────────
 
   function BulkAddModal({ onClose }) {
-    if (typeof window !== 'undefined' && window.useEscape) window.useEscape(onClose);
+    // ESC + scrim + focus trap delegated to <Overlay>.
     var [activeTab, setActiveTab] = useState('paste');  // 'paste' | 'kit'
     var [brand, setBrand] = useState('dmc');
     var [pasteText, setPasteText] = useState('');
@@ -11249,21 +11239,24 @@ window.BulkAddModal = (function () {
     var invalidCount = activeItems.filter(function (i) { return !i.valid; }).length;
 
     if (done) {
-      return React.createElement('div', { className: 'modal-overlay', onClick: function (e) { if (e.target === e.currentTarget) onClose(); } },
-        React.createElement('div', { className: 'modal-box', style: { maxWidth: 440, width: '90vw', padding: '32px 24px', textAlign: 'center' } },
-          React.createElement('div', { style: { fontSize: 36, marginBottom: 12 } }, '✓'),
-          React.createElement('div', { style: { fontSize: 16, fontWeight: 700, marginBottom: 8 } }, validCount + ' thread' + (validCount === 1 ? '' : 's') + ' added to your stash'),
-          React.createElement('button', { className: 'g-btn primary', onClick: onClose }, 'Done')
-        )
+      return React.createElement(window.Overlay, {
+        onClose: onClose, className: 'modal-box', labelledBy: 'bulk-add-done-title',
+        style: { maxWidth: 440, width: '90vw', padding: '32px 24px', textAlign: 'center' }
+      },
+        (window.Icons && window.Icons.check) ? React.createElement('div', { style: { color: 'var(--success)', marginBottom: 12, display: 'flex', justifyContent: 'center' } }, window.Icons.check()) : null,
+        React.createElement('div', { id: 'bulk-add-done-title', style: { fontSize: 16, fontWeight: 700, marginBottom: 8 } }, validCount + ' thread' + (validCount === 1 ? '' : 's') + ' added to your stash'),
+        React.createElement('button', { className: 'g-btn primary', onClick: onClose, 'data-autofocus': true }, 'Done')
       );
     }
 
-    return React.createElement('div', { className: 'modal-overlay', onClick: function (e) { if (e.target === e.currentTarget) onClose(); } },
-      React.createElement('div', { className: 'modal-box', style: { maxWidth: 560, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' } },
+    return React.createElement(window.Overlay, {
+      onClose: onClose, className: 'modal-box', labelledBy: 'bulk-add-title',
+      style: { maxWidth: 560, width: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }
+    },
         // Header
         React.createElement('div', { className: 'modal-header' },
-          React.createElement('div', { className: 'modal-title' }, 'Bulk Add to Stash'),
-          React.createElement('button', { className: 'modal-close', onClick: onClose }, '×')
+          React.createElement('div', { className: 'modal-title', id: 'bulk-add-title' }, 'Bulk Add to Stash'),
+          React.createElement(window.Overlay.CloseButton, { onClose: onClose, style: { position: 'static' } })
         ),
         // Tabs
         React.createElement('div', { style: { display: 'flex', borderBottom: '1px solid #E5DCCB', padding: '0 20px' } },
@@ -11355,7 +11348,6 @@ window.BulkAddModal = (function () {
             disabled: saving || validCount === 0
           }, saving ? 'Saving…' : 'Add ' + validCount + ' thread' + (validCount === 1 ? '' : 's'))
         )
-      )
     );
   }
 
@@ -15616,7 +15608,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     var useEffect = React.useEffect;
     var onClose = props.onClose;
 
-    if (typeof window.useEscape === 'function') window.useEscape(onClose);
+    // ESC + scrim + focus trap delegated to <Overlay>.
 
     var _profile = useState(null);
     var profile = _profile[0], setProfile = _profile[1];
@@ -15766,18 +15758,13 @@ window.CreatorExportTab = function CreatorExportTab() {
       );
     };
 
-    return h('div', { className: 'modal-overlay', onClick: onClose, style: { zIndex: 1000 } },
-      h('div', {
-        className: 'modal-content',
-        onClick: function (e) { e.stopPropagation(); },
-        style: { maxWidth: 540, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }
-      },
+    return h(window.Overlay, {
+      onClose: onClose, className: 'modal-content', zIndex: 1000, labelledBy: 'shopping-list-title',
+      style: { maxWidth: 540, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }
+    },
         h('div', { style: { padding: '16px 20px', borderBottom: '1px solid #E5DCCB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-          h('h2', { style: { margin: 0, fontSize: 18 } }, 'What do I need to buy?'),
-          h('button', {
-            onClick: onClose,
-            style: { background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#A89E89' }
-          }, '\u00D7')
+          h('h2', { id: 'shopping-list-title', style: { margin: 0, fontSize: 18 } }, 'What do I need to buy?'),
+          h(window.Overlay.CloseButton, { onClose: onClose, style: { position: 'static' } })
         ),
         h('div', {
           style: {
@@ -15815,7 +15802,6 @@ window.CreatorExportTab = function CreatorExportTab() {
             }, 'Copy list')
           )
         )
-      )
     );
   }
 
