@@ -24,7 +24,13 @@
     if (typeof document !== "undefined" && !document.getElementById("ob-wiz-styles")) {
       var s = document.createElement("style");
       s.id = "ob-wiz-styles";
-      s.textContent = ".onboarding-focusable:focus-visible{outline:3px solid var(--accent,#B85C38);outline-offset:2px;border-radius:6px}";
+      // UX-12 Phase 7: Workshop tokens, focus ring, reduced-motion suppression.
+      s.textContent =
+        ".onboarding-focusable:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:var(--radius-sm,6px)}" +
+        ".onboarding-content{background:var(--surface);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-lg,10px);box-shadow:var(--shadow-lg,0 12px 28px rgba(60,40,20,.14))}" +
+        ".onboarding-step-counter{font-size:var(--text-sm,12px);color:var(--text-tertiary);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}" +
+        "@media (prefers-reduced-motion: reduce){.onboarding-content,.onboarding-content *{transition:none !important;animation:none !important}}" +
+        "@media (pointer: coarse){.onboarding-content button{min-height:44px}}";
       document.head.appendChild(s);
     }
   } catch (_) {}
@@ -285,10 +291,10 @@
       arrowStyle = {
         position: "fixed", top: anchor.top - 4, left: anchor.left - 4,
         width: anchor.width + 8, height: anchor.height + 8,
-        border: "3px solid #B85C38", borderRadius: 8,
+        border: "3px solid var(--accent)", borderRadius: 8,
         boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.45)",
         pointerEvents: "none", zIndex: 2,
-        transition: "all 0.18s ease"
+        transition: "all var(--motion, 160ms ease-out)"
       };
     }
 
@@ -303,17 +309,26 @@
       if (isLast) handleLast(); else setIdx(idx + 1);
     }
 
+    var closeIcon = (window.Icons && window.Icons.x) ? window.Icons.x() : null;
     var children = [
-        h("button", { key: "close", className: "modal-close onboarding-focusable", onClick: function () { handleClose(false); }, "aria-label": "Close" }, "\u00d7"),
-        // Step indicator
+        h("button", {
+          key: "close", className: "modal-close onboarding-focusable",
+          onClick: function () { handleClose(false); }, "aria-label": "Close",
+          style: { background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer" }
+        }, closeIcon),
+        // Step counter — visible "Step N of M" text for screen readers and sighted users.
+        !isCustom && steps.length > 1 && h("div", { key: "sc", className: "onboarding-step-counter" },
+          "Step " + (idx + 1) + " of " + steps.length
+        ),
+        // Step indicator dots — decorative, paired with the counter above.
         h("div", { key: "ind", style: { display: "flex", gap: 6, marginBottom: 16 }, "aria-hidden": "true" },
           steps.map(function (_, i) {
             return h("div", {
               key: i,
               style: {
                 flex: 1, height: 4, borderRadius: 2,
-                background: i <= idx ? "#B85C38" : "#E5DCCB",
-                transition: "background 0.2s"
+                background: i <= idx ? "var(--accent)" : "var(--border)",
+                transition: "background var(--motion-fast, 120ms ease-out)"
               }
             });
           })
@@ -331,13 +346,15 @@
                 titleId: titleId
               })
             : [
-                h("h3", { key: "t", id: titleId, style: { margin: "0 0 10px 0", fontSize: 19, color: "#1B1814" } }, step.title),
-                h("p", { key: "b", style: { margin: "0 0 12px 0", fontSize: 14, lineHeight: 1.55, color: "#5C5448" } }, step.body),
+                h("h3", { key: "t", id: titleId, style: { margin: "0 0 10px 0", fontSize: 19, color: "var(--text-primary)" } }, step.title),
+                h("p", { key: "b", style: { margin: "0 0 12px 0", fontSize: 14, lineHeight: 1.55, color: "var(--text-secondary)" } }, step.body),
                 step.tip && h("div", {
                   key: "tip",
                   style: {
-                    padding: "8px 12px", background: "#F4DDCF", border: "1px solid #E8B89A",
-                    borderRadius: 6, fontSize: 12, color: "#065f46", marginBottom: 12
+                    padding: "8px 12px", background: "var(--accent-soft, var(--accent-light))",
+                    border: "1px solid var(--accent-border)",
+                    borderRadius: "var(--radius-sm, 6px)", fontSize: 12,
+                    color: "var(--accent-ink, var(--text-primary))", marginBottom: 12
                   }
                 }, h("strong", null, "Tip: "), step.tip)
               ]
@@ -346,23 +363,23 @@
         !isCustom && h("div", { key: "nav", style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 } },
           h("button", {
             onClick: function () { handleClose(false); },
-            className: "onboarding-focusable",
-            style: { padding: "6px 12px", fontSize: 12, color: "#8A8270", background: "transparent", border: "none", cursor: "pointer" }
+            className: "btn onboarding-focusable",
+            style: { padding: "6px 12px", fontSize: 12, color: "var(--text-tertiary)", background: "transparent", border: "none", cursor: "pointer" }
           }, "Skip tour"),
           h("div", { style: { display: "flex", gap: 8 } },
             idx > 0 && h("button", {
               onClick: function () { setIdx(idx - 1); },
-              className: "onboarding-focusable",
-              style: { padding: "8px 14px", fontSize: 13, borderRadius: 6, border: "1px solid #E5DCCB", background: "#fff", cursor: "pointer", color: "#5C5448" }
+              className: "btn onboarding-focusable",
+              style: { padding: "8px 14px", fontSize: 13, borderRadius: "var(--radius-sm, 6px)", border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", color: "var(--text-secondary)" }
             }, "Back"),
             h("button", {
               "data-ob-primary": true,
               onClick: function () { if (isLast) handleLast(); else setIdx(idx + 1); },
               disabled: primaryDisabled,
-              className: "onboarding-focusable",
-              style: { padding: "8px 16px", fontSize: 13, borderRadius: 6, border: "none",
-                background: primaryDisabled ? "#A89E89" : "#B85C38",
-                color: "#fff", cursor: primaryDisabled ? "not-allowed" : "pointer", fontWeight: 600 }
+              className: "btn btn-primary onboarding-focusable",
+              style: { padding: "8px 16px", fontSize: 13, borderRadius: "var(--radius-sm, 6px)", border: "none",
+                background: primaryDisabled ? "var(--text-tertiary)" : "var(--accent)",
+                color: "var(--text-on-accent, #fff)", cursor: primaryDisabled ? "not-allowed" : "pointer", fontWeight: 600 }
             }, isLast ? lastLabel : "Next")
           )
         )
