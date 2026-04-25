@@ -63,7 +63,7 @@ function Section({title,children,isOpen,onToggle,defaultOpen=true,badge=null}){
   return React.createElement("div", {style:{borderRadius:12,border:"0.5px solid var(--border)",background:"#fff",overflow:"hidden"}},
     React.createElement("button", {onClick:handleToggle, style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"none",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"#1B1814",gap:8}},
       React.createElement("span", {style:{display:"flex",alignItems:"center",gap:8}}, title, badge),
-      React.createElement("span", {style:{fontSize:10,color:"#A89E89",transform:currentOpen?"rotate(180deg)":"rotate(0deg)"}}, "▼")
+      React.createElement("span", {style:{display:"inline-flex",alignItems:"center",justifyContent:"center",width:16,height:16,color:"var(--text-tertiary)",transform:currentOpen?"rotate(180deg)":"rotate(0deg)"},"aria-hidden":"true"}, window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
     ),
     currentOpen&&React.createElement("div", {style:{padding:"0 16px 16px"}}, children)
   );

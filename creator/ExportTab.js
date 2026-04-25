@@ -413,7 +413,8 @@ window.CreatorExportTab = function CreatorExportTab() {
     h("div", null,
       h("button", { onClick: function () { setSettingsOpen(!settingsOpen[0]); }, style: sectionToggle },
         h("span", null, "Format & settings"),
-        h("span", { style: { color: "#8A8270" } }, settingsOpen[0] ? "▲" : "▼")
+        h("span", { "aria-hidden": "true", style: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, color: "var(--text-tertiary)" } },
+          (typeof window !== "undefined" && window.Icons) ? (settingsOpen[0] ? window.Icons.chevronUp() : window.Icons.chevronDown()) : null)
       ),
       settingsOpen[0] && h("div", { style: { background: "#fff", border: "1px solid #E5DCCB", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 14 } },
 
