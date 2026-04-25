@@ -16088,11 +16088,38 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       if (e.key === "Escape") {
         setMenuOpen(false);
         if (btnRef.current && btnRef.current.focus) btnRef.current.focus();
+        return;
+      }
+      // Roving focus inside the menu (matches CreatorMaterialsHub pattern).
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
+      if (!menuRef.current) return;
+      var items = Array.prototype.slice.call(
+        menuRef.current.querySelectorAll('[role="menuitem"]')
+      );
+      if (!items.length) return;
+      var idx = items.indexOf(document.activeElement);
+      var next = idx;
+      if (e.key === "ArrowDown") next = idx < 0 ? 0 : (idx + 1) % items.length;
+      else if (e.key === "ArrowUp") next = idx <= 0 ? items.length - 1 : idx - 1;
+      else if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = items.length - 1;
+      if (items[next] && items[next].focus) {
+        items[next].focus();
+        e.preventDefault();
       }
     }
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
+    // Move focus into the menu on open so keyboard users land inside it.
+    var raf = (typeof requestAnimationFrame === "function") ? requestAnimationFrame : function(fn) { return setTimeout(fn, 0); };
+    var cancel = (typeof cancelAnimationFrame === "function") ? cancelAnimationFrame : clearTimeout;
+    var focusHandle = raf(function() {
+      if (!menuRef.current) return;
+      var first = menuRef.current.querySelector('[role="menuitem"]');
+      if (first && first.focus) first.focus();
+    });
     return function() {
+      cancel(focusHandle);
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
     };
