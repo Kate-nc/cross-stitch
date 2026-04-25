@@ -443,6 +443,12 @@ const[modal,setModal]=useState(null);
 // `quickColourOpen` toggles a dedicated bottom drawer that lets the user pick
 // the focus colour with one tap. It's only used on touch / narrow viewports.
 const[quickColourOpen,setQuickColourOpen]=useState(false);
+// ── Phase 4 (UX-12) — floating tool dock vertical position (phone) ──
+// User-draggable along the right edge. Persisted between sessions.
+const[dockY,setDockY]=useState(()=>{
+  try{const v=parseInt(localStorage.getItem("tracker_dock_y")||"",10);return Number.isFinite(v)?v:40;}catch(_){return 40;}
+});
+useEffect(()=>{try{localStorage.setItem("tracker_dock_y",String(dockY));}catch(_){}},[dockY]);
 // Tag the document body with `tracker-mobile` while the Tracker is mounted on a
 // touch / narrow viewport. CSS scopes the new bottom action bar and quick-
 // switcher drawer to this class so desktop layout is untouched.
@@ -5352,9 +5358,114 @@ return(
       </div>{/* end rp-tab-content */}
     </div>{/* end rpanel */}
   </div>{/* end cs-main */}
-  {/* ═══ MOBILE BOTTOM ACTION BAR ═══
-       Visibility scoped via CSS (`body.tracker-mobile`). Renders on every
-       page load but is `display:none` on desktop. Only shown in track mode. */}
+  {/* ═══════════════════════════════════════════════════════════════
+      Phase 4 (UX-12) — Workshop tracker chrome
+      Floating tool dock (phone), bottom mode pill (phone), top
+      sticky current-colour chip (phone). Wake-lock chip lives in
+      the existing toolbar. Tablet/desktop project rail + side panel
+      are scoped via CSS media queries.
+      All position:fixed; layout untouched on >=1024px where existing
+      toolbar already exposes every action.
+      ═══════════════════════════════════════════════════════════════ */}
+  {!statsView&&pat&&pal&&(()=>{
+    const focusInfo=focusColour&&cmap?cmap[focusColour]:null;
+    const focusDC=focusColour&&colourDoneCounts?colourDoneCounts[focusColour]:null;
+    const focusRem=focusDC?Math.max(0,(focusDC.total||0)-(focusDC.done||0)):0;
+    const focusTotal=focusDC?(focusDC.total||0):0;
+    // Compute current "mode" for the bottom mode pill from existing state.
+    // Stitch = track + non-highlight, Find = highlight view, Edit = isEditMode.
+    const currentMode=isEditMode?"edit":(stitchView==="highlight"?"find":"stitch");
+    function setMode(next){
+      if(next===currentMode)return;
+      if(next==="stitch"){
+        if(isEditMode){if(undoSnapshot!==null){setShowExitEditModal(true);return;}setIsEditMode(false);}
+        setStitchMode("track");setStitchView("symbol");setFocusColour(null);
+      }else if(next==="find"){
+        if(isEditMode){if(undoSnapshot!==null){setShowExitEditModal(true);return;}setIsEditMode(false);}
+        setStitchView("highlight");
+        if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}
+      }else if(next==="edit"){
+        setSessionStartSnapshot({pat:[...pat],pal:deepClone(pal),threadOwned:deepClone(threadOwned),singleStitchEdits:new Map(singleStitchEdits)});
+        setStitchMode("navigate");setFocusColour(null);setHoverInfo(null);setIsEditMode(true);
+      }
+    }
+    function findNext(){
+      // Cycle to the next incomplete colour.
+      if(!pal||!pal.length)return;
+      const order=pal.filter(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;});
+      if(!order.length)return;
+      if(!focusColour){setFocusColour(order[0].id);return;}
+      const idx=order.findIndex(p=>p.id===focusColour);
+      const next=order[(idx+1)%order.length];
+      if(next)setFocusColour(next.id);
+    }
+    return <>
+      {/* ── Top sticky current-colour chip (phone) ──
+          Pinned at the top of the viewport so the active colour and
+          remaining count are always visible while scrolling the canvas. */}
+      <div className="tracker-colour-chip" role="status" aria-live="polite">
+        <button
+          type="button"
+          className="tcc-btn"
+          onClick={()=>{if(stitchView!=="highlight")setStitchView("highlight");setQuickColourOpen(o=>!o);}}
+          aria-label="Choose focus colour"
+        >
+          {focusInfo?<>
+            <span className="tcc-sw" style={{background:`rgb(${focusInfo.rgb})`}}/>
+            <span className="tcc-id">DMC {focusInfo.id}</span>
+            <span className="tcc-name">{focusInfo.name||""}</span>
+            {focusTotal>0&&<span className="tcc-rem">{focusRem.toLocaleString()} / {focusTotal.toLocaleString()} left</span>}
+          </>:<>
+            <span className="tcc-sw tcc-sw--empty" aria-hidden="true"/>
+            <span className="tcc-name">Tap to pick a colour</span>
+          </>}
+        </button>
+      </div>
+      {/* ── Floating tool dock (phone right edge, draggable Y) ── */}
+      <div className="tracker-tool-dock" role="toolbar" aria-label="Tracker tools" style={{top:dockY+"%"}}
+        onPointerDown={(e)=>{
+          if(!e.currentTarget.classList.contains("tracker-tool-dock--drag"))return;
+        }}>
+        <button className="ttd-btn ttd-handle" aria-label="Drag dock"
+          onPointerDown={(e)=>{
+            const dock=e.currentTarget.parentNode;
+            const startClientY=e.clientY;
+            const startTop=dock.getBoundingClientRect().top;
+            const vh=window.innerHeight||1;
+            function onMove(ev){
+              const delta=ev.clientY-startClientY;
+              const newTop=Math.min(vh-200,Math.max(60,startTop+delta));
+              setDockY(Math.round(newTop/vh*100));
+            }
+            function onUp(){window.removeEventListener('pointermove',onMove);window.removeEventListener('pointerup',onUp);}
+            window.addEventListener('pointermove',onMove);
+            window.addEventListener('pointerup',onUp);
+            e.preventDefault();
+          }}
+          title="Drag to reposition dock"
+        >{Icons.menu()}</button>
+        <button className="ttd-btn" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in" title="Zoom in">{Icons.magnifyPlus()}</button>
+        <button className="ttd-btn" onClick={()=>setStitchZoom(z=>Math.max(0.1,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">{Icons.magnifyMinus()}</button>
+        <button className="ttd-btn" onClick={undoTrack} disabled={!trackHistory.length} aria-label="Undo" title="Undo">{Icons.undo()}</button>
+        <button className="ttd-btn" onClick={redoTrack} disabled={!redoStack.length} aria-label="Redo" title="Redo">{Icons.replay()}</button>
+        <button className="ttd-btn" onClick={findNext} aria-label="Find next colour" title="Cycle focus colour">{Icons.magnify()}</button>
+        <button className={"ttd-btn"+(stitchView==="highlight"?" ttd-btn--on":"")} onClick={()=>{setStitchView(v=>v==="highlight"?"symbol":"highlight");}} aria-label="Toggle highlight" title="Highlight mode (half-stitch placement)">{Icons.halfStitch()}</button>
+        <button className={"ttd-btn"+(stitchMode==="navigate"?" ttd-btn--on":"")} onClick={()=>{setStitchMode(m=>m==="navigate"?"track":"navigate");}} aria-label="Toggle parking" title="Navigate / parking mode">{Icons.parkFlag()}</button>
+        <button className="ttd-btn" onClick={()=>{if(stitchView!=="highlight")setStitchView("highlight");setQuickColourOpen(o=>!o);}} aria-label="Pick colour" title="Pick a colour">{Icons.palette()}</button>
+      </div>
+      {/* ── Bottom mode-pill (phone, above safe area) ── */}
+      <div className="tracker-mode-pill" role="tablist" aria-label="Tracker mode" aria-live="polite">
+        {[["stitch","Stitch"],["find","Find"],["edit","Edit"]].map(([k,l])=>
+          <button key={k} type="button" role="tab"
+            aria-selected={currentMode===k}
+            className={"tmp-seg"+(currentMode===k?" tmp-seg--on":"")}
+            onClick={()=>setMode(k)}
+          >{l}</button>
+        )}
+      </div>
+    </>;
+  })()}
+
   {!isEditMode&&!statsView&&stitchMode==="track"&&(()=>{
     const focusInfo=focusColour&&cmap?cmap[focusColour]:null;
     const undoDisabled=!trackHistory.length;

@@ -158,6 +158,21 @@ window.Icons = (function() {
     magnifyMinus: function() {
       return svg(c(11,11,8), l(21,21,16.65,16.65), l(8,11,14,11));
     },
+    // Magnify with plus bar — used by the Tracker Phase 4 mobile dock for "Zoom in".
+    magnifyPlus: function() {
+      return svg(c(11,11,8), l(21,21,16.65,16.65), l(8,11,14,11), l(11,8,11,14));
+    },
+    // Park-marker flag — small triangular pennant. Used by the Tracker Phase 4
+    // mobile dock to toggle the parking colour picker / clear marker affordance.
+    parkFlag: function() {
+      return svg(l(5,21,5,4), p('M5 4h11l-2 4 2 4H5'));
+    },
+    // Half-stitch — diagonal slash inside a square. Used by the Tracker Phase 4
+    // mobile dock to switch the active stitch into "highlight" view, where
+    // half-stitch placement is exposed via the canvas tap interaction.
+    halfStitch: function() {
+      return svg(rc(4,4,16,16,2), l(4,20,20,4));
+    },
     // Info circle — replaces ℹ️
     info: function() {
       return svg(c(12,12,10), l(12,8,12.01,8), l(12,12,12,16));
