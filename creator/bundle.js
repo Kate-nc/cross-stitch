@@ -15582,15 +15582,15 @@ window.CreatorExportTab = function CreatorExportTab() {
             "Mini-legend strip on each page")
         ),
 
-        h("div", { style: { marginTop: 10, paddingTop: 10, borderTop: "1px dashed #E5DCCB" } },
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer", fontWeight: 600, color: "#0f172a" } },
+        h("div", { style: { marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border)" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 12, cursor: "pointer", fontWeight: 600, color: "var(--text-primary)" } },
             h("input", {
               type: "checkbox",
               checked: workshopTheme[0],
               onChange: function (e) { setWorkshopTheme(e.target.checked); }
             }),
             "Workshop print theme (terracotta grid + linen background)"),
-          h("p", { style: { fontSize: 11, color: "#8A8270", margin: "4px 0 0 22px" } },
+          h("p", { style: { fontSize: 11, color: "var(--text-secondary)", margin: "4px 0 0 22px" } },
             "Off by default. Pattern Keeper compatibility uses the standard black-grid output.")
         ),
 
