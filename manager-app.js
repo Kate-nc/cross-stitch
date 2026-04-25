@@ -90,6 +90,12 @@ function ManagerApp() {
     window.addEventListener("cs:openBulkAdd", h);
     return () => window.removeEventListener("cs:openBulkAdd", h);
   }, []);
+  // Command Palette → Preferences modal bridge (UX-12 Phase 6 PR #11).
+  useEffect(() => {
+    const h = () => { if (typeof window.PreferencesModal !== 'undefined') setPreferencesOpen(true); };
+    window.addEventListener("cs:openPreferences", h);
+    return () => window.removeEventListener("cs:openPreferences", h);
+  }, []);
   // Register manager-specific palette actions.
   useEffect(() => {
     if (!window.CommandPalette) return;
@@ -692,7 +698,7 @@ function ManagerApp() {
 
   return (
     <>
-      <Header page="manager" setModal={setModal} onBackupDownload={handleBackupDownload} onRestoreFile={handleRestoreFile} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} storageUsage={storageUsage} />
+      <Header page="manager" setModal={setModal} onBackupDownload={handleBackupDownload} onRestoreFile={handleRestoreFile} onOpenProject={typeof window.ProjectStorage!=='undefined'?()=>{window.location.href='index.html';}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} storageUsage={storageUsage} />
       {preferencesOpen && typeof window.PreferencesModal!=='undefined' && React.createElement(window.PreferencesModal,{onClose:()=>setPreferencesOpen(false)})}
       {backupStatus && (
         <div style={{ padding: "8px 20px 0" }}>

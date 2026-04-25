@@ -1000,6 +1000,10 @@ const[projectDesigner,setProjectDesigner]=useState("");
 const[projectDescription,setProjectDescription]=useState("");
 const[namePromptOpen,setNamePromptOpen]=useState(false);
 const[editDetailsOpen,setEditDetailsOpen]=useState(false);
+// Command Palette → Preferences modal bridge (UX-12 Phase 6 PR #11).
+useEffect(()=>{const h=()=>{if(typeof window.PreferencesModal!=='undefined')setPreferencesOpen(true);};window.addEventListener('cs:openPreferences',h);return()=>window.removeEventListener('cs:openPreferences',h);},[]);
+// Command Palette → Rename current project bridge (UX-12 Phase 6 PR #11).
+useEffect(()=>{const h=()=>setEditDetailsOpen(true);window.addEventListener('cs:openRename',h);return()=>window.removeEventListener('cs:openRename',h);},[]);
 const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
 const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});

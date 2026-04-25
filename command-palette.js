@@ -67,7 +67,7 @@
     return [
       {
         id: 'nav_home', label: 'Go Home', section: 'navigate',
-        keywords: ['home', 'dashboard', 'hub'], icon: '🏠',
+        keywords: ['home', 'dashboard', 'hub'],
         action: function () {
           if (typeof window.__goHome === 'function') return window.__goHome();
           location.href = 'index.html';
@@ -151,7 +151,7 @@
       },
       {
         id: 'act_help', label: 'Help', section: 'action',
-        keywords: ['help', 'guide', 'faq'], icon: '?',
+        keywords: ['help', 'guide', 'faq'],
         action: function () {
           // Dispatch the event matching the active page's modal plumbing.
           var kind = pageKind();
@@ -163,6 +163,19 @@
         id: 'act_shortcuts', label: 'Keyboard Shortcuts', section: 'action',
         keywords: ['keyboard', 'shortcut', 'keys', 'hotkey'],
         action: function () { window.dispatchEvent(new CustomEvent('cs:openShortcuts')); }
+      },
+      {
+        id: 'act_preferences', label: 'Open Preferences', section: 'settings',
+        keywords: ['preferences', 'settings', 'options', 'profile', 'theme'],
+        action: function () { window.dispatchEvent(new CustomEvent('cs:openPreferences')); }
+      },
+      {
+        id: 'act_rename', label: 'Rename current project\u2026', section: 'action',
+        keywords: ['rename', 'name', 'title', 'project', 'edit'],
+        // Only meaningful on Creator and Tracker — Manager has no active
+        // project to rename.
+        condition: function () { var k = pageKind(); return k === 'creator' || k === 'tracker'; },
+        action: function () { window.dispatchEvent(new CustomEvent('cs:openRename')); }
       }
       // [B6] Removed 'act_reset_tour' — onboarding.js retired; the per-page
       // WelcomeWizard replays now live under HelpDrawer → Getting Started.
@@ -256,26 +269,32 @@
 
   function injectStyles() {
     if (document.getElementById('cs-cmdp-styles')) return;
+    // Workshop-tokenised palette (UX-12 Phase 6 PR #11). The
+    // [data-theme="dark"] selectors at the top of styles.css already
+    // override the relevant tokens, so dark mode falls out for free.
+    // The legacy prefers-color-scheme block is retained as a fallback
+    // for users without an explicit data-theme attribute.
     var css = [
       '.cs-cmdp-overlay{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,0.5);display:flex;align-items:flex-start;justify-content:center;padding:max(20vh, env(safe-area-inset-top, 0px) + 12px) 16px 16px;}',
-      '.cs-cmdp-dialog{width:100%;max-width:min(520px, calc(100vw - 32px));max-height:calc(100vh - max(20vh, env(safe-area-inset-top, 0px) + 12px) - 16px);background:#fff;border:1px solid #E5DCCB;border-radius:14px;box-shadow:0 24px 48px rgba(0,0,0,0.18);overflow:hidden;display:flex;flex-direction:column;font-family:inherit;}',
-      '.cs-cmdp-input-wrap{display:flex;align-items:center;gap:10px;padding:0 16px;height:48px;border-bottom:1px solid #EFE7D6;}',
-      '.cs-cmdp-input-wrap svg{flex-shrink:0;color:#8A8270;}',
-      '.cs-cmdp-input{flex:1;border:none;outline:none;background:transparent;font-size:16px;font-family:inherit;color:#0f172a;height:100%;}',
-      '.cs-cmdp-input:focus-visible{outline:2px solid var(--accent, #B85C38);outline-offset:1px;}',
+      '.cs-cmdp-dialog{width:100%;max-width:min(520px, calc(100vw - 32px));max-height:calc(100vh - max(20vh, env(safe-area-inset-top, 0px) + 12px) - 16px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg, 14px);box-shadow:var(--shadow-lg, 0 24px 48px rgba(0,0,0,0.18));overflow:hidden;display:flex;flex-direction:column;font-family:inherit;color:var(--text-primary);}',
+      '.cs-cmdp-input-wrap{display:flex;align-items:center;gap:10px;padding:0 16px;height:48px;border-bottom:1px solid var(--border);}',
+      '.cs-cmdp-input-wrap svg{flex-shrink:0;color:var(--text-tertiary);}',
+      '.cs-cmdp-input{flex:1;border:none;outline:none;background:transparent;font-size:16px;font-family:inherit;color:var(--text-primary);height:100%;}',
+      '.cs-cmdp-input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}',
       '@media (max-width:480px){.cs-cmdp-input:focus-visible{outline-offset:0;}}',
       '.cs-cmdp-list{max-height:360px;overflow-y:auto;padding:8px 0;}',
-      '.cs-cmdp-section{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#A89E89;padding:8px 16px 4px;}',
-      '.cs-cmdp-row{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;font-size:14px;color:#0f172a;}',
-      '.cs-cmdp-row:hover,.cs-cmdp-row[aria-selected="true"]{background:#F4DDCF;}',
-      '.cs-cmdp-row .cs-cmdp-icon{width:18px;text-align:center;color:#8A8270;flex-shrink:0;}',
+      '.cs-cmdp-section{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-tertiary);padding:8px 16px 4px;}',
+      '.cs-cmdp-row{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;font-size:14px;color:var(--text-primary);}',
+      '.cs-cmdp-row:hover,.cs-cmdp-row[aria-selected="true"]{background:var(--accent-soft, var(--accent-light, var(--surface-tertiary)));}',
+      '.cs-cmdp-row .cs-cmdp-icon{width:18px;text-align:center;color:var(--text-tertiary);flex-shrink:0;}',
       '.cs-cmdp-row .cs-cmdp-text{flex:1;min-width:0;}',
       '.cs-cmdp-row .cs-cmdp-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
-      '.cs-cmdp-row .cs-cmdp-sub{font-size:11px;color:#8A8270;margin-top:2px;}',
-      '.cs-cmdp-empty{padding:24px 16px;text-align:center;color:#A89E89;font-size:13px;}',
-      '.cs-cmdp-hint{display:flex;justify-content:space-between;font-size:11px;color:#A89E89;padding:8px 16px;border-top:1px solid #EFE7D6;background:#fafafa;}',
-      '.cs-cmdp-hint kbd{background:#fff;border:1px solid #E5DCCB;border-radius:4px;padding:1px 6px;font-family:inherit;font-size:11px;color:#5C5448;}',
-      '@media (prefers-color-scheme: dark){.cs-cmdp-dialog{background:#1B1814;border-color:#334155;color:#EFE7D6;}.cs-cmdp-input{color:#EFE7D6;}.cs-cmdp-row{color:#EFE7D6;}.cs-cmdp-row:hover,.cs-cmdp-row[aria-selected="true"]{background:#944526;}.cs-cmdp-hint{background:#0f172a;border-top-color:#334155;}.cs-cmdp-hint kbd{background:#1B1814;border-color:#334155;color:#CFC4AC;}}'
+      '.cs-cmdp-row .cs-cmdp-sub{font-size:11px;color:var(--text-tertiary);margin-top:2px;}',
+      '.cs-cmdp-empty{padding:24px 16px;text-align:center;color:var(--text-tertiary);font-size:13px;}',
+      '.cs-cmdp-hint{display:flex;justify-content:space-between;font-size:11px;color:var(--text-tertiary);padding:8px 16px;border-top:1px solid var(--border);background:var(--surface-secondary, var(--surface-tertiary));}',
+      '.cs-cmdp-hint kbd{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:inherit;font-size:11px;color:var(--text-secondary);}',
+      '@media (pointer: coarse){.cs-cmdp-row{min-height:44px;}}',
+      '@media (prefers-reduced-motion: reduce){.cs-cmdp-row{transition:none;}}'
     ].join('\n');
     var style = document.createElement('style');
     style.id = 'cs-cmdp-styles';
@@ -433,7 +452,9 @@
       if (i === highlightIdx) row.setAttribute('aria-selected', 'true');
       var icon = document.createElement('span');
       icon.className = 'cs-cmdp-icon';
-      icon.textContent = a.icon || '›';
+      // No emoji fallback — leave the slot blank when an action has no
+      // explicit icon (avoids unicode glyphs in user-facing UI).
+      icon.textContent = a.icon || '';
       var text = document.createElement('span');
       text.className = 'cs-cmdp-text';
       var label = document.createElement('div');

@@ -93,6 +93,176 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
   );
 }
 
+// ─── HeaderProjectSwitcher (UX-12 Phase 6 PR #10) ───────────────────────
+// Compact button + dropdown showing the active project plus the five
+// most recently updated projects, with a fall-through to the existing
+// project-picker modal via onOpenAll. Reads from ProjectStorage; no new
+// state stores. Mirrors the focus / ARIA pattern from
+// creator/ActionBar.js (Escape, click-outside, ArrowUp/Down/Home/End
+// roving focus, auto-focus first menuitem on open).
+function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll }) {
+  var h = React.createElement;
+  var Icons = window.Icons || {};
+  var openState = React.useState(false);
+  var open = openState[0];
+  var setOpen = openState[1];
+  var listState = React.useState([]);
+  var list = listState[0];
+  var setList = listState[1];
+  var btnRef = React.useRef(null);
+  var menuRef = React.useRef(null);
+  var wrapRef = React.useRef(null);
+
+  // Load + refresh the recent-project list. Refresh on cs:projectsChanged
+  // to stay in step with saves elsewhere in the app (Phase 4 pattern).
+  React.useEffect(function () {
+    if (typeof window.ProjectStorage === 'undefined' || !window.ProjectStorage.listProjects) return undefined;
+    var cancelled = false;
+    function load() {
+      window.ProjectStorage.listProjects().then(function (l) {
+        if (cancelled) return;
+        var sorted = (l || []).slice().sort(function (a, b) {
+          var at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+          var bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          return bt - at;
+        });
+        setList(sorted);
+      }).catch(function () { if (!cancelled) setList([]); });
+    }
+    load();
+    window.addEventListener('cs:projectsChanged', load);
+    return function () { cancelled = true; window.removeEventListener('cs:projectsChanged', load); };
+  }, []);
+
+  // Click-outside / Escape close + roving focus.
+  React.useEffect(function () {
+    if (!open) return undefined;
+    function onDoc(e) {
+      if (wrapRef.current && wrapRef.current.contains(e.target)) return;
+      setOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setOpen(false);
+        if (btnRef.current && btnRef.current.focus) btnRef.current.focus();
+        return;
+      }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+      if (!menuRef.current) return;
+      var items = Array.prototype.slice.call(menuRef.current.querySelectorAll('[role="menuitem"]'));
+      if (!items.length) return;
+      var idx = items.indexOf(document.activeElement);
+      var next = idx;
+      if (e.key === 'ArrowDown') next = idx < 0 ? 0 : (idx + 1) % items.length;
+      else if (e.key === 'ArrowUp') next = idx <= 0 ? items.length - 1 : idx - 1;
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = items.length - 1;
+      if (items[next] && items[next].focus) { items[next].focus(); e.preventDefault(); }
+    }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    var raf = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame : function (fn) { return setTimeout(fn, 0); };
+    var cancel = (typeof cancelAnimationFrame === 'function') ? cancelAnimationFrame : clearTimeout;
+    var handle = raf(function () {
+      if (!menuRef.current) return;
+      var first = menuRef.current.querySelector('[role="menuitem"]');
+      if (first && first.focus) first.focus();
+    });
+    return function () {
+      cancel(handle);
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  function initials(name) {
+    var s = String(name || '').trim();
+    if (!s) return '?';
+    var parts = s.split(/\s+/);
+    if (parts.length === 1) return s.slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
+  function pctOf(p) {
+    if (!p || !p.pattern) return null;
+    var total = 0;
+    for (var i = 0; i < p.pattern.length; i += 1) {
+      var c = p.pattern[i];
+      if (c && c.id !== '__skip__' && c.id !== '__empty__') total += 1;
+    }
+    if (total <= 0) return null;
+    var done = 0;
+    if (p.done) {
+      for (var j = 0; j < p.done.length; j += 1) if (p.done[j] === 1) done += 1;
+    }
+    return Math.round(done / total * 100);
+  }
+
+  var label = projectName || (activeProject && activeProject.name) || 'No project';
+  var activeId = (activeProject && activeProject.id) || (typeof window.ProjectStorage !== 'undefined'
+    && window.ProjectStorage.getActiveProjectId ? window.ProjectStorage.getActiveProjectId() : null);
+  var recents = list.filter(function (p) { return p && p.id !== activeId; }).slice(0, 5);
+
+  function pickProject(id) {
+    setOpen(false);
+    if (typeof window.ProjectStorage !== 'undefined' && window.ProjectStorage.setActiveProject) {
+      try { window.ProjectStorage.setActiveProject(id); } catch (_) {}
+    }
+    // Match command-palette.js: clicking a project means "go track it".
+    window.location.href = 'stitch.html';
+  }
+
+  return h('div', { className: 'tb-proj-switcher', ref: wrapRef },
+    h('button', {
+      ref: btnRef,
+      type: 'button',
+      className: 'tb-proj-switcher__btn',
+      'aria-haspopup': 'menu',
+      'aria-expanded': open ? 'true' : 'false',
+      'aria-label': 'Switch project',
+      onClick: function () { setOpen(function (o) { return !o; }); }
+    },
+      h('span', { className: 'tb-proj-switcher__avatar', 'aria-hidden': 'true' }, initials(label)),
+      h('span', { className: 'tb-proj-switcher__name' }, label),
+      h('span', { className: 'tb-proj-switcher__chev', 'aria-hidden': 'true' },
+        Icons.chevronDown ? Icons.chevronDown() : null)
+    ),
+    open && h('div', {
+      ref: menuRef,
+      className: 'tb-proj-switcher__menu',
+      role: 'menu',
+      'aria-label': 'Recent projects'
+    },
+      recents.length === 0 && h('div', { className: 'tb-proj-switcher__empty' }, 'No other projects yet'),
+      recents.map(function (p) {
+        var pct = pctOf(p);
+        return h('button', {
+          key: p.id,
+          type: 'button',
+          role: 'menuitem',
+          tabIndex: -1,
+          className: 'tb-proj-switcher__item',
+          onClick: function () { pickProject(p.id); }
+        },
+          h('span', { className: 'tb-proj-switcher__avatar', 'aria-hidden': 'true' }, initials(p.name)),
+          h('span', { className: 'tb-proj-switcher__item-text' },
+            h('span', { className: 'tb-proj-switcher__item-name' }, p.name || 'Untitled'),
+            pct !== null && h('span', { className: 'tb-proj-switcher__item-pct' }, pct + '%')
+          )
+        );
+      }),
+      onOpenAll && h('button', {
+        type: 'button',
+        role: 'menuitem',
+        tabIndex: -1,
+        className: 'tb-proj-switcher__item tb-proj-switcher__item--all',
+        onClick: function () { setOpen(false); onOpenAll(); }
+      }, 'All projects\u2026')
+    )
+  );
+}
+
 function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, onOpenProject, onPreferences, onBulkAddThreads, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
@@ -256,7 +426,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         (page === 'creator' || page === 'editor') && React.createElement('div', { ref: dropRef, style: { position: 'relative', flexShrink: 0, marginLeft: 6 } },
           React.createElement('button', { className: 'tb-page-btn', onClick: () => setPageDrop(o => !o), 'aria-haspopup': 'true', 'aria-expanded': pageDrop },
             activeLabel,
-            React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 1 } }, '▾')
+            React.createElement('span', { className: 'tb-page-btn-chev', 'aria-hidden': 'true' },
+              window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
           ),
           pageDrop && React.createElement('div', { className: 'tb-page-dropdown', role: 'menu' },
             creatorPages.map(([id, label]) =>
@@ -271,6 +442,16 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         ),
 
         React.createElement('div', { className: 'tb-hgap' }),
+
+        // Project switcher (UX-12 Phase 6 PR #10) — recents dropdown +
+        // "All projects…" entry that delegates to the existing project
+        // picker. Always present so the active project is identifiable
+        // even before the badge has loaded its name.
+        React.createElement(HeaderProjectSwitcher, {
+          activeProject: projSummary,
+          projectName: propProjectName || projName,
+          onOpenAll: onOpenProject || undefined
+        }),
 
         // Active project badge — editable when onNameChange is provided
         (propProjectName || projName) && React.createElement('div', { className: 'tb-proj-badge' },
@@ -357,7 +538,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         React.createElement('div', { ref: fileMenuRef, style: { position: 'relative', flexShrink: 0 } },
           React.createElement('button', { className: 'tb-page-btn', onClick: () => setFileMenuOpen(o => !o) },
             'File',
-            React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 3 } }, '▾')
+            React.createElement('span', { className: 'tb-page-btn-chev', 'aria-hidden': 'true' },
+              window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
           ),
           fileMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 210 } },
             // Storage usage summary
