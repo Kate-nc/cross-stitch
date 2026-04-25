@@ -16,7 +16,10 @@
       "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
       "Bash(npm run *)",
       "Bash(npm test *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(node _sprint2_tokens.js)"
     ]
   }
 }
