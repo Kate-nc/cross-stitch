@@ -285,7 +285,7 @@
       arrowStyle = {
         position: "fixed", top: anchor.top - 4, left: anchor.left - 4,
         width: anchor.width + 8, height: anchor.height + 8,
-        border: "3px solid #0d9488", borderRadius: 8,
+        border: "3px solid #B85C38", borderRadius: 8,
         boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.45)",
         pointerEvents: "none", zIndex: 2,
         transition: "all 0.18s ease"
@@ -312,7 +312,7 @@
               key: i,
               style: {
                 flex: 1, height: 4, borderRadius: 2,
-                background: i <= idx ? "#0d9488" : "#e2e8f0",
+                background: i <= idx ? "#B85C38" : "#E5DCCB",
                 transition: "background 0.2s"
               }
             });
@@ -331,12 +331,12 @@
                 titleId: titleId
               })
             : [
-                h("h3", { key: "t", id: titleId, style: { margin: "0 0 10px 0", fontSize: 19, color: "#1e293b" } }, step.title),
-                h("p", { key: "b", style: { margin: "0 0 12px 0", fontSize: 14, lineHeight: 1.55, color: "#475569" } }, step.body),
+                h("h3", { key: "t", id: titleId, style: { margin: "0 0 10px 0", fontSize: 19, color: "#1B1814" } }, step.title),
+                h("p", { key: "b", style: { margin: "0 0 12px 0", fontSize: 14, lineHeight: 1.55, color: "#5C5448" } }, step.body),
                 step.tip && h("div", {
                   key: "tip",
                   style: {
-                    padding: "8px 12px", background: "#f0fdfa", border: "1px solid #99f6e4",
+                    padding: "8px 12px", background: "#F4DDCF", border: "1px solid #E8B89A",
                     borderRadius: 6, fontSize: 12, color: "#065f46", marginBottom: 12
                   }
                 }, h("strong", null, "Tip: "), step.tip)
@@ -347,13 +347,13 @@
           h("button", {
             onClick: function () { handleClose(false); },
             className: "onboarding-focusable",
-            style: { padding: "6px 12px", fontSize: 12, color: "#64748b", background: "transparent", border: "none", cursor: "pointer" }
+            style: { padding: "6px 12px", fontSize: 12, color: "#8A8270", background: "transparent", border: "none", cursor: "pointer" }
           }, "Skip tour"),
           h("div", { style: { display: "flex", gap: 8 } },
             idx > 0 && h("button", {
               onClick: function () { setIdx(idx - 1); },
               className: "onboarding-focusable",
-              style: { padding: "8px 14px", fontSize: 13, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", color: "#475569" }
+              style: { padding: "8px 14px", fontSize: 13, borderRadius: 6, border: "1px solid #E5DCCB", background: "#fff", cursor: "pointer", color: "#5C5448" }
             }, "Back"),
             h("button", {
               "data-ob-primary": true,
@@ -361,7 +361,7 @@
               disabled: primaryDisabled,
               className: "onboarding-focusable",
               style: { padding: "8px 16px", fontSize: 13, borderRadius: 6, border: "none",
-                background: primaryDisabled ? "#94a3b8" : "#0d9488",
+                background: primaryDisabled ? "#A89E89" : "#B85C38",
                 color: "#fff", cursor: primaryDisabled ? "not-allowed" : "pointer", fontWeight: 600 }
             }, isLast ? lastLabel : "Next")
           )

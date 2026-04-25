@@ -96,7 +96,7 @@ function SableLineChart({ data }) {
   // Show every other label to avoid crowding
   const labels = data.map((d, i) => {
     if (i % 2 !== 0 && i !== data.length - 1) return null;
-    return h('text', { key: i, x: x(i), y: H - 4, textAnchor: 'middle', fontSize: 10, fill: '#94a3b8' }, fmtMonthShort(d.month));
+    return h('text', { key: i, x: x(i), y: H - 4, textAnchor: 'middle', fontSize: 10, fill: '#A89E89' }, fmtMonthShort(d.month));
   });
 
   return h('div', { style: { marginTop: 16 } },
@@ -108,23 +108,23 @@ function SableLineChart({ data }) {
     },
       // Grid lines
       [0.25, 0.5, 0.75, 1].map(f =>
-        h('line', { key: f, x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - f), y2: PAD.top + IH * (1 - f), stroke: '#e2e8f0', strokeWidth: 1 })
+        h('line', { key: f, x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - f), y2: PAD.top + IH * (1 - f), stroke: '#E5DCCB', strokeWidth: 1 })
       ),
       // Added line (teal)
-      h('polyline', { points: addedPts, fill: 'none', stroke: '#0d9488', strokeWidth: 2.5, strokeLinejoin: 'round', strokeLinecap: 'round' }),
+      h('polyline', { points: addedPts, fill: 'none', stroke: '#B85C38', strokeWidth: 2.5, strokeLinejoin: 'round', strokeLinecap: 'round' }),
       // Used line (muted green)
       h('polyline', { points: usedPts, fill: 'none', stroke: '#6ee7b7', strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round', strokeDasharray: '5 3' }),
       // Dots — added
-      data.map((d, i) => h('circle', { key: 'a' + i, cx: x(i), cy: y(d.added), r: 3, fill: '#0d9488' })),
+      data.map((d, i) => h('circle', { key: 'a' + i, cx: x(i), cy: y(d.added), r: 3, fill: '#B85C38' })),
       // Dots — used
       data.map((d, i) => d.used > 0 && h('circle', { key: 'u' + i, cx: x(i), cy: y(d.used), r: 2.5, fill: '#6ee7b7' })),
       // X-axis labels
       ...labels
     ),
     // Legend
-    h('div', { style: { display: 'flex', gap: 20, marginTop: 6, fontSize: 11, color: '#64748b' } },
+    h('div', { style: { display: 'flex', gap: 20, marginTop: 6, fontSize: 11, color: '#8A8270' } },
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 5 } },
-        h('span', { style: { display: 'inline-block', width: 20, height: 2.5, background: '#0d9488', borderRadius: 2 } }),
+        h('span', { style: { display: 'inline-block', width: 20, height: 2.5, background: '#B85C38', borderRadius: 2 } }),
         'Added'
       ),
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 5 } },
@@ -161,7 +161,7 @@ function AgeBar({ ageData }) {
         return h('div', { key: b.key, style: { width: pct + '%', background: b.color }, title: `${b.label}: ${ageData[b.key]}` });
       })
     ),
-    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginTop: 10, fontSize: 12, color: '#64748b' } },
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginTop: 10, fontSize: 12, color: '#8A8270' } },
       buckets.filter(b => (ageData[b.key] || 0) > 0).map(b => {
         const pct = Math.round((ageData[b.key] || 0) / total * 100);
         return h('span', { key: b.key, style: { display: 'flex', alignItems: 'center', gap: 5 } },
@@ -284,10 +284,10 @@ function ShareModal({ title, drawFn, onClose }) {
 
 // ── Canvas draw helpers ──────────────────────────────────────────
 const CARD_BG = '#faf9f7';
-const CARD_ACCENT = '#0d9488';
-const CARD_TEXT_PRI = '#1e293b';
-const CARD_TEXT_SEC = '#64748b';
-const CARD_BORDER = '#e2e8f0';
+const CARD_ACCENT = '#B85C38';
+const CARD_TEXT_PRI = '#1B1814';
+const CARD_TEXT_SEC = '#8A8270';
+const CARD_BORDER = '#E5DCCB';
 
 function drawCardBase(ctx, W, H) {
   ctx.fillStyle = CARD_BG;
@@ -296,7 +296,7 @@ function drawCardBase(ctx, W, H) {
   ctx.lineWidth = 1;
   ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
   // subtle cross-stitch pattern along top
-  ctx.fillStyle = '#e2e8f0';
+  ctx.fillStyle = '#E5DCCB';
   for (let x = 20; x < W - 20; x += 22) {
     ctx.fillRect(x, 10, 5, 5);
   }
@@ -317,7 +317,7 @@ function drawText(ctx, text, x, y, size, weight, color) {
 }
 
 function drawWatermark(ctx, W, H) {
-  ctx.fillStyle = '#cbd5e1';
+  ctx.fillStyle = '#CFC4AC';
   ctx.font = '400 16px Inter, system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('cross stitch pattern generator', W / 2, H - 20);
@@ -367,7 +367,7 @@ function makeSableCanvas(canvas, sableData, headline) {
     const px = i => chartX + (i / (sableData.length - 1)) * chartW;
     const py = v => chartY + chartH - (v / maxV) * chartH;
     // Grid
-    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    ctx.strokeStyle = '#E5DCCB'; ctx.lineWidth = 1;
     [0.25, 0.5, 0.75, 1].forEach(f => {
       ctx.beginPath(); ctx.moveTo(chartX, chartY + chartH * (1 - f)); ctx.lineTo(chartX + chartW, chartY + chartH * (1 - f)); ctx.stroke();
     });
@@ -462,7 +462,7 @@ function makeFullPageCanvas(canvas, data) {
   ctx.fillStyle = CARD_BG;
   ctx.fillRect(0, 0, W, H);
   // Subtle dot-grid background
-  ctx.fillStyle = '#e2e8f0';
+  ctx.fillStyle = '#E5DCCB';
   for (let gx = 30; gx < W; gx += 30) for (let gy = 30; gy < H; gy += 30) ctx.fillRect(gx - 1, gy - 1, 2, 2);
 
   let cy = 80;
@@ -800,7 +800,7 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
 
   if (loading) {
     return h('div', { style: Object.assign({}, pageStyle, { paddingTop: 60, textAlign: 'center', color: 'var(--text-tertiary)' }) },
-      h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' } }),
+      h('div', { style: { width: 28, height: 28, border: '2.5px solid #E5DCCB', borderTopColor: '#B85C38', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' } }),
       'Loading your showcase…'
     );
   }
@@ -827,7 +827,7 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
     // ── Tracking since banner ────────────────────────────────────
     showBanner && h('div', {
       role: 'status',
-      style: { background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, padding: '10px 14px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 13, color: '#0f766e' }
+      style: { background: '#F4DDCF', border: '1px solid #E8B89A', borderRadius: 10, padding: '10px 14px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 13, color: '#944526' }
     },
       h('span', null, 'Tracking since ' + (function() {
         let earliest = null;
@@ -838,7 +838,7 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
         }
         return earliest ? fmtDate(earliest) : 'recently';
       })() + ' — this page will get richer as your history builds.'),
-      h('button', { onClick: handleDismissBanner, style: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#0f766e', padding: '0 4px', lineHeight: 1 }, 'aria-label': 'Dismiss banner' }, '×')
+      h('button', { onClick: handleDismissBanner, style: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#944526', padding: '0 4px', lineHeight: 1 }, 'aria-label': 'Dismiss banner' }, '×')
     ),
 
     // ── Section 1: Lifetime hero ─────────────────────────────────

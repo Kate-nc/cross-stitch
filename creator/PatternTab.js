@@ -87,15 +87,15 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   return h("div", null,
     cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {
-      style:{fontSize:12,color:"#475569",marginBottom:6,background:"#f1f5f9",padding:"6px 10px",borderRadius:8}
+      style:{fontSize:12,color:"#5C5448",marginBottom:6,background:"#EFE7D6",padding:"6px 10px",borderRadius:8}
     }, "To see symbols, you may need to zoom in."),
 
     ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
-      style:{fontSize:12,color:"#94a3b8",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
+      style:{fontSize:12,color:"#A89E89",padding:"8px 12px",background:"#EFE7D6",borderRadius:8,marginBottom:8,textAlign:"center"}
     }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
     !app.shortcutsHintDismissed && h("div", {
-      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
+      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #E5DCCB",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
@@ -131,7 +131,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ? h(window.CreatorSplitPane, null)
       : h("div", {
       ref:app.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#f1f5f9",cursor:(function(){
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #E5DCCB",borderRadius:8,background:"#EFE7D6",cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
         if (cv.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
@@ -184,18 +184,18 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }
       return h("div", {className:"tb-status", style:{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
         h("span", null, parts[0]),
-        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#94a3b8",flexShrink:0}}, parts[1]),
+        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#A89E89",flexShrink:0}}, parts[1]),
         parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
           ctx.cmap && ctx.pat && cv.hoverCoords && (function() {
             var hIdx2 = cv.hoverCoords.gy * ctx.sW + cv.hoverCoords.gx;
             var hCell2 = ctx.pat[hIdx2];
             if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
-              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
+              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #CFC4AC",
                 background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
             }
             return null;
           })(),
-          h("span", {style:{fontSize:10,color:"#475569"}}, parts[2])
+          h("span", {style:{fontSize:10,color:"#5C5448"}}, parts[2])
         )
       );
     })(),
@@ -203,11 +203,11 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     h("div", {style:{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}},
       cv.editHistory.length > 0 && h("button", {
         onClick: cv.undoEdit,
-        style:{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}
+        style:{fontSize:11,padding:"4px 10px",border:"1px solid #E8B89A",borderRadius:6,background:"#F4DDCF",color:"#B85C38",cursor:"pointer"}
       }, "\u21A9 Undo"),
       cv.redoHistory.length > 0 && h("button", {
         onClick: cv.redoEdit,
-        style:{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}
+        style:{fontSize:11,padding:"4px 10px",border:"1px solid #E8B89A",borderRadius:6,background:"#F4DDCF",color:"#B85C38",cursor:"pointer"}
       }, "\u21AA Redo"),
       cv.hiId && h("button", {
         onClick: function(){cv.setHiId(null);},

@@ -159,9 +159,9 @@
         key: r.id,
         style: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: bg, borderRadius: 6, border: '1px solid ' + border, marginBottom: 4 }
       },
-        h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid #cbd5e1', flexShrink: 0 } }),
+        h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
         h('div', { style: { width: 38, fontWeight: 700, fontSize: 12, flexShrink: 0 } }, r.id),
-        h('div', { style: { flex: 1, fontSize: 12, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name),
+        h('div', { style: { flex: 1, fontSize: 12, color: '#5C5448', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name),
         h('div', { style: { fontSize: 11, color: kind === 'owned' ? '#15803d' : '#b91c1c', fontWeight: 500, flexShrink: 0 } }, note)
       );
     };
@@ -172,17 +172,17 @@
         onClick: function (e) { e.stopPropagation(); },
         style: { maxWidth: 540, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }
       },
-        h('div', { style: { padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        h('div', { style: { padding: '16px 20px', borderBottom: '1px solid #E5DCCB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
           h('h2', { style: { margin: 0, fontSize: 18 } }, 'What do I need to buy?'),
           h('button', {
             onClick: onClose,
-            style: { background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#94a3b8' }
+            style: { background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#A89E89' }
           }, '\u00D7')
         ),
         h('div', {
           style: {
             padding: '10px 20px', background: buyRows.length === 0 ? '#f0fdf4' : '#fffbeb',
-            borderBottom: '1px solid #e2e8f0', fontSize: 12,
+            borderBottom: '1px solid #E5DCCB', fontSize: 12,
             color: buyRows.length === 0 ? '#15803d' : '#92400e', fontWeight: 600
           }
         },
@@ -192,7 +192,7 @@
         ),
         h('div', { style: { padding: '12px 20px', overflowY: 'auto', flex: 1 } },
           rows.length === 0
-            ? h('div', { style: { padding: 30, textAlign: 'center', color: '#94a3b8' } }, 'No threads in this pattern yet.')
+            ? h('div', { style: { padding: 30, textAlign: 'center', color: '#A89E89' } }, 'No threads in this pattern yet.')
             : h(React.Fragment, null,
                 buyRows.length > 0 && sectionLabel('Need to buy (' + buyRows.length + ')', '#dc2626'),
                 buyRows.map(function (r) { return rowEl(r, 'needed'); }),
@@ -201,17 +201,17 @@
               )
         ),
         h('div', {
-          style: { padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8f9fa', gap: 8, flexWrap: 'wrap' }
+          style: { padding: '14px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FBF8F3', gap: 8, flexWrap: 'wrap' }
         },
           h('span', { style: { fontSize: 12, color: '#16a34a', fontWeight: 600, opacity: copied ? 1 : 0, transition: 'opacity 0.2s' } }, 'Copied!'),
           h('div', { style: { display: 'flex', gap: 8, marginLeft: 'auto' } },
             h('a', {
               href: 'manager.html',
-              style: { padding: '7px 14px', borderRadius: 8, border: '0.5px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13, textDecoration: 'none', color: '#475569' }
+              style: { padding: '7px 14px', borderRadius: 8, border: '0.5px solid #E5DCCB', background: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13, textDecoration: 'none', color: '#5C5448' }
             }, 'Open in Stash Manager'),
             rows.length > 0 && h('button', {
               onClick: copyText,
-              style: { padding: '7px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13 }
+              style: { padding: '7px 14px', borderRadius: 8, border: 'none', background: '#B85C38', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13 }
             }, 'Copy list')
           )
         )

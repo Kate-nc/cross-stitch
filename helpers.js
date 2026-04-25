@@ -1146,7 +1146,7 @@ function sectionColor(pct){
   if(pct>=50)return'#d97706';
   if(pct>=25)return'#ea580c';
   if(pct>0)return'#f87171';
-  return'#e2e8f0';
+  return'#E5DCCB';
 }
 
 // ═══ Visual Progress: Comparison canvas renderers ═══

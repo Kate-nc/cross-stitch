@@ -129,13 +129,13 @@
     var h = React.createElement;
 
     if (data.loading) {
-      return h("div", { className: "project-library-loading", style: { padding: 20, color: "#64748b", fontSize: 13 } },
+      return h("div", { className: "project-library-loading", style: { padding: 20, color: "#8A8270", fontSize: 13 } },
         "Loading projects\u2026");
     }
     if (!Dashboard) {
       // home-screen.js not loaded — render a minimal fallback so Manager users
       // still see something useful.
-      return h("div", { className: "project-library-fallback", style: { padding: 20, color: "#64748b", fontSize: 13 } },
+      return h("div", { className: "project-library-fallback", style: { padding: 20, color: "#8A8270", fontSize: 13 } },
         "Project Library is unavailable on this page.");
     }
 

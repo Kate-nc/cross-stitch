@@ -165,13 +165,13 @@
     }, [thisWeek, lastWeek]);
     return h('div', {
       style: {
-        background: 'linear-gradient(135deg, #f0fdfa 0%, #ecfeff 100%)',
-        border: '1px solid #99f6e4', borderRadius: 'var(--radius-lg)',
+        background: 'linear-gradient(135deg, #F4DDCF 0%, #ecfeff 100%)',
+        border: '1px solid #E8B89A', borderRadius: 'var(--radius-lg)',
         padding: '16px 20px', marginBottom: 16
       }
     },
       h('div', {
-        style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.06, color: '#0d9488', marginBottom: 8 }
+        style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.06, color: '#B85C38', marginBottom: 8 }
       }, 'This week'),
       h('p', {
         style: { margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--text-primary)' }
@@ -182,7 +182,7 @@
   function ProjectionCard({ p }) {
     const isComplete = p.status === 'complete';
     const isPaused = p.status === 'paused';
-    const accent = p.projectColor || '#0d9488';
+    const accent = p.projectColor || '#B85C38';
     return h('div', {
       className: 'gsd-project-card',
       style: {
@@ -377,7 +377,7 @@
 
     if (data.loading) {
       return h('div', { style: { padding: '60px 0', textAlign: 'center', color: 'var(--text-tertiary)' } },
-        h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
+        h('div', { style: { width: 28, height: 28, border: '2.5px solid #E5DCCB', borderTopColor: '#B85C38', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
         'Building your insights\u2026'
       );
     }

@@ -1889,7 +1889,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     ctx2d.globalAlpha = 1.0;
   }
 
-  ctx2d.fillStyle = "#94a3b8";
+  ctx2d.fillStyle = "#A89E89";
   ctx2d.font = Math.max(7, Math.min(11, cSz * 0.5)) + "px system-ui";
   ctx2d.textAlign = "center";
   ctx2d.textBaseline = "middle";
@@ -2170,7 +2170,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     ctx2d.globalAlpha = 1.0;
   }
 
-  ctx2d.fillStyle = "#94a3b8";
+  ctx2d.fillStyle = "#A89E89";
   ctx2d.font = Math.max(7, Math.min(11, cSz * 0.5)) + "px system-ui";
   ctx2d.textAlign = "center";
   ctx2d.textBaseline = "middle";
@@ -8779,7 +8779,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
   // Sync icon SVG
   function renderSyncIcon(locked) {
     return h("svg", { width: 12, height: 12, viewBox: "0 0 14 14", fill: "none",
-      stroke: locked ? "#0d9488" : "#94a3b8", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" },
+      stroke: locked ? "#B85C38" : "#A89E89", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" },
       locked
         ? [h("path",  { key: "shackle", d: "M4 6V4.5a3 3 0 016 0V6" }),
            h("rect",  { key: "body",    x: "2.5", y: "6", width: "9", height: "6.5", rx: "1.5" })]
@@ -8790,8 +8790,8 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   var hdrStyle = {
     display: "flex", alignItems: "center", gap: 4, padding: "3px 8px",
-    background: "#f8fafc", borderBottom: "0.5px solid #e2e8f0",
-    fontSize: 11, fontWeight: 600, color: "#475569", userSelect: "none", flexShrink: 0,
+    background: "#f8fafc", borderBottom: "0.5px solid #E5DCCB",
+    fontSize: 11, fontWeight: 600, color: "#5C5448", userSelect: "none", flexShrink: 0,
   };
 
   // ── Mobile / narrow stacked layout ─────────────────────────────────────────
@@ -8800,7 +8800,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       // Chart pane — full width
       h("div", {
         ref: app.scrollRef,
-        style: { overflow: "auto", maxHeight: 400, border: "0.5px solid #e2e8f0", borderRadius: "8px 8px 0 0", background: "#f1f5f9", cursor: leftCursor },
+        style: { overflow: "auto", maxHeight: 400, border: "0.5px solid #E5DCCB", borderRadius: "8px 8px 0 0", background: "#EFE7D6", cursor: leftCursor },
         onContextMenu: onLeftContextMenu,
       }, h(window.PatternCanvas, null)),
 
@@ -8809,14 +8809,14 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         onClick: function() { setPreviewOpen(function(o) { return !o; }); },
         style: {
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "5px 10px", background: "#f1f5f9", border: "0.5px solid #e2e8f0",
-          cursor: "pointer", fontSize: 11, color: "#475569", fontWeight: 500, userSelect: "none",
+          padding: "5px 10px", background: "#EFE7D6", border: "0.5px solid #E5DCCB",
+          cursor: "pointer", fontSize: 11, color: "#5C5448", fontWeight: 500, userSelect: "none",
         },
       },
         h("span", null, previewOpen ? "\u25B2 Hide preview" : "\u25BC Show preview"),
         h("button", {
           onClick: function(e) { e.stopPropagation(); exitSplit(); },
-          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          style: { background: "none", border: "none", cursor: "pointer", color: "#A89E89", fontSize: 14, padding: "0 2px", lineHeight: 1 },
           title: "Exit split view",
         }, "\xD7")
       ),
@@ -8830,7 +8830,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         ref: rightScrollRef,
         "aria-hidden": previewOpen ? "false" : "true",
         style: previewOpen
-          ? { overflow: "auto", maxHeight: 220, border: "0.5px solid #e2e8f0", borderRadius: "0 0 8px 8px", background: "#f1f5f9" }
+          ? { overflow: "auto", maxHeight: 220, border: "0.5px solid #E5DCCB", borderRadius: "0 0 8px 8px", background: "#EFE7D6" }
           : { position: "absolute", left: -99999, top: -99999, width: 1, height: 1, overflow: "hidden", visibility: "hidden", pointerEvents: "none" },
       }, rightPaneCanvas())
     );
@@ -8841,7 +8841,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
     ref: containerRef,
     style: {
       display: "flex", width: "100%", height: 550,
-      border: "0.5px solid #e2e8f0", borderRadius: 8, overflow: "hidden", position: "relative",
+      border: "0.5px solid #E5DCCB", borderRadius: 8, overflow: "hidden", position: "relative",
     },
   },
 
@@ -8859,13 +8859,13 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         h("span", { style: { flex: 1 } }),
         h("button", {
           onClick: exitSplit, title: "Exit split view",
-          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          style: { background: "none", border: "none", cursor: "pointer", color: "#A89E89", fontSize: 14, padding: "0 2px", lineHeight: 1 },
         }, "\xD7")
       ),
       // Chart scroll container — this IS app.scrollRef
       h("div", {
         ref: app.scrollRef,
-        style: { flex: 1, overflow: "auto", background: "#f1f5f9", cursor: leftCursor },
+        style: { flex: 1, overflow: "auto", background: "#EFE7D6", cursor: leftCursor },
         onContextMenu: onLeftContextMenu,
       }, h(window.PatternCanvas, null))
     ),
@@ -8874,7 +8874,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
     h("div", {
       style: {
         width: 6, flexShrink: 0, cursor: "col-resize",
-        background: "#e2e8f0", position: "relative",
+        background: "#E5DCCB", position: "relative",
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center", gap: 4,
         zIndex: 10, userSelect: "none",
@@ -8892,7 +8892,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         title: app.splitPaneSyncEnabled ? "Scroll sync on \u2014 click to disable" : "Scroll sync off \u2014 click to enable",
         style: {
           background: app.splitPaneSyncEnabled ? "#e0fdf4" : "#fff",
-          border: "1px solid " + (app.splitPaneSyncEnabled ? "#0d9488" : "#d1d5db"),
+          border: "1px solid " + (app.splitPaneSyncEnabled ? "#B85C38" : "#d1d5db"),
           borderRadius: 4, width: 20, height: 20, padding: 0, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
@@ -8901,9 +8901,9 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
       // Drag handle dots
       h("div", { style: { display: "flex", flexDirection: "column", gap: 2, opacity: 0.4, marginTop: 4 } },
-        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#64748b" } }),
-        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#64748b" } }),
-        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#64748b" } })
+        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#8A8270" } }),
+        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#8A8270" } }),
+        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#8A8270" } })
       )
     ),
 
@@ -8918,7 +8918,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
             onClick: function() { setRightDropOpen(function(o) { return !o; }); },
             style: {
               background: "none", border: "none", cursor: "pointer",
-              fontSize: 11, fontWeight: 600, color: "#475569",
+              fontSize: 11, fontWeight: 600, color: "#5C5448",
               display: "flex", alignItems: "center", gap: 2, padding: 0,
             },
           },
@@ -8928,7 +8928,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           rightDropOpen && h("div", {
             style: {
               position: "absolute", top: "100%", left: 0, marginTop: 2,
-              background: "#fff", border: "0.5px solid #e2e8f0",
+              background: "#fff", border: "0.5px solid #E5DCCB",
               borderRadius: 6, boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
               zIndex: 200, minWidth: 180, padding: "4px 0",
             },
@@ -8943,9 +8943,9 @@ window.CreatorSplitPane = function CreatorSplitPane() {
                 },
                 style: {
                   display: "block", width: "100%", textAlign: "left",
-                  padding: "5px 12px", background: app.rightPaneMode === m ? "#f0fdfa" : "none",
+                  padding: "5px 12px", background: app.rightPaneMode === m ? "#F4DDCF" : "none",
                   border: "none", cursor: "pointer", fontSize: 11,
-                  color: app.rightPaneMode === m ? "#0d9488" : "#475569",
+                  color: app.rightPaneMode === m ? "#B85C38" : "#5C5448",
                   fontWeight: app.rightPaneMode === m ? 600 : 400,
                 },
               }, MODE_LABELS[m]);
@@ -8955,14 +8955,14 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         h("span", { style: { flex: 1 } }),
         h("button", {
           onClick: exitSplit, title: "Exit split view",
-          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          style: { background: "none", border: "none", cursor: "pointer", color: "#A89E89", fontSize: 14, padding: "0 2px", lineHeight: 1 },
         }, "\xD7")
       ),
 
       // Right pane scroll container
       h("div", {
         ref: rightScrollRef,
-        style: { flex: 1, overflow: "auto", background: "#f1f5f9" },
+        style: { flex: 1, overflow: "auto", background: "#EFE7D6" },
       }, rightPaneCanvas())
     )
   );
@@ -9156,13 +9156,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
-      style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0,maxWidth:"60vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
+      style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#F4DDCF",border:"1px solid #E8B89A",marginRight:6,flexShrink:0,maxWidth:"60vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
       title: ctx.cmap[cv.selectedColorId].name || cv.selectedColorId
     },
-      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}),
-      h("span", {style:{fontWeight:600,color:"#0d9488",flexShrink:0}}, cv.selectedColorId),
-      ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"#0f766e",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
-    ) : h("span", {style:{fontSize:10,color:"#94a3b8",marginRight:6,flexShrink:0}}, "none selected"),
+      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid #CFC4AC",display:"inline-block",flexShrink:0}}),
+      h("span", {style:{fontWeight:600,color:"#B85C38",flexShrink:0}}, cv.selectedColorId),
+      ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"#944526",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
+    ) : h("span", {style:{fontSize:10,color:"#A89E89",marginRight:6,flexShrink:0}}, "none selected"),
     swatchesShown.map(function(p) {
       var isSel = cv.selectedColorId === p.id;
       return h("button", {
@@ -9175,7 +9175,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           width:20, height:20, flexShrink:0,
           borderRadius:4, cursor:"pointer", padding:0,
           background:"rgb("+p.rgb+")",
-          border: isSel ? "2px solid #0d9488" : "1.5px solid rgba(0,0,0,0.15)",
+          border: isSel ? "2px solid #B85C38" : "1.5px solid rgba(0,0,0,0.15)",
           boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
           outline:"none"
         }
@@ -9233,7 +9233,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         onClick:function(){ if(cv.cancelLasso) cv.cancelLasso(); if(cv.clearSelection) cv.clearSelection(); },
         title:"Clear selection (Esc)",
         "aria-label":"Clear selection",
-        style:{fontSize:10,padding:"2px 6px",color:"#475569"}
+        style:{fontSize:10,padding:"2px 6px",color:"#5C5448"}
       }, (cv.selectionCount||0).toLocaleString()+" sel ", window.Icons.x())
     )
   ];
@@ -9317,7 +9317,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:function(){cv.setShowOverlay(function(v){return !v;});}
     },
       h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-        border:"2px solid "+(cv.showOverlay?"#0d9488":"#cbd5e1")}}),
+        border:"2px solid "+(cv.showOverlay?"#B85C38":"#CFC4AC")}}),
       " Overlay"+(cv.showOverlay?" \u2713":"")
     ),
     cv.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
@@ -9435,7 +9435,7 @@ window.MagicWandPanel = function MagicWandPanel() {
   function swatch(rgb) {
     return h("span", {
       style: { display: "inline-block", width: 12, height: 12, borderRadius: 2,
-        background: "rgb(" + (rgb || [128,128,128]) + ")", border: "1px solid #cbd5e1",
+        background: "rgb(" + (rgb || [128,128,128]) + ")", border: "1px solid #CFC4AC",
         verticalAlign: "middle", marginRight: 3 }
     });
   }
@@ -9725,10 +9725,10 @@ window.MagicWandPanel = function MagicWandPanel() {
 
   // ─── Outline panel ───────────────────────────────────────────────────────────
   var outlinePanel = (panel === "outline" && hasSelection) ? h("div", {
-    style: { padding: "10px 14px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0",
+    style: { padding: "10px 14px", background: "#f8fafc", borderBottom: "1px solid #E5DCCB",
       display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
   },
-    h("strong", { style: { color: "#1e293b" } }, "Generate Backstitch Outline"),
+    h("strong", { style: { color: "#1B1814" } }, "Generate Backstitch Outline"),
     h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
       "Outline thread (DMC):",
       h("input", {
@@ -10402,7 +10402,7 @@ function SubstituteFromStashModalInner(props) {
         display: "inline-block", width: size, height: size,
         borderRadius: 3,
         background: "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")",
-        border: "1px solid #cbd5e1", flexShrink: 0, verticalAlign: "middle"
+        border: "1px solid #CFC4AC", flexShrink: 0, verticalAlign: "middle"
       }
     });
   }
@@ -10431,7 +10431,7 @@ function SubstituteFromStashModalInner(props) {
       h("div", {
         style: {
           borderRadius: 6, overflow: "hidden",
-          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#fed7aa" : "#e2e8f0") : "#f1f5f9"),
+          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#fed7aa" : "#E5DCCB") : "#EFE7D6"),
           opacity: isEnabled ? 1 : 0.55
         }
       },
@@ -10439,7 +10439,7 @@ function SubstituteFromStashModalInner(props) {
         h("div", {
           style: {
             display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
-            background: isEnabled ? (hasContrastWarning ? "#fffbeb" : "#fff") : "#f8f9fa"
+            background: isEnabled ? (hasContrastWarning ? "#fffbeb" : "#fff") : "#FBF8F3"
           }
         },
           h("input", {
@@ -10449,17 +10449,17 @@ function SubstituteFromStashModalInner(props) {
           swatch(sub.sourceRgb),
           h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sub.sourceId),
           sub.isBlendComponent
-            ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0 } }, "(blend)")
+            ? h("span", { style: { fontSize: 10, color: "#A89E89", flexShrink: 0 } }, "(blend)")
             : null,
-          h("span", { style: { color: "#94a3b8", fontSize: 13, flexShrink: 0 } }, "\u2192"),
+          h("span", { style: { color: "#A89E89", fontSize: 13, flexShrink: 0 } }, "\u2192"),
           swatch(target.rgb),
           h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + target.id),
-          h("span", { style: { fontSize: 11, color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
+          h("span", { style: { fontSize: 11, color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
           sub.includedFromNearMiss
             ? h("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: "#fff7ed", color: "#c2410c", flexShrink: 0 } }, "manual\u00B7\u0394E\u202F" + target.deltaE)
             : statusBadge(effStatus),
           !sub.includedFromNearMiss
-            ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
+            ? h("span", { style: { fontSize: 10, color: "#A89E89", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
             : null,
           h("span", {
             style: { fontSize: 10, color: target.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 44, textAlign: "right" }
@@ -10502,15 +10502,15 @@ function SubstituteFromStashModalInner(props) {
                 onClick: function() { selectOverride(sub, alt); },
                 style: {
                   display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", borderRadius: 5,
-                  border: "1px solid " + (isSelected ? "#a78bfa" : "#e2e8f0"),
+                  border: "1px solid " + (isSelected ? "#a78bfa" : "#E5DCCB"),
                   background: isSelected ? "#f5f3ff" : "#fafafa",
                   cursor: "pointer", fontSize: 11
                 }
               },
                 swatch(alt.rgb, 12),
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + alt.id),
-                h("span", { style: { color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
-                h("span", { style: { color: "#94a3b8", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
+                h("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
+                h("span", { style: { color: "#A89E89", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
                 h("span", { style: { color: alt.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
                 isSelected ? h("span", { style: { color: "#7c3aed", fontWeight: 700, marginLeft: 4, flexShrink: 0 } }, "\u2713") : null
               );
@@ -10535,11 +10535,11 @@ function SubstituteFromStashModalInner(props) {
       h("div", { style: { display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", fontSize: 12 } },
         swatch(sk.sourceRgb || [128, 128, 128], 12),
         h("span", { style: { fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sk.sourceId),
-        h("span", { style: { color: "#475569", flex: 1 } }, sk.sourceName),
+        h("span", { style: { color: "#5C5448", flex: 1 } }, sk.sourceName),
         sk.isBlendComponent
-          ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0 } }, "(blend)")
+          ? h("span", { style: { fontSize: 10, color: "#A89E89", flexShrink: 0 } }, "(blend)")
           : null,
-        h("span", { style: { color: "#94a3b8", fontSize: 11, flexShrink: 0 } }, reasonText),
+        h("span", { style: { color: "#A89E89", fontSize: 11, flexShrink: 0 } }, reasonText),
         hasNm
           ? h("button", {
               onClick: function() { setNmExpanded(function(prev) { var n = Object.assign({}, prev); n[skk] = !n[skk]; return n; }); },
@@ -10550,7 +10550,7 @@ function SubstituteFromStashModalInner(props) {
                 color: "#92400e", flexShrink: 0
               }
             }, isNmOpen ? "\u25B4 Hide" : "Near misses \u25BE")
-          : h("span", { style: { fontSize: 10, color: "#cbd5e1", flexShrink: 0 } }, "no near misses")
+          : h("span", { style: { fontSize: 10, color: "#CFC4AC", flexShrink: 0 } }, "no near misses")
       ),
       isNmOpen && hasNm
         ? h("div", { style: { paddingLeft: 28, paddingBottom: 6, display: "flex", flexDirection: "column", gap: 4 } },
@@ -10564,7 +10564,7 @@ function SubstituteFromStashModalInner(props) {
               },
                 swatch(nm.rgb, 12),
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + nm.id),
-                h("span", { style: { color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nm.name),
+                h("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nm.name),
                 h("span", { style: { color: "#d97706", flexShrink: 0 } }, "\u0394E\u202F" + nm.deltaE),
                 h("span", { style: { color: nm.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, nm.ownedSkeins + "/" + nm.neededSkeins + "sk"),
                 h("button", {
@@ -10585,13 +10585,13 @@ function SubstituteFromStashModalInner(props) {
   // F2: Canvas preview section
   function renderPreview() {
     if (!ctx.pat || !ctx.sW || !ctx.sH) return null;
-    var sectionHeader = h("div", { style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } }, "Pattern Preview");
+    var sectionHeader = h("div", { style: { fontSize: 11, color: "#8A8270", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } }, "Pattern Preview");
 
     // Still generating
     if (!originalThumb) {
       return h("div", { style: { marginBottom: 14 } },
         sectionHeader,
-        h("div", { style: { height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9", color: "#94a3b8", fontSize: 12 } },
+        h("div", { style: { height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "#FBF8F3", borderRadius: 8, border: "1px solid #EFE7D6", color: "#A89E89", fontSize: 12 } },
           "Generating preview\u2026"
         )
       );
@@ -10612,12 +10612,12 @@ function SubstituteFromStashModalInner(props) {
           })
         : h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
             h("div", { style: { textAlign: "center" } },
-              h("img", { src: originalThumb, alt: "Current pattern", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #e2e8f0" } }),
-              h("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "Current")
+              h("img", { src: originalThumb, alt: "Current pattern", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #E5DCCB" } }),
+              h("div", { style: { fontSize: 10, color: "#A89E89", marginTop: 3 } }, "Current")
             ),
             h("div", { style: { textAlign: "center" } },
-              h("img", { src: afterSrc, alt: "After substitution", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #e2e8f0" } }),
-              h("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "After substitution")
+              h("img", { src: afterSrc, alt: "After substitution", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #E5DCCB" } }),
+              h("div", { style: { fontSize: 10, color: "#A89E89", marginTop: 3 } }, "After substitution")
             )
           )
     );
@@ -10644,11 +10644,11 @@ function SubstituteFromStashModalInner(props) {
       }
     },
       // ── Header ────────────────────────────────────────────────────────────────
-      h("div", { style: { display: "flex", alignItems: "center", padding: "16px 20px 14px", borderBottom: "1px solid #f1f5f9", flexShrink: 0 } },
-        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1e293b", flex: 1 } }, "Replace with Stash Threads"),
+      h("div", { style: { display: "flex", alignItems: "center", padding: "16px 20px 14px", borderBottom: "1px solid #EFE7D6", flexShrink: 0 } },
+        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1B1814", flex: 1 } }, "Replace with Stash Threads"),
         h("button", {
           onClick: closeModal,
-          style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8", padding: "0 4px", borderRadius: 6, lineHeight: 1 }
+          style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#A89E89", padding: "0 4px", borderRadius: 6, lineHeight: 1 }
         }, "\xD7")
       ),
 
@@ -10656,10 +10656,10 @@ function SubstituteFromStashModalInner(props) {
       h("div", { style: { overflow: "auto", flex: 1, padding: "16px 20px" } },
 
         // Controls: ΔE slider + preserve contrast toggle
-        h("div", { style: { marginBottom: 16, padding: "12px 14px", background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9" } },
+        h("div", { style: { marginBottom: 16, padding: "12px 14px", background: "#FBF8F3", borderRadius: 8, border: "1px solid #EFE7D6" } },
           h("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 8 } },
-            h("span", { style: { fontSize: 12, color: "#475569", fontWeight: 600 } }, "Max colour distance (\u0394E):"),
-            h("span", { style: { fontSize: 15, fontWeight: 700, color: "#1e293b", minWidth: 28 } }, localMaxDE),
+            h("span", { style: { fontSize: 12, color: "#5C5448", fontWeight: 600 } }, "Max colour distance (\u0394E):"),
+            h("span", { style: { fontSize: 15, fontWeight: 700, color: "#1B1814", minWidth: 28 } }, localMaxDE),
             analyzing ? h("span", { style: { fontSize: 11, color: "#7c3aed" } }, "Analysing\u2026") : null
           ),
           h("input", {
@@ -10668,7 +10668,7 @@ function SubstituteFromStashModalInner(props) {
             onChange: function(e) { handleSliderChange(parseInt(e.target.value)); },
             style: { width: "100%", accentColor: "#7c3aed", cursor: "pointer" }
           }),
-          h("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94a3b8", marginTop: 2 } },
+          h("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: "#A89E89", marginTop: 2 } },
             h("span", null, "1 \u2014 exact match"),
             h("span", null, "40 \u2014 broad")
           ),
@@ -10679,8 +10679,8 @@ function SubstituteFromStashModalInner(props) {
               onChange: function(e) { handlePreserveContrastChange(e.target.checked); },
               style: { width: 14, height: 14, accentColor: "#7c3aed", cursor: "pointer" }
             }),
-            h("span", { style: { fontSize: 12, color: "#475569" } }, "Preserve colour contrast"),
-            h("span", { style: { fontSize: 10, color: "#94a3b8", marginLeft: 2 } },
+            h("span", { style: { fontSize: 12, color: "#5C5448" } }, "Preserve colour contrast"),
+            h("span", { style: { fontSize: 10, color: "#A89E89", marginLeft: 2 } },
               "(avoid substitutions that make palette colours too similar)"
             )
           )
@@ -10693,7 +10693,7 @@ function SubstituteFromStashModalInner(props) {
         p.substitutions.length > 0
           ? h("div", { style: { marginBottom: 14 } },
               h("div", {
-                style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" }
+                style: { fontSize: 11, color: "#8A8270", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" }
               }, "Proposed Substitutions (" + p.substitutions.length + ")"),
               h("div", { style: { display: "flex", flexDirection: "column", gap: 4 } },
                 p.substitutions.map(renderSubRow)
@@ -10704,10 +10704,10 @@ function SubstituteFromStashModalInner(props) {
         // Skipped (F3: with near-miss expansion)
         p.skipped.length > 0
           ? h("div", { style: { marginBottom: 14 } },
-              h("div", { style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } },
+              h("div", { style: { fontSize: 11, color: "#8A8270", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } },
                 "Skipped \u2014 No Suitable Match (" + p.skipped.length + ")"
               ),
-              h("div", { style: { background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9", padding: "4px 8px", display: "flex", flexDirection: "column" } },
+              h("div", { style: { background: "#FBF8F3", borderRadius: 8, border: "1px solid #EFE7D6", padding: "4px 8px", display: "flex", flexDirection: "column" } },
                 p.skipped.map(renderSkipRow)
               )
             )
@@ -10715,7 +10715,7 @@ function SubstituteFromStashModalInner(props) {
 
         // No results at all
         p.substitutions.length === 0 && p.skipped.length === 0
-          ? h("div", { style: { padding: "20px", textAlign: "center", color: "#94a3b8", fontSize: 13 } },
+          ? h("div", { style: { padding: "20px", textAlign: "center", color: "#A89E89", fontSize: 13 } },
               "No unowned threads found \u2014 all threads are already marked as owned."
             )
           : null,
@@ -10731,18 +10731,18 @@ function SubstituteFromStashModalInner(props) {
             ? h("span", { style: { color: "#b45309" } }, " \xB7 " + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : ""))
             : null
         ),
-        h("div", { style: { marginTop: 8, fontSize: 11, color: "#94a3b8" } },
+        h("div", { style: { marginTop: 8, fontSize: 11, color: "#A89E89" } },
           "Tip: All changes can be undone with Ctrl+Z"
         )
       ),
 
       // ── Footer ────────────────────────────────────────────────────────────────
       h("div", {
-        style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderTop: "1px solid #f1f5f9", flexShrink: 0 }
+        style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderTop: "1px solid #EFE7D6", flexShrink: 0 }
       },
         h("button", {
           onClick: closeModal,
-          style: { padding: "8px 20px", fontSize: 13, borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", cursor: "pointer", fontWeight: 500 }
+          style: { padding: "8px 20px", fontSize: 13, borderRadius: 8, border: "1px solid #E5DCCB", background: "#fff", color: "#5C5448", cursor: "pointer", fontWeight: 500 }
         }, "Cancel"),
         h("button", {
           onClick: applySubstitutions,
@@ -10750,9 +10750,9 @@ function SubstituteFromStashModalInner(props) {
           style: {
             padding: "8px 22px", fontSize: 13, borderRadius: 8, fontWeight: 700,
             cursor: enabledSubs.length === 0 ? "not-allowed" : "pointer",
-            border: enabledSubs.length === 0 ? "1px solid #e2e8f0" : "1px solid #a78bfa",
-            background: enabledSubs.length === 0 ? "#f8f9fa" : "#7c3aed",
-            color: enabledSubs.length === 0 ? "#94a3b8" : "#fff"
+            border: enabledSubs.length === 0 ? "1px solid #E5DCCB" : "1px solid #a78bfa",
+            background: enabledSubs.length === 0 ? "#FBF8F3" : "#7c3aed",
+            color: enabledSubs.length === 0 ? "#A89E89" : "#fff"
           }
         }, applyLabel)
       )
@@ -10913,7 +10913,7 @@ window.ConvertPaletteModal = (function () {
       official: { bg: '#dcfce7', text: '#166534', label: 'Exact match' },
       reconciled: { bg: '#fef9c3', text: '#854d0e', label: 'Best match' },
       'single-source': { bg: '#fef3c7', text: '#92400e', label: 'One source' },
-      nearest: { bg: '#f1f5f9', text: '#475569', label: 'Closest colour' },
+      nearest: { bg: '#EFE7D6', text: '#5C5448', label: 'Closest colour' },
     };
     var c = colours[confidence] || colours.nearest;
     return React.createElement('span', {
@@ -10986,8 +10986,8 @@ window.ConvertPaletteModal = (function () {
           React.createElement('div', { className: 'modal-title' }, 'Change Thread Brand'),
           React.createElement('button', { className: 'modal-close', onClick: onClose }, '×')
         ),
-        React.createElement('div', { style: { padding: '12px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
-          React.createElement('span', { style: { fontSize: 13, color: '#475569', fontWeight: 600 } }, 'Convert to:'),
+        React.createElement('div', { style: { padding: '12px 20px', borderBottom: '1px solid #E5DCCB', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
+          React.createElement('span', { style: { fontSize: 13, color: '#5C5448', fontWeight: 600 } }, 'Convert to:'),
           ['anchor', 'dmc'].map(function (brand) {
             return React.createElement('button', {
               key: brand,
@@ -11000,7 +11000,7 @@ window.ConvertPaletteModal = (function () {
             placeholder: 'Search…',
             value: searchQuery,
             onChange: function (e) { setSearchQuery(e.target.value); },
-            style: { marginLeft: 'auto', padding: '4px 8px', fontSize: 12, border: '1px solid #e2e8f0', borderRadius: 6, width: 140 }
+            style: { marginLeft: 'auto', padding: '4px 8px', fontSize: 12, border: '1px solid #E5DCCB', borderRadius: 6, width: 140 }
           })
         ),
         uniqueCount > 0 && React.createElement('div', {
@@ -11008,7 +11008,7 @@ window.ConvertPaletteModal = (function () {
         }, uniqueCount + ' thread' + (uniqueCount === 1 ? '' : 's') + ' ha' + (uniqueCount === 1 ? 's' : 've') + ' no close equivalent in ' + (targetBrand === 'anchor' ? 'Anchor' : 'DMC') + '. Review and choose substitutes manually.'),
         React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '8px 12px' } },
           filtered.length === 0
-            ? React.createElement('div', { style: { textAlign: 'center', padding: '32px 16px', color: '#94a3b8', fontSize: 13 } }, 'No threads in the current pattern.')
+            ? React.createElement('div', { style: { textAlign: 'center', padding: '32px 16px', color: '#A89E89', fontSize: 13 } }, 'No threads in the current pattern.')
             : filtered.map(function (p) {
                 var overrideId = userOverrides[p.sourceId];
                 var effectiveTgt = overrideId
@@ -11019,17 +11019,17 @@ window.ConvertPaletteModal = (function () {
 
                 return React.createElement('div', {
                   key: p.sourceId,
-                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 6, marginBottom: 4, background: noMatch ? '#fff7ed' : '#f8fafc', border: '1px solid ' + (noMatch ? '#fed7aa' : '#e2e8f0') }
+                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 6, marginBottom: 4, background: noMatch ? '#fff7ed' : '#f8fafc', border: '1px solid ' + (noMatch ? '#fed7aa' : '#E5DCCB') }
                 },
                   // Source swatch + label
-                  React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + p.sourceRgb + ')', border: '1px solid #cbd5e1', flexShrink: 0 } }),
+                  React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + p.sourceRgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
                   React.createElement('span', { style: { fontSize: 12, fontWeight: 600, width: 80, flexShrink: 0 } }, 'DMC ', p.sourceId),
-                  React.createElement('span', { style: { fontSize: 11, color: '#64748b', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.sourceName),
-                  React.createElement('span', { style: { color: '#94a3b8', fontSize: 13 } }, '→'),
+                  React.createElement('span', { style: { fontSize: 11, color: '#8A8270', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.sourceName),
+                  React.createElement('span', { style: { color: '#A89E89', fontSize: 13 } }, '→'),
                   // Target swatch + label (or dropdown)
                   effectiveTgt
                     ? React.createElement(React.Fragment, null,
-                        React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + effectiveTgt.rgb + ')', border: '1px solid #cbd5e1', flexShrink: 0 } }),
+                        React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + effectiveTgt.rgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
                         React.createElement('span', { style: { fontSize: 12, fontWeight: 600, width: 80, flexShrink: 0, color: targetBrand === 'anchor' ? '#0369a1' : '#333' } },
                           (targetBrand === 'anchor' ? 'Anch ' : 'DMC '), effectiveTgt.id
                         )
@@ -11038,10 +11038,10 @@ window.ConvertPaletteModal = (function () {
                   // Confidence badge (only for official proposals, not overrides)
                   !overrideId && p.target && React.createElement(ConfidenceBadge, { confidence: p.target.confidence }),
                   // ΔE
-                  de != null && React.createElement('span', { style: { fontSize: 10, color: '#94a3b8', flexShrink: 0 } }, 'ΔE ' + de),
+                  de != null && React.createElement('span', { style: { fontSize: 10, color: '#A89E89', flexShrink: 0 } }, 'ΔE ' + de),
                   // Override select
                   React.createElement('select', {
-                    style: { fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid #e2e8f0', background: '#fff', maxWidth: 90 },
+                    style: { fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid #E5DCCB', background: '#fff', maxWidth: 90 },
                     value: overrideId || (effectiveTgt ? effectiveTgt.id : ''),
                     onChange: function (e) { handleOverrideChange(p.sourceId, e.target.value || null); }
                   },
@@ -11053,7 +11053,7 @@ window.ConvertPaletteModal = (function () {
                 );
               })
         ),
-        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 10, justifyContent: 'flex-end' } },
+        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', gap: 10, justifyContent: 'flex-end' } },
           React.createElement('button', { className: 'g-btn', onClick: onClose }, 'Cancel'),
           React.createElement('button', { className: 'g-btn primary', onClick: handleApply, disabled: proposals.length === 0 },
             'Apply Conversion (' + proposals.length + ' threads)'
@@ -11266,7 +11266,7 @@ window.BulkAddModal = (function () {
           React.createElement('button', { className: 'modal-close', onClick: onClose }, '×')
         ),
         // Tabs
-        React.createElement('div', { style: { display: 'flex', borderBottom: '1px solid #e2e8f0', padding: '0 20px' } },
+        React.createElement('div', { style: { display: 'flex', borderBottom: '1px solid #E5DCCB', padding: '0 20px' } },
           ['paste', 'kit'].map(function (tab) {
             return React.createElement('button', {
               key: tab,
@@ -11274,7 +11274,7 @@ window.BulkAddModal = (function () {
               style: {
                 padding: '10px 16px', fontSize: 13, fontWeight: 600, border: 'none', background: 'none', cursor: 'pointer',
                 borderBottom: activeTab === tab ? '2px solid #6366f1' : '2px solid transparent',
-                color: activeTab === tab ? '#6366f1' : '#64748b'
+                color: activeTab === tab ? '#6366f1' : '#8A8270'
               }
             }, tab === 'paste' ? 'Paste list' : 'From a kit');
           })
@@ -11284,7 +11284,7 @@ window.BulkAddModal = (function () {
           activeTab === 'paste' && React.createElement(React.Fragment, null,
             // Brand selector
             React.createElement('div', { style: { display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' } },
-              React.createElement('span', { style: { fontSize: 12, fontWeight: 600, color: '#475569' } }, 'Brand:'),
+              React.createElement('span', { style: { fontSize: 12, fontWeight: 600, color: '#5C5448' } }, 'Brand:'),
               ['dmc', 'anchor'].map(function (b) {
                 return React.createElement('button', {
                   key: b,
@@ -11298,10 +11298,10 @@ window.BulkAddModal = (function () {
               value: pasteText,
               onChange: function (e) { setPasteText(e.target.value); setRemovedRaws([]); },
               rows: 5,
-              style: { width: '100%', fontSize: 13, padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'monospace' }
+              style: { width: '100%', fontSize: 13, padding: '8px 10px', border: '1px solid #E5DCCB', borderRadius: 6, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'monospace' }
             }),
             pasteResolved.length > 0 && React.createElement('div', { style: { marginTop: 12 } },
-              React.createElement('div', { style: { fontSize: 11, color: '#64748b', marginBottom: 6 } },
+              React.createElement('div', { style: { fontSize: 11, color: '#8A8270', marginBottom: 6 } },
                 validCount + ' valid' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised (click × to remove)' : '')
               ),
               pasteResolved.map(function (item) {
@@ -11311,7 +11311,7 @@ window.BulkAddModal = (function () {
           ),
           activeTab === 'kit' && React.createElement(React.Fragment, null,
             React.createElement('div', { style: { display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' } },
-              React.createElement('span', { style: { fontSize: 12, fontWeight: 600, color: '#475569' } }, 'Brand:'),
+              React.createElement('span', { style: { fontSize: 12, fontWeight: 600, color: '#5C5448' } }, 'Brand:'),
               ['dmc', 'anchor'].map(function (b) {
                 return React.createElement('button', {
                   key: b,
@@ -11331,7 +11331,7 @@ window.BulkAddModal = (function () {
               })
             ),
             kitResolved.length > 0 && React.createElement(React.Fragment, null,
-              React.createElement('div', { style: { fontSize: 11, color: '#64748b', marginBottom: 6 } },
+              React.createElement('div', { style: { fontSize: 11, color: '#8A8270', marginBottom: 6 } },
                 validCount + ' threads in this kit' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised' : '')
               ),
               React.createElement('div', { style: { lineHeight: 2 } },
@@ -11340,11 +11340,11 @@ window.BulkAddModal = (function () {
                 })
               )
             ),
-            kitKeys.length === 0 && React.createElement('div', { style: { fontSize: 13, color: '#94a3b8', padding: '24px 0' } }, 'No starter kits available for this brand.')
+            kitKeys.length === 0 && React.createElement('div', { style: { fontSize: 13, color: '#A89E89', padding: '24px 0' } }, 'No starter kits available for this brand.')
           )
         ),
         // Footer
-        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' } },
+        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' } },
           invalidCount > 0 && React.createElement('span', { style: { fontSize: 12, color: '#f59e0b', marginRight: 'auto' } },
             invalidCount + ' unrecognised thread' + (invalidCount === 1 ? '' : 's') + ' will be skipped'
           ),
@@ -11429,14 +11429,14 @@ window.CreatorSidebar = function CreatorSidebar() {
     },
       h("span", {"aria-hidden":"true", style:{position:"relative",display:"inline-block",width:32,height:18,flexShrink:0}},
         h("span", {style:{display:"block",position:"absolute",inset:0,borderRadius:9,
-          background:props.checked?"#0d9488":"#cbd5e1",transition:"background 0.15s"}}),
+          background:props.checked?"#B85C38":"#CFC4AC",transition:"background 0.15s"}}),
         h("span", {style:{display:"block",position:"absolute",width:14,height:14,top:2,
           left:props.checked?16:2,borderRadius:"50%",background:"#fff",
           transition:"left 0.15s",boxShadow:"0 1px 3px rgba(0,0,0,0.18)"}})
       ),
       h("span", {style:{flex:1}},
-        h("span", {style:{fontSize:12,fontWeight:500,color:"#1e293b",display:"block"}}, props.label),
-        props.help && h("span", {style:{fontSize:10,color:"#94a3b8",display:"block",marginTop:1}}, props.help)
+        h("span", {style:{fontSize:12,fontWeight:500,color:"#1B1814",display:"block"}}, props.label),
+        props.help && h("span", {style:{fontSize:10,color:"#A89E89",display:"block",marginTop:1}}, props.help)
       )
     );
   }
@@ -11540,17 +11540,17 @@ window.CreatorSidebar = function CreatorSidebar() {
         style: {
           display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
           cursor:"pointer",fontSize:11,position:"relative",
-          border: ips ? "2px solid #0d9488" : ihs ? "2px solid #ea580c" : "0.5px solid #e2e8f0",
-          background: ips ? "#f0fdfa" : ihs ? "#fff7ed" : "#fff",
+          border: ips ? "2px solid #B85C38" : ihs ? "2px solid #ea580c" : "0.5px solid #E5DCCB",
+          background: ips ? "#F4DDCF" : ihs ? "#fff7ed" : "#fff",
           opacity: isUnused ? 0.6 : 1
         }
       },
-        h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}),
-        h("span", {style:{fontFamily:"monospace",color:"#475569",fontSize:10}}, p.symbol),
+        h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #CFC4AC",display:"inline-block",flexShrink:0}}),
+        h("span", {style:{fontFamily:"monospace",color:"#5C5448",fontSize:10}}, p.symbol),
         h("span", {style:{fontWeight:500}}, p.id),
         isUnused && h("span", {
           onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
-          style:{fontSize:9,color:"#94a3b8",cursor:"pointer",marginLeft:2,lineHeight:1}
+          style:{fontSize:9,color:"#A89E89",cursor:"pointer",marginLeft:2,lineHeight:1}
         }, "\xD7"),
         // Brief D — stash status dot (top-right corner). Hidden when stash empty.
         stashStatus && h("span", {
@@ -11577,7 +11577,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {
-        style:{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11,color:"#475569",flexWrap:"wrap"}
+        style:{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11,color:"#5C5448",flexWrap:"wrap"}
       },
         h("label", {style:{display:"flex",alignItems:"center",gap:5,cursor:"pointer",userSelect:"none"}},
           h("input", {
@@ -11591,7 +11591,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("button", {
           onClick: function() { if (typeof app.setModal === 'function') app.setModal('shopping_list'); },
           title: "What do I need to buy?",
-          style:{marginLeft:"auto",fontSize:10,padding:"2px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}
+          style:{marginLeft:"auto",fontSize:10,padding:"2px 8px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#fff",color:"#5C5448",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}
         }, typeof Icons !== 'undefined' && Icons.cart ? Icons.cart() : null, "Shopping list")
       ),
       // A1 (UX Phase 5) — honest warning panel + actionable CTAs.
@@ -11671,15 +11671,15 @@ window.CreatorSidebar = function CreatorSidebar() {
       isPaintMode && h("div", {
         style:{
           marginBottom:8,padding:"5px 8px",borderRadius:7,
-          background: selInfo ? "#f0fdfa" : "#fffbeb",
-          border: selInfo ? "1px solid #99f6e4" : "1px solid #fde68a",
+          background: selInfo ? "#F4DDCF" : "#fffbeb",
+          border: selInfo ? "1px solid #E8B89A" : "1px solid #fde68a",
           display:"flex",alignItems:"center",gap:7,fontSize:11,minHeight:30
         }
       },
         selInfo
           ? h(React.Fragment, null,
-              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid #cbd5e1"}}),
-              h("span", {style:{fontWeight:600,color:"#0d9488"}}, "DMC " + selInfo.id),
+              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid #CFC4AC"}}),
+              h("span", {style:{fontWeight:600,color:"#B85C38"}}, "DMC " + selInfo.id),
               h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
               h("button", {
                 onClick:function(){cv.setSelectedColorId(null);},
@@ -11731,41 +11731,41 @@ window.CreatorSidebar = function CreatorSidebar() {
       gen.isCropping && gen.cropRect && h("div", {style:{
         position:"absolute",left:gen.cropRect.x,top:gen.cropRect.y,
         width:gen.cropRect.w,height:gen.cropRect.h,
-        border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",
+        border:"2px dashed #B85C38",background:"rgba(184, 92, 56,0.2)",
         boxSizing:"border-box",pointerEvents:"none"
       }})
     ),
     gen.isCropping
-      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
-          h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Draw a rectangle"),
+      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #EFE7D6"}},
+          h("span", {style:{fontSize:11,color:"#A89E89"}}, "Draw a rectangle"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){gen.setIsCropping(false); gen.setCropRect(null);},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}
             }, "Cancel"),
             h("button", {
               onClick:gen.applyCrop,
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:6,background:"#B85C38",color:"#fff"}
             }, "Apply")
           )
         )
-      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
-          h("span", {style:{fontSize:11,color:"#94a3b8"}}, gen.origW+"×"+gen.origH+"px"),
+      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #EFE7D6"}},
+          h("span", {style:{fontSize:11,color:"#A89E89"}}, gen.origW+"×"+gen.origH+"px"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){gen.setIsCropping(true); gen.setCropRect(null);},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}
             }, "Crop"),
             h("button", {
               onClick:function(){gen.fRef.current.click();},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
+              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}
             }, "Change")
           )
         )
   ) : null;
 
   // ── Colours section (scratch mode) ─────────────────────────────────────────
-  var coloursBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#0d9488",background:"#f0fdfa",padding:"1px 8px",borderRadius:10}},
+  var coloursBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#B85C38",background:"#F4DDCF",padding:"1px 8px",borderRadius:10}},
     (ctx.displayPal ? ctx.displayPal.filter(function(p){return p.count>0;}).length : 0)+" used"
   );
   // ── Blend picker local state ──────────────────────────────────────────────
@@ -11810,14 +11810,14 @@ window.CreatorSidebar = function CreatorSidebar() {
     title:"Colours", isOpen:ctx.colPickerOpen, onToggle:ctx.setColPickerOpen, badge:coloursBadge
   },
     h("div", {style:{marginTop:8}},
-      ctx.isScratchMode && h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#f1f5f9",borderRadius:8}},
+      ctx.isScratchMode && h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#EFE7D6",borderRadius:8}},
         [["1","Add colour","\u2192"],["2","Select chip","\u2192"],["3","Paint!",""]].map(function(item,i) {
           return h(React.Fragment, {key:i},
             h("div", {style:{display:"flex",alignItems:"center",gap:4}},
-              h("span", {style:{width:16,height:16,borderRadius:"50%",background:"#0d9488",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
+              h("span", {style:{width:16,height:16,borderRadius:"50%",background:"#B85C38",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
               h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
             ),
-            item[2] && h("span", {style:{fontSize:10,color:"#94a3b8"}}, item[2])
+            item[2] && h("span", {style:{fontSize:10,color:"#A89E89"}}, item[2])
           );
         })
       ),
@@ -11826,21 +11826,21 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("button", {
           onClick:function(){ setBlendMode(false); },
           style:{flex:1,padding:"4px 8px",fontSize:11,fontWeight:blendMode?500:700,cursor:"pointer",
-            border:blendMode?"1px solid #e2e8f0":"1px solid #0d9488",borderRadius:6,
-            background:blendMode?"#fff":"#f0fdfa",color:blendMode?"#475569":"#0d9488"}
+            border:blendMode?"1px solid #E5DCCB":"1px solid #B85C38",borderRadius:6,
+            background:blendMode?"#fff":"#F4DDCF",color:blendMode?"#5C5448":"#B85C38"}
         }, "Single thread"),
         h("button", {
           onClick:function(){ setBlendMode(true); },
           style:{flex:1,padding:"4px 8px",fontSize:11,fontWeight:blendMode?700:500,cursor:"pointer",
-            border:blendMode?"1px solid #0d9488":"1px solid #e2e8f0",borderRadius:6,
-            background:blendMode?"#f0fdfa":"#fff",color:blendMode?"#0d9488":"#475569"}
+            border:blendMode?"1px solid #B85C38":"1px solid #E5DCCB",borderRadius:6,
+            background:blendMode?"#F4DDCF":"#fff",color:blendMode?"#B85C38":"#5C5448"}
         }, "Blend (2 threads)")
       ),
       !blendMode ? h(React.Fragment, null,
         h("input", {
           type:"text", placeholder:"Search by DMC # or name\u2026",
           value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);},
-          style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e2e8f0",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
+          style:{width:"100%",padding:"6px 10px",border:"0.5px solid #E5DCCB",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
         }),
         h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
           ctx.dmcFiltered.slice(0,60).map(function(d) {
@@ -11849,48 +11849,48 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("div", {
                 onClick:function(){ctx.addScratchColour(d);},
                 style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,cursor:"pointer",
-                  background:inPal?"#f0fdfa":"#fff",
-                  border:inPal?"1px solid #99f6e4":"1px solid transparent",
+                  background:inPal?"#F4DDCF":"#fff",
+                  border:inPal?"1px solid #E8B89A":"1px solid transparent",
                   opacity:inPal?0.7:1,width:"100%"}
               },
-                h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1"}}),
-                h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1e293b"}}, d.id),
-                h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-                inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#94a3b8"}}, "+")
+                h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #CFC4AC"}}),
+                h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1B1814"}}, d.id),
+                h("span", {style:{fontSize:11,color:"#5C5448",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+                inPal ? h("span", {style:{fontSize:10,color:"#B85C38"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#A89E89"}}, "+")
               )
             );
           }),
-          ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#94a3b8",padding:"8px 0",textAlign:"center"}}, "No colours found")
+          ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#A89E89",padding:"8px 0",textAlign:"center"}}, "No colours found")
         )
       ) : h(React.Fragment, null,
         // Blend mode UI: pick two threads
         h("div", {style:{display:"flex",gap:4,marginBottom:6,alignItems:"center"}},
-          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:11,minHeight:24,display:"flex",alignItems:"center",gap:4,background:blendThread1?"#f0fdfa":"#fff"}},
+          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:6,border:"1px solid #E5DCCB",fontSize:11,minHeight:24,display:"flex",alignItems:"center",gap:4,background:blendThread1?"#F4DDCF":"#fff"}},
             blendThread1 ? h(React.Fragment, null,
-              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread1.rgb+")",border:"1px solid #cbd5e1",flexShrink:0}}),
+              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread1.rgb+")",border:"1px solid #CFC4AC",flexShrink:0}}),
               h("span", {style:{fontWeight:600}}, blendThread1.id),
-              h("span", {onClick:function(){setBlendThread1(null);},style:{cursor:"pointer",color:"#94a3b8",marginLeft:2}}, "\u2715")
-            ) : h("span", {style:{color:"#94a3b8"}}, "Thread 1\u2026")
+              h("span", {onClick:function(){setBlendThread1(null);},style:{cursor:"pointer",color:"#A89E89",marginLeft:2}}, "\u2715")
+            ) : h("span", {style:{color:"#A89E89"}}, "Thread 1\u2026")
           ),
-          h("span", {style:{fontSize:11,color:"#94a3b8",fontWeight:600}}, "+"),
-          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:11,minHeight:24,display:"flex",alignItems:"center",gap:4,background:blendThread2?"#f0fdfa":"#fff"}},
+          h("span", {style:{fontSize:11,color:"#A89E89",fontWeight:600}}, "+"),
+          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:6,border:"1px solid #E5DCCB",fontSize:11,minHeight:24,display:"flex",alignItems:"center",gap:4,background:blendThread2?"#F4DDCF":"#fff"}},
             blendThread2 ? h(React.Fragment, null,
-              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread2.rgb+")",border:"1px solid #cbd5e1",flexShrink:0}}),
+              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread2.rgb+")",border:"1px solid #CFC4AC",flexShrink:0}}),
               h("span", {style:{fontWeight:600}}, blendThread2.id),
-              h("span", {onClick:function(){setBlendThread2(null);},style:{cursor:"pointer",color:"#94a3b8",marginLeft:2}}, "\u2715")
-            ) : h("span", {style:{color:"#94a3b8"}}, "Thread 2\u2026")
+              h("span", {onClick:function(){setBlendThread2(null);},style:{cursor:"pointer",color:"#A89E89",marginLeft:2}}, "\u2715")
+            ) : h("span", {style:{color:"#A89E89"}}, "Thread 2\u2026")
           )
         ),
         blendThread1 && blendThread2 && blendThread1.id !== blendThread2.id && h("button", {
           onClick:addBlend,
           style:{width:"100%",padding:"6px 0",fontSize:12,fontWeight:600,cursor:"pointer",
-            border:"1px solid #0d9488",borderRadius:6,background:"#f0fdfa",color:"#0d9488",marginBottom:8}
+            border:"1px solid #B85C38",borderRadius:6,background:"#F4DDCF",color:"#B85C38",marginBottom:8}
         }, "Add blend " + blendThread1.id + "+" + blendThread2.id),
         blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:11,color:"#dc2626",marginBottom:8}}, "Pick two different threads"),
         h("input", {
           type:"text", placeholder:"Search DMC threads\u2026",
           value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);},
-          style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e2e8f0",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
+          style:{width:"100%",padding:"6px 10px",border:"0.5px solid #E5DCCB",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
         }),
         h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
           blendFiltered.slice(0,60).map(function(d) {
@@ -11903,24 +11903,24 @@ window.CreatorSidebar = function CreatorSidebar() {
                 else if (!blendThread2 && d.id !== blendThread1.id) setBlendThread2(d);
               },
               style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,cursor:"pointer",
-                background:(isSel1||isSel2)?"#f0fdfa":"#fff",
-                border:(isSel1||isSel2)?"1px solid #99f6e4":"1px solid transparent",
+                background:(isSel1||isSel2)?"#F4DDCF":"#fff",
+                border:(isSel1||isSel2)?"1px solid #E8B89A":"1px solid transparent",
                 opacity:(isSel1||isSel2)?0.7:1,width:"100%"}
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1"}}),
-              h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1e293b"}}, d.id),
-              h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"#0d9488"}}, isSel1?"\u27981":"\u27982") : h("span", {style:{fontSize:10,color:"#94a3b8"}}, "+")
+              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #CFC4AC"}}),
+              h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1B1814"}}, d.id),
+              h("span", {style:{fontSize:11,color:"#5C5448",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"#B85C38"}}, isSel1?"\u27981":"\u27982") : h("span", {style:{fontSize:10,color:"#A89E89"}}, "+")
             );
           }),
-          blendFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#94a3b8",padding:"8px 0",textAlign:"center"}}, "No colours found")
+          blendFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#A89E89",padding:"8px 0",textAlign:"center"}}, "No colours found")
         )
       )
     )
   ) : null;
 
   // ── Dimensions section ──────────────────────────────────────────────────────
-  var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
+  var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#5C5448",background:"#EFE7D6",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
   var dimSection = h(Section, {title:"Dimensions", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
@@ -11930,16 +11930,16 @@ window.CreatorSidebar = function CreatorSidebar() {
     ctx.arLock
       ? h("div", null,
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
-          h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
+          h("div", {style:{fontSize:10,color:"#A89E89",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
         )
       : h("div", {style:{display:"flex",gap:10}},
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Width"),
-            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
+            h("label", {style:{fontSize:11,color:"#A89E89",display:"block",marginBottom:2}}, "Width"),
+            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #E5DCCB",borderRadius:6,fontSize:13}})
           ),
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Height"),
-            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
+            h("label", {style:{fontSize:11,color:"#A89E89",display:"block",marginBottom:2}}, "Height"),
+            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #E5DCCB",borderRadius:6,fontSize:13}})
           )
         )
   );
@@ -11958,7 +11958,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
     ),
-    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:8}},
+    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#A89E89",marginBottom:8}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
     ),
     typeof StashBridge !== "undefined" && h("label", {
@@ -11969,7 +11969,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
     ),
     gen.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
-      h("div", {style:{fontSize:11,color:"#0d9488",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:8,padding:"6px 10px",marginBottom:8}},
+      h("div", {style:{fontSize:11,color:"#B85C38",background:"#F4DDCF",border:"1px solid #E8B89A",borderRadius:8,padding:"6px 10px",marginBottom:8}},
         (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
           (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? " \u2014 palette limited to " + gen.effectiveMaxC + " colours" : "")
       ),
@@ -11983,7 +11983,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         ),
         gen.stashPalette.length > 60 && h("button", {
           onClick:function(){setStashStripExpanded(function(o){return !o;});},
-          style:{fontSize:10,color:"#0d9488",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
+          style:{fontSize:10,color:"#B85C38",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
         }, stashStripExpanded ? "Show less" : "+" + (gen.stashPalette.length - 60) + " more")
       ),
       gen.coverageGaps && gen.coverageGaps.hasGaps && h("div", {style:{
@@ -12002,13 +12002,13 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
       h("div", {style:{marginBottom:8}},
-        h("div", {style:{fontSize:11,color:"#475569",marginBottom:4,fontWeight:500}}, "Quick-add thread to stash"),
+        h("div", {style:{fontSize:11,color:"#5C5448",marginBottom:4,fontWeight:500}}, "Quick-add thread to stash"),
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           h("input", {
             type:"text", value:qaVal,
             placeholder:"DMC number\u2026",
             onChange:function(e){setQaVal(e.target.value);},
-            style:{flex:1,padding:"4px 8px",fontSize:12,borderRadius:6,border:"0.5px solid #e2e8f0",fontFamily:"inherit"}
+            style:{flex:1,padding:"4px 8px",fontSize:12,borderRadius:6,border:"0.5px solid #E5DCCB",fontFamily:"inherit"}
           }),
           (function(){
             var dmc = findThreadInCatalog('dmc', qaVal.trim());
@@ -12032,16 +12032,16 @@ window.CreatorSidebar = function CreatorSidebar() {
                 });
               }).catch(function(){ setQaLoading(false); });
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #99f6e4",background:qaLoading?"#e2e8f0":"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #E8B89A",background:qaLoading?"#E5DCCB":"#F4DDCF",color:"#B85C38",cursor:"pointer",fontFamily:"inherit"}
           }, qaLoading ? "\u2026" : "+ Add")
         )
       ),
-      h("div", {style:{borderTop:"0.5px solid #e2e8f0",marginTop:8,paddingTop:10}},
+      h("div", {style:{borderTop:"0.5px solid #E5DCCB",marginTop:8,paddingTop:10}},
         h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}},
           h("button", {
             onClick:function(){ gen.randomise(); },
             disabled:!(gen.stashPalette && gen.stashPalette.length > 0) || !gen.img,
-            style:{display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:500,padding:"5px 12px",borderRadius:8,border:"0.5px solid #99f6e4",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
+            style:{display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:500,padding:"5px 12px",borderRadius:8,border:"0.5px solid #E8B89A",background:"#F4DDCF",color:"#B85C38",cursor:"pointer",fontFamily:"inherit"}
           }, Icons.shuffle(), " Randomise"),
           gen.variationSeed ? (seedEditing ?
             h("span", {style:{display:"flex",alignItems:"center",gap:3}},
@@ -12053,25 +12053,25 @@ window.CreatorSidebar = function CreatorSidebar() {
                   else if(e.key==="Escape"){setSeedEditing(false);}
                 },
                 onBlur:function(){setSeedEditing(false);},
-                style:{width:70,padding:"2px 4px",fontSize:10,borderRadius:4,border:"0.5px solid #99f6e4",fontFamily:"inherit"}
+                style:{width:70,padding:"2px 4px",fontSize:10,borderRadius:4,border:"0.5px solid #E8B89A",fontFamily:"inherit"}
               })
             ) :
             h("span", {
               onClick:function(){setSeedEditing(true);setSeedTmp(String(gen.variationSeed));},
               title:"Click to enter a specific seed",
-              style:{fontSize:10,color:"#94a3b8",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
+              style:{fontSize:10,color:"#A89E89",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
             }, "#" + gen.variationSeed)
           ) : null
         ),
         gen.stashConstrained && gen.variationSeed && gen.variationSubset && gen.stashPalette && gen.stashPalette.length >= 3 && h("div", {
-          style:{fontSize:10,color:"#0d9488",marginBottom:6,display:"flex",alignItems:"center",gap:4}
+          style:{fontSize:10,color:"#B85C38",marginBottom:6,display:"flex",alignItems:"center",gap:4}
         }, Icons.dice(), " Roulette \u2014 using " + gen.variationSubset.length + " of " + gen.stashPalette.length + " threads"),
         h("button", {
           onClick:function(){
             gen.setGalleryOpen(function(o){return !o;});
             if (!gen.galleryOpen) gen.generateGallery();
           },
-          style:{fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,marginBottom:4}
+          style:{fontSize:11,color:"#5C5448",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,marginBottom:4}
         },
           h("span", {style:{fontSize:9,display:"inline-block",transform:gen.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
           "Explore variations"
@@ -12083,17 +12083,17 @@ window.CreatorSidebar = function CreatorSidebar() {
                 key:i,
                 onClick:function(){ if (!slot.loading && slot.url) { gen.promoteVariation(slot); gen.setGalleryOpen(false); } },
                 style:{
-                  borderRadius:8,overflow:"hidden",border:"0.5px solid #e2e8f0",
+                  borderRadius:8,overflow:"hidden",border:"0.5px solid #E5DCCB",
                   cursor:(!slot.loading && slot.url) ? "pointer" : "default",
                   background:"#f8fafc",transition:"border-color 0.15s"
                 }
               },
                 slot.loading ?
-                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#94a3b8"}}, "\u2026") :
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#A89E89"}}, "\u2026") :
                 slot.url ?
                   h("div", null,
                     h("img", {src:slot.url, style:{width:"100%",display:"block",imageRendering:"pixelated"}}),
-                    h("div", {style:{padding:"3px 6px",fontSize:9,color:"#475569"}},
+                    h("div", {style:{padding:"3px 6px",fontSize:9,color:"#5C5448"}},
                       "#" + slot.seed + " \u00B7 " + slot.threadCount + " threads"
                     )
                   ) :
@@ -12104,24 +12104,24 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("div", {style:{display:"flex",justifyContent:"center"}},
             h("button", {
               onClick:function(){ gen.generateGallery(); },
-              style:{fontSize:11,padding:"4px 12px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"inherit"}
+              style:{fontSize:11,padding:"4px 12px",borderRadius:6,border:"0.5px solid #E5DCCB",background:"#fff",color:"#5C5448",cursor:"pointer",fontFamily:"inherit"}
             }, "New batch")
           )
         ),
         gen.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
-          h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:4}}, "Recent variations"),
+          h("div", {style:{fontSize:10,color:"#A89E89",marginBottom:4}}, "Recent variations"),
           h("div", {style:{display:"flex",gap:4,overflowX:"auto",paddingBottom:4}},
             gen.variationHistory.map(function(entry, i) {
               return h("div", {
                 key:(entry.timestamp || i) + "-" + i,
                 onClick:function(){ gen.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); },
                 title:"Seed #" + entry.seed,
-                style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid #e2e8f0"}
+                style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid #E5DCCB"}
               },
                 entry.previewUrl ?
                   h("img", {src:entry.previewUrl, style:{width:32,height:32,display:"block",imageRendering:"pixelated",objectFit:"cover"}}) :
-                  h("div", {style:{width:32,height:32,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#94a3b8"}}, "?"),
-                h("div", {style:{fontSize:7,color:"#94a3b8",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
+                  h("div", {style:{width:32,height:32,background:"#EFE7D6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#A89E89"}}, "?"),
+                h("div", {style:{fontSize:7,color:"#A89E89",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
               );
             })
           )
@@ -12146,10 +12146,10 @@ window.CreatorSidebar = function CreatorSidebar() {
         } else {
           desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#dc2626",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
         }
-        return h("div", {style:{fontSize:11,color:"#475569",marginTop:4,lineHeight:1.5}}, desc);
+        return h("div", {style:{fontSize:11,color:"#5C5448",marginTop:4,lineHeight:1.5}}, desc);
       })()
     ),
-    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
+    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#A89E89",marginTop:2}},
       "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
       " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),
@@ -12158,23 +12158,23 @@ window.CreatorSidebar = function CreatorSidebar() {
         onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
         style:{
           fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-          border:gen.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e2e8f0",
-          background:gen.showCleanupDiff?"#f0fdfa":"#fff",
-          color:gen.showCleanupDiff?"#0d9488":"#475569",
+          border:gen.showCleanupDiff?"1px solid #B85C38":"0.5px solid #E5DCCB",
+          background:gen.showCleanupDiff?"#F4DDCF":"#fff",
+          color:gen.showCleanupDiff?"#B85C38":"#5C5448",
           fontWeight:gen.showCleanupDiff?600:400,
           display:"flex",alignItems:"center",gap:4,lineHeight:1.4
         }
       }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
     ),
     gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
-      fontSize:11,color:"#475569",padding:"6px 10px",
+      fontSize:11,color:"#5C5448",padding:"6px 10px",
       background:"#fdf4ff",border:"1px solid #f0abfc",borderRadius:8,
       marginTop:4,lineHeight:1.5
     }},
       h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
       gen.cleanupDiff.count.toLocaleString(), " stitches changed",
       ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#94a3b8"}},
+      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#A89E89"}},
         Object.entries(gen.cleanupDiff.byColour)
           .sort(function(a,b){return b[1]-a[1];})
           .slice(0,4)
@@ -12200,28 +12200,28 @@ window.CreatorSidebar = function CreatorSidebar() {
     })(),
     h("button", {
       onClick:function(){app.setPalAdvanced(function(o){return !o;});},
-      style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
+      style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#5C5448",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
     },
       h("span", {style:{fontSize:9,display:"inline-block",transform:app.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
       "Dithering",
-      gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block",marginLeft:2}}) : null
+      gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#B85C38",display:"inline-block",marginLeft:2}}) : null
     ),
     app.palAdvanced && h(React.Fragment, null,
       h("div", {style:{marginTop:6,padding:"8px 10px",background:"#fff7ed",borderRadius:8,border:"0.5px solid #fed7aa",fontSize:10,color:"#b45309"}},
         "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
       ),
       h("div", {style:{display:"flex",gap:6,marginTop:6}},
-        h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
+        h("div", {style:{display:"flex",gap:2,background:"#EFE7D6",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Maps each pixel directly to its closest DMC colour. Fewer scattered stitches", width:200},
             h("button", {
               onClick:function(){gen.setDith(false);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:!gen.dith?500:400,background:!gen.dith?"#fff":"transparent",borderRadius:6,color:!gen.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:!gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              style:{padding:"5px 12px",fontSize:12,fontWeight:!gen.dith?500:400,background:!gen.dith?"#fff":"transparent",borderRadius:6,color:!gen.dith?"#1B1814":"#5C5448",border:"none",cursor:"pointer",boxShadow:!gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Direct")
           ),
           h(Tooltip, {text:"Uses Floyd-Steinberg error diffusion for smoother colour gradients, but creates more scattered stitches", width:220},
             h("button", {
               onClick:function(){gen.setDith(true);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:gen.dith?500:400,background:gen.dith?"#fff":"transparent",borderRadius:6,color:gen.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              style:{padding:"5px 12px",fontSize:12,fontWeight:gen.dith?500:400,background:gen.dith?"#fff":"transparent",borderRadius:6,color:gen.dith?"#1B1814":"#5C5448",border:"none",cursor:"pointer",boxShadow:gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Dithered")
           )
         )
@@ -12234,7 +12234,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var sc2 = gen.stitchCleanup;
     var scBadge = h("span", {style:{
       fontSize:11,fontWeight:500,padding:"1px 8px",borderRadius:10,
-      color:sc2.enabled?"#0d9488":"#94a3b8",background:sc2.enabled?"#f0fdfa":"#f1f5f9"
+      color:sc2.enabled?"#B85C38":"#A89E89",background:sc2.enabled?"#F4DDCF":"#EFE7D6"
     }}, sc2.enabled ? "On \u2014 "+(sc2.strength[0].toUpperCase()+sc2.strength.slice(1)) : "Off");
     var strengthKeys=["gentle","balanced","thorough"];
     var strengthLabels=["Gentle","Balanced","Thorough"];
@@ -12249,7 +12249,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           help:"Automatically removes scattered single stitches that are hard to sew. Turn off if you want to keep the full dithered detail."
         }),
         sc2.enabled && h(React.Fragment, null,
-          h("div", {style:{marginBottom:10,padding:"8px 10px",background:"#f0fdfa",borderRadius:8,border:"0.5px solid #99f6e4",fontSize:11,color:"#0d9488",fontWeight:500}},
+          h("div", {style:{marginBottom:10,padding:"8px 10px",background:"#F4DDCF",borderRadius:8,border:"0.5px solid #E8B89A",fontSize:11,color:"#B85C38",fontWeight:500}},
             "Removes scattered single stitches (confetti) that are impractical to sew \u2014 especially in dithered areas and gradients."
           ),
           h("div", {style:{marginTop:4,marginBottom:10}},
@@ -12260,13 +12260,13 @@ window.CreatorSidebar = function CreatorSidebar() {
             h("input", {
               type:"range",min:0,max:2,step:1,value:strengthIdx,
               onChange:function(e){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[+e.target.value]});});},
-              style:{width:"100%",accentColor:"#0d9488"}
+              style:{width:"100%",accentColor:"#B85C38"}
             }),
             h("div", {style:{display:"flex",justifyContent:"space-between",marginTop:6,gap:4}},
               strengthLabels.map(function(l,i) {
                 return h(Tooltip, {key:l, text:strengthDescs[i], width:160},
                   h("span", {
-                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#94a3b8",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
+                    style:{fontSize:10,color:strengthIdx===i?"#B85C38":"#A89E89",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
                     onClick:function(){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
                   }, l)
                 );
@@ -12291,38 +12291,38 @@ window.CreatorSidebar = function CreatorSidebar() {
   })() : null;
 
   // ── Fabric & Floss section ──────────────────────────────────────────────────
-  var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
+  var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#5C5448",background:"#EFE7D6",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
   var fabSection = h(Section, {title:"Fabric & Floss", isOpen:app.fabOpen, onToggle:app.setFabOpen, badge:fabBadge},
     h("div", {style:{marginTop:8}},
       h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
-        h("span", {style:{fontSize:12,color:"#475569",fontWeight:600}}, "Fabric count"),
+        h("span", {style:{fontSize:12,color:"#5C5448",fontWeight:600}}, "Fabric count"),
         h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
       ),
       h("select", {
         value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{width:"100%",padding:"6px 10px",borderRadius:8,border:"0.5px solid #e2e8f0",fontSize:13,background:"#fff"}
+        style:{width:"100%",padding:"6px 10px",borderRadius:8,border:"0.5px solid #E5DCCB",fontSize:13,background:"#fff"}
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
+      h("div", {style:{fontSize:11,color:"#A89E89",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
     )
   );
 
   // ── Adjustments section (non-scratch) ──────────────────────────────────────
-  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}) : null;
+  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#B85C38",display:"inline-block"}}) : null;
   var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:8}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
         helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
-      gen.smooth===0 && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
+      gen.smooth===0 && h("div", {style:{fontSize:11,color:"#A89E89",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
       gen.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
-        h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
+        h("div", {style:{display:"flex",gap:2,background:"#EFE7D6",borderRadius:8,padding:2,flex:1}},
           h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
-            h("button", {onClick:function(){gen.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:gen.smoothType==="median"?500:400,background:gen.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:gen.smoothType==="median"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
+            h("button", {onClick:function(){gen.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:gen.smoothType==="median"?500:400,background:gen.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:gen.smoothType==="median"?"#1B1814":"#5C5448",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
           ),
           h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:180},
-            h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:gen.smoothType==="gaussian"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
+            h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:gen.smoothType==="gaussian"?"#1B1814":"#5C5448",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
           )
         )
       ),
@@ -12375,20 +12375,20 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("div", {
           onClick:armBgPick,
           title:"Pick background colour from the source image",
-          style:{width:24,height:24,borderRadius:6,background:"rgb("+gen.bgCol+")",border:"2px solid #e2e8f0",cursor:"pointer"}
+          style:{width:24,height:24,borderRadius:6,background:"rgb("+gen.bgCol+")",border:"2px solid #E5DCCB",cursor:"pointer"}
         }),
         h("button", {
           onClick:armBgPick,
-          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:gen.pickBg?"#fff7ed":"#f8f9fa",color:gen.pickBg?"#9a3412":"#1e293b",cursor:"pointer"}
+          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #E5DCCB",borderRadius:6,background:gen.pickBg?"#fff7ed":"#FBF8F3",color:gen.pickBg?"#9a3412":"#1B1814",cursor:"pointer"}
         }, gen.pickBg ? "Picking…" : "Pick")
       ),
       h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
         helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
-      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#f1f5f9",borderRadius:8,fontSize:11,color:"#475569"}},
+      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#EFE7D6",borderRadius:8,fontSize:11,color:"#5C5448"}},
         h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
         h("button", {
           onClick:gen.autoCrop,
-          style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,cursor:"pointer",color:"#1e293b"}
+          style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #CFC4AC",borderRadius:6,cursor:"pointer",color:"#1B1814"}
         }, "Auto-Crop to Stitches")
       )
     )
@@ -12403,7 +12403,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     : h("button", {
         onClick:gen.generate, disabled:gen.busy,
         style:{padding:"8px 14px",fontSize:12,fontWeight:600,
-          background:gen.busy?"#94a3b8":"#0d9488",color:"#fff",
+          background:gen.busy?"#A89E89":"#B85C38",color:"#fff",
           border:"none",borderRadius:8,cursor:gen.busy?"wait":"pointer"}
       }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
@@ -12792,7 +12792,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
         style:{width:"100%",padding:"10px",fontSize:13,fontWeight:600,cursor:gen.busy?"wait":"pointer",
           border:"none",borderRadius:8,
-          background:gen.busy?"#94a3b8":gen.hasGenerated?"var(--surface-tertiary)":"#0d9488",
+          background:gen.busy?"#A89E89":gen.hasGenerated?"var(--surface-tertiary)":"#B85C38",
           color:gen.hasGenerated?"var(--text-primary)":"#fff"}
       }, gen.busy ? "Generating\u2026" : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
       // Continue to Edit → (only after generation)
@@ -12813,7 +12813,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           app.addToast("Switched to Edit mode", {type:"info", duration:2000});
         },
         style:{width:"100%",padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",
-          border:"none",borderRadius:8,background:"#0d9488",color:"#fff",
+          border:"none",borderRadius:8,background:"#B85C38",color:"#fff",
           display:"flex",alignItems:"center",justifyContent:"center",gap:6}
       }, "Edit Pattern \u2192"),
       // Hint text
@@ -13048,7 +13048,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       "aria-label":"Open pattern in Stitch Tracker",
       onClick:function(){ app.handleOpenInTracker(); },
       style:{flex:2,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",
-        border:"none",borderRadius:8,background:"#0d9488",color:"#fff",
+        border:"none",borderRadius:8,background:"#B85C38",color:"#fff",
         display:"flex",alignItems:"center",justifyContent:"center",gap:6}
     }, "Start Tracking \u2192")
   ) : null;
@@ -13211,38 +13211,38 @@ window.CreatorContextMenu = function CreatorContextMenu() {
         display:"block", width:"100%", textAlign:"left",
         padding:"5px 12px", fontSize:12, fontFamily:"inherit",
         border:"none", background:opts.disabled ? "transparent" : "transparent",
-        color:opts.disabled ? "#94a3b8" : "#1e293b",
+        color:opts.disabled ? "#A89E89" : "#1B1814",
         cursor:opts.disabled ? "default" : "pointer",
         borderRadius:4
       },
-      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "#f1f5f9"; },
+      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "#EFE7D6"; },
       onMouseLeave: function(e) { e.target.style.background = "transparent"; }
     }, label);
   }
 
   function sep() {
-    return h("div", {style:{height:1,background:"#e2e8f0",margin:"3px 0"}});
+    return h("div", {style:{height:1,background:"#E5DCCB",margin:"3px 0"}});
   }
 
   return h("div", {
     ref: menuRef,
     style:{
       position:"fixed", left:pos.x, top:pos.y, zIndex:9999,
-      background:"#fff", border:"1px solid #cbd5e1", borderRadius:8,
+      background:"#fff", border:"1px solid #CFC4AC", borderRadius:8,
       boxShadow:"0 4px 16px rgba(0,0,0,0.12)", padding:"4px 0",
       minWidth:180, maxWidth:240
     }
   },
     // Header: cell info
     hasCellColour && h("div", {
-      style:{padding:"5px 12px 4px",fontSize:11,color:"#475569",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #f1f5f9",marginBottom:2}
+      style:{padding:"5px 12px 4px",fontSize:11,color:"#5C5448",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #EFE7D6",marginBottom:2}
     },
-      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
+      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid #CFC4AC",
         background:"rgb("+cellInfo.rgb+")"}}),
       "DMC " + cellInfo.id + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
     ),
     !hasCellColour && h("div", {
-      style:{padding:"5px 12px 4px",fontSize:11,color:"#94a3b8",borderBottom:"1px solid #f1f5f9",marginBottom:2}
+      style:{padding:"5px 12px 4px",fontSize:11,color:"#A89E89",borderBottom:"1px solid #EFE7D6",marginBottom:2}
     }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
 
     // Pick this colour
@@ -13381,15 +13381,15 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   return h("div", null,
     cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {
-      style:{fontSize:12,color:"#475569",marginBottom:6,background:"#f1f5f9",padding:"6px 10px",borderRadius:8}
+      style:{fontSize:12,color:"#5C5448",marginBottom:6,background:"#EFE7D6",padding:"6px 10px",borderRadius:8}
     }, "To see symbols, you may need to zoom in."),
 
     ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
-      style:{fontSize:12,color:"#94a3b8",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
+      style:{fontSize:12,color:"#A89E89",padding:"8px 12px",background:"#EFE7D6",borderRadius:8,marginBottom:8,textAlign:"center"}
     }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
     !app.shortcutsHintDismissed && h("div", {
-      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
+      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #E5DCCB",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
@@ -13425,7 +13425,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ? h(window.CreatorSplitPane, null)
       : h("div", {
       ref:app.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#f1f5f9",cursor:(function(){
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #E5DCCB",borderRadius:8,background:"#EFE7D6",cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
         if (cv.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
@@ -13478,18 +13478,18 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }
       return h("div", {className:"tb-status", style:{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
         h("span", null, parts[0]),
-        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#94a3b8",flexShrink:0}}, parts[1]),
+        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#A89E89",flexShrink:0}}, parts[1]),
         parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
           ctx.cmap && ctx.pat && cv.hoverCoords && (function() {
             var hIdx2 = cv.hoverCoords.gy * ctx.sW + cv.hoverCoords.gx;
             var hCell2 = ctx.pat[hIdx2];
             if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
-              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
+              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #CFC4AC",
                 background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
             }
             return null;
           })(),
-          h("span", {style:{fontSize:10,color:"#475569"}}, parts[2])
+          h("span", {style:{fontSize:10,color:"#5C5448"}}, parts[2])
         )
       );
     })(),
@@ -13497,11 +13497,11 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     h("div", {style:{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}},
       cv.editHistory.length > 0 && h("button", {
         onClick: cv.undoEdit,
-        style:{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}
+        style:{fontSize:11,padding:"4px 10px",border:"1px solid #E8B89A",borderRadius:6,background:"#F4DDCF",color:"#B85C38",cursor:"pointer"}
       }, "\u21A9 Undo"),
       cv.redoHistory.length > 0 && h("button", {
         onClick: cv.redoEdit,
-        style:{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}
+        style:{fontSize:11,padding:"4px 10px",border:"1px solid #E8B89A",borderRadius:6,background:"#F4DDCF",color:"#B85C38",cursor:"pointer"}
       }, "\u21AA Redo"),
       cv.hiId && h("button", {
         onClick: function(){cv.setHiId(null);},
@@ -13638,16 +13638,16 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     ];
 
     var difficultyBadge = ctx.difficulty && h("div", {
-      style:{marginTop:12,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0",display:"flex",alignItems:"center",gap:10}
+      style:{marginTop:12,padding:"8px 12px",background:"#FBF8F3",borderRadius:8,border:"0.5px solid #E5DCCB",display:"flex",alignItems:"center",gap:10}
     },
-      h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
+      h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
       h("div", {style:{display:"flex",gap:2}},
         [1,2,3,4].map(function(s) {
-          return h("span", {key:s, style:{fontSize:16,color:s<=ctx.difficulty.stars?ctx.difficulty.color:"#e2e8f0"}}, "\u2605");
+          return h("span", {key:s, style:{fontSize:16,color:s<=ctx.difficulty.stars?ctx.difficulty.color:"#E5DCCB"}}, "\u2605");
         })
       ),
       h("span", {style:{fontSize:13,fontWeight:700,color:ctx.difficulty.color}}, ctx.difficulty.label),
-      h("span", {style:{fontSize:11,color:"#94a3b8",marginLeft:"auto"}},
+      h("span", {style:{fontSize:11,color:"#A89E89",marginLeft:"auto"}},
         ctx.pal.length + " colours \xB7 " + (ctx.blendCount > 0 ? ctx.blendCount + " blends \xB7 " : "") + ctx.totalStitchable.toLocaleString() + " stitches"
       )
     );
@@ -13656,20 +13656,20 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       var cd = app.confettiData.clean;
       var t = confettiTier(cd.pct);
       var barW = Math.max(3, Math.min(100, Math.round(100 - cd.pct * 5)));
-      return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0"}},
+      return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#FBF8F3",borderRadius:8,border:"0.5px solid #E5DCCB"}},
         h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
-          h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
+          h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
           h("span", {style:{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18",marginLeft:"auto"}}, t.label)
         ),
         h("div", {style:{display:"flex",alignItems:"center",gap:8}},
-          h("div", {style:{flex:1,height:6,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}},
+          h("div", {style:{flex:1,height:6,background:"#E5DCCB",borderRadius:3,overflow:"hidden"}},
             h("div", {style:{height:"100%",width:barW+"%",background:t.color,borderRadius:3,transition:"width 0.4s"}})
           ),
           h("span", {style:{fontSize:12,fontWeight:600,color:t.color,flexShrink:0}},
             cd.singles.toLocaleString() + " isolated (" + cd.pct.toFixed(1) + "%)"
           )
         ),
-        app.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:4}},
+        app.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#A89E89",marginTop:4}},
           app.confettiData.raw.singles.toLocaleString() + " before orphan removal"
         )
       );
@@ -13689,8 +13689,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       },
         rows.map(function(r, i) {
           return h("div", {key:i},
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
-            h("div", {style:{fontSize:14,fontWeight:600,color:"#1e293b"}}, r[1])
+            h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
+            h("div", {style:{fontSize:14,fontWeight:600,color:"#1B1814"}}, r[1])
           );
         })
       ),
@@ -13710,20 +13710,20 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         }),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px",marginTop:10}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#1e293b"}},
+            h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
+            h("div", {style:{fontSize:16,fontWeight:700,color:"#1B1814"}},
               fmtTimeL(Math.round(ctx.totalStitchable / ctx.stitchSpeed * 3600))
             )
           ),
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"#16a34a":"#0d9488"}},
+            h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
+            h("div", {style:{fontSize:16,fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"#16a34a":"#B85C38"}},
               ctx.doneCount >= ctx.totalStitchable ? "Done!" : fmtTimeL(Math.round((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed * 3600))
             )
           )
         ),
         ctx.totalTime > 0 && ctx.doneCount > 0 && h("div", {
-          style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0",fontSize:12,color:"#475569"}
+          style:{marginTop:8,padding:"8px 12px",background:"#FBF8F3",borderRadius:8,border:"0.5px solid #E5DCCB",fontSize:12,color:"#5C5448"}
         }, "Based on your actual sessions: " + Math.round(ctx.doneCount / (ctx.totalTime / 3600)) + " stitches/hr average")
       )
     );
@@ -13740,9 +13740,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       h("div", {style:{marginTop:8,overflow:"auto"}},
         h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
           h("thead", null,
-            h("tr", {style:{background:"#f8f9fa"}},
+            h("tr", {style:{background:"#FBF8F3"}},
               ["Fabric","Width","Height","With margin"].map(function(hd, i) {
-                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid #e2e8f0",color:"#475569",fontWeight:600,fontSize:11,textTransform:"uppercase"}}, hd);
+                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid #E5DCCB",color:"#5C5448",fontWeight:600,fontSize:11,textTransform:"uppercase"}}, hd);
               })
             )
           ),
@@ -13754,12 +13754,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var isCurrent = f.ct === ctx.fabricCt;
               return h("tr", {
                 key:f.ct,
-                style:{borderBottom:"0.5px solid #f1f5f9",background:isCurrent?"#f0fdfa":"transparent"}
+                style:{borderBottom:"0.5px solid #EFE7D6",background:isCurrent?"#F4DDCF":"transparent"}
               },
                 h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}}, f.label+(isCurrent?" \u2713":"")),
                 h("td", {style:{padding:"6px 10px"}}, wIn.toFixed(1)+"\u2033 / "+wCm.toFixed(1)+" cm"),
                 h("td", {style:{padding:"6px 10px"}}, hIn.toFixed(1)+"\u2033 / "+hCm.toFixed(1)+" cm"),
-                h("td", {style:{padding:"6px 10px",fontSize:11,color:"#94a3b8"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
+                h("td", {style:{padding:"6px 10px",fontSize:11,color:"#A89E89"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
               );
             })
           )
@@ -13773,30 +13773,30 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     return h(Section, {title:"Cost Estimate", defaultOpen:false},
       h("div", {style:{marginTop:8}},
         h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
-          h("span", {style:{fontSize:12,color:"#475569"}}, "Price per skein (\xA3)"),
+          h("span", {style:{fontSize:12,color:"#5C5448"}}, "Price per skein (\xA3)"),
           h("input", {
             type:"number", inputMode:"decimal", value:ctx.skeinPrice, min:0, step:0.05,
             onChange:function(e){ctx.setSkeinPrice(Math.max(0,parseFloat(e.target.value)||0));},
-            style:{width:70,padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13,textAlign:"right"}
+            style:{width:70,padding:"5px 8px",border:"0.5px solid #E5DCCB",borderRadius:6,fontSize:13,textAlign:"right"}
           })
         ),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#1e293b"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
-            h("div", {style:{fontSize:11,color:"#94a3b8"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
+            h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
+            h("div", {style:{fontSize:16,fontWeight:700,color:"#1B1814"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
+            h("div", {style:{fontSize:11,color:"#A89E89"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
           ),
           ctx.toBuyCount < ctx.skeinData.length && h("div", null,
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
+            h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
             h("div", {style:{fontSize:16,fontWeight:700,color:"#ea580c"}},
               "\xA3"+(ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)*ctx.skeinPrice).toFixed(2)
             ),
-            h("div", {style:{fontSize:11,color:"#94a3b8"}},
+            h("div", {style:{fontSize:11,color:"#A89E89"}},
               ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)+" skeins"
             )
           )
         ),
-        h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
+        h("div", {style:{fontSize:11,color:"#A89E89",marginTop:8}},
           "Doesn\u2019t include fabric, needles, hoop, or frame. DMC skeins typically \xA30.85\u2013\xA31.10 in UK shops."
         )
       )
@@ -13819,11 +13819,11 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       h("div", {style:{marginTop:8,display:"flex",gap:12,marginBottom:10}},
         h("div", {style:{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}},
           h("span", {style:{fontWeight:700,color:"#16a34a"}}, ctx.ownedCount), " ",
-          h("span", {style:{color:"#475569"}}, "owned")
+          h("span", {style:{color:"#5C5448"}}, "owned")
         ),
         h("div", {style:{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}},
           h("span", {style:{fontWeight:700,color:"#ea580c"}}, ctx.toBuyList.length), " ",
-          h("span", {style:{color:"#475569"}}, "to buy")
+          h("span", {style:{color:"#5C5448"}}, "to buy")
         ),
         h("div", {style:{marginLeft:"auto",display:"flex",gap:4}},
           h("button", {
@@ -13836,7 +13836,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           }, "Own all"),
           h("button", {
             onClick:function(){ctx.setThreadOwned({});},
-            style:{fontSize:11,padding:"4px 10px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",cursor:"pointer"}
+            style:{fontSize:11,padding:"4px 10px",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#fff",color:"#5C5448",cursor:"pointer"}
           }, "Clear")
         )
       ),
@@ -13851,12 +13851,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             h("div", {
               style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,
                 background:isOwned?"#f0fdf4":"#fff",
-                border:"1px solid "+(isOwned?"#bbf7d0":"#f1f5f9")}
+                border:"1px solid "+(isOwned?"#bbf7d0":"#EFE7D6")}
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1",flexShrink:0}}),
+              h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #CFC4AC",flexShrink:0}}),
               h("span", {style:{fontWeight:700,fontSize:13,minWidth:44}}, "DMC "+d.id),
-              h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              h("span", {style:{fontSize:11,color:"#94a3b8",flexShrink:0}}, d.skeins+"sk"),
+              h("span", {style:{fontSize:11,color:"#5C5448",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              h("span", {style:{fontSize:11,color:"#A89E89",flexShrink:0}}, d.skeins+"sk"),
               h("button", {
                 onClick:function(){ctx.toggleOwned(d.id);},
                 style:{fontSize:11,padding:"3px 10px",borderRadius:5,cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center",
@@ -13883,18 +13883,18 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var alts = StashBridge.suggestAlternatives(d.id, 5, ctx.globalStash);
               return alts.length > 0
                 ? h("div", {style:{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}},
-                    h("span", {style:{color:"#475569",fontWeight:600}}, "Similar in stash:"),
+                    h("span", {style:{color:"#5C5448",fontWeight:600}}, "Similar in stash:"),
                     alts.map(function(a) {
                       return h("span", {key:a.id, style:{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}},
-                        h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid #cbd5e1"}}),
+                        h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid #CFC4AC"}}),
                         h("span", {style:{fontWeight:600}}, "DMC "+a.id),
-                        h("span", {style:{color:"#475569"}}, a.name),
-                        h("span", {style:{color:"#94a3b8"}}, "\u0394E "+a.deltaE),
+                        h("span", {style:{color:"#5C5448"}}, a.name),
+                        h("span", {style:{color:"#A89E89"}}, "\u0394E "+a.deltaE),
                         h("span", {style:{color:"#4338ca"}}, a.owned+"sk")
                       );
                     })
                   )
-                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:11,color:"#94a3b8"}},
+                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:11,color:"#A89E89"}},
                     "No similar threads found in your stash."
                   );
             })()
@@ -13967,7 +13967,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             }, "Change Thread Brand")
           : null
       ),
-      ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8f9fa",fontSize:12}},
+      ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #E5DCCB",background:"#FBF8F3",fontSize:12}},
         h("div", {style:{fontWeight:700,marginBottom:4}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
         ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"#16a34a",fontWeight:600}}, "\u2713 You have everything!"),
         ctx.kittingResult.missing.length > 0 && h("div", null,
@@ -13984,7 +13984,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var lines = ctx.kittingResult.missing.concat(ctx.kittingResult.short);
               app.copyText(lines.join("\n"), "kit");
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer"}
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #E5DCCB",background:"#fff",cursor:"pointer"}
           }, "Copy gaps"),
           typeof StashBridge !== "undefined" && h("button", {
             onClick:function(){
@@ -13998,7 +13998,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           }, "Mark all To Buy"),
           h("button", {
             onClick:function(){ctx.setKittingResult(null);},
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",marginLeft:"auto"}
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #E5DCCB",background:"#fff",cursor:"pointer",marginLeft:"auto"}
           }, "Dismiss")
         )
       ),
@@ -14008,14 +14008,14 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             var txt=ctx.toBuyList.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
             app.copyText(txt, "shopping");
           },
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}
+          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#B85C38",color:"#fff",cursor:"pointer",fontWeight:600}
         }, "Copy To-Buy List"),
         h("button", {
           onClick:function(){
             var txt=ctx.skeinData.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
             app.copyText(txt, "full");
           },
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
+          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #E5DCCB",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Copy Full List")
       ),
       app.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")
@@ -14232,8 +14232,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   var allOwned = hasStash && ownedColours === totalColours;
 
   function thSt(align) {
-    return {padding:"6px 10px", textAlign:align, borderBottom:"2px solid #e2e8f0",
-            color:"#64748b", fontWeight:600, fontSize:10, textTransform:"uppercase",
+    return {padding:"6px 10px", textAlign:align, borderBottom:"2px solid #E5DCCB",
+            color:"#8A8270", fontWeight:600, fontSize:10, textTransform:"uppercase",
             background:"#f8fafc", whiteSpace:"nowrap"};
   }
 
@@ -14300,7 +14300,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   // ── Section heading style ─────────────────────────────────────────────────
   var secHead = {
-    fontSize:11, fontWeight:700, color:"#475569", textTransform:"uppercase",
+    fontSize:11, fontWeight:700, color:"#5C5448", textTransform:"uppercase",
     letterSpacing:"0.05em", marginBottom:8, display:"block"
   };
 
@@ -14311,13 +14311,13 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     h("div", {style:{
       display:"flex", alignItems:"center", gap:10, flexWrap:"wrap",
       padding:"9px 14px", borderRadius:8, marginBottom:14, fontSize:12,
-      background: allOwned ? "#f0fdf4" : "#f8f9fa",
-      border:"0.5px solid " + (allOwned ? "#bbf7d0" : "#e2e8f0")
+      background: allOwned ? "#f0fdf4" : "#FBF8F3",
+      border:"0.5px solid " + (allOwned ? "#bbf7d0" : "#E5DCCB")
     }},
-      h("span", {style:{fontSize:11, color:"#94a3b8"}},
+      h("span", {style:{fontSize:11, color:"#A89E89"}},
         totalColours + " colour" + (totalColours !== 1 ? "s" : "") + ", " + totalSkeins + " skein" + (totalSkeins !== 1 ? "s" : "")
       ),
-      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "#15803d" : "#475569"}},
+      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "#15803d" : "#5C5448"}},
         allOwned
           ? "\u2713 All colours in stash!"
           : "Stash: " + ownedColours + "/" + totalColours + " owned"
@@ -14329,16 +14329,16 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       h("div", {style:{marginLeft:"auto", display:"flex", gap:6}},
         h("button", {onClick:handleCopy, style:{
           fontSize:11, padding:"4px 10px", borderRadius:6, cursor:"pointer",
-          border:"0.5px solid #e2e8f0", background:copied?"#0d9488":"#fff",
-          color:copied?"#fff":"#475569", fontWeight:500
+          border:"0.5px solid #E5DCCB", background:copied?"#B85C38":"#fff",
+          color:copied?"#fff":"#5C5448", fontWeight:500
         }}, copied ? "\u2713 Copied" : "Copy list"),
         canShare && !allOwned && h("button", {onClick:handleShare, style:{
           fontSize:11, padding:"4px 10px", borderRadius:6, cursor:"pointer",
-          border:"0.5px solid #e2e8f0", background:"#fff", color:"#475569", fontWeight:500
+          border:"0.5px solid #E5DCCB", background:"#fff", color:"#5C5448", fontWeight:500
         }}, "Share"),
         h("a", {href:"manager.html", target:"_blank", style:{
           fontSize:11, padding:"4px 10px", borderRadius:6,
-          border:"0.5px solid #e2e8f0", background:"#fff", color:"#475569",
+          border:"0.5px solid #E5DCCB", background:"#fff", color:"#5C5448",
           fontWeight:500, textDecoration:"none", display:"inline-block"
         }}, "Thread stash \u2192")
       )
@@ -14352,11 +14352,11 @@ window.CreatorLegendTab = function CreatorLegendTab() {
         // Sub-header + controls
         h("div", {style:{display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap"}},
           h("span", {style:secHead}, "Threads"),
-          h("span", {style:{fontSize:12, color:"#cbd5e1", marginBottom:8}}, "|"),
-          h("span", {style:{fontSize:12, color:"#475569", marginBottom:8}}, "Sort:"),
+          h("span", {style:{fontSize:12, color:"#CFC4AC", marginBottom:8}}, "|"),
+          h("span", {style:{fontSize:12, color:"#5C5448", marginBottom:8}}, "Sort:"),
           h("select", {
             value:sort, onChange:function(e){setSort(e.target.value);},
-            style:{fontSize:11, padding:"3px 8px", borderRadius:6, border:"0.5px solid #e2e8f0",
+            style:{fontSize:11, padding:"3px 8px", borderRadius:6, border:"0.5px solid #E5DCCB",
                    background:"#fff", marginBottom:8}
           },
             h("option", {value:"number"},  "Thread number"),
@@ -14366,12 +14366,12 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           ),
           hasStash && !allOwned && h("button", {onClick:handleAddAll, style:{
             fontSize:11, padding:"3px 10px", borderRadius:6, cursor:"pointer", marginBottom:8,
-            border:"0.5px solid #e2e8f0", background:addedAll?"#0d9488":"#fff",
-            color:addedAll?"#fff":"#475569", fontWeight:500, marginLeft:"auto"
+            border:"0.5px solid #E5DCCB", background:addedAll?"#B85C38":"#fff",
+            color:addedAll?"#fff":"#5C5448", fontWeight:500, marginLeft:"auto"
           }}, addedAll ? "\u2713 Added" : "Mark all owned")
         ),
         // Thread table
-        h("div", {style:{overflow:"auto", maxHeight:440, border:"0.5px solid #e2e8f0", borderRadius:8}},
+        h("div", {style:{overflow:"auto", maxHeight:440, border:"0.5px solid #E5DCCB", borderRadius:8}},
           h("table", {style:{width:"100%", borderCollapse:"collapse", fontSize:12}},
             h("thead", null,
               h("tr", null,
@@ -14397,15 +14397,15 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                 return h("tr", {
                   key: p.id,
                   onClick: function() { cv.setHiId(isHi ? null : p.id); app.setTab("pattern"); },
-                  style:{borderBottom:"0.5px solid #f1f5f9", cursor:"pointer", background:rowBg}
+                  style:{borderBottom:"0.5px solid #EFE7D6", cursor:"pointer", background:rowBg}
                 },
                   h("td", {style:{padding:"5px 10px", fontFamily:"monospace", fontSize:15}}, p.symbol),
                   h("td", {style:{padding:"5px 8px"}},
                     h("div", {style:{width:20, height:20, borderRadius:3, background:"rgb("+p.rgb+")",
-                                      border:"0.5px solid #e2e8f0", display:"inline-block"}})
+                                      border:"0.5px solid #E5DCCB", display:"inline-block"}})
                   ),
                   h("td", {style:{padding:"5px 10px", fontWeight:600}}, p.id),
-                  h("td", {style:{padding:"5px 10px", color:"#475569", whiteSpace:"nowrap"}},
+                  h("td", {style:{padding:"5px 10px", color:"#5C5448", whiteSpace:"nowrap"}},
                     r.name,
                     r.confettiCount ? h("span", {
                       title: r.confettiCount + " isolated stitch" + (r.confettiCount !== 1 ? "es" : ""),
@@ -14422,12 +14422,12 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                   h("td", {style:{padding:"5px 10px", textAlign:"right"}}, p.count.toLocaleString()),
                   h("td", {style:{padding:"5px 10px", textAlign:"right", fontWeight:600}}, r.needed),
                   hasStash && h("td", {style:{padding:"5px 10px", textAlign:"right",
-                                              color: r.owned > 0 ? "#15803d" : "#94a3b8"}},
+                                              color: r.owned > 0 ? "#15803d" : "#A89E89"}},
                     r.owned > 0 ? r.owned : "\u2014"
                   ),
                   hasStash && h("td", {style:{padding:"5px 10px"}}, statusBadge(r.status)),
                   ctx.done && h("td", {style:{padding:"5px 10px", textAlign:"right"}},
-                    h("span", {style:{color: r.dc.done >= r.dc.total ? "#16a34a" : "#475569"}},
+                    h("span", {style:{color: r.dc.done >= r.dc.total ? "#16a34a" : "#5C5448"}},
                       r.dc.done + "/" + r.dc.total)
                   )
                 );
@@ -14443,47 +14443,47 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
         // Fabric count + over-two
         h("div", {style:{
-          padding:"10px 12px", background:"#f8fafc", border:"0.5px solid #e2e8f0",
+          padding:"10px 12px", background:"#f8fafc", border:"0.5px solid #E5DCCB",
           borderRadius:"8px 8px 0 0", display:"flex", flexDirection:"column", gap:8
         }},
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#475569"}},
+          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#5C5448"}},
             "Count:",
             h("select", {
               value: ctx.fabricCt,
               onChange: function(e) { ctx.setFabricCt(Number(e.target.value)); },
-              style:{flex:1, padding:"3px 8px", borderRadius:6, border:"0.5px solid #e2e8f0",
+              style:{flex:1, padding:"3px 8px", borderRadius:6, border:"0.5px solid #E5DCCB",
                      fontSize:12, background:"#fff"}
             }, fabCounts.map(function(f) { return h("option", {key:f.ct, value:f.ct}, f.label); }))
           ),
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#475569"}},
+          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#5C5448"}},
             h("input", {type:"checkbox", checked:overTwo,
               onChange: function(e) { setOverTwo(e.target.checked); }}),
             "Stitching over two"
           ),
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#475569"}},
+          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#5C5448"}},
             "Margin:",
             h("input", {
               type:"number", min:0, max:10, step:0.5, value:margin,
               onChange: function(e) { setMargin(Number(e.target.value) || 0); },
               style:{width:52, padding:"3px 6px", fontSize:12, borderRadius:6,
-                     border:"0.5px solid #e2e8f0", background:"#fff"}
+                     border:"0.5px solid #E5DCCB", background:"#fff"}
             }),
-            h("span", {style:{fontSize:11, color:"#94a3b8"}}, "\" each side")
+            h("span", {style:{fontSize:11, color:"#A89E89"}}, "\" each side")
           ),
           h("div", {style:{display:"flex", gap:4}},
             ["in","cm"].map(function(u) {
               return h("button", {key:u, onClick:function(){setUnits(u);}, style:{
                 flex:1, fontSize:11, padding:"3px 0", borderRadius:6, cursor:"pointer",
-                border:"0.5px solid " + (units===u?"#0d9488":"#e2e8f0"),
-                background: units===u?"#f0fdfa":"#fff",
-                color:       units===u?"#0d9488":"#475569", fontWeight:units===u?600:400
+                border:"0.5px solid " + (units===u?"#B85C38":"#E5DCCB"),
+                background: units===u?"#F4DDCF":"#fff",
+                color:       units===u?"#B85C38":"#5C5448", fontWeight:units===u?600:400
               }}, u === "in" ? "Inches" : "Centimetres");
             })
           )
         ),
 
         // Fabric size table
-        h("div", {style:{border:"0.5px solid #e2e8f0", borderTop:"none",
+        h("div", {style:{border:"0.5px solid #E5DCCB", borderTop:"none",
                           borderRadius:"0 0 8px 8px", overflow:"hidden"}},
           h("table", {style:{width:"100%", borderCollapse:"collapse", fontSize:12}},
             h("thead", null,
@@ -14498,10 +14498,10 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                 var dims      = calcFab(f.ct, overTwo ? 2 : null);
                 var isCurrent = f.ct === fabricCt;
                 return h("tr", {key:f.ct, style:{
-                  borderBottom:"0.5px solid #f1f5f9",
+                  borderBottom:"0.5px solid #EFE7D6",
                   background: isCurrent ? "#f0fdf4" : "transparent"
                 }},
-                  h("td", {style:{padding:"6px 10px", fontWeight:isCurrent?700:400, color:isCurrent?"#0d9488":"inherit"}},
+                  h("td", {style:{padding:"6px 10px", fontWeight:isCurrent?700:400, color:isCurrent?"#B85C38":"inherit"}},
                     f.ct + (overTwo ? " (×2)" : "") + " ct"
                   ),
                   h("td", {style:{padding:"6px 10px", textAlign:"right", fontWeight:600, fontVariantNumeric:"tabular-nums"}}, dims.w),
@@ -14511,7 +14511,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             )
           )
         ),
-        h("p", {style:{fontSize:10, color:"#94a3b8", marginTop:6, marginBottom:0, lineHeight:1.4}},
+        h("p", {style:{fontSize:10, color:"#A89E89", marginTop:6, marginBottom:0, lineHeight:1.4}},
           sW + "\u00d7" + sH + " stitches"
           + (margin > 0 ? " + " + margin + "\" margin" : "")
           + (overTwo ? ", over two" : "")
@@ -14745,18 +14745,18 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         h('button', {
           onClick: handleCopy,
           style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                   border: '0.5px solid #e2e8f0', background: copied ? '#0d9488' : '#fff',
-                   color: copied ? '#fff' : '#475569', fontWeight: 500 }
+                   border: '0.5px solid #E5DCCB', background: copied ? '#B85C38' : '#fff',
+                   color: copied ? '#fff' : '#5C5448', fontWeight: 500 }
         }, copied ? '\u2713 Copied' : 'Copy list'),
         canShare && h('button', {
           onClick: handleShare,
           style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                   border: '0.5px solid #e2e8f0', background: '#fff', color: '#475569', fontWeight: 500 }
+                   border: '0.5px solid #E5DCCB', background: '#fff', color: '#5C5448', fontWeight: 500 }
         }, 'Share'),
         h('a', {
           href: 'manager.html', target: '_blank',
           style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                   border: '0.5px solid #e2e8f0', background: '#fff', color: '#475569',
+                   border: '0.5px solid #E5DCCB', background: '#fff', color: '#5C5448',
                    fontWeight: 500, textDecoration: 'none', display: 'inline-block' }
         }, 'View thread stash \u2192')
       )
@@ -14764,19 +14764,19 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
 
     // Controls row
     h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap'}},
-      h('label', {style: {fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4}},
+      h('label', {style: {fontSize: 12, color: '#5C5448', display: 'flex', alignItems: 'center', gap: 4}},
         h('input', {
           type: 'checkbox', checked: overTwo,
           onChange: function(e) { setOverTwo(e.target.checked); }
         }),
         'Over two'
       ),
-      h('span', {style: {fontSize: 12, color: '#94a3b8'}},'|'),
-      h('span', {style: {fontSize: 12, color: '#475569'}}, 'Sort:'),
+      h('span', {style: {fontSize: 12, color: '#A89E89'}},'|'),
+      h('span', {style: {fontSize: 12, color: '#5C5448'}}, 'Sort:'),
       h('select', {
         value: sort,
         onChange: function(e) { setSort(e.target.value); },
-        style: { fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '0.5px solid #e2e8f0', background: '#fff' }
+        style: { fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '0.5px solid #E5DCCB', background: '#fff' }
       },
         h('option', {value: 'number'}, 'Thread number'),
         h('option', {value: 'stitches'}, 'Stitch count'),
@@ -14786,8 +14786,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
       (ownedColours < totalColours) && h('button', {
         onClick: handleAddAll,
         style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                 border: '0.5px solid #e2e8f0', background: addedAll ? '#0d9488' : '#fff',
-                 color: addedAll ? '#fff' : '#475569', fontWeight: 500, marginLeft: 'auto' }
+                 border: '0.5px solid #E5DCCB', background: addedAll ? '#B85C38' : '#fff',
+                 color: addedAll ? '#fff' : '#5C5448', fontWeight: 500, marginLeft: 'auto' }
       }, addedAll ? '\u2713 Added to stash' : 'Mark all as owned')
     ),
 
@@ -14795,14 +14795,14 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     h('div', {style: {overflow: 'auto', maxHeight: 480, marginBottom: 20}},
       h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize: 12}},
         h('thead', null,
-          h('tr', {style: {background: '#f8f9fa'}},
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, ''),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'DMC'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Name'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Stitches'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Skeins'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'In stash'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Status')
+          h('tr', {style: {background: '#FBF8F3'}},
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, ''),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'DMC'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Name'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Stitches'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Skeins'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'In stash'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Status')
           )
         ),
         h('tbody', null,
@@ -14810,19 +14810,19 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
             return h('tr', {
               key: r.p.id,
               style: {
-                borderBottom: '0.5px solid #f1f5f9',
+                borderBottom: '0.5px solid #EFE7D6',
                 background: r.status === 'owned' ? '#f0fdf4' : i % 2 === 0 ? 'transparent' : '#fafafa'
               }
             },
               h('td', {style: {padding: '6px 10px'}},
                 h('div', {style: {width: 20, height: 20, borderRadius: 4, background: 'rgb(' + r.p.rgb + ')',
-                                  border: '0.5px solid #e2e8f0', display: 'inline-block'}})
+                                  border: '0.5px solid #E5DCCB', display: 'inline-block'}})
               ),
               h('td', {style: {padding: '6px 10px', fontWeight: 600}}, r.p.id),
-              h('td', {style: {padding: '6px 10px', color: '#475569'}}, r.name),
+              h('td', {style: {padding: '6px 10px', color: '#5C5448'}}, r.name),
               h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.p.count.toLocaleString()),
               h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, r.needed),
-              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#15803d' : '#94a3b8'}},
+              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#15803d' : '#A89E89'}},
                 r.owned > 0 ? r.owned : '\u2014'
               ),
               h('td', {style: {padding: '6px 10px'}}, statusBadge(r.status))
@@ -14833,12 +14833,12 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     ),
 
     // Fabric calculator (collapsible)
-    h('div', {style: {border: '0.5px solid #e2e8f0', borderRadius: 8, overflow: 'hidden'}},
+    h('div', {style: {border: '0.5px solid #E5DCCB', borderRadius: 8, overflow: 'hidden'}},
       h('button', {
         onClick: function() { setFabOpen(function(o) { return !o; }); },
         style: {
           width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12,
-          fontWeight: 600, color: '#475569', background: '#f8f9fa', border: 'none',
+          fontWeight: 600, color: '#5C5448', background: '#FBF8F3', border: 'none',
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
         }
       },
@@ -14848,28 +14848,28 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
       fabOpen && h('div', {style: {padding: '14px'}},
         // Controls
         h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap'}},
-          h('span', {style: {fontSize: 12, color: '#475569'}}, 'Margin:'),
+          h('span', {style: {fontSize: 12, color: '#5C5448'}}, 'Margin:'),
           h('input', {
             type: 'number', min: 0, max: 10, step: 0.5, value: margin,
             onChange: function(e) { setMargin(Number(e.target.value) || 0); },
-            style: { width: 60, padding: '3px 8px', fontSize: 12, borderRadius: 6, border: '0.5px solid #e2e8f0' }
+            style: { width: 60, padding: '3px 8px', fontSize: 12, borderRadius: 6, border: '0.5px solid #E5DCCB' }
           }),
-          h('span', {style: {fontSize: 12, color: '#94a3b8'}}, 'inches each side'),
-          h('span', {style: {fontSize: 12, color: '#94a3b8'}}, '|'),
-          h('span', {style: {fontSize: 12, color: '#475569'}}, 'Units:'),
+          h('span', {style: {fontSize: 12, color: '#A89E89'}}, 'inches each side'),
+          h('span', {style: {fontSize: 12, color: '#A89E89'}}, '|'),
+          h('span', {style: {fontSize: 12, color: '#5C5448'}}, 'Units:'),
           ['in', 'cm'].map(function(u) {
             return h('button', {
               key: u,
               onClick: function() { setUnits(u); },
               style: {
                 fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
-                border: '0.5px solid ' + (units === u ? '#0d9488' : '#e2e8f0'),
-                background: units === u ? '#f0fdfa' : '#fff',
-                color: units === u ? '#0d9488' : '#475569', fontWeight: units === u ? 600 : 400
+                border: '0.5px solid ' + (units === u ? '#B85C38' : '#E5DCCB'),
+                background: units === u ? '#F4DDCF' : '#fff',
+                color: units === u ? '#B85C38' : '#5C5448', fontWeight: units === u ? 600 : 400
               }
             }, u === 'in' ? 'Inches' : 'Centimetres');
           }),
-          h('label', {style: {fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4}},
+          h('label', {style: {fontSize: 12, color: '#5C5448', display: 'flex', alignItems: 'center', gap: 4}},
             h('input', {
               type: 'checkbox', checked: overTwo,
               onChange: function(e) { setOverTwo(e.target.checked); }
@@ -14881,11 +14881,11 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         h('div', {style: {overflow: 'auto'}},
           h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize: 12}},
             h('thead', null,
-              h('tr', {style: {background: '#f8f9fa'}},
-                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Count'),
-                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Width'),
-                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Height'),
-                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, '')
+              h('tr', {style: {background: '#FBF8F3'}},
+                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Count'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Width'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Height'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, '')
               )
             ),
             h('tbody', null,
@@ -14895,7 +14895,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                 return h('tr', {
                   key: f.ct,
                   style: {
-                    borderBottom: '0.5px solid #f1f5f9',
+                    borderBottom: '0.5px solid #EFE7D6',
                     background: isCurrent ? '#f0fdf4' : 'transparent'
                   }
                 },
@@ -14905,14 +14905,14 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.w),
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.h),
                   h('td', {style: {padding: '6px 10px'}},
-                    isCurrent && h('span', {style: {fontSize: 10, color: '#0d9488', fontWeight: 600}}, '\u2190 current')
+                    isCurrent && h('span', {style: {fontSize: 10, color: '#B85C38', fontWeight: 600}}, '\u2190 current')
                   )
                 );
               })
             )
           )
         ),
-        h('p', {style: {fontSize: 11, color: '#94a3b8', marginTop: 10}},
+        h('p', {style: {fontSize: 11, color: '#A89E89', marginTop: 10}},
           'Pattern: ' + sW + '\u00d7' + sH + ' stitches. Margin: ' + margin + '" each side.'
           + (overTwo ? ' Stitching over two threads.' : '')
         )
@@ -15001,12 +15001,12 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
 
     function clearLogo() { update("designerLogo", null); }
 
-    var inputStyle = { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 13, width: "100%", boxSizing: "border-box" };
+    var inputStyle = { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 13, width: "100%", boxSizing: "border-box" };
     var labelStyle = { fontSize: 11, fontWeight: 600, color: "#3f3f46", display: "block", marginBottom: 4 };
 
-    return h("div", { style: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14 } },
+    return h("div", { style: { background: "#fff", border: "1px solid #E5DCCB", borderRadius: 8, padding: 14 } },
       h("h4", { style: { margin: "0 0 8px", fontSize: 13, color: "#0f172a" } }, "Designer branding"),
-      h("p", { style: { fontSize: 11, color: "#64748b", margin: "0 0 12px" } },
+      h("p", { style: { fontSize: 11, color: "#8A8270", margin: "0 0 12px" } },
         "These settings apply to every PDF you export. They live on this device only."),
 
       h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 } },
@@ -15026,14 +15026,14 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         h("div", { style: { flex: "0 0 110px" } },
           h("label", { style: labelStyle }, "Logo"),
           state.designerLogo
-            ? h("div", { style: { width: 100, height: 100, border: "1px solid #cbd5e1", borderRadius: 6, background: "#fafafa", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" } },
+            ? h("div", { style: { width: 100, height: 100, border: "1px solid #CFC4AC", borderRadius: 6, background: "#fafafa", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" } },
                 h("img", { src: state.designerLogo, alt: "logo", style: { maxWidth: "100%", maxHeight: "100%" } }))
             : h("button", { onClick: function () { fileRef.current && fileRef.current.click(); },
-                style: { width: 100, height: 100, border: "1.5px dashed #cbd5e1", borderRadius: 6, background: "#f8fafc", cursor: "pointer", fontSize: 11, color: "#64748b" } },
+                style: { width: 100, height: 100, border: "1.5px dashed #CFC4AC", borderRadius: 6, background: "#f8fafc", cursor: "pointer", fontSize: 11, color: "#8A8270" } },
                 "Upload logo"),
           h("input", { ref: fileRef, type: "file", accept: "image/png,image/jpeg", style: { display: "none" }, onChange: onPickLogo }),
           state.designerLogo && h("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
-            h("button", { onClick: function () { fileRef.current && fileRef.current.click(); }, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", cursor: "pointer" } }, "Replace"),
+            h("button", { onClick: function () { fileRef.current && fileRef.current.click(); }, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #CFC4AC", borderRadius: 6, background: "#fff", cursor: "pointer" } }, "Replace"),
             h("button", { onClick: clearLogo, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#b91c1c", cursor: "pointer" } }, "Remove")
           )
         ),
@@ -15080,11 +15080,11 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
 
 // Module-scope hoisted values (regex / style objects).
 var EXPORT_UNSAFE_FILENAME_CHARS = /[^\w\-]+/g;
-var EXPORT_PRESET_CARD_BASE = { flex: 1, padding: 14, borderRadius: 10, border: "1.5px solid #cbd5e1", background: "#fff", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 };
-var EXPORT_PRESET_CARD_ACTIVE = { background: "#0d9488", color: "#fff", borderColor: "#0d9488" };
-var EXPORT_CTA_STYLE = { padding: "14px 22px", fontSize: 16, borderRadius: 10, border: "none", background: "#0d9488", color: "#fff", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
-var EXPORT_DISABLED_CTA = Object.assign({}, EXPORT_CTA_STYLE, { background: "#94a3b8", cursor: "not-allowed" });
-var EXPORT_SECTION_TOGGLE = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "#0f172a" };
+var EXPORT_PRESET_CARD_BASE = { flex: 1, padding: 14, borderRadius: 10, border: "1.5px solid #CFC4AC", background: "#fff", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 };
+var EXPORT_PRESET_CARD_ACTIVE = { background: "#B85C38", color: "#fff", borderColor: "#B85C38" };
+var EXPORT_CTA_STYLE = { padding: "14px 22px", fontSize: 16, borderRadius: 10, border: "none", background: "#B85C38", color: "#fff", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
+var EXPORT_DISABLED_CTA = Object.assign({}, EXPORT_CTA_STYLE, { background: "#A89E89", cursor: "not-allowed" });
+var EXPORT_SECTION_TOGGLE = { background: "#fff", border: "1px solid #E5DCCB", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "#0f172a" };
 
 window.CreatorExportTab = function CreatorExportTab() {
   var ctx = window.usePatternData();
@@ -15450,7 +15450,7 @@ window.CreatorExportTab = function CreatorExportTab() {
 
     h("button", {
       onClick: app.handleOpenInTracker,
-      style: { padding: "12px 20px", fontSize: 15, borderRadius: 8, border: "none", background: "#0f766e", color: "#fff", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }
+      style: { padding: "12px 20px", fontSize: 15, borderRadius: 8, border: "none", background: "#944526", color: "#fff", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }
     }, window.Icons && Icons.thread && Icons.thread(), " Open in Stitch Tracker →"),
 
     h("div", null,
@@ -15474,9 +15474,9 @@ window.CreatorExportTab = function CreatorExportTab() {
     h("div", null,
       h("button", { onClick: function () { setSettingsOpen(!settingsOpen[0]); }, style: sectionToggle },
         h("span", null, "Format & settings"),
-        h("span", { style: { color: "#64748b" } }, settingsOpen[0] ? "▲" : "▼")
+        h("span", { style: { color: "#8A8270" } }, settingsOpen[0] ? "▲" : "▼")
       ),
-      settingsOpen[0] && h("div", { style: { background: "#fff", border: "1px solid #e2e8f0", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 14 } },
+      settingsOpen[0] && h("div", { style: { background: "#fff", border: "1px solid #E5DCCB", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 14 } },
 
         h("div", { style: { marginBottom: 14 } },
           h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 6 } }, "Format"),
@@ -15489,7 +15489,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 } },
           h("div", null,
             h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Page size"),
-            h("select", { value: pageSize[0], onChange: function (e) { setPageSize(e.target.value); }, style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12, width: "100%" } },
+            h("select", { value: pageSize[0], onChange: function (e) { setPageSize(e.target.value); }, style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12, width: "100%" } },
               h("option", { value: "auto" },   "Auto (A4 / Letter from locale)"),
               h("option", { value: "a4" },     "A4 (210 × 297 mm)"),
               h("option", { value: "letter" }, "US Letter (8.5 × 11 in)")
@@ -15498,13 +15498,13 @@ window.CreatorExportTab = function CreatorExportTab() {
           h("div", null,
             h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Page margin (mm)"),
             h("input", { type: "number", min: 10, max: 30, value: marginsMm[0], onChange: function (e) { setMarginsMm(Number(e.target.value)); },
-              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12, width: "100%" } })
+              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12, width: "100%" } })
           )
         ),
 
         h("div", { style: { marginBottom: 12 } },
           h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Stitches per page"),
-          h("select", { value: stPerPg[0], onChange: function (e) { setStPerPg(e.target.value); }, style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12 } },
+          h("select", { value: stPerPg[0], onChange: function (e) { setStPerPg(e.target.value); }, style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12 } },
             h("option", { value: "small" },  "Small print (~80 × 100, ~2mm cells)"),
             h("option", { value: "medium" }, "Medium print (~60 × 70, ~2.8mm cells, ideal for PK)"),
             h("option", { value: "large" },  "Large print (~40 × 50, ~4mm cells, easier to read)"),
@@ -15512,10 +15512,10 @@ window.CreatorExportTab = function CreatorExportTab() {
           ),
           stPerPg[0] === "custom" && h("div", { style: { display: "flex", gap: 8, marginTop: 6 } },
             h("input", { type: "number", min: 10, max: 200, step: 10, value: customCols[0], onChange: function (e) { setCustomCols(Number(e.target.value)); },
-              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12, width: 90 } }),
+              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12, width: 90 } }),
             h("span", { style: { fontSize: 12, alignSelf: "center" } }, "cols ×"),
             h("input", { type: "number", min: 10, max: 200, step: 10, value: customRows[0], onChange: function (e) { setCustomRows(Number(e.target.value)); },
-              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12, width: 90 } }),
+              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12, width: 90 } }),
             h("span", { style: { fontSize: 12, alignSelf: "center" } }, "rows")
           )
         ),
@@ -15548,26 +15548,26 @@ window.CreatorExportTab = function CreatorExportTab() {
             "Mini-legend strip on each page")
         ),
 
-        pageGeom && h("p", { style: { fontSize: 11, color: "#64748b", marginTop: 12, marginBottom: 0 } },
+        pageGeom && h("p", { style: { fontSize: 11, color: "#8A8270", marginTop: 12, marginBottom: 0 } },
           "Will produce ~" + totalPagesPreview + " page" + (totalPagesPreview === 1 ? "" : "s") +
           " (chart grid: " + pageGeom.colsPerPage + " × " + pageGeom.rowsPerPage +
           " stitches per chart page, cell ≈ " + pageGeom.cellMm.toFixed(2) + " mm).")
       )
     ),
 
-    h("div", { style: { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#475569" } },
+    h("div", { style: { background: "#f8fafc", border: "1px solid #E5DCCB", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#5C5448" } },
       "Designer branding (name, logo, copyright) is now in ",
       h("strong", null, "File → Preferences"),
       ". Settings there apply to every PDF you export."
     ),
 
-    progressState[0] ? h("div", { style: { background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 10, padding: 16 } },
+    progressState[0] ? h("div", { style: { background: "#EFE7D6", border: "1px solid #CFC4AC", borderRadius: 10, padding: 16 } },
       h("div", { style: { fontSize: 13, fontWeight: 600, color: "#0f172a", marginBottom: 8 } },
         "Generating PDF… " + (progressState[0].current || 0) + " of " + (progressState[0].total || "?") + " pages"),
-      h("div", { style: { background: "#e2e8f0", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 10 } },
+      h("div", { style: { background: "#E5DCCB", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 10 } },
         h("div", { style: {
           width: ((progressState[0].total ? Math.min(100, (progressState[0].current / progressState[0].total) * 100) : 30)) + "%",
-          height: "100%", background: "#0d9488", transition: "width 120ms ease-out" } })
+          height: "100%", background: "#B85C38", transition: "width 120ms ease-out" } })
       ),
       h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize: 13, borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", cursor: "pointer", fontWeight: 600 } }, "Cancel")
     ) : h("button", {
@@ -15577,12 +15577,12 @@ window.CreatorExportTab = function CreatorExportTab() {
     }, exportFormat[0] === "png" ? "Export PNG" : "Export PDF"),
 
     // C6: Download bundle (zip with PDF + OXS + PNG + JSON + manifest).
-    h("div", { style: { borderTop: "1px solid #e2e8f0", marginTop: 4, paddingTop: 14, display: "flex", flexDirection: "column", gap: 8 } },
+    h("div", { style: { borderTop: "1px solid #E5DCCB", marginTop: 4, paddingTop: 14, display: "flex", flexDirection: "column", gap: 8 } },
       h("div", { style: { fontSize: 13, fontWeight: 600, color: "#0f172a" } }, "Download as bundle"),
-      h("div", { style: { fontSize: 11, color: "#64748b" } },
+      h("div", { style: { fontSize: 11, color: "#8A8270" } },
         "One .zip with the PDF chart, OXS pattern, PNG preview, JSON snapshot, and a manifest. Useful for archiving or sharing the finished project."),
       bundleState[0]
-        ? h("div", { style: { background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 8, padding: 10, fontSize: 12, color: "#0f172a" } },
+        ? h("div", { style: { background: "#EFE7D6", border: "1px solid #CFC4AC", borderRadius: 8, padding: 10, fontSize: 12, color: "#0f172a" } },
             (bundleState[0].msg || "Working…"))
         : h("button", {
             onClick: doExportBundle,
@@ -15759,9 +15759,9 @@ window.CreatorExportTab = function CreatorExportTab() {
         key: r.id,
         style: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: bg, borderRadius: 6, border: '1px solid ' + border, marginBottom: 4 }
       },
-        h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid #cbd5e1', flexShrink: 0 } }),
+        h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
         h('div', { style: { width: 38, fontWeight: 700, fontSize: 12, flexShrink: 0 } }, r.id),
-        h('div', { style: { flex: 1, fontSize: 12, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name),
+        h('div', { style: { flex: 1, fontSize: 12, color: '#5C5448', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name),
         h('div', { style: { fontSize: 11, color: kind === 'owned' ? '#15803d' : '#b91c1c', fontWeight: 500, flexShrink: 0 } }, note)
       );
     };
@@ -15772,17 +15772,17 @@ window.CreatorExportTab = function CreatorExportTab() {
         onClick: function (e) { e.stopPropagation(); },
         style: { maxWidth: 540, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }
       },
-        h('div', { style: { padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        h('div', { style: { padding: '16px 20px', borderBottom: '1px solid #E5DCCB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
           h('h2', { style: { margin: 0, fontSize: 18 } }, 'What do I need to buy?'),
           h('button', {
             onClick: onClose,
-            style: { background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#94a3b8' }
+            style: { background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#A89E89' }
           }, '\u00D7')
         ),
         h('div', {
           style: {
             padding: '10px 20px', background: buyRows.length === 0 ? '#f0fdf4' : '#fffbeb',
-            borderBottom: '1px solid #e2e8f0', fontSize: 12,
+            borderBottom: '1px solid #E5DCCB', fontSize: 12,
             color: buyRows.length === 0 ? '#15803d' : '#92400e', fontWeight: 600
           }
         },
@@ -15792,7 +15792,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         ),
         h('div', { style: { padding: '12px 20px', overflowY: 'auto', flex: 1 } },
           rows.length === 0
-            ? h('div', { style: { padding: 30, textAlign: 'center', color: '#94a3b8' } }, 'No threads in this pattern yet.')
+            ? h('div', { style: { padding: 30, textAlign: 'center', color: '#A89E89' } }, 'No threads in this pattern yet.')
             : h(React.Fragment, null,
                 buyRows.length > 0 && sectionLabel('Need to buy (' + buyRows.length + ')', '#dc2626'),
                 buyRows.map(function (r) { return rowEl(r, 'needed'); }),
@@ -15801,17 +15801,17 @@ window.CreatorExportTab = function CreatorExportTab() {
               )
         ),
         h('div', {
-          style: { padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8f9fa', gap: 8, flexWrap: 'wrap' }
+          style: { padding: '14px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FBF8F3', gap: 8, flexWrap: 'wrap' }
         },
           h('span', { style: { fontSize: 12, color: '#16a34a', fontWeight: 600, opacity: copied ? 1 : 0, transition: 'opacity 0.2s' } }, 'Copied!'),
           h('div', { style: { display: 'flex', gap: 8, marginLeft: 'auto' } },
             h('a', {
               href: 'manager.html',
-              style: { padding: '7px 14px', borderRadius: 8, border: '0.5px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13, textDecoration: 'none', color: '#475569' }
+              style: { padding: '7px 14px', borderRadius: 8, border: '0.5px solid #E5DCCB', background: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13, textDecoration: 'none', color: '#5C5448' }
             }, 'Open in Stash Manager'),
             rows.length > 0 && h('button', {
               onClick: copyText,
-              style: { padding: '7px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13 }
+              style: { padding: '7px 14px', borderRadius: 8, border: 'none', background: '#B85C38', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13 }
             }, 'Copy list')
           )
         )

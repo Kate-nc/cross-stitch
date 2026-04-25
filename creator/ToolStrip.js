@@ -184,13 +184,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
-      style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0,maxWidth:"60vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
+      style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#F4DDCF",border:"1px solid #E8B89A",marginRight:6,flexShrink:0,maxWidth:"60vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
       title: ctx.cmap[cv.selectedColorId].name || cv.selectedColorId
     },
-      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}),
-      h("span", {style:{fontWeight:600,color:"#0d9488",flexShrink:0}}, cv.selectedColorId),
-      ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"#0f766e",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
-    ) : h("span", {style:{fontSize:10,color:"#94a3b8",marginRight:6,flexShrink:0}}, "none selected"),
+      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid #CFC4AC",display:"inline-block",flexShrink:0}}),
+      h("span", {style:{fontWeight:600,color:"#B85C38",flexShrink:0}}, cv.selectedColorId),
+      ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"#944526",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
+    ) : h("span", {style:{fontSize:10,color:"#A89E89",marginRight:6,flexShrink:0}}, "none selected"),
     swatchesShown.map(function(p) {
       var isSel = cv.selectedColorId === p.id;
       return h("button", {
@@ -203,7 +203,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           width:20, height:20, flexShrink:0,
           borderRadius:4, cursor:"pointer", padding:0,
           background:"rgb("+p.rgb+")",
-          border: isSel ? "2px solid #0d9488" : "1.5px solid rgba(0,0,0,0.15)",
+          border: isSel ? "2px solid #B85C38" : "1.5px solid rgba(0,0,0,0.15)",
           boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
           outline:"none"
         }
@@ -261,7 +261,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         onClick:function(){ if(cv.cancelLasso) cv.cancelLasso(); if(cv.clearSelection) cv.clearSelection(); },
         title:"Clear selection (Esc)",
         "aria-label":"Clear selection",
-        style:{fontSize:10,padding:"2px 6px",color:"#475569"}
+        style:{fontSize:10,padding:"2px 6px",color:"#5C5448"}
       }, (cv.selectionCount||0).toLocaleString()+" sel ", window.Icons.x())
     )
   ];
@@ -345,7 +345,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:function(){cv.setShowOverlay(function(v){return !v;});}
     },
       h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-        border:"2px solid "+(cv.showOverlay?"#0d9488":"#cbd5e1")}}),
+        border:"2px solid "+(cv.showOverlay?"#B85C38":"#CFC4AC")}}),
       " Overlay"+(cv.showOverlay?" \u2713":"")
     ),
     cv.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},

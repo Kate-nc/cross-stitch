@@ -2,10 +2,10 @@ const { useState, useRef, useEffect, useCallback, useMemo } = React;
 
 const CW = 400, CH = 400;
 const NODE_R = 6, NODE_HIT = 12, EDGE_HIT = 8;
-const ACCENT = '#0d9488';
-const ACCENT_DARK = '#0f766e';
-const ACCENT_LIGHT = '#f0fdfa';
-const ACCENT_BORDER = '#99f6e4';
+const ACCENT = '#B85C38';
+const ACCENT_DARK = '#944526';
+const ACCENT_LIGHT = '#F4DDCF';
+const ACCENT_BORDER = '#E8B89A';
 
 // ============================================================
 // Pipeline constants
@@ -65,12 +65,12 @@ const ZOOM_STEP_BUTTON = 0.25;  // per toolbar button click
 const ZOOM_STEP_SCROLL = 0.1;   // per scroll tick
 
 const STITCHES = [
-  { id:"satin",name:"Satin",desc:"Smooth parallel fill",color:"#0d9488"},
-  { id:"longshort",name:"Long & Short",desc:"Blended shading fill",color:"#0f766e"},
+  { id:"satin",name:"Satin",desc:"Smooth parallel fill",color:"#B85C38"},
+  { id:"longshort",name:"Long & Short",desc:"Blended shading fill",color:"#944526"},
   { id:"frenchknot",name:"French Knots",desc:"Textured dots",color:"#ec4899"},
   { id:"chainstitch",name:"Chain",desc:"Looped fill/outline",color:"#14b8a6"},
   { id:"seedstitch",name:"Seed",desc:"Random short stitches",color:"#f59e0b"},
-  { id:"stemstitch",name:"Stem",desc:"Outline stitch",color:"#64748b"},
+  { id:"stemstitch",name:"Stem",desc:"Outline stitch",color:"#8A8270"},
 ];
 
 const EMB_COLORS=[
@@ -1385,7 +1385,7 @@ function EmbroideryApp(){
         {/* Zoom toolbar */}
         <div className="tb-grp" style={{width:"100%",marginBottom:6,gap:2}}>
           <button className="tb-btn" onClick={()=>{const nz=Math.max(ZOOM_MIN,zoom-ZOOM_STEP_BUTTON);const np={x:CW*(1-nz)/2,y:CH*(1-nz)/2};setZoom(nz);setPan(np);zoomRef.current=nz;panRef.current=np;}} style={{width:28,flexShrink:0}}>−</button>
-          <span style={{fontSize:11,minWidth:38,textAlign:"center",color:"#64748b",padding:"0 2px"}}>{Math.round(zoom*100)}%</span>
+          <span style={{fontSize:11,minWidth:38,textAlign:"center",color:"#8A8270",padding:"0 2px"}}>{Math.round(zoom*100)}%</span>
           <button className="tb-btn" onClick={()=>{const nz=Math.min(ZOOM_MAX,zoom+ZOOM_STEP_BUTTON);const np={x:CW*(1-nz)/2,y:CH*(1-nz)/2};setZoom(nz);setPan(np);zoomRef.current=nz;panRef.current=np;}} style={{width:28,flexShrink:0}}>+</button>
           <button className="tb-btn" onClick={doFit} style={{marginLeft:4}}>Fit</button>
         </div>

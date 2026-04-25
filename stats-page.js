@@ -96,18 +96,18 @@ function SableChart({ data }) {
   const ticks = [0, Math.round(maxVal / 2), Math.round(maxVal)];
   return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: 520, display: 'block' }, 'aria-label': 'SABLE index chart' },
     // Grid lines
-    ticks.map(t => h('line', { key: t, x1: PX, y1: toY(t), x2: W - 10, y2: toY(t), stroke: '#e2e8f0', strokeWidth: 1 })),
-    ticks.map(t => h('text', { key: 't' + t, x: PX - 6, y: toY(t) + 4, textAnchor: 'end', fontSize: 10, fill: '#64748b' }, t)),
+    ticks.map(t => h('line', { key: t, x1: PX, y1: toY(t), x2: W - 10, y2: toY(t), stroke: '#E5DCCB', strokeWidth: 1 })),
+    ticks.map(t => h('text', { key: 't' + t, x: PX - 6, y: toY(t) + 4, textAnchor: 'end', fontSize: 10, fill: '#8A8270' }, t)),
     // Month labels
-    data.map((d, i) => i % 2 === 0 ? h('text', { key: 'l' + i, x: toX(i), y: H - 4, textAnchor: 'middle', fontSize: 9, fill: '#64748b' }, d.month.slice(5)) : null),
+    data.map((d, i) => i % 2 === 0 ? h('text', { key: 'l' + i, x: toX(i), y: H - 4, textAnchor: 'middle', fontSize: 9, fill: '#8A8270' }, d.month.slice(5)) : null),
     // Lines
     h('polyline', { points: addedPts, fill: 'none', stroke: '#f59e0b', strokeWidth: 2, strokeLinejoin: 'round' }),
-    h('polyline', { points: usedPts, fill: 'none', stroke: '#0d9488', strokeWidth: 2, strokeLinejoin: 'round' }),
+    h('polyline', { points: usedPts, fill: 'none', stroke: '#B85C38', strokeWidth: 2, strokeLinejoin: 'round' }),
     // Legend
     h('line', { x1: PX, y1: 8, x2: PX + 16, y2: 8, stroke: '#f59e0b', strokeWidth: 2 }),
-    h('text', { x: PX + 20, y: 11, fontSize: 10, fill: '#64748b' }, 'Added'),
-    h('line', { x1: PX + 64, y1: 8, x2: PX + 80, y2: 8, stroke: '#0d9488', strokeWidth: 2 }),
-    h('text', { x: PX + 84, y: 11, fontSize: 10, fill: '#64748b' }, 'Used')
+    h('text', { x: PX + 20, y: 11, fontSize: 10, fill: '#8A8270' }, 'Added'),
+    h('line', { x1: PX + 64, y1: 8, x2: PX + 80, y2: 8, stroke: '#B85C38', strokeWidth: 2 }),
+    h('text', { x: PX + 84, y: 11, fontSize: 10, fill: '#8A8270' }, 'Used')
   );
 }
 
@@ -132,9 +132,9 @@ function HueWheel({ bins, neutral }) {
   }
   return h('svg', { viewBox: '0 0 180 180', style: { width: 180, height: 180, display: 'block', margin: '0 auto' }, 'aria-label': 'Stash colour composition' },
     paths,
-    neutral > 0 && h('circle', { cx: CX, cy: CY, r: IR - 4, fill: '#94a3b8', opacity: 0.6 }),
-    h('text', { x: CX, y: CY + 4, textAnchor: 'middle', fontSize: 11, fill: '#475569', fontWeight: 600 }, fmtNum(total)),
-    h('text', { x: CX, y: CY + 16, textAnchor: 'middle', fontSize: 9, fill: '#64748b' }, 'threads')
+    neutral > 0 && h('circle', { cx: CX, cy: CY, r: IR - 4, fill: '#A89E89', opacity: 0.6 }),
+    h('text', { x: CX, y: CY + 4, textAnchor: 'middle', fontSize: 11, fill: '#5C5448', fontWeight: 600 }, fmtNum(total)),
+    h('text', { x: CX, y: CY + 16, textAnchor: 'middle', fontSize: 9, fill: '#8A8270' }, 'threads')
   );
 }
 
@@ -144,7 +144,7 @@ function AgeBar({ data }) {
     { key: 'bucket1to3Yr', label: '1–3 yr', color: '#38bdf8' },
     { key: 'bucket3to5Yr', label: '3–5 yr', color: '#818cf8' },
     { key: 'bucketOver5Yr', label: '5+ yr', color: '#f472b6' },
-    { key: 'legacy', label: 'Before tracking', color: '#94a3b8' }
+    { key: 'legacy', label: 'Before tracking', color: '#A89E89' }
   ];
   const total = buckets.reduce((s, b) => s + (data[b.key] || 0), 0);
   if (total === 0) return null;
@@ -156,7 +156,7 @@ function AgeBar({ data }) {
         return h('div', { key: b.key, style: { width: pct + '%', background: b.color, minWidth: pct > 3 ? 'auto' : 2 }, title: `${b.label}: ${data[b.key]}` });
       })
     ),
-    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '6px 14px', fontSize: 11, color: '#475569' } },
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '6px 14px', fontSize: 11, color: '#5C5448' } },
       buckets.filter(b => data[b.key] > 0).map(b =>
         h('span', { key: b.key, style: { display: 'flex', alignItems: 'center', gap: 4 } },
           h('span', { style: { width: 8, height: 8, borderRadius: 2, background: b.color, display: 'inline-block' } }),
@@ -229,41 +229,41 @@ function ShareCardModal({ lifetimeStitches, onClose }) {
       ctx.fillStyle = '#faf9f7';
       ctx.fillRect(0, 0, W, H);
       // Decorative border
-      ctx.strokeStyle = '#0d9488';
+      ctx.strokeStyle = '#B85C38';
       ctx.lineWidth = 6;
       ctx.strokeRect(40, 40, W - 80, H - 80);
       // Inner decorative cross-stitch pattern
-      ctx.fillStyle = '#e2e8f0';
+      ctx.fillStyle = '#E5DCCB';
       for (let x = 80; x < W - 80; x += 30) {
         ctx.fillRect(x, 70, 4, 4);
         ctx.fillRect(x, H - 74, 4, 4);
       }
       // Title
-      ctx.fillStyle = '#64748b';
+      ctx.fillStyle = '#8A8270';
       ctx.font = '600 32px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('LIFETIME STITCHES', W / 2, 280);
       // Main number
-      ctx.fillStyle = '#1e293b';
+      ctx.fillStyle = '#1B1814';
       ctx.font = '800 120px Inter, system-ui, sans-serif';
       ctx.fillText(fmtNum(lifetimeStitches), W / 2, 480);
       // Thread length
       const km = threadKm(lifetimeStitches);
-      ctx.fillStyle = '#0d9488';
+      ctx.fillStyle = '#B85C38';
       ctx.font = '500 36px Inter, system-ui, sans-serif';
       ctx.fillText(`≈ ${km} km of thread`, W / 2, 560);
       // Cross-stitch icon area
-      ctx.fillStyle = '#e2e8f0';
+      ctx.fillStyle = '#E5DCCB';
       const cx = W / 2, cy = 680;
       for (let i = -3; i <= 3; i++) {
         for (let j = -1; j <= 1; j++) {
           ctx.fillRect(cx + i * 22 - 8, cy + j * 22 - 8, 16, 16);
         }
       }
-      ctx.fillStyle = '#0d9488';
+      ctx.fillStyle = '#B85C38';
       ctx.fillRect(cx - 8, cy - 8, 16, 16);
       // Watermark
-      ctx.fillStyle = '#94a3b8';
+      ctx.fillStyle = '#A89E89';
       ctx.font = '400 20px Inter, system-ui, sans-serif';
       ctx.fillText('Cross Stitch Pattern Generator', W / 2, H - 100);
       setRendered(true);
@@ -369,19 +369,19 @@ function SableLineChart({ data }) {
   const usedPts = data.map((d, i) => `${sx(i)},${sy(d.used)}`).join(' ');
   const labels = data.map((d, i) => {
     if (i % 2 !== 0 && i !== data.length - 1) return null;
-    return h('text', { key: i, x: sx(i), y: H - 4, textAnchor: 'middle', fontSize: 10, fill: '#94a3b8' }, fmtMonthShort(d.month));
+    return h('text', { key: i, x: sx(i), y: H - 4, textAnchor: 'middle', fontSize: 10, fill: '#A89E89' }, fmtMonthShort(d.month));
   });
   return h('div', { style: { marginTop: 16 } },
     h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: W, display: 'block' }, role: 'img', 'aria-label': `Thread acquisition and usage over ${data.length} months` },
-      [0.25, 0.5, 0.75, 1].map(f => h('line', { key: f, x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - f), y2: PAD.top + IH * (1 - f), stroke: '#e2e8f0', strokeWidth: 1 })),
-      h('polyline', { points: addedPts, fill: 'none', stroke: '#0d9488', strokeWidth: 2.5, strokeLinejoin: 'round', strokeLinecap: 'round' }),
+      [0.25, 0.5, 0.75, 1].map(f => h('line', { key: f, x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - f), y2: PAD.top + IH * (1 - f), stroke: '#E5DCCB', strokeWidth: 1 })),
+      h('polyline', { points: addedPts, fill: 'none', stroke: '#B85C38', strokeWidth: 2.5, strokeLinejoin: 'round', strokeLinecap: 'round' }),
       h('polyline', { points: usedPts, fill: 'none', stroke: '#6ee7b7', strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round', strokeDasharray: '5 3' }),
-      data.map((d, i) => h('circle', { key: 'a' + i, cx: sx(i), cy: sy(d.added), r: 3, fill: '#0d9488' })),
+      data.map((d, i) => h('circle', { key: 'a' + i, cx: sx(i), cy: sy(d.added), r: 3, fill: '#B85C38' })),
       data.map((d, i) => d.used > 0 && h('circle', { key: 'u' + i, cx: sx(i), cy: sy(d.used), r: 2.5, fill: '#6ee7b7' })),
       ...labels
     ),
-    h('div', { style: { display: 'flex', gap: 20, marginTop: 6, fontSize: 11, color: '#64748b' } },
-      h('span', { style: { display: 'flex', alignItems: 'center', gap: 5 } }, h('span', { style: { display: 'inline-block', width: 20, height: 2.5, background: '#0d9488', borderRadius: 2 } }), 'Added'),
+    h('div', { style: { display: 'flex', gap: 20, marginTop: 6, fontSize: 11, color: '#8A8270' } },
+      h('span', { style: { display: 'flex', alignItems: 'center', gap: 5 } }, h('span', { style: { display: 'inline-block', width: 20, height: 2.5, background: '#B85C38', borderRadius: 2 } }), 'Added'),
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 5 } }, h('span', { style: { display: 'inline-block', width: 20, height: 2, background: '#6ee7b7', borderRadius: 2 } }), 'Used')
     )
   );
@@ -405,7 +405,7 @@ function ShowcaseAgeBar({ ageData: ad }) {
         return h('div', { key: b.key, style: { width: pct + '%', background: b.color }, title: `${b.label}: ${ad[b.key]}` });
       })
     ),
-    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginTop: 10, fontSize: 12, color: '#64748b' } },
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginTop: 10, fontSize: 12, color: '#8A8270' } },
       buckets.filter(b => (ad[b.key] || 0) > 0).map(b => {
         const pct = Math.round((ad[b.key] || 0) / total * 100);
         return h('span', { key: b.key, style: { display: 'flex', alignItems: 'center', gap: 5 } },
@@ -485,11 +485,11 @@ function ShowcaseShareModal({ title, drawFn, onClose }) {
 }
 
 // ── Canvas draw helpers (showcase share cards) ────────────────────
-const CARD_BG = '#faf9f7', CARD_ACCENT = '#0d9488', CARD_TEXT_PRI = '#1e293b', CARD_TEXT_SEC = '#64748b', CARD_BORDER = '#e2e8f0';
+const CARD_BG = '#faf9f7', CARD_ACCENT = '#B85C38', CARD_TEXT_PRI = '#1B1814', CARD_TEXT_SEC = '#8A8270', CARD_BORDER = '#E5DCCB';
 function drawCardBase(ctx, W, H) {
   ctx.fillStyle = CARD_BG; ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = CARD_BORDER; ctx.lineWidth = 1; ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
-  ctx.fillStyle = '#e2e8f0';
+  ctx.fillStyle = '#E5DCCB';
   for (let cx = 20; cx < W - 20; cx += 22) ctx.fillRect(cx, 10, 5, 5);
 }
 function drawShowcaseLabel(ctx, text, x, y, size, color) {
@@ -498,7 +498,7 @@ function drawShowcaseLabel(ctx, text, x, y, size, color) {
   ctx.textAlign = 'center'; ctx.fillText(text.toUpperCase(), x, y);
 }
 function drawWatermark(ctx, W, H) {
-  ctx.fillStyle = '#cbd5e1'; ctx.font = '400 16px Inter, system-ui, sans-serif';
+  ctx.fillStyle = '#CFC4AC'; ctx.font = '400 16px Inter, system-ui, sans-serif';
   ctx.textAlign = 'center'; ctx.fillText('cross stitch pattern generator', W / 2, H - 20);
 }
 function makeLifetimeCanvas(canvas, stitches) {
@@ -528,7 +528,7 @@ function makeSableCanvas(canvas, sableData, headline) {
     const maxV = Math.max(...sableData.map(d => Math.max(d.added, d.used)), 1);
     const px = i => cX + (i / (sableData.length - 1)) * cW;
     const py = v => cY + cH - (v / maxV) * cH;
-    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    ctx.strokeStyle = '#E5DCCB'; ctx.lineWidth = 1;
     [0.25, 0.5, 0.75, 1].forEach(f => { ctx.beginPath(); ctx.moveTo(cX, cY + cH * (1 - f)); ctx.lineTo(cX + cW, cY + cH * (1 - f)); ctx.stroke(); });
     ctx.strokeStyle = CARD_ACCENT; ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     ctx.beginPath(); sableData.forEach((d, i) => i === 0 ? ctx.moveTo(px(i), py(d.added)) : ctx.lineTo(px(i), py(d.added))); ctx.stroke();
@@ -575,7 +575,7 @@ function makeFullPageCanvas(canvas, data) {
   const W = 1080, H = 1920; canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = CARD_BG; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#e2e8f0';
+  ctx.fillStyle = '#E5DCCB';
   for (let gx = 30; gx < W; gx += 30) for (let gy = 30; gy < H; gy += 30) ctx.fillRect(gx - 1, gy - 1, 2, 2);
   let cy = 80;
   const section = (label, draw) => {
@@ -683,7 +683,7 @@ function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
 
   if (loading) {
     return h('div', { style: Object.assign({}, wrap, { paddingTop: 40, textAlign: 'center', color: 'var(--text-tertiary)' }) },
-      h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' } }),
+      h('div', { style: { width: 28, height: 28, border: '2.5px solid #E5DCCB', borderTopColor: '#B85C38', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' } }),
       'Loading your showcase\u2026'
     );
   }
@@ -694,13 +694,13 @@ function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
       onNavigateToActivity && h('button', { onClick: onNavigateToActivity, style: lnk }, 'Activity \u2192'),
       onNavigateToDashboard && h('button', { onClick: onNavigateToDashboard, style: lnk }, 'Full dashboard \u2192')
     ),
-    showBanner && h('div', { role: 'status', style: { background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, padding: '10px 14px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 13, color: '#0f766e' } },
+    showBanner && h('div', { role: 'status', style: { background: '#F4DDCF', border: '1px solid #E8B89A', borderRadius: 10, padding: '10px 14px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 13, color: '#944526' } },
       h('span', null, 'Tracking since ' + (function() {
         let earliest = null;
         for (const e of Object.values(stash)) { if (e.addedAt && e.addedAt !== LEGACY_EPOCH) { if (!earliest || e.addedAt < earliest) earliest = e.addedAt; } }
         return earliest ? fmtDate(earliest) : 'recently';
       })() + ' \u2014 this page will get richer as your history builds.'),
-      h('button', { onClick: handleDismissBanner, style: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#0f766e', padding: '0 4px', lineHeight: 1 }, 'aria-label': 'Dismiss banner' }, '\xd7')
+      h('button', { onClick: handleDismissBanner, style: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#944526', padding: '0 4px', lineHeight: 1 }, 'aria-label': 'Dismiss banner' }, '\xd7')
     ),
     h('section', { id: 'showcase-lifetime', 'aria-labelledby': 'showcase-lifetime-heading' },
       h('div', { style: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' } },
@@ -1100,8 +1100,8 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     if (totalUsed === 0 && totalAdded === 0) return null;
     const ratio = totalUsed > 0 ? totalAdded / totalUsed : totalAdded > 0 ? Infinity : 1;
     if (ratio > 1.5) return { text: `Adding ${Math.round(ratio * 10) / 10}× the rate of using`, color: '#f59e0b' };
-    if (ratio >= 0.8) return { text: 'About balanced', color: '#0d9488' };
-    return { text: 'Using more than adding', color: '#0d9488' };
+    if (ratio >= 0.8) return { text: 'About balanced', color: '#B85C38' };
+    return { text: 'Using more than adding', color: '#B85C38' };
   }, [sableData]);
 
   // Duplicate detection
@@ -1204,7 +1204,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     if (!insightsLoaded) {
       return h('div', null, tabBar,
         h('div', { style: { padding: '60px 0', textAlign: 'center', color: 'var(--text-tertiary)' } },
-          h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
+          h('div', { style: { width: 28, height: 28, border: '2.5px solid #E5DCCB', borderTopColor: '#B85C38', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
           'Loading insights\u2026'
         )
       );
@@ -1217,7 +1217,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     if (!activityLoaded) {
       return h('div', null, tabBar,
         h('div', { style: { padding: '60px 0', textAlign: 'center', color: 'var(--text-tertiary)' } },
-          h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
+          h('div', { style: { width: 28, height: 28, border: '2.5px solid #E5DCCB', borderTopColor: '#B85C38', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
           'Loading activity…'
         )
       );
@@ -1241,7 +1241,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     return h('div', { className: 'gsd', style: { padding: 40, textAlign: 'center', color: 'var(--text-secondary)' } },
       tabBar,
       h('div', { style: { padding: 40, textAlign: 'center', color: 'var(--text-secondary)' } },
-        h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
+        h('div', { style: { width: 28, height: 28, border: '2.5px solid #E5DCCB', borderTopColor: '#B85C38', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
         'Loading stats…'
       )
     );
@@ -1296,7 +1296,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       show('coverage') && h(StatCard, { title: 'Coverage Ratio', id: 'stats-coverage', onClick: onNavigateToStash },
         coverageRatio !== null
           ? h('div', null,
-              h('div', { className: 'gsd-metric-value', style: { color: coverageRatio >= 80 ? '#0d9488' : coverageRatio >= 50 ? '#f59e0b' : '#ef4444' } }, coverageRatio + '%'),
+              h('div', { className: 'gsd-metric-value', style: { color: coverageRatio >= 80 ? '#B85C38' : coverageRatio >= 50 ? '#f59e0b' : '#ef4444' } }, coverageRatio + '%'),
               h('div', { className: 'gsd-metric-sub' }, 'of threads needed are in your stash')
             )
           : h('div', null,
@@ -1338,7 +1338,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           const shown = readyExpanded ? readyToStart : full.slice(0, 3);
           return h('div', null,
             shown.map(p => h('div', { key: p.id, onClick: () => navigateToProject(p.id), style: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', fontSize: 13 } },
-              h('span', { style: { color: p.pct === 100 ? '#0d9488' : '#f59e0b', fontWeight: 600, minWidth: 36 } }, p.pct + '%'),
+              h('span', { style: { color: p.pct === 100 ? '#B85C38' : '#f59e0b', fontWeight: 600, minWidth: 36 } }, p.pct + '%'),
               h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.title || 'Untitled'),
               h('span', { style: { fontSize: 11, color: 'var(--text-tertiary)' } }, p.totalThreads + ' threads')
             )),
@@ -1362,7 +1362,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               ))
             )
           : h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)' } },
-              h('span', { style: { color: '#0d9488', fontSize: 18, display:'inline-flex', alignItems:'center' } }, window.Icons ? window.Icons.check() : null),
+              h('span', { style: { color: '#B85C38', fontSize: 18, display:'inline-flex', alignItems:'center' } }, window.Icons ? window.Icons.check() : null),
               'No duplicates spotted — nicely done'
             )
       ),

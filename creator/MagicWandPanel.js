@@ -30,7 +30,7 @@ window.MagicWandPanel = function MagicWandPanel() {
   function swatch(rgb) {
     return h("span", {
       style: { display: "inline-block", width: 12, height: 12, borderRadius: 2,
-        background: "rgb(" + (rgb || [128,128,128]) + ")", border: "1px solid #cbd5e1",
+        background: "rgb(" + (rgb || [128,128,128]) + ")", border: "1px solid #CFC4AC",
         verticalAlign: "middle", marginRight: 3 }
     });
   }
@@ -320,10 +320,10 @@ window.MagicWandPanel = function MagicWandPanel() {
 
   // ─── Outline panel ───────────────────────────────────────────────────────────
   var outlinePanel = (panel === "outline" && hasSelection) ? h("div", {
-    style: { padding: "10px 14px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0",
+    style: { padding: "10px 14px", background: "#f8fafc", borderBottom: "1px solid #E5DCCB",
       display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
   },
-    h("strong", { style: { color: "#1e293b" } }, "Generate Backstitch Outline"),
+    h("strong", { style: { color: "#1B1814" } }, "Generate Backstitch Outline"),
     h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
       "Outline thread (DMC):",
       h("input", {

@@ -218,18 +218,18 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         h('button', {
           onClick: handleCopy,
           style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                   border: '0.5px solid #e2e8f0', background: copied ? '#0d9488' : '#fff',
-                   color: copied ? '#fff' : '#475569', fontWeight: 500 }
+                   border: '0.5px solid #E5DCCB', background: copied ? '#B85C38' : '#fff',
+                   color: copied ? '#fff' : '#5C5448', fontWeight: 500 }
         }, copied ? '\u2713 Copied' : 'Copy list'),
         canShare && h('button', {
           onClick: handleShare,
           style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                   border: '0.5px solid #e2e8f0', background: '#fff', color: '#475569', fontWeight: 500 }
+                   border: '0.5px solid #E5DCCB', background: '#fff', color: '#5C5448', fontWeight: 500 }
         }, 'Share'),
         h('a', {
           href: 'manager.html', target: '_blank',
           style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                   border: '0.5px solid #e2e8f0', background: '#fff', color: '#475569',
+                   border: '0.5px solid #E5DCCB', background: '#fff', color: '#5C5448',
                    fontWeight: 500, textDecoration: 'none', display: 'inline-block' }
         }, 'View thread stash \u2192')
       )
@@ -237,19 +237,19 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
 
     // Controls row
     h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap'}},
-      h('label', {style: {fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4}},
+      h('label', {style: {fontSize: 12, color: '#5C5448', display: 'flex', alignItems: 'center', gap: 4}},
         h('input', {
           type: 'checkbox', checked: overTwo,
           onChange: function(e) { setOverTwo(e.target.checked); }
         }),
         'Over two'
       ),
-      h('span', {style: {fontSize: 12, color: '#94a3b8'}},'|'),
-      h('span', {style: {fontSize: 12, color: '#475569'}}, 'Sort:'),
+      h('span', {style: {fontSize: 12, color: '#A89E89'}},'|'),
+      h('span', {style: {fontSize: 12, color: '#5C5448'}}, 'Sort:'),
       h('select', {
         value: sort,
         onChange: function(e) { setSort(e.target.value); },
-        style: { fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '0.5px solid #e2e8f0', background: '#fff' }
+        style: { fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '0.5px solid #E5DCCB', background: '#fff' }
       },
         h('option', {value: 'number'}, 'Thread number'),
         h('option', {value: 'stitches'}, 'Stitch count'),
@@ -259,8 +259,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
       (ownedColours < totalColours) && h('button', {
         onClick: handleAddAll,
         style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                 border: '0.5px solid #e2e8f0', background: addedAll ? '#0d9488' : '#fff',
-                 color: addedAll ? '#fff' : '#475569', fontWeight: 500, marginLeft: 'auto' }
+                 border: '0.5px solid #E5DCCB', background: addedAll ? '#B85C38' : '#fff',
+                 color: addedAll ? '#fff' : '#5C5448', fontWeight: 500, marginLeft: 'auto' }
       }, addedAll ? '\u2713 Added to stash' : 'Mark all as owned')
     ),
 
@@ -268,14 +268,14 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     h('div', {style: {overflow: 'auto', maxHeight: 480, marginBottom: 20}},
       h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize: 12}},
         h('thead', null,
-          h('tr', {style: {background: '#f8f9fa'}},
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, ''),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'DMC'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Name'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Stitches'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Skeins'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'In stash'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Status')
+          h('tr', {style: {background: '#FBF8F3'}},
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, ''),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'DMC'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Name'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Stitches'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Skeins'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'In stash'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Status')
           )
         ),
         h('tbody', null,
@@ -283,19 +283,19 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
             return h('tr', {
               key: r.p.id,
               style: {
-                borderBottom: '0.5px solid #f1f5f9',
+                borderBottom: '0.5px solid #EFE7D6',
                 background: r.status === 'owned' ? '#f0fdf4' : i % 2 === 0 ? 'transparent' : '#fafafa'
               }
             },
               h('td', {style: {padding: '6px 10px'}},
                 h('div', {style: {width: 20, height: 20, borderRadius: 4, background: 'rgb(' + r.p.rgb + ')',
-                                  border: '0.5px solid #e2e8f0', display: 'inline-block'}})
+                                  border: '0.5px solid #E5DCCB', display: 'inline-block'}})
               ),
               h('td', {style: {padding: '6px 10px', fontWeight: 600}}, r.p.id),
-              h('td', {style: {padding: '6px 10px', color: '#475569'}}, r.name),
+              h('td', {style: {padding: '6px 10px', color: '#5C5448'}}, r.name),
               h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.p.count.toLocaleString()),
               h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, r.needed),
-              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#15803d' : '#94a3b8'}},
+              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#15803d' : '#A89E89'}},
                 r.owned > 0 ? r.owned : '\u2014'
               ),
               h('td', {style: {padding: '6px 10px'}}, statusBadge(r.status))
@@ -306,12 +306,12 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     ),
 
     // Fabric calculator (collapsible)
-    h('div', {style: {border: '0.5px solid #e2e8f0', borderRadius: 8, overflow: 'hidden'}},
+    h('div', {style: {border: '0.5px solid #E5DCCB', borderRadius: 8, overflow: 'hidden'}},
       h('button', {
         onClick: function() { setFabOpen(function(o) { return !o; }); },
         style: {
           width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12,
-          fontWeight: 600, color: '#475569', background: '#f8f9fa', border: 'none',
+          fontWeight: 600, color: '#5C5448', background: '#FBF8F3', border: 'none',
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
         }
       },
@@ -321,28 +321,28 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
       fabOpen && h('div', {style: {padding: '14px'}},
         // Controls
         h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap'}},
-          h('span', {style: {fontSize: 12, color: '#475569'}}, 'Margin:'),
+          h('span', {style: {fontSize: 12, color: '#5C5448'}}, 'Margin:'),
           h('input', {
             type: 'number', min: 0, max: 10, step: 0.5, value: margin,
             onChange: function(e) { setMargin(Number(e.target.value) || 0); },
-            style: { width: 60, padding: '3px 8px', fontSize: 12, borderRadius: 6, border: '0.5px solid #e2e8f0' }
+            style: { width: 60, padding: '3px 8px', fontSize: 12, borderRadius: 6, border: '0.5px solid #E5DCCB' }
           }),
-          h('span', {style: {fontSize: 12, color: '#94a3b8'}}, 'inches each side'),
-          h('span', {style: {fontSize: 12, color: '#94a3b8'}}, '|'),
-          h('span', {style: {fontSize: 12, color: '#475569'}}, 'Units:'),
+          h('span', {style: {fontSize: 12, color: '#A89E89'}}, 'inches each side'),
+          h('span', {style: {fontSize: 12, color: '#A89E89'}}, '|'),
+          h('span', {style: {fontSize: 12, color: '#5C5448'}}, 'Units:'),
           ['in', 'cm'].map(function(u) {
             return h('button', {
               key: u,
               onClick: function() { setUnits(u); },
               style: {
                 fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
-                border: '0.5px solid ' + (units === u ? '#0d9488' : '#e2e8f0'),
-                background: units === u ? '#f0fdfa' : '#fff',
-                color: units === u ? '#0d9488' : '#475569', fontWeight: units === u ? 600 : 400
+                border: '0.5px solid ' + (units === u ? '#B85C38' : '#E5DCCB'),
+                background: units === u ? '#F4DDCF' : '#fff',
+                color: units === u ? '#B85C38' : '#5C5448', fontWeight: units === u ? 600 : 400
               }
             }, u === 'in' ? 'Inches' : 'Centimetres');
           }),
-          h('label', {style: {fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4}},
+          h('label', {style: {fontSize: 12, color: '#5C5448', display: 'flex', alignItems: 'center', gap: 4}},
             h('input', {
               type: 'checkbox', checked: overTwo,
               onChange: function(e) { setOverTwo(e.target.checked); }
@@ -354,11 +354,11 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         h('div', {style: {overflow: 'auto'}},
           h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize: 12}},
             h('thead', null,
-              h('tr', {style: {background: '#f8f9fa'}},
-                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Count'),
-                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Width'),
-                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Height'),
-                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, '')
+              h('tr', {style: {background: '#FBF8F3'}},
+                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Count'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Width'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Height'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, '')
               )
             ),
             h('tbody', null,
@@ -368,7 +368,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                 return h('tr', {
                   key: f.ct,
                   style: {
-                    borderBottom: '0.5px solid #f1f5f9',
+                    borderBottom: '0.5px solid #EFE7D6',
                     background: isCurrent ? '#f0fdf4' : 'transparent'
                   }
                 },
@@ -378,14 +378,14 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.w),
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.h),
                   h('td', {style: {padding: '6px 10px'}},
-                    isCurrent && h('span', {style: {fontSize: 10, color: '#0d9488', fontWeight: 600}}, '\u2190 current')
+                    isCurrent && h('span', {style: {fontSize: 10, color: '#B85C38', fontWeight: 600}}, '\u2190 current')
                   )
                 );
               })
             )
           )
         ),
-        h('p', {style: {fontSize: 11, color: '#94a3b8', marginTop: 10}},
+        h('p', {style: {fontSize: 11, color: '#A89E89', marginTop: 10}},
           'Pattern: ' + sW + '\u00d7' + sH + ' stitches. Margin: ' + margin + '" each side.'
           + (overTwo ? ' Stitching over two threads.' : '')
         )

@@ -109,8 +109,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   var allOwned = hasStash && ownedColours === totalColours;
 
   function thSt(align) {
-    return {padding:"6px 10px", textAlign:align, borderBottom:"2px solid #e2e8f0",
-            color:"#64748b", fontWeight:600, fontSize:10, textTransform:"uppercase",
+    return {padding:"6px 10px", textAlign:align, borderBottom:"2px solid #E5DCCB",
+            color:"#8A8270", fontWeight:600, fontSize:10, textTransform:"uppercase",
             background:"#f8fafc", whiteSpace:"nowrap"};
   }
 
@@ -177,7 +177,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   // ── Section heading style ─────────────────────────────────────────────────
   var secHead = {
-    fontSize:11, fontWeight:700, color:"#475569", textTransform:"uppercase",
+    fontSize:11, fontWeight:700, color:"#5C5448", textTransform:"uppercase",
     letterSpacing:"0.05em", marginBottom:8, display:"block"
   };
 
@@ -188,13 +188,13 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     h("div", {style:{
       display:"flex", alignItems:"center", gap:10, flexWrap:"wrap",
       padding:"9px 14px", borderRadius:8, marginBottom:14, fontSize:12,
-      background: allOwned ? "#f0fdf4" : "#f8f9fa",
-      border:"0.5px solid " + (allOwned ? "#bbf7d0" : "#e2e8f0")
+      background: allOwned ? "#f0fdf4" : "#FBF8F3",
+      border:"0.5px solid " + (allOwned ? "#bbf7d0" : "#E5DCCB")
     }},
-      h("span", {style:{fontSize:11, color:"#94a3b8"}},
+      h("span", {style:{fontSize:11, color:"#A89E89"}},
         totalColours + " colour" + (totalColours !== 1 ? "s" : "") + ", " + totalSkeins + " skein" + (totalSkeins !== 1 ? "s" : "")
       ),
-      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "#15803d" : "#475569"}},
+      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "#15803d" : "#5C5448"}},
         allOwned
           ? "\u2713 All colours in stash!"
           : "Stash: " + ownedColours + "/" + totalColours + " owned"
@@ -206,16 +206,16 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       h("div", {style:{marginLeft:"auto", display:"flex", gap:6}},
         h("button", {onClick:handleCopy, style:{
           fontSize:11, padding:"4px 10px", borderRadius:6, cursor:"pointer",
-          border:"0.5px solid #e2e8f0", background:copied?"#0d9488":"#fff",
-          color:copied?"#fff":"#475569", fontWeight:500
+          border:"0.5px solid #E5DCCB", background:copied?"#B85C38":"#fff",
+          color:copied?"#fff":"#5C5448", fontWeight:500
         }}, copied ? "\u2713 Copied" : "Copy list"),
         canShare && !allOwned && h("button", {onClick:handleShare, style:{
           fontSize:11, padding:"4px 10px", borderRadius:6, cursor:"pointer",
-          border:"0.5px solid #e2e8f0", background:"#fff", color:"#475569", fontWeight:500
+          border:"0.5px solid #E5DCCB", background:"#fff", color:"#5C5448", fontWeight:500
         }}, "Share"),
         h("a", {href:"manager.html", target:"_blank", style:{
           fontSize:11, padding:"4px 10px", borderRadius:6,
-          border:"0.5px solid #e2e8f0", background:"#fff", color:"#475569",
+          border:"0.5px solid #E5DCCB", background:"#fff", color:"#5C5448",
           fontWeight:500, textDecoration:"none", display:"inline-block"
         }}, "Thread stash \u2192")
       )
@@ -229,11 +229,11 @@ window.CreatorLegendTab = function CreatorLegendTab() {
         // Sub-header + controls
         h("div", {style:{display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap"}},
           h("span", {style:secHead}, "Threads"),
-          h("span", {style:{fontSize:12, color:"#cbd5e1", marginBottom:8}}, "|"),
-          h("span", {style:{fontSize:12, color:"#475569", marginBottom:8}}, "Sort:"),
+          h("span", {style:{fontSize:12, color:"#CFC4AC", marginBottom:8}}, "|"),
+          h("span", {style:{fontSize:12, color:"#5C5448", marginBottom:8}}, "Sort:"),
           h("select", {
             value:sort, onChange:function(e){setSort(e.target.value);},
-            style:{fontSize:11, padding:"3px 8px", borderRadius:6, border:"0.5px solid #e2e8f0",
+            style:{fontSize:11, padding:"3px 8px", borderRadius:6, border:"0.5px solid #E5DCCB",
                    background:"#fff", marginBottom:8}
           },
             h("option", {value:"number"},  "Thread number"),
@@ -243,12 +243,12 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           ),
           hasStash && !allOwned && h("button", {onClick:handleAddAll, style:{
             fontSize:11, padding:"3px 10px", borderRadius:6, cursor:"pointer", marginBottom:8,
-            border:"0.5px solid #e2e8f0", background:addedAll?"#0d9488":"#fff",
-            color:addedAll?"#fff":"#475569", fontWeight:500, marginLeft:"auto"
+            border:"0.5px solid #E5DCCB", background:addedAll?"#B85C38":"#fff",
+            color:addedAll?"#fff":"#5C5448", fontWeight:500, marginLeft:"auto"
           }}, addedAll ? "\u2713 Added" : "Mark all owned")
         ),
         // Thread table
-        h("div", {style:{overflow:"auto", maxHeight:440, border:"0.5px solid #e2e8f0", borderRadius:8}},
+        h("div", {style:{overflow:"auto", maxHeight:440, border:"0.5px solid #E5DCCB", borderRadius:8}},
           h("table", {style:{width:"100%", borderCollapse:"collapse", fontSize:12}},
             h("thead", null,
               h("tr", null,
@@ -274,15 +274,15 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                 return h("tr", {
                   key: p.id,
                   onClick: function() { cv.setHiId(isHi ? null : p.id); app.setTab("pattern"); },
-                  style:{borderBottom:"0.5px solid #f1f5f9", cursor:"pointer", background:rowBg}
+                  style:{borderBottom:"0.5px solid #EFE7D6", cursor:"pointer", background:rowBg}
                 },
                   h("td", {style:{padding:"5px 10px", fontFamily:"monospace", fontSize:15}}, p.symbol),
                   h("td", {style:{padding:"5px 8px"}},
                     h("div", {style:{width:20, height:20, borderRadius:3, background:"rgb("+p.rgb+")",
-                                      border:"0.5px solid #e2e8f0", display:"inline-block"}})
+                                      border:"0.5px solid #E5DCCB", display:"inline-block"}})
                   ),
                   h("td", {style:{padding:"5px 10px", fontWeight:600}}, p.id),
-                  h("td", {style:{padding:"5px 10px", color:"#475569", whiteSpace:"nowrap"}},
+                  h("td", {style:{padding:"5px 10px", color:"#5C5448", whiteSpace:"nowrap"}},
                     r.name,
                     r.confettiCount ? h("span", {
                       title: r.confettiCount + " isolated stitch" + (r.confettiCount !== 1 ? "es" : ""),
@@ -299,12 +299,12 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                   h("td", {style:{padding:"5px 10px", textAlign:"right"}}, p.count.toLocaleString()),
                   h("td", {style:{padding:"5px 10px", textAlign:"right", fontWeight:600}}, r.needed),
                   hasStash && h("td", {style:{padding:"5px 10px", textAlign:"right",
-                                              color: r.owned > 0 ? "#15803d" : "#94a3b8"}},
+                                              color: r.owned > 0 ? "#15803d" : "#A89E89"}},
                     r.owned > 0 ? r.owned : "\u2014"
                   ),
                   hasStash && h("td", {style:{padding:"5px 10px"}}, statusBadge(r.status)),
                   ctx.done && h("td", {style:{padding:"5px 10px", textAlign:"right"}},
-                    h("span", {style:{color: r.dc.done >= r.dc.total ? "#16a34a" : "#475569"}},
+                    h("span", {style:{color: r.dc.done >= r.dc.total ? "#16a34a" : "#5C5448"}},
                       r.dc.done + "/" + r.dc.total)
                   )
                 );
@@ -320,47 +320,47 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
         // Fabric count + over-two
         h("div", {style:{
-          padding:"10px 12px", background:"#f8fafc", border:"0.5px solid #e2e8f0",
+          padding:"10px 12px", background:"#f8fafc", border:"0.5px solid #E5DCCB",
           borderRadius:"8px 8px 0 0", display:"flex", flexDirection:"column", gap:8
         }},
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#475569"}},
+          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#5C5448"}},
             "Count:",
             h("select", {
               value: ctx.fabricCt,
               onChange: function(e) { ctx.setFabricCt(Number(e.target.value)); },
-              style:{flex:1, padding:"3px 8px", borderRadius:6, border:"0.5px solid #e2e8f0",
+              style:{flex:1, padding:"3px 8px", borderRadius:6, border:"0.5px solid #E5DCCB",
                      fontSize:12, background:"#fff"}
             }, fabCounts.map(function(f) { return h("option", {key:f.ct, value:f.ct}, f.label); }))
           ),
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#475569"}},
+          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#5C5448"}},
             h("input", {type:"checkbox", checked:overTwo,
               onChange: function(e) { setOverTwo(e.target.checked); }}),
             "Stitching over two"
           ),
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#475569"}},
+          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#5C5448"}},
             "Margin:",
             h("input", {
               type:"number", min:0, max:10, step:0.5, value:margin,
               onChange: function(e) { setMargin(Number(e.target.value) || 0); },
               style:{width:52, padding:"3px 6px", fontSize:12, borderRadius:6,
-                     border:"0.5px solid #e2e8f0", background:"#fff"}
+                     border:"0.5px solid #E5DCCB", background:"#fff"}
             }),
-            h("span", {style:{fontSize:11, color:"#94a3b8"}}, "\" each side")
+            h("span", {style:{fontSize:11, color:"#A89E89"}}, "\" each side")
           ),
           h("div", {style:{display:"flex", gap:4}},
             ["in","cm"].map(function(u) {
               return h("button", {key:u, onClick:function(){setUnits(u);}, style:{
                 flex:1, fontSize:11, padding:"3px 0", borderRadius:6, cursor:"pointer",
-                border:"0.5px solid " + (units===u?"#0d9488":"#e2e8f0"),
-                background: units===u?"#f0fdfa":"#fff",
-                color:       units===u?"#0d9488":"#475569", fontWeight:units===u?600:400
+                border:"0.5px solid " + (units===u?"#B85C38":"#E5DCCB"),
+                background: units===u?"#F4DDCF":"#fff",
+                color:       units===u?"#B85C38":"#5C5448", fontWeight:units===u?600:400
               }}, u === "in" ? "Inches" : "Centimetres");
             })
           )
         ),
 
         // Fabric size table
-        h("div", {style:{border:"0.5px solid #e2e8f0", borderTop:"none",
+        h("div", {style:{border:"0.5px solid #E5DCCB", borderTop:"none",
                           borderRadius:"0 0 8px 8px", overflow:"hidden"}},
           h("table", {style:{width:"100%", borderCollapse:"collapse", fontSize:12}},
             h("thead", null,
@@ -375,10 +375,10 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                 var dims      = calcFab(f.ct, overTwo ? 2 : null);
                 var isCurrent = f.ct === fabricCt;
                 return h("tr", {key:f.ct, style:{
-                  borderBottom:"0.5px solid #f1f5f9",
+                  borderBottom:"0.5px solid #EFE7D6",
                   background: isCurrent ? "#f0fdf4" : "transparent"
                 }},
-                  h("td", {style:{padding:"6px 10px", fontWeight:isCurrent?700:400, color:isCurrent?"#0d9488":"inherit"}},
+                  h("td", {style:{padding:"6px 10px", fontWeight:isCurrent?700:400, color:isCurrent?"#B85C38":"inherit"}},
                     f.ct + (overTwo ? " (×2)" : "") + " ct"
                   ),
                   h("td", {style:{padding:"6px 10px", textAlign:"right", fontWeight:600, fontVariantNumeric:"tabular-nums"}}, dims.w),
@@ -388,7 +388,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             )
           )
         ),
-        h("p", {style:{fontSize:10, color:"#94a3b8", marginTop:6, marginBottom:0, lineHeight:1.4}},
+        h("p", {style:{fontSize:10, color:"#A89E89", marginTop:6, marginBottom:0, lineHeight:1.4}},
           sW + "\u00d7" + sH + " stitches"
           + (margin > 0 ? " + " + margin + "\" margin" : "")
           + (overTwo ? ", over two" : "")

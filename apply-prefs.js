@@ -31,7 +31,7 @@
   }
 
   function applyAccent() {
-    var col = get("appAccentColour", "#0d9488");
+    var col = get("appAccentColour", "#B85C38");
     if (typeof col === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(col)) {
       try { document.documentElement.style.setProperty("--accent", col); } catch (_) {}
     }

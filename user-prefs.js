@@ -122,7 +122,7 @@
     // ─── Sync, branding ─────────────────────────────────────────────────
     autoSyncEnabled:        true,
     autoLibraryLink:        true,
-    appAccentColour:        "#0d9488",
+    appAccentColour:        "#B85C38",
 
     // ─── Advanced ───────────────────────────────────────────────────────
     commandPaletteHotkey:     "ctrl+k",         // ctrl+k | ctrl+/ | off

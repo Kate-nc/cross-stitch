@@ -636,7 +636,7 @@ function SubstituteFromStashModalInner(props) {
         display: "inline-block", width: size, height: size,
         borderRadius: 3,
         background: "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")",
-        border: "1px solid #cbd5e1", flexShrink: 0, verticalAlign: "middle"
+        border: "1px solid #CFC4AC", flexShrink: 0, verticalAlign: "middle"
       }
     });
   }
@@ -665,7 +665,7 @@ function SubstituteFromStashModalInner(props) {
       h("div", {
         style: {
           borderRadius: 6, overflow: "hidden",
-          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#fed7aa" : "#e2e8f0") : "#f1f5f9"),
+          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#fed7aa" : "#E5DCCB") : "#EFE7D6"),
           opacity: isEnabled ? 1 : 0.55
         }
       },
@@ -673,7 +673,7 @@ function SubstituteFromStashModalInner(props) {
         h("div", {
           style: {
             display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
-            background: isEnabled ? (hasContrastWarning ? "#fffbeb" : "#fff") : "#f8f9fa"
+            background: isEnabled ? (hasContrastWarning ? "#fffbeb" : "#fff") : "#FBF8F3"
           }
         },
           h("input", {
@@ -683,17 +683,17 @@ function SubstituteFromStashModalInner(props) {
           swatch(sub.sourceRgb),
           h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sub.sourceId),
           sub.isBlendComponent
-            ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0 } }, "(blend)")
+            ? h("span", { style: { fontSize: 10, color: "#A89E89", flexShrink: 0 } }, "(blend)")
             : null,
-          h("span", { style: { color: "#94a3b8", fontSize: 13, flexShrink: 0 } }, "\u2192"),
+          h("span", { style: { color: "#A89E89", fontSize: 13, flexShrink: 0 } }, "\u2192"),
           swatch(target.rgb),
           h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + target.id),
-          h("span", { style: { fontSize: 11, color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
+          h("span", { style: { fontSize: 11, color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
           sub.includedFromNearMiss
             ? h("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: "#fff7ed", color: "#c2410c", flexShrink: 0 } }, "manual\u00B7\u0394E\u202F" + target.deltaE)
             : statusBadge(effStatus),
           !sub.includedFromNearMiss
-            ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
+            ? h("span", { style: { fontSize: 10, color: "#A89E89", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
             : null,
           h("span", {
             style: { fontSize: 10, color: target.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 44, textAlign: "right" }
@@ -736,15 +736,15 @@ function SubstituteFromStashModalInner(props) {
                 onClick: function() { selectOverride(sub, alt); },
                 style: {
                   display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", borderRadius: 5,
-                  border: "1px solid " + (isSelected ? "#a78bfa" : "#e2e8f0"),
+                  border: "1px solid " + (isSelected ? "#a78bfa" : "#E5DCCB"),
                   background: isSelected ? "#f5f3ff" : "#fafafa",
                   cursor: "pointer", fontSize: 11
                 }
               },
                 swatch(alt.rgb, 12),
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + alt.id),
-                h("span", { style: { color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
-                h("span", { style: { color: "#94a3b8", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
+                h("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
+                h("span", { style: { color: "#A89E89", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
                 h("span", { style: { color: alt.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
                 isSelected ? h("span", { style: { color: "#7c3aed", fontWeight: 700, marginLeft: 4, flexShrink: 0 } }, "\u2713") : null
               );
@@ -769,11 +769,11 @@ function SubstituteFromStashModalInner(props) {
       h("div", { style: { display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", fontSize: 12 } },
         swatch(sk.sourceRgb || [128, 128, 128], 12),
         h("span", { style: { fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sk.sourceId),
-        h("span", { style: { color: "#475569", flex: 1 } }, sk.sourceName),
+        h("span", { style: { color: "#5C5448", flex: 1 } }, sk.sourceName),
         sk.isBlendComponent
-          ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0 } }, "(blend)")
+          ? h("span", { style: { fontSize: 10, color: "#A89E89", flexShrink: 0 } }, "(blend)")
           : null,
-        h("span", { style: { color: "#94a3b8", fontSize: 11, flexShrink: 0 } }, reasonText),
+        h("span", { style: { color: "#A89E89", fontSize: 11, flexShrink: 0 } }, reasonText),
         hasNm
           ? h("button", {
               onClick: function() { setNmExpanded(function(prev) { var n = Object.assign({}, prev); n[skk] = !n[skk]; return n; }); },
@@ -784,7 +784,7 @@ function SubstituteFromStashModalInner(props) {
                 color: "#92400e", flexShrink: 0
               }
             }, isNmOpen ? "\u25B4 Hide" : "Near misses \u25BE")
-          : h("span", { style: { fontSize: 10, color: "#cbd5e1", flexShrink: 0 } }, "no near misses")
+          : h("span", { style: { fontSize: 10, color: "#CFC4AC", flexShrink: 0 } }, "no near misses")
       ),
       isNmOpen && hasNm
         ? h("div", { style: { paddingLeft: 28, paddingBottom: 6, display: "flex", flexDirection: "column", gap: 4 } },
@@ -798,7 +798,7 @@ function SubstituteFromStashModalInner(props) {
               },
                 swatch(nm.rgb, 12),
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + nm.id),
-                h("span", { style: { color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nm.name),
+                h("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nm.name),
                 h("span", { style: { color: "#d97706", flexShrink: 0 } }, "\u0394E\u202F" + nm.deltaE),
                 h("span", { style: { color: nm.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, nm.ownedSkeins + "/" + nm.neededSkeins + "sk"),
                 h("button", {
@@ -819,13 +819,13 @@ function SubstituteFromStashModalInner(props) {
   // F2: Canvas preview section
   function renderPreview() {
     if (!ctx.pat || !ctx.sW || !ctx.sH) return null;
-    var sectionHeader = h("div", { style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } }, "Pattern Preview");
+    var sectionHeader = h("div", { style: { fontSize: 11, color: "#8A8270", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } }, "Pattern Preview");
 
     // Still generating
     if (!originalThumb) {
       return h("div", { style: { marginBottom: 14 } },
         sectionHeader,
-        h("div", { style: { height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9", color: "#94a3b8", fontSize: 12 } },
+        h("div", { style: { height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "#FBF8F3", borderRadius: 8, border: "1px solid #EFE7D6", color: "#A89E89", fontSize: 12 } },
           "Generating preview\u2026"
         )
       );
@@ -846,12 +846,12 @@ function SubstituteFromStashModalInner(props) {
           })
         : h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
             h("div", { style: { textAlign: "center" } },
-              h("img", { src: originalThumb, alt: "Current pattern", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #e2e8f0" } }),
-              h("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "Current")
+              h("img", { src: originalThumb, alt: "Current pattern", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #E5DCCB" } }),
+              h("div", { style: { fontSize: 10, color: "#A89E89", marginTop: 3 } }, "Current")
             ),
             h("div", { style: { textAlign: "center" } },
-              h("img", { src: afterSrc, alt: "After substitution", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #e2e8f0" } }),
-              h("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "After substitution")
+              h("img", { src: afterSrc, alt: "After substitution", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #E5DCCB" } }),
+              h("div", { style: { fontSize: 10, color: "#A89E89", marginTop: 3 } }, "After substitution")
             )
           )
     );
@@ -878,11 +878,11 @@ function SubstituteFromStashModalInner(props) {
       }
     },
       // ── Header ────────────────────────────────────────────────────────────────
-      h("div", { style: { display: "flex", alignItems: "center", padding: "16px 20px 14px", borderBottom: "1px solid #f1f5f9", flexShrink: 0 } },
-        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1e293b", flex: 1 } }, "Replace with Stash Threads"),
+      h("div", { style: { display: "flex", alignItems: "center", padding: "16px 20px 14px", borderBottom: "1px solid #EFE7D6", flexShrink: 0 } },
+        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1B1814", flex: 1 } }, "Replace with Stash Threads"),
         h("button", {
           onClick: closeModal,
-          style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8", padding: "0 4px", borderRadius: 6, lineHeight: 1 }
+          style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#A89E89", padding: "0 4px", borderRadius: 6, lineHeight: 1 }
         }, "\xD7")
       ),
 
@@ -890,10 +890,10 @@ function SubstituteFromStashModalInner(props) {
       h("div", { style: { overflow: "auto", flex: 1, padding: "16px 20px" } },
 
         // Controls: ΔE slider + preserve contrast toggle
-        h("div", { style: { marginBottom: 16, padding: "12px 14px", background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9" } },
+        h("div", { style: { marginBottom: 16, padding: "12px 14px", background: "#FBF8F3", borderRadius: 8, border: "1px solid #EFE7D6" } },
           h("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 8 } },
-            h("span", { style: { fontSize: 12, color: "#475569", fontWeight: 600 } }, "Max colour distance (\u0394E):"),
-            h("span", { style: { fontSize: 15, fontWeight: 700, color: "#1e293b", minWidth: 28 } }, localMaxDE),
+            h("span", { style: { fontSize: 12, color: "#5C5448", fontWeight: 600 } }, "Max colour distance (\u0394E):"),
+            h("span", { style: { fontSize: 15, fontWeight: 700, color: "#1B1814", minWidth: 28 } }, localMaxDE),
             analyzing ? h("span", { style: { fontSize: 11, color: "#7c3aed" } }, "Analysing\u2026") : null
           ),
           h("input", {
@@ -902,7 +902,7 @@ function SubstituteFromStashModalInner(props) {
             onChange: function(e) { handleSliderChange(parseInt(e.target.value)); },
             style: { width: "100%", accentColor: "#7c3aed", cursor: "pointer" }
           }),
-          h("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94a3b8", marginTop: 2 } },
+          h("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: "#A89E89", marginTop: 2 } },
             h("span", null, "1 \u2014 exact match"),
             h("span", null, "40 \u2014 broad")
           ),
@@ -913,8 +913,8 @@ function SubstituteFromStashModalInner(props) {
               onChange: function(e) { handlePreserveContrastChange(e.target.checked); },
               style: { width: 14, height: 14, accentColor: "#7c3aed", cursor: "pointer" }
             }),
-            h("span", { style: { fontSize: 12, color: "#475569" } }, "Preserve colour contrast"),
-            h("span", { style: { fontSize: 10, color: "#94a3b8", marginLeft: 2 } },
+            h("span", { style: { fontSize: 12, color: "#5C5448" } }, "Preserve colour contrast"),
+            h("span", { style: { fontSize: 10, color: "#A89E89", marginLeft: 2 } },
               "(avoid substitutions that make palette colours too similar)"
             )
           )
@@ -927,7 +927,7 @@ function SubstituteFromStashModalInner(props) {
         p.substitutions.length > 0
           ? h("div", { style: { marginBottom: 14 } },
               h("div", {
-                style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" }
+                style: { fontSize: 11, color: "#8A8270", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" }
               }, "Proposed Substitutions (" + p.substitutions.length + ")"),
               h("div", { style: { display: "flex", flexDirection: "column", gap: 4 } },
                 p.substitutions.map(renderSubRow)
@@ -938,10 +938,10 @@ function SubstituteFromStashModalInner(props) {
         // Skipped (F3: with near-miss expansion)
         p.skipped.length > 0
           ? h("div", { style: { marginBottom: 14 } },
-              h("div", { style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } },
+              h("div", { style: { fontSize: 11, color: "#8A8270", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } },
                 "Skipped \u2014 No Suitable Match (" + p.skipped.length + ")"
               ),
-              h("div", { style: { background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9", padding: "4px 8px", display: "flex", flexDirection: "column" } },
+              h("div", { style: { background: "#FBF8F3", borderRadius: 8, border: "1px solid #EFE7D6", padding: "4px 8px", display: "flex", flexDirection: "column" } },
                 p.skipped.map(renderSkipRow)
               )
             )
@@ -949,7 +949,7 @@ function SubstituteFromStashModalInner(props) {
 
         // No results at all
         p.substitutions.length === 0 && p.skipped.length === 0
-          ? h("div", { style: { padding: "20px", textAlign: "center", color: "#94a3b8", fontSize: 13 } },
+          ? h("div", { style: { padding: "20px", textAlign: "center", color: "#A89E89", fontSize: 13 } },
               "No unowned threads found \u2014 all threads are already marked as owned."
             )
           : null,
@@ -965,18 +965,18 @@ function SubstituteFromStashModalInner(props) {
             ? h("span", { style: { color: "#b45309" } }, " \xB7 " + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : ""))
             : null
         ),
-        h("div", { style: { marginTop: 8, fontSize: 11, color: "#94a3b8" } },
+        h("div", { style: { marginTop: 8, fontSize: 11, color: "#A89E89" } },
           "Tip: All changes can be undone with Ctrl+Z"
         )
       ),
 
       // ── Footer ────────────────────────────────────────────────────────────────
       h("div", {
-        style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderTop: "1px solid #f1f5f9", flexShrink: 0 }
+        style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderTop: "1px solid #EFE7D6", flexShrink: 0 }
       },
         h("button", {
           onClick: closeModal,
-          style: { padding: "8px 20px", fontSize: 13, borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", cursor: "pointer", fontWeight: 500 }
+          style: { padding: "8px 20px", fontSize: 13, borderRadius: 8, border: "1px solid #E5DCCB", background: "#fff", color: "#5C5448", cursor: "pointer", fontWeight: 500 }
         }, "Cancel"),
         h("button", {
           onClick: applySubstitutions,
@@ -984,9 +984,9 @@ function SubstituteFromStashModalInner(props) {
           style: {
             padding: "8px 22px", fontSize: 13, borderRadius: 8, fontWeight: 700,
             cursor: enabledSubs.length === 0 ? "not-allowed" : "pointer",
-            border: enabledSubs.length === 0 ? "1px solid #e2e8f0" : "1px solid #a78bfa",
-            background: enabledSubs.length === 0 ? "#f8f9fa" : "#7c3aed",
-            color: enabledSubs.length === 0 ? "#94a3b8" : "#fff"
+            border: enabledSubs.length === 0 ? "1px solid #E5DCCB" : "1px solid #a78bfa",
+            background: enabledSubs.length === 0 ? "#FBF8F3" : "#7c3aed",
+            color: enabledSubs.length === 0 ? "#A89E89" : "#fff"
           }
         }, applyLabel)
       )

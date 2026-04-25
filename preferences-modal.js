@@ -82,9 +82,9 @@
 
   // ─── Reusable atoms ──────────────────────────────────────────────────
   var COLOURS = {
-    teal: "#0d9488", tealDark: "#0f766e", tealBg: "#f0fdfa", tealBorder: "#99f6e4",
-    ink: "#0f172a", slate: "#475569", slate2: "#64748b", hint: "#94a3b8",
-    line: "#e2e8f0", line2: "#cbd5e1", bg: "#f8fafc", card: "#fff", danger: "#b91c1c"
+    teal: "#B85C38", tealDark: "#944526", tealBg: "#F4DDCF", tealBorder: "#E8B89A",
+    ink: "#0f172a", slate: "#5C5448", slate2: "#8A8270", hint: "#A89E89",
+    line: "#E5DCCB", line2: "#CFC4AC", bg: "#f8fafc", card: "#fff", danger: "#b91c1c"
   };
 
   var styles = {
@@ -114,7 +114,7 @@
       onClick: function () { if (!disabled && props.onChange) props.onChange(!on); },
       style: {
         position: "relative", width: 38, height: 22,
-        background: on ? COLOURS.teal : "#cbd5e1",
+        background: on ? COLOURS.teal : "#CFC4AC",
         borderRadius: 999, border: 0, padding: 0, cursor: disabled ? "not-allowed" : "pointer",
         transition: "background .15s", opacity: disabled ? 0.45 : 1, flexShrink: 0
       },
@@ -195,7 +195,7 @@
     var pos = usePref("designerLogoPosition", "top-right");
     var cp = usePref("designerCopyright", "");
     var ct = usePref("designerContact", "");
-    var ac = usePref("appAccentColour", "#0d9488");
+    var ac = usePref("appAccentColour", "#B85C38");
     var err = useState(null);
 
     function onLogoFile(ev) {

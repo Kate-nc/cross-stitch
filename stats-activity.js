@@ -7,7 +7,7 @@ const h = React.createElement;
 
 // ── Constants ────────────────────────────────────────────────────
 const STITCHES_PER_HOUR = 400;
-const TEAL_RAMP = ['#f0fdf4', '#99f6e4', '#5eead4', '#14b8a6', '#0f766e'];
+const TEAL_RAMP = ['#f0fdf4', '#E8B89A', '#5eead4', '#14b8a6', '#944526'];
 const CELL = 11; // 8px cell + 3px gap
 const DAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -191,7 +191,7 @@ function Sparkline({ days }) {
     return x + ',' + y;
   }).join(' ');
   return h('svg', { width: W, height: H, style: { display: 'block', flexShrink: 0 } },
-    h('polyline', { points: pts, fill: 'none', stroke: '#0d9488', strokeWidth: 1.5, strokeLinejoin: 'round', strokeLinecap: 'round' })
+    h('polyline', { points: pts, fill: 'none', stroke: '#B85C38', strokeWidth: 1.5, strokeLinejoin: 'round', strokeLinecap: 'round' })
   );
 }
 
@@ -225,11 +225,11 @@ function ActivityHeatmap({ grid, byDay, onCellHover, onCellLeave, onCellClick, h
     },
       // Month labels
       monthLabels.map((ml, i) =>
-        h('text', { key: i, x: ml.x, y: 12, fontSize: 9, fill: '#94a3b8' }, ml.text)
+        h('text', { key: i, x: ml.x, y: 12, fontSize: 9, fill: '#A89E89' }, ml.text)
       ),
       // Day-of-week labels
       DAY_LABELS.map((label, di) =>
-        label ? h('text', { key: di, x: LEFT - 4, y: 20 + di * CELL + CELL * 0.75, textAnchor: 'end', fontSize: 9, fill: '#94a3b8' }, label) : null
+        label ? h('text', { key: di, x: LEFT - 4, y: 20 + di * CELL + CELL * 0.75, textAnchor: 'end', fontSize: 9, fill: '#A89E89' }, label) : null
       ),
       // Cells
       weeks.map((week, wi) =>
@@ -241,10 +241,10 @@ function ActivityHeatmap({ grid, byDay, onCellHover, onCellLeave, onCellClick, h
           if (!day.inPeriod) {
             fill = 'none'; stroke = 'none'; opacity = 0;
           } else if (day.preTracking) {
-            fill = '#f8fafc'; stroke = '#e2e8f0'; opacity = 0.5;
+            fill = '#f8fafc'; stroke = '#E5DCCB'; opacity = 0.5;
           } else {
             fill = day.count > 0 ? TEAL_RAMP[day.bin] : TEAL_RAMP[0];
-            stroke = isHighlighted ? '#0d9488' : 'none';
+            stroke = isHighlighted ? '#B85C38' : 'none';
             opacity = 1;
           }
           return h('rect', {
@@ -267,11 +267,11 @@ function ActivityHeatmap({ grid, byDay, onCellHover, onCellLeave, onCellClick, h
       ),
       // Legend
       h('g', { transform: 'translate(' + LEFT + ',' + (SVG_H + 8) + ')' },
-        h('text', { x: 0, y: 8, fontSize: 9, fill: '#94a3b8' }, 'Less'),
+        h('text', { x: 0, y: 8, fontSize: 9, fill: '#A89E89' }, 'Less'),
         TEAL_RAMP.map((color, i) =>
           h('rect', { key: i, x: 28 + i * (CELL - 1), y: 0, width: CELL - 3, height: CELL - 3, rx: 2, fill: color })
         ),
-        h('text', { x: 28 + 5 * (CELL - 1) + 4, y: 8, fontSize: 9, fill: '#94a3b8' }, 'More')
+        h('text', { x: 28 + 5 * (CELL - 1) + 4, y: 8, fontSize: 9, fill: '#A89E89' }, 'More')
       )
     )
   );
@@ -387,7 +387,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
 
   if (loading) {
     return h('div', { style: Object.assign({}, wrap, { paddingTop: 60, textAlign: 'center', color: 'var(--text-tertiary)' }) },
-      h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' } }),
+      h('div', { style: { width: 28, height: 28, border: '2.5px solid #E5DCCB', borderTopColor: '#B85C38', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' } }),
       'Loading your activity\u2026'
     );
   }
@@ -425,14 +425,14 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
     // ── Filter warning ────────────────────────────────────────────
     filterWarning && h('div', { role: 'alert', style: { background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#92400e' } }, filterWarning),
     filterProjectId && filteredProjectName && h('div', {
-      style: { background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#0f766e', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
+      style: { background: '#F4DDCF', border: '1px solid #E8B89A', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#944526', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
     },
       h('span', null, 'Filtered to ', h('strong', null, filteredProjectName)),
-      h('button', { onClick: handleDismissFilter, style: Object.assign({}, lnk, { fontSize: 12, color: '#0f766e' }) }, 'Clear filter \u2192')
+      h('button', { onClick: handleDismissFilter, style: Object.assign({}, lnk, { fontSize: 12, color: '#944526' }) }, 'Clear filter \u2192')
     ),
 
     // ── Heatmap ───────────────────────────────────────────────────
-    h('div', { style: { background: 'var(--surface, #fff)', border: '1px solid var(--border, #e2e8f0)', borderRadius: 12, padding: '16px 16px 12px', marginBottom: 12 } },
+    h('div', { style: { background: 'var(--surface, #fff)', border: '1px solid var(--border, #E5DCCB)', borderRadius: 12, padding: '16px 16px 12px', marginBottom: 12 } },
       h(ActivityHeatmap, {
         grid,
         byDay,
@@ -447,7 +447,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
     tooltip && h('div', {
       style: {
         position: 'fixed', left: tooltip.x + 14, top: tooltip.y + 14,
-        background: 'var(--surface, #fff)', border: '1px solid var(--border, #e2e8f0)',
+        background: 'var(--surface, #fff)', border: '1px solid var(--border, #E5DCCB)',
         borderRadius: 6, padding: '6px 10px', fontSize: 12, color: 'var(--text-primary)',
         boxShadow: '0 2px 8px rgba(0,0,0,0.12)', whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 9999
       },
@@ -472,9 +472,9 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
         onClick: () => handlePeriodChange(p.value),
         style: {
           padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-          background: period === p.value ? 'var(--accent, #0d9488)' : 'var(--surface, #fff)',
+          background: period === p.value ? 'var(--accent, #B85C38)' : 'var(--surface, #fff)',
           color: period === p.value ? '#fff' : 'var(--text-secondary)',
-          border: '1px solid ' + (period === p.value ? 'var(--accent, #0d9488)' : 'var(--border, #e2e8f0)')
+          border: '1px solid ' + (period === p.value ? 'var(--accent, #B85C38)' : 'var(--border, #E5DCCB)')
         }
       }, p.label))
     ),
@@ -488,7 +488,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
           if (found) setSelectedDay(prev => prev && prev.date === ins.date ? null : found);
         } : undefined,
         style: {
-          background: 'var(--surface, #fff)', border: '1px solid var(--border, #e2e8f0)',
+          background: 'var(--surface, #fff)', border: '1px solid var(--border, #E5DCCB)',
           borderRadius: 10, padding: '12px 14px', fontSize: 13, color: 'var(--text-primary)',
           lineHeight: 1.5, cursor: ins.date ? 'pointer' : 'default'
         }
@@ -524,9 +524,9 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
 
     // ── Busiest periods ───────────────────────────────────────────
     busiestPeriods.length > 0 && h('div', {
-      style: { background: 'var(--surface, #fff)', border: '1px solid var(--border, #e2e8f0)', borderRadius: 12, overflow: 'hidden', marginBottom: 20 }
+      style: { background: 'var(--surface, #fff)', border: '1px solid var(--border, #E5DCCB)', borderRadius: 12, overflow: 'hidden', marginBottom: 20 }
     },
-      h('div', { style: { padding: '12px 16px', borderBottom: '1px solid var(--border, #e2e8f0)', fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)' } },
+      h('div', { style: { padding: '12px 16px', borderBottom: '1px solid var(--border, #E5DCCB)', fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)' } },
         groupBy === 'month' ? 'Busiest Months' : 'Busiest Weeks'
       ),
       busiestPeriods.map((p, i) => {
@@ -539,14 +539,14 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
           onClick: () => setHighlightPeriod(prev => prev === p.key ? null : p.key),
           style: {
             display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
-            borderBottom: i < busiestPeriods.length - 1 ? '1px solid var(--border-subtle, #f1f5f9)' : 'none',
+            borderBottom: i < busiestPeriods.length - 1 ? '1px solid var(--border-subtle, #EFE7D6)' : 'none',
             cursor: 'pointer', fontSize: 13,
-            background: isHL ? '#f0fdfa' : 'transparent'
+            background: isHL ? '#F4DDCF' : 'transparent'
           }
         },
           h('span', { style: { width: 20, textAlign: 'right', color: 'var(--text-tertiary)', fontWeight: 600, fontSize: 11, flexShrink: 0 } }, '#' + (i + 1)),
           h('span', { style: { flex: 1, color: 'var(--text-primary)' } }, label),
-          h('span', { style: { color: '#0d9488', fontWeight: 600, whiteSpace: 'nowrap', fontSize: 13 } }, fmtNum(p.total)),
+          h('span', { style: { color: '#B85C38', fontWeight: 600, whiteSpace: 'nowrap', fontSize: 13 } }, fmtNum(p.total)),
           h('div', { style: { width: 60, flexShrink: 0 } }, h(Sparkline, { days: p.days }))
         );
       })

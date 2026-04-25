@@ -24,8 +24,8 @@ const SharedModals = {
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
       React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 460 } },
         React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
-        React.createElement("h3", { style: { marginTop: 0, marginBottom: 12, fontSize: 20, color: "#1e293b" } }, "Help"),
-        React.createElement("p", { style: { margin: 0, color: "#475569", fontSize: 14, lineHeight: 1.6 } },
+        React.createElement("h3", { style: { marginTop: 0, marginBottom: 12, fontSize: 20, color: "#1B1814" } }, "Help"),
+        React.createElement("p", { style: { margin: 0, color: "#5C5448", fontSize: 14, lineHeight: 1.6 } },
           "The help panel could not be opened. Please reload the page to restore full functionality."
         ),
         React.createElement("div", { style: { marginTop: 16, textAlign: "right" } },
@@ -40,25 +40,25 @@ const SharedModals = {
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
       React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500 } },
         React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
-        React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 22, color: "#1e293b" } }, "About"),
+        React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 22, color: "#1B1814" } }, "About"),
         React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
-          React.createElement("p", { style: { margin: 0, color: "#475569", fontSize: 15, lineHeight: 1.5 } },
+          React.createElement("p", { style: { margin: 0, color: "#5C5448", fontSize: 15, lineHeight: 1.5 } },
             "Cross Stitch Pattern Generator is a free, client-side web application designed to help you create and track cross-stitch patterns directly in your browser."
           ),
-          React.createElement("p", { style: { margin: 0, color: "#475569", fontSize: 14, lineHeight: 1.5 } },
+          React.createElement("p", { style: { margin: 0, color: "#5C5448", fontSize: 14, lineHeight: 1.5 } },
             "Because this app runs entirely in your browser, ",
-            React.createElement("strong", { style: { color: "#1e293b" } }, "no images or pattern data are ever uploaded to a server."),
+            React.createElement("strong", { style: { color: "#1B1814" } }, "no images or pattern data are ever uploaded to a server."),
             " Your projects remain private and local to your device."
           ),
-          React.createElement("div", { style: { padding: "12px", background: "#f8f9fa", borderRadius: 8, border: "0.5px solid #e2e8f0" } },
-            React.createElement("h4", { style: { margin: "0 0 8px 0", color: "#1e293b", fontSize: 14 } }, "Technologies Used:"),
-            React.createElement("ul", { style: { margin: 0, paddingLeft: 20, color: "#475569", fontSize: 13, lineHeight: 1.5 } },
+          React.createElement("div", { style: { padding: "12px", background: "#FBF8F3", borderRadius: 8, border: "0.5px solid #E5DCCB" } },
+            React.createElement("h4", { style: { margin: "0 0 8px 0", color: "#1B1814", fontSize: 14 } }, "Technologies Used:"),
+            React.createElement("ul", { style: { margin: 0, paddingLeft: 20, color: "#5C5448", fontSize: 13, lineHeight: 1.5 } },
               React.createElement("li", null, "React (UI Framework)"),
               React.createElement("li", null, "jsPDF (PDF Generation)"),
               React.createElement("li", null, "pako (URL Compression)")
             )
           ),
-          React.createElement("p", { style: { margin: 0, color: "#94a3b8", fontSize: 12, textAlign: "center", marginTop: 10 } },
+          React.createElement("p", { style: { margin: 0, color: "#A89E89", fontSize: 12, textAlign: "center", marginTop: 10 } },
             "Version 1.0.0"
           )
         )
@@ -86,7 +86,7 @@ const SharedModals = {
         React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 8 } },
           `DMC ${swapCandidate.id} is already assigned to another symbol.`
         ),
-        React.createElement("div", { style: { fontSize: 12, color: "#475569", marginBottom: 10 } },
+        React.createElement("div", { style: { fontSize: 12, color: "#5C5448", marginBottom: 10 } },
           `Swap the two symbols' colour assignments? Both symbols will keep their shapes — only their thread colours will exchange.`
         ),
         React.createElement("div", { style: { display: "flex", gap: 8 } },
@@ -101,7 +101,7 @@ const SharedModals = {
           }, "Swap Colours"),
           React.createElement("button", {
             onClick: () => setSwapCandidate(null),
-            style: { padding: "7px 14px", fontSize: 13, background: "#fff", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer" }
+            style: { padding: "7px 14px", fontSize: 13, background: "#fff", color: "#5C5448", border: "1px solid #E5DCCB", borderRadius: 6, cursor: "pointer" }
           }, "Cancel")
         )
       );
@@ -109,7 +109,7 @@ const SharedModals = {
 
     function renderEmptyThreadList() {
       return React.createElement("div", { style: { padding: 20, textAlign: "center" } },
-        React.createElement("div", { style: { color: "#475569", fontSize: 14, marginBottom: 12 } }, "No threads found."),
+        React.createElement("div", { style: { color: "#5C5448", fontSize: 14, marginBottom: 12 } }, "No threads found."),
         search.trim() !== "" ? React.createElement("button", {
           onClick: () => {
             if (usedThreads.includes(search.trim())) {
@@ -123,7 +123,7 @@ const SharedModals = {
               lab: [80, 0, 0]
             });
           },
-          style: { padding: "8px 16px", fontSize: 13, background: "#0d9488", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 }
+          style: { padding: "8px 16px", fontSize: 13, background: "#B85C38", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 }
         }, `Use "${search.trim()}" anyway`) : null
       );
     }
@@ -142,16 +142,16 @@ const SharedModals = {
           onSelect(t);
         },
         style: {
-          display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #f1f5f9",
-          background: isCurrent ? "#f0fdfa" : isSwapCandidate ? "#fffbeb" : (isUsed ? "#f8f9fa" : "#fff"),
+          display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #EFE7D6",
+          background: isCurrent ? "#F4DDCF" : isSwapCandidate ? "#fffbeb" : (isUsed ? "#FBF8F3" : "#fff"),
           cursor: isUsed ? "pointer" : "pointer",
           opacity: 1
         }
       },
-        React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 } }),
-        React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "#1e293b" } }, "DMC " + t.id),
-        React.createElement("div", { style: { fontSize: 13, color: "#475569", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
-        isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#0d9488", background: "#ccfbf1", padding: "2px 8px", borderRadius: 10 } }, "Current"),
+        React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid #CFC4AC", flexShrink: 0 } }),
+        React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "#1B1814" } }, "DMC " + t.id),
+        React.createElement("div", { style: { fontSize: 13, color: "#5C5448", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
+        isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#B85C38", background: "#ccfbf1", padding: "2px 8px", borderRadius: 10 } }, "Current"),
         isUsed && !isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 } }, "In Use — tap to swap"),
         isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fde68a", padding: "2px 8px", borderRadius: 10 } }, "Swap?")
       );
@@ -160,9 +160,9 @@ const SharedModals = {
     return React.createElement("div", { className: "modal-overlay", onClick: onClose },
       React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "80vh" } },
         React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
-        React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 20, color: "#1e293b" } },
+        React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 20, color: "#1B1814" } },
           "Choose a different colour for ",
-          React.createElement("span", { style: { fontFamily: "monospace", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, border: "1px solid #e2e8f0" } }, currentSymbol)
+          React.createElement("span", { style: { fontFamily: "monospace", background: "#EFE7D6", padding: "2px 6px", borderRadius: 4, border: "1px solid #E5DCCB" } }, currentSymbol)
         ),
 
         React.createElement("div", { style: { marginBottom: 15 } },
@@ -171,14 +171,14 @@ const SharedModals = {
             placeholder: "Search by DMC code or name...",
             value: search,
             onChange: e => setSearch(e.target.value),
-            style: { width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 14, boxSizing: "border-box" },
+            style: { width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #E5DCCB", fontSize: 14, boxSizing: "border-box" },
             autoFocus: true
           })
         ),
 
         renderSwapBanner(),
 
-        React.createElement("div", { style: { flex: 1, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 8 } },
+        React.createElement("div", { style: { flex: 1, overflowY: "auto", border: "1px solid #E5DCCB", borderRadius: 8 } },
           filteredThreads.length === 0 ? renderEmptyThreadList() : filteredThreads.map(renderThreadListItem)
         )
       )
@@ -195,23 +195,23 @@ const SharedModals = {
       // keys: array of pre-formatted strings (e.g. ['Ctrl+Z', '⌘Z']).
       const out = [];
       keys.forEach((k, i) => {
-        if (i > 0) out.push(React.createElement('span', { key: 'sl'+i, style: { margin: '0 3px', color: '#94a3b8', fontSize: 10 } }, '/'));
+        if (i > 0) out.push(React.createElement('span', { key: 'sl'+i, style: { margin: '0 3px', color: '#A89E89', fontSize: 10 } }, '/'));
         out.push(React.createElement('kbd', { key: 'k'+i }, k));
       });
       return React.createElement('span', { style: { whiteSpace: 'nowrap' } }, ...out);
     }
 
     function shRow(keys, desc, key) {
-      return React.createElement('div', { key: key, style: { display: 'flex', alignItems: 'baseline', gap: 12, padding: '4px 0', borderBottom: '0.5px solid #f1f5f9' } },
+      return React.createElement('div', { key: key, style: { display: 'flex', alignItems: 'baseline', gap: 12, padding: '4px 0', borderBottom: '0.5px solid #EFE7D6' } },
         React.createElement('div', { style: { minWidth: 130, flexShrink: 0 } }, kbList(keys)),
-        React.createElement('div', { style: { fontSize: 13, color: '#475569' } }, desc)
+        React.createElement('div', { style: { fontSize: 13, color: '#5C5448' } }, desc)
       );
     }
 
     function section(title, rows, key) {
       if (!rows.length) return null;
       return React.createElement('div', { key: key, style: { marginBottom: 16 } },
-        React.createElement('div', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.07em', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid #e2e8f0' } }, title),
+        React.createElement('div', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#A89E89', letterSpacing: '0.07em', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid #E5DCCB' } }, title),
         ...rows
       );
     }
@@ -241,7 +241,7 @@ const SharedModals = {
 
     let content;
     if (!reg || typeof reg.list !== 'function') {
-      content = React.createElement('p', { style: { color: '#94a3b8', fontSize: 13 } },
+      content = React.createElement('p', { style: { color: '#A89E89', fontSize: 13 } },
         'Shortcut registry not loaded — keyboard shortcuts may be unavailable on this page.');
     } else {
       // Show shortcuts whose scope is currently active. The page hint lets
@@ -265,19 +265,19 @@ const SharedModals = {
       });
       content = sections.length
         ? sections
-        : React.createElement('p', { style: { color: '#94a3b8', fontSize: 13 } },
+        : React.createElement('p', { style: { color: '#A89E89', fontSize: 13 } },
             'No shortcuts available in the current view.');
     }
 
     return React.createElement('div', { className: 'modal-overlay', onClick: onClose },
       React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 460, maxHeight: '80vh', overflowY: 'auto' } },
         React.createElement('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '×'),
-        React.createElement('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 20, color: '#1e293b' } }, 'Keyboard Shortcuts'),
+        React.createElement('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 20, color: '#1B1814' } }, 'Keyboard Shortcuts'),
         content,
-        React.createElement('p', { style: { margin: '8px 0 0', fontSize: 12, color: '#94a3b8', textAlign: 'center' } },
+        React.createElement('p', { style: { margin: '8px 0 0', fontSize: 12, color: '#A89E89', textAlign: 'center' } },
           'Press ', React.createElement('kbd', null, '?'), ' anytime to toggle this panel'
         ),
-        React.createElement('div', { style: { marginTop: 16, paddingTop: 12, borderTop: '1px solid #f1f5f9', textAlign: 'center' } },
+        React.createElement('div', { style: { marginTop: 16, paddingTop: 12, borderTop: '1px solid #EFE7D6', textAlign: 'center' } },
           React.createElement('button', {
             onClick: function() {
               if (confirm('Reset all preview preferences and per-pattern view states to defaults?\n\nThis cannot be undone.')) {
@@ -286,7 +286,7 @@ const SharedModals = {
                 alert('Preferences reset. Reload the page to apply defaults.');
               }
             },
-            style: { fontSize: 11, color: '#94a3b8', background: 'none', border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }
+            style: { fontSize: 11, color: '#A89E89', background: 'none', border: '1px solid #E5DCCB', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }
           }, 'Reset preview preferences…')
         )
       )
@@ -309,18 +309,18 @@ function NamePromptModal({ defaultName, onConfirm, onCancel }) {
   return React.createElement('div', { className: 'modal-overlay', onClick: onCancel },
     React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 400 } },
       React.createElement('button', { className: 'modal-close', onClick: onCancel }, '×'),
-      React.createElement('h3', { style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: '#1e293b' } }, 'Name Your Project'),
-      React.createElement('p', { style: { margin: '0 0 12px', fontSize: 13, color: '#475569' } }, 'Give your project a name before saving.'),
+      React.createElement('h3', { style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: '#1B1814' } }, 'Name Your Project'),
+      React.createElement('p', { style: { margin: '0 0 12px', fontSize: 13, color: '#5C5448' } }, 'Give your project a name before saving.'),
       React.createElement('input', {
         ref: inputRef, type: 'text', maxLength: 60, value: name,
         onChange: e => setName(e.target.value),
         onKeyDown: e => { if (e.key === 'Enter') handleSubmit(); },
         placeholder: 'e.g. Rose Garden',
-        style: { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 14, boxSizing: 'border-box' }
+        style: { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #E5DCCB', fontSize: 14, boxSizing: 'border-box' }
       }),
       React.createElement('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 } },
-        React.createElement('button', { onClick: onCancel, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' } }, 'Cancel'),
-        React.createElement('button', { onClick: handleSubmit, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#0d9488', color: '#fff', cursor: 'pointer', fontWeight: 600 } }, 'Save')
+        React.createElement('button', { onClick: onCancel, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid #E5DCCB', background: '#fff', cursor: 'pointer' } }, 'Cancel'),
+        React.createElement('button', { onClick: handleSubmit, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#B85C38', color: '#fff', cursor: 'pointer', fontWeight: 600 } }, 'Save')
       )
     )
   );
@@ -625,13 +625,13 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     });
   }
 
-  var inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border, #e2e8f0)', fontSize: 14, boxSizing: 'border-box', background: 'var(--surface, #fff)', color: 'var(--text-primary, #1e293b)' };
-  var labelStyle = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #475569)' };
+  var inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border, #E5DCCB)', fontSize: 14, boxSizing: 'border-box', background: 'var(--surface, #fff)', color: 'var(--text-primary, #1B1814)' };
+  var labelStyle = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #5C5448)' };
 
   return h('div', { className: 'modal-overlay', onClick: onClose },
     h('div', { className: 'modal-content', onClick: function(e) { e.stopPropagation(); }, style: { maxWidth: 420 } },
       h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '\u00d7'),
-      h('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 18, color: 'var(--text-primary, #1e293b)', display: 'flex', alignItems: 'center', gap: 8 } },
+      h('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 18, color: 'var(--text-primary, #1B1814)', display: 'flex', alignItems: 'center', gap: 8 } },
         Icons.pencil(), ' Edit project details'
       ),
       h('div', { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
@@ -670,8 +670,8 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       ),
       err && h('p', { style: { margin: '10px 0 0', fontSize: 12, color: '#dc2626' } }, err),
       h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 } },
-        h('button', { onClick: onClose, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border, #e2e8f0)', background: 'var(--surface, #fff)', cursor: 'pointer', color: 'var(--text-primary, #1e293b)' } }, 'Cancel'),
-        h('button', { onClick: handleSave, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#0d9488', color: '#fff', cursor: saving ? 'wait' : 'pointer', fontWeight: 600 } }, saving ? 'Saving\u2026' : 'Save')
+        h('button', { onClick: onClose, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border, #E5DCCB)', background: 'var(--surface, #fff)', cursor: 'pointer', color: 'var(--text-primary, #1B1814)' } }, 'Cancel'),
+        h('button', { onClick: handleSave, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#B85C38', color: '#fff', cursor: saving ? 'wait' : 'pointer', fontWeight: 600 } }, saving ? 'Saving\u2026' : 'Save')
       )
     )
   );

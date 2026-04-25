@@ -53,7 +53,7 @@
   function accentBorder(type) {
     if (type === "success") return "#16a34a";
     if (type === "error") return "#dc2626";
-    return "var(--accent, #0d9488)";
+    return "var(--accent, #B85C38)";
   }
 
   function removeToast(entry, immediate) {
@@ -104,13 +104,13 @@
       "display:flex",
       "align-items:center",
       "background:var(--surface, #ffffff)",
-      "border:1px solid var(--border, #e2e8f0)",
+      "border:1px solid var(--border, #E5DCCB)",
       "border-left:3px solid " + accentBorder(type),
       "border-radius:var(--radius-lg, 12px)",
       "box-shadow:var(--shadow-md, 0 4px 12px rgba(0,0,0,0.08))",
       "padding:10px 16px",
       "font-size:13px",
-      "color:var(--text-primary, #1e293b)",
+      "color:var(--text-primary, #1B1814)",
       "font-family:inherit",
       "pointer-events:auto",
       "animation:toast-in 0.25s ease-out both",
@@ -132,7 +132,7 @@
       undoBtn.setAttribute("aria-label", undoLabel);
       undoBtn.style.cssText = [
         "font-weight:600",
-        "color:var(--accent, #0d9488)",
+        "color:var(--accent, #B85C38)",
         "background:none",
         "border:none",
         "cursor:pointer",
@@ -155,7 +155,7 @@
     dismissBtn.setAttribute("aria-label", "Dismiss");
     dismissBtn.textContent = "×";
     dismissBtn.style.cssText = [
-      "color:var(--text-tertiary, #94a3b8)",
+      "color:var(--text-tertiary, #A89E89)",
       "font-size:16px",
       "line-height:1",
       "margin-left:8px",

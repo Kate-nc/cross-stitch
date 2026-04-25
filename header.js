@@ -361,7 +361,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           ),
           fileMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 210 } },
             // Storage usage summary
-            storageUsage && React.createElement('div', { style: { padding: '8px 14px 6px', fontSize: 11, color: '#475569', borderBottom: '1px solid #f1f5f9' } },
+            storageUsage && React.createElement('div', { style: { padding: '8px 14px 6px', fontSize: 11, color: '#5C5448', borderBottom: '1px solid #EFE7D6' } },
               storageUsage.persistent ? React.createElement(React.Fragment, null, Icons.lock(), ' Protected') : React.createElement(React.Fragment, null, Icons.hourglass(), ' Temporary'),
               ' · ',
               (storageUsage.used / 1024 / 1024).toFixed(1) + ' MB'
@@ -401,7 +401,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             // and the Stash Manager — no longer surfaced in the File menu.
             // Separator before backup/restore
             !!(onNewProject || onOpen || onSave || ((page === 'creator' || page === 'editor') && onTrack) || onExportPDF) &&
-              React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),
+              React.createElement('div', { style: { height: 1, background: '#EFE7D6', margin: '4px 0' } }),
             // Backup — use prop handler if provided (e.g. manager shows status feedback), else inline
             React.createElement('button', {
               className: 'tb-page-dropdown-item',
@@ -428,7 +428,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               })
             ),
             // Sync separator and options
-            typeof SyncEngine !== 'undefined' && React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),
+            typeof SyncEngine !== 'undefined' && React.createElement('div', { style: { height: 1, background: '#EFE7D6', margin: '4px 0' } }),
             typeof SyncEngine !== 'undefined' && React.createElement('button', {
               className: 'tb-page-dropdown-item',
               onClick: () => {

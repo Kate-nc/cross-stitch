@@ -523,7 +523,7 @@ function BulkDeleteModal({ projectIds, projectsById, onConfirm, onCancel }) {
           var name = (projectsById && projectsById[id]) || id;
           return h('li', { key: id }, name);
         }),
-        extra > 0 ? h('li', { key: '__more', style: { listStyle: 'none', marginLeft: -18, color: '#64748b' } }, '\u2026 and ' + extra + ' more') : null
+        extra > 0 ? h('li', { key: '__more', style: { listStyle: 'none', marginLeft: -18, color: '#8A8270' } }, '\u2026 and ' + extra + ' more') : null
       ),
       h('div', { className: 'mpd-bulk-delete-actions' },
         h('button', { type: 'button', ref: cancelRef, className: 'mpd-cancel-btn', onClick: onCancel }, 'Cancel'),
@@ -1654,7 +1654,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       // Start New panel
       h('div', {
           className: 'home-panel',
-          style: { border: isDragging ? "2px dashed #0d9488" : undefined, background: isDragging ? "#f0fdfa" : undefined, transition: "all 0.2s" },
+          style: { border: isDragging ? "2px dashed #B85C38" : undefined, background: isDragging ? "#F4DDCF" : undefined, transition: "all 0.2s" },
           onDragOver: function(e) { e.preventDefault(); setIsDragging(true); },
           onDragEnter: function(e) { e.preventDefault(); setIsDragging(true); },
           onDragLeave: function(e) { e.preventDefault(); setIsDragging(false); },
@@ -1839,11 +1839,11 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
             },
               h('circle', {
                 cx: DONUT_SIZE/2, cy: DONUT_SIZE/2, r: R,
-                fill: 'none', stroke: '#e2e8f0', strokeWidth: STROKE
+                fill: 'none', stroke: '#E5DCCB', strokeWidth: STROKE
               }),
               totalRatio > 0 && h('circle', {
                 cx: DONUT_SIZE/2, cy: DONUT_SIZE/2, r: R,
-                fill: 'none', stroke: '#0d9488', strokeWidth: STROKE,
+                fill: 'none', stroke: '#B85C38', strokeWidth: STROKE,
                 strokeDasharray: ownedDash + ' ' + (CIRC - ownedDash),
                 strokeDashoffset: CIRC / 4,
                 transform: 'rotate(-90 ' + (DONUT_SIZE/2) + ' ' + (DONUT_SIZE/2) + ')'
@@ -1853,9 +1853,9 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
                 textAnchor: 'middle', fontSize: 13, fontWeight: 700, fill: '#0f172a'
               }, totalRatio > 0 ? Math.round(ownedFrac * 100) + '%' : '–')
             ),
-            h('div', { style: { fontSize: 13, color: '#475569', lineHeight: 1.45 } },
+            h('div', { style: { fontSize: 13, color: '#5C5448', lineHeight: 1.45 } },
               h('div', null, h('strong', { style: { color: '#0f172a' } }, owned.toLocaleString() + ' threads owned'),
-                brandCount > 0 && h('span', { style: { color: '#94a3b8', marginLeft: 8 } }, '\u00B7 ' + brandCount + ' brand' + (brandCount === 1 ? '' : 's'))
+                brandCount > 0 && h('span', { style: { color: '#A89E89', marginLeft: 8 } }, '\u00B7 ' + brandCount + ' brand' + (brandCount === 1 ? '' : 's'))
               ),
               wishlist > 0
                 ? h('div', { style: { fontSize: 11, color: '#b45309', marginTop: 2 } }, wishlist.toLocaleString() + ' on wishlist (still to buy)')
@@ -1867,12 +1867,12 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           onBulkAddThreads && h('button', {
             onClick: onBulkAddThreads,
             'data-onboard': 'home-bulk-add',
-            style: { padding: '8px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+            style: { padding: '8px 14px', borderRadius: 8, border: 'none', background: '#B85C38', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
             title: 'Paste a list of DMC/Anchor IDs to add to your stash (shortcut: B)'
           }, '+ Bulk Add Threads ', h('kbd', { style: { background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '1px 5px', borderRadius: 3, fontSize: 10, marginLeft: 4 } }, 'B')),
           h('button', {
             onClick: onNavigateToStash,
-            style: { padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer' }
+            style: { padding: '8px 14px', borderRadius: 8, border: '1px solid #CFC4AC', background: '#fff', color: '#5C5448', fontSize: 13, fontWeight: 600, cursor: 'pointer' }
           }, 'Open Stash Manager \u2192')
         )
       )
