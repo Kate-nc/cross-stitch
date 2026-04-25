@@ -425,6 +425,108 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Phase 4 (UX-12) — Tracker tablet/desktop project rail + side panel.
+// Reads recent projects from ProjectStorage.listProjects() and renders a
+// fast switcher on the left, plus a stacked palette + Today stats card on
+// the right. Both surfaces are CSS-gated to >=600px viewports; phone
+// keeps its existing chrome (action bar + dock + mode pill).
+// ═══════════════════════════════════════════════════════════════
+function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches}){
+  const[recent,setRecent]=React.useState([]);
+  React.useEffect(function(){
+    let cancelled=false;
+    function load(){
+      if(!window.ProjectStorage||!window.ProjectStorage.listProjects)return;
+      window.ProjectStorage.listProjects().then(function(list){
+        if(cancelled)return;
+        setRecent((list||[]).slice(0,8));
+      }).catch(function(){});
+    }
+    load();
+    var onChange=function(){load();};
+    window.addEventListener('cs:projectsChanged',onChange);
+    return function(){cancelled=true;window.removeEventListener('cs:projectsChanged',onChange);};
+  },[activeId]);
+  function openProject(id){
+    if(!id||id===activeId)return;
+    try{window.ProjectStorage.setActiveProject(id);}catch(_){}
+    try{window.location.reload();}catch(_){}
+  }
+  var sec=liveAutoElapsed||0;
+  var hh=Math.floor(sec/3600),mm=Math.floor((sec%3600)/60);
+  var timer=(hh>0?hh+"h ":"")+mm+"m";
+  return React.createElement('aside',{className:'tracker-project-rail',role:'complementary','aria-label':'Recent projects'},
+    React.createElement('h3',{className:'tpr-h'},'Projects'),
+    React.createElement('div',{className:'tpr-list'},
+      (recent.length===0
+        ? React.createElement('div',{className:'tpr-empty'},'No saved projects yet')
+        : recent.map(function(p){
+            var isActiveProj=p.id===activeId;
+            var pct=0;
+            if(p.totalStitchable&&p.doneCount!=null)pct=Math.round(p.doneCount/p.totalStitchable*100);
+            else if(p.progressPct!=null)pct=Math.round(p.progressPct);
+            var thumb=p.thumbDataUrl;
+            var initial=(p.name||'?').trim().charAt(0).toUpperCase()||'?';
+            var firstColour=p.firstPaletteRgb||null;
+            return React.createElement('button',{
+              key:p.id,type:'button',className:'tpr-row'+(isActiveProj?' tpr-row--on':''),
+              onClick:function(){openProject(p.id);},'aria-current':isActiveProj?'true':'false',
+              title:p.name||'Untitled project'
+            },
+              React.createElement('span',{className:'tpr-thumb',style:thumb?{backgroundImage:'url('+thumb+')'}:(firstColour?{background:'rgb('+firstColour+')'}:{background:'var(--surface-tertiary)'})},
+                thumb?null:React.createElement('span',{className:'tpr-initial'},initial)
+              ),
+              React.createElement('span',{className:'tpr-text'},
+                React.createElement('span',{className:'tpr-name'},p.name||'Untitled'),
+                React.createElement('span',{className:'tpr-pct'},pct+'% done')
+              )
+            );
+          })
+      )
+    ),
+    React.createElement('button',{
+      className:'tpr-more',type:'button',
+      onClick:function(){
+        try{
+          var btn=document.querySelector('.tracker-hamburger');
+          if(btn)btn.click();
+        }catch(_){}
+      }
+    },'More projects…'),
+    React.createElement('div',{className:'tracker-side-panel',role:'complementary','aria-label':'Today and palette'},
+      React.createElement('section',{className:'tsp-card'},
+        React.createElement('h3',{className:'tsp-h'},'Today'),
+        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Stitches'),React.createElement('strong',null,(todayStitchesForBar||0).toLocaleString())),
+        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Session'),React.createElement('strong',null,timer)),
+        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Active'),React.createElement('strong',null,(liveAutoStitches||0).toLocaleString()+' st'))
+      ),
+      React.createElement('section',{className:'tsp-card'},
+        React.createElement('h3',{className:'tsp-h'},'Palette · '+(pal?pal.length:0)+' colours'),
+        React.createElement('div',{className:'tsp-pal'},
+          (pal||[]).map(function(p){
+            var dc=colourDoneCounts?colourDoneCounts[p.id]:null;
+            var rem=dc?Math.max(0,(dc.total||0)-(dc.done||0)):0;
+            var rgb=cmap&&cmap[p.id]?cmap[p.id].rgb:null;
+            var isOn=focusColour===p.id;
+            return React.createElement('button',{
+              key:p.id,type:'button',
+              className:'tsp-row'+(isOn?' tsp-row--on':''),
+              onClick:function(){if(stitchView!=='highlight')setStitchView('highlight');setFocusColour(p.id);},
+              title:'DMC '+p.id+' — '+(p.name||'')
+            },
+              React.createElement('span',{className:'tsp-sw',style:rgb?{background:'rgb('+rgb+')'}:{}}),
+              React.createElement('span',{className:'tsp-id'},p.id),
+              React.createElement('span',{className:'tsp-name'},p.name||''),
+              React.createElement('span',{className:'tsp-rem'},rem.toLocaleString())
+            );
+          })
+        )
+      )
+    )
+  );
+}
+
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80);
 const[sH,setSH]=useState(80);
@@ -5410,6 +5512,21 @@ return(
       </div>{/* end rp-tab-content */}
     </div>{/* end rpanel */}
   </div>{/* end cs-main */}
+  {/* Phase 4 (UX-12) — tablet/desktop project rail (left) and side panel (right).
+      Hidden via CSS on phone. Reads from ProjectStorage and existing palette state. */}
+  {!statsView&&pat&&pal&&<TrackerProjectRail
+    activeId={projectIdRef.current}
+    pal={pal}
+    cmap={cmap}
+    colourDoneCounts={colourDoneCounts}
+    focusColour={focusColour}
+    setFocusColour={setFocusColour}
+    stitchView={stitchView}
+    setStitchView={setStitchView}
+    todayStitchesForBar={todayStitchesForBar}
+    liveAutoElapsed={liveAutoElapsed}
+    liveAutoStitches={liveAutoStitches}
+  />}
   {/* ═══════════════════════════════════════════════════════════════
       Phase 4 (UX-12) — Workshop tracker chrome
       Floating tool dock (phone), bottom mode pill (phone), top
