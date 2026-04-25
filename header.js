@@ -64,7 +64,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
         meta && React.createElement('span', { className: 'tb-context-meta' }, meta),
         showAutosaved && React.createElement('span', {
           className: 'tb-context-meta',
-          style: { color:'#16a34a', fontSize:11, display:'inline-flex', alignItems:'center', gap:4 },
+          style: { color:'#4F7D3F', fontSize:11, display:'inline-flex', alignItems:'center', gap:4 },
           title: 'Your work auto-saves to this device. Use Download to export a .json file.'
         },
           (window.Icons && window.Icons.check) ? window.Icons.check() : null,

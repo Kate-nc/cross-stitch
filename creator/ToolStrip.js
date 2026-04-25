@@ -270,14 +270,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // since the toolbar no longer carries a colour chip.
   var badgeLabel, badgeBg, badgeColor, badgeDot;
   if (cv.activeTool === "eyedropper") {
-    badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#eab308";
+    badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#B59230";
   } else if (cv.activeTool === "magicWand") {
     badgeLabel = "Magic Wand"; badgeBg = "#f3e8ff"; badgeColor = "#6b21a8"; badgeDot = "#a855f7";
   } else if (cv.activeTool === "lasso") {
     var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
-    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#fff7ed"; badgeColor = "#9a3412"; badgeDot = "#f97316";
+    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#F8EFD8"; badgeColor = "#9a3412"; badgeDot = "#f97316";
   } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
-    badgeLabel = "Erase"; badgeBg = "#fef2f2"; badgeColor = "#991b1b"; badgeDot = "#ef4444";
+    badgeLabel = "Erase"; badgeBg = "#FCEFEF"; badgeColor = "#722424"; badgeDot = "#B85555";
   } else if (cv.stitchType === "backstitch") {
     badgeLabel = "Backstitch"; badgeBg = "#f5f5f5"; badgeColor = "#404040"; badgeDot = "#737373";
   } else if (cv.stitchType === "half-fwd") {
@@ -285,10 +285,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.stitchType === "half-bck") {
     badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
   } else if (cv.brushMode === "fill") {
-    badgeLabel = "Fill"; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+    badgeLabel = "Fill"; badgeBg = "#DEE7D2"; badgeColor = "#3F6432"; badgeDot = "#5C8E4A";
   } else if (cv.brushMode === "paint") {
     var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
-    badgeLabel = "Paint" + szTxt; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+    badgeLabel = "Paint" + szTxt; badgeBg = "#DEE7D2"; badgeColor = "#3F6432"; badgeDot = "#5C8E4A";
   } else {
     badgeLabel = null;
   }

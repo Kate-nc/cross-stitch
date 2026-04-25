@@ -198,7 +198,7 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
   var fabricCt = proj.fabricCt ? proj.fabricCt + '-count' : '';
   // Thread count — meta sometimes carries it as `colourCount` or `threadCount`.
   var threadCount = proj.colourCount || proj.threadCount || (proj.threads && proj.threads.length) || 0;
-  var stashColor = stashOk === true ? '#16a34a' : stashOk === false ? '#b45309' : '#a1a1aa';
+  var stashColor = stashOk === true ? '#4F7D3F' : stashOk === false ? '#8A5C26' : '#a1a1aa';
   var stashIconEl = stashOk === true ? (window.Icons && window.Icons.check && window.Icons.check())
     : stashOk === false ? (window.Icons && window.Icons.warning && window.Icons.warning())
     : (window.Icons && window.Icons.info && window.Icons.info());
@@ -339,7 +339,7 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
       // Manager pattern library but have no linked Creator/Tracker project.
       proj.managerOnly && h('div', { className: 'mpd-card-badge mpd-card-badge--manager-only',
         title: 'This entry was added directly in the Stash Manager and has no Creator/Tracker project linked.',
-        style: { display: 'inline-block', fontSize: 10, padding: '2px 8px', borderRadius: 10, background: '#fef3c7', color: '#92400e', fontWeight: 600, marginBottom: 6 } },
+        style: { display: 'inline-block', fontSize: 10, padding: '2px 8px', borderRadius: 10, background: '#F2E2BE', color: '#6B461F', fontWeight: 600, marginBottom: 6 } },
         'Stash Manager only'),
       // Optional per-card extras supplied by the parent (e.g. Manager
       // shopping-list checkbox + missing-thread badge).
@@ -430,7 +430,7 @@ function CompactProjectRow({ proj, state, onOpen, onChangeState }) {
       proj.managerOnly && h('span', {
         className: 'mpd-compact-badge',
         title: 'Stash Manager only',
-        style: { fontSize: 10, padding: '1px 6px', borderRadius: 8, background: '#fef3c7', color: '#92400e', fontWeight: 600, marginLeft: 6 }
+        style: { fontSize: 10, padding: '1px 6px', borderRadius: 8, background: '#F2E2BE', color: '#6B461F', fontWeight: 600, marginLeft: 6 }
       }, 'Stash Manager only'),
       detail && h('span', { className: 'mpd-compact-detail' }, detail)
     ),
@@ -1743,7 +1743,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
                     title: stashStatus === 'all' ? 'All threads in stash' : 'Some threads in stash',
                     style: {
                       width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                      background: stashStatus === 'all' ? '#16a34a' : '#f59e0b',
+                      background: stashStatus === 'all' ? '#4F7D3F' : '#C0883A',
                       display: 'inline-block', marginRight: 4
                     }
                   }),
@@ -1858,8 +1858,8 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
                 brandCount > 0 && h('span', { style: { color: '#A89E89', marginLeft: 8 } }, '\u00B7 ' + brandCount + ' brand' + (brandCount === 1 ? '' : 's'))
               ),
               wishlist > 0
-                ? h('div', { style: { fontSize: 11, color: '#b45309', marginTop: 2 } }, wishlist.toLocaleString() + ' on wishlist (still to buy)')
-                : owned > 0 && h('div', { style: { fontSize: 11, color: '#16a34a', marginTop: 2 } }, 'No outstanding wishlist')
+                ? h('div', { style: { fontSize: 11, color: '#8A5C26', marginTop: 2 } }, wishlist.toLocaleString() + ' on wishlist (still to buy)')
+                : owned > 0 && h('div', { style: { fontSize: 11, color: '#4F7D3F', marginTop: 2 } }, 'No outstanding wishlist')
             )
           );
         })(),

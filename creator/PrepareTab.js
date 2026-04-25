@@ -183,9 +183,9 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Status badge
   function statusBadge(status) {
     var map = {
-      owned: { label: 'You own this', bg: '#f0fdf4', color: '#16a34a' },
-      partial: { label: 'Low stock', bg: '#fff7ed', color: '#ea580c' },
-      needed: { label: 'Need to buy', bg: '#fef2f2', color: '#dc2626' }
+      owned: { label: 'You own this', bg: '#DEE7D2', color: '#4F7D3F' },
+      partial: { label: 'Low stock', bg: '#F8EFD8', color: '#A04E11' },
+      needed: { label: 'Need to buy', bg: '#FCEFEF', color: '#A53D3D' }
     };
     var s = map[status] || map.needed;
     return h('span', {
@@ -200,18 +200,18 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     // Summary banner
     h('div', {style: {
       display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-      padding: '10px 14px', background: '#f0fdf4', borderRadius: 8,
-      border: '0.5px solid #bbf7d0', marginBottom: 16, fontSize: 12
+      padding: '10px 14px', background: '#DEE7D2', borderRadius: 8,
+      border: '0.5px solid #C4DCB6', marginBottom: 16, fontSize: 12
     }},
-      h('span', {style: {fontWeight: 600, color: '#15803d'}},
+      h('span', {style: {fontWeight: 600, color: '#3F6432'}},
         ownedColours === totalColours
           ? '\u2713 All ' + totalColours + ' colours in stash!'
           : 'You own ' + ownedColours + ' of ' + totalColours + ' colours.'
       ),
-      partialColours > 0 && h('span', {style: {color: '#ea580c'}},
+      partialColours > 0 && h('span', {style: {color: '#A04E11'}},
         partialColours + ' partial.'
       ),
-      (ownedColours < totalColours) && h('span', {style: {color: '#dc2626'}},
+      (ownedColours < totalColours) && h('span', {style: {color: '#A53D3D'}},
         'Still need: ' + (totalColours - ownedColours - partialColours) + ' colours, ~' + needSkeins + ' skeins.'
       ),
       h('div', {style: {marginLeft: 'auto', display: 'flex', gap: 8}},
@@ -284,7 +284,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
               key: r.p.id,
               style: {
                 borderBottom: '0.5px solid #EFE7D6',
-                background: r.status === 'owned' ? '#f0fdf4' : i % 2 === 0 ? 'transparent' : '#fafafa'
+                background: r.status === 'owned' ? '#DEE7D2' : i % 2 === 0 ? 'transparent' : '#fafafa'
               }
             },
               h('td', {style: {padding: '6px 10px'}},
@@ -295,7 +295,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
               h('td', {style: {padding: '6px 10px', color: '#5C5448'}}, r.name),
               h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.p.count.toLocaleString()),
               h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, r.needed),
-              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#15803d' : '#A89E89'}},
+              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#3F6432' : '#A89E89'}},
                 r.owned > 0 ? r.owned : '\u2014'
               ),
               h('td', {style: {padding: '6px 10px'}}, statusBadge(r.status))
@@ -369,7 +369,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                   key: f.ct,
                   style: {
                     borderBottom: '0.5px solid #EFE7D6',
-                    background: isCurrent ? '#f0fdf4' : 'transparent'
+                    background: isCurrent ? '#DEE7D2' : 'transparent'
                   }
                 },
                   h('td', {style: {padding: '6px 10px', fontWeight: isCurrent ? 700 : 400}},

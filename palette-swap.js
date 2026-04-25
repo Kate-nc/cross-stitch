@@ -802,9 +802,9 @@ function saveCustomPalettes(palettes) {
 function DEBadge(props) {
   var d = props.dE;
   var tier, bg, color;
-  if (d < 1) { tier = "Perfect"; bg = "#f0fdf4"; color = "#16a34a"; }
-  else if (d <= 3) { tier = "Close"; bg = "#fffbeb"; color = "#d97706"; }
-  else { tier = "Approx."; bg = "#fef2f2"; color = "#dc2626"; }
+  if (d < 1) { tier = "Perfect"; bg = "#DEE7D2"; color = "#4F7D3F"; }
+  else if (d <= 3) { tier = "Close"; bg = "#FAF5E1"; color = "#A06F2D"; }
+  else { tier = "Approx."; bg = "#FCEFEF"; color = "#A53D3D"; }
   return React.createElement("span", {
     style: { fontSize: 10, padding: "1px 6px", borderRadius: 8, background: bg, color: color, whiteSpace: "nowrap" }
   }, tier);
@@ -829,8 +829,8 @@ function LockToggle(props) {
     title: locked ? "Unlock this colour" : "Lock this colour",
     style: {
       width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center",
-      borderRadius: 4, border: locked ? "1px solid #fde68a" : "1px solid #E5DCCB",
-      background: locked ? "#fef3c7" : "#fff", color: locked ? "#b45309" : "#A89E89",
+      borderRadius: 4, border: locked ? "1px solid #E5C97D" : "1px solid #E5DCCB",
+      background: locked ? "#F2E2BE" : "#fff", color: locked ? "#8A5C26" : "#A89E89",
       cursor: "pointer", fontSize: 11, padding: 0, lineHeight: 1
     }
   }, locked ? Icons.lock() : Icons.unlock());
@@ -992,7 +992,7 @@ function MappingTableRow(props) {
     React.createElement("td", { style: { padding: "4px 6px", textAlign: "right", fontSize: 11, color: "#A89E89" } }, (props.count || 0).toLocaleString()),
     React.createElement("td", { style: { padding: "4px 6px" } },
       m.locked
-        ? React.createElement("span", { style: { fontSize: 10, color: "#b45309", background: "#fef3c7", padding: "1px 6px", borderRadius: 8 } }, "Locked")
+        ? React.createElement("span", { style: { fontSize: 10, color: "#8A5C26", background: "#F2E2BE", padding: "1px 6px", borderRadius: 8 } }, "Locked")
         : React.createElement(DEBadge, { dE: m.dE })
     ),
     React.createElement("td", { style: { padding: "4px 6px", position: "relative" } },
@@ -1355,13 +1355,13 @@ function usePaletteSwap(props) {
             React.createElement("span", { style: { fontFamily: "monospace", minWidth: 32 } }, m.dest.id),
             React.createElement("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, m.dest.name || ""),
             m.locked
-              ? React.createElement("span", { style: { fontSize: 10, color: "#b45309", background: "#fef3c7", padding: "1px 6px", borderRadius: 8 } }, "Locked")
+              ? React.createElement("span", { style: { fontSize: 10, color: "#8A5C26", background: "#F2E2BE", padding: "1px 6px", borderRadius: 8 } }, "Locked")
               : React.createElement(DEBadge, { dE: m.dE })
           );
         })
       ),
       collisions.length > 0 && React.createElement("div", {
-        style: { background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "6px 10px", fontSize: 11, color: "#d97706" }
+        style: { background: "#FAF5E1", border: "1px solid #E5C97D", borderRadius: 6, padding: "6px 10px", fontSize: 11, color: "#A06F2D" }
       },
         "\u26A0 ",
         collisions.map(function(c) {
@@ -1589,7 +1589,7 @@ function usePaletteSwap(props) {
                 }, "Apply"),
                 React.createElement("button", {
                   onClick: function() { deleteCustomPalette(idx); },
-                  style: { fontSize: 10, padding: "2px 6px", borderRadius: 6, border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626", cursor: "pointer" }
+                  style: { fontSize: 10, padding: "2px 6px", borderRadius: 6, border: "1px solid #ECC8C8", background: "#FCEFEF", color: "#A53D3D", cursor: "pointer" }
                 }, "\u00D7")
               )
             ),
@@ -1688,7 +1688,7 @@ function usePaletteSwap(props) {
 
     // Contrast warnings
     contrastWarnings.length > 0 && React.createElement("div", {
-      style: { background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "8px 10px", fontSize: 11, color: "#d97706", marginBottom: 8 }
+      style: { background: "#FAF5E1", border: "1px solid #E5C97D", borderRadius: 6, padding: "8px 10px", fontSize: 11, color: "#A06F2D", marginBottom: 8 }
     },
       React.createElement("strong", null, "Low contrast pairs: "),
       contrastWarnings.map(function(w, i) {
@@ -1702,14 +1702,14 @@ function usePaletteSwap(props) {
 
     // Tracking progress warning
     doneCount > 0 && React.createElement("div", {
-      style: { background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "8px 10px", fontSize: 11, color: "#d97706", marginBottom: 8 }
+      style: { background: "#FAF5E1", border: "1px solid #E5C97D", borderRadius: 6, padding: "8px 10px", fontSize: 11, color: "#A06F2D", marginBottom: 8 }
     },
       "This pattern has tracking progress (" + doneCount.toLocaleString() + " stitches marked). Applying a palette swap will reset your progress."
     ),
 
     // Collision warnings
     collisions.length > 0 && React.createElement("div", {
-      style: { background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "6px 10px", fontSize: 11, color: "#d97706", marginBottom: 8 }
+      style: { background: "#FAF5E1", border: "1px solid #E5C97D", borderRadius: 6, padding: "6px 10px", fontSize: 11, color: "#A06F2D", marginBottom: 8 }
     },
       "\u26A0 Collision: ",
       collisions.map(function(c) { return "DMC " + c.dmcId + " (" + c.sourceIds.length + " sources)"; }).join(", "),

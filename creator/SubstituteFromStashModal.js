@@ -643,10 +643,10 @@ function SubstituteFromStashModalInner(props) {
 
   function statusBadge(status) {
     var s = { fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, flexShrink: 0 };
-    if (status === "good")         return h("span", { style: Object.assign({}, s, { background: "#d1fae5", color: "#065f46" }) }, "Good");
-    if (status === "fair")         return h("span", { style: Object.assign({}, s, { background: "#fef3c7", color: "#92400e" }) }, "Fair");
-    if (status === "poor")         return h("span", { style: Object.assign({}, s, { background: "#fee2e2", color: "#991b1b" }) }, "Poor");
-    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "#ffedd5", color: "#7c2d12" }) }, "\u26A0 Low stock");
+    if (status === "good")         return h("span", { style: Object.assign({}, s, { background: "#D5E5C8", color: "#065f46" }) }, "Good");
+    if (status === "fair")         return h("span", { style: Object.assign({}, s, { background: "#F2E2BE", color: "#6B461F" }) }, "Fair");
+    if (status === "poor")         return h("span", { style: Object.assign({}, s, { background: "#F1D2D2", color: "#722424" }) }, "Poor");
+    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "#F2E2BE", color: "#7c2d12" }) }, "\u26A0 Low stock");
     if (status === "conflict")     return h("span", { style: Object.assign({}, s, { background: "#fce7f3", color: "#9d174d" }) }, "Conflict");
     return null;
   }
@@ -665,7 +665,7 @@ function SubstituteFromStashModalInner(props) {
       h("div", {
         style: {
           borderRadius: 6, overflow: "hidden",
-          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#fed7aa" : "#E5DCCB") : "#EFE7D6"),
+          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#E5C99A" : "#E5DCCB") : "#EFE7D6"),
           opacity: isEnabled ? 1 : 0.55
         }
       },
@@ -673,7 +673,7 @@ function SubstituteFromStashModalInner(props) {
         h("div", {
           style: {
             display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
-            background: isEnabled ? (hasContrastWarning ? "#fffbeb" : "#fff") : "#FBF8F3"
+            background: isEnabled ? (hasContrastWarning ? "#FAF5E1" : "#fff") : "#FBF8F3"
           }
         },
           h("input", {
@@ -690,13 +690,13 @@ function SubstituteFromStashModalInner(props) {
           h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + target.id),
           h("span", { style: { fontSize: 11, color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
           sub.includedFromNearMiss
-            ? h("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: "#fff7ed", color: "#c2410c", flexShrink: 0 } }, "manual\u00B7\u0394E\u202F" + target.deltaE)
+            ? h("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: "#F8EFD8", color: "#c2410c", flexShrink: 0 } }, "manual\u00B7\u0394E\u202F" + target.deltaE)
             : statusBadge(effStatus),
           !sub.includedFromNearMiss
             ? h("span", { style: { fontSize: 10, color: "#A89E89", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
             : null,
           h("span", {
-            style: { fontSize: 10, color: target.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 44, textAlign: "right" }
+            style: { fontSize: 10, color: target.hasSufficient ? "#4F7D3F" : "#A04E11", flexShrink: 0, minWidth: 44, textAlign: "right" }
           }, target.ownedSkeins + "/" + target.neededSkeins + "sk"),
           hasAlts
             ? h("button", {
@@ -717,8 +717,8 @@ function SubstituteFromStashModalInner(props) {
               style: {
                 display: "flex", alignItems: "center", gap: 5,
                 padding: "4px 10px 5px 34px",
-                background: "#fef3c7", borderTop: "1px solid #fde68a",
-                fontSize: 11, color: "#92400e"
+                background: "#F2E2BE", borderTop: "1px solid #E5C97D",
+                fontSize: 11, color: "#6B461F"
               }
             },
               h("span", null, "\u26A0 Contrast: \u0394E\u202F" + sub.contrastWarning.pairDeltaE +
@@ -745,7 +745,7 @@ function SubstituteFromStashModalInner(props) {
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + alt.id),
                 h("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
                 h("span", { style: { color: "#A89E89", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
-                h("span", { style: { color: alt.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
+                h("span", { style: { color: alt.hasSufficient ? "#4F7D3F" : "#A04E11", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
                 isSelected ? h("span", { style: { color: "#7c3aed", fontWeight: 700, marginLeft: 4, flexShrink: 0 } }, "\u2713") : null
               );
             })
@@ -779,9 +779,9 @@ function SubstituteFromStashModalInner(props) {
               onClick: function() { setNmExpanded(function(prev) { var n = Object.assign({}, prev); n[skk] = !n[skk]; return n; }); },
               style: {
                 fontSize: 10, padding: "2px 7px", borderRadius: 5, cursor: "pointer",
-                border: "1px solid #fed7aa",
-                background: isNmOpen ? "#fed7aa" : "#fff7ed",
-                color: "#92400e", flexShrink: 0
+                border: "1px solid #E5C99A",
+                background: isNmOpen ? "#E5C99A" : "#F8EFD8",
+                color: "#6B461F", flexShrink: 0
               }
             }, isNmOpen ? "\u25B4 Hide" : "Near misses \u25BE")
           : h("span", { style: { fontSize: 10, color: "#CFC4AC", flexShrink: 0 } }, "no near misses")
@@ -793,14 +793,14 @@ function SubstituteFromStashModalInner(props) {
                 key: nm.id,
                 style: {
                   display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 5,
-                  border: "1px solid #fed7aa", background: "#fff7ed", fontSize: 11
+                  border: "1px solid #E5C99A", background: "#F8EFD8", fontSize: 11
                 }
               },
                 swatch(nm.rgb, 12),
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + nm.id),
                 h("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nm.name),
-                h("span", { style: { color: "#d97706", flexShrink: 0 } }, "\u0394E\u202F" + nm.deltaE),
-                h("span", { style: { color: nm.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, nm.ownedSkeins + "/" + nm.neededSkeins + "sk"),
+                h("span", { style: { color: "#A06F2D", flexShrink: 0 } }, "\u0394E\u202F" + nm.deltaE),
+                h("span", { style: { color: nm.hasSufficient ? "#4F7D3F" : "#A04E11", flexShrink: 0, minWidth: 40, textAlign: "right" } }, nm.ownedSkeins + "/" + nm.neededSkeins + "sk"),
                 h("button", {
                   onClick: function() { includeNearMiss(sk, nm); },
                   style: {
@@ -959,10 +959,10 @@ function SubstituteFromStashModalInner(props) {
           h("strong", null, enabledSubs.length + " substitution" + (enabledSubs.length !== 1 ? "s" : "") + " selected"),
           h("span", null, " \xB7 " + p.skipped.length + " skipped"),
           warningCount > 0
-            ? h("span", { style: { color: "#ea580c" } }, " \xB7 " + warningCount + " low stock")
+            ? h("span", { style: { color: "#A04E11" } }, " \xB7 " + warningCount + " low stock")
             : null,
           contrastWarningCount > 0
-            ? h("span", { style: { color: "#b45309" } }, " \xB7 " + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : ""))
+            ? h("span", { style: { color: "#8A5C26" } }, " \xB7 " + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : ""))
             : null
         ),
         h("div", { style: { marginTop: 8, fontSize: 11, color: "#A89E89" } },

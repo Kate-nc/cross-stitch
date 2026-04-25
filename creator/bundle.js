@@ -2066,7 +2066,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
         if (Math.sqrt(dx * dx + dy * dy) <= 0.4) isHoveredErase = true;
       }
       if (lx1 >= 0 && lx1 <= dW && ly1 >= 0 && ly1 <= dH && lx2 >= 0 && lx2 <= dW && ly2 >= 0 && ly2 <= dH) {
-        ctx2d.strokeStyle = isHoveredErase ? "#ef4444" : "#333";
+        ctx2d.strokeStyle = isHoveredErase ? "#B85555" : "#333";
         ctx2d.lineWidth = Math.max(2, cSz * (isHoveredErase ? 0.25 : 0.15));
         ctx2d.beginPath(); ctx2d.moveTo(gut + lx1 * cSz, gut + ly1 * cSz); ctx2d.lineTo(gut + lx2 * cSz, gut + ly2 * cSz); ctx2d.stroke();
       }
@@ -2400,7 +2400,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       else { xx = lx1 + param * C; yy = ly1 + param * D; }
       var dx = hxb - xx, dy = hyb - yy;
       if (Math.sqrt(dx * dx + dy * dy) <= 0.7) {
-        ctx2d.strokeStyle = "#ef4444";
+        ctx2d.strokeStyle = "#B85555";
         ctx2d.lineWidth = Math.max(2, cSz * 0.25);
         ctx2d.beginPath(); ctx2d.moveTo(gut + lx1 * cSz, gut + ly1 * cSz); ctx2d.lineTo(gut + lx2 * cSz, gut + ly2 * cSz); ctx2d.stroke();
       }
@@ -9242,14 +9242,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // since the toolbar no longer carries a colour chip.
   var badgeLabel, badgeBg, badgeColor, badgeDot;
   if (cv.activeTool === "eyedropper") {
-    badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#eab308";
+    badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#B59230";
   } else if (cv.activeTool === "magicWand") {
     badgeLabel = "Magic Wand"; badgeBg = "#f3e8ff"; badgeColor = "#6b21a8"; badgeDot = "#a855f7";
   } else if (cv.activeTool === "lasso") {
     var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
-    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#fff7ed"; badgeColor = "#9a3412"; badgeDot = "#f97316";
+    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#F8EFD8"; badgeColor = "#9a3412"; badgeDot = "#f97316";
   } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
-    badgeLabel = "Erase"; badgeBg = "#fef2f2"; badgeColor = "#991b1b"; badgeDot = "#ef4444";
+    badgeLabel = "Erase"; badgeBg = "#FCEFEF"; badgeColor = "#722424"; badgeDot = "#B85555";
   } else if (cv.stitchType === "backstitch") {
     badgeLabel = "Backstitch"; badgeBg = "#f5f5f5"; badgeColor = "#404040"; badgeDot = "#737373";
   } else if (cv.stitchType === "half-fwd") {
@@ -9257,10 +9257,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.stitchType === "half-bck") {
     badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
   } else if (cv.brushMode === "fill") {
-    badgeLabel = "Fill"; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+    badgeLabel = "Fill"; badgeBg = "#DEE7D2"; badgeColor = "#3F6432"; badgeDot = "#5C8E4A";
   } else if (cv.brushMode === "paint") {
     var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
-    badgeLabel = "Paint" + szTxt; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+    badgeLabel = "Paint" + szTxt; badgeBg = "#DEE7D2"; badgeColor = "#3F6432"; badgeDot = "#5C8E4A";
   } else {
     badgeLabel = null;
   }
@@ -9476,7 +9476,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       style: { position: "relative" }
     }, icon, label,
       isModifier && h("span", {
-        style: { position: "absolute", top: -4, right: -4, background: "#f59e0b",
+        style: { position: "absolute", top: -4, right: -4, background: "#C0883A",
           color: "#fff", borderRadius: 99, fontSize: 8, width: 12, height: 12,
           display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
           boxShadow: "0 0 0 1px #fff", pointerEvents: "none" }
@@ -9545,7 +9545,7 @@ window.MagicWandPanel = function MagicWandPanel() {
 
   // ─── Confetti panel ──────────────────────────────────────────────────────────
   var confettiPanel = (panel === "confetti" && hasSelection) ? h("div", {
-    style: { padding: "10px 14px", background: "#fff7ed", borderBottom: "1px solid #fde68a",
+    style: { padding: "10px 14px", background: "#F8EFD8", borderBottom: "1px solid #E5C97D",
       display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
   },
     h("strong", { style: { color: "#7c2d12" } }, "Confetti Cleanup in Selection"),
@@ -9559,7 +9559,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("span", { style: { minWidth: 14 } }, cv.confettiThreshold)
     ),
     cv.confettiPreview
-      ? h("span", { style: { color: "#b45309" } }, cv.confettiPreview.size + " stitches flagged")
+      ? h("span", { style: { color: "#8A5C26" } }, cv.confettiPreview.size + " stitches flagged")
       : null,
     btn("Preview", cv.previewConfettiCleanup, { style: { fontSize: 10 } }),
     btn("Apply", cv.applyConfettiCleanup, {
@@ -9572,12 +9572,12 @@ window.MagicWandPanel = function MagicWandPanel() {
   // ─── Reduce colours panel ────────────────────────────────────────────────────
   var selColors = cv.selectionStats ? cv.selectionStats.colors : 0;
   var reducePanel = (panel === "reduce" && hasSelection) ? h("div", {
-    style: { padding: "10px 14px", background: "#f0fdf4", borderBottom: "1px solid #bbf7d0",
+    style: { padding: "10px 14px", background: "#DEE7D2", borderBottom: "1px solid #C4DCB6",
       fontSize: 11 }
   },
     h("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 } },
-      h("strong", { style: { color: "#14532d" } }, "Simplify Colours in Selection"),
-      h("span", { style: { color: "#166534" } }, selColors + " colours in selection"),
+      h("strong", { style: { color: "#2E4824" } }, "Simplify Colours in Selection"),
+      h("span", { style: { color: "#3F6432" } }, selColors + " colours in selection"),
       h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
         "Target:",
         h("input", {
@@ -9594,7 +9594,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       btn("\u00D7", function() { cv.setWandPanel(null); cv.setReducePreview(null); }, { style: { fontSize: 10 } })
     ),
     cv.reducePreview && cv.reducePreview.length ? h("div", {
-      style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #bbf7d0", paddingTop: 6 }
+      style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #C4DCB6", paddingTop: 6 }
     },
       cv.reducePreview.map(function(m, i) {
         var fromE = ctx.cmap && ctx.cmap[m.from];
@@ -9741,7 +9741,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       var dmcEntry = findThreadInCatalog('dmc', cv.outlineColor);
       return dmcEntry ? h("span", { style: { display: "flex", alignItems: "center", gap: 3 } },
         swatch(dmcEntry.rgb), h("span", { style: { color: "#334155" } }, dmcEntry.name)
-      ) : h("span", { style: { color: "#ef4444" } }, "Unknown DMC");
+      ) : h("span", { style: { color: "#B85555" } }, "Unknown DMC");
     })(),
     btn("Generate", cv.applyOutlineGeneration, {
       green: true,
@@ -10409,10 +10409,10 @@ function SubstituteFromStashModalInner(props) {
 
   function statusBadge(status) {
     var s = { fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, flexShrink: 0 };
-    if (status === "good")         return h("span", { style: Object.assign({}, s, { background: "#d1fae5", color: "#065f46" }) }, "Good");
-    if (status === "fair")         return h("span", { style: Object.assign({}, s, { background: "#fef3c7", color: "#92400e" }) }, "Fair");
-    if (status === "poor")         return h("span", { style: Object.assign({}, s, { background: "#fee2e2", color: "#991b1b" }) }, "Poor");
-    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "#ffedd5", color: "#7c2d12" }) }, "\u26A0 Low stock");
+    if (status === "good")         return h("span", { style: Object.assign({}, s, { background: "#D5E5C8", color: "#065f46" }) }, "Good");
+    if (status === "fair")         return h("span", { style: Object.assign({}, s, { background: "#F2E2BE", color: "#6B461F" }) }, "Fair");
+    if (status === "poor")         return h("span", { style: Object.assign({}, s, { background: "#F1D2D2", color: "#722424" }) }, "Poor");
+    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "#F2E2BE", color: "#7c2d12" }) }, "\u26A0 Low stock");
     if (status === "conflict")     return h("span", { style: Object.assign({}, s, { background: "#fce7f3", color: "#9d174d" }) }, "Conflict");
     return null;
   }
@@ -10431,7 +10431,7 @@ function SubstituteFromStashModalInner(props) {
       h("div", {
         style: {
           borderRadius: 6, overflow: "hidden",
-          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#fed7aa" : "#E5DCCB") : "#EFE7D6"),
+          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#E5C99A" : "#E5DCCB") : "#EFE7D6"),
           opacity: isEnabled ? 1 : 0.55
         }
       },
@@ -10439,7 +10439,7 @@ function SubstituteFromStashModalInner(props) {
         h("div", {
           style: {
             display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
-            background: isEnabled ? (hasContrastWarning ? "#fffbeb" : "#fff") : "#FBF8F3"
+            background: isEnabled ? (hasContrastWarning ? "#FAF5E1" : "#fff") : "#FBF8F3"
           }
         },
           h("input", {
@@ -10456,13 +10456,13 @@ function SubstituteFromStashModalInner(props) {
           h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + target.id),
           h("span", { style: { fontSize: 11, color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
           sub.includedFromNearMiss
-            ? h("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: "#fff7ed", color: "#c2410c", flexShrink: 0 } }, "manual\u00B7\u0394E\u202F" + target.deltaE)
+            ? h("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: "#F8EFD8", color: "#c2410c", flexShrink: 0 } }, "manual\u00B7\u0394E\u202F" + target.deltaE)
             : statusBadge(effStatus),
           !sub.includedFromNearMiss
             ? h("span", { style: { fontSize: 10, color: "#A89E89", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
             : null,
           h("span", {
-            style: { fontSize: 10, color: target.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 44, textAlign: "right" }
+            style: { fontSize: 10, color: target.hasSufficient ? "#4F7D3F" : "#A04E11", flexShrink: 0, minWidth: 44, textAlign: "right" }
           }, target.ownedSkeins + "/" + target.neededSkeins + "sk"),
           hasAlts
             ? h("button", {
@@ -10483,8 +10483,8 @@ function SubstituteFromStashModalInner(props) {
               style: {
                 display: "flex", alignItems: "center", gap: 5,
                 padding: "4px 10px 5px 34px",
-                background: "#fef3c7", borderTop: "1px solid #fde68a",
-                fontSize: 11, color: "#92400e"
+                background: "#F2E2BE", borderTop: "1px solid #E5C97D",
+                fontSize: 11, color: "#6B461F"
               }
             },
               h("span", null, "\u26A0 Contrast: \u0394E\u202F" + sub.contrastWarning.pairDeltaE +
@@ -10511,7 +10511,7 @@ function SubstituteFromStashModalInner(props) {
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + alt.id),
                 h("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
                 h("span", { style: { color: "#A89E89", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
-                h("span", { style: { color: alt.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
+                h("span", { style: { color: alt.hasSufficient ? "#4F7D3F" : "#A04E11", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
                 isSelected ? h("span", { style: { color: "#7c3aed", fontWeight: 700, marginLeft: 4, flexShrink: 0 } }, "\u2713") : null
               );
             })
@@ -10545,9 +10545,9 @@ function SubstituteFromStashModalInner(props) {
               onClick: function() { setNmExpanded(function(prev) { var n = Object.assign({}, prev); n[skk] = !n[skk]; return n; }); },
               style: {
                 fontSize: 10, padding: "2px 7px", borderRadius: 5, cursor: "pointer",
-                border: "1px solid #fed7aa",
-                background: isNmOpen ? "#fed7aa" : "#fff7ed",
-                color: "#92400e", flexShrink: 0
+                border: "1px solid #E5C99A",
+                background: isNmOpen ? "#E5C99A" : "#F8EFD8",
+                color: "#6B461F", flexShrink: 0
               }
             }, isNmOpen ? "\u25B4 Hide" : "Near misses \u25BE")
           : h("span", { style: { fontSize: 10, color: "#CFC4AC", flexShrink: 0 } }, "no near misses")
@@ -10559,14 +10559,14 @@ function SubstituteFromStashModalInner(props) {
                 key: nm.id,
                 style: {
                   display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 5,
-                  border: "1px solid #fed7aa", background: "#fff7ed", fontSize: 11
+                  border: "1px solid #E5C99A", background: "#F8EFD8", fontSize: 11
                 }
               },
                 swatch(nm.rgb, 12),
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + nm.id),
                 h("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nm.name),
-                h("span", { style: { color: "#d97706", flexShrink: 0 } }, "\u0394E\u202F" + nm.deltaE),
-                h("span", { style: { color: nm.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, nm.ownedSkeins + "/" + nm.neededSkeins + "sk"),
+                h("span", { style: { color: "#A06F2D", flexShrink: 0 } }, "\u0394E\u202F" + nm.deltaE),
+                h("span", { style: { color: nm.hasSufficient ? "#4F7D3F" : "#A04E11", flexShrink: 0, minWidth: 40, textAlign: "right" } }, nm.ownedSkeins + "/" + nm.neededSkeins + "sk"),
                 h("button", {
                   onClick: function() { includeNearMiss(sk, nm); },
                   style: {
@@ -10725,10 +10725,10 @@ function SubstituteFromStashModalInner(props) {
           h("strong", null, enabledSubs.length + " substitution" + (enabledSubs.length !== 1 ? "s" : "") + " selected"),
           h("span", null, " \xB7 " + p.skipped.length + " skipped"),
           warningCount > 0
-            ? h("span", { style: { color: "#ea580c" } }, " \xB7 " + warningCount + " low stock")
+            ? h("span", { style: { color: "#A04E11" } }, " \xB7 " + warningCount + " low stock")
             : null,
           contrastWarningCount > 0
-            ? h("span", { style: { color: "#b45309" } }, " \xB7 " + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : ""))
+            ? h("span", { style: { color: "#8A5C26" } }, " \xB7 " + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : ""))
             : null
         ),
         h("div", { style: { marginTop: 8, fontSize: 11, color: "#A89E89" } },
@@ -10910,9 +10910,9 @@ window.ConvertPaletteModal = (function () {
 
   function ConfidenceBadge({ confidence }) {
     var colours = {
-      official: { bg: '#dcfce7', text: '#166534', label: 'Exact match' },
+      official: { bg: '#DEE7D2', text: '#3F6432', label: 'Exact match' },
       reconciled: { bg: '#fef9c3', text: '#854d0e', label: 'Best match' },
-      'single-source': { bg: '#fef3c7', text: '#92400e', label: 'One source' },
+      'single-source': { bg: '#F2E2BE', text: '#6B461F', label: 'One source' },
       nearest: { bg: '#EFE7D6', text: '#5C5448', label: 'Closest colour' },
     };
     var c = colours[confidence] || colours.nearest;
@@ -11004,7 +11004,7 @@ window.ConvertPaletteModal = (function () {
           })
         ),
         uniqueCount > 0 && React.createElement('div', {
-          style: { padding: '8px 20px', background: '#fef3c7', borderBottom: '1px solid #fde68a', fontSize: 12, color: '#92400e' }
+          style: { padding: '8px 20px', background: '#F2E2BE', borderBottom: '1px solid #E5C97D', fontSize: 12, color: '#6B461F' }
         }, uniqueCount + ' thread' + (uniqueCount === 1 ? '' : 's') + ' ha' + (uniqueCount === 1 ? 's' : 've') + ' no close equivalent in ' + (targetBrand === 'anchor' ? 'Anchor' : 'DMC') + '. Review and choose substitutes manually.'),
         React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '8px 12px' } },
           filtered.length === 0
@@ -11019,7 +11019,7 @@ window.ConvertPaletteModal = (function () {
 
                 return React.createElement('div', {
                   key: p.sourceId,
-                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 6, marginBottom: 4, background: noMatch ? '#fff7ed' : '#f8fafc', border: '1px solid ' + (noMatch ? '#fed7aa' : '#E5DCCB') }
+                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 6, marginBottom: 4, background: noMatch ? '#F8EFD8' : '#f8fafc', border: '1px solid ' + (noMatch ? '#E5C99A' : '#E5DCCB') }
                 },
                   // Source swatch + label
                   React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + p.sourceRgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
@@ -11034,7 +11034,7 @@ window.ConvertPaletteModal = (function () {
                           (targetBrand === 'anchor' ? 'Anch ' : 'DMC '), effectiveTgt.id
                         )
                       )
-                    : React.createElement('span', { style: { fontSize: 11, color: '#f59e0b', fontWeight: 600 } }, 'No match'),
+                    : React.createElement('span', { style: { fontSize: 11, color: '#C0883A', fontWeight: 600 } }, 'No match'),
                   // Confidence badge (only for official proposals, not overrides)
                   !overrideId && p.target && React.createElement(ConfidenceBadge, { confidence: p.target.confidence }),
                   // ΔE
@@ -11134,12 +11134,12 @@ window.BulkAddModal = (function () {
   function ThreadChip({ item, brand, onRemove }) {
     if (!item.valid) {
       return React.createElement('span', {
-        style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', margin: '2px 3px' }
+        style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#F1D2D2', color: '#8A2E2E', border: '1px solid #DEAEAE', margin: '2px 3px' }
       },
         React.createElement('span', null, brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised, '\u00a0\u2014 not found'),
         React.createElement('button', {
           onClick: function () { onRemove(item.raw); },
-          style: { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 13, fontWeight: 700, marginLeft: 2 }
+          style: { background: 'none', border: 'none', color: '#8A2E2E', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 13, fontWeight: 700, marginLeft: 2 }
         }, '×')
       );
     }
@@ -11147,7 +11147,7 @@ window.BulkAddModal = (function () {
       style: { width: 12, height: 12, borderRadius: 2, background: 'rgb(' + item.thread.rgb + ')', border: '1px solid rgba(0,0,0,0.12)', flexShrink: 0 }
     });
     return React.createElement('span', {
-      style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#f0fdf4', color: '#166534', border: '1px solid #86efac', margin: '2px 3px' }
+      style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#DEE7D2', color: '#3F6432', border: '1px solid #A8C594', margin: '2px 3px' }
     },
       swatch,
       brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised,
@@ -11345,7 +11345,7 @@ window.BulkAddModal = (function () {
         ),
         // Footer
         React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' } },
-          invalidCount > 0 && React.createElement('span', { style: { fontSize: 12, color: '#f59e0b', marginRight: 'auto' } },
+          invalidCount > 0 && React.createElement('span', { style: { fontSize: 12, color: '#C0883A', marginRight: 'auto' } },
             invalidCount + ' unrecognised thread' + (invalidCount === 1 ? '' : 's') + ' will be skipped'
           ),
           React.createElement('button', { className: 'g-btn', onClick: onClose }, 'Cancel'),
@@ -11480,7 +11480,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       }
       return worst;
     }
-    var STASH_DOT = { owned: '#16a34a', partial: '#f59e0b', needed: '#dc2626' };
+    var STASH_DOT = { owned: '#4F7D3F', partial: '#C0883A', needed: '#A53D3D' };
     var hiddenByFilter = 0;
     // A1 (UX Phase 5) — collect composite keys of unowned palette threads so
     // the warning panel can wire its CTAs honestly. Mirrors stashStatusForChip.
@@ -11540,8 +11540,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         style: {
           display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
           cursor:"pointer",fontSize:11,position:"relative",
-          border: ips ? "2px solid #B85C38" : ihs ? "2px solid #ea580c" : "0.5px solid #E5DCCB",
-          background: ips ? "#F4DDCF" : ihs ? "#fff7ed" : "#fff",
+          border: ips ? "2px solid #B85C38" : ihs ? "2px solid #A04E11" : "0.5px solid #E5DCCB",
+          background: ips ? "#F4DDCF" : ihs ? "#F8EFD8" : "#fff",
           opacity: isUnused ? 0.6 : 1
         }
       },
@@ -11601,7 +11601,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       ctx.creatorStashFilter && stashHas && unownedKeys.length > 0 && h("div", {
         role: "status",
         "aria-live": "polite",
-        style:{marginBottom:8,padding:"8px 10px",borderRadius:7,background:"#fffbeb",border:"1px solid #fde68a",fontSize:11,color:"#92400e",display:"flex",flexDirection:"column",gap:6}
+        style:{marginBottom:8,padding:"8px 10px",borderRadius:7,background:"#FAF5E1",border:"1px solid #E5C97D",fontSize:11,color:"#6B461F",display:"flex",flexDirection:"column",gap:6}
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6,fontWeight:600}},
           typeof Icons !== 'undefined' && Icons.warning ? Icons.warning() : null,
@@ -11634,7 +11634,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                 if (app.addToast) app.addToast("Could not load your stash.", {type:"error", duration:3000});
               });
             },
-            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #fbbf24",background:"#fff",color:"#92400e",fontWeight:600,cursor:"pointer"}
+            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #D49B45",background:"#fff",color:"#6B461F",fontWeight:600,cursor:"pointer"}
           }, "Substitute from stash"),
           h("button", {
             onClick: function() {
@@ -11656,23 +11656,23 @@ window.CreatorSidebar = function CreatorSidebar() {
                 if (app.addToast) app.addToast("Could not update your shopping list.", {type:"error", duration:3000});
               });
             },
-            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #fbbf24",background:"#fef3c7",color:"#92400e",fontWeight:600,cursor:"pointer"}
+            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #D49B45",background:"#F2E2BE",color:"#6B461F",fontWeight:600,cursor:"pointer"}
           }, "Add to shopping list")
         )
       ),
       // Brief D — banner when filter hides chips (kept as a quieter follow-up
       // line for users who still need the "turn off the filter" hint).
       ctx.creatorStashFilter && stashHas && hiddenByFilter > 0 && unownedKeys.length === 0 && h("div", {
-        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#fffbeb",border:"0.5px solid #fde68a",fontSize:10,color:"#92400e"}
+        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#FAF5E1",border:"0.5px solid #E5C97D",fontSize:10,color:"#6B461F"}
       }, hiddenByFilter + " unowned colour" + (hiddenByFilter !== 1 ? "s" : "") + " hidden \u2014 turn off the filter to see all."),
       ctx.creatorStashFilter && !stashHas && h("div", {
-        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#fef2f2",border:"0.5px solid #fecaca",fontSize:10,color:"#991b1b"}
+        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#FCEFEF",border:"0.5px solid #ECC8C8",fontSize:10,color:"#722424"}
       }, "Your stash is empty \u2014 turn off this filter, or add threads in the Stash Manager."),
       isPaintMode && h("div", {
         style:{
           marginBottom:8,padding:"5px 8px",borderRadius:7,
-          background: selInfo ? "#F4DDCF" : "#fffbeb",
-          border: selInfo ? "1px solid #E8B89A" : "1px solid #fde68a",
+          background: selInfo ? "#F4DDCF" : "#FAF5E1",
+          border: selInfo ? "1px solid #E8B89A" : "1px solid #E5C97D",
           display:"flex",alignItems:"center",gap:7,fontSize:11,minHeight:30
         }
       },
@@ -11689,7 +11689,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             )
           : h(React.Fragment, null,
               h("span", {style:{fontSize:12}}, Icons.pointing()),
-              h("span", {style:{color:"#92400e"}}, "Select a colour to paint \u2014 or right-click the canvas")
+              h("span", {style:{color:"#6B461F"}}, "Select a colour to paint \u2014 or right-click the canvas")
             )
       ),
       displayPal.length > 0
@@ -11704,12 +11704,12 @@ window.CreatorSidebar = function CreatorSidebar() {
   // prominent banner so the user knows this is the click target. ESC cancels
   // (wired in useKeyboardShortcuts.js).
   var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {id:"bg-pick-target", className:"card"+(gen.pickBg?" card--pickBg":"")},
-    gen.pickBg && h("div", {style:{padding:"10px 12px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#fff7ed",borderBottom:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:8}},
+    gen.pickBg && h("div", {style:{padding:"10px 12px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#F8EFD8",borderBottom:"1px solid #E5C99A",display:"flex",alignItems:"center",gap:8}},
       h("span", {style:{flex:1}}, "Click anywhere on the image to set the background colour."),
       h("button", {
         onClick:function(){gen.setPickBg(false);},
         title:"Cancel pick (Esc)",
-        style:{fontSize:11,padding:"3px 8px",border:"1px solid #fdba74",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}
+        style:{fontSize:11,padding:"3px 8px",border:"1px solid #D4A570",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}
       }, "Cancel")
     ),
     h("div", {
@@ -11886,7 +11886,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           style:{width:"100%",padding:"6px 0",fontSize:12,fontWeight:600,cursor:"pointer",
             border:"1px solid #B85C38",borderRadius:6,background:"#F4DDCF",color:"#B85C38",marginBottom:8}
         }, "Add blend " + blendThread1.id + "+" + blendThread2.id),
-        blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:11,color:"#dc2626",marginBottom:8}}, "Pick two different threads"),
+        blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:11,color:"#A53D3D",marginBottom:8}}, "Pick two different threads"),
         h("input", {
           type:"text", placeholder:"Search DMC threads\u2026",
           value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);},
@@ -11949,7 +11949,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {style:{marginTop:8}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
         helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
-      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#d97706",marginTop:2}},
+      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#A06F2D",marginTop:2}},
         "Clamped to " + gen.stashThreadCount + " (stash size)"
       )
     ),
@@ -11987,8 +11987,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, stashStripExpanded ? "Show less" : "+" + (gen.stashPalette.length - 60) + " more")
       ),
       gen.coverageGaps && gen.coverageGaps.hasGaps && h("div", {style:{
-        fontSize:11,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,
-        padding:"6px 10px",marginBottom:8,color:"#991b1b",display:"flex",alignItems:"flex-start",gap:6
+        fontSize:11,background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,
+        padding:"6px 10px",marginBottom:8,color:"#722424",display:"flex",alignItems:"flex-start",gap:6
       }},
         h("span", {style:{fontSize:13,lineHeight:1,flexShrink:0}}, Icons.warning()),
         h("span", null, "Your stash may lack coverage in: ",
@@ -12097,7 +12097,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                       "#" + slot.seed + " \u00B7 " + slot.threadCount + " threads"
                     )
                   ) :
-                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#ef4444"}}, "Error")
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#B85555"}}, "Error")
               );
             })
           ),
@@ -12142,9 +12142,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         if (gen.orphans === 1) {
           desc = h("span", null, "Removes ", h("strong", null, "isolated single stitches"), " \u2014 cells with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets clusters of exactly 1 stitch.");
         } else if (gen.orphans === 2) {
-          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
+          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
         } else {
-          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#dc2626",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#A53D3D",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
         }
         return h("div", {style:{fontSize:11,color:"#5C5448",marginTop:4,lineHeight:1.5}}, desc);
       })()
@@ -12189,9 +12189,9 @@ window.CreatorSidebar = function CreatorSidebar() {
       var isDanger = warning.level === "danger";
       return h("div", {style:{
         marginTop:6,padding:"8px 10px",borderRadius:8,fontSize:11,lineHeight:1.5,
-        background:isDanger?"#fef2f2":"#fffbeb",
-        border:"1px solid "+(isDanger?"#fecaca":"#fde68a"),
-        color:isDanger?"#991b1b":"#92400e",
+        background:isDanger?"#FCEFEF":"#FAF5E1",
+        border:"1px solid "+(isDanger?"#ECC8C8":"#E5C97D"),
+        color:isDanger?"#722424":"#6B461F",
         display:"flex",alignItems:"flex-start",gap:6
       }},
         h("span", {style:{fontSize:14,lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
@@ -12207,7 +12207,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#B85C38",display:"inline-block",marginLeft:2}}) : null
     ),
     app.palAdvanced && h(React.Fragment, null,
-      h("div", {style:{marginTop:6,padding:"8px 10px",background:"#fff7ed",borderRadius:8,border:"0.5px solid #fed7aa",fontSize:10,color:"#b45309"}},
+      h("div", {style:{marginTop:6,padding:"8px 10px",background:"#F8EFD8",borderRadius:8,border:"0.5px solid #E5C99A",fontSize:10,color:"#8A5C26"}},
         "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
       ),
       h("div", {style:{display:"flex",gap:6,marginTop:6}},
@@ -12337,7 +12337,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // turned on so the user is never left wondering what to click. Re-toggling
   // off and on doesn't keep re-arming pick mode (only on the 0→1 transition
   // when no bgCol has been customised).
-  var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}) : null;
+  var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#4F7D3F",display:"inline-block"}}) : null;
   function armBgPick() {
     // Switch the user to the Image tab so the pick target is visible.
     if (app.appMode === "create" && app.setSidebarTab) app.setSidebarTab("image");
@@ -12379,7 +12379,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }),
         h("button", {
           onClick:armBgPick,
-          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #E5DCCB",borderRadius:6,background:gen.pickBg?"#fff7ed":"#FBF8F3",color:gen.pickBg?"#9a3412":"#1B1814",cursor:"pointer"}
+          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #E5DCCB",borderRadius:6,background:gen.pickBg?"#F8EFD8":"#FBF8F3",color:gen.pickBg?"#9a3412":"#1B1814",cursor:"pointer"}
         }, gen.pickBg ? "Picking…" : "Pick")
       ),
       h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
@@ -12398,7 +12398,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var actionBtn = ctx.isScratchMode
     ? h("button", {
         onClick:function(){ctx.initBlankGrid(ctx.sW, ctx.sH);},
-        style:{padding:"8px 14px",fontSize:12,fontWeight:600,background:"#dc2626",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}
+        style:{padding:"8px 14px",fontSize:12,fontWeight:600,background:"#A53D3D",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}
       }, "Reset Canvas")
     : h("button", {
         onClick:gen.generate, disabled:gen.busy,
@@ -13409,12 +13409,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       var pctOfTotal = removed / Math.max(1, totalStitchable) * 100;
       if (pctOfTotal < 15) return null;
       return h("div", {
-        style:{padding:"8px 12px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,fontSize:12,color:"#991b1b",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}
+        style:{padding:"8px 12px",background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,fontSize:12,color:"#722424",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}
       },
         h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
         h("button", {
           onClick:function(){setConfettiBannerDismissed(true);},
-          style:{background:"none",border:"none",color:"#991b1b",cursor:"pointer",fontSize:14,flexShrink:0,marginLeft:8}
+          style:{background:"none",border:"none",color:"#722424",cursor:"pointer",fontSize:14,flexShrink:0,marginLeft:8}
         }, "\xD7")
       );
     })(),
@@ -13505,13 +13505,13 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }, "\u21AA Redo"),
       cv.hiId && h("button", {
         onClick: function(){cv.setHiId(null);},
-        style:{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}
+        style:{fontSize:11,padding:"4px 10px",border:"1px solid #ECC8C8",borderRadius:6,background:"#FCEFEF",color:"#A53D3D",cursor:"pointer"}
       }, "Clear \u2715")
     ),
 
-    cv.hiId && h("div", {style:{background:"#fff7ed",border:"0.5px solid #fed7aa",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11,color:"#92400e"}},
+    cv.hiId && h("div", {style:{background:"#F8EFD8",border:"0.5px solid #E5C99A",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11,color:"#6B461F"}},
       // ── Mode toggle segmented control ──
-      h("div", {style:{display:"flex",gap:0,marginBottom:6,borderRadius:6,overflow:"hidden",border:"1px solid #fdba74"}},
+      h("div", {style:{display:"flex",gap:0,marginBottom:6,borderRadius:6,overflow:"hidden",border:"1px solid #D4A570"}},
         ["isolate","outline","tint","spotlight"].map(function(m) {
           var labels = {isolate:"Isolate",outline:"Outline",tint:"Tint",spotlight:"Spotlight"};
           var active = cv.highlightMode === m;
@@ -13520,9 +13520,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
             onClick: function() { cv.setHighlightMode(m); },
             style:{
               flex:1, padding:"4px 0", fontSize:10, fontWeight: active ? 700 : 500, cursor:"pointer",
-              border:"none", borderRight:"1px solid #fdba74",
-              background: active ? "#ea580c" : "#fff7ed",
-              color: active ? "#fff" : "#92400e"
+              border:"none", borderRight:"1px solid #D4A570",
+              background: active ? "#A04E11" : "#F8EFD8",
+              color: active ? "#fff" : "#6B461F"
             }
           }, labels[m]);
         })
@@ -13540,7 +13540,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
               cv.setBgDimOpacity(op);
               if (!cv.hiAdvanced) cv.setBgDimDesaturation(Math.min(1, (100 - parseInt(e.target.value)) / 100));
             },
-            style:{flex:1,accentColor:"#ea580c"}
+            style:{flex:1,accentColor:"#A04E11"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.bgDimOpacity * 100) + "%")
         ),
@@ -13550,14 +13550,14 @@ window.CreatorPatternTab = function CreatorPatternTab() {
             type:"range", min:0, max:100, step:1,
             value: Math.round(cv.bgDimDesaturation * 100),
             onChange: function(e) { cv.setBgDimDesaturation(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"#ea580c"}
+            style:{flex:1,accentColor:"#A04E11"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.bgDimDesaturation * 100) + "%")
         ),
         h("div", {style:{display:"flex",justifyContent:"flex-end"}},
           h("label", {style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none"}},
-            h("input", {type:"checkbox", checked:cv.hiAdvanced, onChange:function(e){cv.setHiAdvanced(e.target.checked);}, style:{accentColor:"#ea580c"}}),
-            h("span", {style:{fontSize:10,color:"#92400e"}}, "Advanced (decouple sliders)")
+            h("input", {type:"checkbox", checked:cv.hiAdvanced, onChange:function(e){cv.setHiAdvanced(e.target.checked);}, style:{accentColor:"#A04E11"}}),
+            h("span", {style:{fontSize:10,color:"#6B461F"}}, "Advanced (decouple sliders)")
           )
         )
       ),
@@ -13575,14 +13575,14 @@ window.CreatorPatternTab = function CreatorPatternTab() {
             type:"color",
             value: cv.tintColor,
             onChange: function(e) { cv.setTintColor(e.target.value); },
-            style:{width:28,height:22,padding:0,border:"1px solid #fdba74",borderRadius:4,cursor:"pointer"}
+            style:{width:28,height:22,padding:0,border:"1px solid #D4A570",borderRadius:4,cursor:"pointer"}
           }),
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f",marginLeft:8}}, "Opacity"),
           h("input", {
             type:"range", min:10, max:80, step:1,
             value: Math.round(cv.tintOpacity * 100),
             onChange: function(e) { cv.setTintOpacity(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"#ea580c"}
+            style:{flex:1,accentColor:"#A04E11"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.tintOpacity * 100) + "%")
         )
@@ -13596,7 +13596,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
             type:"range", min:5, max:50, step:1,
             value: Math.round(cv.spotDimOpacity * 100),
             onChange: function(e) { cv.setSpotDimOpacity(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"#ea580c"}
+            style:{flex:1,accentColor:"#A04E11"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.spotDimOpacity * 100) + "%")
         )
@@ -13676,9 +13676,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     })();
 
     var progressBadge = ctx.done && ctx.doneCount > 0 && h("div", {
-      style:{marginTop:8,padding:"8px 12px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0"}
+      style:{marginTop:8,padding:"8px 12px",background:"#DEE7D2",borderRadius:8,border:"1px solid #C4DCB6"}
     },
-      h("div", {style:{fontSize:12,fontWeight:600,color:"#16a34a"}},
+      h("div", {style:{fontSize:12,fontWeight:600,color:"#4F7D3F"}},
         "Progress: " + ctx.progressPct + "% \u2014 " + ctx.doneCount.toLocaleString() + " of " + ctx.totalStitchable.toLocaleString() + " stitches"
       )
     );
@@ -13717,7 +13717,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           ),
           h("div", null,
             h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"#16a34a":"#B85C38"}},
+            h("div", {style:{fontSize:16,fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"#4F7D3F":"#B85C38"}},
               ctx.doneCount >= ctx.totalStitchable ? "Done!" : fmtTimeL(Math.round((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed * 3600))
             )
           )
@@ -13788,7 +13788,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           ),
           ctx.toBuyCount < ctx.skeinData.length && h("div", null,
             h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#ea580c"}},
+            h("div", {style:{fontSize:16,fontWeight:700,color:"#A04E11"}},
               "\xA3"+(ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)*ctx.skeinPrice).toFixed(2)
             ),
             h("div", {style:{fontSize:11,color:"#A89E89"}},
@@ -13817,12 +13817,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     }
     return h(Section, {title:"Thread Organiser"},
       h("div", {style:{marginTop:8,display:"flex",gap:12,marginBottom:10}},
-        h("div", {style:{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}},
-          h("span", {style:{fontWeight:700,color:"#16a34a"}}, ctx.ownedCount), " ",
+        h("div", {style:{padding:"6px 14px",background:"#DEE7D2",borderRadius:8,border:"1px solid #C4DCB6",fontSize:12}},
+          h("span", {style:{fontWeight:700,color:"#4F7D3F"}}, ctx.ownedCount), " ",
           h("span", {style:{color:"#5C5448"}}, "owned")
         ),
-        h("div", {style:{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}},
-          h("span", {style:{fontWeight:700,color:"#ea580c"}}, ctx.toBuyList.length), " ",
+        h("div", {style:{padding:"6px 14px",background:"#F8EFD8",borderRadius:8,border:"1px solid #E5C99A",fontSize:12}},
+          h("span", {style:{fontWeight:700,color:"#A04E11"}}, ctx.toBuyList.length), " ",
           h("span", {style:{color:"#5C5448"}}, "to buy")
         ),
         h("div", {style:{marginLeft:"auto",display:"flex",gap:4}},
@@ -13832,7 +13832,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               ctx.skeinData.forEach(function(d){n[d.id]="owned";});
               ctx.setThreadOwned(n);
             },
-            style:{fontSize:11,padding:"4px 10px",border:"1px solid #bbf7d0",borderRadius:6,background:"#f0fdf4",color:"#16a34a",cursor:"pointer"}
+            style:{fontSize:11,padding:"4px 10px",border:"1px solid #C4DCB6",borderRadius:6,background:"#DEE7D2",color:"#4F7D3F",cursor:"pointer"}
           }, "Own all"),
           h("button", {
             onClick:function(){ctx.setThreadOwned({});},
@@ -13850,8 +13850,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           return h(React.Fragment, {key:d.id},
             h("div", {
               style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,
-                background:isOwned?"#f0fdf4":"#fff",
-                border:"1px solid "+(isOwned?"#bbf7d0":"#EFE7D6")}
+                background:isOwned?"#DEE7D2":"#fff",
+                border:"1px solid "+(isOwned?"#C4DCB6":"#EFE7D6")}
             },
               h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #CFC4AC",flexShrink:0}}),
               h("span", {style:{fontWeight:700,fontSize:13,minWidth:44}}, "DMC "+d.id),
@@ -13860,9 +13860,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               h("button", {
                 onClick:function(){ctx.toggleOwned(d.id);},
                 style:{fontSize:11,padding:"3px 10px",borderRadius:5,cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center",
-                  border:"1px solid "+(isOwned?"#bbf7d0":"#fed7aa"),
-                  background:isOwned?"#f0fdf4":"#fff7ed",
-                  color:isOwned?"#16a34a":"#ea580c"
+                  border:"1px solid "+(isOwned?"#C4DCB6":"#E5C99A"),
+                  background:isOwned?"#DEE7D2":"#F8EFD8",
+                  color:isOwned?"#4F7D3F":"#A04E11"
                 }
               }, isOwned ? "Owned" : "To buy"),
               h("span", {className:"stash-badge "+(enough?"stash-badge--in":"stash-badge--out")}, owned+"/"+d.skeins+" in stash"),
@@ -13969,14 +13969,14 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       ),
       ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #E5DCCB",background:"#FBF8F3",fontSize:12}},
         h("div", {style:{fontWeight:700,marginBottom:4}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
-        ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"#16a34a",fontWeight:600}}, "\u2713 You have everything!"),
+        ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"#4F7D3F",fontWeight:600}}, "\u2713 You have everything!"),
         ctx.kittingResult.missing.length > 0 && h("div", null,
-          h("div", {style:{color:"#dc2626",fontWeight:600,marginBottom:2}}, "Missing ("+ctx.kittingResult.missing.length+"):"),
-          ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{color:"#dc2626",marginLeft:8}}, m); })
+          h("div", {style:{color:"#A53D3D",fontWeight:600,marginBottom:2}}, "Missing ("+ctx.kittingResult.missing.length+"):"),
+          ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{color:"#A53D3D",marginLeft:8}}, m); })
         ),
         ctx.kittingResult.short.length > 0 && h("div", {style:{marginTop:4}},
-          h("div", {style:{color:"#d97706",fontWeight:600,marginBottom:2}}, "Low stock ("+ctx.kittingResult.short.length+"):"),
-          ctx.kittingResult.short.map(function(m, i) { return h("div", {key:i, style:{color:"#d97706",marginLeft:8}}, m); })
+          h("div", {style:{color:"#A06F2D",fontWeight:600,marginBottom:2}}, "Low stock ("+ctx.kittingResult.short.length+"):"),
+          ctx.kittingResult.short.map(function(m, i) { return h("div", {key:i, style:{color:"#A06F2D",marginLeft:8}}, m); })
         ),
         h("div", {style:{display:"flex",gap:6,marginTop:8}},
           h("button", {
@@ -13994,7 +13994,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               Promise.all(toBuy2.map(function(id){return StashBridge.updateThreadToBuy(id, true);}))
                 .then(function(){alert("Marked "+toBuy2.length+" thread(s) as To Buy in Stash Manager.");});
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #fed7aa",background:"#fff7ed",color:"#ea580c",cursor:"pointer",fontWeight:600}
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #E5C99A",background:"#F8EFD8",color:"#A04E11",cursor:"pointer",fontWeight:600}
           }, "Mark all To Buy"),
           h("button", {
             onClick:function(){ctx.setKittingResult(null);},
@@ -14018,7 +14018,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #E5DCCB",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Copy Full List")
       ),
-      app.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")
+      app.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#4F7D3F",fontWeight:600}}, "Copied!")
     );
   }
 
@@ -14248,9 +14248,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   function statusBadge(status) {
     var cfg = {
-      owned:   {label:"In stash \u2713", bg:"#f0fdf4", color:"#16a34a"},
-      partial: {label:"Partial",         bg:"#fff7ed", color:"#ea580c"},
-      needed:  {label:"Need to buy",     bg:"#fef2f2", color:"#dc2626"}
+      owned:   {label:"In stash \u2713", bg:"#DEE7D2", color:"#4F7D3F"},
+      partial: {label:"Partial",         bg:"#F8EFD8", color:"#A04E11"},
+      needed:  {label:"Need to buy",     bg:"#FCEFEF", color:"#A53D3D"}
     };
     var s = cfg[status] || cfg.needed;
     return h("span", {style:{padding:"2px 7px", borderRadius:10, fontSize:10, fontWeight:600,
@@ -14311,19 +14311,19 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     h("div", {style:{
       display:"flex", alignItems:"center", gap:10, flexWrap:"wrap",
       padding:"9px 14px", borderRadius:8, marginBottom:14, fontSize:12,
-      background: allOwned ? "#f0fdf4" : "#FBF8F3",
-      border:"0.5px solid " + (allOwned ? "#bbf7d0" : "#E5DCCB")
+      background: allOwned ? "#DEE7D2" : "#FBF8F3",
+      border:"0.5px solid " + (allOwned ? "#C4DCB6" : "#E5DCCB")
     }},
       h("span", {style:{fontSize:11, color:"#A89E89"}},
         totalColours + " colour" + (totalColours !== 1 ? "s" : "") + ", " + totalSkeins + " skein" + (totalSkeins !== 1 ? "s" : "")
       ),
-      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "#15803d" : "#5C5448"}},
+      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "#3F6432" : "#5C5448"}},
         allOwned
           ? "\u2713 All colours in stash!"
           : "Stash: " + ownedColours + "/" + totalColours + " owned"
             + (partialColours > 0 ? ", " + partialColours + " partial" : "")
       ),
-      hasStash && !allOwned && h("span", {style:{color:"#dc2626", fontSize:11}},
+      hasStash && !allOwned && h("span", {style:{color:"#A53D3D", fontSize:11}},
         "\u2014 ~" + needSkeins + " skein" + (needSkeins !== 1 ? "s" : "") + " still needed"
       ),
       h("div", {style:{marginLeft:"auto", display:"flex", gap:6}},
@@ -14391,8 +14391,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
               sortedRows.map(function(r, i) {
                 var p    = r.p;
                 var isHi = cv.hiId === p.id;
-                var rowBg = isHi ? "#fff7ed"
-                  : (hasStash && r.status === "owned") ? "#f0fdf4"
+                var rowBg = isHi ? "#F8EFD8"
+                  : (hasStash && r.status === "owned") ? "#DEE7D2"
                   : i % 2 === 0 ? "transparent" : "#fafafa";
                 return h("tr", {
                   key: p.id,
@@ -14409,25 +14409,25 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                     r.name,
                     r.confettiCount ? h("span", {
                       title: r.confettiCount + " isolated stitch" + (r.confettiCount !== 1 ? "es" : ""),
-                      style:{marginLeft:5, color:"#dc2626", fontSize:10, fontWeight:600, cursor:"default"}
+                      style:{marginLeft:5, color:"#A53D3D", fontSize:10, fontWeight:600, cursor:"default"}
                     }, "\u25cf " + r.confettiCount) : null
                   ),
                   h("td", {style:{padding:"5px 10px"}},
                     h("span", {style:{
                       padding:"2px 6px", borderRadius:10, fontSize:10, fontWeight:600,
-                      background: p.type === "blend" ? "#fff7ed" : "#f0fdf4",
-                      color:       p.type === "blend" ? "#ea580c" : "#16a34a"
+                      background: p.type === "blend" ? "#F8EFD8" : "#DEE7D2",
+                      color:       p.type === "blend" ? "#A04E11" : "#4F7D3F"
                     }}, p.type === "blend" ? "Blend" : "Solid")
                   ),
                   h("td", {style:{padding:"5px 10px", textAlign:"right"}}, p.count.toLocaleString()),
                   h("td", {style:{padding:"5px 10px", textAlign:"right", fontWeight:600}}, r.needed),
                   hasStash && h("td", {style:{padding:"5px 10px", textAlign:"right",
-                                              color: r.owned > 0 ? "#15803d" : "#A89E89"}},
+                                              color: r.owned > 0 ? "#3F6432" : "#A89E89"}},
                     r.owned > 0 ? r.owned : "\u2014"
                   ),
                   hasStash && h("td", {style:{padding:"5px 10px"}}, statusBadge(r.status)),
                   ctx.done && h("td", {style:{padding:"5px 10px", textAlign:"right"}},
-                    h("span", {style:{color: r.dc.done >= r.dc.total ? "#16a34a" : "#5C5448"}},
+                    h("span", {style:{color: r.dc.done >= r.dc.total ? "#4F7D3F" : "#5C5448"}},
                       r.dc.done + "/" + r.dc.total)
                   )
                 );
@@ -14499,7 +14499,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                 var isCurrent = f.ct === fabricCt;
                 return h("tr", {key:f.ct, style:{
                   borderBottom:"0.5px solid #EFE7D6",
-                  background: isCurrent ? "#f0fdf4" : "transparent"
+                  background: isCurrent ? "#DEE7D2" : "transparent"
                 }},
                   h("td", {style:{padding:"6px 10px", fontWeight:isCurrent?700:400, color:isCurrent?"#B85C38":"inherit"}},
                     f.ct + (overTwo ? " (×2)" : "") + " ct"
@@ -14710,9 +14710,9 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Status badge
   function statusBadge(status) {
     var map = {
-      owned: { label: 'You own this', bg: '#f0fdf4', color: '#16a34a' },
-      partial: { label: 'Low stock', bg: '#fff7ed', color: '#ea580c' },
-      needed: { label: 'Need to buy', bg: '#fef2f2', color: '#dc2626' }
+      owned: { label: 'You own this', bg: '#DEE7D2', color: '#4F7D3F' },
+      partial: { label: 'Low stock', bg: '#F8EFD8', color: '#A04E11' },
+      needed: { label: 'Need to buy', bg: '#FCEFEF', color: '#A53D3D' }
     };
     var s = map[status] || map.needed;
     return h('span', {
@@ -14727,18 +14727,18 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     // Summary banner
     h('div', {style: {
       display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-      padding: '10px 14px', background: '#f0fdf4', borderRadius: 8,
-      border: '0.5px solid #bbf7d0', marginBottom: 16, fontSize: 12
+      padding: '10px 14px', background: '#DEE7D2', borderRadius: 8,
+      border: '0.5px solid #C4DCB6', marginBottom: 16, fontSize: 12
     }},
-      h('span', {style: {fontWeight: 600, color: '#15803d'}},
+      h('span', {style: {fontWeight: 600, color: '#3F6432'}},
         ownedColours === totalColours
           ? '\u2713 All ' + totalColours + ' colours in stash!'
           : 'You own ' + ownedColours + ' of ' + totalColours + ' colours.'
       ),
-      partialColours > 0 && h('span', {style: {color: '#ea580c'}},
+      partialColours > 0 && h('span', {style: {color: '#A04E11'}},
         partialColours + ' partial.'
       ),
-      (ownedColours < totalColours) && h('span', {style: {color: '#dc2626'}},
+      (ownedColours < totalColours) && h('span', {style: {color: '#A53D3D'}},
         'Still need: ' + (totalColours - ownedColours - partialColours) + ' colours, ~' + needSkeins + ' skeins.'
       ),
       h('div', {style: {marginLeft: 'auto', display: 'flex', gap: 8}},
@@ -14811,7 +14811,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
               key: r.p.id,
               style: {
                 borderBottom: '0.5px solid #EFE7D6',
-                background: r.status === 'owned' ? '#f0fdf4' : i % 2 === 0 ? 'transparent' : '#fafafa'
+                background: r.status === 'owned' ? '#DEE7D2' : i % 2 === 0 ? 'transparent' : '#fafafa'
               }
             },
               h('td', {style: {padding: '6px 10px'}},
@@ -14822,7 +14822,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
               h('td', {style: {padding: '6px 10px', color: '#5C5448'}}, r.name),
               h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.p.count.toLocaleString()),
               h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, r.needed),
-              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#15803d' : '#A89E89'}},
+              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#3F6432' : '#A89E89'}},
                 r.owned > 0 ? r.owned : '\u2014'
               ),
               h('td', {style: {padding: '6px 10px'}}, statusBadge(r.status))
@@ -14896,7 +14896,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                   key: f.ct,
                   style: {
                     borderBottom: '0.5px solid #EFE7D6',
-                    background: isCurrent ? '#f0fdf4' : 'transparent'
+                    background: isCurrent ? '#DEE7D2' : 'transparent'
                   }
                 },
                   h('td', {style: {padding: '6px 10px', fontWeight: isCurrent ? 700 : 400}},
@@ -15034,7 +15034,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
           h("input", { ref: fileRef, type: "file", accept: "image/png,image/jpeg", style: { display: "none" }, onChange: onPickLogo }),
           state.designerLogo && h("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
             h("button", { onClick: function () { fileRef.current && fileRef.current.click(); }, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #CFC4AC", borderRadius: 6, background: "#fff", cursor: "pointer" } }, "Replace"),
-            h("button", { onClick: clearLogo, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#b91c1c", cursor: "pointer" } }, "Remove")
+            h("button", { onClick: clearLogo, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #ECC8C8", borderRadius: 6, background: "#fff", color: "#8A2E2E", cursor: "pointer" } }, "Remove")
           )
         ),
         h("div", { style: { flex: 1 } },
@@ -15446,7 +15446,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var sectionToggle = EXPORT_SECTION_TOGGLE;
 
   return h("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
-    app.copied && h("div", { style: { background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "#16a34a", fontWeight: 600 } }, "Copied!"),
+    app.copied && h("div", { style: { background: "#DEE7D2", border: "1px solid #C4DCB6", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "#4F7D3F", fontWeight: 600 } }, "Copied!"),
 
     h("button", {
       onClick: app.handleOpenInTracker,
@@ -15569,7 +15569,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           width: ((progressState[0].total ? Math.min(100, (progressState[0].current / progressState[0].total) * 100) : 30)) + "%",
           height: "100%", background: "#B85C38", transition: "width 120ms ease-out" } })
       ),
-      h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize: 13, borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", cursor: "pointer", fontWeight: 600 } }, "Cancel")
+      h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize: 13, borderRadius: 8, border: "1px solid #ECC8C8", background: "#fff", color: "#8A2E2E", cursor: "pointer", fontWeight: 600 } }, "Cancel")
     ) : h("button", {
       onClick: exportFormat[0] === "png" ? doExportPng : doExport,
       style: (exportFormat[0] === "pdf" && modesArr.length === 0) ? disabledCta : ctaStyle,
@@ -15592,7 +15592,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           h("span", null, "Download bundle"))
     ),
 
-    errorState[0] && h("div", { style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, fontSize: 12, color: "#b91c1c" } }, errorState[0])
+    errorState[0] && h("div", { style: { background: "#FCEFEF", border: "1px solid #ECC8C8", borderRadius: 8, padding: 10, fontSize: 12, color: "#8A2E2E" } }, errorState[0])
   );
 };
 
@@ -15750,8 +15750,8 @@ window.CreatorExportTab = function CreatorExportTab() {
       return h('div', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.04, color: color, margin: '12px 0 6px' } }, text);
     };
     var rowEl = function (r, kind) {
-      var bg = kind === 'owned' ? '#f0fdf4' : '#fef2f2';
-      var border = kind === 'owned' ? '#bbf7d0' : '#fecaca';
+      var bg = kind === 'owned' ? '#DEE7D2' : '#FCEFEF';
+      var border = kind === 'owned' ? '#C4DCB6' : '#ECC8C8';
       var note = kind === 'owned'
         ? 'own ' + r.owned + ', need ~' + r.needed
         : 'need ~' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + (r.owned > 0 ? ' (own ' + r.owned + ')' : '');
@@ -15762,7 +15762,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
         h('div', { style: { width: 38, fontWeight: 700, fontSize: 12, flexShrink: 0 } }, r.id),
         h('div', { style: { flex: 1, fontSize: 12, color: '#5C5448', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name),
-        h('div', { style: { fontSize: 11, color: kind === 'owned' ? '#15803d' : '#b91c1c', fontWeight: 500, flexShrink: 0 } }, note)
+        h('div', { style: { fontSize: 11, color: kind === 'owned' ? '#3F6432' : '#8A2E2E', fontWeight: 500, flexShrink: 0 } }, note)
       );
     };
 
@@ -15781,9 +15781,9 @@ window.CreatorExportTab = function CreatorExportTab() {
         ),
         h('div', {
           style: {
-            padding: '10px 20px', background: buyRows.length === 0 ? '#f0fdf4' : '#fffbeb',
+            padding: '10px 20px', background: buyRows.length === 0 ? '#DEE7D2' : '#FAF5E1',
             borderBottom: '1px solid #E5DCCB', fontSize: 12,
-            color: buyRows.length === 0 ? '#15803d' : '#92400e', fontWeight: 600
+            color: buyRows.length === 0 ? '#3F6432' : '#6B461F', fontWeight: 600
           }
         },
           buyRows.length === 0
@@ -15794,16 +15794,16 @@ window.CreatorExportTab = function CreatorExportTab() {
           rows.length === 0
             ? h('div', { style: { padding: 30, textAlign: 'center', color: '#A89E89' } }, 'No threads in this pattern yet.')
             : h(React.Fragment, null,
-                buyRows.length > 0 && sectionLabel('Need to buy (' + buyRows.length + ')', '#dc2626'),
+                buyRows.length > 0 && sectionLabel('Need to buy (' + buyRows.length + ')', '#A53D3D'),
                 buyRows.map(function (r) { return rowEl(r, 'needed'); }),
-                ownedRows.length > 0 && sectionLabel('Already in your stash (' + ownedRows.length + ')', '#16a34a'),
+                ownedRows.length > 0 && sectionLabel('Already in your stash (' + ownedRows.length + ')', '#4F7D3F'),
                 ownedRows.map(function (r) { return rowEl(r, 'owned'); })
               )
         ),
         h('div', {
           style: { padding: '14px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FBF8F3', gap: 8, flexWrap: 'wrap' }
         },
-          h('span', { style: { fontSize: 12, color: '#16a34a', fontWeight: 600, opacity: copied ? 1 : 0, transition: 'opacity 0.2s' } }, 'Copied!'),
+          h('span', { style: { fontSize: 12, color: '#4F7D3F', fontWeight: 600, opacity: copied ? 1 : 0, transition: 'opacity 0.2s' } }, 'Copied!'),
           h('div', { style: { display: 'flex', gap: 8, marginLeft: 'auto' } },
             h('a', {
               href: 'manager.html',

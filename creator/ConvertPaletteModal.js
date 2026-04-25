@@ -146,9 +146,9 @@ window.ConvertPaletteModal = (function () {
 
   function ConfidenceBadge({ confidence }) {
     var colours = {
-      official: { bg: '#dcfce7', text: '#166534', label: 'Exact match' },
+      official: { bg: '#DEE7D2', text: '#3F6432', label: 'Exact match' },
       reconciled: { bg: '#fef9c3', text: '#854d0e', label: 'Best match' },
-      'single-source': { bg: '#fef3c7', text: '#92400e', label: 'One source' },
+      'single-source': { bg: '#F2E2BE', text: '#6B461F', label: 'One source' },
       nearest: { bg: '#EFE7D6', text: '#5C5448', label: 'Closest colour' },
     };
     var c = colours[confidence] || colours.nearest;
@@ -240,7 +240,7 @@ window.ConvertPaletteModal = (function () {
           })
         ),
         uniqueCount > 0 && React.createElement('div', {
-          style: { padding: '8px 20px', background: '#fef3c7', borderBottom: '1px solid #fde68a', fontSize: 12, color: '#92400e' }
+          style: { padding: '8px 20px', background: '#F2E2BE', borderBottom: '1px solid #E5C97D', fontSize: 12, color: '#6B461F' }
         }, uniqueCount + ' thread' + (uniqueCount === 1 ? '' : 's') + ' ha' + (uniqueCount === 1 ? 's' : 've') + ' no close equivalent in ' + (targetBrand === 'anchor' ? 'Anchor' : 'DMC') + '. Review and choose substitutes manually.'),
         React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '8px 12px' } },
           filtered.length === 0
@@ -255,7 +255,7 @@ window.ConvertPaletteModal = (function () {
 
                 return React.createElement('div', {
                   key: p.sourceId,
-                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 6, marginBottom: 4, background: noMatch ? '#fff7ed' : '#f8fafc', border: '1px solid ' + (noMatch ? '#fed7aa' : '#E5DCCB') }
+                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 6, marginBottom: 4, background: noMatch ? '#F8EFD8' : '#f8fafc', border: '1px solid ' + (noMatch ? '#E5C99A' : '#E5DCCB') }
                 },
                   // Source swatch + label
                   React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + p.sourceRgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
@@ -270,7 +270,7 @@ window.ConvertPaletteModal = (function () {
                           (targetBrand === 'anchor' ? 'Anch ' : 'DMC '), effectiveTgt.id
                         )
                       )
-                    : React.createElement('span', { style: { fontSize: 11, color: '#f59e0b', fontWeight: 600 } }, 'No match'),
+                    : React.createElement('span', { style: { fontSize: 11, color: '#C0883A', fontWeight: 600 } }, 'No match'),
                   // Confidence badge (only for official proposals, not overrides)
                   !overrideId && p.target && React.createElement(ConfidenceBadge, { confidence: p.target.confidence }),
                   // ΔE

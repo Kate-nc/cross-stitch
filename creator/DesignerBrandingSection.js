@@ -109,7 +109,7 @@
           h("input", { ref: fileRef, type: "file", accept: "image/png,image/jpeg", style: { display: "none" }, onChange: onPickLogo }),
           state.designerLogo && h("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
             h("button", { onClick: function () { fileRef.current && fileRef.current.click(); }, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #CFC4AC", borderRadius: 6, background: "#fff", cursor: "pointer" } }, "Replace"),
-            h("button", { onClick: clearLogo, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#b91c1c", cursor: "pointer" } }, "Remove")
+            h("button", { onClick: clearLogo, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #ECC8C8", borderRadius: 6, background: "#fff", color: "#8A2E2E", cursor: "pointer" } }, "Remove")
           )
         ),
         h("div", { style: { flex: 1 } },

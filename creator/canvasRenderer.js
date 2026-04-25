@@ -435,7 +435,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
         if (Math.sqrt(dx * dx + dy * dy) <= 0.4) isHoveredErase = true;
       }
       if (lx1 >= 0 && lx1 <= dW && ly1 >= 0 && ly1 <= dH && lx2 >= 0 && lx2 <= dW && ly2 >= 0 && ly2 <= dH) {
-        ctx2d.strokeStyle = isHoveredErase ? "#ef4444" : "#333";
+        ctx2d.strokeStyle = isHoveredErase ? "#B85555" : "#333";
         ctx2d.lineWidth = Math.max(2, cSz * (isHoveredErase ? 0.25 : 0.15));
         ctx2d.beginPath(); ctx2d.moveTo(gut + lx1 * cSz, gut + ly1 * cSz); ctx2d.lineTo(gut + lx2 * cSz, gut + ly2 * cSz); ctx2d.stroke();
       }
@@ -769,7 +769,7 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       else { xx = lx1 + param * C; yy = ly1 + param * D; }
       var dx = hxb - xx, dy = hyb - yy;
       if (Math.sqrt(dx * dx + dy * dy) <= 0.7) {
-        ctx2d.strokeStyle = "#ef4444";
+        ctx2d.strokeStyle = "#B85555";
         ctx2d.lineWidth = Math.max(2, cSz * 0.25);
         ctx2d.beginPath(); ctx2d.moveTo(gut + lx1 * cSz, gut + ly1 * cSz); ctx2d.lineTo(gut + lx2 * cSz, gut + ly2 * cSz); ctx2d.stroke();
       }

@@ -20,11 +20,11 @@ class CreatorErrorBoundary extends React.Component {
 }
 
 function confettiTier(pct){
-  if(pct<2)return{color:"#16a34a",label:"Excellent"};
-  if(pct<5)return{color:"#65a30d",label:"Good"};
-  if(pct<8)return{color:"#d97706",label:"Moderate"};
-  if(pct<15)return{color:"#ea580c",label:"Challenging"};
-  return{color:"#dc2626",label:"High confetti"};
+  if(pct<2)return{color:"#4F7D3F",label:"Excellent"};
+  if(pct<5)return{color:"#5E8B2D",label:"Good"};
+  if(pct<8)return{color:"#A06F2D",label:"Moderate"};
+  if(pct<15)return{color:"#A04E11",label:"Challenging"};
+  return{color:"#A53D3D",label:"High confetti"};
 }
 
 function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, width, height, previewPw, previewPh, leftLabel, rightLabel}) {
@@ -207,11 +207,11 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           {sweeping?<>{Icons.pause()} Pause</>:<>{Icons.play()} Auto-sweep</>}
         </button>
         {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#ea580c":"#E5DCCB"),borderRadius:6,background:showDiff?"#fff7ed":"#FBF8F3",color:showDiff?"#ea580c":"#5C5448",fontWeight:500}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#A04E11":"#E5DCCB"),borderRadius:6,background:showDiff?"#F8EFD8":"#FBF8F3",color:showDiff?"#A04E11":"#5C5448",fontWeight:500}}>
           {showDiff?"Hide changes":"Show changes"}
         </button>}
         {heatmapSrc&&<button type="button" onClick={function(){setShowHeatmap(function(h){return !h;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#dc2626":"#E5DCCB"),borderRadius:6,background:showHeatmap?"#fef2f2":"#FBF8F3",color:showHeatmap?"#dc2626":"#5C5448",fontWeight:500}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#A53D3D":"#E5DCCB"),borderRadius:6,background:showHeatmap?"#FCEFEF":"#FBF8F3",color:showHeatmap?"#A53D3D":"#5C5448",fontWeight:500}}>
           {showHeatmap?"Hide heatmap":<>{Icons.fire()} Heatmap</>}
         </button>}
         <span style={{fontSize:10,color:"#A89E89"}}>Hold Alt to zoom</span>
@@ -747,7 +747,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       />}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
-        {state.loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{state.loadError}</div>}
+        {state.loadError&&<div style={{background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#A53D3D",marginBottom:12}}>{state.loadError}</div>}
         {!state.img&&!state.pat&&<div
             style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #B85C38":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#F4DDCF":"transparent",transition:"all 0.2s"}}
             onDragOver={(e)=>{e.preventDefault();state.setIsDragging(true);}}
@@ -877,9 +877,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             <window.CreatorSidebar/>
             {!state.pat&&state.img&&<div id="bg-pick-target" className={"card"+(state.pickBg?" card--pickBg":"")} style={{overflow:"hidden"}}>
               <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#5C5448"}}>Original Image</div>
-              {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#fff7ed",borderTop:"1px solid #fed7aa",borderBottom:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:8}}>
+              {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#F8EFD8",borderTop:"1px solid #E5C99A",borderBottom:"1px solid #E5C99A",display:"flex",alignItems:"center",gap:8}}>
                 <span style={{flex:1}}>Click anywhere on the image to set the background colour.</span>
-                <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:10,padding:"2px 7px",border:"1px solid #fdba74",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}}>Cancel</button>
+                <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:10,padding:"2px 7px",border:"1px solid #D4A570",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}}>Cancel</button>
               </div>}
               <div style={{position:"relative",touchAction:state.isCropping?"none":"auto"}} ref={state.cropRef} onPointerDown={canvas.handleCropPointerDown} onPointerMove={canvas.handleCropPointerMove} onPointerUp={canvas.handleCropPointerUp} onPointerCancel={canvas.handleCropPointerCancel}>
                 <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.isCropping?"crosshair":(state.pickBg?"crosshair":"default"),opacity:state.isCropping?0.7:1}} onClick={canvas.srcClick}/>

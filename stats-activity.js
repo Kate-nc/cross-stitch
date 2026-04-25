@@ -7,7 +7,7 @@ const h = React.createElement;
 
 // ── Constants ────────────────────────────────────────────────────
 const STITCHES_PER_HOUR = 400;
-const TEAL_RAMP = ['#f0fdf4', '#E8B89A', '#5eead4', '#14b8a6', '#944526'];
+const TEAL_RAMP = ['#FBF8F3', '#DEE7D2', '#A8C594', '#88B077', '#4F7D3F'];
 const CELL = 11; // 8px cell + 3px gap
 const DAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -423,7 +423,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
     ),
 
     // ── Filter warning ────────────────────────────────────────────
-    filterWarning && h('div', { role: 'alert', style: { background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#92400e' } }, filterWarning),
+    filterWarning && h('div', { role: 'alert', style: { background: '#F2E2BE', border: '1px solid #D9B055', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#6B461F' } }, filterWarning),
     filterProjectId && filteredProjectName && h('div', {
       style: { background: '#F4DDCF', border: '1px solid #E8B89A', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#944526', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
     },

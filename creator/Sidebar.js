@@ -113,7 +113,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       }
       return worst;
     }
-    var STASH_DOT = { owned: '#16a34a', partial: '#f59e0b', needed: '#dc2626' };
+    var STASH_DOT = { owned: '#4F7D3F', partial: '#C0883A', needed: '#A53D3D' };
     var hiddenByFilter = 0;
     // A1 (UX Phase 5) — collect composite keys of unowned palette threads so
     // the warning panel can wire its CTAs honestly. Mirrors stashStatusForChip.
@@ -173,8 +173,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         style: {
           display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
           cursor:"pointer",fontSize:11,position:"relative",
-          border: ips ? "2px solid #B85C38" : ihs ? "2px solid #ea580c" : "0.5px solid #E5DCCB",
-          background: ips ? "#F4DDCF" : ihs ? "#fff7ed" : "#fff",
+          border: ips ? "2px solid #B85C38" : ihs ? "2px solid #A04E11" : "0.5px solid #E5DCCB",
+          background: ips ? "#F4DDCF" : ihs ? "#F8EFD8" : "#fff",
           opacity: isUnused ? 0.6 : 1
         }
       },
@@ -234,7 +234,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       ctx.creatorStashFilter && stashHas && unownedKeys.length > 0 && h("div", {
         role: "status",
         "aria-live": "polite",
-        style:{marginBottom:8,padding:"8px 10px",borderRadius:7,background:"#fffbeb",border:"1px solid #fde68a",fontSize:11,color:"#92400e",display:"flex",flexDirection:"column",gap:6}
+        style:{marginBottom:8,padding:"8px 10px",borderRadius:7,background:"#FAF5E1",border:"1px solid #E5C97D",fontSize:11,color:"#6B461F",display:"flex",flexDirection:"column",gap:6}
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6,fontWeight:600}},
           typeof Icons !== 'undefined' && Icons.warning ? Icons.warning() : null,
@@ -267,7 +267,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                 if (app.addToast) app.addToast("Could not load your stash.", {type:"error", duration:3000});
               });
             },
-            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #fbbf24",background:"#fff",color:"#92400e",fontWeight:600,cursor:"pointer"}
+            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #D49B45",background:"#fff",color:"#6B461F",fontWeight:600,cursor:"pointer"}
           }, "Substitute from stash"),
           h("button", {
             onClick: function() {
@@ -289,23 +289,23 @@ window.CreatorSidebar = function CreatorSidebar() {
                 if (app.addToast) app.addToast("Could not update your shopping list.", {type:"error", duration:3000});
               });
             },
-            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #fbbf24",background:"#fef3c7",color:"#92400e",fontWeight:600,cursor:"pointer"}
+            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #D49B45",background:"#F2E2BE",color:"#6B461F",fontWeight:600,cursor:"pointer"}
           }, "Add to shopping list")
         )
       ),
       // Brief D — banner when filter hides chips (kept as a quieter follow-up
       // line for users who still need the "turn off the filter" hint).
       ctx.creatorStashFilter && stashHas && hiddenByFilter > 0 && unownedKeys.length === 0 && h("div", {
-        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#fffbeb",border:"0.5px solid #fde68a",fontSize:10,color:"#92400e"}
+        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#FAF5E1",border:"0.5px solid #E5C97D",fontSize:10,color:"#6B461F"}
       }, hiddenByFilter + " unowned colour" + (hiddenByFilter !== 1 ? "s" : "") + " hidden \u2014 turn off the filter to see all."),
       ctx.creatorStashFilter && !stashHas && h("div", {
-        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#fef2f2",border:"0.5px solid #fecaca",fontSize:10,color:"#991b1b"}
+        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#FCEFEF",border:"0.5px solid #ECC8C8",fontSize:10,color:"#722424"}
       }, "Your stash is empty \u2014 turn off this filter, or add threads in the Stash Manager."),
       isPaintMode && h("div", {
         style:{
           marginBottom:8,padding:"5px 8px",borderRadius:7,
-          background: selInfo ? "#F4DDCF" : "#fffbeb",
-          border: selInfo ? "1px solid #E8B89A" : "1px solid #fde68a",
+          background: selInfo ? "#F4DDCF" : "#FAF5E1",
+          border: selInfo ? "1px solid #E8B89A" : "1px solid #E5C97D",
           display:"flex",alignItems:"center",gap:7,fontSize:11,minHeight:30
         }
       },
@@ -322,7 +322,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             )
           : h(React.Fragment, null,
               h("span", {style:{fontSize:12}}, Icons.pointing()),
-              h("span", {style:{color:"#92400e"}}, "Select a colour to paint \u2014 or right-click the canvas")
+              h("span", {style:{color:"#6B461F"}}, "Select a colour to paint \u2014 or right-click the canvas")
             )
       ),
       displayPal.length > 0
@@ -337,12 +337,12 @@ window.CreatorSidebar = function CreatorSidebar() {
   // prominent banner so the user knows this is the click target. ESC cancels
   // (wired in useKeyboardShortcuts.js).
   var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {id:"bg-pick-target", className:"card"+(gen.pickBg?" card--pickBg":"")},
-    gen.pickBg && h("div", {style:{padding:"10px 12px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#fff7ed",borderBottom:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:8}},
+    gen.pickBg && h("div", {style:{padding:"10px 12px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#F8EFD8",borderBottom:"1px solid #E5C99A",display:"flex",alignItems:"center",gap:8}},
       h("span", {style:{flex:1}}, "Click anywhere on the image to set the background colour."),
       h("button", {
         onClick:function(){gen.setPickBg(false);},
         title:"Cancel pick (Esc)",
-        style:{fontSize:11,padding:"3px 8px",border:"1px solid #fdba74",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}
+        style:{fontSize:11,padding:"3px 8px",border:"1px solid #D4A570",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}
       }, "Cancel")
     ),
     h("div", {
@@ -519,7 +519,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           style:{width:"100%",padding:"6px 0",fontSize:12,fontWeight:600,cursor:"pointer",
             border:"1px solid #B85C38",borderRadius:6,background:"#F4DDCF",color:"#B85C38",marginBottom:8}
         }, "Add blend " + blendThread1.id + "+" + blendThread2.id),
-        blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:11,color:"#dc2626",marginBottom:8}}, "Pick two different threads"),
+        blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:11,color:"#A53D3D",marginBottom:8}}, "Pick two different threads"),
         h("input", {
           type:"text", placeholder:"Search DMC threads\u2026",
           value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);},
@@ -582,7 +582,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {style:{marginTop:8}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
         helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
-      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#d97706",marginTop:2}},
+      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#A06F2D",marginTop:2}},
         "Clamped to " + gen.stashThreadCount + " (stash size)"
       )
     ),
@@ -620,8 +620,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, stashStripExpanded ? "Show less" : "+" + (gen.stashPalette.length - 60) + " more")
       ),
       gen.coverageGaps && gen.coverageGaps.hasGaps && h("div", {style:{
-        fontSize:11,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,
-        padding:"6px 10px",marginBottom:8,color:"#991b1b",display:"flex",alignItems:"flex-start",gap:6
+        fontSize:11,background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,
+        padding:"6px 10px",marginBottom:8,color:"#722424",display:"flex",alignItems:"flex-start",gap:6
       }},
         h("span", {style:{fontSize:13,lineHeight:1,flexShrink:0}}, Icons.warning()),
         h("span", null, "Your stash may lack coverage in: ",
@@ -730,7 +730,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                       "#" + slot.seed + " \u00B7 " + slot.threadCount + " threads"
                     )
                   ) :
-                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#ef4444"}}, "Error")
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#B85555"}}, "Error")
               );
             })
           ),
@@ -775,9 +775,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         if (gen.orphans === 1) {
           desc = h("span", null, "Removes ", h("strong", null, "isolated single stitches"), " \u2014 cells with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets clusters of exactly 1 stitch.");
         } else if (gen.orphans === 2) {
-          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
+          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
         } else {
-          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#dc2626",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#A53D3D",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
         }
         return h("div", {style:{fontSize:11,color:"#5C5448",marginTop:4,lineHeight:1.5}}, desc);
       })()
@@ -822,9 +822,9 @@ window.CreatorSidebar = function CreatorSidebar() {
       var isDanger = warning.level === "danger";
       return h("div", {style:{
         marginTop:6,padding:"8px 10px",borderRadius:8,fontSize:11,lineHeight:1.5,
-        background:isDanger?"#fef2f2":"#fffbeb",
-        border:"1px solid "+(isDanger?"#fecaca":"#fde68a"),
-        color:isDanger?"#991b1b":"#92400e",
+        background:isDanger?"#FCEFEF":"#FAF5E1",
+        border:"1px solid "+(isDanger?"#ECC8C8":"#E5C97D"),
+        color:isDanger?"#722424":"#6B461F",
         display:"flex",alignItems:"flex-start",gap:6
       }},
         h("span", {style:{fontSize:14,lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
@@ -840,7 +840,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#B85C38",display:"inline-block",marginLeft:2}}) : null
     ),
     app.palAdvanced && h(React.Fragment, null,
-      h("div", {style:{marginTop:6,padding:"8px 10px",background:"#fff7ed",borderRadius:8,border:"0.5px solid #fed7aa",fontSize:10,color:"#b45309"}},
+      h("div", {style:{marginTop:6,padding:"8px 10px",background:"#F8EFD8",borderRadius:8,border:"0.5px solid #E5C99A",fontSize:10,color:"#8A5C26"}},
         "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
       ),
       h("div", {style:{display:"flex",gap:6,marginTop:6}},
@@ -970,7 +970,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // turned on so the user is never left wondering what to click. Re-toggling
   // off and on doesn't keep re-arming pick mode (only on the 0→1 transition
   // when no bgCol has been customised).
-  var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}) : null;
+  var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#4F7D3F",display:"inline-block"}}) : null;
   function armBgPick() {
     // Switch the user to the Image tab so the pick target is visible.
     if (app.appMode === "create" && app.setSidebarTab) app.setSidebarTab("image");
@@ -1012,7 +1012,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }),
         h("button", {
           onClick:armBgPick,
-          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #E5DCCB",borderRadius:6,background:gen.pickBg?"#fff7ed":"#FBF8F3",color:gen.pickBg?"#9a3412":"#1B1814",cursor:"pointer"}
+          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #E5DCCB",borderRadius:6,background:gen.pickBg?"#F8EFD8":"#FBF8F3",color:gen.pickBg?"#9a3412":"#1B1814",cursor:"pointer"}
         }, gen.pickBg ? "Picking…" : "Pick")
       ),
       h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
@@ -1031,7 +1031,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var actionBtn = ctx.isScratchMode
     ? h("button", {
         onClick:function(){ctx.initBlankGrid(ctx.sW, ctx.sH);},
-        style:{padding:"8px 14px",fontSize:12,fontWeight:600,background:"#dc2626",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}
+        style:{padding:"8px 14px",fontSize:12,fontWeight:600,background:"#A53D3D",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}
       }, "Reset Canvas")
     : h("button", {
         onClick:gen.generate, disabled:gen.busy,

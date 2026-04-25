@@ -71,7 +71,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       style: { position: "relative" }
     }, icon, label,
       isModifier && h("span", {
-        style: { position: "absolute", top: -4, right: -4, background: "#f59e0b",
+        style: { position: "absolute", top: -4, right: -4, background: "#C0883A",
           color: "#fff", borderRadius: 99, fontSize: 8, width: 12, height: 12,
           display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
           boxShadow: "0 0 0 1px #fff", pointerEvents: "none" }
@@ -140,7 +140,7 @@ window.MagicWandPanel = function MagicWandPanel() {
 
   // ─── Confetti panel ──────────────────────────────────────────────────────────
   var confettiPanel = (panel === "confetti" && hasSelection) ? h("div", {
-    style: { padding: "10px 14px", background: "#fff7ed", borderBottom: "1px solid #fde68a",
+    style: { padding: "10px 14px", background: "#F8EFD8", borderBottom: "1px solid #E5C97D",
       display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
   },
     h("strong", { style: { color: "#7c2d12" } }, "Confetti Cleanup in Selection"),
@@ -154,7 +154,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("span", { style: { minWidth: 14 } }, cv.confettiThreshold)
     ),
     cv.confettiPreview
-      ? h("span", { style: { color: "#b45309" } }, cv.confettiPreview.size + " stitches flagged")
+      ? h("span", { style: { color: "#8A5C26" } }, cv.confettiPreview.size + " stitches flagged")
       : null,
     btn("Preview", cv.previewConfettiCleanup, { style: { fontSize: 10 } }),
     btn("Apply", cv.applyConfettiCleanup, {
@@ -167,12 +167,12 @@ window.MagicWandPanel = function MagicWandPanel() {
   // ─── Reduce colours panel ────────────────────────────────────────────────────
   var selColors = cv.selectionStats ? cv.selectionStats.colors : 0;
   var reducePanel = (panel === "reduce" && hasSelection) ? h("div", {
-    style: { padding: "10px 14px", background: "#f0fdf4", borderBottom: "1px solid #bbf7d0",
+    style: { padding: "10px 14px", background: "#DEE7D2", borderBottom: "1px solid #C4DCB6",
       fontSize: 11 }
   },
     h("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 } },
-      h("strong", { style: { color: "#14532d" } }, "Simplify Colours in Selection"),
-      h("span", { style: { color: "#166534" } }, selColors + " colours in selection"),
+      h("strong", { style: { color: "#2E4824" } }, "Simplify Colours in Selection"),
+      h("span", { style: { color: "#3F6432" } }, selColors + " colours in selection"),
       h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
         "Target:",
         h("input", {
@@ -189,7 +189,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       btn("\u00D7", function() { cv.setWandPanel(null); cv.setReducePreview(null); }, { style: { fontSize: 10 } })
     ),
     cv.reducePreview && cv.reducePreview.length ? h("div", {
-      style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #bbf7d0", paddingTop: 6 }
+      style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #C4DCB6", paddingTop: 6 }
     },
       cv.reducePreview.map(function(m, i) {
         var fromE = ctx.cmap && ctx.cmap[m.from];
@@ -336,7 +336,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       var dmcEntry = findThreadInCatalog('dmc', cv.outlineColor);
       return dmcEntry ? h("span", { style: { display: "flex", alignItems: "center", gap: 3 } },
         swatch(dmcEntry.rgb), h("span", { style: { color: "#334155" } }, dmcEntry.name)
-      ) : h("span", { style: { color: "#ef4444" } }, "Unknown DMC");
+      ) : h("span", { style: { color: "#B85555" } }, "Unknown DMC");
     })(),
     btn("Generate", cv.applyOutlineGeneration, {
       green: true,

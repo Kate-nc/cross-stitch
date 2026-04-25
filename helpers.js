@@ -101,11 +101,11 @@ function _getAnchorById(){
 function skeinEst(stitchCount,fabricCt){if(typeof stitchesToSkeins==='function'){const result=stitchesToSkeins({stitchCount:stitchCount,fabricCount:fabricCt,strandsUsed:2,wasteFactor:0.20});return Math.max(1,result.skeinsToBuy);}return 1;}
 
 function confettiTier(pct){
-  if(pct<2)return{color:"#16a34a",label:"Excellent"};
-  if(pct<5)return{color:"#65a30d",label:"Good"};
-  if(pct<8)return{color:"#d97706",label:"Moderate"};
-  if(pct<15)return{color:"#ea580c",label:"Challenging"};
-  return{color:"#dc2626",label:"High confetti"};
+  if(pct<2)return{color:"#4F7D3F",label:"Excellent"};
+  if(pct<5)return{color:"#5E8B2D",label:"Good"};
+  if(pct<8)return{color:"#A06F2D",label:"Moderate"};
+  if(pct<15)return{color:"#A04E11",label:"Challenging"};
+  return{color:"#A53D3D",label:"High confetti"};
 }
 
 function gridCoord(canvasRef,e,cellSize,gutter,snap=false){
@@ -123,10 +123,10 @@ function calcDifficulty(palLen,blendCount,totalSt){
   if(palLen<=8)score+=1;else if(palLen<=15)score+=2;else if(palLen<=25)score+=3;else score+=4;
   if(blendCount>0)score+=1;if(blendCount>5)score+=1;
   if(totalSt>10000)score+=1;if(totalSt>30000)score+=1;
-  if(score<=2)return{label:"Beginner",color:"#16a34a",stars:1};
-  if(score<=4)return{label:"Intermediate",color:"#d97706",stars:2};
-  if(score<=6)return{label:"Advanced",color:"#ea580c",stars:3};
-  return{label:"Expert",color:"#dc2626",stars:4};
+  if(score<=2)return{label:"Beginner",color:"#4F7D3F",stars:1};
+  if(score<=4)return{label:"Intermediate",color:"#A06F2D",stars:2};
+  if(score<=6)return{label:"Advanced",color:"#A04E11",stars:3};
+  return{label:"Expert",color:"#A53D3D",stars:4};
 }
 
 // IndexedDB utility functions
@@ -1141,11 +1141,11 @@ function drawPDFSymbol(pdf, symbol, cx, cy, size) {
 
 // ═══ Visual Progress: Section colour helper ═══
 function sectionColor(pct){
-  if(pct>=100)return'#16a34a';
-  if(pct>=75)return'#65a30d';
-  if(pct>=50)return'#d97706';
-  if(pct>=25)return'#ea580c';
-  if(pct>0)return'#f87171';
+  if(pct>=100)return'#4F7D3F';
+  if(pct>=75)return'#5E8B2D';
+  if(pct>=50)return'#A06F2D';
+  if(pct>=25)return'#A04E11';
+  if(pct>0)return'#C77878';
   return'#E5DCCB';
 }
 

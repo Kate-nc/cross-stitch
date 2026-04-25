@@ -150,8 +150,8 @@
       return h('div', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.04, color: color, margin: '12px 0 6px' } }, text);
     };
     var rowEl = function (r, kind) {
-      var bg = kind === 'owned' ? '#f0fdf4' : '#fef2f2';
-      var border = kind === 'owned' ? '#bbf7d0' : '#fecaca';
+      var bg = kind === 'owned' ? '#DEE7D2' : '#FCEFEF';
+      var border = kind === 'owned' ? '#C4DCB6' : '#ECC8C8';
       var note = kind === 'owned'
         ? 'own ' + r.owned + ', need ~' + r.needed
         : 'need ~' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + (r.owned > 0 ? ' (own ' + r.owned + ')' : '');
@@ -162,7 +162,7 @@
         h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
         h('div', { style: { width: 38, fontWeight: 700, fontSize: 12, flexShrink: 0 } }, r.id),
         h('div', { style: { flex: 1, fontSize: 12, color: '#5C5448', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name),
-        h('div', { style: { fontSize: 11, color: kind === 'owned' ? '#15803d' : '#b91c1c', fontWeight: 500, flexShrink: 0 } }, note)
+        h('div', { style: { fontSize: 11, color: kind === 'owned' ? '#3F6432' : '#8A2E2E', fontWeight: 500, flexShrink: 0 } }, note)
       );
     };
 
@@ -181,9 +181,9 @@
         ),
         h('div', {
           style: {
-            padding: '10px 20px', background: buyRows.length === 0 ? '#f0fdf4' : '#fffbeb',
+            padding: '10px 20px', background: buyRows.length === 0 ? '#DEE7D2' : '#FAF5E1',
             borderBottom: '1px solid #E5DCCB', fontSize: 12,
-            color: buyRows.length === 0 ? '#15803d' : '#92400e', fontWeight: 600
+            color: buyRows.length === 0 ? '#3F6432' : '#6B461F', fontWeight: 600
           }
         },
           buyRows.length === 0
@@ -194,16 +194,16 @@
           rows.length === 0
             ? h('div', { style: { padding: 30, textAlign: 'center', color: '#A89E89' } }, 'No threads in this pattern yet.')
             : h(React.Fragment, null,
-                buyRows.length > 0 && sectionLabel('Need to buy (' + buyRows.length + ')', '#dc2626'),
+                buyRows.length > 0 && sectionLabel('Need to buy (' + buyRows.length + ')', '#A53D3D'),
                 buyRows.map(function (r) { return rowEl(r, 'needed'); }),
-                ownedRows.length > 0 && sectionLabel('Already in your stash (' + ownedRows.length + ')', '#16a34a'),
+                ownedRows.length > 0 && sectionLabel('Already in your stash (' + ownedRows.length + ')', '#4F7D3F'),
                 ownedRows.map(function (r) { return rowEl(r, 'owned'); })
               )
         ),
         h('div', {
           style: { padding: '14px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FBF8F3', gap: 8, flexWrap: 'wrap' }
         },
-          h('span', { style: { fontSize: 12, color: '#16a34a', fontWeight: 600, opacity: copied ? 1 : 0, transition: 'opacity 0.2s' } }, 'Copied!'),
+          h('span', { style: { fontSize: 12, color: '#4F7D3F', fontWeight: 600, opacity: copied ? 1 : 0, transition: 'opacity 0.2s' } }, 'Copied!'),
           h('div', { style: { display: 'flex', gap: 8, marginLeft: 'auto' } },
             h('a', {
               href: 'manager.html',

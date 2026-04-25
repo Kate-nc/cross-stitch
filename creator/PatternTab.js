@@ -115,12 +115,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       var pctOfTotal = removed / Math.max(1, totalStitchable) * 100;
       if (pctOfTotal < 15) return null;
       return h("div", {
-        style:{padding:"8px 12px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,fontSize:12,color:"#991b1b",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}
+        style:{padding:"8px 12px",background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,fontSize:12,color:"#722424",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}
       },
         h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
         h("button", {
           onClick:function(){setConfettiBannerDismissed(true);},
-          style:{background:"none",border:"none",color:"#991b1b",cursor:"pointer",fontSize:14,flexShrink:0,marginLeft:8}
+          style:{background:"none",border:"none",color:"#722424",cursor:"pointer",fontSize:14,flexShrink:0,marginLeft:8}
         }, "\xD7")
       );
     })(),
@@ -211,13 +211,13 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }, "\u21AA Redo"),
       cv.hiId && h("button", {
         onClick: function(){cv.setHiId(null);},
-        style:{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}
+        style:{fontSize:11,padding:"4px 10px",border:"1px solid #ECC8C8",borderRadius:6,background:"#FCEFEF",color:"#A53D3D",cursor:"pointer"}
       }, "Clear \u2715")
     ),
 
-    cv.hiId && h("div", {style:{background:"#fff7ed",border:"0.5px solid #fed7aa",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11,color:"#92400e"}},
+    cv.hiId && h("div", {style:{background:"#F8EFD8",border:"0.5px solid #E5C99A",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11,color:"#6B461F"}},
       // ── Mode toggle segmented control ──
-      h("div", {style:{display:"flex",gap:0,marginBottom:6,borderRadius:6,overflow:"hidden",border:"1px solid #fdba74"}},
+      h("div", {style:{display:"flex",gap:0,marginBottom:6,borderRadius:6,overflow:"hidden",border:"1px solid #D4A570"}},
         ["isolate","outline","tint","spotlight"].map(function(m) {
           var labels = {isolate:"Isolate",outline:"Outline",tint:"Tint",spotlight:"Spotlight"};
           var active = cv.highlightMode === m;
@@ -226,9 +226,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
             onClick: function() { cv.setHighlightMode(m); },
             style:{
               flex:1, padding:"4px 0", fontSize:10, fontWeight: active ? 700 : 500, cursor:"pointer",
-              border:"none", borderRight:"1px solid #fdba74",
-              background: active ? "#ea580c" : "#fff7ed",
-              color: active ? "#fff" : "#92400e"
+              border:"none", borderRight:"1px solid #D4A570",
+              background: active ? "#A04E11" : "#F8EFD8",
+              color: active ? "#fff" : "#6B461F"
             }
           }, labels[m]);
         })
@@ -246,7 +246,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
               cv.setBgDimOpacity(op);
               if (!cv.hiAdvanced) cv.setBgDimDesaturation(Math.min(1, (100 - parseInt(e.target.value)) / 100));
             },
-            style:{flex:1,accentColor:"#ea580c"}
+            style:{flex:1,accentColor:"#A04E11"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.bgDimOpacity * 100) + "%")
         ),
@@ -256,14 +256,14 @@ window.CreatorPatternTab = function CreatorPatternTab() {
             type:"range", min:0, max:100, step:1,
             value: Math.round(cv.bgDimDesaturation * 100),
             onChange: function(e) { cv.setBgDimDesaturation(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"#ea580c"}
+            style:{flex:1,accentColor:"#A04E11"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.bgDimDesaturation * 100) + "%")
         ),
         h("div", {style:{display:"flex",justifyContent:"flex-end"}},
           h("label", {style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none"}},
-            h("input", {type:"checkbox", checked:cv.hiAdvanced, onChange:function(e){cv.setHiAdvanced(e.target.checked);}, style:{accentColor:"#ea580c"}}),
-            h("span", {style:{fontSize:10,color:"#92400e"}}, "Advanced (decouple sliders)")
+            h("input", {type:"checkbox", checked:cv.hiAdvanced, onChange:function(e){cv.setHiAdvanced(e.target.checked);}, style:{accentColor:"#A04E11"}}),
+            h("span", {style:{fontSize:10,color:"#6B461F"}}, "Advanced (decouple sliders)")
           )
         )
       ),
@@ -281,14 +281,14 @@ window.CreatorPatternTab = function CreatorPatternTab() {
             type:"color",
             value: cv.tintColor,
             onChange: function(e) { cv.setTintColor(e.target.value); },
-            style:{width:28,height:22,padding:0,border:"1px solid #fdba74",borderRadius:4,cursor:"pointer"}
+            style:{width:28,height:22,padding:0,border:"1px solid #D4A570",borderRadius:4,cursor:"pointer"}
           }),
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f",marginLeft:8}}, "Opacity"),
           h("input", {
             type:"range", min:10, max:80, step:1,
             value: Math.round(cv.tintOpacity * 100),
             onChange: function(e) { cv.setTintOpacity(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"#ea580c"}
+            style:{flex:1,accentColor:"#A04E11"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.tintOpacity * 100) + "%")
         )
@@ -302,7 +302,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
             type:"range", min:5, max:50, step:1,
             value: Math.round(cv.spotDimOpacity * 100),
             onChange: function(e) { cv.setSpotDimOpacity(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"#ea580c"}
+            style:{flex:1,accentColor:"#A04E11"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.spotDimOpacity * 100) + "%")
         )

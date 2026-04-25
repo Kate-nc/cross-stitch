@@ -125,9 +125,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   function statusBadge(status) {
     var cfg = {
-      owned:   {label:"In stash \u2713", bg:"#f0fdf4", color:"#16a34a"},
-      partial: {label:"Partial",         bg:"#fff7ed", color:"#ea580c"},
-      needed:  {label:"Need to buy",     bg:"#fef2f2", color:"#dc2626"}
+      owned:   {label:"In stash \u2713", bg:"#DEE7D2", color:"#4F7D3F"},
+      partial: {label:"Partial",         bg:"#F8EFD8", color:"#A04E11"},
+      needed:  {label:"Need to buy",     bg:"#FCEFEF", color:"#A53D3D"}
     };
     var s = cfg[status] || cfg.needed;
     return h("span", {style:{padding:"2px 7px", borderRadius:10, fontSize:10, fontWeight:600,
@@ -188,19 +188,19 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     h("div", {style:{
       display:"flex", alignItems:"center", gap:10, flexWrap:"wrap",
       padding:"9px 14px", borderRadius:8, marginBottom:14, fontSize:12,
-      background: allOwned ? "#f0fdf4" : "#FBF8F3",
-      border:"0.5px solid " + (allOwned ? "#bbf7d0" : "#E5DCCB")
+      background: allOwned ? "#DEE7D2" : "#FBF8F3",
+      border:"0.5px solid " + (allOwned ? "#C4DCB6" : "#E5DCCB")
     }},
       h("span", {style:{fontSize:11, color:"#A89E89"}},
         totalColours + " colour" + (totalColours !== 1 ? "s" : "") + ", " + totalSkeins + " skein" + (totalSkeins !== 1 ? "s" : "")
       ),
-      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "#15803d" : "#5C5448"}},
+      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "#3F6432" : "#5C5448"}},
         allOwned
           ? "\u2713 All colours in stash!"
           : "Stash: " + ownedColours + "/" + totalColours + " owned"
             + (partialColours > 0 ? ", " + partialColours + " partial" : "")
       ),
-      hasStash && !allOwned && h("span", {style:{color:"#dc2626", fontSize:11}},
+      hasStash && !allOwned && h("span", {style:{color:"#A53D3D", fontSize:11}},
         "\u2014 ~" + needSkeins + " skein" + (needSkeins !== 1 ? "s" : "") + " still needed"
       ),
       h("div", {style:{marginLeft:"auto", display:"flex", gap:6}},
@@ -268,8 +268,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
               sortedRows.map(function(r, i) {
                 var p    = r.p;
                 var isHi = cv.hiId === p.id;
-                var rowBg = isHi ? "#fff7ed"
-                  : (hasStash && r.status === "owned") ? "#f0fdf4"
+                var rowBg = isHi ? "#F8EFD8"
+                  : (hasStash && r.status === "owned") ? "#DEE7D2"
                   : i % 2 === 0 ? "transparent" : "#fafafa";
                 return h("tr", {
                   key: p.id,
@@ -286,25 +286,25 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                     r.name,
                     r.confettiCount ? h("span", {
                       title: r.confettiCount + " isolated stitch" + (r.confettiCount !== 1 ? "es" : ""),
-                      style:{marginLeft:5, color:"#dc2626", fontSize:10, fontWeight:600, cursor:"default"}
+                      style:{marginLeft:5, color:"#A53D3D", fontSize:10, fontWeight:600, cursor:"default"}
                     }, "\u25cf " + r.confettiCount) : null
                   ),
                   h("td", {style:{padding:"5px 10px"}},
                     h("span", {style:{
                       padding:"2px 6px", borderRadius:10, fontSize:10, fontWeight:600,
-                      background: p.type === "blend" ? "#fff7ed" : "#f0fdf4",
-                      color:       p.type === "blend" ? "#ea580c" : "#16a34a"
+                      background: p.type === "blend" ? "#F8EFD8" : "#DEE7D2",
+                      color:       p.type === "blend" ? "#A04E11" : "#4F7D3F"
                     }}, p.type === "blend" ? "Blend" : "Solid")
                   ),
                   h("td", {style:{padding:"5px 10px", textAlign:"right"}}, p.count.toLocaleString()),
                   h("td", {style:{padding:"5px 10px", textAlign:"right", fontWeight:600}}, r.needed),
                   hasStash && h("td", {style:{padding:"5px 10px", textAlign:"right",
-                                              color: r.owned > 0 ? "#15803d" : "#A89E89"}},
+                                              color: r.owned > 0 ? "#3F6432" : "#A89E89"}},
                     r.owned > 0 ? r.owned : "\u2014"
                   ),
                   hasStash && h("td", {style:{padding:"5px 10px"}}, statusBadge(r.status)),
                   ctx.done && h("td", {style:{padding:"5px 10px", textAlign:"right"}},
-                    h("span", {style:{color: r.dc.done >= r.dc.total ? "#16a34a" : "#5C5448"}},
+                    h("span", {style:{color: r.dc.done >= r.dc.total ? "#4F7D3F" : "#5C5448"}},
                       r.dc.done + "/" + r.dc.total)
                   )
                 );
@@ -376,7 +376,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                 var isCurrent = f.ct === fabricCt;
                 return h("tr", {key:f.ct, style:{
                   borderBottom:"0.5px solid #EFE7D6",
-                  background: isCurrent ? "#f0fdf4" : "transparent"
+                  background: isCurrent ? "#DEE7D2" : "transparent"
                 }},
                   h("td", {style:{padding:"6px 10px", fontWeight:isCurrent?700:400, color:isCurrent?"#B85C38":"inherit"}},
                     f.ct + (overTwo ? " (×2)" : "") + " ct"

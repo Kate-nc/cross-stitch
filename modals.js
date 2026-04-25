@@ -82,8 +82,8 @@ const SharedModals = {
 
     function renderSwapBanner() {
       if (!swapCandidate) return null;
-      return React.createElement("div", { style: { margin: "0 0 12px 0", padding: "12px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8 } },
-        React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 8 } },
+      return React.createElement("div", { style: { margin: "0 0 12px 0", padding: "12px 14px", background: "#FAF5E1", border: "1px solid #E5C97D", borderRadius: 8 } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#6B461F", marginBottom: 8 } },
           `DMC ${swapCandidate.id} is already assigned to another symbol.`
         ),
         React.createElement("div", { style: { fontSize: 12, color: "#5C5448", marginBottom: 10 } },
@@ -97,7 +97,7 @@ const SharedModals = {
                 if (conflictingPalEntry) onSwap(conflictingPalEntry);
               }
             },
-            style: { padding: "7px 14px", fontSize: 13, background: "#d97706", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }
+            style: { padding: "7px 14px", fontSize: 13, background: "#A06F2D", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }
           }, "Swap Colours"),
           React.createElement("button", {
             onClick: () => setSwapCandidate(null),
@@ -143,7 +143,7 @@ const SharedModals = {
         },
         style: {
           display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #EFE7D6",
-          background: isCurrent ? "#F4DDCF" : isSwapCandidate ? "#fffbeb" : (isUsed ? "#FBF8F3" : "#fff"),
+          background: isCurrent ? "#F4DDCF" : isSwapCandidate ? "#FAF5E1" : (isUsed ? "#FBF8F3" : "#fff"),
           cursor: isUsed ? "pointer" : "pointer",
           opacity: 1
         }
@@ -152,8 +152,8 @@ const SharedModals = {
         React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "#1B1814" } }, "DMC " + t.id),
         React.createElement("div", { style: { fontSize: 13, color: "#5C5448", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
         isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#B85C38", background: "#F4DDCF", padding: "2px 8px", borderRadius: 10 } }, "Current"),
-        isUsed && !isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 } }, "In Use — tap to swap"),
-        isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fde68a", padding: "2px 8px", borderRadius: 10 } }, "Swap?")
+        isUsed && !isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#A06F2D", background: "#F2E2BE", padding: "2px 8px", borderRadius: 10 } }, "In Use — tap to swap"),
+        isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#6B461F", background: "#E5C97D", padding: "2px 8px", borderRadius: 10 } }, "Swap?")
       );
     }
 
@@ -668,7 +668,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
           })
         )
       ),
-      err && h('p', { style: { margin: '10px 0 0', fontSize: 12, color: '#dc2626' } }, err),
+      err && h('p', { style: { margin: '10px 0 0', fontSize: 12, color: '#A53D3D' } }, err),
       h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 } },
         h('button', { onClick: onClose, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border, #E5DCCB)', background: 'var(--surface, #fff)', cursor: 'pointer', color: 'var(--text-primary, #1B1814)' } }, 'Cancel'),
         h('button', { onClick: handleSave, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#B85C38', color: '#fff', cursor: saving ? 'wait' : 'pointer', fontWeight: 600 } }, saving ? 'Saving\u2026' : 'Save')

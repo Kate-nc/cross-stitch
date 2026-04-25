@@ -138,7 +138,7 @@ function SableLineChart({ data }) {
 // ── Stash age bar ────────────────────────────────────────────────
 function AgeBar({ ageData }) {
   const buckets = [
-    { key: 'bucketUnder1Yr', label: '<1 yr', color: '#34d399' },
+    { key: 'bucketUnder1Yr', label: '<1 yr', color: '#88B077' },
     { key: 'bucket1to3Yr',   label: '1–3 yr', color: '#38bdf8' },
     { key: 'bucket3to5Yr',   label: '3–5 yr', color: '#818cf8' },
     { key: 'bucketOver5Yr',  label: '5+ yr',  color: '#c4b5fd' },
@@ -406,7 +406,7 @@ function makeAgeCanvas(canvas, ageData) {
   drawCardBase(ctx, W, H);
   drawLabel(ctx, 'stash age', W / 2, 150, 22, CARD_TEXT_SEC);
   const buckets = [
-    { key: 'bucketUnder1Yr', label: '<1 yr', color: '#34d399' },
+    { key: 'bucketUnder1Yr', label: '<1 yr', color: '#88B077' },
     { key: 'bucket1to3Yr',   label: '1–3 yr', color: '#38bdf8' },
     { key: 'bucket3to5Yr',   label: '3–5 yr', color: '#818cf8' },
     { key: 'bucketOver5Yr',  label: '5+ yr',  color: '#c4b5fd' },
@@ -536,7 +536,7 @@ function makeFullPageCanvas(canvas, data) {
   if (ageData && hasMeaningfulAgeData(ageData)) {
     section('stash age', () => {
       const buckets = [
-        { key: 'bucketUnder1Yr', label: '<1 yr', color: '#34d399' },
+        { key: 'bucketUnder1Yr', label: '<1 yr', color: '#88B077' },
         { key: 'bucket1to3Yr',   label: '1–3 yr', color: '#38bdf8' },
         { key: 'bucket3to5Yr',   label: '3–5 yr', color: '#818cf8' },
         { key: 'bucketOver5Yr',  label: '5+ yr',  color: '#c4b5fd' },

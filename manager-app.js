@@ -684,10 +684,10 @@ function ManagerApp() {
   };
 
   const statusColors = {
-    wishlist: { bg: "#fef3c7", text: "#b45309", label: "Wishlist" },
+    wishlist: { bg: "#F2E2BE", text: "#8A5C26", label: "Wishlist" },
     owned: { bg: "#e0e7ff", text: "#4338ca", label: "Owned" },
-    inprogress: { bg: "#ffedd5", text: "#c2410c", label: "In Progress" },
-    completed: { bg: "#dcfce3", text: "#15803d", label: "Completed" }
+    inprogress: { bg: "#F2E2BE", text: "#c2410c", label: "In Progress" },
+    completed: { bg: "#dcfce3", text: "#3F6432", label: "Completed" }
   };
 
   return (
@@ -696,7 +696,7 @@ function ManagerApp() {
       {preferencesOpen && typeof window.PreferencesModal!=='undefined' && React.createElement(window.PreferencesModal,{onClose:()=>setPreferencesOpen(false)})}
       {backupStatus && (
         <div style={{ padding: "8px 20px 0" }}>
-          <div style={{ padding: "10px 14px", borderRadius: 8, fontSize: 12, background: backupStatus.type === "error" ? "#fef2f2" : backupStatus.type === "confirm" ? "#fffbeb" : "#f0fdf4", border: `1px solid ${backupStatus.type === "error" ? "#fecaca" : backupStatus.type === "confirm" ? "#fde68a" : "#bbf7d0"}`, color: backupStatus.type === "error" ? "#dc2626" : backupStatus.type === "confirm" ? "#92400e" : "#15803d" }}>
+          <div style={{ padding: "10px 14px", borderRadius: 8, fontSize: 12, background: backupStatus.type === "error" ? "#FCEFEF" : backupStatus.type === "confirm" ? "#FAF5E1" : "#DEE7D2", border: `1px solid ${backupStatus.type === "error" ? "#ECC8C8" : backupStatus.type === "confirm" ? "#E5C97D" : "#C4DCB6"}`, color: backupStatus.type === "error" ? "#A53D3D" : backupStatus.type === "confirm" ? "#6B461F" : "#3F6432" }}>
             <div>{backupStatus.message}</div>
             {backupStatus.summary && (
               <div style={{ fontSize: 11, marginTop: 4, color: "#5C5448" }}>
@@ -705,7 +705,7 @@ function ManagerApp() {
             )}
             {backupStatus.type === "confirm" && (
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button onClick={backupStatus.onConfirm} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, background: "#ea580c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>Yes, Restore</button>
+                <button onClick={backupStatus.onConfirm} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, background: "#A04E11", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>Yes, Restore</button>
                 <button onClick={() => setBackupStatus(null)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, background: "#fff", color: "#3f3f46", border: "1px solid #E5DCCB", borderRadius: 6, cursor: "pointer" }}>Cancel</button>
               </div>
             )}
@@ -792,13 +792,13 @@ function ManagerApp() {
                 <div style={{ fontSize: 12, color: "#5C5448", marginBottom: 10 }}>These threads are needed by multiple patterns but you don't have enough.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflow: "auto" }}>
                   {conflicts.map(c => (
-                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fecaca", cursor: "pointer" }}
+                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #ECC8C8", cursor: "pointer" }}
                       title={"Open thread card for " + formatBrandLabel(c.brand) + " " + c.id}
                       onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(c.key); setPanelOpen(true); }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`, border: "1px solid #CFC4AC", flexShrink: 0 }} />
                       <span style={{ fontWeight: 600, fontSize: 12 }}>{formatBrandLabel(c.brand)} {c.id}</span>
                       <span style={{ fontSize: 11, color: "#5C5448", flex: 1 }}>{c.name}</span>
-                      <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 600 }}>own {c.owned}, need {c.totalNeeded}</span>
+                      <span style={{ fontSize: 11, color: "#A53D3D", fontWeight: 600 }}>own {c.owned}, need {c.totalNeeded}</span>
                       <span style={{ fontSize: 10, color: "#A89E89" }}>{c.patterns.map(p => p.title).join(", ")}</span>
                     </div>
                   ))}
@@ -813,14 +813,14 @@ function ManagerApp() {
                 <div style={{ fontSize: 12, color: "#5C5448", marginBottom: 10 }}>Threads below your minimum stock level that are used by active projects.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockNeeded.map(a => (
-                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #fde68a", cursor: "pointer" }}
+                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #E5C97D", cursor: "pointer" }}
                       title={"Open thread card for " + formatBrandLabel(a.brand) + " " + (a.bareId || a.id)}
                       onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(a.id); setPanelOpen(true); }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`, border: "1px solid #CFC4AC", flexShrink: 0 }} />
                       <span style={{ fontWeight: 600, fontSize: 12 }}>{formatBrandLabel(a.brand)} {a.bareId || a.id}</span>
                       <span style={{ fontSize: 11, color: "#5C5448", flex: 1 }}>{a.name}</span>
-                      <span style={{ fontSize: 11, color: "#b45309", fontWeight: 600 }}>have {a.owned}, min {a.min_stock}</span>
-                      <button onClick={(e) => { e.stopPropagation(); updateThread(a.id, "tobuy", true); }} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, border: "1px solid #fed7aa", background: "#fff7ed", color: "#ea580c", cursor: "pointer", fontWeight: 600 }}>Add to buy</button>
+                      <span style={{ fontSize: 11, color: "#8A5C26", fontWeight: 600 }}>have {a.owned}, min {a.min_stock}</span>
+                      <button onClick={(e) => { e.stopPropagation(); updateThread(a.id, "tobuy", true); }} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, border: "1px solid #E5C99A", background: "#F8EFD8", color: "#A04E11", cursor: "pointer", fontWeight: 600 }}>Add to buy</button>
                     </div>
                   ))}
                 </div>
@@ -967,7 +967,7 @@ function ManagerApp() {
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => updateThread(selectedThread, "tobuy", !state.tobuy)}>
                       {state.tobuy ? <>{Icons.check()} On shopping list</> : <>{Icons.cart()} Add to shopping list</>}
                     </button>
-                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => {
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#B85555", borderColor: "#ECC8C8" }} onClick={() => {
                       // Capture current values so Undo can restore them.
                       const prevOwned = state.owned;
                       const prevPartial = state.partialStatus;
@@ -1103,8 +1103,8 @@ function ManagerApp() {
                     const total = (meta && meta.totalStitches) || pat.totalStitches || 0;
                     const completed = (meta && meta.completedStitches) || pat.completedStitches || 0;
                     const pct = total > 0 ? Math.round(completed / total * 100) : null;
-                    const pctBg = pct === null ? null : (pct >= 100 ? "#dcfce7" : pct > 0 ? "#dbeafe" : "#EFE7D6");
-                    const pctFg = pct === null ? null : (pct >= 100 ? "#15803d" : pct > 0 ? "#1d4ed8" : "#8A8270");
+                    const pctBg = pct === null ? null : (pct >= 100 ? "#DEE7D2" : pct > 0 ? "#dbeafe" : "#EFE7D6");
+                    const pctFg = pct === null ? null : (pct >= 100 ? "#3F6432" : pct > 0 ? "#1d4ed8" : "#8A8270");
                     // 7-day sparkline (oldest → newest, ending today). Only
                     // rendered when there's actual activity to show.
                     const weekly = (meta && Array.isArray(meta.weeklyStitches)) ? meta.weeklyStitches : null;
@@ -1115,7 +1115,7 @@ function ManagerApp() {
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11 }}>
                         <label
                           onClick={e => e.stopPropagation()}
-                          style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", border: "1px solid " + (isSel ? "#16a34a" : "#CFC4AC"), borderRadius: 12, background: isSel ? "#f0fdf4" : "#fff", color: isSel ? "#15803d" : "#5C5448", cursor: "pointer", fontWeight: 600 }}
+                          style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", border: "1px solid " + (isSel ? "#4F7D3F" : "#CFC4AC"), borderRadius: 12, background: isSel ? "#DEE7D2" : "#fff", color: isSel ? "#3F6432" : "#5C5448", cursor: "pointer", fontWeight: 600 }}
                           title={isSel ? "Remove from shopping list selection" : "View shopping list for this pattern"}
                         >
                           <input
@@ -1151,10 +1151,10 @@ function ManagerApp() {
                         )}
                         {reqThreads.length > 0 && (
                           missing.length === 0
-                            ? <span style={{ padding: "2px 8px", borderRadius: 12, background: "#dcfce7", color: "#15803d", fontWeight: 700 }} title="All required threads are in your stash">✓ Fully kitted</span>
+                            ? <span style={{ padding: "2px 8px", borderRadius: 12, background: "#DEE7D2", color: "#3F6432", fontWeight: 700 }} title="All required threads are in your stash">✓ Fully kitted</span>
                             : <span
                                 onClick={e => { e.stopPropagation(); setViewingPattern(pat); setPanelOpen(true); }}
-                                style={{ padding: "2px 8px", borderRadius: 12, background: "#fff7ed", color: "#c2410c", fontWeight: 700, cursor: "pointer" }}
+                                style={{ padding: "2px 8px", borderRadius: 12, background: "#F8EFD8", color: "#c2410c", fontWeight: 700, cursor: "pointer" }}
                                 title={"Missing: " + missing.map(t => t.id).join(", ")}
                               >{missing.length} threads needed</span>
                         )}
@@ -1175,20 +1175,20 @@ function ManagerApp() {
             )}
             {/* Smart Hub: Ready to Start */}
             {readyToStart && readyToStart.length > 0 && (
-              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "14px 16px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#16a34a", marginBottom: 8 }}>✓ Ready to Start</div>
+              <div style={{ background: "#DEE7D2", border: "1px solid #C4DCB6", borderRadius: 10, padding: "14px 16px" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#4F7D3F", marginBottom: 8 }}>✓ Ready to Start</div>
                 <div style={{ fontSize: 12, color: "#5C5448", marginBottom: 10 }}>Patterns you can fully kit from your current stash.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 200, overflow: "auto" }}>
                   {readyToStart.map(r => (
-                    <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "#fff", border: "1px solid " + (r.pct === 100 ? "#bbf7d0" : "#E5DCCB") }}>
+                    <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "#fff", border: "1px solid " + (r.pct === 100 ? "#C4DCB6" : "#E5DCCB") }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: "#1B1814" }}>{r.title || "Untitled"}</div>
                         <div style={{ fontSize: 11, color: "#5C5448", marginTop: 2 }}>{r.totalThreads} threads, {r.coveredThreads} covered ({r.pct}%)</div>
                       </div>
                       {r.pct === 100 ? (
-                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#dcfce7", color: "#16a34a" }}>100% kitted</span>
+                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#DEE7D2", color: "#4F7D3F" }}>100% kitted</span>
                       ) : (
-                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#fff7ed", color: "#ea580c" }}>{r.pct}% — {r.missing.length} missing</span>
+                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#F8EFD8", color: "#A04E11" }}>{r.pct}% — {r.missing.length} missing</span>
                       )}
                     </div>
                   ))}
@@ -1205,7 +1205,7 @@ function ManagerApp() {
                     const pct = p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0;
                     const isActive = ProjectStorage.getActiveProjectId() === p.id;
                     return (
-                      <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: isActive ? "#f0fdf4" : "#fff", border: `1px solid ${isActive ? "#bbf7d0" : "#E5DCCB"}`, borderRadius: 8, padding: "10px 14px" }}>
+                      <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: isActive ? "#DEE7D2" : "#fff", border: `1px solid ${isActive ? "#C4DCB6" : "#E5DCCB"}`, borderRadius: 8, padding: "10px 14px" }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: "#1B1814", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
                           <div style={{ fontSize: 11, color: "#5C5448", marginTop: 2 }}>
@@ -1215,7 +1215,7 @@ function ManagerApp() {
                         <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
                           <button
                             onClick={() => { ProjectStorage.setActiveProject(p.id); window.location.href = "stitch.html?source=manager"; }}
-                            style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, background: "#ea580c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}
+                            style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, background: "#A04E11", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}
                           >Track</button>
                           <button
                             onClick={async () => {
@@ -1287,7 +1287,7 @@ function ManagerApp() {
                                 });
                               }
                             }}
-                            style={{ padding: "5px 10px", fontSize: 12, background: "none", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer" }}
+                            style={{ padding: "5px 10px", fontSize: 12, background: "none", color: "#B85555", border: "1px solid #ECC8C8", borderRadius: 6, cursor: "pointer" }}
                           >Delete</button>
                         </div>
                       </div>
@@ -1297,15 +1297,15 @@ function ManagerApp() {
               </div>
             )}
 
-            <div style={{ padding: "12px 16px", background: selectedPatternsForList.size > 0 ? "#f0fdf4" : "#FBF8F3", borderRadius: 8, border: selectedPatternsForList.size > 0 ? "1px solid #bbf7d0" : "1px solid #E5DCCB", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ padding: "12px 16px", background: selectedPatternsForList.size > 0 ? "#DEE7D2" : "#FBF8F3", borderRadius: 8, border: selectedPatternsForList.size > 0 ? "1px solid #C4DCB6" : "1px solid #E5DCCB", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               {selectedPatternsForList.size > 0 ? (
-                <div style={{ fontSize: 13, color: "#16a34a", fontWeight: 600 }}>{selectedPatternsForList.size} pattern(s) selected</div>
+                <div style={{ fontSize: 13, color: "#4F7D3F", fontWeight: 600 }}>{selectedPatternsForList.size} pattern(s) selected</div>
               ) : (
                 <div style={{ fontSize: 12, color: "#A89E89" }}>Select patterns with checkboxes to generate a shopping list</div>
               )}
               <div style={{ display: "flex", gap: 10 }}>
-                {selectedPatternsForList.size > 0 && <button onClick={() => setSelectedPatternsForList(new Set())} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #bbf7d0", background: "#fff", cursor: "pointer", color: "#16a34a" }}>Clear</button>}
-                <button onClick={() => { if(selectedPatternsForList.size === 0) { alert("Select at least one pattern using the checkboxes on the pattern cards."); return; } setShoppingListModalOpen(true); }} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "none", background: selectedPatternsForList.size > 0 ? "#16a34a" : "#A89E89", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Generate Shopping List</button>
+                {selectedPatternsForList.size > 0 && <button onClick={() => setSelectedPatternsForList(new Set())} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "1px solid #C4DCB6", background: "#fff", cursor: "pointer", color: "#4F7D3F" }}>Clear</button>}
+                <button onClick={() => { if(selectedPatternsForList.size === 0) { alert("Select at least one pattern using the checkboxes on the pattern cards."); return; } setShoppingListModalOpen(true); }} style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6, border: "none", background: selectedPatternsForList.size > 0 ? "#4F7D3F" : "#A89E89", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Generate Shopping List</button>
               </div>
             </div>
 
@@ -1388,7 +1388,7 @@ function ManagerApp() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setEditingPattern(p); }}>{Icons.pencil()} Edit Pattern</button>
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setSelectedPatternsForList(new Set([p.id])); setShoppingListModalOpen(true); }}>{Icons.cart()} Shopping List</button>
-                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#ef4444", borderColor: "#fecaca" }} onClick={() => { deletePattern(p.id); setViewingPattern(null); }}>{Icons.trash()} Delete</button>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#B85555", borderColor: "#ECC8C8" }} onClick={() => { deletePattern(p.id); setViewingPattern(null); }}>{Icons.trash()} Delete</button>
                   </div>
                 </div>
               </>;
@@ -1641,7 +1641,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
                 </div>
               </div>
 
-              {threadQty === "" && <div style={{ fontSize: 11, color: "#d97706" }}>Quantity cleared — please enter the value in {threadUnit}.</div>}
+              {threadQty === "" && <div style={{ fontSize: 11, color: "#A06F2D" }}>Quantity cleared — please enter the value in {threadUnit}.</div>}
 
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
                 <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
@@ -1732,7 +1732,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
 
         <div style={{ padding: "16px 20px", borderTop: "1px solid #E5DCCB", display: "flex", justifyContent: "flex-end", gap: 10, background: "#FBF8F3", borderRadius: "0 0 8px 8px" }}>
           <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid #E5DCCB", background: "#fff", cursor: "pointer", fontWeight: 600 }}>Cancel</button>
-          <button onClick={handleTrack} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#ea580c", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Start Tracking →</button>
+          <button onClick={handleTrack} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#A04E11", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Start Tracking →</button>
           <button onClick={() => onSave(edited)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#B85C38", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save Pattern</button>
         </div>
       </div>
@@ -1742,10 +1742,10 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
 
 function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userProfile }) {
   const statusColors = {
-    wishlist: { bg: "#fef3c7", text: "#b45309", label: "Wishlist" },
+    wishlist: { bg: "#F2E2BE", text: "#8A5C26", label: "Wishlist" },
     owned: { bg: "#e0e7ff", text: "#4338ca", label: "Owned" },
-    inprogress: { bg: "#ffedd5", text: "#c2410c", label: "In Progress" },
-    completed: { bg: "#dcfce3", text: "#15803d", label: "Completed" }
+    inprogress: { bg: "#F2E2BE", text: "#c2410c", label: "In Progress" },
+    completed: { bg: "#dcfce3", text: "#3F6432", label: "Completed" }
   };
 
   const derivedThreads = useMemo(() => {
@@ -1880,9 +1880,9 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: "#1B1814" }}>Thread Requirements ({pattern.threads ? pattern.threads.length : 0})</label>
               {missingThreadsCount > 0 ? (
-                <span style={{ fontSize: 12, color: "#ef4444", fontWeight: 600, background: "#fef2f2", padding: "4px 8px", borderRadius: 6, border: "1px solid #fecaca" }}>Missing {missingThreadsCount} threads</span>
+                <span style={{ fontSize: 12, color: "#B85555", fontWeight: 600, background: "#FCEFEF", padding: "4px 8px", borderRadius: 6, border: "1px solid #ECC8C8" }}>Missing {missingThreadsCount} threads</span>
               ) : (
-                <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 600, background: "#f0fdf4", padding: "4px 8px", borderRadius: 6, border: "1px solid #bbf7d0" }}>Have all threads</span>
+                <span style={{ fontSize: 12, color: "#4F7D3F", fontWeight: 600, background: "#DEE7D2", padding: "4px 8px", borderRadius: 6, border: "1px solid #C4DCB6" }}>Have all threads</span>
               )}
             </div>
 
@@ -2145,9 +2145,9 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
   };
 
   const statusBadge = (status, owned, needed) => {
-    if (status === 'owned') return <span style={{ fontSize: 10, fontWeight: 600, color: '#16a34a', background: '#f0fdf4', padding: '2px 7px', borderRadius: 10 }}>In stash</span>;
-    if (status === 'partial') return <span style={{ fontSize: 10, fontWeight: 600, color: '#ea580c', background: '#fff7ed', padding: '2px 7px', borderRadius: 10 }}>Partial ({owned}/{needed})</span>;
-    return <span style={{ fontSize: 10, fontWeight: 600, color: '#dc2626', background: '#fef2f2', padding: '2px 7px', borderRadius: 10 }}>Need to buy</span>;
+    if (status === 'owned') return <span style={{ fontSize: 10, fontWeight: 600, color: '#4F7D3F', background: '#DEE7D2', padding: '2px 7px', borderRadius: 10 }}>In stash</span>;
+    if (status === 'partial') return <span style={{ fontSize: 10, fontWeight: 600, color: '#A04E11', background: '#F8EFD8', padding: '2px 7px', borderRadius: 10 }}>Partial ({owned}/{needed})</span>;
+    return <span style={{ fontSize: 10, fontWeight: 600, color: '#A53D3D', background: '#FCEFEF', padding: '2px 7px', borderRadius: 10 }}>Need to buy</span>;
   };
 
   return (
@@ -2157,14 +2157,14 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
           <h2 style={{ margin: 0, fontSize: 18 }}>Shopping List</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#A89E89" }}>&times;</button>
         </div>
-        <div style={{ padding: "10px 20px", background: ownedColours === totalColours ? "#f0fdf4" : "#fffbeb", borderBottom: "1px solid #E5DCCB", fontSize: 12, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-          <span style={{ fontWeight: 600, color: ownedColours === totalColours ? "#16a34a" : "#92400e" }}>
+        <div style={{ padding: "10px 20px", background: ownedColours === totalColours ? "#DEE7D2" : "#FAF5E1", borderBottom: "1px solid #E5DCCB", fontSize: 12, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          <span style={{ fontWeight: 600, color: ownedColours === totalColours ? "#4F7D3F" : "#6B461F" }}>
             {ownedColours === totalColours
               ? `\u2713 You have all ${totalColours} colours!`
               : `You own ${ownedColours} of ${totalColours} colours.`}
           </span>
-          {partialColours > 0 && <span style={{ color: "#ea580c" }}>{partialColours} partial.</span>}
-          {totalMissingColours > 0 && <span style={{ color: "#dc2626" }}>Still need: {totalMissingColours} colours, ~{totalMissingSkeins} skeins.</span>}
+          {partialColours > 0 && <span style={{ color: "#A04E11" }}>{partialColours} partial.</span>}
+          {totalMissingColours > 0 && <span style={{ color: "#A53D3D" }}>Still need: {totalMissingColours} colours, ~{totalMissingSkeins} skeins.</span>}
         </div>
         <div style={{ padding: "8px 20px", borderBottom: "1px solid #EFE7D6", display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
           <span style={{ color: "#5C5448" }}>Sort:</span>
@@ -2181,13 +2181,13 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
           {allThreads.length === 0 ? (
             <div style={{ padding: 30, textAlign: "center", color: "#A89E89" }}>No threads in selected patterns.</div>
           ) : ownedColours === totalColours ? (
-            <div style={{ padding: 30, textAlign: "center", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, color: "#16a34a", fontWeight: 600 }}>
+            <div style={{ padding: 30, textAlign: "center", background: "#DEE7D2", border: "1px solid #C4DCB6", borderRadius: 8, color: "#4F7D3F", fontWeight: 600 }}>
               You have all the required threads!
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {sortedThreads.map(t => (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: t.status === 'owned' ? "#f0fdf4" : "#FBF8F3", borderRadius: 8, border: "1px solid " + (t.status === 'owned' ? "#bbf7d0" : "#E5DCCB") }}>
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: t.status === 'owned' ? "#DEE7D2" : "#FBF8F3", borderRadius: 8, border: "1px solid " + (t.status === 'owned' ? "#C4DCB6" : "#E5DCCB") }}>
                   <div style={{ width: 18, height: 18, borderRadius: 4, background: `rgb(${t.rgb})`, border: "1px solid #CFC4AC", flexShrink: 0 }} />
                   <div style={{ width: 38, fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{t.id}</div>
                   <div style={{ flex: 1, fontSize: 12, color: "#5C5448", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</div>
@@ -2199,7 +2199,7 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
           )}
         </div>
         <div style={{ padding: "14px 20px", borderTop: "1px solid #E5DCCB", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#FBF8F3", borderRadius: "0 0 8px 8px", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 600, opacity: copied ? 1 : 0, transition: "opacity 0.2s" }}>Copied!</span>
+          <span style={{ fontSize: 12, color: "#4F7D3F", fontWeight: 600, opacity: copied ? 1 : 0, transition: "opacity 0.2s" }}>Copied!</span>
           <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
             <button onClick={onClose} style={{ padding: "7px 14px", borderRadius: 8, border: "0.5px solid #E5DCCB", background: "#fff", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Close</button>
             {typeof navigator !== 'undefined' && navigator.share && totalMissingColours > 0 && (

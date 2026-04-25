@@ -63,12 +63,12 @@ window.BulkAddModal = (function () {
   function ThreadChip({ item, brand, onRemove }) {
     if (!item.valid) {
       return React.createElement('span', {
-        style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', margin: '2px 3px' }
+        style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#F1D2D2', color: '#8A2E2E', border: '1px solid #DEAEAE', margin: '2px 3px' }
       },
         React.createElement('span', null, brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised, '\u00a0\u2014 not found'),
         React.createElement('button', {
           onClick: function () { onRemove(item.raw); },
-          style: { background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 13, fontWeight: 700, marginLeft: 2 }
+          style: { background: 'none', border: 'none', color: '#8A2E2E', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 13, fontWeight: 700, marginLeft: 2 }
         }, '×')
       );
     }
@@ -76,7 +76,7 @@ window.BulkAddModal = (function () {
       style: { width: 12, height: 12, borderRadius: 2, background: 'rgb(' + item.thread.rgb + ')', border: '1px solid rgba(0,0,0,0.12)', flexShrink: 0 }
     });
     return React.createElement('span', {
-      style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#f0fdf4', color: '#166534', border: '1px solid #86efac', margin: '2px 3px' }
+      style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#DEE7D2', color: '#3F6432', border: '1px solid #A8C594', margin: '2px 3px' }
     },
       swatch,
       brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised,
@@ -274,7 +274,7 @@ window.BulkAddModal = (function () {
         ),
         // Footer
         React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' } },
-          invalidCount > 0 && React.createElement('span', { style: { fontSize: 12, color: '#f59e0b', marginRight: 'auto' } },
+          invalidCount > 0 && React.createElement('span', { style: { fontSize: 12, color: '#C0883A', marginRight: 'auto' } },
             invalidCount + ' unrecognised thread' + (invalidCount === 1 ? '' : 's') + ' will be skipped'
           ),
           React.createElement('button', { className: 'g-btn', onClick: onClose }, 'Cancel'),

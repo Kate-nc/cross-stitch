@@ -13,8 +13,8 @@
   const DISMISS_TTL_MS = 30 * 86400000; // 30 days
   const HEATMAP_RAMP = ['var(--border)', '#9FE1CB', '#5DCAA5', '#1D9E75', '#0F6E56'];
   const TONE_COLOURS = {
-    celebrate: '#16a34a',
-    encourage: '#f59e0b',
+    celebrate: '#4F7D3F',
+    encourage: '#C0883A',
     inform: 'var(--accent)',
     nudge: '#8b5cf6'
   };
@@ -199,7 +199,7 @@
         p.percent + '% complete' + (isComplete ? '' : ' \u00b7 ' + fmtNum(p.remaining) + ' to go')
       ),
       isComplete
-        ? h('div', { style: { fontSize: 12, color: '#16a34a', fontWeight: 600 } }, '\u2713 Complete!')
+        ? h('div', { style: { fontSize: 12, color: '#4F7D3F', fontWeight: 600 } }, '\u2713 Complete!')
         : isPaused
           ? h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic' } }, p.projectedText)
           : h('div', null,
@@ -263,14 +263,14 @@
               width: 24, height: 24, borderRadius: 4,
               background: 'rgb(' + c.rgb.join(',') + ')',
               opacity: opacity,
-              border: stash ? (owned ? '2px solid #16a34a' : '1px solid var(--border)') : '1px solid var(--border)',
+              border: stash ? (owned ? '2px solid #4F7D3F' : '1px solid var(--border)') : '1px solid var(--border)',
               cursor: 'help', boxSizing: 'border-box'
             }
           },
           // Redundant non-colour cue for owned threads (M5 a11y).
           stash && owned && h('span', {
             'aria-hidden': 'true',
-            style: { position: 'absolute', top: -4, right: -4, fontSize: 10, lineHeight: '12px', width: 12, height: 12, background: '#16a34a', color: '#fff', borderRadius: '50%', textAlign: 'center', fontWeight: 700, pointerEvents: 'none' }
+            style: { position: 'absolute', top: -4, right: -4, fontSize: 10, lineHeight: '12px', width: 12, height: 12, background: '#4F7D3F', color: '#fff', borderRadius: '50%', textAlign: 'center', fontWeight: 700, pointerEvents: 'none' }
           }, '\u2713')
           );
         })
@@ -281,7 +281,7 @@
           style: { marginTop: 8, fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600 }
         }, '+' + (totalColours - mostUsed.length) + ' more'),
       stash && h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 } },
-        h('span', { style: { display: 'inline-block', width: 10, height: 10, border: '2px solid #16a34a', borderRadius: 2, marginRight: 4, verticalAlign: 'middle' } }),
+        h('span', { style: { display: 'inline-block', width: 10, height: 10, border: '2px solid #4F7D3F', borderRadius: 2, marginRight: 4, verticalAlign: 'middle' } }),
         'Threads in your stash'
       )
     );

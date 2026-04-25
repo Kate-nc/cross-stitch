@@ -381,7 +381,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var sectionToggle = EXPORT_SECTION_TOGGLE;
 
   return h("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
-    app.copied && h("div", { style: { background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "#16a34a", fontWeight: 600 } }, "Copied!"),
+    app.copied && h("div", { style: { background: "#DEE7D2", border: "1px solid #C4DCB6", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "#4F7D3F", fontWeight: 600 } }, "Copied!"),
 
     h("button", {
       onClick: app.handleOpenInTracker,
@@ -504,7 +504,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           width: ((progressState[0].total ? Math.min(100, (progressState[0].current / progressState[0].total) * 100) : 30)) + "%",
           height: "100%", background: "#B85C38", transition: "width 120ms ease-out" } })
       ),
-      h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize: 13, borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", cursor: "pointer", fontWeight: 600 } }, "Cancel")
+      h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize: 13, borderRadius: 8, border: "1px solid #ECC8C8", background: "#fff", color: "#8A2E2E", cursor: "pointer", fontWeight: 600 } }, "Cancel")
     ) : h("button", {
       onClick: exportFormat[0] === "png" ? doExportPng : doExport,
       style: (exportFormat[0] === "pdf" && modesArr.length === 0) ? disabledCta : ctaStyle,
@@ -527,6 +527,6 @@ window.CreatorExportTab = function CreatorExportTab() {
           h("span", null, "Download bundle"))
     ),
 
-    errorState[0] && h("div", { style: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, fontSize: 12, color: "#b91c1c" } }, errorState[0])
+    errorState[0] && h("div", { style: { background: "#FCEFEF", border: "1px solid #ECC8C8", borderRadius: 8, padding: 10, fontSize: 12, color: "#8A2E2E" } }, errorState[0])
   );
 };

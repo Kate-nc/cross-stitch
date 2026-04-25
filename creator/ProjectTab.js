@@ -66,9 +66,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     })();
 
     var progressBadge = ctx.done && ctx.doneCount > 0 && h("div", {
-      style:{marginTop:8,padding:"8px 12px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0"}
+      style:{marginTop:8,padding:"8px 12px",background:"#DEE7D2",borderRadius:8,border:"1px solid #C4DCB6"}
     },
-      h("div", {style:{fontSize:12,fontWeight:600,color:"#16a34a"}},
+      h("div", {style:{fontSize:12,fontWeight:600,color:"#4F7D3F"}},
         "Progress: " + ctx.progressPct + "% \u2014 " + ctx.doneCount.toLocaleString() + " of " + ctx.totalStitchable.toLocaleString() + " stitches"
       )
     );
@@ -107,7 +107,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           ),
           h("div", null,
             h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"#16a34a":"#B85C38"}},
+            h("div", {style:{fontSize:16,fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"#4F7D3F":"#B85C38"}},
               ctx.doneCount >= ctx.totalStitchable ? "Done!" : fmtTimeL(Math.round((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed * 3600))
             )
           )
@@ -178,7 +178,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           ),
           ctx.toBuyCount < ctx.skeinData.length && h("div", null,
             h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#ea580c"}},
+            h("div", {style:{fontSize:16,fontWeight:700,color:"#A04E11"}},
               "\xA3"+(ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)*ctx.skeinPrice).toFixed(2)
             ),
             h("div", {style:{fontSize:11,color:"#A89E89"}},
@@ -207,12 +207,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     }
     return h(Section, {title:"Thread Organiser"},
       h("div", {style:{marginTop:8,display:"flex",gap:12,marginBottom:10}},
-        h("div", {style:{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}},
-          h("span", {style:{fontWeight:700,color:"#16a34a"}}, ctx.ownedCount), " ",
+        h("div", {style:{padding:"6px 14px",background:"#DEE7D2",borderRadius:8,border:"1px solid #C4DCB6",fontSize:12}},
+          h("span", {style:{fontWeight:700,color:"#4F7D3F"}}, ctx.ownedCount), " ",
           h("span", {style:{color:"#5C5448"}}, "owned")
         ),
-        h("div", {style:{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}},
-          h("span", {style:{fontWeight:700,color:"#ea580c"}}, ctx.toBuyList.length), " ",
+        h("div", {style:{padding:"6px 14px",background:"#F8EFD8",borderRadius:8,border:"1px solid #E5C99A",fontSize:12}},
+          h("span", {style:{fontWeight:700,color:"#A04E11"}}, ctx.toBuyList.length), " ",
           h("span", {style:{color:"#5C5448"}}, "to buy")
         ),
         h("div", {style:{marginLeft:"auto",display:"flex",gap:4}},
@@ -222,7 +222,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               ctx.skeinData.forEach(function(d){n[d.id]="owned";});
               ctx.setThreadOwned(n);
             },
-            style:{fontSize:11,padding:"4px 10px",border:"1px solid #bbf7d0",borderRadius:6,background:"#f0fdf4",color:"#16a34a",cursor:"pointer"}
+            style:{fontSize:11,padding:"4px 10px",border:"1px solid #C4DCB6",borderRadius:6,background:"#DEE7D2",color:"#4F7D3F",cursor:"pointer"}
           }, "Own all"),
           h("button", {
             onClick:function(){ctx.setThreadOwned({});},
@@ -240,8 +240,8 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           return h(React.Fragment, {key:d.id},
             h("div", {
               style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,
-                background:isOwned?"#f0fdf4":"#fff",
-                border:"1px solid "+(isOwned?"#bbf7d0":"#EFE7D6")}
+                background:isOwned?"#DEE7D2":"#fff",
+                border:"1px solid "+(isOwned?"#C4DCB6":"#EFE7D6")}
             },
               h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #CFC4AC",flexShrink:0}}),
               h("span", {style:{fontWeight:700,fontSize:13,minWidth:44}}, "DMC "+d.id),
@@ -250,9 +250,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               h("button", {
                 onClick:function(){ctx.toggleOwned(d.id);},
                 style:{fontSize:11,padding:"3px 10px",borderRadius:5,cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center",
-                  border:"1px solid "+(isOwned?"#bbf7d0":"#fed7aa"),
-                  background:isOwned?"#f0fdf4":"#fff7ed",
-                  color:isOwned?"#16a34a":"#ea580c"
+                  border:"1px solid "+(isOwned?"#C4DCB6":"#E5C99A"),
+                  background:isOwned?"#DEE7D2":"#F8EFD8",
+                  color:isOwned?"#4F7D3F":"#A04E11"
                 }
               }, isOwned ? "Owned" : "To buy"),
               h("span", {className:"stash-badge "+(enough?"stash-badge--in":"stash-badge--out")}, owned+"/"+d.skeins+" in stash"),
@@ -359,14 +359,14 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       ),
       ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #E5DCCB",background:"#FBF8F3",fontSize:12}},
         h("div", {style:{fontWeight:700,marginBottom:4}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
-        ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"#16a34a",fontWeight:600}}, "\u2713 You have everything!"),
+        ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"#4F7D3F",fontWeight:600}}, "\u2713 You have everything!"),
         ctx.kittingResult.missing.length > 0 && h("div", null,
-          h("div", {style:{color:"#dc2626",fontWeight:600,marginBottom:2}}, "Missing ("+ctx.kittingResult.missing.length+"):"),
-          ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{color:"#dc2626",marginLeft:8}}, m); })
+          h("div", {style:{color:"#A53D3D",fontWeight:600,marginBottom:2}}, "Missing ("+ctx.kittingResult.missing.length+"):"),
+          ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{color:"#A53D3D",marginLeft:8}}, m); })
         ),
         ctx.kittingResult.short.length > 0 && h("div", {style:{marginTop:4}},
-          h("div", {style:{color:"#d97706",fontWeight:600,marginBottom:2}}, "Low stock ("+ctx.kittingResult.short.length+"):"),
-          ctx.kittingResult.short.map(function(m, i) { return h("div", {key:i, style:{color:"#d97706",marginLeft:8}}, m); })
+          h("div", {style:{color:"#A06F2D",fontWeight:600,marginBottom:2}}, "Low stock ("+ctx.kittingResult.short.length+"):"),
+          ctx.kittingResult.short.map(function(m, i) { return h("div", {key:i, style:{color:"#A06F2D",marginLeft:8}}, m); })
         ),
         h("div", {style:{display:"flex",gap:6,marginTop:8}},
           h("button", {
@@ -384,7 +384,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               Promise.all(toBuy2.map(function(id){return StashBridge.updateThreadToBuy(id, true);}))
                 .then(function(){alert("Marked "+toBuy2.length+" thread(s) as To Buy in Stash Manager.");});
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #fed7aa",background:"#fff7ed",color:"#ea580c",cursor:"pointer",fontWeight:600}
+            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #E5C99A",background:"#F8EFD8",color:"#A04E11",cursor:"pointer",fontWeight:600}
           }, "Mark all To Buy"),
           h("button", {
             onClick:function(){ctx.setKittingResult(null);},
@@ -408,7 +408,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #E5DCCB",background:"#fff",cursor:"pointer",fontWeight:500}
         }, "Copy Full List")
       ),
-      app.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")
+      app.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#4F7D3F",fontWeight:600}}, "Copied!")
     );
   }
 

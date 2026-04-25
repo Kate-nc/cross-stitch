@@ -84,7 +84,7 @@
   var COLOURS = {
     teal: "#B85C38", tealDark: "#944526", tealBg: "#F4DDCF", tealBorder: "#E8B89A",
     ink: "#0f172a", slate: "#5C5448", slate2: "#8A8270", hint: "#A89E89",
-    line: "#E5DCCB", line2: "#CFC4AC", bg: "#f8fafc", card: "#fff", danger: "#b91c1c"
+    line: "#E5DCCB", line2: "#CFC4AC", bg: "#f8fafc", card: "#fff", danger: "#8A2E2E"
   };
 
   var styles = {
@@ -97,7 +97,7 @@
     input:         { padding: "7px 10px", border: "1px solid " + COLOURS.line2, borderRadius: 6, fontSize: 13, fontFamily: "inherit", background: "#fff" },
     btn:           { padding: "7px 14px", borderRadius: 7, border: "1px solid " + COLOURS.line2, background: "#fff", fontSize: 13, fontFamily: "inherit", cursor: "pointer", color: COLOURS.slate },
     btnPrimary:    { padding: "7px 14px", borderRadius: 7, border: "1px solid " + COLOURS.teal, background: COLOURS.teal, color: "#fff", fontSize: 13, fontFamily: "inherit", cursor: "pointer", fontWeight: 600 },
-    btnDanger:     { padding: "7px 14px", borderRadius: 7, border: "1px solid #fecaca", background: "#fff1f2", color: COLOURS.danger, fontSize: 13, fontFamily: "inherit", cursor: "pointer" },
+    btnDanger:     { padding: "7px 14px", borderRadius: 7, border: "1px solid #ECC8C8", background: "#fff1f2", color: COLOURS.danger, fontSize: 13, fontFamily: "inherit", cursor: "pointer" },
     pageH:         { fontSize: 20, margin: "0 0 4px", color: COLOURS.ink, fontWeight: 700 },
     pageSub:       { color: COLOURS.slate2, margin: "0 0 18px", fontSize: 13 },
     crumb:         { fontSize: 12, color: COLOURS.hint, marginBottom: 6 }
@@ -154,7 +154,7 @@
     return h("span", {
       style: {
         marginLeft: 8, fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 999,
-        background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", verticalAlign: "middle"
+        background: "#F2E2BE", color: "#6B461F", border: "1px solid #E5C97D", verticalAlign: "middle"
       },
       title: "This setting saves but isn't fully wired to the app yet."
     }, "Coming soon");
@@ -840,8 +840,8 @@
       msg[0] ? h("div", {
         style: {
           marginTop: 8, padding: "10px 14px", borderRadius: 8, fontSize: 12,
-          background: msg[0].kind === "err" ? "#fef2f2" : COLOURS.tealBg,
-          border: "1px solid " + (msg[0].kind === "err" ? "#fecaca" : COLOURS.tealBorder),
+          background: msg[0].kind === "err" ? "#FCEFEF" : COLOURS.tealBg,
+          border: "1px solid " + (msg[0].kind === "err" ? "#ECC8C8" : COLOURS.tealBorder),
           color: msg[0].kind === "err" ? COLOURS.danger : COLOURS.tealDark
         }
       }, msg[0].text) : null
@@ -1019,8 +1019,8 @@
       msg[0] ? h("div", {
         style: {
           marginTop: 12, padding: "10px 14px", borderRadius: 8, fontSize: 12,
-          background: msg[0].kind === "err" ? "#fef2f2" : COLOURS.tealBg,
-          border: "1px solid " + (msg[0].kind === "err" ? "#fecaca" : COLOURS.tealBorder),
+          background: msg[0].kind === "err" ? "#FCEFEF" : COLOURS.tealBg,
+          border: "1px solid " + (msg[0].kind === "err" ? "#ECC8C8" : COLOURS.tealBorder),
           color: msg[0].kind === "err" ? COLOURS.danger : COLOURS.tealDark
         }
       }, msg[0].text) : null

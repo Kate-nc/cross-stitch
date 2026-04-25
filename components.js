@@ -292,7 +292,7 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
   // What-if projection line (now drawn within the extended chart area)
   var wiLine = null;
   if (wiDays > 0 && wiEndDate) {
-    wiLine = React.createElement("line", {x1:lastX, y1:yS(last.total), x2:xDate(wiEndDate), y2:yS(totalStitches), stroke:"#f59e0b", strokeWidth:"1.5", strokeDasharray:"5 3"});
+    wiLine = React.createElement("line", {x1:lastX, y1:yS(last.total), x2:xDate(wiEndDate), y2:yS(totalStitches), stroke:"#C0883A", strokeWidth:"1.5", strokeDasharray:"5 3"});
   }
   return React.createElement("div", {className:"chart-container"},
     React.createElement("svg", {viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
@@ -315,7 +315,7 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
     React.createElement("div", {className:"chart-legend"},
       React.createElement("span", null, React.createElement("span", {className:"legend-line solid"}), "Actual"),
       React.createElement("span", null, React.createElement("span", {className:"legend-line dashed"}), paceLabel),
-      wiLine ? React.createElement("span", null, React.createElement("span", {className:"legend-line dashed", style:{borderColor:'#f59e0b'}}), "What-if") : null
+      wiLine ? React.createElement("span", null, React.createElement("span", {className:"legend-line dashed", style:{borderColor:'#C0883A'}}), "What-if") : null
     )
   );
 });
@@ -548,7 +548,7 @@ function StatsChartSection({statsSessions, statsSettings, totalStitches, chartVi
           React.createElement("span", {style:{fontSize:12, color:'#8A8270'}}, "What-if pace:"),
           React.createElement("input", {type:"range", min:1, max:Math.max(defaultPace * 5, 500), value:paceVal, step:1,
             onChange:function(e){ setWhatIfPace(parseInt(e.target.value)); }, style:{width:110, cursor:'pointer'}}),
-          React.createElement("span", {style:{fontSize:12, fontWeight:600, color:'#f59e0b', minWidth:120}},
+          React.createElement("span", {style:{fontSize:12, fontWeight:600, color:'#C0883A', minWidth:120}},
             paceVal + " st/day \u2192 ~" + Math.ceil(remaining / paceVal) + " days"),
           whatIfPace != null ? React.createElement("button", {onClick:function(){ setWhatIfPace(null); },
             style:{fontSize:11, padding:'1px 6px', borderRadius:4, border:'1px solid #E5DCCB', background:'#FBF8F3', cursor:'pointer', color:'#A89E89'}}, "Reset") : null
@@ -901,7 +901,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
         return React.createElement("div",{
           key:sec.label,
           className:"section-cell",
-          style:{background:sec.isDone?'#16a34a':sectionColor(sec.pct),aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderRadius:4,fontSize:fs,color:sec.pct>50?'#fff':'#1B1814',fontWeight:sec.isDone?700:400,cursor:'pointer',padding:1,overflow:'hidden',position:'relative',outline:isSelected?'2px solid #B85C38':'none',outlineOffset:1},
+          style:{background:sec.isDone?'#4F7D3F':sectionColor(sec.pct),aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderRadius:4,fontSize:fs,color:sec.pct>50?'#fff':'#1B1814',fontWeight:sec.isDone?700:400,cursor:'pointer',padding:1,overflow:'hidden',position:'relative',outline:isSelected?'2px solid #B85C38':'none',outlineOffset:1},
           title:customLabel?customLabel+' ('+sec.pct+'%)':'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)',
           onClick:function(){
             if(isEditing)return;
@@ -946,7 +946,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
                 React.createElement("span",{style:{width:12,height:12,borderRadius:2,background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')',border:'1px solid rgba(0,0,0,0.15)',flexShrink:0,display:'inline-block'}}),
                 React.createElement("span",{style:{fontSize:11,color:'#5C5448',minWidth:32,flexShrink:0}},"#"+t.id),
                 React.createElement("div",{style:{flex:1,height:6,background:'#E5DCCB',borderRadius:3,overflow:'hidden'}},
-                  React.createElement("div",{style:{width:pct+'%',height:'100%',background:t.doneCount===t.total?'#16a34a':'#B85C38',borderRadius:3}})
+                  React.createElement("div",{style:{width:pct+'%',height:'100%',background:t.doneCount===t.total?'#4F7D3F':'#B85C38',borderRadius:3}})
                 ),
                 React.createElement("span",{style:{fontSize:11,color:'#8A8270',flexShrink:0,minWidth:70,textAlign:'right'}},
                   remaining>0?(remaining.toLocaleString()+' left'):'\u2713 done'
@@ -1061,7 +1061,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
     ),
     snap&&React.createElement("div",{style:{fontSize:12,color:'#8A8270',marginBottom:8}},
       "Since "+snap.date+": ",
-      React.createElement("strong",{style:{color:diff>=0?'#16a34a':'#dc2626'}},(diff>=0?'+':'')+diff+" stitches")
+      React.createElement("strong",{style:{color:diff>=0?'#4F7D3F':'#A53D3D'}},(diff>=0?'+':'')+diff+" stitches")
     ),
     React.createElement("div",{style:{display:'flex',gap:12,flexWrap:'wrap',justifyContent:'center'}},
       React.createElement("div",{style:{textAlign:'center'}},
@@ -1233,14 +1233,14 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
             },
               React.createElement('td', {style:{padding:'8px 10px', fontSize:13, fontWeight: isCurrent ? 700 : 400, color:'#1B1814', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}},
                 p.name,
-                isComplete && React.createElement('span', {style:{marginLeft:6, fontSize:11, color:'#16a34a', fontWeight:600}}, '\u2713 Complete'),
+                isComplete && React.createElement('span', {style:{marginLeft:6, fontSize:11, color:'#4F7D3F', fontWeight:600}}, '\u2713 Complete'),
                 isCurrent && !isComplete && React.createElement('span', {style:{marginLeft:6, fontSize:10, color:'#B85C38', background:'#F4DDCF', padding:'1px 6px', borderRadius:4, border:'1px solid #E8B89A', fontWeight:600}}, 'current')
               ),
               React.createElement('td', {style:{padding:'8px 10px', fontSize:12, color:'#8A8270', whiteSpace:'nowrap'}},
                 w && h ? (w + '\u00D7' + h + ' \u2014 ' + (p.totalStitches || 0).toLocaleString() + ' st') : ((p.totalStitches || 0).toLocaleString() + ' st')
               ),
               React.createElement('td', {style:{padding:'8px 10px', fontSize:12, whiteSpace:'nowrap'}},
-                React.createElement('span', {style:{color: isComplete ? '#16a34a' : pct >= 50 ? '#B85C38' : '#A89E89', fontWeight:600}}, pct + '%'),
+                React.createElement('span', {style:{color: isComplete ? '#4F7D3F' : pct >= 50 ? '#B85C38' : '#A89E89', fontWeight:600}}, pct + '%'),
                 React.createElement('span', {style:{color:'#CFC4AC', fontSize:11, marginLeft:4}}, '(' + (p.completedStitches||0).toLocaleString() + '/' + (p.totalStitches||0).toLocaleString() + ')')
               ),
               React.createElement('td', {style:{padding:'8px 10px', fontSize:12, color:'#8A8270', whiteSpace:'nowrap'}}, p.stitchesPerHour ? p.stitchesPerHour.toLocaleString() + ' st/hr' : '\u2014'),
@@ -1302,7 +1302,7 @@ function drawProgressCard(canvas, opts) {
   // Progress bar
   ctx.fillStyle = 'rgba(255,255,255,0.25)';
   ctx.fillRect(18, 46, W - 36, 9);
-  ctx.fillStyle = '#5eead4';
+  ctx.fillStyle = '#A8C594';
   var barW = Math.round((W - 36) * Math.min(1, (opts.percent || 0) / 100));
   if (barW > 0) ctx.fillRect(18, 46, barW, 9);
   // Stats grid
@@ -2075,10 +2075,10 @@ class StatsErrorBoundary extends React.Component {
   render() {
     if (this.state.error) {
       return React.createElement('div', {
-        style: {padding: '20px', textAlign: 'center', color: '#dc2626', fontSize: 13, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, margin: '12px'}
+        style: {padding: '20px', textAlign: 'center', color: '#A53D3D', fontSize: 13, background: '#FCEFEF', border: '1px solid #ECC8C8', borderRadius: 8, margin: '12px'}
       },
         React.createElement('div', {style: {fontWeight: 600, marginBottom: 6}}, 'Stats failed to render'),
-        React.createElement('div', {style: {fontSize: 11, color: '#7f1d1d'}}, String(this.state.error && this.state.error.message || this.state.error || 'Unknown error'))
+        React.createElement('div', {style: {fontSize: 11, color: '#5F1F1F'}}, String(this.state.error && this.state.error.message || this.state.error || 'Unknown error'))
       );
     }
     return this.props.children;

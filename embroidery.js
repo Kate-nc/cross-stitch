@@ -68,7 +68,7 @@ const STITCHES = [
   { id:"satin",name:"Satin",desc:"Smooth parallel fill",color:"#B85C38"},
   { id:"longshort",name:"Long & Short",desc:"Blended shading fill",color:"#944526"},
   { id:"frenchknot",name:"French Knots",desc:"Textured dots",color:"#ec4899"},
-  { id:"chainstitch",name:"Chain",desc:"Looped fill/outline",color:"#14b8a6"},
+  { id:"chainstitch",name:"Chain",desc:"Looped fill/outline",color:"#B85C38"},
   { id:"seedstitch",name:"Seed",desc:"Random short stitches",color:"#f59e0b"},
   { id:"stemstitch",name:"Stem",desc:"Outline stitch",color:"#8A8270"},
 ];
@@ -1025,10 +1025,10 @@ function EmbroideryApp(){
       ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
       const[bx0,by0]=cb(curPts[0][0],curPts[0][1]);ctx.beginPath();ctx.moveTo(bx0,by0);
       for(let i=1;i<curPts.length;i++){const[bxi,byi]=cb(curPts[i][0],curPts[i][1]);ctx.lineTo(bxi,byi);}
-      ctx.strokeStyle="#14b8a6";ctx.lineWidth=2.5;ctx.stroke();
+      ctx.strokeStyle="#B85C38";ctx.lineWidth=2.5;ctx.stroke();
       const[bxL,byL]=cb(curPts[curPts.length-1][0],curPts[curPts.length-1][1]);
-      ctx.setLineDash([4,4]);ctx.strokeStyle="#14b8a688";ctx.beginPath();ctx.moveTo(bxL,byL);ctx.lineTo(bx0,by0);ctx.stroke();ctx.setLineDash([]);
-      ctx.beginPath();ctx.arc(bx0,by0,6,0,Math.PI*2);ctx.fillStyle="#14b8a6";ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();
+      ctx.setLineDash([4,4]);ctx.strokeStyle="#B85C3888";ctx.beginPath();ctx.moveTo(bxL,byL);ctx.lineTo(bx0,by0);ctx.stroke();ctx.setLineDash([]);
+      ctx.beginPath();ctx.arc(bx0,by0,6,0,Math.PI*2);ctx.fillStyle="#B85C38";ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();
       ctx.restore();
     }
     // Magnetic lasso overlay (buffer-space)
