@@ -86,7 +86,27 @@
 }
 
 [data-theme="dark"] {
-  /* Workshop colour — dark (UX-12 Phase 2 wires these) */
+  /* Workshop colour — dark (UX-12 Phase 2). Overrides every chrome token
+     consumed across the app so swapping data-theme="dark" on <html>
+     re-skins the entire surface without touching component CSS. */
+
+  /* Legacy names (consumed everywhere) flipped to dark Workshop values. */
+  --accent:            #E2865B;     /* terracotta — lifted for dark */
+  --accent-hover:      #F0A07A;
+  --accent-light:      #3A2418;     /* dark accent-soft */
+  --accent-border:     #6E3A22;
+  --text-primary:      #F4EFE7;     /* warm parchment */
+  --text-secondary:    #B6AC9C;
+  --text-tertiary:     #847B6C;
+  --border:            #3A352E;
+  --border-subtle:     #2A2724;
+  --surface:           #1C1A18;     /* raised body */
+  --surface-secondary: #14120F;     /* page background */
+  --surface-tertiary:  #2A2724;     /* lifted cards */
+  --shadow-sm:         0 1px 2px rgba(0,0,0,.32);
+  --shadow-md:         0 4px 12px rgba(0,0,0,.42);
+
+  /* Workshop --ws-* aliases (kept in sync for Phase 1+ consumers). */
   --ws-surface:        #1C1A18;
   --ws-surface-raised: #2A2724;
   --ws-surface-sunken: #14120F;
@@ -96,6 +116,7 @@
   --ws-accent:         #E2865B;
   --ws-shadow-sm:      0 1px 2px rgba(0,0,0,.32);
 
+  /* Workshop canonical tokens. */
   --line:              #3A352E;
   --line-2:            #4B4339;
   --text-muted:        #847B6C;
@@ -114,6 +135,8 @@
 
   --shadow:    0 2px 8px rgba(0,0,0,.42);
   --shadow-lg: 0 12px 28px rgba(0,0,0,.55);
+
+  color-scheme: dark;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html{height:100%;}
@@ -3463,23 +3486,25 @@ html.pref-high-contrast textarea {
 html.pref-high-contrast,
 html.pref-high-contrast body { color: #000 !important; }
 
-/* Dark mode override (manual). Lightweight — inverts surface backgrounds and
-   keeps the teal accent. Per-page tweaks can refine this later. */
-html.pref-dark { background: #0b1220; color-scheme: dark; }
-html.pref-dark body { background: #0b1220; color: #E5DCCB; }
+/* Dark mode (UX-12 Phase 2). Most of the work is done by the
+   [data-theme="dark"] block at the top of this file, which overrides every
+   chrome token. The rules below cover hardcoded backgrounds in legacy
+   components that haven't been migrated to var(--surface) yet. */
+html.pref-dark { background: var(--surface-secondary); color-scheme: dark; }
+html.pref-dark body { background: var(--surface-secondary); color: var(--text-primary); }
 html.pref-dark .card,
 html.pref-dark [data-card],
 html.pref-dark .panel,
 html.pref-dark .modal,
 html.pref-dark .toolbar,
-html.pref-dark .sidebar { background: #111827 !important; color: #E5DCCB !important; border-color: #1f2937 !important; }
+html.pref-dark .sidebar { background: var(--surface) !important; color: var(--text-primary) !important; border-color: var(--border) !important; }
 html.pref-dark input,
 html.pref-dark select,
 html.pref-dark textarea,
 html.pref-dark button:not(.btn-primary):not([data-pref-modal] *) {
-  background: #1f2937 !important; color: #e5e7eb !important; border-color: #334155 !important;
+  background: var(--surface-tertiary) !important; color: var(--text-primary) !important; border-color: var(--border) !important;
 }
-html.pref-dark a { color: #5eead4; }
+html.pref-dark a { color: var(--accent); }
 
 /* --- A2 (UX Phase 5) --- Bold edit-mode strip in the Tracker.
    Sits directly under the global header, above the toolbar, so users

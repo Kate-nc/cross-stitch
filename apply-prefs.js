@@ -26,9 +26,33 @@
 
     var dark = String(get("a11yDarkMode", "system"));
     root.classList.remove("pref-dark", "pref-light");
-    if (dark === "dark") root.classList.add("pref-dark");
-    else if (dark === "light") root.classList.add("pref-light");
+    var resolved = dark;
+    if (dark === "system") {
+      try {
+        resolved = (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)
+          ? "dark" : "light";
+      } catch (_) { resolved = "light"; }
+    }
+    if (resolved === "dark") {
+      root.classList.add("pref-dark");
+      root.setAttribute("data-theme", "dark");
+    } else {
+      root.classList.add("pref-light");
+      root.removeAttribute("data-theme");
+    }
   }
+
+  // React to OS-level theme changes when in "system" mode.
+  try {
+    if (window.matchMedia) {
+      var mq = window.matchMedia("(prefers-color-scheme: dark)");
+      var onChange = function () {
+        if (String(get("a11yDarkMode", "system")) === "system") applyAccessibility();
+      };
+      if (mq.addEventListener) mq.addEventListener("change", onChange);
+      else if (mq.addListener) mq.addListener(onChange);
+    }
+  } catch (_) {}
 
   function applyAccent() {
     var col = get("appAccentColour", "#B85C38");
