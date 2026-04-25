@@ -422,7 +422,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .lp-btn:hover{background:#f8fafc;color:var(--accent);}
 .lp-btn--ghost{background:transparent;}
 .lp-btn--primary{background:#B85C38;color:#fff;border-color:#B85C38;}
-.lp-btn--primary:hover{background:#0b7d72;color:#fff;}
+.lp-btn--primary:hover{background:#944526;color:#fff;}
 .lp-btn--danger{background:#dc2626;color:#fff;border-color:#dc2626;}
 .lp-btn--danger:hover{background:#b91c1c;color:#fff;}
 .lp-segmented{
@@ -967,7 +967,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   flex-shrink: 0;
 }
 .mini-stats-btn:hover {
-  background: #ccfbf1;
+  background: #F4DDCF;
 }
 
 /* ═══ Stats: Progress Ring ═══ */
@@ -1114,7 +1114,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   text-align: center;
 }
 .timeline-show-all:hover {
-  background: #ccfbf1;
+  background: #F4DDCF;
 }
 .note-editor {
   margin-top: 4px;
@@ -1341,7 +1341,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   white-space: nowrap;
 }
 .goal-set-btn:hover {
-  background: #ccfbf1;
+  background: #F4DDCF;
 }
 .goal-presets {
   display: flex;
@@ -1514,7 +1514,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   color: #B85C38;
 }
 .stats-export-btn--share:hover {
-  background: #ccfbf1;
+  background: #F4DDCF;
 }
 
 /* ═══ Phase E: Colour Timeline ═══ */
@@ -1693,8 +1693,8 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   background: var(--accent-light);
 }
 .emb-method-card--draw {
-  border: 2px solid #14b8a6;
-  background: #F4DDCF;
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1729,11 +1729,11 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   filter: none;
 }
 .emb-btn--secondary {
-  background: #14b8a6;
+  background: var(--accent);
   color: #fff;
 }
 .emb-btn--secondary:hover {
-  background: #B85C38;
+  background: var(--accent-hover);
   filter: none;
 }
 .emb-btn--amber {
@@ -2373,7 +2373,7 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .session-toast button[aria-label="Dismiss"]{background:transparent;border-color:transparent;color:#86efac;padding:3px 6px;}
 .session-toast input{flex:1;font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid #86efac;background:#fff;color:#166534;font-family:inherit;outline:none;}
 .session-toast input:focus{border-color:#16a34a;}
-.sess-card{padding:10px;background:var(--accent-light);border-radius:var(--radius-md);border:1px solid #ccfbf1;display:flex;flex-direction:column;gap:6px;}
+.sess-card{padding:10px;background:var(--accent-light);border-radius:var(--radius-md);border:1px solid #F4DDCF;display:flex;flex-direction:column;gap:6px;}
 .sess-card .row{display:flex;justify-content:space-between;font-size:12px;}
 .sess-card .val{font-weight:700;color:var(--accent);}
 .sess-card .lbl{color:var(--text-tertiary);font-size:11px;}
@@ -4114,7 +4114,7 @@ html.pref-dark a { color: #5eead4; }
   display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; color: #8A8270;
 }
 .iw-progress-item { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: #EFE7D6; }
-.iw-progress-item--reached { background: #ccfbf1; color: #944526; }
+.iw-progress-item--reached { background: #F4DDCF; color: #944526; }
 .iw-progress-item--active { background: var(--accent, #B85C38); color: #fff; }
 .iw-progress-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 0; }
 .iw-progress-marker, .iw-progress-btn { font-size: 12px; }

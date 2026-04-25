@@ -13109,10 +13109,10 @@ window.CreatorToastContainer = function CreatorToastContainer() {
   if (!app.toasts || app.toasts.length === 0) return null;
 
   var typeStyles = {
-    info:    { bg: "#f0f9ff", border: "#bae6fd", color: "#0369a1", icon: Icons.info },
-    success: { bg: "#f0fdf4", border: "#bbf7d0", color: "#166534", icon: Icons.check },
-    warning: { bg: "#fffbeb", border: "#fde68a", color: "#92400e", icon: Icons.warning },
-    error:   { bg: "#fef2f2", border: "#fecaca", color: "#991b1b", icon: Icons.x }
+    info:    { bg: "#F4DDCF", border: "#E8B89A", color: "#944526", icon: Icons.info },
+    success: { bg: "#E6EFD9", border: "#B8CC9E", color: "#3F6432", icon: Icons.check },
+    warning: { bg: "#F4E5C8", border: "#D6B97A", color: "#8A6325", icon: Icons.warning },
+    error:   { bg: "#F2D8D8", border: "#D49A9A", color: "#7A2C2C", icon: Icons.x }
   };
 
   return h("div", {

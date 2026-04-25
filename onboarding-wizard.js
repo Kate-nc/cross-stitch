@@ -24,7 +24,7 @@
     if (typeof document !== "undefined" && !document.getElementById("ob-wiz-styles")) {
       var s = document.createElement("style");
       s.id = "ob-wiz-styles";
-      s.textContent = ".onboarding-focusable:focus-visible{outline:3px solid #14b8a6;outline-offset:2px;border-radius:6px}";
+      s.textContent = ".onboarding-focusable:focus-visible{outline:3px solid var(--accent,#B85C38);outline-offset:2px;border-radius:6px}";
       document.head.appendChild(s);
     }
   } catch (_) {}

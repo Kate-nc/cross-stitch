@@ -402,7 +402,7 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:600,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {p.name||"Untitled"}
-                    {isActive&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:"#B85C38",background:"#ccfbf1",padding:"1px 6px",borderRadius:8,verticalAlign:"middle"}}>ACTIVE</span>}
+                    {isActive&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:"#B85C38",background:"#F4DDCF",padding:"1px 6px",borderRadius:8,verticalAlign:"middle"}}>ACTIVE</span>}
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
                     <div style={{flex:1,height:5,background:"#E5DCCB",borderRadius:3,overflow:"hidden"}}>
@@ -5846,7 +5846,7 @@ return(
                   <span style={{fontWeight:600,fontSize:13,minWidth:52}}>DMC {p.id}</span>
                   <span style={{fontSize:12,color:"#5C5448",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
                   <span style={{fontSize:11,color:"#A89E89"}}>{p.count} st</span>
-                  {isCurrent&&<span style={{fontSize:11,fontWeight:600,color:"#B85C38",background:"#ccfbf1",padding:"2px 8px",borderRadius:10}}>Current</span>}
+                  {isCurrent&&<span style={{fontSize:11,fontWeight:600,color:"#B85C38",background:"#F4DDCF",padding:"2px 8px",borderRadius:10}}>Current</span>}
                 </div>
               );
             })}

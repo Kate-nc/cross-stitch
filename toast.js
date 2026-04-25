@@ -51,8 +51,9 @@
   }
 
   function accentBorder(type) {
-    if (type === "success") return "#16a34a";
-    if (type === "error") return "#dc2626";
+    if (type === "success") return "var(--success, #4F7D3F)";
+    if (type === "error") return "var(--danger, #A53D3D)";
+    if (type === "warning") return "var(--warning, #C0883A)";
     return "var(--accent, #B85C38)";
   }
 

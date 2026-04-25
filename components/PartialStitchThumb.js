@@ -212,7 +212,7 @@
         className: className,
         role: 'img',
         'aria-label': alt,
-        style: Object.assign({}, imgStyle, { border: '1px dashed #e2e8f0' })
+        style: Object.assign({}, imgStyle, { border: '1px dashed #E5DCCB' })
       });
     }
 

@@ -151,7 +151,7 @@ const SharedModals = {
         React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid #CFC4AC", flexShrink: 0 } }),
         React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "#1B1814" } }, "DMC " + t.id),
         React.createElement("div", { style: { fontSize: 13, color: "#5C5448", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
-        isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#B85C38", background: "#ccfbf1", padding: "2px 8px", borderRadius: 10 } }, "Current"),
+        isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#B85C38", background: "#F4DDCF", padding: "2px 8px", borderRadius: 10 } }, "Current"),
         isUsed && !isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 } }, "In Use — tap to swap"),
         isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fde68a", padding: "2px 8px", borderRadius: 10 } }, "Swap?")
       );
