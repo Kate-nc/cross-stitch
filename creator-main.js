@@ -745,6 +745,17 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           if(state.addToast)state.addToast("Download cancelled \u2014 give your pattern a name to download a .json file.",{type:"info",duration:3500});
         }}
       />}
+      {state.pat&&state.pal&&window.CreatorActionBar&&<window.CreatorActionBar
+        ready={true}
+        sW={state.sW} sH={state.sH}
+        fabricCt={state.fabricCt}
+        colourCount={state.pal.length}
+        skeinEstimate={state.totalSkeins}
+        onPrintPdf={()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData)}
+        onTrackPattern={io.handleOpenInTracker}
+        onSaveJson={io.saveProject}
+        onMoreExports={()=>{state.setTab("materials");if(state.setMaterialsTab)state.setMaterialsTab("output");}}
+      />}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
         {state.loadError&&<div style={{background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#A53D3D",marginBottom:12}}>{state.loadError}</div>}

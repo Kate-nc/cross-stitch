@@ -392,6 +392,14 @@ window.Icons = (function() {
     menu: function() {
       return svg(l(3, 6, 21, 6), l(3, 12, 21, 12), l(3, 18, 21, 18));
     },
+    // Printer — used by the Creator outcome action bar (UX-12 Phase 5).
+    printer: function() {
+      return svg(
+        pl('6 9 6 2 18 2 18 9'),
+        p('M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2'),
+        rc(6, 14, 12, 8)
+      );
+    },
     // Chevron up — replaces ▲ ↑
     chevronUp: function() {
       return svg(pl('18 15 12 9 6 15'));

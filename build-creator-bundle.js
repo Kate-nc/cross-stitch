@@ -50,6 +50,8 @@ const ORDER = [
   // B4: MaterialsHub renders LegendTab/PrepareTab/ExportTab as sub-tabs,
   // so it must be concatenated AFTER all three.
   'MaterialsHub.js',
+  // UX-12 Phase 5: outcome action bar mounted in creator-main.js.
+  'ActionBar.js',
 ];
 
 const parts = ORDER.map(name => {
