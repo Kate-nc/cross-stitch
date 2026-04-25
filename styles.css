@@ -19,24 +19,14 @@
   --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
 
   /* ════════════════════════════════════════════════════════════════
-     Workshop visual direction tokens — Phase 0 scaffold (UX-12).
+     Workshop visual direction tokens (UX-12).
      Source of truth: reports/showcase/_workshop.css
-     Phase 1+ migrates rules from legacy --accent/--surface/etc.
-     to the --ws-* aliases below; the final cleanup PR renames
-     --ws-* → canonical Workshop names.
-     Do NOT consume these tokens yet — Phase 0 is values only.
+     Workshop is the sole theme — the Phase 0 --ws-* aliases were
+     removed in Phase 8 once every consumer had migrated to the
+     canonical names above (--accent / --surface / --text-primary /
+     --text-secondary / --radius-sm / --shadow-sm) and the canonical
+     names below.
      ════════════════════════════════════════════════════════════════ */
-
-  /* Workshop colour — light (conflicting names get --ws- prefix) */
-  --ws-surface:        #FBF8F3;     /* linen */
-  --ws-surface-raised: #FFFFFF;
-  --ws-surface-sunken: #F2EDE3;
-  --ws-surface-ink:    #1F1B16;
-  --ws-text-primary:   #1B1814;
-  --ws-text-secondary: #5C5448;
-  --ws-accent:         #B85C38;     /* terracotta */
-  --ws-radius-sm:      4px;
-  --ws-shadow-sm:      0 1px 2px rgba(60,40,20,.06);
 
   /* Workshop colour — light (non-conflicting; canonical names) */
   --line:              #E5DCCB;
@@ -75,14 +65,9 @@
   --motion:      160ms ease-out;
   --motion-slow: 220ms ease-out;
 
-  /* Workshop shadow (raised/lg). --ws-shadow-sm above shadows
-     legacy --shadow-sm during Phase 1 migration. */
+  /* Workshop raised/lg shadows. */
   --shadow:    0 2px 8px rgba(60,40,20,.08);
   --shadow-lg: 0 12px 28px rgba(60,40,20,.14);
-
-  /* Workshop radius (lg already canonical in legacy as 10px;
-     Workshop wants 14px — exposed as --ws-radius-lg until Phase 1) */
-  --ws-radius-lg: 14px;
 }
 
 [data-theme="dark"] {
@@ -105,16 +90,6 @@
   --surface-tertiary:  #2A2724;     /* lifted cards */
   --shadow-sm:         0 1px 2px rgba(0,0,0,.32);
   --shadow-md:         0 4px 12px rgba(0,0,0,.42);
-
-  /* Workshop --ws-* aliases (kept in sync for Phase 1+ consumers). */
-  --ws-surface:        #1C1A18;
-  --ws-surface-raised: #2A2724;
-  --ws-surface-sunken: #14120F;
-  --ws-surface-ink:    #0E0C0A;
-  --ws-text-primary:   #F4EFE7;
-  --ws-text-secondary: #B6AC9C;
-  --ws-accent:         #E2865B;
-  --ws-shadow-sm:      0 1px 2px rgba(0,0,0,.32);
 
   /* Workshop canonical tokens. */
   --line:              #3A352E;

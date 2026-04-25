@@ -11,6 +11,31 @@ this file is a shorter pointer plus the most-broken house rule.
 - After editing any file in `creator/`, regenerate the bundle with
   `node build-creator-bundle.js` before committing.
 
+## Workshop is the sole theme
+
+- The Workshop visual direction (UX-12) is the only theme. Light tokens
+  live on `:root` in [styles.css](styles.css); dark tokens on
+  `[data-theme="dark"]`. The mirror reference lives at
+  `reports/showcase/_workshop.css`.
+- The Phase 0 `--ws-*` aliases have been removed (Phase 8). Use the
+  canonical token names directly (`--accent`, `--surface`,
+  `--text-primary`, `--text-secondary`, `--radius-sm`, `--shadow-sm`,
+  plus the non-conflicting Workshop tokens like `--line`, `--accent-2`,
+  `--success`, `--motion`, etc.). No raw hex in component CSS \u2014
+  `rgba(...)` is allowed only inside `box-shadow` declarations.
+- `/home` ([home.html](home.html) + [home-app.js](home-app.js)) is the
+  default landing. Direct URLs to `index.html`, `stitch.html`, and
+  `manager.html` still work and drop users straight into the relevant
+  tool. The legacy [home-screen.js](home-screen.js) is still mounted by
+  `creator-main.js` when `mode === 'home'` and must not be deleted
+  until that mount path is refactored.
+- Pattern Keeper-compatible PDF export is bit-stable. The Workshop
+  print theme is opt-in via the `creator.pdfWorkshopTheme` user
+  preference; do **not** modify [pdf-export-worker.js](pdf-export-worker.js),
+  [creator/pdfChartLayout.js](creator/pdfChartLayout.js), or
+  [creator/pdfExport.js](creator/pdfExport.js) without an explicit
+  PK-compat regression check.
+
 ## House rule: no emojis in user-facing UI
 
 This codebase ships an SVG icon library at [icons.js](icons.js) used via
