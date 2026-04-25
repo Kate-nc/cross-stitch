@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan B · Token system showcase (Studio direction)</title>
+<link rel="stylesheet" href="_wireframe.css">
+<style>
+  .ts-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:24px}
+  .ts-card{background:#fff;border:1px solid var(--w-line);border-radius:8px;padding:20px}
+  .ts-card h2{margin:0 0 14px;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--w-ink-3)}
+  .type-row{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px dashed var(--w-line-2);padding:8px 0}
+  .type-row .lbl{color:var(--w-ink-3);font-family:Menlo,monospace;font-size:11px}
+  .colour-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed var(--w-line-2);font-size:12px}
+  .colour-row .sw{width:32px;height:32px;border-radius:6px;border:1px solid #eee}
+  .colour-row .name{font-weight:600;flex:1}
+  .colour-row .var{color:var(--w-ink-3);font-family:Menlo,monospace;font-size:11px}
+  .space-vis{display:flex;align-items:flex-end;gap:10px;padding:14px 0}
+  .space-vis div{background:var(--w-ink);border-radius:2px;color:#fff;font-size:10px;text-align:center;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;font-family:Menlo,monospace}
+  .btn-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .btn-row{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--w-ink-3)}
+  .badge-grid{display:flex;gap:6px;flex-wrap:wrap}
+  .icon-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+  .icon-cell{aspect-ratio:1;border:1px solid var(--w-line);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--w-ink-2)}
+</style>
+</head>
+<body>
+
+<div class="wf-frame" style="max-width:1200px">
+<div class="wf-meta">
+  <strong>Plan B · Wireframe 1 · Token system showcase (Studio direction)</strong>
+  Demonstrates: type scale, six-step spacing, four-button system, badge primitive, icon set audit. Single source of truth replaces ad-hoc inline styles.
+</div>
+<div class="wf-canvas">
+<div class="ts-grid">
+
+  <div class="ts-card">
+    <h2>Type scale (6 steps + hero)</h2>
+    <div class="type-row"><span style="font-size:30px;line-height:1.25;font-weight:600">Welcome back, Eli</span><span class="lbl">--text-hero · 30/38</span></div>
+    <div class="type-row"><span style="font-size:22px;line-height:1.36;font-weight:600">Tudor Rose Sampler</span><span class="lbl">--text-h · 22/30</span></div>
+    <div class="type-row"><span style="font-size:18px;line-height:1.44;font-weight:600">Threads &amp; materials</span><span class="lbl">--text-xl · 18/26</span></div>
+    <div class="type-row"><span style="font-size:15px;line-height:1.47">Card title and section header</span><span class="lbl">--text-lg · 15/22</span></div>
+    <div class="type-row"><span style="font-size:13px;line-height:1.54">Body text — the standard reading size for paragraphs and labels.</span><span class="lbl">--text-md · 13/20</span></div>
+    <div class="type-row"><span style="font-size:12px;line-height:1.34;color:var(--w-ink-3)">Helper text and footer notes</span><span class="lbl">--text-sm · 12/16</span></div>
+    <div class="type-row"><span style="font-size:11px;line-height:1.45;color:var(--w-ink-3);text-transform:uppercase;letter-spacing:.06em">Caption · dense data</span><span class="lbl">--text-xs · 11/16</span></div>
+  </div>
+
+  <div class="ts-card">
+    <h2>Spacing scale (4 px baseline)</h2>
+    <div class="space-vis">
+      <div style="width:24px;height:4px">4</div>
+      <div style="width:24px;height:8px">8</div>
+      <div style="width:24px;height:12px">12</div>
+      <div style="width:24px;height:16px">16</div>
+      <div style="width:24px;height:24px">24</div>
+      <div style="width:24px;height:32px">32</div>
+      <div style="width:24px;height:48px">48</div>
+      <div style="width:24px;height:64px">64</div>
+    </div>
+    <p style="font-size:12px;color:var(--w-ink-3);margin:10px 0 0">Every padding, gap, and margin in the app must be a multiple of 4. Stylelint rule blocks non-token values.</p>
+  </div>
+
+  <div class="ts-card">
+    <h2>Colour tokens · light + dark</h2>
+    <div class="colour-row"><span class="sw" style="background:#fff"></span><span class="name">Surface</span><span class="var">--surface · #FFF / #0B0C0F</span></div>
+    <div class="colour-row"><span class="sw" style="background:#F7F8FA"></span><span class="name">Surface raised</span><span class="var">--surface-raised · #F7F8FA / #16181D</span></div>
+    <div class="colour-row"><span class="sw" style="background:#0B0C0F"></span><span class="name">Text primary</span><span class="var">--text-primary · #0B0C0F / #F1F2F4</span></div>
+    <div class="colour-row"><span class="sw" style="background:#5B6168"></span><span class="name">Text secondary</span><span class="var">--text-secondary · #5B6168 / #A4A9B0</span></div>
+    <div class="colour-row"><span class="sw" style="background:#5046E5"></span><span class="name">Accent</span><span class="var">--accent · #5046E5 / #7C75F0</span></div>
+    <div class="colour-row"><span class="sw" style="background:#14965A"></span><span class="name">Success</span><span class="var">--success · #14965A / #2EBE7A</span></div>
+    <div class="colour-row"><span class="sw" style="background:#C58A00"></span><span class="name">Warning</span><span class="var">--warning · #C58A00 / #E5AC2A</span></div>
+    <div class="colour-row"><span class="sw" style="background:#D03A3A"></span><span class="name">Danger</span><span class="var">--danger · #D03A3A / #EE6262</span></div>
+  </div>
+
+  <div class="ts-card">
+    <h2>Button system (4 variants × 3 sizes)</h2>
+    <div class="btn-grid">
+      <div class="btn-row"><button class="wf-btn wf-btn--primary">Primary</button><span>--btn-primary</span></div>
+      <div class="btn-row"><button class="wf-btn">Secondary</button><span>--btn-secondary</span></div>
+      <div class="btn-row"><button class="wf-btn wf-btn--ghost">Ghost</button><span>--btn-ghost</span></div>
+      <div class="btn-row"><button class="wf-btn" style="background:#D03A3A;color:#fff;border-color:#D03A3A">Danger</button><span>--btn-danger</span></div>
+    </div>
+    <h2 style="margin-top:18px">Badge primitive</h2>
+    <div class="badge-grid">
+      <span class="wf-chip"><span class="wf-swatch" style="background:#7c1a1a"></span>DMC 498</span>
+      <span class="wf-chip" style="background:#0B0C0F;color:#fff;border-color:#0B0C0F">Active</span>
+      <span class="wf-chip" style="background:#E7F4EE;border-color:#9DC9B5;color:#117C4F">✓ Owned</span>
+      <span class="wf-chip" style="background:#FCEFD8;border-color:#E2C283;color:#7A5800">⚠ 3 needed</span>
+      <span class="wf-chip" style="background:#FBEAEA;border-color:#E5A4A4;color:#9D2929">! Out of stock</span>
+    </div>
+    <p style="font-size:12px;color:var(--w-ink-3);margin:10px 0 0">All badges pair colour with icon + text — never colour alone.</p>
+  </div>
+
+  <div class="ts-card" style="grid-column:1/-1">
+    <h2>Icon set audit · 1.5 stroke (currentColor)</h2>
+    <div class="icon-grid">
+      <div class="icon-cell">✚</div><div class="icon-cell">⌫</div><div class="icon-cell">◐</div><div class="icon-cell">✋</div>
+      <div class="icon-cell">⌖</div><div class="icon-cell">✎</div><div class="icon-cell">▤</div><div class="icon-cell">⎙</div>
+      <div class="icon-cell">↗</div><div class="icon-cell">⤓</div><div class="icon-cell">≡</div><div class="icon-cell">?</div>
+      <div class="icon-cell">⚙</div><div class="icon-cell">★</div><div class="icon-cell">◷</div><div class="icon-cell">⌧</div>
+    </div>
+    <p style="font-size:12px;color:var(--w-ink-3);margin:10px 0 0">Existing 47 icons audited; 4 new icons added (wakeLock, qrShare, columnsCollapse, printer). All consumed via <code>window.Icons.*()</code>; no inline SVG, no emoji.</p>
+  </div>
+
+</div>
+</div>
+<div class="wf-note">
+  Notes:
+  <ol>
+    <li>Type and spacing tokens land in <code>styles.css</code> as CSS variables; a stylelint rule blocks raw <code>font-size:</code> and <code>padding:</code> with non-token values.</li>
+    <li>Four button variants replace ~12 page-specific classes (V-H3); page-specific classes alias to one of the four.</li>
+    <li>Badge primitive replaces eight ad-hoc badges (V-M4); always pairs colour with icon + text (V-H4 / a11y P3).</li>
+    <li>Dark mode shipped as one PR — every token has a dark value (V-H2).</li>
+  </ol>
+</div>
+</div>
+
+</body>
+</html>

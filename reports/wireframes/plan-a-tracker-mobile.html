@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan A · Tracker on phone (Workshop direction)</title>
+<link rel="stylesheet" href="_wireframe.css">
+<style>
+  /* Phone-tracker layout */
+  .ph-top{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--w-line);background:#fafafa}
+  .ph-top .title{font-weight:600;font-size:13px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ph-top .pct{font-size:11px;color:var(--w-ink-3);font-variant-numeric:tabular-nums}
+  .ph-iconbtn{width:36px;height:36px;border:1px solid var(--w-line);background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--w-ink-2)}
+  .ph-curcol{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#fff;border-bottom:1px solid var(--w-line);font-size:12px}
+  .ph-curcol .sw{width:18px;height:18px;border-radius:4px;background:#444;border:1px solid #222}
+  .ph-curcol .id{font-weight:700}
+  .ph-curcol .nm{color:var(--w-ink-3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ph-curcol .rem{color:var(--w-ink-2);font-variant-numeric:tabular-nums}
+  .ph-canvas{position:relative;flex:1;background:#fafafa;overflow:hidden}
+  .ph-canvas .wf-chart{position:absolute;inset:0}
+  .ph-fab-dock{position:absolute;left:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));top:8px;width:44px;display:flex;flex-direction:column;gap:6px;background:#fff;border:1px solid var(--w-line);border-radius:14px;padding:6px;box-shadow:0 2px 6px rgba(0,0,0,.10)}
+  .ph-fab-dock button{width:32px;height:32px;border:none;background:transparent;border-radius:8px;color:var(--w-ink-2);font-size:13px;cursor:pointer}
+  .ph-fab-dock button.active{background:var(--w-ink);color:#fff}
+  .ph-bottom-pill{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));display:flex;gap:6px;background:#fff;border:1px solid var(--w-line);border-radius:999px;padding:5px;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+  .ph-bottom-pill button{min-width:72px;min-height:44px;padding:0 14px;border:none;background:transparent;border-radius:999px;font:inherit;font-size:12px;color:var(--w-ink-2)}
+  .ph-bottom-pill button.active{background:var(--w-ink);color:#fff;font-weight:600}
+  .ph-stat-strip{position:absolute;top:46px;right:8px;background:#fff;border:1px solid var(--w-line);border-radius:10px;padding:6px 10px;font-size:11px;color:var(--w-ink-2);text-align:right;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .ph-stat-strip .num{font-size:14px;font-weight:700;color:var(--w-ink);font-variant-numeric:tabular-nums}
+  .wakelock-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#4f7d3f;vertical-align:middle;margin-right:4px}
+  /* Drawer (collapsed peek) */
+  .ph-drawer{position:absolute;left:60px;right:8px;bottom:calc(76px + env(safe-area-inset-bottom,0px));background:#fff;border:1px solid var(--w-line);border-radius:14px;padding:8px;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--w-ink-3);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  .ph-drawer .grow{flex:1}
+  .ph-drawer .palette-mini{display:flex;gap:3px}
+  .ph-drawer .palette-mini i{display:inline-block;width:14px;height:14px;border-radius:3px;background:#888;border:1px solid #555}
+  .ph-drawer .palette-mini i:nth-child(2){background:#bbb}
+  .ph-drawer .palette-mini i:nth-child(3){background:#dadada}
+  .ph-drawer .palette-mini i:nth-child(4){background:#666}
+  .ph-drawer .palette-mini i:nth-child(5){background:#aaa}
+</style>
+</head>
+<body>
+
+<div class="wf-frame" style="max-width:520px">
+<div class="wf-meta">
+  <strong>Plan A · Wireframe 1 · Tracker on phone (360×780)</strong>
+  Direction: Workshop (calm, canvas-first). Demonstrates: floating tool dock, persistent current-colour pill, safe-area aware bottom mode-switch, screen-wake indicator, single-thumb reach.
+</div>
+<div class="wf-canvas" style="background:#dcdcdc;padding:24px 0">
+
+<div class="phone">
+  <div class="phone-statusbar"><span>9:41</span><span>•••• 5G ▮ 87%</span></div>
+  <div class="phone-screen" style="display:flex;flex-direction:column">
+
+    <div class="ph-top">
+      <button class="ph-iconbtn" aria-label="Projects">≡</button>
+      <div class="title">Tudor Rose Sampler</div>
+      <div class="pct">42%</div>
+      <button class="ph-iconbtn" aria-label="Help">?</button>
+    </div>
+
+    <div class="ph-curcol">
+      <span class="sw" style="background:#7c1a1a"></span>
+      <span class="id">DMC&nbsp;498</span>
+      <span class="nm">Dark red</span>
+      <span class="rem">312 left</span>
+    </div>
+
+    <div class="ph-canvas">
+      <div class="wf-chart" style="height:100%"><div class="wf-chart-cells"></div></div>
+
+      <!-- Floating tool dock -->
+      <div class="ph-fab-dock">
+        <button class="active" title="Mark">✚</button>
+        <button title="Erase">⌫</button>
+        <button title="Highlight">◐</button>
+        <button title="Pan">✋</button>
+        <button title="Zoom-fit">⌖</button>
+      </div>
+
+      <!-- Stat strip -->
+      <div class="ph-stat-strip">
+        <div><span class="wakelock-dot"></span>Awake</div>
+        <div class="num">214</div>
+        <div>today</div>
+      </div>
+
+      <!-- Drawer peek -->
+      <div class="ph-drawer">
+        <span style="font-weight:600">Palette</span>
+        <span class="palette-mini"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="grow"></span>
+        <span>Tap to expand ▴</span>
+      </div>
+
+      <!-- Bottom mode switch -->
+      <div class="ph-bottom-pill">
+        <button class="active">Stitch</button>
+        <button>Find</button>
+        <button>Edit</button>
+      </div>
+
+      <span class="wf-anno" style="top:46px;left:60px">Tool dock — 44px taps, left-handed friendly</span>
+      <span class="wf-anno" style="bottom:80px;left:8px">Bottom pill clears Android gesture bar via env(safe-area-inset-bottom)</span>
+    </div>
+
+  </div>
+  <div class="phone-gesturebar"></div>
+</div>
+
+</div>
+<div class="wf-note">
+  Notes:
+  <ol>
+    <li>Canvas occupies ~75% of viewport — addresses the "shrunken desktop" complaint (ux-2 Bea step 3-4).</li>
+    <li>Current colour shown as a swatch + DMC 498 + name + remaining-count, satisfying P2 + Pattern Keeper's per-colour decrementing counter.</li>
+    <li>"Awake" indicator confirms wake-lock is active (M-H3).</li>
+    <li>Bottom mode switch sits above the gesture bar (M-H5) and uses 44px targets (M-M1).</li>
+    <li>Tool dock is positioned for left-thumb access; right-handed users can swap via preference.</li>
+  </ol>
+</div>
+</div>
+
+</body>
+</html>

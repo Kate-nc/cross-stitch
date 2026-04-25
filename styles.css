@@ -2307,6 +2307,10 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
     padding:6px;box-shadow:0 4px 12px rgba(0,0,0,0.10);
     transition:top 0.2s ease;
   }
+  /* Suppress the smoothing transition while the user is actively
+     dragging the dock — otherwise each pointermove update visibly
+     lags. The data-dragging flag is toggled in tracker-app.js. */
+  body.tracker-mobile .tracker-tool-dock[data-dragging]{transition:none;}
   body.tracker-mobile .ttd-btn{
     width:44px;height:44px;border:none;background:transparent;border-radius:10px;
     color:var(--text-secondary);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan C · Creator Use view</title>
+<link rel="stylesheet" href="_wireframe.css">
+<style>
+  .c-top{display:flex;align-items:center;gap:14px;padding:8px 18px;border-bottom:1px solid var(--w-line);background:#fff;height:56px}
+  .c-logo{font-weight:800;letter-spacing:.02em;font-size:14px;padding:6px 10px;border:1px solid var(--w-line);border-radius:6px}
+  .ms{display:flex;background:#f0f0f0;border-radius:999px;padding:3px;gap:2px}
+  .ms button{font:inherit;font-size:12px;font-weight:600;padding:6px 14px;border-radius:999px;background:transparent;border:none;color:var(--w-ink-3)}
+  .ms button.active{background:#fff;color:var(--w-ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+  .use-tabs{display:flex;gap:0;padding:0 18px;border-bottom:1px solid var(--w-line);background:#fff;height:38px;align-items:flex-end}
+  .use-tabs button{font:inherit;font-size:13px;background:transparent;border:none;padding:8px 14px;color:var(--w-ink-3);border-bottom:2px solid transparent}
+  .use-tabs button.active{color:var(--w-ink);font-weight:600;border-bottom-color:var(--w-ink)}
+
+  .use-grid{display:grid;grid-template-columns:300px 1fr 320px;gap:0;min-height:540px;background:#fafafa}
+  .use-side{padding:16px;border-right:1px solid var(--w-line);background:#fff}
+  .use-main{padding:24px;display:flex;align-items:center;justify-content:center}
+  .use-main .preview{width:100%;max-width:560px;background:#fff;border:1px solid var(--w-line);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.06);padding:18px}
+  .use-main .preview .ph{display:flex;justify-content:space-between;font-size:11px;color:var(--w-ink-3);margin-bottom:8px}
+  .use-main .preview .pchart{aspect-ratio:1/1;border:1px solid var(--w-line);background-image:linear-gradient(0deg,rgba(0,0,0,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,.06) 1px,transparent 1px);background-size:14px 14px}
+  .use-side h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--w-ink-3);margin:0 0 6px;font-weight:600}
+  .use-side .group{padding:10px 0;border-bottom:1px dashed var(--w-line-2)}
+  .use-side label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--w-ink-2);padding:3px 0}
+
+  .use-pub{padding:16px;border-left:1px solid var(--w-line);background:#fff;display:flex;flex-direction:column;gap:14px}
+  .use-pub h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--w-ink-3);margin:0;font-weight:600}
+  .use-pub .row{display:flex;justify-content:space-between;font-size:12px;align-items:center;padding:4px 0}
+  .use-pub .row .v{font-weight:600}
+  .use-pub .actions{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+  .use-pub .actions button{justify-content:flex-start}
+  .use-pub textarea{width:100%;font:inherit;font-size:12px;border:1px solid var(--w-line);border-radius:6px;padding:6px;min-height:60px;resize:vertical}
+  .use-pub input[type=text]{width:100%;font:inherit;font-size:12px;border:1px solid var(--w-line);border-radius:6px;padding:6px}
+</style>
+</head>
+<body>
+
+<div class="wf-frame" style="max-width:1280px">
+<div class="wf-meta">
+  <strong>Plan C · Wireframe 3 · Use view (Devi the designer publishes a finished pattern)</strong>
+  Demonstrates: every output (PDF, PNG, OXS, ZIP, share, hand off, send to tracker) consolidated under one mode. Branding, watermark, paper choice are publishing settings — not buried Materials sub-tabs.
+</div>
+<div class="wf-canvas">
+<div class="desktop">
+
+  <header class="c-top">
+    <div class="c-logo">stitch.</div>
+    <button class="wf-btn wf-btn--sm wf-btn--ghost">▤ &nbsp;Heron Marsh ▾</button>
+    <div class="ms"><button>Designing</button><button>Tracking</button><button class="active">Using</button></div>
+    <div style="margin-left:auto;display:flex;gap:6px">
+      <button class="wf-btn wf-btn--ghost wf-btn--sm">Help</button>
+      <button class="wf-btn wf-btn--ghost wf-btn--sm" style="width:32px;height:32px;border-radius:50%;padding:0">DV</button>
+    </div>
+  </header>
+
+  <div class="use-tabs" role="tablist">
+    <button class="active">Preview</button>
+    <button>Print &amp; PDF</button>
+    <button>Share &amp; QR</button>
+    <button>Hand off to tracker</button>
+    <button>Export files</button>
+  </div>
+
+  <div class="use-grid">
+
+    <aside class="use-side">
+      <div class="group">
+        <h3>Pages</h3>
+        <label><input type="checkbox" checked> Cover &amp; description</label>
+        <label><input type="checkbox" checked> Materials list (skeins)</label>
+        <label><input type="checkbox" checked> Symbol legend</label>
+        <label><input type="checkbox" checked> Chart pages (×9)</label>
+        <label><input type="checkbox"> Stitch instructions</label>
+        <label><input type="checkbox"> Custom thank-you page</label>
+      </div>
+      <div class="group">
+        <h3>Layout</h3>
+        <label>Paper · A4 ▾</label>
+        <label>Symbols + colour ▾</label>
+        <label>10×10 grid · on</label>
+        <label>Centre arrows · on</label>
+      </div>
+      <div class="group">
+        <h3>Quality</h3>
+        <label>Print resolution · 300 dpi ▾</label>
+        <label><input type="checkbox" checked> Pattern Keeper compatible</label>
+      </div>
+    </aside>
+
+    <div class="use-main">
+      <div class="preview">
+        <div class="ph"><span>Heron Marsh · cover preview</span><span>Page 1 / 14 ▸</span></div>
+        <div class="pchart"></div>
+        <div style="font-size:11px;color:var(--w-ink-3);margin-top:8px;display:flex;justify-content:space-between"><span>Devi Vance · Wickham Studio</span><span>1.2 MB · A4 · 14 pages</span></div>
+      </div>
+    </div>
+
+    <aside class="use-pub">
+      <h3>Publishing</h3>
+
+      <div>
+        <div class="row"><span>Designer name</span></div>
+        <input type="text" value="Devi Vance">
+      </div>
+      <div>
+        <div class="row"><span>Studio / brand</span></div>
+        <input type="text" value="Wickham Studio">
+      </div>
+      <div>
+        <div class="row"><span>Watermark on chart</span><label class="row" style="padding:0"><input type="checkbox" checked> on</label></div>
+      </div>
+      <div>
+        <div class="row"><span>Description</span></div>
+        <textarea>Marshland heron, naturalist palette of Anchor + DMC. Suits Aida 14 or 28 ct linen.</textarea>
+      </div>
+
+      <div>
+        <h3 style="margin-top:6px">This bundle</h3>
+        <div class="row"><span>PDF</span><span class="v">14 pages · 1.2 MB</span></div>
+        <div class="row"><span>OXS</span><span class="v">included</span></div>
+        <div class="row"><span>PNG preview</span><span class="v">included</span></div>
+        <div class="row"><span>ZIP total</span><span class="v">2.4 MB</span></div>
+      </div>
+
+      <div class="actions">
+        <button class="wf-btn wf-btn--primary">⤓ &nbsp;Download ZIP</button>
+        <button class="wf-btn">⎙ &nbsp;Print PDF</button>
+        <button class="wf-btn">↗ &nbsp;Share via QR / link</button>
+        <button class="wf-btn">◐ &nbsp;Hand off to my tracker</button>
+      </div>
+    </aside>
+  </div>
+</div>
+</div>
+<div class="wf-note">
+  Notes:
+  <ol>
+    <li>Every export, share, print and hand-off lives in the Using mode (F-W6 consolidation). Designing mode no longer has Output / Threads / Materials top-level tabs.</li>
+    <li>Branding (designer name, studio, watermark, description) is treated as publishing metadata, not as a hidden settings dialog (F-W6-H2).</li>
+    <li>"Hand off to my tracker" is the explicit Devi → Eli/Bea path: bundles pattern + writes to <code>CrossStitchDB</code> + switches user to Tracking mode in one click (F-W2-H2).</li>
+    <li>Pattern Keeper compatibility is a quality toggle, not a hidden export quirk — meets P10 (interoperability).</li>
+  </ol>
+</div>
+</div>
+
+</body>
+</html>

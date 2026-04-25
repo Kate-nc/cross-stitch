@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan C · Header switcher (Designing · Tracking · Managing)</title>
+<link rel="stylesheet" href="_wireframe.css">
+<style>
+  .c-shell{background:#fafafa;min-height:560px}
+  .c-top{display:flex;align-items:center;gap:14px;padding:8px 18px;border-bottom:1px solid var(--w-line);background:#fff;height:56px}
+  .c-logo{font-weight:800;letter-spacing:.02em;font-size:14px;padding:6px 10px;border:1px solid var(--w-line);border-radius:6px}
+
+  .proj-switch{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--w-line);border-radius:8px;background:#fff;cursor:pointer;min-width:280px;position:relative}
+  .proj-switch .thumb{width:32px;height:32px;border-radius:6px;background:#eee;border:1px solid var(--w-line)}
+  .proj-switch .lbl{display:flex;flex-direction:column;line-height:1.1}
+  .proj-switch .name{font-weight:600;font-size:13px}
+  .proj-switch .sub{font-size:11px;color:var(--w-ink-3)}
+  .proj-switch .key{margin-left:auto;font-family:Menlo,monospace;font-size:10px;color:var(--w-ink-3);border:1px solid var(--w-line);border-radius:3px;padding:1px 4px}
+
+  .mode-switch{display:flex;background:#f0f0f0;border-radius:999px;padding:3px;gap:2px}
+  .mode-switch button{font:inherit;font-size:12px;font-weight:600;padding:6px 14px;border-radius:999px;background:transparent;border:none;color:var(--w-ink-3);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .mode-switch button.active{background:#fff;color:var(--w-ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .mode-switch .dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.5}
+  .mode-switch button.active .dot{opacity:1;background:var(--w-ink)}
+
+  .c-right{margin-left:auto;display:flex;gap:6px;align-items:center}
+
+  .pal-cmd{position:absolute;top:64px;left:50%;transform:translateX(-50%);width:520px;background:#fff;border:1px solid var(--w-line);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.18);z-index:10;overflow:hidden}
+  .pal-cmd input{width:100%;padding:10px 12px;font:inherit;font-size:14px;border:none;border-bottom:1px solid var(--w-line);outline:none}
+  .pal-cmd ul{list-style:none;margin:0;padding:6px 0;max-height:300px;overflow:auto}
+  .pal-cmd li{padding:8px 12px;display:flex;align-items:center;gap:10px;font-size:12px;cursor:pointer}
+  .pal-cmd li.active{background:#f4f4f4}
+  .pal-cmd li .scope{font-size:10px;color:var(--w-ink-3);text-transform:uppercase;letter-spacing:.05em;border:1px solid var(--w-line);border-radius:3px;padding:1px 5px}
+  .pal-cmd li .key{margin-left:auto;font-family:Menlo,monospace;font-size:10px;color:var(--w-ink-3)}
+  .pal-cmd .hint{font-size:11px;color:var(--w-ink-3);padding:6px 12px;border-top:1px solid var(--w-line);background:#fafafa}
+
+  .stage{padding:24px;display:flex;align-items:center;justify-content:center;color:var(--w-ink-3);font-size:13px;min-height:380px;position:relative}
+</style>
+</head>
+<body>
+
+<div class="wf-frame" style="max-width:1280px">
+<div class="wf-meta">
+  <strong>Plan C · Wireframe 1 · Header with project switcher + mode toggle (Folk direction)</strong>
+  Demonstrates: every workspace shares one header. Project switcher (Linear-style) + Designing/Tracking/Managing mode pills replace top-level page tabs. ⌘K command palette is the central nav.
+</div>
+<div class="wf-canvas">
+<div class="desktop">
+
+  <header class="c-top">
+    <div class="c-logo">stitch.</div>
+
+    <button class="proj-switch" aria-haspopup="listbox">
+      <span class="thumb"></span>
+      <span class="lbl">
+        <span class="name">Tudor Rose Sampler</span>
+        <span class="sub">80 × 80 · 38 colours · 42% complete</span>
+      </span>
+      <span class="key">⌘K</span>
+    </button>
+
+    <div class="mode-switch" role="tablist" aria-label="Mode">
+      <button role="tab"><span class="dot"></span>Designing</button>
+      <button role="tab" class="active" aria-selected="true"><span class="dot"></span>Tracking</button>
+      <button role="tab"><span class="dot"></span>Managing</button>
+    </div>
+
+    <div class="c-right">
+      <button class="wf-btn wf-btn--ghost wf-btn--sm">Help</button>
+      <button class="wf-btn wf-btn--ghost wf-btn--sm">Settings</button>
+      <button class="wf-btn wf-btn--ghost wf-btn--sm" title="Account" style="width:32px;height:32px;border-radius:50%;padding:0">EL</button>
+    </div>
+  </header>
+
+  <div class="c-shell">
+    <div class="stage">
+
+      <!-- ⌘K palette open -->
+      <div class="pal-cmd" role="dialog" aria-label="Command palette">
+        <input value="prin" placeholder="Search projects, actions, threads…" autofocus>
+        <ul>
+          <li class="active"><span class="scope">Action</span><span><strong>Print</strong> the current pattern as PDF</span><span class="key">⌘P</span></li>
+          <li><span class="scope">Action</span><span><strong>Print</strong>er-friendly preview</span><span class="key">⇧⌘P</span></li>
+          <li><span class="scope">Project</span><span><strong>Prin</strong>cess Mononoke (working)</span><span class="key">↵</span></li>
+          <li><span class="scope">Setting</span><span><strong>Prin</strong>t · paper size</span></li>
+          <li><span class="scope">Mode</span><span>Switch to <strong>Designing</strong></span><span class="key">⌘1</span></li>
+          <li><span class="scope">Mode</span><span>Switch to <strong>Managing</strong></span><span class="key">⌘3</span></li>
+        </ul>
+        <div class="hint">↑↓ navigate · ↵ run · esc close · ⌘K toggle</div>
+      </div>
+
+      <p style="opacity:.5">[ canvas / mode workspace renders below header ]</p>
+    </div>
+  </div>
+</div>
+</div>
+<div class="wf-note">
+  Notes:
+  <ol>
+    <li>Header is shared across all three workspaces. Project switcher always shows the active project; clicking opens the same picker as ⌘K (N-H1, N-H4).</li>
+    <li>Mode pills replace the Pattern / Project / Materials / Stash tab grid (N-M5). Switching mode keeps the same project context (Eli's W2/W4 hand-off becomes free).</li>
+    <li>⌘K command palette is universal: actions, projects, settings, modes — addresses N-L3 and gives Devi a power-user surface.</li>
+    <li>Account avatar / Settings / Help live as small ghost buttons at the right; never compete with the mode toggle visually.</li>
+  </ol>
+</div>
+</div>
+
+</body>
+</html>

@@ -5601,12 +5601,19 @@ return(
             const startClientY=e.clientY;
             const startTop=dock.getBoundingClientRect().top;
             const vh=window.innerHeight||1;
+            // Suppress the .tracker-tool-dock 0.2s top transition during
+            // active drag — otherwise pointermove updates lag visibly.
+            dock.setAttribute('data-dragging','1');
             function onMove(ev){
               const delta=ev.clientY-startClientY;
               const newTop=Math.min(vh-200,Math.max(60,startTop+delta));
               setDockY(Math.round(newTop/vh*100));
             }
-            function onUp(){window.removeEventListener('pointermove',onMove);window.removeEventListener('pointerup',onUp);}
+            function onUp(){
+              dock.removeAttribute('data-dragging');
+              window.removeEventListener('pointermove',onMove);
+              window.removeEventListener('pointerup',onUp);
+            }
             window.addEventListener('pointermove',onMove);
             window.addEventListener('pointerup',onUp);
             e.preventDefault();

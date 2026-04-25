@@ -1,0 +1,73 @@
+/* Shared wireframe styles — grayscale, low-fi, intentionally schematic.
+   Real direction colours land in Phase 4. */
+:root{
+  --w-ink:#1a1a1a;
+  --w-ink-2:#3a3a3a;
+  --w-ink-3:#666;
+  --w-ink-4:#999;
+  --w-line:#d4d4d4;
+  --w-line-2:#e8e8e8;
+  --w-bg:#f7f7f7;
+  --w-bg-2:#ececec;
+  --w-paper:#fff;
+  --w-accent:#222;     /* primary actions render solid black in wireframe */
+  --w-fill-mid:#bdbdbd;
+  --w-fill-light:#e3e3e3;
+  --w-radius:4px;
+  --w-radius-lg:8px;
+  --w-shadow:0 1px 2px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--w-bg);color:var(--w-ink);font:14px/1.4 -apple-system,Segoe UI,Inter,sans-serif}
+.wf-frame{background:var(--w-paper);border:1px solid var(--w-line);box-shadow:var(--w-shadow);margin:24px auto;border-radius:var(--w-radius-lg)}
+.wf-meta{padding:16px 24px;border-bottom:1px dashed var(--w-line);background:var(--w-bg-2);border-radius:var(--w-radius-lg) var(--w-radius-lg) 0 0;font-size:12px;color:var(--w-ink-3)}
+.wf-meta strong{color:var(--w-ink);font-size:13px;display:block;margin-bottom:4px}
+.wf-canvas{padding:0;overflow:hidden;border-radius:0 0 var(--w-radius-lg) var(--w-radius-lg)}
+.wf-note{padding:12px 24px;border-top:1px dashed var(--w-line);background:#fffceb;color:#5a4a00;font-size:12px;font-style:italic}
+.wf-note ol{margin:6px 0 0 18px;padding:0}
+
+/* Generic UI atoms used inside wireframes */
+.wf-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--w-radius);background:var(--w-paper);border:1px solid var(--w-ink);color:var(--w-ink);font-size:13px;font-weight:500;cursor:pointer;text-decoration:none}
+.wf-btn--primary{background:var(--w-accent);color:#fff;border-color:var(--w-accent)}
+.wf-btn--ghost{border-color:var(--w-line);color:var(--w-ink-2)}
+.wf-btn--sm{padding:5px 10px;font-size:12px}
+.wf-btn--icon{padding:8px;width:36px;height:36px;justify-content:center}
+.wf-input{padding:8px 10px;border:1px solid var(--w-line);border-radius:var(--w-radius);font:inherit;width:100%;background:var(--w-paper)}
+.wf-tab{padding:10px 14px;border:none;background:none;color:var(--w-ink-3);cursor:pointer;font:inherit;border-bottom:2px solid transparent}
+.wf-tab[aria-selected="true"]{color:var(--w-ink);border-bottom-color:var(--w-ink);font-weight:600}
+.wf-card{background:var(--w-paper);border:1px solid var(--w-line);border-radius:var(--w-radius);padding:12px}
+.wf-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--w-line);border-radius:999px;font-size:12px;color:var(--w-ink-2);background:var(--w-paper)}
+.wf-swatch{width:14px;height:14px;border-radius:3px;border:1px solid var(--w-ink-3);display:inline-block;vertical-align:middle}
+.wf-anno{position:absolute;background:#fffceb;border:1px solid #d6c060;border-radius:3px;padding:2px 6px;font-size:11px;color:#5a4a00;font-family:Menlo,Consolas,monospace;white-space:nowrap;z-index:5;pointer-events:none}
+.wf-anno::before{content:"➜ ";color:#a08020}
+
+/* Schematic chart cell pattern (placeholder for the canvas) */
+.wf-chart{background:
+  linear-gradient(0deg,var(--w-line) 1px,transparent 1px) 0 0/12px 12px,
+  linear-gradient(90deg,var(--w-line) 1px,transparent 1px) 0 0/12px 12px,
+  linear-gradient(0deg,var(--w-ink-3) 1px,transparent 1px) 0 0/120px 120px,
+  linear-gradient(90deg,var(--w-ink-3) 1px,transparent 1px) 0 0/120px 120px,
+  var(--w-paper);
+  position:relative}
+.wf-chart-cells{position:absolute;inset:0;background-image:
+  radial-gradient(circle at 25% 25%,#bbb 2px,transparent 2.5px),
+  radial-gradient(circle at 75% 75%,#888 2px,transparent 2.5px),
+  radial-gradient(circle at 75% 25%,#dadada 2px,transparent 2.5px),
+  radial-gradient(circle at 25% 75%,#a8a8a8 2px,transparent 2.5px);
+  background-size:48px 48px,48px 48px,72px 72px,84px 84px;
+  opacity:.85}
+.wf-photo{background:linear-gradient(135deg,#999 0%,#ccc 25%,#888 50%,#bbb 75%,#9a9a9a 100%);background-size:30px 30px;position:relative}
+.wf-photo::after{content:"PHOTO";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.55);font-weight:700;letter-spacing:8px}
+
+/* Phone mock */
+.phone{width:360px;height:780px;border:8px solid #1a1a1a;border-radius:36px;background:#fff;margin:24px auto;overflow:hidden;position:relative;box-shadow:0 6px 16px rgba(0,0,0,.18)}
+.phone .phone-statusbar{height:24px;background:#fff;display:flex;justify-content:space-between;padding:6px 14px 0;font-size:11px;color:#1a1a1a}
+.phone .phone-gesturebar{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);width:120px;height:4px;background:#1a1a1a;border-radius:2px}
+.phone .phone-screen{height:calc(100% - 24px - 18px);overflow:hidden;position:relative}
+
+/* Tablet mock */
+.tablet{width:1024px;height:740px;max-width:100%;border:10px solid #1a1a1a;border-radius:24px;background:#fff;margin:24px auto;overflow:hidden;position:relative}
+.tablet .tablet-screen{height:100%;display:flex}
+
+/* Desktop mock */
+.desktop{width:1280px;max-width:100%;border:1px solid var(--w-line);background:#fff;margin:24px auto;border-radius:8px;overflow:hidden;box-shadow:var(--w-shadow)}

@@ -1,0 +1,1164 @@
+﻿<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workshop Â· Creator Showcase</title>
+<link rel="preconnect" href="https://rsms.me/">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="stylesheet" href="_workshop.css">
+<style>
+/* â”€â”€â”€ Custom extensions for this showcase â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+.flow-arrow {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--accent);
+}
+
+.step-card { position: relative; }
+.step-card .badge {
+  position: absolute; top: -12px; left: 16px;
+  background: var(--accent); color: var(--text-on-accent);
+  font: 600 11px/1 var(--font-ui);
+  padding: 4px 10px; border-radius: 12px;
+  letter-spacing: .05em; text-transform: uppercase;
+}
+
+.desktop-creator {
+  display: flex; flex-direction: column; height: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.creator-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s-3); padding: 12px var(--s-4);
+  background: var(--surface-raised); border-bottom: 1px solid var(--line);
+}
+
+.creator-header .left { display: flex; align-items: center; gap: var(--s-5); }
+.creator-header .nav-pills {
+  display: flex; gap: var(--s-2);
+}
+
+.pill {
+  padding: 6px 12px; border-radius: 16px;
+  font-size: var(--text-sm); font-weight: 500;
+  background: var(--surface-sunken); color: var(--text-muted);
+  border: 1px solid transparent;
+}
+.pill.active {
+  background: var(--accent-soft); color: var(--accent-ink);
+}
+
+.creator-header .project-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; font-size: var(--text-sm);
+  background: var(--surface-sunken); border: 1px solid var(--line);
+  border-radius: var(--radius); cursor: pointer;
+}
+.creator-header .project-btn img {
+  width: 24px; height: 24px; border-radius: 3px; background: #ccc;
+}
+
+.creator-header .right {
+  display: flex; align-items: center; gap: var(--s-3);
+}
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent); color: var(--text-on-accent);
+  display: flex; align-items: center; justify-content: center;
+  font: 600 11px/1 var(--font-ui);
+}
+
+.creator-tabs {
+  display: flex; gap: 0; padding: 0 var(--s-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-raised);
+}
+.creator-tabs .tab {
+  padding: 12px 16px; border: none; background: transparent;
+  font: inherit; color: var(--text-secondary);
+  border-bottom: 2px solid transparent; cursor: pointer;
+  font-size: var(--text-md);
+}
+.creator-tabs .tab.active {
+  color: var(--text-primary); font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+.creator-tabs .tab.muted {
+  color: var(--text-muted); font-weight: normal;
+}
+
+.creator-actionbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-raised); border-bottom: 1px solid var(--line);
+  gap: var(--s-3);
+}
+.creator-actionbar .lhs { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.creator-actionbar .rhs {
+  display: flex; gap: var(--s-5); margin-left: auto;
+  align-items: center;
+}
+.creator-actionbar .stat {
+  font-size: var(--text-sm); color: var(--text-secondary);
+  border-left: 1px solid var(--line); padding-left: var(--s-3);
+}
+.creator-actionbar .stat strong {
+  color: var(--text-primary); font-weight: 600;
+}
+
+.creator-canvas-area {
+  display: flex; flex: 1; background: var(--surface-sunken);
+}
+.creator-rail {
+  width: 56px; border-right: 1px solid var(--line);
+  background: var(--surface-raised); padding: 8px;
+  display: flex; flex-direction: column; gap: 8px;
+  align-items: center;
+}
+.rail-btn {
+  width: 40px; height: 40px; border-radius: var(--radius);
+  background: transparent; border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 18px; color: var(--text-secondary);
+}
+.rail-btn:hover { background: var(--surface-sunken); color: var(--text-primary); }
+.rail-sep { width: 24px; height: 1px; background: var(--line); margin: 4px 0; }
+
+.creator-canvas-wrapper {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: var(--s-5);
+}
+.creator-canvas {
+  width: 100%; max-width: 540px; aspect-ratio: 1/1;
+  border: 1px solid var(--line); border-radius: 8px;
+  background-color: #fff;
+  background-image:
+    linear-gradient(0deg, rgba(0,0,0,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,.05) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(184,92,56,.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(184,92,56,.15) 1px, transparent 1px);
+  background-size: 6.75px 6.75px, 6.75px 6.75px, 67.5px 67.5px, 67.5px 67.5px;
+  box-shadow: var(--shadow);
+  position: relative;
+}
+
+.creator-sidebar {
+  width: 300px; border-left: 1px solid var(--line);
+  background: var(--surface-raised); padding: var(--s-4);
+  overflow-y: auto; display: flex; flex-direction: column; gap: var(--s-4);
+}
+.sidebar-group {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: var(--s-3); background: var(--surface-sunken);
+}
+.sidebar-group h4 {
+  font-size: var(--text-xs); font-weight: 600; text-transform: uppercase;
+  color: var(--text-muted); letter-spacing: .06em; margin: 0 0 var(--s-2) 0;
+}
+.sidebar-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: var(--text-sm); margin: var(--s-2) 0; color: var(--text-primary);
+}
+.sidebar-row .value {
+  font-weight: 600; font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.sidebar-slider {
+  width: 100%; height: 6px; margin: var(--s-2) 0;
+  -webkit-appearance: none; appearance: none;
+  background: var(--line);  border-radius: 3px; outline: none;
+}
+.sidebar-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent); cursor: pointer;
+}
+.sidebar-slider::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent); cursor: pointer; border: none;
+}
+
+.meter-bar {
+  display: flex; align-items: center; gap: var(--s-2); margin: var(--s-2) 0;
+  font-size: var(--text-sm);
+}
+.meter-bar .label { font-weight: 600; min-width: 70px; }
+.meter-bar .fill {
+  flex: 1; height: 6px; background: var(--line); border-radius: 3px;
+  overflow: hidden;
+}
+.meter-bar .fill i {
+  display: block; height: 100%; background: var(--success);
+}
+.meter-bar .level { color: var(--text-secondary); min-width: 50px; }
+
+.sidebar-more {
+  border: 1px dashed var(--line-2); border-radius: var(--radius);
+  padding: var(--s-3); text-align: center;
+  font-size: var(--text-sm); color: var(--text-muted);
+  background: transparent; cursor: pointer; font-weight: 500;
+}
+
+/* Flow & conversion  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.flow-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-5); }
+.flow-step { position: relative; }
+.flow-step .step-num {
+  position: absolute; top: -16px; left: 16px;
+  background: var(--accent); color: var(--text-on-accent);
+  font: 600 11px/1 var(--font-ui); padding: 4px 10px;
+  border-radius: 12px; text-transform: uppercase;
+}
+
+.flow-label { font-size: var(--text-lg); font-weight: 600; color: var(--text-primary);
+  margin-bottom: var(--s-2);
+}
+
+.step-photo { width: 100%; height: 160px; border-radius: var(--radius);
+  background:
+    repeating-linear-gradient(45deg, rgba(0,0,0,.04) 0 2px, transparent 2px 5px),
+    linear-gradient(160deg, #EDE3D0, #E9DCC2);
+  border: 1px solid var(--line); margin-bottom: var(--s-2);
+}
+
+.step-meta { font-size: var(--text-sm); color: var(--text-secondary);
+  margin-bottom: var(--s-3);
+}
+.step-meta strong { color: var(--text-primary); font-weight: 600; }
+
+.step-chart { width: 100%; aspect-ratio: 1/1;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.04) 1px, transparent 1px),
+              repeating-linear-gradient(90deg, rgba(0,0,0,.04) 1px, transparent 1px);
+  background-size: 10px 10px;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  position: relative;
+}
+.step-chart::before {
+  content: ''; position: absolute; inset: 20%;
+  background: rgba(184, 92, 56, 0.08); border: 2px solid var(--accent);
+  border-radius: 4px;
+}
+
+.flow-arrow-wrap { display: flex; align-items: center; justify-content: center; }
+.flow-arrow-wrap svg { width: 32px; height: 32px; color: var(--accent); }
+
+/* Materials pane  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.materials-pane {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface-raised); overflow: hidden;
+}
+.materials-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--s-4); border-bottom: 1px solid var(--line);
+  background: var(--surface-sunken);
+}
+.materials-header h3 {
+  margin: 0; font-size: var(--text-lg); font-weight: 600;
+  color: var(--text-primary);
+}
+
+.thread-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--s-3); padding: var(--s-4);
+}
+
+.thread-chip {
+  display: flex; align-items: center; gap: var(--s-3);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: var(--s-3); background: var(--surface-raised);
+}
+.thread-chip:hover { background: var(--surface-sunken); }
+
+.thread-swatch {
+  width: 32px; height: 32px; border-radius: 4px;
+  flex-shrink: 0; border: 1px solid rgba(0,0,0,.12);
+}
+
+.thread-info { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.thread-id { font-weight: 700; font-size: var(--text-lg); color: var(--text-primary); }
+.thread-name { font-size: var(--text-sm); color: var(--text-secondary); }
+.thread-skeins { font-size: var(--text-sm); color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.thread-status {
+  background: var(--success-soft); color: var(--success);
+  font: 600 10px/1 var(--font-ui); padding: 3px 8px;
+  border-radius: 10px; white-space: nowrap; text-transform: uppercase;
+}
+
+/* Legend page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  */
+.legend-page {
+  display: flex; gap: var(--s-5);
+}
+.legend-mock {
+  width: 220px; aspect-ratio: 8.5/11;
+  border: 1px solid var(--line); border-radius: 4px;
+  background: #fff; padding: 12px;
+  font-size: 8px; overflow: hidden; flex-shrink: 0;
+}
+.legend-mock h4 {
+  margin: 0 0 6px 0; font-size: 8px; font-weight: 600;
+  text-align: center; line-height: 1.2;
+}
+.legend-mock .grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+}
+.legend-row { display: flex; align-items: center; gap: 2px; margin: 2px 0; }
+.symbol-box {
+  width: 16px; height: 16px; border: 1px solid #999;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; background: #fff; flex-shrink: 0;
+  font-size: 10px; color: #333;
+}
+.legend-dmc {
+  font-weight: 600; min-width: 18px; text-align: center;
+}
+.legend-name { flex: 1; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+.legend-skeins { min-width: 20px; text-align: right; }
+
+.legend-expl {
+  flex: 1; display: flex; flex-direction: column; justify-content: space-around;
+}
+.legend-expl h3 { margin: 0 0 var(--s-3) 0; color: var(--text-primary); }
+.legend-expl p {
+  color: var(--text-secondary); font-size: var(--text-md);
+  line-height: 1.55; margin: 0;
+}
+
+/* Print PDF preview  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.pdf-pages {
+  display: flex; gap: var(--s-4); align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.pdf-page {
+  width: 220px; aspect-ratio: 8.5/11;
+  border: 1px solid var(--line); border-radius: 4px;
+  background: #fff; padding: 12px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+}
+
+.pdf-cover {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; flex: 1;
+  gap: 12px;
+}
+.pdf-cover .title {
+  font: 600 12px/1.2 var(--font-ui); color: #333;
+}
+.pdf-cover .meta {
+  font: 400 9px/1.2 var(--font-ui); color: #666;
+}
+
+.pdf-materials {
+  font-size: 7px; flex: 1; display: flex; flex-direction: column; gap: 4px;
+}
+.pdf-materials strong {
+  display: block; font: 600 9px/1 var(--font-ui); color: #333;
+  margin-bottom: 4px;
+}
+.pdf-material-row {
+  display: flex; gap: 3px; align-items: center;
+}
+.pdf-material-swatch {
+  width: 8px; height: 8px; border-radius: 1px; flex-shrink: 0;
+}
+
+.pdf-chart {
+  flex: 1; position: relative; border: 1px solid #ccc;
+  background: repeating-linear-gradient(0deg, #eee 1px, transparent 1px),
+              repeating-linear-gradient(90deg, #eee 1px, transparent 1px);
+  background-size: 8px 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+.pdf-chart-cells {
+  width: 60%; height: 60%; border: 1px solid var(--accent);
+  position: relative;
+}
+.pdf-chart-cells::before {
+  content: 'âŸ¨'; position: absolute; right: -24px; top: 50%;
+  transform: translateY(-50%); font: 600 16px/1 var(--font-ui);
+  color: var(--accent);
+}
+.pdf-chart-cells::after {
+  content: 'âŸ©'; position: absolute; left: -24px; top: 50%;
+  transform: translateY(-50%); font: 600 16px/1 var(--font-ui);
+  color: var(--accent);
+}
+
+.pdf-label {
+  font: 600 7px/1 var(--font-ui); color: #999; text-align: center;
+  padding-top: 4px; margin-top: auto;
+}
+
+/* Modal & overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(31, 27, 22, 0.4); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--surface-raised); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); width: 90%; max-width: 420px;
+  border: 1px solid var(--line);
+}
+
+.modal-header {
+  padding: var(--s-4); border-bottom: 1px solid var(--line);
+  font-size: var(--text-lg); font-weight: 600; color: var(--text-primary);
+}
+
+.modal-body {
+  padding: var(--s-4); max-height: 60vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: var(--s-3);
+}
+
+.modal-row {
+  display: flex; align-items: center; gap: var(--s-3);
+  padding: var(--s-3); border-radius: var(--radius);
+  background: var(--surface-sunken);
+}
+
+.modal-row .label {
+  flex: 1; display: flex; flex-direction: column; gap: 2px;
+}
+.modal-row .label .name { font-weight: 600; color: var(--text-primary); }
+.modal-row .label .orig { font-size: var(--text-sm); color: var(--text-secondary); }
+
+.modal-row .arrow { font-size: 18px; color: var(--text-muted); }
+
+.modal-row .target { display: flex; align-items: center; gap: var(--s-2); }
+.modal-row .de { font-size: var(--text-xs); color: var(--text-muted);
+  min-width: 30px; text-align: right; font-family: ui-monospace, Menlo, monospace;
+}
+
+.modal-footer {
+  display: flex; justify-content: space-between; gap: var(--s-3);
+  padding: var(--s-4); border-top: 1px solid var(--line);
+}
+
+/* Export menu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.export-menu {
+  background: var(--surface-raised); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  width: 240px; z-index: 100;
+}
+
+.export-item {
+  display: flex; align-items: center; gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line);
+  cursor: pointer; color: var(--text-primary);
+  font-size: var(--text-md);
+}
+.export-item:last-child { border-bottom: none; }
+.export-item:hover { background: var(--surface-sunken); }
+
+.export-item .icon {
+  width: 18px; height: 18px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent);
+}
+
+.export-item .label { flex: 1; font-weight: 500; }
+.export-item .shortcut {
+  font-size: var(--text-xs); color: var(--text-muted);
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+/* Footnote overrides â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.footnote { margin-top: var(--s-5); }
+.footnote li { margin: 2px 0; }
+
+/* Responsive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+@media (max-width: 768px) {
+  .flow-grid { grid-template-columns: 1fr; }
+  .flow-arrow-wrap { display: none; }
+  .legend-page { flex-direction: column; }
+  .legend-expl { margin-top: var(--s-4); }
+  .pdf-pages { justify-content: center; }
+}
+
+</style>
+</head>
+<body>
+
+<div class="sc-page">
+
+<!-- â•â•â•â• 1. HERO â•â•â•â• -->
+<header class="sc-header">
+  <p class="eyebrow">Workshop Â· Visual proposal 3 of 5</p>
+  <h1>Creator</h1>
+  <p>The desk where Devi transforms a photograph or vector into a stitchable chart. A calm sidebar of essentials, a persistent action bar that promotes the outcomes that matter: Print, Track, and Share. The canvas stays central and uncluttered.</p>
+</header>
+
+<!-- â•â•â•â• 2. DESKTOP CREATOR â•â•â•â• -->
+<section class="sc-section">
+  <h2>Desktop Creator â€” full workspace</h2>
+  <p class="sc-lede">A 1240px wide desktop application showing the complete Pattern view with the new persistent action bar, narrowed sidebar, and tool rail.</p>
+
+  <div class="device-desktop" style="margin-top: var(--s-5);">
+    <div class="titlebar">
+      <i></i><i></i><i></i>
+      <span class="url">stitch.app/create/cat-portrait</span>
+    </div>
+
+    <div class="desktop-creator">
+      <div class="creator-header">
+        <div class="left">
+          <span class="brand-mark">stitch</span>
+          <div class="nav-pills">
+            <div class="pill">Designing</div>
+            <div class="pill">Tracking</div>
+            <div class="pill">Managing</div>
+          </div>
+        </div>
+        <div class="creator-header .project-btn">
+          <button class="project-btn">
+            <span>Cat Portrait</span>
+          </button>
+        </div>
+        <div class="right">
+          <button class="btn btn--ghost btn--sm" style="font-size: 12px;">Help</button>
+          <div class="avatar">DV</div>
+        </div>
+      </div>
+
+      <div class="creator-tabs">
+        <button class="tab active">Chart</button>
+        <button class="tab">Source &amp; settings</button>
+        <button class="tab muted">Materialsâ€¦</button>
+      </div>
+
+      <div class="creator-actionbar">
+        <div class="lhs">
+          <button class="btn btn--primary btn--sm">Print PDF</button>
+          <button class="btn btn--sm">Track this pattern</button>
+          <button class="btn btn--ghost btn--sm">Share / QR</button>
+          <button class="btn btn--ghost btn--sm">Exportâ€¦</button>
+        </div>
+        <div class="rhs">
+          <span class="stat">80Ã—80 stitches Â· <strong>14 ct</strong> Â· 5.7" Ã— 5.7"</span>
+          <span class="stat">28 colours Â· <strong>8 skeins</strong></span>
+        </div>
+      </div>
+
+      <div class="creator-canvas-area">
+        <div class="creator-rail">
+          <div class="rail-btn" title="Brush">ðŸ–Œ</div>
+          <div class="rail-btn" title="Eraser">ðŸ§¹</div>
+          <div class="rail-btn" title="Fill">ðŸ’§</div>
+          <div class="rail-btn" title="Eyedropper">ðŸ‘</div>
+          <div class="rail-sep"></div>
+          <div class="rail-btn" title="Lasso">ðŸ“</div>
+          <div class="rail-btn" title="Half stitch">âœ•</div>
+          <div class="rail-btn" title="Backstitch">âˆ’</div>
+          <div class="rail-btn" title="French knot">â—†</div>
+          <div class="rail-sep"></div>
+          <div class="rail-btn" title="Pan">âŸ³</div>
+          <div class="rail-btn" title="Fit">âŒ•</div>
+        </div>
+
+        <div class="creator-canvas-wrapper">
+          <div class="creator-canvas"></div>
+        </div>
+
+        <div class="creator-sidebar">
+          <div class="sidebar-group">
+            <h4>Source</h4>
+            <p style="margin: var(--s-2) 0; font-size: var(--text-sm); color: var(--text-secondary);">cat-portrait.jpg</p>
+            <div class="step-photo" style="margin: var(--s-2) 0; height: 90px;"></div>
+          </div>
+
+          <div class="sidebar-group">
+            <h4>Pattern</h4>
+            <div class="sidebar-row">
+              <span>Width</span>
+              <span class="value">80 stitches</span>
+            </div>
+            <input type="range" class="sidebar-slider" min="40" max="200" value="80">
+
+            <div class="sidebar-row">
+              <span>Colours</span>
+              <span class="value">28</span>
+            </div>
+            <input type="range" class="sidebar-slider" min="8" max="80" value="28">
+
+            <div class="meter-bar">
+              <span class="label">Confetti</span>
+              <div class="fill"><i style="width: 4%; background: var(--success);"></i></div>
+              <span class="level">4%</span>
+            </div>
+
+            <div class="meter-bar">
+              <span class="label">Difficulty</span>
+              <div class="fill"><i style="width: 22%; background: var(--success);"></i></div>
+              <span class="level">easy</span>
+            </div>
+          </div>
+
+          <div class="sidebar-group">
+            <h4>Fabric</h4>
+            <div class="sidebar-row">
+              <span>Aida</span>
+              <span class="value">14 ct</span>
+            </div>
+            <div class="sidebar-row">
+              <span>Strands</span>
+              <span class="value">2</span>
+            </div>
+            <div class="sidebar-row">
+              <span>Finished</span>
+              <span class="value">5.7" Ã— 5.7"</span>
+            </div>
+          </div>
+
+          <button class="sidebar-more">More controls</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    <strong>Audit IDs:</strong>
+    <ol>
+      <li><code>F-W2-H2</code> â€” Print PDF &amp; Track elevated to persistent action bar</li>
+      <li><code>N-H3</code> â€” Click depth to outcomes reduced from 5 to 1</li>
+      <li><code>P5</code> â€” Sidebar shows only default-essential controls</li>
+      <li><code>P1</code> â€” Canvas centred; panels do not obscure the grid</li>
+    </ol>
+  </div>
+</section>
+
+<!-- â•â•â•â• 3. IMAGE-TO-PATTERN FLOW â•â•â•â• -->
+<section class="sc-section">
+  <h2>Image-to-pattern conversion flow</h2>
+  <p class="sc-lede">Three-step journey showing how a portrait photograph becomes a quantised, dithered cross-stitch chart.</p>
+
+  <div class="flow-grid" style="margin-top: var(--s-5);">
+    <!-- Step 1: Upload -->
+    <div class="flow-step card">
+      <div class="step-num">Step 1</div>
+      <h3 class="flow-label">Upload</h3>
+      <div class="step-photo"></div>
+      <p class="step-meta"><strong>cat-portrait.jpg</strong></p>
+      <p class="step-meta" style="color: var(--success); font-weight: 600;">Detected: portrait, complex</p>
+    </div>
+
+    <!-- Arrow 1â†’2 -->
+    <div class="flow-arrow-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+    </div>
+
+    <!-- Step 2: Auto Quantise -->
+    <div class="flow-step card">
+      <div class="step-num">Step 2</div>
+      <h3 class="flow-label">Auto</h3>
+      <div style="position: relative;">
+        <div class="step-photo" style="position: relative; height: 160px;">
+          <div style="position: absolute; inset: 0; background: rgba(184, 92, 56, 0.25); border-radius: var(--radius);"></div>
+        </div>
+        <div class="step-chart" style="margin-top: 8px;"></div>
+      </div>
+      <p class="step-meta" style="margin-top: var(--s-2);">Quantised to 28 DMC threads, dithered.</p>
+    </div>
+
+    <!-- Arrow 2â†’3 -->
+    <div class="flow-arrow-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+    </div>
+
+    <!-- Step 3: Refine -->
+    <div class="flow-step card">
+      <div class="step-num">Step 3</div>
+      <h3 class="flow-label">Refine</h3>
+      <div class="step-chart"></div>
+      <div style="margin-top: var(--s-3); display: flex; gap: var(--s-2); align-items: center;">
+        <span style="font-size: 12px; color: var(--accent); font-weight: 600;">âœ“</span>
+        <span style="font-size: var(--text-sm); color: var(--text-secondary);">Magic-wand pickable</span>
+      </div>
+      <div style="margin-top: var(--s-2); display: flex; gap: var(--s-2); align-items: center;">
+        <div style="flex: 1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden;">
+          <div style="width: 48%; height: 100%; background: var(--accent);"></div>
+        </div>
+        <span style="font-size: var(--text-xs); color: var(--text-secondary); min-width: 50px;">confetti ok</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    <strong>Audit IDs:</strong>
+    <ol>
+      <li><code>W4</code> â€” Rapid image import with auto-detection of orientation &amp; complexity</li>
+      <li><code>P2</code> â€” DMC colour fidelity maintained throughout quantisation</li>
+    </ol>
+  </div>
+</section>
+
+<!-- â•â•â•â• 4. MATERIALS SUB-PANE â•â•â•â• -->
+<section class="sc-section">
+  <h2>Materials sub-pane as a disclosure</h2>
+  <p class="sc-lede">Instead of a top-level page, Materials are now a secondary panel launched from the action bar. Shows 12 thread chips with ownership status, editable and stash-aware.</p>
+
+  <div class="materials-pane card--raised" style="margin-top: var(--s-5);">
+    <div class="materials-header">
+      <h3>Materials Â· 8 skeins</h3>
+      <button class="btn btn--ghost btn--sm">Open shopping list</button>
+    </div>
+
+    <div class="thread-grid">
+      <!-- DMC 310: Black - Owned -->
+      <div class="thread-chip">
+        <div class="thread-swatch" style="background: rgb(0, 0, 0);"></div>
+        <div class="thread-info">
+          <div class="thread-id">310</div>
+          <div class="thread-name">Black</div>
+          <div class="thread-skeins">2.1 skeins</div>
+        </div>
+        <span class="thread-status">Owned</span>
+      </div>
+
+      <!-- DMC 498: Christmas Dark - Need 1 -->
+      <div class="thread-chip">
+        <div class="thread-swatch" style="background: rgb(167, 19, 43);"></div>
+        <div class="thread-info">
+          <div class="thread-id">498</div>
+          <div class="thread-name">Christmas Dark</div>
+          <div class="thread-skeins">1.4 skeins</div>
+        </div>
+        <span class="thread-status" style="background: var(--warning-soft); color: #7d5715;">Need 1</span>
+      </div>
+
+      <!-- DMC 934: Black Avocado - Owned -->
+      <div class="thread-chip">
+        <div class="thread-swatch" style="background: rgb(49, 57, 25);"></div>
+        <div class="thread-info">
+          <div class="thread-id">934</div>
+          <div class="thread-name">Black Avocado</div>
+          <div class="thread-skeins">0.7 skeins</div>
+        </div>
+        <span class="thread-status">Owned</span>
+      </div>
+
+      <!-- DMC 3051: Green Gray Dark - Owned -->
+      <div class="thread-chip">
+        <div class="thread-swatch" style="background: rgb(95, 102, 72);"></div>
+        <div class="thread-info">
+          <div class="thread-id">3051</div>
+          <div class="thread-name">Green Gray Dark</div>
+          <div class="thread-skeins">1.2 skeins</div>
+        </div>
+        <span class="thread-status">Owned</span>
+      </div>
+
+      <!-- DMC 739: Tan UVLt - Owned -->
+      <div class="thread-chip">
+        <div class="thread-swatch" style="background: rgb(248, 228, 200);"></div>
+        <div class="thread-info">
+          <div class="thread-id">739</div>
+          <div class="thread-name">Tan Ultra Very Light</div>
+          <div class="thread-skeins">0.9 skeins</div>
+        </div>
+        <span class="thread-status">Owned</span>
+      </div>
+
+      <!-- DMC 3047: Yellow Beige Light - Owned -->
+      <div class="thread-chip">
+        <div class="thread-swatch" style="background: rgb(231, 214, 193);"></div>
+        <div class="thread-info">
+          <div class="thread-id">3047</div>
+          <div class="thread-name">Yellow Beige Light</div>
+          <div class="thread-skeins">1.3 skeins</div>
+        </div>
+        <span class="thread-status">Owned</span>
+      </div>
+
+      <!-- DMC 3776: Mahogany Light - In Stash -->
+      <div class="thread-chip">
+        <div class="thread-swatch" style="background: rgb(207, 121, 57);"></div>
+        <div class="thread-info">
+          <div class="thread-id">3776</div>
+          <div class="thread-name">Mahogany Light</div>
+          <div class="thread-skeins">0.6 skeins</div>
+        </div>
+        <span class="thread-status" style="background: var(--accent-soft); color: var(--accent-ink);">In stash</span>
+      </div>
+
+      <!-- DMC 347: Salmon Dark - Owned -->
+      <div class="thread-chip">
+        <div class="thread-swatch" style="background: rgb(191, 45, 45);"></div>
+        <div class="thread-info">
+          <div class="thread-id">347</div>
+          <div class="thread-name">Salmon Dark</div>
+          <div class="thread-skeins">0.8 skeins</div>
+        </div>
+        <span class="thread-status">Owned</span>
+      </div>
+
+      <!-- DMC 3777: Terra Cotta Dark - Owned -->
+      <div class="thread-chip">
+        <div class="thread-swatch" style="background: rgb(134, 48, 34);"></div>
+        <div class="thread-info">
+          <div class="thread-id">3777</div>
+          <div class="thread-name">Terra Cotta Dark</div>
+          <div class="thread-skeins">1.1 skeins</div>
+        </div>
+        <span class="thread-status">Owned</span>
+      </div>
+
+      <!-- DMC 422: Hazelnut Light - Owned -->
+      <div class="thread-chip">
+        <div class="thread-swatch" style="background: rgb(198, 159, 123);"></div>
+        <div class="thread-info">
+          <div class="thread-id">422</div>
+          <div class="thread-name">Hazelnut Light</div>
+          <div class="thread-skeins">0.5 skeins</div>
+        </div>
+        <span class="thread-status">Owned</span>
+      </div>
+
+      <!-- DMC B5200: Snow White - Need 1 -->
+      <div class="thread-chip">
+        <div class="thread-swatch" style="background: rgb(255, 255, 255); border: 1px solid #ccc;"></div>
+        <div class="thread-info">
+          <div class="thread-id">B5200</div>
+          <div class="thread-name">Snow White</div>
+          <div class="thread-skeins">0.2 skeins</div>
+        </div>
+        <span class="thread-status" style="background: var(--warning-soft); color: #7d5715;">Need 1</span>
+      </div>
+
+      <!-- DMC 3371: Black Brown - Owned -->
+      <div class="thread-chip">
+        <div class="thread-swatch" style="background: rgb(30, 17, 8);"></div>
+        <div class="thread-info">
+          <div class="thread-id">3371</div>
+          <div class="thread-name">Black Brown</div>
+          <div class="thread-skeins">0.3 skeins</div>
+        </div>
+        <span class="thread-status">Owned</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    <strong>Audit IDs:</strong>
+    <ol>
+      <li><code>W4</code> â€” Quick stash-lookup: owned/not-owned badges on every thread</li>
+      <li><code>W5</code> â€” Materials pane can launch a shopping list modal</li>
+      <li><code>P2</code> â€” Each thread rendered with canonical DMC swatch + ID + name</li>
+    </ol>
+  </div>
+</section>
+
+<!-- â•â•â•â• 5. SYMBOL LEGEND PAGE â•â•â•â• -->
+<section class="sc-section">
+  <h2>Symbol legend â€” Pattern Keeper compatible</h2>
+  <p class="sc-lede">The printed legend page rendered at 1:1 scale with PUA glyphs, designed for monochrome printing and cross-reference during stitching.</p>
+
+  <div class="legend-page card--raised" style="margin-top: var(--s-5);">
+    <div class="legend-mock">
+      <h4>Cat Portrait Â· Legend Â· Page 1</h4>
+      <div class="grid">
+        <div class="legend-row" style="grid-column: span 4; margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid #eee;">
+          <div class="symbol-box">X</div>
+          <div class="legend-dmc">310</div>
+          <div class="legend-name">Black</div>
+          <div class="legend-skeins">2.1</div>
+        </div>
+        <div class="legend-row" style="grid-column: span 4; margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid #eee;">
+          <div class="symbol-box">+</div>
+          <div class="legend-dmc">498</div>
+          <div class="legend-name">Chr Dk</div>
+          <div class="legend-skeins">1.4</div>
+        </div>
+        <div class="legend-row" style="grid-column: span 4; margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid #eee;">
+          <div class="symbol-box">â—</div>
+          <div class="legend-dmc">934</div>
+          <div class="legend-name">B Avoc</div>
+          <div class="legend-skeins">0.7</div>
+        </div>
+        <div class="legend-row" style="grid-column: span 4;">
+          <div class="symbol-box">â–ª</div>
+          <div class="legend-dmc">3051</div>
+          <div class="legend-name">Grn Gr</div>
+          <div class="legend-skeins">1.2</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend-expl">
+      <h3>Why symbols on every stitch cell?</h3>
+      <p>The embedded PUA-glyph font keeps patterns Pattern Keeperâ€“compatible while staying readable in monochrome printing. Symbols provide a second visual layer when colour isn't available, making printed patterns tactile and stitcher-friendly. No emoji ambiguity; every symbol is a single-colour outline.</p>
+    </div>
+  </div>
+
+  <div class="footnote">
+    <strong>Audit IDs:</strong>
+    <ol>
+      <li><code>W6</code> â€” Paid pattern export includes PDF legend with glyphs</li>
+      <li><code>P2</code> â€” DMC ID + name on every legend row for clarity</li>
+    </ol>
+  </div>
+</section>
+
+<!-- â•â•â•â• 6. PRINT PDF PREVIEW â•â•â•â• -->
+<section class="sc-section">
+  <h2>Print PDF preview â€” 14 pages</h2>
+  <p class="sc-lede">A sample of the exported PDF showing cover, materials, and a chart page with major-grid lines and symbols.</p>
+
+  <div class="pdf-pages" style="margin-top: var(--s-5); justify-content: flex-start;">
+    <!-- Cover Page -->
+    <div class="pdf-page">
+      <div class="pdf-cover">
+        <div class="pdf-cover .title">Tudor Rose Sampler</div>
+        <div class="pdf-cover .meta">5.2" Ã— 7.1"<br>88 stitches Ã— 120 stitches</div>
+        <div class="pdf-cover .meta" style="margin-top: 8px; font-size: 8px; color: #999;">Devi Â· Wickham Studio</div>
+      </div>
+    </div>
+
+    <!-- Materials Page -->
+    <div class="pdf-page">
+      <div class="pdf-materials">
+        <strong>Materials</strong>
+        <div class="pdf-material-row">
+          <div class="pdf-material-swatch" style="background: rgb(0, 0, 0);"></div>
+          <span>310 Â· 2.1 sk</span>
+        </div>
+        <div class="pdf-material-row">
+          <div class="pdf-material-swatch" style="background: rgb(167, 19, 43);"></div>
+          <span>498 Â· 1.4 sk</span>
+        </div>
+        <div class="pdf-material-row">
+          <div class="pdf-material-swatch" style="background: rgb(95, 102, 72);"></div>
+          <span>3051 Â· 1.2 sk</span>
+        </div>
+        <div class="pdf-material-row">
+          <div class="pdf-material-swatch" style="background: rgb(248, 228, 200);"></div>
+          <span>739 Â· 0.9 sk</span>
+        </div>
+        <div class="pdf-material-row">
+          <div class="pdf-material-swatch" style="background: rgb(207, 121, 57);"></div>
+          <span>3776 Â· 0.6 sk</span>
+        </div>
+        <div class="pdf-material-row">
+          <div class="pdf-material-swatch" style="background: rgb(191, 45, 45);"></div>
+          <span>347 Â· 0.8 sk</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart Page (Page 4 of 9) -->
+    <div class="pdf-page">
+      <div style="font-size: 6px; color: #999; margin-bottom: 4px;">Page 4 of 9</div>
+      <div class="pdf-chart">
+        <div class="pdf-chart-cells"></div>
+      </div>
+      <div class="pdf-label">10Ã—10 stitch grid</div>
+    </div>
+  </div>
+
+  <p style="margin-top: var(--s-4); font-size: var(--text-sm); color: var(--text-secondary); text-align: center;">
+    <strong>14-page A4 PDF</strong> Â· Pattern Keeper compatible Â· ~1.2 MB
+  </p>
+
+  <div class="footnote">
+    <strong>Audit IDs:</strong>
+    <ol>
+      <li><code>W6</code> â€” Designer publishes pattern as printable, shareable PDF</li>
+      <li><code>F-W6</code> â€” PDF export consolidates print, share, and archive in one export</li>
+    </ol>
+  </div>
+</section>
+
+<!-- â•â•â•â• 7. CONVERT PALETTE MODAL â•â•â•â• -->
+<section class="sc-section">
+  <h2>Convert palette modal</h2>
+  <p class="sc-lede">User selects a source brand (Anchor, Madeira, etc.) and converts the chart's threads to the nearest DMC equivalents, viewing Î”E colour distance for each match.</p>
+
+  <div style="position: relative; height: 420px; background: var(--surface-sunken); border-radius: var(--radius); display: flex; align-items: center; justify-content: center;">
+    <div class="modal">
+      <div class="modal-header">Convert palette</div>
+
+      <div class="modal-body">
+        <div style="display: flex; gap: var(--s-3);">
+          <div style="flex: 1;">
+            <label style="font-size: var(--text-sm); color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 4px;">From</label>
+            <select style="width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; color: var(--text-primary); background: var(--surface-raised);">
+              <option>Anchor</option>
+            </select>
+          </div>
+          <div style="flex: 1;">
+            <label style="font-size: var(--text-sm); color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 4px;">To</label>
+            <select style="width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; color: var(--text-primary); background: var(--surface-raised);">
+              <option selected>DMC</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-top: var(--s-3); max-height: 220px; overflow-y: auto;">
+          <!-- Conversion Row 1 -->
+          <div class="modal-row">
+            <div class="modal-row .label">
+              <div class="name">Anchor 13</div>
+              <div class="orig">Dark red</div>
+            </div>
+            <div class="modal-row .arrow">â†’</div>
+            <div class="modal-row .target">
+              <div class="thread-swatch" style="background: rgb(191, 45, 45); width: 20px; height: 20px;"></div>
+              <span style="font-weight: 600;">347</span>
+              <div class="de" title="Î”E colour distance">5.2</div>
+            </div>
+          </div>
+
+          <!-- Conversion Row 2 -->
+          <div class="modal-row">
+            <div class="modal-row .label">
+              <div class="name">Anchor 410</div>
+              <div class="orig">Black</div>
+            </div>
+            <div class="modal-row .arrow">â†’</div>
+            <div class="modal-row .target">
+              <div class="thread-swatch" style="background: rgb(0, 0, 0); width: 20px; height: 20px;"></div>
+              <span style="font-weight: 600;">310</span>
+              <div class="de">0.1</div>
+            </div>
+          </div>
+
+          <!-- Conversion Row 3 -->
+          <div class="modal-row">
+            <div class="modal-row .label">
+              <div class="name">Anchor 234</div>
+              <div class="orig">Green</div>
+            </div>
+            <div class="modal-row .arrow">â†’</div>
+            <div class="modal-row .target">
+              <div class="thread-swatch" style="background: rgb(95, 102, 72); width: 20px; height: 20px;"></div>
+              <span style="font-weight: 600;">3051</span>
+              <div class="de">6.8</div>
+            </div>
+          </div>
+
+          <!-- Conversion Row 4 -->
+          <div class="modal-row">
+            <div class="modal-row .label">
+              <div class="name">Anchor 373</div>
+              <div class="orig">Tan</div>
+            </div>
+            <div class="modal-row .arrow">â†’</div>
+            <div class="modal-row .target">
+              <div class="thread-swatch" style="background: rgb(231, 214, 193); width: 20px; height: 20px;"></div>
+              <span style="font-weight: 600;">3047</span>
+              <div class="de">2.3</div>
+            </div>
+          </div>
+
+          <!-- Conversion Row 5 -->
+          <div class="modal-row">
+            <div class="modal-row .label">
+              <div class="name">Anchor 1006</div>
+              <div class="orig">Copper</div>
+            </div>
+            <div class="modal-row .arrow">â†’</div>
+            <div class="modal-row .target">
+              <div class="thread-swatch" style="background: rgb(207, 121, 57); width: 20px; height: 20px;"></div>
+              <span style="font-weight: 600;">3776</span>
+              <div class="de">4.1</div>
+            </div>
+          </div>
+
+          <!-- Conversion Row 6 -->
+          <div class="modal-row">
+            <div class="modal-row .label">
+              <div class="name">Anchor 400</div>
+              <div class="orig">Deep brown</div>
+            </div>
+            <div class="modal-row .arrow">â†’</div>
+            <div class="modal-row .target">
+              <div class="thread-swatch" style="background: rgb(30, 17, 8); width: 20px; height: 20px;"></div>
+              <span style="font-weight: 600;">3371</span>
+              <div class="de">3.6</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn--ghost">Cancel</button>
+        <button class="btn btn--primary">Apply 6 changes</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    <strong>Audit IDs:</strong>
+    <ol>
+      <li><code>W5</code> â€” Bulk thread conversion from Anchor / Madeira / other brands to DMC</li>
+      <li><code>P2</code> â€” Î”E colour distance shown for transparency in conversion quality</li>
+    </ol>
+  </div>
+</section>
+
+<!-- â•â•â•â• 8. EXPORT MENU â•â•â•â• -->
+<section class="sc-section">
+  <h2>Export menu</h2>
+  <p class="sc-lede">Compact dropdown menu showing all export options with icons and keyboard shortcuts. Part of the persistent action bar.</p>
+
+  <div class="export-menu card--raised" style="margin-top: var(--s-5); margin-bottom: var(--s-4);">
+    <div class="export-item">
+      <div class="export-item .icon">ðŸ–¨</div>
+      <span class="export-item .label">Print PDF</span>
+      <span class="export-item .shortcut">P</span>
+    </div>
+    <div class="export-item">
+      <div class="export-item .icon">ðŸ’¾</div>
+      <span class="export-item .label">Save as OXS</span>
+      <span class="export-item .shortcut">âŒ˜S</span>
+    </div>
+    <div class="export-item">
+      <div class="export-item .icon">ðŸ–¼</div>
+      <span class="export-item .label">Export PNG chart</span>
+      <span class="export-item .shortcut"></span>
+    </div>
+    <div class="export-item">
+      <div class="export-item .icon">ðŸ“¦</div>
+      <span class="export-item .label">Export ZIP bundle</span>
+      <span class="export-item .shortcut"></span>
+    </div>
+    <div class="export-item">
+      <div class="export-item .icon">â–¶</div>
+      <span class="export-item .label">Send to my tracker</span>
+      <span class="export-item .shortcut">T</span>
+    </div>
+    <div class="export-item">
+      <div class="export-item .icon">ðŸŒ</div>
+      <span class="export-item .label">Share via QR code</span>
+      <span class="export-item .shortcut"></span>
+    </div>
+  </div>
+
+  <div class="footnote">
+    <strong>Audit IDs:</strong>
+    <ol>
+      <li><code>W6</code> â€” Export menu consolidates PDF, OXS, PNG, ZIP, tracker sync, and QR share</li>
+      <li><code>F-W6</code> â€” Publishing outcome (ZIP bundle) accessible in â‰¤2 clicks from action bar</li>
+    </ol>
+  </div>
+</section>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan B · Modal / Sheet / Drawer primitive</title>
+<link rel="stylesheet" href="_wireframe.css">
+<style>
+  .modal-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;padding:24px;background:#dcdcdc}
+  .modal-pane{background:#fff;border:1px solid var(--w-line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px}
+  .modal-pane h3{margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--w-ink-3)}
+  .stage{position:relative;height:380px;background:#f0f0f0;border-radius:6px;overflow:hidden;border:1px solid var(--w-line);background-image:
+    linear-gradient(0deg,rgba(0,0,0,.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,0,0,.04) 1px,transparent 1px);background-size:16px 16px}
+  .stage .scrim{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+  .modal-card{position:absolute;background:#fff;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);overflow:hidden;display:flex;flex-direction:column}
+  .modal-card .mc-h{padding:10px 12px;border-bottom:1px solid var(--w-line);display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px}
+  .modal-card .mc-h .x{margin-left:auto;width:28px;height:28px;border:1px solid var(--w-line);border-radius:6px;text-align:center;line-height:26px;cursor:pointer}
+  .modal-card .mc-b{padding:12px;flex:1;font-size:12px;color:var(--w-ink-2);overflow:auto}
+  .modal-card .mc-f{padding:8px 12px;border-top:1px solid var(--w-line);display:flex;gap:6px;justify-content:flex-end;background:#fafafa}
+  /* centre dialog */
+  .stage.dialog .modal-card{top:50%;left:50%;transform:translate(-50%,-50%);width:280px;max-height:280px}
+  /* phone bottom-sheet */
+  .stage.sheet .modal-card{left:8px;right:8px;bottom:24px;border-radius:14px 14px 0 0;max-height:60%}
+  .stage.sheet .modal-card .grabber{width:36px;height:4px;background:#ccc;border-radius:2px;margin:6px auto 0}
+  .stage.sheet .safe{position:absolute;left:0;right:0;bottom:0;height:24px;background:#000;color:#fff;font-size:10px;text-align:center;line-height:24px}
+  /* side drawer */
+  .stage.drawer .modal-card{top:0;bottom:0;right:0;width:60%;border-radius:10px 0 0 10px}
+
+  .props{font-family:Menlo,monospace;font-size:11px;background:#f7f7f7;border-radius:4px;padding:8px;color:var(--w-ink-2);white-space:pre-wrap}
+</style>
+</head>
+<body>
+
+<div class="wf-frame" style="max-width:1200px">
+<div class="wf-meta">
+  <strong>Plan B · Wireframe 3 · One Modal/Sheet/Drawer family</strong>
+  Demonstrates: a single primitive renders three layouts via the <code>variant</code> prop. Replaces the 12 ad-hoc modals across the codebase with one component that owns focus trap, ESC handling, scrim, and safe-area padding.
+</div>
+<div class="wf-canvas">
+
+<div class="modal-grid">
+
+  <div class="modal-pane">
+    <h3>variant="dialog" · desktop / tablet</h3>
+    <div class="stage dialog">
+      <div class="scrim"></div>
+      <div class="modal-card">
+        <div class="mc-h"><span>Delete project?</span><span class="x">×</span></div>
+        <div class="mc-b">"Cat Portrait" and its 1,408 saved stitches will be permanently deleted. This can't be undone.</div>
+        <div class="mc-f">
+          <button class="wf-btn wf-btn--ghost wf-btn--sm">Cancel</button>
+          <button class="wf-btn wf-btn--sm" style="background:#D03A3A;color:#fff;border-color:#D03A3A">Delete</button>
+        </div>
+      </div>
+    </div>
+    <div class="props">&lt;Modal
+  variant="dialog"
+  title="Delete project?"
+  size="sm"
+  initialFocus="cancel" /&gt;</div>
+  </div>
+
+  <div class="modal-pane">
+    <h3>variant="sheet" · phone / small viewport</h3>
+    <div class="stage sheet">
+      <div class="scrim"></div>
+      <div class="modal-card">
+        <div class="grabber"></div>
+        <div class="mc-h" style="padding-top:8px"><span>Highlight colour</span><span class="x">×</span></div>
+        <div class="mc-b">List of palette rows would go here. Bottom-sheet pads its footer with <code>env(safe-area-inset-bottom)</code> so buttons clear the home-indicator.</div>
+        <div class="mc-f" style="padding-bottom:calc(8px + env(safe-area-inset-bottom))">
+          <button class="wf-btn wf-btn--ghost wf-btn--sm">Clear</button>
+          <button class="wf-btn wf-btn--primary wf-btn--sm">Apply</button>
+        </div>
+      </div>
+      <div class="safe">home-indicator (safe area)</div>
+    </div>
+    <div class="props">&lt;Modal
+  variant="sheet"
+  title="Highlight colour"
+  swipeToDismiss
+  safeArea /&gt;</div>
+  </div>
+
+  <div class="modal-pane">
+    <h3>variant="drawer" · side panel</h3>
+    <div class="stage drawer">
+      <div class="scrim"></div>
+      <div class="modal-card">
+        <div class="mc-h"><span>Project history</span><span class="x">×</span></div>
+        <div class="mc-b">
+          <strong>Today</strong> · 214 stitches · 38 min<br>
+          <strong>Yesterday</strong> · 410 stitches · 1 h 12 min<br>
+          <strong>Mon 7 Apr</strong> · 198 stitches · 33 min<br>
+          <strong>Sun 6 Apr</strong> · 0 stitches<br>
+          ...
+        </div>
+        <div class="mc-f">
+          <button class="wf-btn wf-btn--ghost wf-btn--sm">Export CSV</button>
+          <button class="wf-btn wf-btn--primary wf-btn--sm">Done</button>
+        </div>
+      </div>
+    </div>
+    <div class="props">&lt;Modal
+  variant="drawer"
+  side="right"
+  title="Project history"
+  width="60%" /&gt;</div>
+  </div>
+
+</div>
+
+</div>
+<div class="wf-note">
+  Notes:
+  <ol>
+    <li>One component, three layouts. Variant is the only branching point — focus management, ESC handling, scrim, and ARIA roles are shared (A-H3).</li>
+    <li>Sheet variant pads its footer with <code>env(safe-area-inset-bottom)</code> so primary action clears iOS home-indicator (M-H4).</li>
+    <li>Replaces 12 ad-hoc modal implementations across <code>modals.js</code>, <code>creator/BulkAddModal.js</code>, <code>creator/ConvertPaletteModal.js</code>, <code>creator/ImportWizard.js</code>, <code>creator/ShoppingListModal.js</code>, <code>creator/SubstituteFromStashModal.js</code>, <code>preferences-modal.js</code>, <code>onboarding-wizard.js</code>, <code>palette-swap.js</code>, <code>backup-restore.js</code>.</li>
+    <li>All modals get <code>role="dialog"</code> and <code>aria-modal="true"</code> automatically (A-H3).</li>
+  </ol>
+</div>
+</div>
+
+</body>
+</html>

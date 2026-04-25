@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan C · Consolidated home dashboard</title>
+<link rel="stylesheet" href="_wireframe.css">
+<style>
+  .c-top{display:flex;align-items:center;gap:14px;padding:8px 18px;border-bottom:1px solid var(--w-line);background:#fff;height:56px}
+  .c-logo{font-weight:800;letter-spacing:.02em;font-size:14px;padding:6px 10px;border:1px solid var(--w-line);border-radius:6px}
+  .ms{display:flex;background:#f0f0f0;border-radius:999px;padding:3px;gap:2px}
+  .ms button{font:inherit;font-size:12px;font-weight:600;padding:6px 14px;border-radius:999px;background:transparent;border:none;color:var(--w-ink-3)}
+
+  .home-wrap{padding:32px 32px 60px;background:#fafafa;min-height:580px}
+  .hero{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
+  .hero h1{margin:0;font-size:26px;font-weight:600}
+  .hero .sub{font-size:13px;color:var(--w-ink-3);margin-top:4px}
+  .hero .actions{display:flex;gap:6px}
+
+  .home-grid{display:grid;grid-template-columns:1.7fr 1fr;gap:18px}
+  .card{background:#fff;border:1px solid var(--w-line);border-radius:10px;padding:16px}
+  .card h2{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--w-ink-3);font-weight:600;display:flex;align-items:center}
+  .card h2 .more{margin-left:auto;font-size:12px;color:var(--w-ink-3);text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer}
+
+  .pj-list{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .pj{display:flex;gap:10px;padding:10px;border:1px solid var(--w-line);border-radius:8px;background:#fff;cursor:pointer}
+  .pj .thumb{width:54px;height:54px;border-radius:6px;background:#eee;border:1px solid var(--w-line);flex-shrink:0}
+  .pj .info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .pj .name{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pj .meta{font-size:11px;color:var(--w-ink-3)}
+  .pj .progress{height:4px;border-radius:2px;background:#eee;overflow:hidden;margin-top:4px}
+  .pj .progress i{display:block;height:100%;background:var(--w-ink)}
+  .pj .badge{font-size:10px;padding:1px 5px;border-radius:3px;background:#eef;color:#225;align-self:flex-start;margin-top:2px}
+
+  .quick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .quick .qb{padding:14px 12px;border:1px solid var(--w-line);border-radius:8px;background:#fff;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:4px}
+  .quick .qb strong{font-size:13px}
+  .quick .qb span{font-size:11px;color:var(--w-ink-3)}
+  .quick .qb.primary{background:var(--w-ink);color:#fff;border-color:var(--w-ink)}
+  .quick .qb.primary span{color:rgba(255,255,255,.75)}
+
+  .stash-row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px dashed var(--w-line-2)}
+  .stash-row .v{font-weight:600}
+
+  .activity li{font-size:12px;color:var(--w-ink-2);padding:5px 0;border-bottom:1px dashed var(--w-line-2);list-style:none;display:flex;justify-content:space-between}
+  .activity .t{color:var(--w-ink-3);font-size:11px}
+</style>
+</head>
+<body>
+
+<div class="wf-frame" style="max-width:1280px">
+<div class="wf-meta">
+  <strong>Plan C · Wireframe 4 · Home dashboard (single landing for all three modes)</strong>
+  Demonstrates: one home replaces the three pages' separate landings + the project-picker modal. Bea, Eli and Devi all start here; their next action is one click away.
+</div>
+<div class="wf-canvas">
+<div class="desktop">
+
+  <header class="c-top">
+    <div class="c-logo">stitch.</div>
+    <div style="font-size:13px;color:var(--w-ink-3)">Home</div>
+    <div class="ms" style="margin-left:18px"><button>Designing</button><button>Tracking</button><button>Managing</button></div>
+    <div style="margin-left:auto;display:flex;gap:6px">
+      <button class="wf-btn wf-btn--ghost wf-btn--sm">⌘K</button>
+      <button class="wf-btn wf-btn--ghost wf-btn--sm">Help</button>
+      <button class="wf-btn wf-btn--ghost wf-btn--sm" style="width:32px;height:32px;border-radius:50%;padding:0">EL</button>
+    </div>
+  </header>
+
+  <div class="home-wrap">
+
+    <div class="hero">
+      <div>
+        <h1>Welcome back, Eli</h1>
+        <div class="sub">You stitched 410 last night — keep going on Tudor Rose Sampler.</div>
+      </div>
+      <div class="actions">
+        <button class="wf-btn">⤓ Import…</button>
+        <button class="wf-btn wf-btn--primary">+ New pattern</button>
+      </div>
+    </div>
+
+    <div class="home-grid">
+
+      <div class="card">
+        <h2>Your projects · 5 <span class="more">View all ▸</span></h2>
+        <div class="pj-list">
+          <div class="pj">
+            <div class="thumb"></div>
+            <div class="info">
+              <span class="name">Tudor Rose Sampler</span>
+              <span class="meta">Tracking · 1,408 / 3,360</span>
+              <div class="progress"><i style="width:42%"></i></div>
+              <span class="badge">Resume ▸</span>
+            </div>
+          </div>
+          <div class="pj">
+            <div class="thumb"></div>
+            <div class="info">
+              <span class="name">Heron Marsh</span>
+              <span class="meta">Designing · 80×100 · 32 colours</span>
+              <div class="progress"><i style="width:8%"></i></div>
+            </div>
+          </div>
+          <div class="pj">
+            <div class="thumb"></div>
+            <div class="info">
+              <span class="name">Cat Portrait (gift)</span>
+              <span class="meta">Tracking · due 2 May</span>
+              <div class="progress"><i style="width:73%"></i></div>
+            </div>
+          </div>
+          <div class="pj">
+            <div class="thumb"></div>
+            <div class="info">
+              <span class="name">Mum's Birthday</span>
+              <span class="meta">Tracking · started yesterday</span>
+              <div class="progress"><i style="width:2%"></i></div>
+            </div>
+          </div>
+        </div>
+
+        <h2 style="margin-top:18px">Recent activity</h2>
+        <ul class="activity" style="margin:0;padding:0">
+          <li><span>Stitched 410 on <strong>Tudor Rose Sampler</strong></span><span class="t">Yesterday · 1 h 12 min</span></li>
+          <li><span>Imported <strong>Heron Marsh.oxs</strong> from KG-Chart</span><span class="t">Yesterday</span></li>
+          <li><span>Bought 6 skeins · DMC 310, 498, 934</span><span class="t">Mon 7 Apr</span></li>
+          <li><span>Finished <strong>Sampler 2024</strong> 🎉</span><span class="t">Sun 6 Apr</span></li>
+        </ul>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:18px">
+
+        <div class="card">
+          <h2>Pick up where you left off</h2>
+          <div class="quick">
+            <button class="qb primary"><strong>Resume Tudor Rose</strong><span>Tracking · 42% · last 38 min</span></button>
+            <button class="qb"><strong>Print Heron Marsh</strong><span>Designing · 14-page PDF ready</span></button>
+            <button class="qb"><strong>Order shopping list</strong><span>3 skeins missing · £2.85</span></button>
+            <button class="qb"><strong>Restock thread stash</strong><span>Managing · 6 colours low</span></button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Stash at a glance <span class="more">Manage ▸</span></h2>
+          <div class="stash-row"><span>Owned skeins</span><span class="v">142</span></div>
+          <div class="stash-row"><span>Unique DMC</span><span class="v">128</span></div>
+          <div class="stash-row"><span>Anchor / WDW</span><span class="v">14</span></div>
+          <div class="stash-row"><span>Low-stock alerts</span><span class="v">6</span></div>
+          <div class="stash-row"><span>Shopping list value</span><span class="v">£12.40</span></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+<div class="wf-note">
+  Notes:
+  <ol>
+    <li>One home replaces three separate landing pages (Creator's home-screen, Tracker's project-picker, Manager's dashboard) — addresses N-H1, F-W7-M1.</li>
+    <li>Mode pills sit in the header but are visually muted on Home (this surface is mode-agnostic). Selecting a project + clicking "Resume" / "Print" enters the corresponding mode in one click.</li>
+    <li>"Pick up where you left off" is the personalised shortcut surface — it adapts to each persona's last action.</li>
+    <li>Stash-at-a-glance gives Devi quick visibility into materials without navigating to Manager (P9).</li>
+  </ol>
+</div>
+</div>
+
+</body>
+</html>

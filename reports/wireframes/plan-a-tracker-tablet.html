@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan A · Tracker on tablet (Workshop direction)</title>
+<link rel="stylesheet" href="_wireframe.css">
+<style>
+  .tab-rail{width:64px;background:#f5f5f5;border-right:1px solid var(--w-line);display:flex;flex-direction:column;gap:6px;padding:10px 6px;align-items:center}
+  .tab-rail .pin{font-size:11px;color:var(--w-ink-3);margin-top:4px}
+  .tab-rail .proj{width:48px;height:48px;border-radius:10px;background:#fff;border:1px solid var(--w-line);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:var(--w-ink-2);position:relative;cursor:pointer}
+  .tab-rail .proj.active{border:2px solid var(--w-ink);background:#fff;color:var(--w-ink)}
+  .tab-rail .proj .badge{position:absolute;top:-4px;right:-4px;font-size:9px;background:var(--w-ink);color:#fff;border-radius:8px;padding:1px 5px;font-weight:600}
+  .tab-rail .proj .pct{position:absolute;bottom:2px;right:2px;font-size:8px;background:rgba(255,255,255,.85);border-radius:3px;padding:0 2px;color:var(--w-ink-2)}
+  .tab-rail .add{width:48px;height:48px;border-radius:10px;border:1px dashed var(--w-line-2);background:transparent;color:var(--w-ink-3);font-size:18px}
+  .tab-rail .nav-bottom{margin-top:auto;display:flex;flex-direction:column;gap:4px;align-items:center;border-top:1px solid var(--w-line);padding-top:10px}
+  .tab-rail .nav-bottom button{width:44px;height:44px;border:none;background:transparent;border-radius:8px;font-size:14px;color:var(--w-ink-2)}
+  .tab-rail .nav-bottom button.active{background:var(--w-ink);color:#fff}
+  .tab-main{flex:1;display:flex;flex-direction:column}
+  .tab-header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--w-line);background:#fafafa}
+  .tab-header h1{margin:0;font-size:16px;font-weight:600}
+  .tab-header .breadcrumb{font-size:11px;color:var(--w-ink-3)}
+  .tab-header .actions{margin-left:auto;display:flex;gap:6px}
+  .tab-toolbar{display:flex;gap:6px;padding:8px 16px;border-bottom:1px solid var(--w-line);background:#fff;align-items:center}
+  .tab-toolbar .group{display:flex;gap:4px;padding:0 6px;border-right:1px solid var(--w-line)}
+  .tab-toolbar .group:last-child{border-right:none;margin-left:auto}
+  .tab-toolbar button{min-width:36px;min-height:36px;border:1px solid var(--w-line);background:#fff;border-radius:6px;font-size:13px;color:var(--w-ink-2);padding:0 10px;display:inline-flex;align-items:center;gap:5px}
+  .tab-toolbar button.active{background:var(--w-ink);color:#fff;border-color:var(--w-ink)}
+  .tab-body{flex:1;display:flex;min-height:0}
+  .tab-canvaswrap{flex:1;background:#fafafa;position:relative;overflow:hidden;padding:20px}
+  .tab-canvaswrap .wf-chart{height:100%;border:1px solid var(--w-line);border-radius:6px}
+  .tab-rightpanel{width:260px;border-left:1px solid var(--w-line);background:#fafafa;padding:12px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+  .tab-rightpanel h3{margin:0;font-size:12px;color:var(--w-ink-3);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .palette-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+  .palette-row{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:4px;background:#fff;border:1px solid var(--w-line);font-size:11px}
+  .palette-row .sw{width:14px;height:14px;border-radius:3px;border:1px solid #555}
+  .palette-row.active{border-color:var(--w-ink);box-shadow:inset 0 0 0 1px var(--w-ink)}
+  .palette-row .id{font-weight:700}
+  .palette-row .rem{margin-left:auto;color:var(--w-ink-3);font-variant-numeric:tabular-nums}
+  .stat-row{display:flex;justify-content:space-between;font-size:12px;color:var(--w-ink-2);padding:3px 0;border-bottom:1px dashed var(--w-line-2)}
+  .stat-row .v{font-weight:600;color:var(--w-ink);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+
+<div class="wf-frame" style="max-width:1080px">
+<div class="wf-meta">
+  <strong>Plan A · Wireframe 2 · Tracker on tablet (1024×740)</strong>
+  Demonstrates: persistent left rail (collapsible) replaces project-picker modal; canvas dominates; palette + stats on the right; toolbar groups by function.
+</div>
+<div class="wf-canvas" style="background:#dcdcdc;padding:24px 0">
+
+<div class="tablet">
+  <div class="tablet-screen">
+
+    <aside class="tab-rail" aria-label="Projects and pages">
+      <div class="proj active" title="Tudor Rose">TR<span class="pct">42%</span></div>
+      <div class="proj" title="Heron Marsh">HM<span class="pct">8%</span></div>
+      <div class="proj" title="Cat Portrait">CP<span class="badge">●</span><span class="pct">73%</span></div>
+      <div class="proj" title="Sampler">SA<span class="pct">100%</span></div>
+      <div class="proj" title="Mum’s Birthday">MB<span class="pct">2%</span></div>
+      <button class="add" title="Open another">+</button>
+      <div class="nav-bottom">
+        <button class="active" title="Track">◐</button>
+        <button title="Edit">✎</button>
+        <button title="Manage stash">▤</button>
+      </div>
+    </aside>
+
+    <div class="tab-main">
+
+      <header class="tab-header">
+        <div>
+          <div class="breadcrumb">Tracking</div>
+          <h1>Tudor Rose Sampler · 42% · 1,408 of 3,360</h1>
+        </div>
+        <div class="actions">
+          <a class="wf-btn wf-btn--ghost wf-btn--sm" href="#">Open on phone</a>
+          <a class="wf-btn wf-btn--sm" href="#">Save</a>
+        </div>
+      </header>
+
+      <div class="tab-toolbar">
+        <div class="group">
+          <button class="active">Mark</button>
+          <button>Erase</button>
+        </div>
+        <div class="group">
+          <button>Highlight ▾</button>
+          <button>Find next</button>
+          <button>Page 4 / 9 ▾</button>
+        </div>
+        <div class="group">
+          <button>Park</button>
+          <button>Half ▾</button>
+        </div>
+        <div class="group">
+          <button>Zoom 2× ▾</button>
+          <button>Symbols ▾</button>
+        </div>
+      </div>
+
+      <div class="tab-body">
+        <div class="tab-canvaswrap">
+          <div class="wf-chart"><div class="wf-chart-cells"></div></div>
+        </div>
+
+        <aside class="tab-rightpanel" aria-label="Palette and stats">
+          <h3>Today</h3>
+          <div class="stat-row"><span>Stitches</span><span class="v">214</span></div>
+          <div class="stat-row"><span>Time</span><span class="v">38 min</span></div>
+          <div class="stat-row"><span>Pace</span><span class="v">5.6 / min</span></div>
+
+          <h3 style="margin-top:6px">Palette · 38 colours</h3>
+          <div class="palette-grid">
+            <div class="palette-row active"><span class="sw" style="background:#7c1a1a"></span><span class="id">498</span><span class="rem">312</span></div>
+            <div class="palette-row"><span class="sw" style="background:#a02a2a"></span><span class="id">347</span><span class="rem">198</span></div>
+            <div class="palette-row"><span class="sw" style="background:#1c2f1c"></span><span class="id">934</span><span class="rem">540</span></div>
+            <div class="palette-row"><span class="sw" style="background:#3a5a3a"></span><span class="id">3051</span><span class="rem">410</span></div>
+            <div class="palette-row"><span class="sw" style="background:#c8c0a8"></span><span class="id">739</span><span class="rem">122</span></div>
+            <div class="palette-row"><span class="sw" style="background:#a08c50"></span><span class="id">3047</span><span class="rem">68</span></div>
+            <div class="palette-row"><span class="sw" style="background:#222"></span><span class="id">310</span><span class="rem">0 ✓</span></div>
+            <div class="palette-row"><span class="sw" style="background:#fafafa;border-color:#bbb"></span><span class="id">B5200</span><span class="rem">14</span></div>
+          </div>
+
+          <h3 style="margin-top:6px">Working method</h3>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <span class="wf-chip">Cross-country</span>
+            <span class="wf-chip" style="background:var(--w-ink);color:#fff;border-color:var(--w-ink)">Parking</span>
+            <span class="wf-chip">Page</span>
+          </div>
+        </aside>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</div>
+<div class="wf-note">
+  Notes:
+  <ol>
+    <li>Left rail replaces the project-picker modal (F-W3-H1). Recent projects always visible; ✚ adds another; bottom buttons switch to Edit (Creator) or Manage (Manager) keeping the same project context (N-H1).</li>
+    <li>Header explicitly states mode (Tracking) and surfaces "Open on phone" — the W2 handoff (F-W2-M1).</li>
+    <li>Toolbar grouped: stitching · navigation · stitch types · view. Active tool clearly marked. Working-method chips at bottom-right honour P12.</li>
+    <li>Palette rows pair swatch + DMC ID + remaining count. Completed colours show ✓ and dim out.</li>
+  </ol>
+</div>
+</div>
+
+</body>
+</html>

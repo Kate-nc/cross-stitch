@@ -1,0 +1,632 @@
+﻿<!doctype html><html lang="en" data-theme="light"><head><meta charset="utf-8">
+<title>stitch. Â· Workshop Â· Brand &amp; system</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="_workshop.css">
+<style>
+.wordmark-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-6); margin-bottom: var(--s-5); }
+.wordmark-row { display: flex; flex-direction: column; gap: var(--s-3); }
+.wordmark-row .mark { font: 700 var(--text-hero) var(--font-ui); letter-spacing: -.01em; }
+.wordmark-row.size-40 .mark { font-size: 40px; }
+.wordmark-row.size-28 .mark { font-size: 28px; }
+.wordmark-row.size-18 .mark { font-size: 18px; }
+.wordmark-row .label { font-size: var(--text-sm); color: var(--text-muted); font-weight: 500; }
+
+.icon-grid { font-size: var(--text-xs); }
+.icon-cell { display: flex; flex-direction: column; align-items: center; gap: var(--s-2); padding: var(--s-4); background: var(--surface-sunken); border-radius: var(--radius); }
+.icon-cell svg { width: 24px; height: 24px; color: var(--text-primary); }
+
+.icon-sample { width: 24px; height: 24px; color: currentColor; display: inline-block; }
+
+.colour-swatch-row { display: flex; align-items: center; gap: var(--s-4); padding: var(--s-3); border-bottom: 1px solid var(--line); }
+.colour-swatch-row:last-child { border-bottom: none; }
+.swatch-box { width: 56px; height: 56px; border-radius: var(--radius); border: 1px solid rgba(0,0,0,.1); flex-shrink: 0; }
+[data-theme="dark"] .swatch-box { border-color: rgba(255,255,255,.15); }
+.swatch-info { flex: 1; }
+.swatch-info .token { font: 500 var(--text-md) ui-monospace, Menlo, monospace; color: var(--text-primary); }
+.swatch-info .hex { font: 500 var(--text-sm) ui-monospace, Menlo, monospace; color: var(--text-secondary); margin-top: 2px; }
+.swatch-info .use { font-size: var(--text-sm); color: var(--text-secondary); margin-top: 4px; }
+
+.type-sample { display: flex; align-items: baseline; justify-content: space-between; padding: var(--s-3); border-bottom: 1px solid var(--line); gap: var(--s-4); }
+.type-sample:last-child { border-bottom: none; }
+.type-content { flex: 1; }
+.type-meta { flex: 0 0 120px; text-align: right; font: 500 var(--text-sm) ui-monospace, Menlo, monospace; color: var(--text-muted); }
+
+.btn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-4); }
+.btn-group { display: flex; flex-direction: column; gap: var(--s-3); }
+.btn-group .label { font-size: var(--text-sm); color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+
+.chip-row { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; padding: var(--s-4); border-bottom: 1px solid var(--line); }
+.chip-row:last-child { border-bottom: none; }
+.chip-row .label { font-size: var(--text-sm); color: var(--text-muted); min-width: 100px; font-weight: 600; }
+
+.card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-4); }
+.card-content { display: flex; gap: var(--s-4); }
+.card-thumbnail { width: 60px; height: 60px; background: linear-gradient(135deg, #F4E8D8, #E8D8C8); border-radius: var(--radius); border: 1px solid var(--line); flex-shrink: 0; }
+.card-info { flex: 1; }
+.card-info h3 { font-size: var(--text-md); font-weight: 600; margin-bottom: var(--s-1); }
+.card-info .progress { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--s-2); }
+.card-info a { font-size: var(--text-sm); color: var(--accent-2); }
+
+.motion-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-4); }
+
+.voice-table { width: 100%; border-collapse: collapse; }
+.voice-table td { padding: var(--s-4); border-bottom: 1px solid var(--line); font-size: var(--text-md); }
+.voice-table thead { background: var(--surface-sunken); }
+.voice-table th { font: 600 var(--text-md) var(--font-ui); text-align: left; color: var(--text-primary); }
+.voice-table tbody tr:last-child td { border-bottom: none; }
+.voice-table tbody tr.bad-example { background: var(--danger-soft); border-left: 3px solid var(--danger); }
+.voice-table tbody tr.bad-example td { border-left: none; }
+
+.dark-theme-panel { background: var(--surface); padding: var(--s-6); border-radius: var(--radius-lg); }
+.dark-theme-panel[data-theme="dark"] { background: var(--surface-raised); }
+</style>
+</head><body><main class="sc-page">
+
+<!-- 1. Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<header class="sc-header">
+  <div class="eyebrow">Workshop direction Â· Visual proposal 1 of 5</div>
+  <h1>stitch<span style="color: var(--accent)">.</span></h1>
+  <p>The well-organised sewing chair. Workshop is warm and tactile, inspired by the linen and terracotta palette of craft-room photography. It prioritises the cross-stitch canvas above all â€” calm, focused chrome that gets out of the way of the work.</p>
+</header>
+
+<!-- 2. Logo Lockups â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<section class="sc-section">
+  <h2>Logo &amp; lockups</h2>
+  <div class="wordmark-grid">
+    <div class="wordmark-row">
+      <div class="mark">stitch<span style="color: var(--accent)">.</span></div>
+      <div class="label">Hero / 64 px</div>
+    </div>
+    <div class="wordmark-row size-40">
+      <div class="mark">stitch<span style="color: var(--accent)">.</span></div>
+      <div class="label">Page title / 40 px</div>
+    </div>
+    <div class="wordmark-row size-28">
+      <div class="mark">stitch<span style="color: var(--accent)">.</span></div>
+      <div class="label">Section heading / 28 px</div>
+    </div>
+    <div class="wordmark-row size-18">
+      <div class="mark">stitch<span style="color: var(--accent)">.</span></div>
+      <div class="label">Navigation / 18 px</div>
+    </div>
+  </div>
+
+  <div style="margin-top: var(--s-6); padding-top: var(--s-5); border-top: 1px solid var(--line);">
+    <p style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--s-4);">App icon Â· 64Ã—64</p>
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-6);">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: var(--s-3);">
+        <div style="width: 80px; height: 80px; background: var(--accent); border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+          <svg viewBox="0 0 24 24" style="width: 40px; height: 40px; color: var(--text-on-accent);" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="3" x2="21" y2="21" />
+            <line x1="21" y1="3" x2="3" y2="21" />
+          </svg>
+        </div>
+        <div class="label">On linen</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: var(--s-3);">
+        <div style="width: 80px; height: 80px; background: var(--surface-ink); border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+          <svg viewBox="0 0 24 24" style="width: 40px; height: 40px; color: var(--accent);" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="3" x2="21" y2="21" />
+            <line x1="21" y1="3" x2="3" y2="21" />
+          </svg>
+        </div>
+        <div class="label">On dark background</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. Colour System â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<section class="sc-section">
+  <h2>Colour system</h2>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6);">
+
+    <!-- Light theme -->
+    <div>
+      <p style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--s-4); color: var(--text-primary);">Light</p>
+      <div style="background: white; border-radius: var(--radius-lg); border: 1px solid var(--line); overflow: hidden;">
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #FBF8F3;"></div>
+          <div class="swatch-info">
+            <div class="token">--surface</div>
+            <div class="hex">#FBF8F3</div>
+            <div class="use">Page background, linen base</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #FFFFFF;"></div>
+          <div class="swatch-info">
+            <div class="token">--surface-raised</div>
+            <div class="hex">#FFFFFF</div>
+            <div class="use">Cards, modals, sections</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #F2EDE3;"></div>
+          <div class="swatch-info">
+            <div class="token">--surface-sunken</div>
+            <div class="hex">#F2EDE3</div>
+            <div class="use">Secondary surfaces, disabled</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #E5DCCB;"></div>
+          <div class="swatch-info">
+            <div class="token">--line</div>
+            <div class="hex">#E5DCCB</div>
+            <div class="use">Borders, dividers</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #1B1814;"></div>
+          <div class="swatch-info">
+            <div class="token">--text-primary</div>
+            <div class="hex">#1B1814</div>
+            <div class="use">Body text, headings</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #5C5448;"></div>
+          <div class="swatch-info">
+            <div class="token">--text-secondary</div>
+            <div class="hex">#5C5448</div>
+            <div class="use">Metadata, helper text</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #B85C38;"></div>
+          <div class="swatch-info">
+            <div class="token">--accent</div>
+            <div class="hex">#B85C38</div>
+            <div class="use">Terracotta: buttons, links, highlights</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #F4DDCF;"></div>
+          <div class="swatch-info">
+            <div class="token">--accent-soft</div>
+            <div class="hex">#F4DDCF</div>
+            <div class="use">Subtle accent background</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #4F7D3F;"></div>
+          <div class="swatch-info">
+            <div class="token">--success</div>
+            <div class="hex">#4F7D3F</div>
+            <div class="use">Positive feedback, completion</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #C0883A;"></div>
+          <div class="swatch-info">
+            <div class="token">--warning</div>
+            <div class="hex">#C0883A</div>
+            <div class="use">Caution, informational</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #A53D3D;"></div>
+          <div class="swatch-info">
+            <div class="token">--danger</div>
+            <div class="hex">#A53D3D</div>
+            <div class="use">Destructive actions, errors</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #E9DCC2;"></div>
+          <div class="swatch-info">
+            <div class="token">--tint-thread</div>
+            <div class="hex">#E9DCC2</div>
+            <div class="use">Thread-on-fabric tint</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #EDE3D0;"></div>
+          <div class="swatch-info">
+            <div class="token">--tint-fabric</div>
+            <div class="hex">#EDE3D0</div>
+            <div class="use">Fabric-base tint</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dark theme -->
+    <div data-theme="dark">
+      <p style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--s-4); color: var(--text-primary);">Dark</p>
+      <div style="background: var(--surface-raised); border-radius: var(--radius-lg); border: 1px solid var(--line); overflow: hidden;">
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #1C1A18;"></div>
+          <div class="swatch-info">
+            <div class="token">--surface</div>
+            <div class="hex">#1C1A18</div>
+            <div class="use">Page background, charcoal</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #2A2724;"></div>
+          <div class="swatch-info">
+            <div class="token">--surface-raised</div>
+            <div class="hex">#2A2724</div>
+            <div class="use">Cards, modals, sections</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #14120F;"></div>
+          <div class="swatch-info">
+            <div class="token">--surface-sunken</div>
+            <div class="hex">#14120F</div>
+            <div class="use">Secondary surfaces, disabled</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #3A352E;"></div>
+          <div class="swatch-info">
+            <div class="token">--line</div>
+            <div class="hex">#3A352E</div>
+            <div class="use">Borders, dividers</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #F4EFE7;"></div>
+          <div class="swatch-info">
+            <div class="token">--text-primary</div>
+            <div class="hex">#F4EFE7</div>
+            <div class="use">Body text, headings</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #B6AC9C;"></div>
+          <div class="swatch-info">
+            <div class="token">--text-secondary</div>
+            <div class="hex">#B6AC9C</div>
+            <div class="use">Metadata, helper text</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #E2865B;"></div>
+          <div class="swatch-info">
+            <div class="token">--accent</div>
+            <div class="hex">#E2865B</div>
+            <div class="use">Terracotta light: buttons, links</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #3A2418;"></div>
+          <div class="swatch-info">
+            <div class="token">--accent-soft</div>
+            <div class="hex">#3A2418</div>
+            <div class="use">Subtle accent background</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #88B077;"></div>
+          <div class="swatch-info">
+            <div class="token">--success</div>
+            <div class="hex">#88B077</div>
+            <div class="use">Positive feedback, completion</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #E6B069;"></div>
+          <div class="swatch-info">
+            <div class="token">--warning</div>
+            <div class="hex">#E6B069</div>
+            <div class="use">Caution, informational</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #E07474;"></div>
+          <div class="swatch-info">
+            <div class="token">--danger</div>
+            <div class="hex">#E07474</div>
+            <div class="use">Destructive actions, errors</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #2E281D;"></div>
+          <div class="swatch-info">
+            <div class="token">--tint-thread</div>
+            <div class="hex">#2E281D</div>
+            <div class="use">Thread-on-fabric tint</div>
+          </div>
+        </div>
+        <div class="colour-swatch-row">
+          <div class="swatch-box" style="background: #322B1F;"></div>
+          <div class="swatch-info">
+            <div class="token">--tint-fabric</div>
+            <div class="hex">#322B1F</div>
+            <div class="use">Fabric-base tint</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- 4. Type Scale â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<section class="sc-section">
+  <h2>Type scale</h2>
+  <p class="sc-lede">All text uses Inter, weight 400 regular or 600 for emphasis. Numerals are tabular-spaced.</p>
+  <div style="background: white; border-radius: var(--radius-lg); border: 1px solid var(--line); overflow: hidden;">
+    <div class="type-sample" style="font-size: var(--text-hero); font-weight: 600;">
+      <div class="type-content">Welcome back, Eli.</div>
+      <div class="type-meta">28 px</div>
+    </div>
+    <div class="type-sample" style="font-size: var(--text-h); font-weight: 600;">
+      <div class="type-content">Tudor Rose Sampler</div>
+      <div class="type-meta">22 px</div>
+    </div>
+    <div class="type-sample" style="font-size: var(--text-xl);">
+      <div class="type-content">Threads &amp; materials</div>
+      <div class="type-meta">17 px</div>
+    </div>
+    <div class="type-sample" style="font-size: var(--text-lg); font-weight: 500;">
+      <div class="type-content">Print this pattern</div>
+      <div class="type-meta">14 px</div>
+    </div>
+    <div class="type-sample" style="font-size: var(--text-md); color: var(--text-secondary);">
+      <div class="type-content">1,408 of 3,360 stitches done â€” 42% complete</div>
+      <div class="type-meta">13 px</div>
+    </div>
+    <div class="type-sample" style="font-size: var(--text-sm); color: var(--text-secondary);">
+      <div class="type-content">Last saved a moment ago</div>
+      <div class="type-meta">12 px</div>
+    </div>
+    <div class="type-sample" style="font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--text-secondary);">
+      <div class="type-content">DMC Â· 38 colours</div>
+      <div class="type-meta">11 px</div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<section class="sc-section">
+  <h2>Buttons</h2>
+  <p class="sc-lede">Four variants at three sizes. Primary for main actions, secondary for grouped alternatives, ghost for low-emphasis, danger for destructive.</p>
+  <div class="btn-grid">
+    <div class="btn-group">
+      <div class="label">Small</div>
+      <button class="btn btn--primary btn--sm">Print PDF</button>
+      <button class="btn btn--secondary btn--sm" style="background: var(--surface-sunken);">Cancel</button>
+      <button class="btn btn--ghost btn--sm">More options</button>
+      <button class="btn btn--danger btn--sm">Delete</button>
+    </div>
+    <div class="btn-group">
+      <div class="label">Medium</div>
+      <button class="btn btn--primary">Track this project</button>
+      <button class="btn btn--secondary" style="background: var(--surface-sunken);">Manage palette</button>
+      <button class="btn btn--ghost">Help</button>
+      <button class="btn btn--danger">Delete project</button>
+    </div>
+    <div class="btn-group">
+      <div class="label">Large</div>
+      <button class="btn btn--primary btn--lg">Export pattern</button>
+      <button class="btn btn--secondary btn--lg" style="background: var(--surface-sunken);">Save and return</button>
+      <button class="btn btn--ghost btn--lg">View guidelines</button>
+      <button class="btn btn--danger btn--lg">Clear all data</button>
+    </div>
+  </div>
+</section>
+
+<!-- 6. Chips &amp; Badges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<section class="sc-section">
+  <h2>Chips &amp; badges</h2>
+  <div class="chip-row">
+    <div class="label">DMC chip</div>
+    <span class="chip chip--accent">
+      <span class="swatch" style="background: #7C1A1A;"></span>
+      DMC 498 Â· Dark red
+    </span>
+  </div>
+  <div class="chip-row">
+    <div class="label">Status</div>
+    <span class="chip chip--solid">Working</span>
+    <span class="chip chip--success">Owned</span>
+  </div>
+  <div class="chip-row">
+    <div class="label">Alerts</div>
+    <span class="chip chip--warning">3 needed</span>
+    <span class="chip chip--danger">Out of stock</span>
+  </div>
+  <div class="chip-row">
+    <div class="label">Accent</div>
+    <span class="chip chip--accent">Selected</span>
+  </div>
+</section>
+
+<!-- 7. Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<section class="sc-section">
+  <h2>Cards</h2>
+  <p class="sc-lede">Three card styles show depth and surface hierarchy: flat, raised (shadow), and inset (secondary surface).</p>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-content">
+        <div class="card-thumbnail"></div>
+        <div class="card-info">
+          <h3>Lotus Blossom</h3>
+          <div class="progress">342 of 1,200 stitches</div>
+          <a href="#">Resume</a>
+        </div>
+      </div>
+    </div>
+    <div class="card card--raised">
+      <div class="card-content">
+        <div class="card-thumbnail"></div>
+        <div class="card-info">
+          <h3>Rose Garland</h3>
+          <div class="progress">1,408 of 3,360 stitches</div>
+          <a href="#">Continue</a>
+        </div>
+      </div>
+    </div>
+    <div class="card card--inset">
+      <div class="card-content">
+        <div class="card-thumbnail"></div>
+        <div class="card-info">
+          <h3>Leaf Sampler</h3>
+          <div class="progress">280 of 856 stitches</div>
+          <a href="#">View</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8. Iconography â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<section class="sc-section">
+  <h2>Iconography</h2>
+  <p class="sc-lede">24Ã—24 stroke icons, 1.6 px line weight, rounded caps, single-colour. All rendered at <code>currentColor</code> for theme support.</p>
+  <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--s-4);">
+    <div class="icon-cell">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4h-1a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L9 20H6v-3L18.5 2.5z" />
+      </svg>
+      <span>Pencil</span>
+    </div>
+    <div class="icon-cell">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 18.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+        <path d="M7 7c0-2.21 2.686-4 6-4s6 1.79 6 4-2.686 4-6 4-6-1.79-6-4Zm1 14h10" />
+      </svg>
+      <span>Eraser</span>
+    </div>
+    <div class="icon-cell">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a10 10 0 0 0 0 20c3.1 0 5.9-1 8-3M2 12c0 3.1 1 5.9 3 8" />
+      </svg>
+      <span>Droplet</span>
+    </div>
+    <div class="icon-cell">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2l4 7h-8l4-7Z" />
+        <circle cx="12" cy="15" r="4" />
+      </svg>
+      <span>Pipette</span>
+    </div>
+    <div class="icon-cell">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 11a1 1 0 0 0 2 0V7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 1 0 2 0V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v8m-2 5l3-3m0 0l3 3m-3-3v9" />
+      </svg>
+      <span>Magic wand</span>
+    </div>
+    <div class="icon-cell">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12a7 7 0 1 0 14 0 7 7 0 0 0-14 0Z" />
+        <path d="m15 9-6 6" />
+      </svg>
+      <span>Hand / pan</span>
+    </div>
+    <div class="icon-cell">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l4 2" />
+      </svg>
+      <span>Target / fit</span>
+    </div>
+    <div class="icon-cell">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="4" width="16" height="16" rx="1" />
+        <path d="M8 8l8 8M16 8l-8 8" />
+      </svg>
+      <span>Cross-stitch X</span>
+    </div>
+    <div class="icon-cell">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="10" cy="4" r="2" />
+        <path d="M10 6v5a5 5 0 0 0 5 5h3M5 20l3-7" />
+      </svg>
+      <span>Thread spool</span>
+    </div>
+    <div class="icon-cell">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="6" cy="6" r="2" />
+        <circle cx="18" cy="18" r="2" />
+        <path d="M10 8l4 4m-2 6l-4-4" />
+      </svg>
+      <span>Scissors</span>
+    </div>
+    <div class="icon-cell">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 6 2 18 2 18 9" />
+        <rect x="6" y="9" width="12" height="10" rx="1" />
+        <path d="M9 14h6M9 18h6" />
+      </svg>
+      <span>Printer</span>
+    </div>
+    <div class="icon-cell">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="18" cy="5" r="3" />
+        <path d="M21 13v-2a4 4 0 0 0-4-4h-4a4 4 0 0 0-4 4v8a2 2 0 0 0 2 2h5" />
+        <path d="M15 18l-3-3 3-3" />
+      </svg>
+      <span>Share</span>
+    </div>
+  </div>
+</section>
+
+<!-- 9. Motion Principles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<section class="sc-section">
+  <h2>Motion principles</h2>
+  <p class="sc-lede">Reduced-motion strict compliance. Precise timing and easing for predictable, calm interactions.</p>
+  <div class="motion-grid">
+    <div class="card card--raised">
+      <p style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--s-2); color: var(--text-primary);">Hover &amp; focus</p>
+      <p style="font-size: var(--text-md); color: var(--text-secondary); margin: 0;">120 ms ease-out. Used for button states, hover reveals, and interactive feedback.</p>
+    </div>
+    <div class="card card--raised">
+      <p style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--s-2); color: var(--text-primary);">Sheet entry</p>
+      <p style="font-size: var(--text-md); color: var(--text-secondary); margin: 0;">200 ms ease-out. Modal, drawer, and overlay entrance animation.</p>
+    </div>
+    <div class="card card--raised">
+      <p style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--s-2); color: var(--text-primary);">Mark stitch</p>
+      <p style="font-size: var(--text-md); color: var(--text-secondary); margin: 0;">80 ms scale 0.95 to 1.0 plus ink fill. Celebratory without intruding on focus.</p>
+    </div>
+    <div class="card card--raised">
+      <p style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--s-2); color: var(--text-primary);">Reduced motion</p>
+      <p style="font-size: var(--text-md); color: var(--text-secondary); margin: 0;">All transitions replaced with instant state change when <code>prefers-reduced-motion</code> is set.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 10. Voice &amp; Tone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<section class="sc-section">
+  <h2>Voice &amp; tone</h2>
+  <p class="sc-lede">Warm, plain, encouraging. We celebrate progress without cheerleading. British English throughout.</p>
+  <table class="voice-table">
+    <thead>
+      <tr>
+        <th style="width: 50%;">We say</th>
+        <th style="width: 50%;">We don't say</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>100 done today â€” well stitched.</td>
+        <td class="bad-example">You're crushing it!</td>
+      </tr>
+      <tr>
+        <td>Couldn't open that file.</td>
+        <td class="bad-example">Error: ENOENT</td>
+      </tr>
+      <tr>
+        <td>Marked 1,408 â€” keep going.</td>
+        <td class="bad-example">Awesome progress!</td>
+      </tr>
+      <tr>
+        <td>Pattern saved to your library.</td>
+        <td class="bad-example">Success! Syncing to cloud...</td>
+      </tr>
+      <tr>
+        <td>No patterns yet. Start by importing one.</td>
+        <td class="bad-example">Your library is empty. (celebration emoji)</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+</main></body></html>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan A · Creator Pattern tab with Print + Track CTAs</title>
+<link rel="stylesheet" href="_wireframe.css">
+<style>
+  .d-header{display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:1px solid var(--w-line);background:#fafafa}
+  .d-header h1{margin:0;font-size:15px;font-weight:600}
+  .d-header .pages{display:flex;gap:0;margin-left:18px}
+  .d-header .pages button{padding:8px 14px;border:none;background:transparent;font:inherit;color:var(--w-ink-3);border-bottom:2px solid transparent}
+  .d-header .pages button.active{color:var(--w-ink);font-weight:600;border-bottom-color:var(--w-ink)}
+  .d-header .right{margin-left:auto;display:flex;gap:6px}
+
+  .d-actionbar{display:flex;align-items:center;gap:8px;padding:10px 18px;border-bottom:1px solid var(--w-line);background:#fff}
+  .d-actionbar .lhs{display:flex;gap:6px;align-items:center}
+  .d-actionbar .rhs{margin-left:auto;display:flex;gap:6px}
+  .d-actionbar .stat{font-size:12px;color:var(--w-ink-3);padding-left:10px;border-left:1px solid var(--w-line);margin-left:4px}
+  .d-actionbar .stat strong{color:var(--w-ink);font-weight:600}
+
+  .d-body{display:flex;min-height:560px;background:#fafafa}
+  .d-canvaswrap{flex:1;padding:24px;display:flex;align-items:center;justify-content:center;position:relative}
+  .d-canvas{width:100%;max-width:520px;aspect-ratio:1/1;border:1px solid var(--w-line);background:#fff}
+  .d-canvas .wf-chart{height:100%}
+  .d-sidebar{width:300px;border-left:1px solid var(--w-line);background:#fafafa;padding:14px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+  .d-sidebar h3{margin:0;font-size:11px;color:var(--w-ink-3);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .d-sidebar .row{display:flex;justify-content:space-between;align-items:center;font-size:12px}
+  .d-sidebar .row .v{font-weight:600;font-variant-numeric:tabular-nums}
+  .d-sidebar .group{background:#fff;border:1px solid var(--w-line);border-radius:6px;padding:10px;display:flex;flex-direction:column;gap:8px}
+  .d-sidebar input[type=range]{width:100%}
+  .d-sidebar .more{text-align:center;font-size:12px;color:var(--w-ink-3);padding:8px;border:1px dashed var(--w-line);border-radius:6px;background:#fff;cursor:pointer}
+  .conf-meter{display:flex;align-items:center;gap:8px;font-size:12px}
+  .conf-meter .bar{flex:1;height:8px;background:#eee;border-radius:4px;overflow:hidden;position:relative}
+  .conf-meter .bar i{display:block;height:100%;background:var(--w-ink);width:24%}
+  .conf-meter .lbl{font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="wf-frame" style="max-width:1200px">
+<div class="wf-meta">
+  <strong>Plan A · Wireframe 3 · Creator Pattern view with Print + Track in the action bar</strong>
+  Demonstrates: primary outcomes (Print PDF, Track) elevated to a persistent action bar; Materials sub-tabs available as a "Materials…" disclosure; sidebar narrowed to default-essential controls plus "More" disclosure.
+</div>
+<div class="wf-canvas">
+
+<div class="desktop">
+
+  <header class="d-header">
+    <strong style="font-weight:700">Cross&nbsp;Stitch&nbsp;Studio</strong>
+    <nav class="pages" aria-label="App pages">
+      <button class="active">Pattern</button>
+      <button>Project</button>
+      <button>Materials…</button>
+    </nav>
+    <h1 style="margin-left:18px">Cat Portrait</h1>
+    <div class="right">
+      <button class="wf-btn wf-btn--ghost wf-btn--sm">Help</button>
+      <button class="wf-btn wf-btn--ghost wf-btn--sm">Stitch tracker ↗</button>
+    </div>
+  </header>
+
+  <div class="d-actionbar">
+    <div class="lhs">
+      <button class="wf-btn wf-btn--primary">⎙ &nbsp;Print PDF</button>
+      <button class="wf-btn">◐ &nbsp;Track this pattern</button>
+      <button class="wf-btn wf-btn--ghost">↗ Share / QR</button>
+      <button class="wf-btn wf-btn--ghost">⤓ Export…</button>
+    </div>
+    <div class="rhs">
+      <span class="stat">80×80 stitches · <strong>14 ct</strong> · 5.7" × 5.7"</span>
+      <span class="stat">28 colours · <strong>8 skeins</strong></span>
+    </div>
+  </div>
+
+  <div class="d-body">
+    <div class="d-canvaswrap">
+      <div class="d-canvas"><div class="wf-chart"><div class="wf-chart-cells"></div></div></div>
+    </div>
+
+    <aside class="d-sidebar" aria-label="Pattern settings">
+      <div class="group">
+        <h3>Source</h3>
+        <div class="row"><span>cat-portrait.jpg</span><button class="wf-btn wf-btn--ghost wf-btn--sm">Replace</button></div>
+        <div style="height:90px;border-radius:4px" class="wf-photo"></div>
+      </div>
+
+      <div class="group">
+        <h3>Pattern</h3>
+        <label style="font-size:11px;color:var(--w-ink-3)">Width · 80 stitches</label>
+        <input type="range" min="40" max="200" value="80">
+        <label style="font-size:11px;color:var(--w-ink-3)">Colours · 28</label>
+        <input type="range" min="8" max="80" value="28">
+        <div class="conf-meter">
+          <span class="lbl">Confetti</span>
+          <span class="bar"><i style="width:14%"></i></span>
+          <span style="color:var(--w-ink-3)">low · 4%</span>
+        </div>
+        <div class="conf-meter">
+          <span class="lbl">Difficulty</span>
+          <span class="bar"><i style="width:32%"></i></span>
+          <span style="color:var(--w-ink-3)">easy</span>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Fabric</h3>
+        <div class="row"><span>Aida 14 ct</span><button class="wf-btn wf-btn--ghost wf-btn--sm">Change</button></div>
+        <div class="row"><span>Strands</span><span class="v">2</span></div>
+        <div class="row"><span>Finished</span><span class="v">5.7" × 5.7"</span></div>
+      </div>
+
+      <button class="more">More controls ▾</button>
+    </aside>
+  </div>
+</div>
+
+</div>
+<div class="wf-note">
+  Notes:
+  <ol>
+    <li><strong>Print PDF</strong> and <strong>Track this pattern</strong> live in a persistent action bar — addresses N-H3 (5+ clicks → 1 click) and F-W2-H2.</li>
+    <li>Materials tab folded into a "Materials…" disclosure on the page nav. Threads / Stash / Shopping / Output become a single secondary surface launched from there or from the Export button.</li>
+    <li>Sidebar shows only default-essential controls (P5). Confetti and Difficulty meters honour P6.</li>
+    <li>Header right-side "Stitch tracker ↗" gives Eli the cross-page link symmetric to the Tracker's "Edit ↗" (N-H1).</li>
+  </ol>
+</div>
+</div>
+
+</body>
+</html>
