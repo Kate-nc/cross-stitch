@@ -50,6 +50,7 @@
     exportMiniLegend:       true,
     exportGridInterval:     10,
     exportCentreMarks:      true,
+    "creator.pdfWorkshopTheme": false,       // UX-12 PR #14: opt-in Workshop print theme (terracotta + linen). OFF = bit-identical PK output.
 
     // ─── Pattern Creator generation defaults (read by Sidebar on init) ──
     creatorDefaultPaletteSize:    24,

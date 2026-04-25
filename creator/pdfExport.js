@@ -193,6 +193,17 @@
   }
 
   /**
+   * UX-12 PR #14 — read the Workshop print theme opt-in.
+   * Returns true only when the user has explicitly enabled it; legacy
+   * call sites (no `theme` option) therefore stay on the bit-identical
+   * PK-compat path by default.
+   */
+  function readWorkshopThemePref() {
+    if (typeof window === "undefined" || !window.UserPrefs) return false;
+    return window.UserPrefs.get("creator.pdfWorkshopTheme") === true;
+  }
+
+  /**
    * Default options for the "Pattern Keeper" preset.
    */
   function presetPatternKeeper() {
@@ -259,6 +270,9 @@
       miniLegend: true,
       branding: readBranding(),
       locale: (typeof navigator !== "undefined" && navigator.language) || "en-GB",
+      // UX-12 PR #14: Workshop theme is opt-in. Default 'pk' is bit-identical
+      // to today's PK-compat output.
+      theme: (legacy.theme === "workshop" || readWorkshopThemePref()) ? "workshop" : "pk",
     };
     return runExport(project, opts).then(function (bytes) {
       downloadBytes(bytes, (project.name || "pattern").replace(UNSAFE_FILENAME_CHARS, "_") + ".pdf");
@@ -320,6 +334,7 @@
     capturePreviewJpeg: capturePreviewJpeg,
     buildExportProject: buildExportProject,
     readBranding: readBranding,
+    readWorkshopThemePref: readWorkshopThemePref,
     presetPatternKeeper: presetPatternKeeper,
     presetHomePrinting: presetHomePrinting,
   };

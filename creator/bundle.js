@@ -802,6 +802,28 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
     return y > 0.55 ? [0, 0, 0] : [1, 1, 1];
   }
 
+  /**
+   * UX-12 PR #14 — colour palette for chart pages, gated by `theme`.
+   *
+   * theme === 'workshop' opts the user into the Workshop print theme:
+   *   - majorGrid: terracotta (matches in-app --accent ≈ rgb(184,92,56))
+   *   - pageBg:    linen      (rgb(251,248,243))
+   *
+   * theme === 'pk' (default, or any other value) returns NULL for both
+   * channels so callers fall through to their existing legacy literals
+   * — guaranteeing the PK-compat path is bit-identical to today.
+   */
+  function themeColors(theme) {
+    if (theme === "workshop") {
+      return {
+        majorGrid: [0.722, 0.361, 0.220], // terracotta
+        pageBg:    [0.984, 0.973, 0.953], // linen
+      };
+    }
+    // pk / default: signal "do not change anything"
+    return { majorGrid: null, pageBg: null };
+  }
+
   var api = {
     PAGE_SIZES_MM: PAGE_SIZES_MM,
     mmToPt: mmToPt,
@@ -811,6 +833,7 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
     paginate: paginate,
     buildCodepointMap: buildCodepointMap,
     contrastColor: contrastColor,
+    themeColors: themeColors,
   };
 
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -1014,6 +1037,17 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
   }
 
   /**
+   * UX-12 PR #14 — read the Workshop print theme opt-in.
+   * Returns true only when the user has explicitly enabled it; legacy
+   * call sites (no `theme` option) therefore stay on the bit-identical
+   * PK-compat path by default.
+   */
+  function readWorkshopThemePref() {
+    if (typeof window === "undefined" || !window.UserPrefs) return false;
+    return window.UserPrefs.get("creator.pdfWorkshopTheme") === true;
+  }
+
+  /**
    * Default options for the "Pattern Keeper" preset.
    */
   function presetPatternKeeper() {
@@ -1080,6 +1114,9 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
       miniLegend: true,
       branding: readBranding(),
       locale: (typeof navigator !== "undefined" && navigator.language) || "en-GB",
+      // UX-12 PR #14: Workshop theme is opt-in. Default 'pk' is bit-identical
+      // to today's PK-compat output.
+      theme: (legacy.theme === "workshop" || readWorkshopThemePref()) ? "workshop" : "pk",
     };
     return runExport(project, opts).then(function (bytes) {
       downloadBytes(bytes, (project.name || "pattern").replace(UNSAFE_FILENAME_CHARS, "_") + ".pdf");
@@ -1141,6 +1178,7 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
     capturePreviewJpeg: capturePreviewJpeg,
     buildExportProject: buildExportProject,
     readBranding: readBranding,
+    readWorkshopThemePref: readWorkshopThemePref,
     presetPatternKeeper: presetPatternKeeper,
     presetHomePrinting: presetHomePrinting,
   };
@@ -15100,6 +15138,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var includeInfo  = React.useState(readPref("exportIncludeInfo",     true));
   var includeIndex = React.useState(readPref("exportIncludeIndex",    true));
   var miniLegend   = React.useState(readPref("exportMiniLegend",      true));
+  var workshopTheme = React.useState(readPref("creator.pdfWorkshopTheme", false));
   var settingsOpen = React.useState(false);
   var brandingOpen = React.useState(false);
   var exportFormat = React.useState("pdf"); // "pdf" | "png"
@@ -15120,6 +15159,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var setIncludeInfo  = bind(includeInfo,  "exportIncludeInfo");
   var setIncludeIndex = bind(includeIndex, "exportIncludeIndex");
   var setMiniLegend   = bind(miniLegend,   "exportMiniLegend");
+  var setWorkshopTheme = bind(workshopTheme, "creator.pdfWorkshopTheme");
   var setSettingsOpen = settingsOpen[1];
   var setBrandingOpen = brandingOpen[1];
 
@@ -15192,6 +15232,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       includeIndex: includeIndex[0], miniLegend: miniLegend[0],
       branding: branding,
       locale: navigator.language || "en-GB",
+      theme: workshopTheme[0] ? "workshop" : "pk",
     };
     setProgress({ stage: "init", current: 0, total: totalPagesPreview || 1 });
     var tag = {};
@@ -15358,6 +15399,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       includeIndex: includeIndex[0], miniLegend: miniLegend[0],
       branding: branding,
       locale: navigator.language || "en-GB",
+      theme: workshopTheme[0] ? "workshop" : "pk",
     };
 
     setBundleState({ stage: "pdf", msg: "Rendering PDF…" });
@@ -15538,6 +15580,18 @@ window.CreatorExportTab = function CreatorExportTab() {
           h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
             h("input", { type: "checkbox", checked: miniLegend[0], onChange: function (e) { setMiniLegend(e.target.checked); } }),
             "Mini-legend strip on each page")
+        ),
+
+        h("div", { style: { marginTop: 10, paddingTop: 10, borderTop: "1px dashed #E5DCCB" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer", fontWeight: 600, color: "#0f172a" } },
+            h("input", {
+              type: "checkbox",
+              checked: workshopTheme[0],
+              onChange: function (e) { setWorkshopTheme(e.target.checked); }
+            }),
+            "Workshop print theme (terracotta grid + linen background)"),
+          h("p", { style: { fontSize: 11, color: "#8A8270", margin: "4px 0 0 22px" } },
+            "Off by default. Pattern Keeper compatibility uses the standard black-grid output.")
         ),
 
         pageGeom && h("p", { style: { fontSize: 11, color: "#8A8270", marginTop: 12, marginBottom: 0 } },

@@ -43,6 +43,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var includeInfo  = React.useState(readPref("exportIncludeInfo",     true));
   var includeIndex = React.useState(readPref("exportIncludeIndex",    true));
   var miniLegend   = React.useState(readPref("exportMiniLegend",      true));
+  var workshopTheme = React.useState(readPref("creator.pdfWorkshopTheme", false));
   var settingsOpen = React.useState(false);
   var brandingOpen = React.useState(false);
   var exportFormat = React.useState("pdf"); // "pdf" | "png"
@@ -63,6 +64,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var setIncludeInfo  = bind(includeInfo,  "exportIncludeInfo");
   var setIncludeIndex = bind(includeIndex, "exportIncludeIndex");
   var setMiniLegend   = bind(miniLegend,   "exportMiniLegend");
+  var setWorkshopTheme = bind(workshopTheme, "creator.pdfWorkshopTheme");
   var setSettingsOpen = settingsOpen[1];
   var setBrandingOpen = brandingOpen[1];
 
@@ -135,6 +137,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       includeIndex: includeIndex[0], miniLegend: miniLegend[0],
       branding: branding,
       locale: navigator.language || "en-GB",
+      theme: workshopTheme[0] ? "workshop" : "pk",
     };
     setProgress({ stage: "init", current: 0, total: totalPagesPreview || 1 });
     var tag = {};
@@ -301,6 +304,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       includeIndex: includeIndex[0], miniLegend: miniLegend[0],
       branding: branding,
       locale: navigator.language || "en-GB",
+      theme: workshopTheme[0] ? "workshop" : "pk",
     };
 
     setBundleState({ stage: "pdf", msg: "Rendering PDF…" });
@@ -481,6 +485,18 @@ window.CreatorExportTab = function CreatorExportTab() {
           h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
             h("input", { type: "checkbox", checked: miniLegend[0], onChange: function (e) { setMiniLegend(e.target.checked); } }),
             "Mini-legend strip on each page")
+        ),
+
+        h("div", { style: { marginTop: 10, paddingTop: 10, borderTop: "1px dashed #E5DCCB" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer", fontWeight: 600, color: "#0f172a" } },
+            h("input", {
+              type: "checkbox",
+              checked: workshopTheme[0],
+              onChange: function (e) { setWorkshopTheme(e.target.checked); }
+            }),
+            "Workshop print theme (terracotta grid + linen background)"),
+          h("p", { style: { fontSize: 11, color: "#8A8270", margin: "4px 0 0 22px" } },
+            "Off by default. Pattern Keeper compatibility uses the standard black-grid output.")
         ),
 
         pageGeom && h("p", { style: { fontSize: 11, color: "#8A8270", marginTop: 12, marginBottom: 0 } },
