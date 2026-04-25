@@ -449,6 +449,49 @@ const[dockY,setDockY]=useState(()=>{
   try{const v=parseInt(localStorage.getItem("tracker_dock_y")||"",10);return Number.isFinite(v)?v:40;}catch(_){return 40;}
 });
 useEffect(()=>{try{localStorage.setItem("tracker_dock_y",String(dockY));}catch(_){}},[dockY]);
+// ── Phase 4 (UX-12) — wake-lock chip ──
+// Holds the WakeLockSentinel returned by navigator.wakeLock.request when active.
+// Re-acquired on next session if the user previously toggled it on (UserPrefs).
+const wakeLockRef=useRef(null);
+const[wakeLockActive,setWakeLockActive]=useState(false);
+const releaseWakeLock=useCallback(async()=>{
+  if(wakeLockRef.current){try{await wakeLockRef.current.release();}catch(_){}wakeLockRef.current=null;}
+  setWakeLockActive(false);
+},[]);
+const acquireWakeLock=useCallback(async()=>{
+  try{
+    if(typeof navigator==='undefined'||!navigator.wakeLock||!navigator.wakeLock.request)return false;
+    const sentinel=await navigator.wakeLock.request('screen');
+    wakeLockRef.current=sentinel;
+    setWakeLockActive(true);
+    sentinel.addEventListener&&sentinel.addEventListener('release',()=>{setWakeLockActive(false);wakeLockRef.current=null;});
+    return true;
+  }catch(_){setWakeLockActive(false);return false;}
+},[]);
+const toggleWakeLock=useCallback(async()=>{
+  if(wakeLockActive){
+    await releaseWakeLock();
+    try{if(window.UserPrefs)window.UserPrefs.set('trackerWakeLock',false);}catch(_){}
+  }else{
+    const ok=await acquireWakeLock();
+    try{if(window.UserPrefs)window.UserPrefs.set('trackerWakeLock',!!ok);}catch(_){}
+    if(!ok){try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"Screen wake-lock not available on this browser.",type:"warn"});}catch(_){}}
+  }
+},[wakeLockActive,acquireWakeLock,releaseWakeLock]);
+useEffect(()=>{
+  let cancelled=false;
+  try{
+    const want=window.UserPrefs&&window.UserPrefs.get('trackerWakeLock');
+    if(want){acquireWakeLock().then(ok=>{if(cancelled&&ok)releaseWakeLock();});}
+  }catch(_){}
+  function onVis(){
+    if(document.visibilityState==='visible'){
+      try{const want=window.UserPrefs&&window.UserPrefs.get('trackerWakeLock');if(want&&!wakeLockRef.current)acquireWakeLock();}catch(_){}
+    }
+  }
+  document.addEventListener('visibilitychange',onVis);
+  return()=>{cancelled=true;document.removeEventListener('visibilitychange',onVis);releaseWakeLock();};
+},[acquireWakeLock,releaseWakeLock]);
 // Tag the document body with `tracker-mobile` while the Tracker is mounted on a
 // touch / narrow viewport. CSS scopes the new bottom action bar and quick-
 // switcher drawer to this class so desktop layout is untouched.
@@ -4519,6 +4562,15 @@ return(
     aria-expanded={leftSidebarOpen}
     title="Sidebar (Highlight, View, Session)"
   >{Icons.menu()}</button>
+  {/* Phase 4 (UX-12) — wake-lock chip. Tap to toggle screen-stays-on. */}
+  <button
+    type="button"
+    className={"tracker-wake-chip"+(wakeLockActive?" tracker-wake-chip--on":"")}
+    onClick={toggleWakeLock}
+    aria-pressed={wakeLockActive}
+    aria-label={wakeLockActive?"Screen wake-lock on, tap to release":"Screen wake-lock off, tap to keep screen awake"}
+    title={wakeLockActive?"Screen will stay awake — tap to release":"Tap to keep the screen awake while stitching"}
+  ><span className="twc-dot" aria-hidden="true">{Icons.dot()}</span><span className="twc-label">{wakeLockActive?"Awake":"Sleep"}</span></button>
   <div ref={tStripRef} className={"pill"+(isEditMode?" pill--edit":"")}>
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
     <button className={"tb-btn"+(stitchMode==="track"?(isEditMode?" tb-btn--red":" tb-btn--green"):"")} onClick={()=>{setStitchMode("track");}} title={isEditMode?"Modify stitches (T)":"Mark stitch (T)"}>

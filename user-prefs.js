@@ -87,6 +87,10 @@
     trackerLeftSidebarTab:  "highlight",
     // Palette legend sort: id | done | count
     trackerLegendSort:      "id",
+    // Phase 4 (UX-12) — re-acquire the screen wake-lock on next session
+    // when the user toggles the header "Awake" chip on. Persisted as the
+    // user's last preference so the lock survives reloads.
+    trackerWakeLock:        false,
 
     // ─── Stash Manager defaults ─────────────────────────────────────────
     stashDefaultBrand:        "DMC",            // DMC | Anchor | both
