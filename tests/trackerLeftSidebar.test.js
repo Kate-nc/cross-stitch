@@ -81,8 +81,9 @@ describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
     expect(stylesSrc).toMatch(/\.lp-section\s*\{/);
     expect(stylesSrc).toMatch(/\.lp-heading\s*\{/);
     expect(stylesSrc).toMatch(/\.tracker-hamburger\s*\{/);
-    // Mobile drawer behaviour
-    expect(stylesSrc).toMatch(/@media\(max-width:899px\)\s*\{[^}]*\.lpanel\s*\{[^}]*position:fixed/);
+    // Bottom-sheet behaviour applies at all viewports — see the user
+    // request to free up horizontal canvas real estate on desktop too.
+    expect(stylesSrc).toMatch(/\.lpanel\s*\{[^}]*position:fixed/);
   });
 
   test('mitigation: legacy toolbar-pill highlight controls remain wired (phase 1 only)', () => {

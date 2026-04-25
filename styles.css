@@ -531,10 +531,20 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tracker-hamburger[aria-expanded="true"]{background:#F4DDCF;color:var(--accent);border-color:#E8B89A;}
 
 .lpanel{
-  width:280px;background:var(--surface);border-right:1px solid var(--border);
-  flex-shrink:0;position:sticky;top:128px;max-height:calc(100vh - 128px);
-  overflow-y:auto;align-self:flex-start;display:flex;flex-direction:column;
+  /* Bottom-sheet across all viewports — opens above the canvas instead of
+     stealing horizontal screen real estate from the left. */
+  position:fixed;left:0;right:0;bottom:0;top:auto;
+  width:100%;max-width:100%;max-height:70dvh;
+  background:var(--surface);border-top:1px solid var(--border);border-right:none;
+  border-radius:16px 16px 0 0;
+  z-index:1000;
+  box-shadow:0 -4px 16px rgba(0,0,0,0.12);
+  overflow-y:auto;
+  display:flex;flex-direction:column;
+  animation:lpanel-slide-up 0.22s ease-out;
 }
+@keyframes lpanel-slide-up{from{transform:translateY(100%);}to{transform:translateY(0);}}
+@media(prefers-reduced-motion:reduce){.lpanel{animation:none;}}
 .lp-tabs{
   display:flex;border-bottom:1px solid var(--border);
   position:sticky;top:0;background:var(--surface);z-index:10;
@@ -584,34 +594,20 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .lp-seg:hover:not(.lp-seg--on){background:#EFE7D6;}
 
 @media(max-width:899px){
-  /* Mobile: present the tracker sidebar as a bottom sheet so the canvas
-     stays visible above it (rather than the side-drawer that ate horizontal
-     screen real estate). */
-  .lpanel{
-    position:fixed;left:0;right:0;bottom:0;top:auto;
-    width:100%;max-width:100%;max-height:70dvh;
-    border-right:none;border-top:1px solid var(--border);
-    border-radius:16px 16px 0 0;
-    z-index:1000;
-    box-shadow:0 -4px 16px rgba(0,0,0,0.12);
-    overflow-y:auto;
-    animation:lpanel-slide-up 0.22s ease-out;
-  }
-  @keyframes lpanel-slide-up{from{transform:translateY(100%);}to{transform:translateY(0);}}
-  @media(prefers-reduced-motion:reduce){
-    .lpanel{animation:none;}
-  }
+  /* Mobile bottom-sheet inherits the base styles; backdrop handled below. */
 }
 /* Phase 5 — desktop hides the mobile-only Legend tab + section. */
 .lp-tab--mobile-only,.lp-section--mobile-only{display:none;}
+/* Backdrop scrim behind the bottom-sheet lpanel — applies at all viewports
+   now that the lpanel opens as an overlay everywhere. Tap to close. */
+.lpanel-backdrop{
+  position:fixed;inset:0;z-index:999;background:rgba(15,23,42,0.45);
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+  animation:lpanel-fade-in 0.18s ease-out;
+}
+@keyframes lpanel-fade-in{from{opacity:0;}to{opacity:1;}}
+@media(prefers-reduced-motion:reduce){.lpanel-backdrop{animation:none;}}
 @media(max-width:899px){
-  /* Phase 5 — backdrop scrim behind the drawer. Tap to close. */
-  .lpanel-backdrop{
-    position:fixed;inset:0;z-index:999;background:rgba(15,23,42,0.45);
-    backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
-    animation:lpanel-fade-in 0.18s ease-out;
-  }
-  @keyframes lpanel-fade-in{from{opacity:0;}to{opacity:1;}}
   /* Phase 5 — show the Legend tab + section only on mobile. */
   .lp-tab--mobile-only{display:inline-flex;}
   .lp-section--mobile-only{display:flex;}
