@@ -114,8 +114,11 @@
     var maxWidth = props.maxWidth || null;
 
     // ESC handling via the central stack (composes with nested overlays).
+    // Pass `escapeOptions={{ skipWhenEditingTextField: false }}` for modals
+    // whose only focusable element is a text input — otherwise ESC would
+    // be swallowed by the input rather than closing the modal.
     if (typeof window.useEscape === "function" && typeof onClose === "function") {
-      window.useEscape(onClose);
+      window.useEscape(onClose, props.escapeOptions || undefined);
     }
 
     var panelRef = React.useRef(null);

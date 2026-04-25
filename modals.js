@@ -36,29 +36,33 @@ const SharedModals = {
   },
 
   About: ({ onClose }) => {
-    window.useEscape(onClose);
-    return React.createElement("div", { className: "modal-overlay", onClick: onClose },
-      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500 } },
-        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
-        React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 22, color: "#1B1814" } }, "About"),
-        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
-          React.createElement("p", { style: { margin: 0, color: "#5C5448", fontSize: 15, lineHeight: 1.5 } },
+    return React.createElement(window.Overlay, {
+      onClose: onClose,
+      variant: 'dialog',
+      maxWidth: 500,
+      labelledBy: 'about-title'
+    },
+      React.createElement(window.Overlay.CloseButton, { onClose: onClose }),
+      React.createElement('div', { style: { padding: 24 } },
+        React.createElement('h3', { id: 'about-title', style: { marginTop: 0, marginBottom: 15, fontSize: 22, color: 'var(--text-primary)' } }, 'About'),
+        React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 16 } },
+          React.createElement('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 15, lineHeight: 1.5 } },
             "Cross Stitch Pattern Generator is a free, client-side web application designed to help you create and track cross-stitch patterns directly in your browser."
           ),
-          React.createElement("p", { style: { margin: 0, color: "#5C5448", fontSize: 14, lineHeight: 1.5 } },
+          React.createElement('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 } },
             "Because this app runs entirely in your browser, ",
-            React.createElement("strong", { style: { color: "#1B1814" } }, "no images or pattern data are ever uploaded to a server."),
+            React.createElement('strong', { style: { color: 'var(--text-primary)' } }, "no images or pattern data are ever uploaded to a server."),
             " Your projects remain private and local to your device."
           ),
-          React.createElement("div", { style: { padding: "12px", background: "#FBF8F3", borderRadius: 8, border: "0.5px solid #E5DCCB" } },
-            React.createElement("h4", { style: { margin: "0 0 8px 0", color: "#1B1814", fontSize: 14 } }, "Technologies Used:"),
-            React.createElement("ul", { style: { margin: 0, paddingLeft: 20, color: "#5C5448", fontSize: 13, lineHeight: 1.5 } },
-              React.createElement("li", null, "React (UI Framework)"),
-              React.createElement("li", null, "jsPDF (PDF Generation)"),
-              React.createElement("li", null, "pako (URL Compression)")
+          React.createElement('div', { style: { padding: "12px", background: 'var(--surface-secondary)', borderRadius: 8, border: "0.5px solid var(--border)" } },
+            React.createElement('h4', { style: { margin: "0 0 8px 0", color: 'var(--text-primary)', fontSize: 14 } }, "Technologies Used:"),
+            React.createElement('ul', { style: { margin: 0, paddingLeft: 20, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
+              React.createElement('li', null, "React (UI Framework)"),
+              React.createElement('li', null, "jsPDF (PDF Generation)"),
+              React.createElement('li', null, "pako (URL Compression)")
             )
           ),
-          React.createElement("p", { style: { margin: 0, color: "#A89E89", fontSize: 12, textAlign: "center", marginTop: 10 } },
+          React.createElement('p', { style: { margin: 0, color: 'var(--text-tertiary)', fontSize: 12, textAlign: "center", marginTop: 10 } },
             "Version 1.0.0"
           )
         )
@@ -302,25 +306,31 @@ function NamePromptModal({ defaultName, onConfirm, onCancel }) {
   const inputRef = React.useRef(null);
   React.useEffect(() => { if (inputRef.current) inputRef.current.select(); }, []);
   const handleSubmit = () => { const trimmed = name.trim(); onConfirm(trimmed || defaultName || 'cross-stitch-project'); };
-  // Use the global ESC stack so this modal closes on top of any other open
-  // modal without conflicting with their handlers. skipWhenEditingTextField
-  // is disabled because the only focusable element here is the name input.
-  window.useEscape(onCancel, { skipWhenEditingTextField: false });
-  return React.createElement('div', { className: 'modal-overlay', onClick: onCancel },
-    React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 400 } },
-      React.createElement('button', { className: 'modal-close', onClick: onCancel }, '×'),
-      React.createElement('h3', { style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: '#1B1814' } }, 'Name Your Project'),
-      React.createElement('p', { style: { margin: '0 0 12px', fontSize: 13, color: '#5C5448' } }, 'Give your project a name before saving.'),
+  // skipWhenEditingTextField is disabled because the only focusable element
+  // here is the name input — without this, ESC would be swallowed by the
+  // input and the modal could never be dismissed by keyboard.
+  return React.createElement(window.Overlay, {
+    onClose: onCancel,
+    variant: 'dialog',
+    maxWidth: 400,
+    labelledBy: 'name-prompt-title',
+    escapeOptions: { skipWhenEditingTextField: false }
+  },
+    React.createElement(window.Overlay.CloseButton, { onClose: onCancel }),
+    React.createElement('div', { style: { padding: 24 } },
+      React.createElement('h3', { id: 'name-prompt-title', style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, 'Name Your Project'),
+      React.createElement('p', { style: { margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary)' } }, 'Give your project a name before saving.'),
       React.createElement('input', {
         ref: inputRef, type: 'text', maxLength: 60, value: name,
+        'data-autofocus': true,
         onChange: e => setName(e.target.value),
         onKeyDown: e => { if (e.key === 'Enter') handleSubmit(); },
         placeholder: 'e.g. Rose Garden',
-        style: { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #E5DCCB', fontSize: 14, boxSizing: 'border-box' }
+        style: { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 14, boxSizing: 'border-box' }
       }),
       React.createElement('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 } },
-        React.createElement('button', { onClick: onCancel, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid #E5DCCB', background: '#fff', cursor: 'pointer' } }, 'Cancel'),
-        React.createElement('button', { onClick: handleSubmit, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#B85C38', color: '#fff', cursor: 'pointer', fontWeight: 600 } }, 'Save')
+        React.createElement('button', { onClick: onCancel, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' } }, 'Cancel'),
+        React.createElement('button', { onClick: handleSubmit, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600 } }, 'Save')
       )
     )
   );
