@@ -57,6 +57,6 @@ describe('A3 resume recap modal — CSS', () => {
   });
 
   test('progress bar fills with the Workshop accent', () => {
-    expect(cssSrc).toMatch(/\.resume-recap-bar-fill[^}]*background:\s*#B85C38/i);
+    expect(cssSrc).toMatch(/\.resume-recap-bar-fill[^}]*background:\s*(?:#B85C38|var\(--accent\))/i);
   });
 });
