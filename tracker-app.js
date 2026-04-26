@@ -212,7 +212,7 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
   var lvlLabels=["","Flat","Shaded","Detailed","Detailed+blend"];
   var fc2=fabricCt||14;var sc2=fc2<=11?3:fc2<=17?2:1;
   return (
-    <div className="modal-overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}} style={{zIndex:1200}}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Realistic preview" onClick={function(e){if(e.target===e.currentTarget)onClose();}} style={{zIndex:1200}}>
       <div className="modal-box" style={{maxWidth:"min(90vw,900px)",maxHeight:"90vh",display:"flex",flexDirection:"column",padding:0,overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderBottom:"1px solid var(--border)",flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:'var(--s-3)'}}>
@@ -223,7 +223,7 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
               })}
             </div>
           </div>
-          <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:"0 4px"}}>&times;</button>
+          <button onClick={onClose} aria-label="Close" style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:"0 4px"}}>{Icons.x?Icons.x():"×"}</button>
         </div>
         <div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--surface-secondary)",padding:'var(--s-4)'}}>
           <canvas ref={displayRef} style={{display:"block",maxWidth:"100%",maxHeight:"calc(90vh - 100px)",imageRendering:"auto"}}/>
@@ -306,7 +306,7 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
 // the WelcomeWizard (see UnifiedApp / TrackerApp welcome mount).
 function StitchingStyleOnboarding({onDone,startCorner:initCorner}){
   return(
-    <div className="modal-overlay">
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Stitching style">
       <div className="modal-content" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
         <StitchingStyleStepBody onComplete={onDone} startCorner={initCorner} />
       </div>
@@ -319,11 +319,11 @@ function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
   const[timeChoice,setTimeChoice]=useState(null);
   const[goalStitches,setGoalStitches]=useState("");
   return(
-    <div className="modal-overlay modal-overlay--sheet" onClick={onClose}>
+    <div className="modal-overlay modal-overlay--sheet" role="dialog" aria-modal="true" aria-labelledby="session-config-title" onClick={onClose}>
       <div className="modal-content modal-content--sheet" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
         <div className="sheet-handle" aria-hidden="true"/>
         <button className="modal-close" onClick={onClose} aria-label="Close" title="Close">{Icons.x?Icons.x():"\u00D7"}</button>
-        <h3 style={{marginTop:0,fontSize:17}}>Start Session</h3>
+        <h3 id="session-config-title" style={{marginTop:0,fontSize:17}}>Start Session</h3>
         <div style={{marginBottom:'var(--s-4)'}}>
           <div style={{fontWeight:600,fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:'var(--s-2)'}}>Time available</div>
           <div style={{display:"flex",gap:'var(--s-2)',flexWrap:"wrap"}}>
@@ -350,10 +350,10 @@ function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,hasBreadcrumbs
   const speed=durationSeconds>0?Math.round(stitchesCompleted/(durationSeconds/3600)):0;
   const pctDiff=prevAvgSpeed>0?Math.round(((speed-prevAvgSpeed)/prevAvgSpeed)*100):null;
   return(
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="session-complete-title" onClick={onClose}>
       <div className="modal-content" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>×</button>
-        <h3 style={{marginTop:0,fontSize:18,color:"var(--text-primary)"}}>Session complete</h3>
+        <button className="modal-close" onClick={onClose} aria-label="Close">{Icons.x?Icons.x():"×"}</button>
+        <h3 id="session-complete-title" style={{marginTop:0,fontSize:18,color:"var(--text-primary)"}}>Session complete</h3>
         <div style={{display:"flex",flexDirection:"column",gap:'var(--s-2)',marginBottom:'var(--s-4)'}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Time</span><span style={{fontWeight:700}}>{mins}m {secs}s</span></div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Stitches</span><span style={{fontWeight:700}}>{stitchesCompleted}</span></div>
@@ -5810,10 +5810,10 @@ return(
         }
       });
     }
-    return <div className="modal-overlay" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
+    return <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="import-pattern-title" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
     <div className="modal-content" style={{maxWidth:600}} onClick={e=>e.stopPropagation()}>
-      <button className="modal-close" onClick={()=>{setImportDialog(null);setImportImage(null);}}>×</button>
-      <h3 style={{marginTop:0,marginBottom:15}}>Import Image Pattern</h3>
+      <button className="modal-close" onClick={()=>{setImportDialog(null);setImportImage(null);}} aria-label="Close">{Icons.x?Icons.x():"×"}</button>
+      <h3 id="import-pattern-title" style={{marginTop:0,marginBottom:15}}>Import Image Pattern</h3>
       <div style={{display:"flex", flexDirection:"column", gap:'var(--s-3)', marginBottom:'var(--s-4)'}}>
         <div style={{display:"flex", flexDirection:"column", gap:'var(--s-1)'}}>
           <label style={{fontSize:'var(--text-sm)', fontWeight:600, color:"var(--text-secondary)"}}>Project Name</label>
@@ -6026,10 +6026,10 @@ return(
     </div>;
   })()}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
-  {modal==="pdf_export"&&<div className="modal-overlay" onClick={()=>setModal(null)}>
+  {modal==="pdf_export"&&<div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pdf-export-title" onClick={()=>setModal(null)}>
     <div className="modal-content" style={{maxWidth:400}} onClick={e=>e.stopPropagation()}>
-      <button className="modal-close" onClick={()=>setModal(null)}>×</button>
-      <h3 style={{marginTop:0,marginBottom:15}}>Export PDF</h3>
+      <button className="modal-close" onClick={()=>setModal(null)} aria-label="Close">{Icons.x?Icons.x():"×"}</button>
+      <h3 id="pdf-export-title" style={{marginTop:0,marginBottom:15}}>Export PDF</h3>
       <div style={{display:"flex",flexDirection:"column",gap:'var(--s-4)'}}>
         <label style={PDF_MODAL_LABEL_STYLE}>
           Chart Mode:
@@ -6060,10 +6060,10 @@ return(
   {modal==="shortcuts"&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setModal(null)} />}
 
 
-  {modal==="deduct_prompt"&&<div className="modal-overlay" onClick={()=>{setModal(null);setStashDeducted(true);}}>
+  {modal==="deduct_prompt"&&<div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="deduct-prompt-title" onClick={()=>{setModal(null);setStashDeducted(true);}}>
     <div className="modal-content" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
-      <button className="modal-close" onClick={()=>{setModal(null);setStashDeducted(true);}}>×</button>
-      <h3 style={{marginTop:0,fontSize:20,color:"var(--text-primary)"}}>Project Complete!</h3>
+      <button className="modal-close" onClick={()=>{setModal(null);setStashDeducted(true);}} aria-label="Close">{Icons.x?Icons.x():"×"}</button>
+      <h3 id="deduct-prompt-title" style={{marginTop:0,fontSize:20,color:"var(--text-primary)"}}>Project Complete!</h3>
       <p style={{fontSize:'var(--text-lg)',color:"var(--text-secondary)",marginBottom:'var(--s-4)'}}>Deduct the thread used from your global stash?</p>
       <div style={{display:"flex",flexDirection:"column",gap:'var(--s-2)'}}>
         <button onClick={()=>{
@@ -6119,10 +6119,10 @@ return(
     const currentEntry = cell && cell.id !== "__empty__" ? cmap[cell.id] : null;
     const isEmpty = !cell || cell.id === "__empty__";
     return (
-      <div className="modal-overlay" onClick={()=>setCellEditPopover(null)}>
+      <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="cell-edit-title" onClick={()=>setCellEditPopover(null)}>
         <div className="modal-content" style={{maxWidth:440,display:"flex",flexDirection:"column",maxHeight:"80vh"}} onClick={e=>e.stopPropagation()}>
-          <button className="modal-close" onClick={()=>setCellEditPopover(null)}>×</button>
-          <h3 style={{marginTop:0,marginBottom:'var(--s-1)',fontSize:18,color:"var(--text-primary)"}}>Edit Stitch</h3>
+          <button className="modal-close" onClick={()=>setCellEditPopover(null)} aria-label="Close">{Icons.x?Icons.x():"×"}</button>
+          <h3 id="cell-edit-title" style={{marginTop:0,marginBottom:'var(--s-1)',fontSize:18,color:"var(--text-primary)"}}>Edit Stitch</h3>
           <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",marginBottom:'var(--s-3)'}}>Row {cellEditPopover.row}, Col {cellEditPopover.col}</div>
 
           {isEmpty ? (

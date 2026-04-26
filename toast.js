@@ -51,10 +51,10 @@
   }
 
   function accentBorder(type) {
-    if (type === "success") return "var(--success, var(--success))";
-    if (type === "error") return "var(--danger, var(--danger))";
-    if (type === "warning") return "var(--warning, var(--warning))";
-    return "var(--accent, var(--accent))";
+    if (type === "success") return "var(--success)";
+    if (type === "error") return "var(--danger)";
+    if (type === "warning") return "var(--warning)";
+    return "var(--accent)";
   }
 
   function removeToast(entry, immediate) {
@@ -105,19 +105,28 @@
       "display:flex",
       "align-items:center",
       "background:var(--surface, #ffffff)",
-      "border:1px solid var(--border, var(--border))",
+      "border:1px solid var(--border)",
       "border-left:3px solid " + accentBorder(type),
       "border-radius:var(--radius-lg, 12px)",
       "box-shadow:var(--shadow-md, 0 4px 12px rgba(0,0,0,0.08))",
       "padding:10px 16px",
       "font-size:13px",
-      "color:var(--text-primary, var(--text-primary))",
+      "color:var(--text-primary)",
       "font-family:inherit",
       "pointer-events:auto",
       "animation:toast-in 0.25s ease-out both",
       "transition:opacity 0.3s ease, transform 0.3s ease",
       "max-width:min(480px, calc(100vw - 32px))"
     ].join(";");
+
+    var iconMap = { success: ["✓", "var(--success)"], error: ["✕", "var(--danger)"], warning: ["⚠", "var(--warning)"] };
+    if (iconMap[type]) {
+      var iconSpan = document.createElement("span");
+      iconSpan.setAttribute("aria-hidden", "true");
+      iconSpan.textContent = iconMap[type][0];
+      iconSpan.style.cssText = "margin-right:8px;font-size:14px;flex-shrink:0;color:" + iconMap[type][1] + ";";
+      el.appendChild(iconSpan);
+    }
 
     var msgSpan = document.createElement("span");
     msgSpan.textContent = message;
@@ -133,7 +142,7 @@
       undoBtn.setAttribute("aria-label", undoLabel);
       undoBtn.style.cssText = [
         "font-weight:600",
-        "color:var(--accent, var(--accent))",
+        "color:var(--accent)",
         "background:none",
         "border:none",
         "cursor:pointer",
@@ -156,7 +165,7 @@
     dismissBtn.setAttribute("aria-label", "Dismiss");
     dismissBtn.textContent = "×";
     dismissBtn.style.cssText = [
-      "color:var(--text-tertiary, var(--text-tertiary))",
+      "color:var(--text-tertiary)",
       "font-size:16px",
       "line-height:1",
       "margin-left:8px",
