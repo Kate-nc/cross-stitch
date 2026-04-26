@@ -1459,17 +1459,17 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     React.createElement("div", {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'var(--s-4)', gap:'var(--s-2)', flexWrap:'wrap'}},
       React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'var(--text-primary)', margin:0, display:'flex', alignItems:'center', gap:'8px'}}, Icons.barChart(), "Stats"),
       React.createElement("div", {style:{display:'flex', gap:'var(--s-2)', flexWrap:'wrap'}},
-        hasMultiProjects && React.createElement("button", {type:"button",onClick:function(){setShowComparison(true);}, style:{fontSize:'var(--text-md)', padding:'4px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--accent-border)', background:'var(--accent-light)', cursor:'pointer', color:'var(--accent)', fontWeight:600, display:'flex', alignItems:'center', gap:'6px'}}), Icons.barChart(), "Compare projects"),
-        React.createElement("button", {type:"button",onClick:onClose, style:{fontSize:'var(--text-md)', padding:'4px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--surface-secondary)', cursor:'pointer', color:'var(--text-secondary)'}}), "\u2190 Back to grid")
+        hasMultiProjects && React.createElement("button", {type:"button",onClick:function(){setShowComparison(true);}, style:{fontSize:'var(--text-md)', padding:'4px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--accent-border)', background:'var(--accent-light)', cursor:'pointer', color:'var(--accent)', fontWeight:600, display:'flex', alignItems:'center', gap:'6px'}}, Icons.barChart(), "Compare projects"),
+        React.createElement("button", {type:"button",onClick:onClose, style:{fontSize:'var(--text-md)', padding:'4px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--surface-secondary)', cursor:'pointer', color:'var(--text-secondary)'}}, "\u2190 Back to grid")
       )
     ),
     React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts, useActiveDays:useActiveDays}),
     React.createElement("div", {className:"stats-export-bar"},
-      React.createElement("button", {type:"button",className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}}),
+      React.createElement("button", {type:"button",className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}},
         copied ? [Icons.check(), ' Copied!'] : [Icons.clipboard(), ' Copy progress summary']),
-      React.createElement("button", {type:"button",className:"stats-export-btn", onClick:handleCSV, style:{display:'flex', alignItems:'center', gap:'6px'}}),
+      React.createElement("button", {type:"button",className:"stats-export-btn", onClick:handleCSV, style:{display:'flex', alignItems:'center', gap:'6px'}},
         Icons.document(), ' Export sessions (CSV)'),
-      React.createElement("button", {type:"button",className:"stats-export-btn", onClick:handleExportCard, style:{display:'flex', alignItems:'center', gap:'6px'}}),
+      React.createElement("button", {type:"button",className:"stats-export-btn", onClick:handleExportCard, style:{display:'flex', alignItems:'center', gap:'6px'}},
         Icons.camera(), ' Save as image')
     ),
     React.createElement("div", {style:{marginTop:20}},
