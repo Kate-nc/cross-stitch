@@ -988,26 +988,14 @@ function UnifiedApp(){
       // Match handleHomeOpenCreatorBlank: scratch defaults to Edit, not Create.
       setTimeout(()=>{if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');},0);
     } else if(act==='new-from-image'){
-      // Open the image file picker as soon as Creator mounts. Poll briefly
-      // because the file input ref is created inside the lazy Creator subtree.
-      var tries=0;
-      var poll=setInterval(function(){
-        tries++;
-        var input=document.querySelector('input[type="file"][accept^="image/"]');
-        if(input){clearInterval(poll);try{input.click();}catch(_){}}
-        else if(tries>40) clearInterval(poll); // ~2s, then give up silently
-      },50);
+      // The Creator upload screen shows a "Create New Pattern" tile the user
+      // can click directly — no programmatic file-picker trigger needed.
+      // (Polling setInterval hacks fail silently on modern Chrome because
+      // input.click() requires a synchronous user-activation context.)
+      if(window.Toast) window.Toast.show({message:'Click "Create New Pattern" below to choose your image.',type:'info',duration:5000});
     } else if(act==='open'){
-      // Edit existing project — open the project-load file picker (.json/.oxs/.pdf/image)
-      // mounted on state.loadRef in the Creator subtree.
+      // Same: the "Load Existing Project" tile in the upload screen handles this.
       setTimeout(()=>{if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');},0);
-      var tries2=0;
-      var poll2=setInterval(function(){
-        tries2++;
-        var input=document.querySelector('input[type="file"][accept*=".json"]');
-        if(input){clearInterval(poll2);try{input.click();}catch(_){}}
-        else if(tries2>40) clearInterval(poll2);
-      },50);
     }
   },[]);
   const[creatorResetKey,setCreatorResetKey]=React.useState(0);
