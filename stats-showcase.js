@@ -269,10 +269,10 @@ function ShareModal({ title, drawFn, onClose }) {
     } catch(e) { console.warn('Copy failed:', e); }
   }, []);
 
-  return h('div', { className: 'modal-overlay', onClick: handleClose },
+  return h('div', { className: 'modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'showcase-share-title', onClick: handleClose },
     h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 500, textAlign: 'center' } },
       h('button', { ref: closeBtnRef, className: 'modal-close', onClick: handleClose, 'aria-label': 'Close share modal' }, '×'),
-      h('h3', { style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, title || 'Share'),
+      h('h3', { id: 'showcase-share-title', style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, title || 'Share'),
       h('canvas', { ref: canvasRef, style: { width: '100%', maxWidth: 420, borderRadius:'var(--radius-md)', border: '1px solid var(--border)', marginBottom:'var(--s-3)', display: 'block', margin: '0 auto 12px' } }),
       rendered && h('div', { style: { display: 'flex', gap:'var(--s-2)', justifyContent: 'center', flexWrap: 'wrap' } },
         h('button', { onClick: handleDownload, style: { padding: '8px 18px', background: 'var(--accent)', color: 'var(--surface)', border: 'none', borderRadius: 'var(--radius-md)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' } }, 'Download PNG'),

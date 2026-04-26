@@ -1091,7 +1091,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
     ),
     React.createElement("div",{style:{marginTop:'var(--s-3)',display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}},
       React.createElement("input",{"aria-label":"Snapshot label",type:'text',value:labelText,onChange:function(e){setLabelText(e.target.value);},placeholder:'Snapshot label (optional)',style:{flex:1,minWidth:120,fontSize:'var(--text-sm)',padding:'4px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)'}}),
-      React.createElement("button",{type:"button",onClick:saveManualSnapshot,style:{fontSize:'var(--text-sm)',padding:'4px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-border)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--accent)',fontWeight:600,flexShrink:0,display:'flex',alignItems:'center',gap:'6px'}}), Icons.camera(), "Save snapshot")
+      React.createElement("button",{type:"button",onClick:saveManualSnapshot,style:{fontSize:'var(--text-sm)',padding:'4px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-border)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--accent)',fontWeight:600,flexShrink:0,display:'flex',alignItems:'center',gap:'6px'}}, Icons.camera(), "Save snapshot")
     ),
     (doneSnapshots&&doneSnapshots.length===0)&&React.createElement("p",{style:{fontSize:'var(--text-sm)',color:'var(--text-tertiary)',margin:'8px 0 0'}},"No snapshots yet. Snapshots are saved automatically each stitching day, or tap \u201cSave snapshot\u201d to create one now.")
   );

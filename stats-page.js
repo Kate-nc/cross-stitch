@@ -189,10 +189,10 @@ function CustomiseModal({ visibility, onChange, onClose }) {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
-  return h('div', { className: 'modal-overlay', onClick: onClose },
+  return h('div', { className: 'modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'stats-settings-title', onClick: onClose },
     h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 400, maxHeight: '80vh', overflowY: 'auto' } },
       h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '×'),
-      h('h3', { style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, 'Customise Stats'),
+      h('h3', { id: 'stats-settings-title', style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, 'Customise Stats'),
       h('p', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', marginBottom:'var(--s-4)' } }, 'Show or hide sections on your stats page.'),
       Object.entries(SECTION_LABELS).map(([key, label]) =>
         h('label', { key, style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', fontSize:'var(--text-lg)' } },
@@ -296,10 +296,10 @@ function ShareCardModal({ lifetimeStitches, onClose }) {
     }
   }, []);
 
-  return h('div', { className: 'modal-overlay', onClick: onClose },
+  return h('div', { className: 'modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'share-stats-title', onClick: onClose },
     h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 480, textAlign: 'center' } },
       h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '×'),
-      h('h3', { style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, 'Share Your Stats'),
+      h('h3', { id: 'share-stats-title', style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, 'Share Your Stats'),
       h('canvas', { ref: canvasRef, style: { width: '100%', maxWidth: 360, borderRadius:'var(--radius-md)', border: '1px solid var(--border)', marginBottom:'var(--s-3)' } }),
       rendered && h('div', { style: { display: 'flex', gap:'var(--s-2)', justifyContent: 'center' } },
         h('button', { onClick: handleDownload, style: { padding: '8px 16px', background: 'var(--accent)', color: 'var(--surface)', border: 'none', borderRadius: 'var(--radius-md)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' } }, 'Download PNG'),
@@ -471,10 +471,10 @@ function ShowcaseShareModal({ title, drawFn, onClose }) {
       setCopied(true); setTimeout(() => setCopied(false), 2000);
     } catch(e) { console.warn('Copy failed:', e); }
   }, []);
-  return h('div', { className: 'modal-overlay', onClick: handleClose },
+  return h('div', { className: 'modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'share-image-title', onClick: handleClose },
     h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 500, textAlign: 'center' } },
       h('button', { ref: closeBtnRef, className: 'modal-close', onClick: handleClose, 'aria-label': 'Close share modal' }, '\xd7'),
-      h('h3', { style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, title || 'Share'),
+      h('h3', { id: 'share-image-title', style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, title || 'Share'),
       h('canvas', { ref: canvasRef, style: { width: '100%', maxWidth: 420, borderRadius:'var(--radius-md)', border: '1px solid var(--border)', display: 'block', margin: '0 auto 12px' } }),
       rendered && h('div', { style: { display: 'flex', gap:'var(--s-2)', justifyContent: 'center', flexWrap: 'wrap' } },
         h('button', { onClick: handleDownload, style: { padding: '8px 18px', background: 'var(--accent)', color: 'var(--surface)', border: 'none', borderRadius: 'var(--radius-md)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' } }, 'Download PNG'),
