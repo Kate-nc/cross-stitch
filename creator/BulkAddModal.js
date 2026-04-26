@@ -63,12 +63,12 @@ window.BulkAddModal = (function () {
   function ThreadChip({ item, brand, onRemove }) {
     if (!item.valid) {
       return React.createElement('span', {
-        style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#F1D2D2', color: '#8A2E2E', border: '1px solid #DEAEAE', margin: '2px 3px' }
+        style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize:'var(--text-sm)', padding: '2px 7px', borderRadius:'var(--radius-xl)', background: 'var(--danger-soft)', color: 'var(--danger)', border: '1px solid #DEAEAE', margin: '2px 3px' }
       },
         React.createElement('span', null, brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised, '\u00a0\u2014 not found'),
         React.createElement('button', {
           onClick: function () { onRemove(item.raw); },
-          style: { background: 'none', border: 'none', color: '#8A2E2E', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 13, fontWeight: 700, marginLeft: 2 }
+          style: { background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize:'var(--text-md)', fontWeight: 700, marginLeft: 2 }
         }, '×')
       );
     }
@@ -76,13 +76,13 @@ window.BulkAddModal = (function () {
       style: { width: 12, height: 12, borderRadius: 2, background: 'rgb(' + item.thread.rgb + ')', border: '1px solid rgba(0,0,0,0.12)', flexShrink: 0 }
     });
     return React.createElement('span', {
-      style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#DEE7D2', color: '#3F6432', border: '1px solid #A8C594', margin: '2px 3px' }
+      style: { display: 'inline-flex', alignItems: 'center', gap:'var(--s-1)', fontSize:'var(--text-sm)', padding: '2px 7px', borderRadius:'var(--radius-xl)', background: 'var(--success-soft)', color: 'var(--success)', border: '1px solid #A8C594', margin: '2px 3px' }
     },
       swatch,
       brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised,
       React.createElement('button', {
         onClick: function () { onRemove(item.raw); },
-        style: { background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 13, fontWeight: 700, marginLeft: 2 }
+        style: { background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize:'var(--text-md)', fontWeight: 700, marginLeft: 2 }
       }, '×')
     );
   }
@@ -182,8 +182,8 @@ window.BulkAddModal = (function () {
         onClose: onClose, className: 'modal-box', labelledBy: 'bulk-add-done-title',
         style: { maxWidth: 440, width: '90vw', padding: '32px 24px', textAlign: 'center' }
       },
-        (window.Icons && window.Icons.check) ? React.createElement('div', { style: { color: 'var(--success)', marginBottom: 12, display: 'flex', justifyContent: 'center' } }, window.Icons.check()) : null,
-        React.createElement('div', { id: 'bulk-add-done-title', style: { fontSize: 16, fontWeight: 700, marginBottom: 8 } }, validCount + ' thread' + (validCount === 1 ? '' : 's') + ' added to your stash'),
+        (window.Icons && window.Icons.check) ? React.createElement('div', { style: { color: 'var(--success)', marginBottom:'var(--s-3)', display: 'flex', justifyContent: 'center' } }, window.Icons.check()) : null,
+        React.createElement('div', { id: 'bulk-add-done-title', style: { fontSize:'var(--text-xl)', fontWeight: 700, marginBottom:'var(--s-2)' } }, validCount + ' thread' + (validCount === 1 ? '' : 's') + ' added to your stash'),
         React.createElement('button', { className: 'g-btn primary', onClick: onClose, 'data-autofocus': true }, 'Done')
       );
     }
@@ -198,15 +198,15 @@ window.BulkAddModal = (function () {
           React.createElement(window.Overlay.CloseButton, { onClose: onClose, style: { position: 'static' } })
         ),
         // Tabs
-        React.createElement('div', { style: { display: 'flex', borderBottom: '1px solid #E5DCCB', padding: '0 20px' } },
+        React.createElement('div', { style: { display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 20px' } },
           ['paste', 'kit'].map(function (tab) {
             return React.createElement('button', {
               key: tab,
               onClick: function () { setActiveTab(tab); },
               style: {
-                padding: '10px 16px', fontSize: 13, fontWeight: 600, border: 'none', background: 'none', cursor: 'pointer',
+                padding: '10px 16px', fontSize:'var(--text-md)', fontWeight: 600, border: 'none', background: 'none', cursor: 'pointer',
                 borderBottom: activeTab === tab ? '2px solid #6366f1' : '2px solid transparent',
-                color: activeTab === tab ? '#6366f1' : '#8A8270'
+                color: activeTab === tab ? '#6366f1' : 'var(--text-tertiary)'
               }
             }, tab === 'paste' ? 'Paste list' : 'From a kit');
           })
@@ -215,8 +215,8 @@ window.BulkAddModal = (function () {
         React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: 20 } },
           activeTab === 'paste' && React.createElement(React.Fragment, null,
             // Brand selector
-            React.createElement('div', { style: { display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' } },
-              React.createElement('span', { style: { fontSize: 12, fontWeight: 600, color: '#5C5448' } }, 'Brand:'),
+            React.createElement('div', { style: { display: 'flex', gap:'var(--s-2)', marginBottom:'var(--s-3)', alignItems: 'center' } },
+              React.createElement('span', { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)' } }, 'Brand:'),
               ['dmc', 'anchor'].map(function (b) {
                 return React.createElement('button', {
                   key: b,
@@ -230,10 +230,10 @@ window.BulkAddModal = (function () {
               value: pasteText,
               onChange: function (e) { setPasteText(e.target.value); setRemovedRaws([]); },
               rows: 5,
-              style: { width: '100%', fontSize: 13, padding: '8px 10px', border: '1px solid #E5DCCB', borderRadius: 6, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'monospace' }
+              style: { width: '100%', fontSize:'var(--text-md)', padding: '8px 10px', border: '1px solid var(--border)', borderRadius:'var(--radius-sm)', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'monospace' }
             }),
-            pasteResolved.length > 0 && React.createElement('div', { style: { marginTop: 12 } },
-              React.createElement('div', { style: { fontSize: 11, color: '#8A8270', marginBottom: 6 } },
+            pasteResolved.length > 0 && React.createElement('div', { style: { marginTop:'var(--s-3)' } },
+              React.createElement('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 6 } },
                 validCount + ' valid' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised (click × to remove)' : '')
               ),
               pasteResolved.map(function (item) {
@@ -242,8 +242,8 @@ window.BulkAddModal = (function () {
             )
           ),
           activeTab === 'kit' && React.createElement(React.Fragment, null,
-            React.createElement('div', { style: { display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' } },
-              React.createElement('span', { style: { fontSize: 12, fontWeight: 600, color: '#5C5448' } }, 'Brand:'),
+            React.createElement('div', { style: { display: 'flex', gap:'var(--s-2)', marginBottom:'var(--s-3)', alignItems: 'center' } },
+              React.createElement('span', { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)' } }, 'Brand:'),
               ['dmc', 'anchor'].map(function (b) {
                 return React.createElement('button', {
                   key: b,
@@ -263,7 +263,7 @@ window.BulkAddModal = (function () {
               })
             ),
             kitResolved.length > 0 && React.createElement(React.Fragment, null,
-              React.createElement('div', { style: { fontSize: 11, color: '#8A8270', marginBottom: 6 } },
+              React.createElement('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 6 } },
                 validCount + ' threads in this kit' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised' : '')
               ),
               React.createElement('div', { style: { lineHeight: 2 } },
@@ -272,12 +272,12 @@ window.BulkAddModal = (function () {
                 })
               )
             ),
-            kitKeys.length === 0 && React.createElement('div', { style: { fontSize: 13, color: '#A89E89', padding: '24px 0' } }, 'No starter kits available for this brand.')
+            kitKeys.length === 0 && React.createElement('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-tertiary)', padding: '24px 0' } }, 'No starter kits available for this brand.')
           )
         ),
         // Footer
-        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' } },
-          invalidCount > 0 && React.createElement('span', { style: { fontSize: 12, color: '#C0883A', marginRight: 'auto' } },
+        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' } },
+          invalidCount > 0 && React.createElement('span', { style: { fontSize:'var(--text-sm)', color: 'var(--warning)', marginRight: 'auto' } },
             invalidCount + ' unrecognised thread' + (invalidCount === 1 ? '' : 's') + ' will be skipped'
           ),
           React.createElement('button', { className: 'g-btn', onClick: onClose }, 'Cancel'),

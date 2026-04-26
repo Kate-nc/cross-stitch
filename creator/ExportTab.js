@@ -15,11 +15,11 @@
 
 // Module-scope hoisted values (regex / style objects).
 var EXPORT_UNSAFE_FILENAME_CHARS = /[^\w\-]+/g;
-var EXPORT_PRESET_CARD_BASE = { flex: 1, padding: 14, borderRadius: 10, border: "1.5px solid #CFC4AC", background: "#fff", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 };
-var EXPORT_PRESET_CARD_ACTIVE = { background: "#B85C38", color: "#fff", borderColor: "#B85C38" };
-var EXPORT_CTA_STYLE = { padding: "14px 22px", fontSize: 16, borderRadius: 10, border: "none", background: "#B85C38", color: "#fff", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
-var EXPORT_DISABLED_CTA = Object.assign({}, EXPORT_CTA_STYLE, { background: "#A89E89", cursor: "not-allowed" });
-var EXPORT_SECTION_TOGGLE = { background: "#fff", border: "1px solid #E5DCCB", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "#0f172a" };
+var EXPORT_PRESET_CARD_BASE = { flex: 1, padding: 14, borderRadius:'var(--radius-lg)', border: "1.5px solid #CFC4AC", background: "var(--surface)", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap:'var(--s-1)' };
+var EXPORT_PRESET_CARD_ACTIVE = { background: "var(--accent)", color: "var(--surface)", borderColor: "var(--accent)" };
+var EXPORT_CTA_STYLE = { padding: "14px 22px", fontSize:'var(--text-xl)', borderRadius:'var(--radius-lg)', border: "none", background: "var(--accent)", color: "var(--surface)", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
+var EXPORT_DISABLED_CTA = Object.assign({}, EXPORT_CTA_STYLE, { background: "var(--text-tertiary)", cursor: "not-allowed" });
+var EXPORT_SECTION_TOGGLE = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius:'var(--radius-md)', padding: "10px 14px", fontSize:'var(--text-md)', cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "var(--text-primary)" };
 
 window.CreatorExportTab = function CreatorExportTab() {
   var ctx = window.usePatternData();
@@ -181,7 +181,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       c.width = ctx.sW * CELL;
       c.height = ctx.sH * CELL;
       var g = c.getContext("2d");
-      g.fillStyle = "#ffffff";
+      g.fillStyle = "var(--surface)";
       g.fillRect(0, 0, c.width, c.height);
       for (var y = 0; y < ctx.sH; y++) {
         for (var x = 0; x < ctx.sW; x++) {
@@ -385,26 +385,26 @@ window.CreatorExportTab = function CreatorExportTab() {
   var sectionToggle = EXPORT_SECTION_TOGGLE;
 
   return h("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
-    app.copied && h("div", { style: { background: "#DEE7D2", border: "1px solid #C4DCB6", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "#4F7D3F", fontWeight: 600 } }, "Copied!"),
+    app.copied && h("div", { style: { background: "var(--success-soft)", border: "1px solid var(--success-soft)", borderRadius:'var(--radius-md)', padding: "8px 14px", fontSize:'var(--text-sm)', color: "var(--success)", fontWeight: 600 } }, "Copied!"),
 
     h("button", {
       onClick: app.handleOpenInTracker,
-      style: { padding: "12px 20px", fontSize: 15, borderRadius: 8, border: "none", background: "#944526", color: "#fff", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }
+      style: { padding: "12px 20px", fontSize: 15, borderRadius:'var(--radius-md)', border: "none", background: "var(--accent-hover)", color: "var(--surface)", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap:'var(--s-2)' }
     }, window.Icons && Icons.thread && Icons.thread(), " Open in Stitch Tracker →"),
 
     h("div", null,
-      h("h3", { style: { margin: "0 0 8px", fontSize: 14, color: "#0f172a" } }, "Quick presets"),
+      h("h3", { style: { margin: "0 0 8px", fontSize:'var(--text-lg)', color: "var(--text-primary)" } }, "Quick presets"),
       h("div", { style: { display: "flex", gap: 10 } },
         h("button", { onClick: function () { applyPreset("patternKeeper"); },
           style: Object.assign({}, presetCardBase, presetState[0] === "patternKeeper" ? presetCardActive : {}) },
-          h("strong", { style: { fontSize: 14 } }, "For Pattern Keeper"),
-          h("span", { style: { fontSize: 11, opacity: 0.85 } },
+          h("strong", { style: { fontSize:'var(--text-lg)' } }, "For Pattern Keeper"),
+          h("span", { style: { fontSize:'var(--text-xs)', opacity: 0.85 } },
             "Symbols + colour, medium print, 2-row overlap, cover page on. Customers can highlight and track stitches in Pattern Keeper.")
         ),
         h("button", { onClick: function () { applyPreset("homePrinting"); },
           style: Object.assign({}, presetCardBase, presetState[0] === "homePrinting" ? presetCardActive : {}) },
-          h("strong", { style: { fontSize: 14 } }, "For printing (home)"),
-          h("span", { style: { fontSize: 11, opacity: 0.85 } },
+          h("strong", { style: { fontSize:'var(--text-lg)' } }, "For printing (home)"),
+          h("span", { style: { fontSize:'var(--text-xs)', opacity: 0.85 } },
             "Colour + B&W charts, large print, no overlap, cover page off. Easier on the eyes when stitching from paper.")
         )
       )
@@ -416,112 +416,112 @@ window.CreatorExportTab = function CreatorExportTab() {
         h("span", { "aria-hidden": "true", style: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, color: "var(--text-tertiary)" } },
           (typeof window !== "undefined" && window.Icons) ? (settingsOpen[0] ? window.Icons.chevronUp() : window.Icons.chevronDown()) : null)
       ),
-      settingsOpen[0] && h("div", { style: { background: "#fff", border: "1px solid #E5DCCB", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 14 } },
+      settingsOpen[0] && h("div", { style: { background: "var(--surface)", border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 14 } },
 
         h("div", { style: { marginBottom: 14 } },
-          h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 6 } }, "Format"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+          h("div", { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: "#3f3f46", marginBottom: 6 } }, "Format"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "pdf", onChange: function () { exportFormat[1]("pdf"); } }), "PDF"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "png", onChange: function () { exportFormat[1]("png"); } }), "PNG")
         ),
 
-        h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 } },
+        h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap:'var(--s-3)', marginBottom:'var(--s-3)' } },
           h("div", null,
-            h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Page size"),
-            h("select", { value: pageSize[0], onChange: function (e) { setPageSize(e.target.value); }, style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12, width: "100%" } },
+            h("div", { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: "#3f3f46", marginBottom:'var(--s-1)' } }, "Page size"),
+            h("select", { value: pageSize[0], onChange: function (e) { setPageSize(e.target.value); }, style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)', width: "100%" } },
               h("option", { value: "auto" },   "Auto (A4 / Letter from locale)"),
               h("option", { value: "a4" },     "A4 (210 × 297 mm)"),
               h("option", { value: "letter" }, "US Letter (8.5 × 11 in)")
             )
           ),
           h("div", null,
-            h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Page margin (mm)"),
+            h("div", { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: "#3f3f46", marginBottom:'var(--s-1)' } }, "Page margin (mm)"),
             h("input", { type: "number", min: 10, max: 30, value: marginsMm[0], onChange: function (e) { setMarginsMm(Number(e.target.value)); },
-              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12, width: "100%" } })
+              style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)', width: "100%" } })
           )
         ),
 
-        h("div", { style: { marginBottom: 12 } },
-          h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Stitches per page"),
-          h("select", { value: stPerPg[0], onChange: function (e) { setStPerPg(e.target.value); }, style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12 } },
+        h("div", { style: { marginBottom:'var(--s-3)' } },
+          h("div", { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: "#3f3f46", marginBottom:'var(--s-1)' } }, "Stitches per page"),
+          h("select", { value: stPerPg[0], onChange: function (e) { setStPerPg(e.target.value); }, style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)' } },
             h("option", { value: "small" },  "Small print (~80 × 100, ~2mm cells)"),
             h("option", { value: "medium" }, "Medium print (~60 × 70, ~2.8mm cells, ideal for PK)"),
             h("option", { value: "large" },  "Large print (~40 × 50, ~4mm cells, easier to read)"),
             h("option", { value: "custom" }, "Custom")
           ),
-          stPerPg[0] === "custom" && h("div", { style: { display: "flex", gap: 8, marginTop: 6 } },
+          stPerPg[0] === "custom" && h("div", { style: { display: "flex", gap:'var(--s-2)', marginTop: 6 } },
             h("input", { type: "number", min: 10, max: 200, step: 10, value: customCols[0], onChange: function (e) { setCustomCols(Number(e.target.value)); },
-              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12, width: 90 } }),
-            h("span", { style: { fontSize: 12, alignSelf: "center" } }, "cols ×"),
+              style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)', width: 90 } }),
+            h("span", { style: { fontSize:'var(--text-sm)', alignSelf: "center" } }, "cols ×"),
             h("input", { type: "number", min: 10, max: 200, step: 10, value: customRows[0], onChange: function (e) { setCustomRows(Number(e.target.value)); },
-              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12, width: 90 } }),
-            h("span", { style: { fontSize: 12, alignSelf: "center" } }, "rows")
+              style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)', width: 90 } }),
+            h("span", { style: { fontSize:'var(--text-sm)', alignSelf: "center" } }, "rows")
           )
         ),
 
-        h("div", { style: { marginBottom: 12 } },
-          h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Chart modes"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+        h("div", { style: { marginBottom:'var(--s-3)' } },
+          h("div", { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: "#3f3f46", marginBottom:'var(--s-1)' } }, "Chart modes"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: modeBw[0], onChange: function (e) { setModeBw(e.target.checked); } }),
             "Symbols on white (B&W)"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: modeColour[0], onChange: function (e) { setModeColour(e.target.checked); } }),
             "Colour blocks with symbols")
         ),
 
         h("div", { style: { display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 6 } },
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: overlap[0], onChange: function (e) { setOverlap(e.target.checked); } }),
             "2-row/column overlap zone"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: includeCover[0], onChange: function (e) { setIncludeCover(e.target.checked); } }),
             "Cover page"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: includeInfo[0], onChange: function (e) { setIncludeInfo(e.target.checked); } }),
             "Info page"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: includeIndex[0], onChange: function (e) { setIncludeIndex(e.target.checked); } }),
             "Chart index"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: miniLegend[0], onChange: function (e) { setMiniLegend(e.target.checked); } }),
             "Mini-legend strip on each page")
         ),
 
         h("div", { style: { marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border)" } },
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 12, cursor: "pointer", fontWeight: 600, color: "var(--text-primary)" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap:'var(--s-2)', minHeight: 44, fontSize:'var(--text-sm)', cursor: "pointer", fontWeight: 600, color: "var(--text-primary)" } },
             h("input", {
               type: "checkbox",
               checked: workshopTheme[0],
               onChange: function (e) { setWorkshopTheme(e.target.checked); }
             }),
             "Workshop print theme (terracotta grid + linen background)"),
-          h("p", { style: { fontSize: 11, color: "var(--text-secondary)", margin: "4px 0 0 22px" } },
+          h("p", { style: { fontSize:'var(--text-xs)', color: "var(--text-secondary)", margin: "4px 0 0 22px" } },
             "Off by default. Pattern Keeper compatibility uses the standard black-grid output.")
         ),
 
-        pageGeom && h("p", { style: { fontSize: 11, color: "#8A8270", marginTop: 12, marginBottom: 0 } },
+        pageGeom && h("p", { style: { fontSize:'var(--text-xs)', color: "var(--text-tertiary)", marginTop:'var(--s-3)', marginBottom: 0 } },
           "Will produce ~" + totalPagesPreview + " page" + (totalPagesPreview === 1 ? "" : "s") +
           " (chart grid: " + pageGeom.colsPerPage + " × " + pageGeom.rowsPerPage +
           " stitches per chart page, cell ≈ " + pageGeom.cellMm.toFixed(2) + " mm).")
       )
     ),
 
-    h("div", { style: { background: "#f8fafc", border: "1px solid #E5DCCB", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#5C5448" } },
+    h("div", { style: { background: "var(--surface-secondary)", border: "1px solid var(--border)", borderRadius:'var(--radius-md)', padding: "10px 14px", fontSize:'var(--text-sm)', color: "var(--text-secondary)" } },
       "Designer branding (name, logo, copyright) is now in ",
       h("strong", null, "File → Preferences"),
       ". Settings there apply to every PDF you export."
     ),
 
-    progressState[0] ? h("div", { style: { background: "#EFE7D6", border: "1px solid #CFC4AC", borderRadius: 10, padding: 16 } },
-      h("div", { style: { fontSize: 13, fontWeight: 600, color: "#0f172a", marginBottom: 8 } },
+    progressState[0] ? h("div", { style: { background: "var(--surface-tertiary)", border: "1px solid #CFC4AC", borderRadius:'var(--radius-lg)', padding:'var(--s-4)' } },
+      h("div", { style: { fontSize:'var(--text-md)', fontWeight: 600, color: "var(--text-primary)", marginBottom:'var(--s-2)' } },
         "Generating PDF… " + (progressState[0].current || 0) + " of " + (progressState[0].total || "?") + " pages"),
-      h("div", { style: { background: "#E5DCCB", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 10 } },
+      h("div", { style: { background: "var(--border)", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 10 } },
         h("div", { style: {
           width: ((progressState[0].total ? Math.min(100, (progressState[0].current / progressState[0].total) * 100) : 30)) + "%",
-          height: "100%", background: "#B85C38", transition: "width 120ms ease-out" } })
+          height: "100%", background: "var(--accent)", transition: "width 120ms ease-out" } })
       ),
-      h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize: 13, borderRadius: 8, border: "1px solid #ECC8C8", background: "#fff", color: "#8A2E2E", cursor: "pointer", fontWeight: 600 } }, "Cancel")
+      h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize:'var(--text-md)', borderRadius:'var(--radius-md)', border: "1px solid var(--danger-soft)", background: "var(--surface)", color: "var(--danger)", cursor: "pointer", fontWeight: 600 } }, "Cancel")
     ) : h("button", {
       onClick: exportFormat[0] === "png" ? doExportPng : doExport,
       style: (exportFormat[0] === "pdf" && modesArr.length === 0) ? disabledCta : ctaStyle,
@@ -529,21 +529,21 @@ window.CreatorExportTab = function CreatorExportTab() {
     }, exportFormat[0] === "png" ? "Export PNG" : "Export PDF"),
 
     // C6: Download bundle (zip with PDF + OXS + PNG + JSON + manifest).
-    h("div", { style: { borderTop: "1px solid #E5DCCB", marginTop: 4, paddingTop: 14, display: "flex", flexDirection: "column", gap: 8 } },
-      h("div", { style: { fontSize: 13, fontWeight: 600, color: "#0f172a" } }, "Download as bundle"),
-      h("div", { style: { fontSize: 11, color: "#8A8270" } },
+    h("div", { style: { borderTop: "1px solid var(--border)", marginTop:'var(--s-1)', paddingTop: 14, display: "flex", flexDirection: "column", gap:'var(--s-2)' } },
+      h("div", { style: { fontSize:'var(--text-md)', fontWeight: 600, color: "var(--text-primary)" } }, "Download as bundle"),
+      h("div", { style: { fontSize:'var(--text-xs)', color: "var(--text-tertiary)" } },
         "One .zip with the PDF chart, OXS pattern, PNG preview, JSON snapshot, and a manifest. Useful for archiving or sharing the finished project."),
       bundleState[0]
-        ? h("div", { style: { background: "#EFE7D6", border: "1px solid #CFC4AC", borderRadius: 8, padding: 10, fontSize: 12, color: "#0f172a" } },
+        ? h("div", { style: { background: "var(--surface-tertiary)", border: "1px solid #CFC4AC", borderRadius:'var(--radius-md)', padding: 10, fontSize:'var(--text-sm)', color: "var(--text-primary)" } },
             (bundleState[0].msg || "Working…"))
         : h("button", {
             onClick: doExportBundle,
-            style: Object.assign({}, ctaStyle, { display: "inline-flex", alignItems: "center", gap: 8, alignSelf: "flex-start" }),
+            style: Object.assign({}, ctaStyle, { display: "inline-flex", alignItems: "center", gap:'var(--s-2)', alignSelf: "flex-start" }),
           },
           window.Icons && Icons.archive && Icons.archive(),
           h("span", null, "Download bundle"))
     ),
 
-    errorState[0] && h("div", { style: { background: "#FCEFEF", border: "1px solid #ECC8C8", borderRadius: 8, padding: 10, fontSize: 12, color: "#8A2E2E" } }, errorState[0])
+    errorState[0] && h("div", { style: { background: "var(--danger-soft)", border: "1px solid var(--danger-soft)", borderRadius:'var(--radius-md)', padding: 10, fontSize:'var(--text-sm)', color: "var(--danger)" } }, errorState[0])
   );
 };

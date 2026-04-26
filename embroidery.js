@@ -65,12 +65,12 @@ const ZOOM_STEP_BUTTON = 0.25;  // per toolbar button click
 const ZOOM_STEP_SCROLL = 0.1;   // per scroll tick
 
 const STITCHES = [
-  { id:"satin",name:"Satin",desc:"Smooth parallel fill",color:"#B85C38"},
-  { id:"longshort",name:"Long & Short",desc:"Blended shading fill",color:"#944526"},
+  { id:"satin",name:"Satin",desc:"Smooth parallel fill",color:"var(--accent)"},
+  { id:"longshort",name:"Long & Short",desc:"Blended shading fill",color:"var(--accent-hover)"},
   { id:"frenchknot",name:"French Knots",desc:"Textured dots",color:"#ec4899"},
-  { id:"chainstitch",name:"Chain",desc:"Looped fill/outline",color:"#B85C38"},
+  { id:"chainstitch",name:"Chain",desc:"Looped fill/outline",color:"var(--accent)"},
   { id:"seedstitch",name:"Seed",desc:"Random short stitches",color:"#f59e0b"},
-  { id:"stemstitch",name:"Stem",desc:"Outline stitch",color:"#8A8270"},
+  { id:"stemstitch",name:"Stem",desc:"Outline stitch",color:"var(--text-tertiary)"},
 ];
 
 const EMB_COLORS=[
@@ -1289,7 +1289,7 @@ function EmbroideryApp(){
       {modal==='help'&&typeof HelpModal!=='undefined'&&<HelpModal onClose={()=>setModal(null)}/>}
       {modal==='shortcuts'&&typeof ShortcutsModal!=='undefined'&&<ShortcutsModal onClose={()=>setModal(null)}/>}
       <div className="emb-container">
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)'}}>
           <h2 className="emb-title" style={{margin:0}}>Embroidery Pattern Planner</h2>
           <span style={{display:"inline-block",backgroundColor:"#fbbf24",color:"#000",padding:"4px 8px",borderRadius:"4px",fontSize:"0.75em",fontWeight:"bold"}}>BETA</span>
         </div>
@@ -1320,7 +1320,7 @@ function EmbroideryApp(){
         </div>
         <div className="emb-method-row">
           <div className="emb-method-card emb-method-card--auto">
-            <div style={{textAlign:"center",marginBottom:8}}>
+            <div style={{textAlign:"center",marginBottom:'var(--s-2)'}}>
               <span style={{fontSize:26}}>🤖</span>
               <h3 className="emb-method-title">Auto Detect</h3>
               <p className="emb-method-desc">SLIC superpixel segmentation</p>
@@ -1345,7 +1345,7 @@ function EmbroideryApp(){
               <h3 className="emb-method-title">Draw by Hand</h3>
               <p className="emb-method-desc">Freehand trace regions</p>
             </div>
-            <button className="emb-btn emb-btn--secondary emb-btn--full" onClick={startDraw} style={{marginTop:12}}>Start Drawing</button>
+            <button className="emb-btn emb-btn--secondary emb-btn--full" onClick={startDraw} style={{marginTop:'var(--s-3)'}}>Start Drawing</button>
           </div>
         </div>
       </div>
@@ -1385,9 +1385,9 @@ function EmbroideryApp(){
         {/* Zoom toolbar */}
         <div className="tb-grp" style={{width:"100%",marginBottom:6,gap:2}}>
           <button className="tb-btn" onClick={()=>{const nz=Math.max(ZOOM_MIN,zoom-ZOOM_STEP_BUTTON);const np={x:CW*(1-nz)/2,y:CH*(1-nz)/2};setZoom(nz);setPan(np);zoomRef.current=nz;panRef.current=np;}} style={{width:28,flexShrink:0}}>−</button>
-          <span style={{fontSize:11,minWidth:38,textAlign:"center",color:"#8A8270",padding:"0 2px"}}>{Math.round(zoom*100)}%</span>
+          <span style={{fontSize:'var(--text-xs)',minWidth:38,textAlign:"center",color:"var(--text-tertiary)",padding:"0 2px"}}>{Math.round(zoom*100)}%</span>
           <button className="tb-btn" onClick={()=>{const nz=Math.min(ZOOM_MAX,zoom+ZOOM_STEP_BUTTON);const np={x:CW*(1-nz)/2,y:CH*(1-nz)/2};setZoom(nz);setPan(np);zoomRef.current=nz;panRef.current=np;}} style={{width:28,flexShrink:0}}>+</button>
-          <button className="tb-btn" onClick={doFit} style={{marginLeft:4}}>Fit</button>
+          <button className="tb-btn" onClick={doFit} style={{marginLeft:'var(--s-1)'}}>Fit</button>
         </div>
         {/* Context hints */}
         {editMode==="draw"&&<div className="emb-hint emb-hint--teal">Drag on the canvas to draw a new region.</div>}
@@ -1398,7 +1398,7 @@ function EmbroideryApp(){
             <input type="range" min={0} max={100} value={wandTolerance} onChange={e=>setWandTolerance(+e.target.value)} style={{width:"100%"}}/>
             <div className="emb-range-labels"><span>Exact</span><span>Loose</span></div>
           </div>
-          <label style={{display:"flex",alignItems:"center",gap:6,marginTop:6,cursor:"pointer",fontSize:12}}>
+          <label style={{display:"flex",alignItems:"center",gap:6,marginTop:6,cursor:"pointer",fontSize:'var(--text-sm)'}}>
             <input type="checkbox" checked={wandEdgeSnap} onChange={e=>setWandEdgeSnap(e.target.checked)}/>
             Edge snap
           </label>
@@ -1415,7 +1415,7 @@ function EmbroideryApp(){
         </div>
 
         {/* Canvas */}
-        <div className="card" style={{marginBottom:8,touchAction:"none"}}>
+        <div className="card" style={{marginBottom:'var(--s-2)',touchAction:"none"}}>
           <canvas ref={mainC} width={CW} height={CH}
             onMouseDown={e=>{if(e.button===1)e.preventDefault();onDown(e);}} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
             onAuxClick={e=>{if(e.button===1)e.preventDefault();}}
@@ -1433,9 +1433,9 @@ function EmbroideryApp(){
 
         {/* Region editor */}
         {sel&&editMode!=="draw"?(
-          <div className="card" style={{padding:12,marginBottom:8}}>
+          <div className="card" style={{padding:12,marginBottom:'var(--s-2)'}}>
             <div className="emb-region-header">
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)'}}>
                 <span className="emb-color-swatch" style={{background:sel.dmc.h}}/>
                 <div>
                   <input value={sel.label} onChange={e=>updateR(sel.id,{label:e.target.value})} className="emb-region-name-input"/>
@@ -1445,26 +1445,26 @@ function EmbroideryApp(){
               <button className="emb-delete-btn" onClick={()=>deleteR(sel.id)}>✕</button>
             </div>
 
-            {isNodeEdit&&<div className="emb-hint emb-hint--amber" style={{marginBottom:8}}>{sel.nodes.length} control nodes</div>}
+            {isNodeEdit&&<div className="emb-hint emb-hint--amber" style={{marginBottom:'var(--s-2)'}}>{sel.nodes.length} control nodes</div>}
 
             {!isNodeEdit&&<>
-            <div style={{marginBottom:8}}>
+            <div style={{marginBottom:'var(--s-2)'}}>
               <label className="emb-label">Stitch Type</label>
               <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
                 {STITCHES.map(st=>(
                   <button key={st.id} onClick={()=>updateR(sel.id,{stitch:st.id})}
                     className={'emb-stitch-btn'+(sel.stitch===st.id?' emb-stitch-btn--active':'')}
-                    style={sel.stitch===st.id?{background:st.color,borderColor:st.color,color:"#fff"}:undefined}>{st.name}</button>))}
+                    style={sel.stitch===st.id?{background:st.color,borderColor:st.color,color:"var(--surface)"}:undefined}>{st.name}</button>))}
               </div>
               <p className="emb-stitch-desc">{STITCHES.find(s=>s.id===sel.stitch)?.desc}</p>
             </div>
 
-            {selRecs.length>0&&<div style={{marginBottom:8}}>
+            {selRecs.length>0&&<div style={{marginBottom:'var(--s-2)'}}>
               {selRecs.map((rec,i)=>{const isW=rec.type==="warning";return(
                 <div key={i} className={'emb-rec'+(isW?' emb-rec--warn':' emb-rec--tip')} style={{marginBottom:i<selRecs.length-1?4:0}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
                     <div style={{flex:1}}>
-                      <div className="emb-rec-msg"><span style={{marginRight:4}}>{rec.icon}</span>{rec.msg}</div>
+                      <div className="emb-rec-msg"><span style={{marginRight:'var(--s-1)'}}>{rec.icon}</span>{rec.msg}</div>
                       <div className="emb-rec-suggest">{rec.suggest}</div>
                     </div>
                     <button className="emb-rec-dismiss" onClick={()=>setDismissed(p=>new Set(p).add(`${sel.id}-${rec.msg.slice(0,20)}`))}>×</button>
@@ -1474,7 +1474,7 @@ function EmbroideryApp(){
                   </button>}
                 </div>);})}</div>}
 
-            <div style={{marginBottom:8}}>
+            <div style={{marginBottom:'var(--s-2)'}}>
               <label className="emb-label">Direction: {sel.direction}°</label>
               <input type="range" min={0} max={359} value={sel.direction} onChange={e=>updateR(sel.id,{direction:+e.target.value})} style={{width:"100%"}}/>
               <div className="emb-range-labels"><span>0° →</span><span>90° ↓</span><span>180° ←</span><span>270° ↑</span></div>

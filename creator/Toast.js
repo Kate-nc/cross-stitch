@@ -8,16 +8,16 @@ window.CreatorToastContainer = function CreatorToastContainer() {
   if (!app.toasts || app.toasts.length === 0) return null;
 
   var typeStyles = {
-    info:    { bg: "#F4DDCF", border: "#E8B89A", color: "#944526", icon: Icons.info },
-    success: { bg: "#E6EFD9", border: "#B8CC9E", color: "#3F6432", icon: Icons.check },
+    info:    { bg: "var(--accent-light)", border: "var(--accent-border)", color: "var(--accent-hover)", icon: Icons.info },
+    success: { bg: "#E6EFD9", border: "#B8CC9E", color: "var(--success)", icon: Icons.check },
     warning: { bg: "#F4E5C8", border: "#D6B97A", color: "#8A6325", icon: Icons.warning },
-    error:   { bg: "#F2D8D8", border: "#D49A9A", color: "#7A2C2C", icon: Icons.x }
+    error:   { bg: "#F2D8D8", border: "#D49A9A", color: "var(--danger)", icon: Icons.x }
   };
 
   return h("div", {
     style: {
       position: "fixed", bottom: 20, right: 20, zIndex: 10000,
-      display: "flex", flexDirection: "column-reverse", gap: 8,
+      display: "flex", flexDirection: "column-reverse", gap:'var(--s-2)',
       pointerEvents: "none", maxWidth: 340
     }
   },
@@ -27,22 +27,22 @@ window.CreatorToastContainer = function CreatorToastContainer() {
         key: toast.id,
         style: {
           pointerEvents: "auto",
-          display: "flex", alignItems: "center", gap: 8,
-          padding: "8px 14px", borderRadius: 10,
+          display: "flex", alignItems: "center", gap:'var(--s-2)',
+          padding: "8px 14px", borderRadius:'var(--radius-lg)',
           background: ts.bg, border: "1px solid " + ts.border,
-          color: ts.color, fontSize: 12, fontWeight: 500,
+          color: ts.color, fontSize:'var(--text-sm)', fontWeight: 500,
           boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
           animation: "toast-in 0.25s ease-out",
           fontFamily: "inherit", lineHeight: 1.4, maxWidth: 340
         }
       },
-        h("span", { style: { fontSize: 14, flexShrink: 0 } }, ts.icon()),
+        h("span", { style: { fontSize:'var(--text-lg)', flexShrink: 0 } }, ts.icon()),
         h("span", { style: { flex: 1 } }, toast.message),
         h("button", {
           onClick: function() { app.dismissToast(toast.id); },
           style: {
             background: "none", border: "none", cursor: "pointer",
-            color: ts.color, opacity: 0.6, fontSize: 14, padding: 0,
+            color: ts.color, opacity: 0.6, fontSize:'var(--text-lg)', padding: 0,
             lineHeight: 1, flexShrink: 0
           }
         }, "\xD7")

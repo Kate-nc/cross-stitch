@@ -146,10 +146,10 @@ window.ConvertPaletteModal = (function () {
 
   function ConfidenceBadge({ confidence }) {
     var colours = {
-      official: { bg: '#DEE7D2', text: '#3F6432', label: 'Exact match' },
+      official: { bg: 'var(--success-soft)', text: 'var(--success)', label: 'Exact match' },
       reconciled: { bg: '#fef9c3', text: '#854d0e', label: 'Best match' },
-      'single-source': { bg: '#F2E2BE', text: '#6B461F', label: 'One source' },
-      nearest: { bg: '#EFE7D6', text: '#5C5448', label: 'Closest colour' },
+      'single-source': { bg: 'var(--warning-soft)', text: 'var(--accent-ink)', label: 'One source' },
+      nearest: { bg: 'var(--surface-tertiary)', text: 'var(--text-secondary)', label: 'Closest colour' },
     };
     var c = colours[confidence] || colours.nearest;
     return React.createElement('span', {
@@ -224,8 +224,8 @@ window.ConvertPaletteModal = (function () {
           React.createElement('div', { className: 'modal-title', id: 'convert-palette-title' }, 'Change Thread Brand'),
           React.createElement(window.Overlay.CloseButton, { onClose: onClose, style: { position: 'static' } })
         ),
-        React.createElement('div', { style: { padding: '12px 20px', borderBottom: '1px solid #E5DCCB', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
-          React.createElement('span', { style: { fontSize: 13, color: '#5C5448', fontWeight: 600 } }, 'Convert to:'),
+        React.createElement('div', { style: { padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
+          React.createElement('span', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', fontWeight: 600 } }, 'Convert to:'),
           ['anchor', 'dmc'].map(function (brand) {
             return React.createElement('button', {
               key: brand,
@@ -238,15 +238,15 @@ window.ConvertPaletteModal = (function () {
             placeholder: 'Search…',
             value: searchQuery,
             onChange: function (e) { setSearchQuery(e.target.value); },
-            style: { marginLeft: 'auto', padding: '4px 8px', fontSize: 12, border: '1px solid #E5DCCB', borderRadius: 6, width: 140 }
+            style: { marginLeft: 'auto', padding: '4px 8px', fontSize:'var(--text-sm)', border: '1px solid var(--border)', borderRadius:'var(--radius-sm)', width: 140 }
           })
         ),
         uniqueCount > 0 && React.createElement('div', {
-          style: { padding: '8px 20px', background: '#F2E2BE', borderBottom: '1px solid #E5C97D', fontSize: 12, color: '#6B461F' }
+          style: { padding: '8px 20px', background: 'var(--warning-soft)', borderBottom: '1px solid #E5C97D', fontSize:'var(--text-sm)', color: 'var(--accent-ink)' }
         }, uniqueCount + ' thread' + (uniqueCount === 1 ? '' : 's') + ' ha' + (uniqueCount === 1 ? 's' : 've') + ' no close equivalent in ' + (targetBrand === 'anchor' ? 'Anchor' : 'DMC') + '. Review and choose substitutes manually.'),
         React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '8px 12px' } },
           filtered.length === 0
-            ? React.createElement('div', { style: { textAlign: 'center', padding: '32px 16px', color: '#A89E89', fontSize: 13 } }, 'No threads in the current pattern.')
+            ? React.createElement('div', { style: { textAlign: 'center', padding: '32px 16px', color: 'var(--text-tertiary)', fontSize:'var(--text-md)' } }, 'No threads in the current pattern.')
             : filtered.map(function (p) {
                 var overrideId = userOverrides[p.sourceId];
                 var effectiveTgt = overrideId
@@ -257,29 +257,29 @@ window.ConvertPaletteModal = (function () {
 
                 return React.createElement('div', {
                   key: p.sourceId,
-                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 6, marginBottom: 4, background: noMatch ? '#F8EFD8' : '#f8fafc', border: '1px solid ' + (noMatch ? '#E5C99A' : '#E5DCCB') }
+                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius:'var(--radius-sm)', marginBottom:'var(--s-1)', background: noMatch ? '#F8EFD8' : 'var(--surface-secondary)', border: '1px solid ' + (noMatch ? '#E5C99A' : 'var(--border)') }
                 },
                   // Source swatch + label
-                  React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + p.sourceRgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
-                  React.createElement('span', { style: { fontSize: 12, fontWeight: 600, width: 80, flexShrink: 0 } }, 'DMC ', p.sourceId),
-                  React.createElement('span', { style: { fontSize: 11, color: '#8A8270', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.sourceName),
-                  React.createElement('span', { style: { color: '#A89E89', fontSize: 13 } }, '→'),
+                  React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + p.sourceRgb + ')', border: '1px solid var(--border)', flexShrink: 0 } }),
+                  React.createElement('span', { style: { fontSize:'var(--text-sm)', fontWeight: 600, width: 80, flexShrink: 0 } }, 'DMC ', p.sourceId),
+                  React.createElement('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.sourceName),
+                  React.createElement('span', { style: { color: 'var(--text-tertiary)', fontSize:'var(--text-md)' } }, '→'),
                   // Target swatch + label (or dropdown)
                   effectiveTgt
                     ? React.createElement(React.Fragment, null,
-                        React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + effectiveTgt.rgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
-                        React.createElement('span', { style: { fontSize: 12, fontWeight: 600, width: 80, flexShrink: 0, color: targetBrand === 'anchor' ? '#0369a1' : '#333' } },
+                        React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + effectiveTgt.rgb + ')', border: '1px solid var(--border)', flexShrink: 0 } }),
+                        React.createElement('span', { style: { fontSize:'var(--text-sm)', fontWeight: 600, width: 80, flexShrink: 0, color: targetBrand === 'anchor' ? 'var(--accent)' : '#333' } },
                           (targetBrand === 'anchor' ? 'Anch ' : 'DMC '), effectiveTgt.id
                         )
                       )
-                    : React.createElement('span', { style: { fontSize: 11, color: '#C0883A', fontWeight: 600 } }, 'No match'),
+                    : React.createElement('span', { style: { fontSize:'var(--text-xs)', color: 'var(--warning)', fontWeight: 600 } }, 'No match'),
                   // Confidence badge (only for official proposals, not overrides)
                   !overrideId && p.target && React.createElement(ConfidenceBadge, { confidence: p.target.confidence }),
                   // ΔE
-                  de != null && React.createElement('span', { style: { fontSize: 10, color: '#A89E89', flexShrink: 0 } }, 'ΔE ' + de),
+                  de != null && React.createElement('span', { style: { fontSize: 10, color: 'var(--text-tertiary)', flexShrink: 0 } }, 'ΔE ' + de),
                   // Override select
                   React.createElement('select', {
-                    style: { fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid #E5DCCB', background: '#fff', maxWidth: 90 },
+                    style: { fontSize:'var(--text-xs)', padding: '2px 4px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', maxWidth: 90 },
                     value: overrideId || (effectiveTgt ? effectiveTgt.id : ''),
                     onChange: function (e) { handleOverrideChange(p.sourceId, e.target.value || null); }
                   },
@@ -291,7 +291,7 @@ window.ConvertPaletteModal = (function () {
                 );
               })
         ),
-        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', gap: 10, justifyContent: 'flex-end' } },
+        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' } },
           React.createElement('button', { className: 'g-btn', onClick: onClose }, 'Cancel'),
           React.createElement('button', { className: 'g-btn primary', onClick: handleApply, disabled: proposals.length === 0 },
             'Apply Conversion (' + proposals.length + ' threads)'

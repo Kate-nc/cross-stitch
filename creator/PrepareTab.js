@@ -183,13 +183,13 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Status badge
   function statusBadge(status) {
     var map = {
-      owned: { label: 'You own this', bg: '#DEE7D2', color: '#4F7D3F' },
-      partial: { label: 'Low stock', bg: '#F8EFD8', color: '#A04E11' },
-      needed: { label: 'Need to buy', bg: '#FCEFEF', color: '#A53D3D' }
+      owned: { label: 'You own this', bg: 'var(--success-soft)', color: 'var(--success)' },
+      partial: { label: 'Low stock', bg: '#F8EFD8', color: 'var(--accent-hover)' },
+      needed: { label: 'Need to buy', bg: 'var(--danger-soft)', color: 'var(--danger)' }
     };
     var s = map[status] || map.needed;
     return h('span', {
-      style: { padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+      style: { padding: '2px 8px', borderRadius:'var(--radius-lg)', fontSize: 10, fontWeight: 600,
                background: s.bg, color: s.color }
     }, s.label);
   }
@@ -199,57 +199,57 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   return h('div', {style: {maxWidth: 900}},
     // Summary banner
     h('div', {style: {
-      display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-      padding: '10px 14px', background: '#DEE7D2', borderRadius: 8,
-      border: '0.5px solid #C4DCB6', marginBottom: 16, fontSize: 12
+      display: 'flex', alignItems: 'center', gap:'var(--s-3)', flexWrap: 'wrap',
+      padding: '10px 14px', background: 'var(--success-soft)', borderRadius:'var(--radius-md)',
+      border: '0.5px solid var(--success-soft)', marginBottom:'var(--s-4)', fontSize:'var(--text-sm)'
     }},
-      h('span', {style: {fontWeight: 600, color: '#3F6432'}},
+      h('span', {style: {fontWeight: 600, color: 'var(--success)'}},
         ownedColours === totalColours
           ? '\u2713 All ' + totalColours + ' colours in stash!'
           : 'You own ' + ownedColours + ' of ' + totalColours + ' colours.'
       ),
-      partialColours > 0 && h('span', {style: {color: '#A04E11'}},
+      partialColours > 0 && h('span', {style: {color: 'var(--accent-hover)'}},
         partialColours + ' partial.'
       ),
-      (ownedColours < totalColours) && h('span', {style: {color: '#A53D3D'}},
+      (ownedColours < totalColours) && h('span', {style: {color: 'var(--danger)'}},
         'Still need: ' + (totalColours - ownedColours - partialColours) + ' colours, ~' + needSkeins + ' skeins.'
       ),
-      h('div', {style: {marginLeft: 'auto', display: 'flex', gap: 8}},
+      h('div', {style: {marginLeft: 'auto', display: 'flex', gap:'var(--s-2)'}},
         h('button', {
           onClick: handleCopy,
-          style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                   border: '0.5px solid #E5DCCB', background: copied ? '#B85C38' : '#fff',
-                   color: copied ? '#fff' : '#5C5448', fontWeight: 500 }
+          style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
+                   border: '0.5px solid var(--border)', background: copied ? 'var(--accent)' : 'var(--surface)',
+                   color: copied ? 'var(--surface)' : 'var(--text-secondary)', fontWeight: 500 }
         }, copied ? '\u2713 Copied' : 'Copy list'),
         canShare && h('button', {
           onClick: handleShare,
-          style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                   border: '0.5px solid #E5DCCB', background: '#fff', color: '#5C5448', fontWeight: 500 }
+          style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
+                   border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontWeight: 500 }
         }, 'Share'),
         h('a', {
           href: 'manager.html', target: '_blank',
-          style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                   border: '0.5px solid #E5DCCB', background: '#fff', color: '#5C5448',
+          style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
+                   border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)',
                    fontWeight: 500, textDecoration: 'none', display: 'inline-block' }
         }, 'View thread stash \u2192')
       )
     ),
 
     // Controls row
-    h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap'}},
-      h('label', {style: {fontSize: 12, color: '#5C5448', display: 'flex', alignItems: 'center', gap: 4}},
+    h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom:'var(--s-3)', flexWrap: 'wrap'}},
+      h('label', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap:'var(--s-1)'}},
         h('input', {
           type: 'checkbox', checked: overTwo,
           onChange: function(e) { setOverTwo(e.target.checked); }
         }),
         'Over two'
       ),
-      h('span', {style: {fontSize: 12, color: '#A89E89'}},'|'),
-      h('span', {style: {fontSize: 12, color: '#5C5448'}}, 'Sort:'),
+      h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-tertiary)'}},'|'),
+      h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)'}}, 'Sort:'),
       h('select', {
         value: sort,
         onChange: function(e) { setSort(e.target.value); },
-        style: { fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '0.5px solid #E5DCCB', background: '#fff' }
+        style: { fontSize:'var(--text-xs)', padding: '3px 8px', borderRadius:'var(--radius-sm)', border: '0.5px solid var(--border)', background: 'var(--surface)' }
       },
         h('option', {value: 'number'}, 'Thread number'),
         h('option', {value: 'stitches'}, 'Stitch count'),
@@ -258,24 +258,24 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
       ),
       (ownedColours < totalColours) && h('button', {
         onClick: handleAddAll,
-        style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                 border: '0.5px solid #E5DCCB', background: addedAll ? '#B85C38' : '#fff',
-                 color: addedAll ? '#fff' : '#5C5448', fontWeight: 500, marginLeft: 'auto' }
+        style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
+                 border: '0.5px solid var(--border)', background: addedAll ? 'var(--accent)' : 'var(--surface)',
+                 color: addedAll ? 'var(--surface)' : 'var(--text-secondary)', fontWeight: 500, marginLeft: 'auto' }
       }, addedAll ? '\u2713 Added to stash' : 'Mark all as owned')
     ),
 
     // Thread table
     h('div', {style: {overflow: 'auto', maxHeight: 480, marginBottom: 20}},
-      h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize: 12}},
+      h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize:'var(--text-sm)'}},
         h('thead', null,
-          h('tr', {style: {background: '#FBF8F3'}},
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, ''),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'DMC'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Name'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Stitches'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Skeins'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'In stash'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Status')
+          h('tr', {style: {background: 'var(--surface-secondary)'}},
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, ''),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'DMC'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Name'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Stitches'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Skeins'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'In stash'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Status')
           )
         ),
         h('tbody', null,
@@ -283,19 +283,19 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
             return h('tr', {
               key: r.p.id,
               style: {
-                borderBottom: '0.5px solid #EFE7D6',
-                background: r.status === 'owned' ? '#DEE7D2' : i % 2 === 0 ? 'transparent' : '#fafafa'
+                borderBottom: '0.5px solid var(--surface-tertiary)',
+                background: r.status === 'owned' ? 'var(--success-soft)' : i % 2 === 0 ? 'transparent' : 'var(--surface-secondary)'
               }
             },
               h('td', {style: {padding: '6px 10px'}},
                 h('div', {style: {width: 20, height: 20, borderRadius: 4, background: 'rgb(' + r.p.rgb + ')',
-                                  border: '0.5px solid #E5DCCB', display: 'inline-block'}})
+                                  border: '0.5px solid var(--border)', display: 'inline-block'}})
               ),
               h('td', {style: {padding: '6px 10px', fontWeight: 600}}, r.p.id),
-              h('td', {style: {padding: '6px 10px', color: '#5C5448'}}, r.name),
+              h('td', {style: {padding: '6px 10px', color: 'var(--text-secondary)'}}, r.name),
               h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.p.count.toLocaleString()),
               h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, r.needed),
-              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#3F6432' : '#A89E89'}},
+              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? 'var(--success)' : 'var(--text-tertiary)'}},
                 r.owned > 0 ? r.owned : '\u2014'
               ),
               h('td', {style: {padding: '6px 10px'}}, statusBadge(r.status))
@@ -306,12 +306,12 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     ),
 
     // Fabric calculator (collapsible)
-    h('div', {style: {border: '0.5px solid #E5DCCB', borderRadius: 8, overflow: 'hidden'}},
+    h('div', {style: {border: '0.5px solid var(--border)', borderRadius:'var(--radius-md)', overflow: 'hidden'}},
       h('button', {
         onClick: function() { setFabOpen(function(o) { return !o; }); },
         style: {
-          width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12,
-          fontWeight: 600, color: '#5C5448', background: '#FBF8F3', border: 'none',
+          width: '100%', textAlign: 'left', padding: '10px 14px', fontSize:'var(--text-sm)',
+          fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--surface-secondary)', border: 'none',
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
         }
       },
@@ -321,28 +321,28 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
       fabOpen && h('div', {style: {padding: '14px'}},
         // Controls
         h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap'}},
-          h('span', {style: {fontSize: 12, color: '#5C5448'}}, 'Margin:'),
+          h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)'}}, 'Margin:'),
           h('input', {
             type: 'number', min: 0, max: 10, step: 0.5, value: margin,
             onChange: function(e) { setMargin(Number(e.target.value) || 0); },
-            style: { width: 60, padding: '3px 8px', fontSize: 12, borderRadius: 6, border: '0.5px solid #E5DCCB' }
+            style: { width: 60, padding: '3px 8px', fontSize:'var(--text-sm)', borderRadius:'var(--radius-sm)', border: '0.5px solid var(--border)' }
           }),
-          h('span', {style: {fontSize: 12, color: '#A89E89'}}, 'inches each side'),
-          h('span', {style: {fontSize: 12, color: '#A89E89'}}, '|'),
-          h('span', {style: {fontSize: 12, color: '#5C5448'}}, 'Units:'),
+          h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-tertiary)'}}, 'inches each side'),
+          h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-tertiary)'}}, '|'),
+          h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)'}}, 'Units:'),
           ['in', 'cm'].map(function(u) {
             return h('button', {
               key: u,
               onClick: function() { setUnits(u); },
               style: {
-                fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
-                border: '0.5px solid ' + (units === u ? '#B85C38' : '#E5DCCB'),
-                background: units === u ? '#F4DDCF' : '#fff',
-                color: units === u ? '#B85C38' : '#5C5448', fontWeight: units === u ? 600 : 400
+                fontSize:'var(--text-xs)', padding: '3px 10px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
+                border: '0.5px solid ' + (units === u ? 'var(--accent)' : 'var(--border)'),
+                background: units === u ? 'var(--accent-light)' : 'var(--surface)',
+                color: units === u ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: units === u ? 600 : 400
               }
             }, u === 'in' ? 'Inches' : 'Centimetres');
           }),
-          h('label', {style: {fontSize: 12, color: '#5C5448', display: 'flex', alignItems: 'center', gap: 4}},
+          h('label', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap:'var(--s-1)'}},
             h('input', {
               type: 'checkbox', checked: overTwo,
               onChange: function(e) { setOverTwo(e.target.checked); }
@@ -352,13 +352,13 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         ),
         // Table
         h('div', {style: {overflow: 'auto'}},
-          h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize: 12}},
+          h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize:'var(--text-sm)'}},
             h('thead', null,
-              h('tr', {style: {background: '#FBF8F3'}},
-                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Count'),
-                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Width'),
-                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Height'),
-                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, '')
+              h('tr', {style: {background: 'var(--surface-secondary)'}},
+                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Count'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Width'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Height'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, '')
               )
             ),
             h('tbody', null,
@@ -368,8 +368,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                 return h('tr', {
                   key: f.ct,
                   style: {
-                    borderBottom: '0.5px solid #EFE7D6',
-                    background: isCurrent ? '#DEE7D2' : 'transparent'
+                    borderBottom: '0.5px solid var(--surface-tertiary)',
+                    background: isCurrent ? 'var(--success-soft)' : 'transparent'
                   }
                 },
                   h('td', {style: {padding: '6px 10px', fontWeight: isCurrent ? 700 : 400}},
@@ -378,14 +378,14 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.w),
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.h),
                   h('td', {style: {padding: '6px 10px'}},
-                    isCurrent && h('span', {style: {fontSize: 10, color: '#B85C38', fontWeight: 600}}, '\u2190 current')
+                    isCurrent && h('span', {style: {fontSize: 10, color: 'var(--accent)', fontWeight: 600}}, '\u2190 current')
                   )
                 );
               })
             )
           )
         ),
-        h('p', {style: {fontSize: 11, color: '#A89E89', marginTop: 10}},
+        h('p', {style: {fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 10}},
           'Pattern: ' + sW + '\u00d7' + sH + ' stitches. Margin: ' + margin + '" each side.'
           + (overTwo ? ' Stitching over two threads.' : '')
         )

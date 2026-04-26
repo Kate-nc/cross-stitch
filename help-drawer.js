@@ -459,11 +459,11 @@
     return h("kbd", {
       key: key,
       style: {
-        display: "inline-block", padding: "1px 6px", marginRight: 4,
+        display: "inline-block", padding: "1px 6px", marginRight:'var(--s-1)',
         fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
-        fontSize: 11, lineHeight: 1.4,
-        background: "#fff", border: "1px solid #CFC4AC",
-        borderRadius: 4, color: "#1B1814",
+        fontSize:'var(--text-xs)', lineHeight: 1.4,
+        background: "var(--surface)", border: "1px solid #CFC4AC",
+        borderRadius: 4, color: "var(--text-primary)",
         boxShadow: "0 1px 0 rgba(0,0,0,0.05)"
       }
     }, label);
@@ -472,7 +472,7 @@
   function HelpSection(props) {
     var items = props.items;
     if (!items.length) {
-      return h("p", { style: { color: "#A89E89", fontSize: 13, padding: "8px 4px" } }, "No matches.");
+      return h("p", { style: { color: "var(--text-tertiary)", fontSize:'var(--text-md)', padding: "8px 4px" } }, "No matches.");
     }
     // Group by area, preserving first-seen order.
     var order = [];
@@ -486,19 +486,19 @@
       return h("div", { key: area, style: { marginBottom: 18 } },
         h("div", {
           style: {
-            fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5,
-            color: "#8A8270", fontWeight: 700, marginBottom: 8,
-            paddingBottom: 4, borderBottom: "1px solid #E5DCCB"
+            fontSize:'var(--text-xs)', textTransform: "uppercase", letterSpacing: 0.5,
+            color: "var(--text-tertiary)", fontWeight: 700, marginBottom:'var(--s-2)',
+            paddingBottom: 4, borderBottom: "1px solid var(--border)"
           }
         }, area),
         sections.map(function (s, i) {
           return h("div", { key: i, style: { marginBottom: 14 } },
-            h("h4", { style: { margin: "0 0 4px 0", fontSize: 14, color: "#1B1814" } }, s.heading),
+            h("h4", { style: { margin: "0 0 4px 0", fontSize:'var(--text-lg)', color: "var(--text-primary)" } }, s.heading),
             s.body && h("p", {
-              style: { margin: "0 0 6px 0", color: "#5C5448", fontSize: 13, lineHeight: 1.55 }
+              style: { margin: "0 0 6px 0", color: "var(--text-secondary)", fontSize:'var(--text-md)', lineHeight: 1.55 }
             }, s.body),
             s.bullets && s.bullets.length > 0 && h("ul", {
-              style: { margin: 0, paddingLeft: 18, color: "#5C5448", fontSize: 13, lineHeight: 1.55 }
+              style: { margin: 0, paddingLeft: 18, color: "var(--text-secondary)", fontSize:'var(--text-md)', lineHeight: 1.55 }
             }, s.bullets.map(function (b, j) {
               return h("li", { key: j }, h("strong", null, b[0] + ":"), " " + b[1]);
             }))
@@ -512,7 +512,7 @@
     var items = props.items;
     var contextScope = props.context;
     if (!items.length) {
-      return h("p", { style: { color: "#A89E89", fontSize: 13, padding: "8px 4px" } }, "No matches.");
+      return h("p", { style: { color: "var(--text-tertiary)", fontSize:'var(--text-md)', padding: "8px 4px" } }, "No matches.");
     }
     var order = ["global", "creator", "tracker", "manager"];
     if (contextScope && order.indexOf(contextScope) !== -1) {
@@ -526,29 +526,29 @@
       return h("div", { key: scope, style: { marginBottom: 18 } },
         h("div", {
           style: {
-            fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5,
-            color: "#8A8270", fontWeight: 700, marginBottom: 8,
-            paddingBottom: 4, borderBottom: "1px solid #E5DCCB"
+            fontSize:'var(--text-xs)', textTransform: "uppercase", letterSpacing: 0.5,
+            color: "var(--text-tertiary)", fontWeight: 700, marginBottom:'var(--s-2)',
+            paddingBottom: 4, borderBottom: "1px solid var(--border)"
           }
         }, SCOPE_LABEL[scope] || scope),
         groups[scope].map(function (s) {
           return h("div", {
             key: s.id,
             style: {
-              display: "flex", gap: 12, padding: "5px 0",
-              borderBottom: "0.5px solid #EFE7D6",
+              display: "flex", gap:'var(--s-3)', padding: "5px 0",
+              borderBottom: "0.5px solid var(--surface-tertiary)",
               alignItems: "baseline"
             }
           },
             h("div", { style: { minWidth: 130, flexShrink: 0 } },
               s.keys.map(function (k, i) {
                 return h(React.Fragment, { key: i },
-                  i > 0 && h("span", { style: { color: "#A89E89", fontSize: 10, margin: "0 3px" } }, "/"),
+                  i > 0 && h("span", { style: { color: "var(--text-tertiary)", fontSize: 10, margin: "0 3px" } }, "/"),
                   kbd(k, "k" + i)
                 );
               })
             ),
-            h("div", { style: { fontSize: 13, color: "#5C5448" } }, s.description)
+            h("div", { style: { fontSize:'var(--text-md)', color: "var(--text-secondary)" } }, s.description)
           );
         })
       );
@@ -586,14 +586,14 @@
     return h("div", null,
       GETTING_STARTED.map(function (item) {
         return h("div", { key: item.id, style: { marginBottom: 18 } },
-          h("h4", { style: { margin: "0 0 4px 0", fontSize: 14, color: "#1B1814" } }, item.heading),
-          h("p", { style: { margin: "0 0 8px 0", color: "#5C5448", fontSize: 13, lineHeight: 1.55 } }, item.body),
+          h("h4", { style: { margin: "0 0 4px 0", fontSize:'var(--text-lg)', color: "var(--text-primary)" } }, item.heading),
+          h("p", { style: { margin: "0 0 8px 0", color: "var(--text-secondary)", fontSize:'var(--text-md)', lineHeight: 1.55 } }, item.body),
           item.action && h("button", {
             onClick: function () { handleAction(item.action); },
             style: {
-              padding: "6px 12px", fontSize: 12, borderRadius: 6,
-              border: "1px solid #CFC4AC", background: "#fff",
-              color: "#0369a1", cursor: "pointer", fontWeight: 600,
+              padding: "6px 12px", fontSize:'var(--text-sm)', borderRadius:'var(--radius-sm)',
+              border: "1px solid #CFC4AC", background: "var(--surface)",
+              color: "var(--accent)", cursor: "pointer", fontWeight: 600,
               fontFamily: "inherit"
             }
           }, item.action.label)
@@ -603,11 +603,11 @@
       h("div", {
         style: {
           marginTop: 18, paddingTop: 14,
-          borderTop: "1px solid #E5DCCB"
+          borderTop: "1px solid var(--border)"
         }
       },
-        h("h4", { style: { margin: "0 0 4px 0", fontSize: 14, color: "#1B1814" } }, "Guided tours"),
-        h("p", { style: { margin: "0 0 8px 0", color: "#5C5448", fontSize: 13, lineHeight: 1.55 } },
+        h("h4", { style: { margin: "0 0 4px 0", fontSize:'var(--text-lg)', color: "var(--text-primary)" } }, "Guided tours"),
+        h("p", { style: { margin: "0 0 8px 0", color: "var(--text-secondary)", fontSize:'var(--text-md)', lineHeight: 1.55 } },
           "Replay the in-app coachmarks the next time you start a new project."),
         h("button", {
           type: "button",
@@ -616,9 +616,9 @@
             try { if (typeof window.resetCoaching === "function") window.resetCoaching(); } catch (_) {}
           },
           style: {
-            padding: "6px 12px", fontSize: 12, borderRadius: 6,
-            border: "1px solid #CFC4AC", background: "#fff",
-            color: "#0369a1", cursor: "pointer", fontWeight: 600,
+            padding: "6px 12px", fontSize:'var(--text-sm)', borderRadius:'var(--radius-sm)',
+            border: "1px solid #CFC4AC", background: "var(--surface)",
+            color: "var(--accent)", cursor: "pointer", fontWeight: 600,
             fontFamily: "inherit",
             display: "inline-flex", alignItems: "center", gap: 6
           }
@@ -639,11 +639,11 @@
       role: "tab",
       "aria-selected": active ? "true" : "false",
       style: {
-        flex: 1, padding: "8px 6px", fontSize: 13, fontWeight: active ? 700 : 500,
-        background: active ? "#fff" : "transparent",
-        color: active ? "#0369a1" : "#5C5448",
+        flex: 1, padding: "8px 6px", fontSize:'var(--text-md)', fontWeight: active ? 700 : 500,
+        background: active ? "var(--surface)" : "transparent",
+        color: active ? "var(--accent)" : "var(--text-secondary)",
         border: "none",
-        borderBottom: active ? "2px solid #0284c7" : "2px solid transparent",
+        borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
         cursor: "pointer", fontFamily: "inherit",
         display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6
       }
@@ -752,9 +752,9 @@
         style: {
           position: "fixed", top: 0, right: 0,
           width: 380, maxWidth: "100vw", height: "100vh",
-          background: "#fff",
+          background: "var(--surface)",
           boxShadow: "-4px 0 16px rgba(15, 23, 42, 0.12)",
-          borderLeft: "1px solid #E5DCCB",
+          borderLeft: "1px solid var(--border)",
           display: "flex", flexDirection: "column",
           zIndex: 9999,
           fontFamily: "inherit"
@@ -764,24 +764,24 @@
         h("div", {
           style: {
             padding: "12px 14px 8px",
-            borderBottom: "1px solid #E5DCCB",
+            borderBottom: "1px solid var(--border)",
             flexShrink: 0
           }
         },
           h("div", {
             style: {
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              gap: 8, marginBottom: 8
+              gap:'var(--s-2)', marginBottom:'var(--s-2)'
             }
           },
-            h("strong", { style: { fontSize: 15, color: "#1B1814" } }, "Help"),
+            h("strong", { style: { fontSize: 15, color: "var(--text-primary)" } }, "Help"),
             h("button", {
               onClick: close,
               "aria-label": "Close help drawer",
               title: "Close",
               style: {
                 background: "transparent", border: "none", cursor: "pointer",
-                padding: 4, color: "#5C5448", display: "inline-flex",
+                padding: 4, color: "var(--text-secondary)", display: "inline-flex",
                 alignItems: "center", justifyContent: "center"
               }
             }, hasIcon("x") ? Icons.x() : h("span", { "aria-hidden": "true" }, "Close"))
@@ -797,8 +797,8 @@
             value: state.query,
             onChange: function (e) { setState({ query: e.target.value }); },
             style: {
-              width: "100%", padding: "7px 10px", fontSize: 13,
-              border: "1px solid #E5DCCB", borderRadius: 6,
+              width: "100%", padding: "7px 10px", fontSize:'var(--text-md)',
+              border: "1px solid var(--border)", borderRadius:'var(--radius-sm)',
               boxSizing: "border-box"
             }
           })
@@ -807,8 +807,8 @@
         h("div", {
           role: "tablist",
           style: {
-            display: "flex", borderBottom: "1px solid #E5DCCB",
-            background: "#f8fafc", flexShrink: 0
+            display: "flex", borderBottom: "1px solid var(--border)",
+            background: "var(--surface-secondary)", flexShrink: 0
           }
         },
           h(TabButton, {

@@ -9182,15 +9182,15 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
   var showSwatchRow = ((cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase" || cv.activeTool==="eyedropper") && palData.length > 0;
   var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
-    h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
+    h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:'var(--s-1)',flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
-      style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#F4DDCF",border:"1px solid #E8B89A",marginRight:6,flexShrink:0,maxWidth:"60vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
+      style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',padding:"1px 7px 1px 3px",borderRadius:'var(--radius-lg)',background:"var(--accent-light)",border:"1px solid var(--accent-border)",marginRight:6,flexShrink:0,maxWidth:"60vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
       title: ctx.cmap[cv.selectedColorId].name || cv.selectedColorId
     },
-      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid #CFC4AC",display:"inline-block",flexShrink:0}}),
-      h("span", {style:{fontWeight:600,color:"#B85C38",flexShrink:0}}, cv.selectedColorId),
-      ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"#944526",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
-    ) : h("span", {style:{fontSize:10,color:"#A89E89",marginRight:6,flexShrink:0}}, "none selected"),
+      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid var(--border)",display:"inline-block",flexShrink:0}}),
+      h("span", {style:{fontWeight:600,color:"var(--accent)",flexShrink:0}}, cv.selectedColorId),
+      ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"var(--accent-hover)",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
+    ) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)",marginRight:6,flexShrink:0}}, "none selected"),
     swatchesShown.map(function(p) {
       var isSel = cv.selectedColorId === p.id;
       return h("button", {
@@ -9203,7 +9203,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           width:20, height:20, flexShrink:0,
           borderRadius:4, cursor:"pointer", padding:0,
           background:"rgb("+p.rgb+")",
-          border: isSel ? "2px solid #B85C38" : "1.5px solid rgba(0,0,0,0.15)",
+          border: isSel ? "2px solid var(--accent)" : "1.5px solid rgba(0,0,0,0.15)",
           boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
           outline:"none"
         }
@@ -9214,8 +9214,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:function(){setSwatchExpanded(function(e){return !e;});},
       title:swatchExpanded?"Collapse":"Show all "+palData.length+" colours",
       style:{
-        flexShrink:0, marginLeft:4, fontSize:11, padding:"0 8px",
-        height:20, borderRadius:10, border:"1px solid var(--border)",
+        flexShrink:0, marginLeft:'var(--s-1)', fontSize:'var(--text-xs)', padding:"0 8px",
+        height:20, borderRadius:'var(--radius-lg)', border:"1px solid var(--border)",
         background:"var(--surface)", cursor:"pointer",
         color:"var(--text-secondary)", fontWeight:500, lineHeight:1, fontFamily:"inherit"
       }
@@ -9261,7 +9261,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         onClick:function(){ if(cv.cancelLasso) cv.cancelLasso(); if(cv.clearSelection) cv.clearSelection(); },
         title:"Clear selection (Esc)",
         "aria-label":"Clear selection",
-        style:{fontSize:10,padding:"2px 6px",color:"#5C5448"}
+        style:{fontSize:10,padding:"2px 6px",color:"var(--text-secondary)"}
       }, (cv.selectionCount||0).toLocaleString()+" sel ", window.Icons.x())
     )
   ];
@@ -9272,23 +9272,23 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   if (cv.activeTool === "eyedropper") {
     badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#B59230";
   } else if (cv.activeTool === "magicWand") {
-    badgeLabel = "Magic Wand"; badgeBg = "#f3e8ff"; badgeColor = "#6b21a8"; badgeDot = "#a855f7";
+    badgeLabel = "Magic Wand"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.activeTool === "lasso") {
     var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
-    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#F8EFD8"; badgeColor = "#9a3412"; badgeDot = "#f97316";
+    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#F8EFD8"; badgeColor = "var(--accent-hover)"; badgeDot = "#f97316";
   } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
-    badgeLabel = "Erase"; badgeBg = "#FCEFEF"; badgeColor = "#722424"; badgeDot = "#B85555";
+    badgeLabel = "Erase"; badgeBg = "var(--danger-soft)"; badgeColor = "var(--danger)"; badgeDot = "#B85555";
   } else if (cv.stitchType === "backstitch") {
-    badgeLabel = "Backstitch"; badgeBg = "#f5f5f5"; badgeColor = "#404040"; badgeDot = "#737373";
+    badgeLabel = "Backstitch"; badgeBg = "var(--surface-secondary)"; badgeColor = "#404040"; badgeDot = "#737373";
   } else if (cv.stitchType === "half-fwd") {
-    badgeLabel = "Half /"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
+    badgeLabel = "Half /"; badgeBg = "#e0f2fe"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.stitchType === "half-bck") {
-    badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
+    badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.brushMode === "fill") {
-    badgeLabel = "Fill"; badgeBg = "#DEE7D2"; badgeColor = "#3F6432"; badgeDot = "#5C8E4A";
+    badgeLabel = "Fill"; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "#5C8E4A";
   } else if (cv.brushMode === "paint") {
     var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
-    badgeLabel = "Paint" + szTxt; badgeBg = "#DEE7D2"; badgeColor = "#3F6432"; badgeDot = "#5C8E4A";
+    badgeLabel = "Paint" + szTxt; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "#5C8E4A";
   } else {
     badgeLabel = null;
   }
@@ -9297,8 +9297,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     : "";
   var toolBadge = badgeLabel ? h("span", {
     title: badgeLabel + badgeColourTip,
-    style:{fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,
-      padding:"2px 8px 2px 6px",borderRadius:10,background:badgeBg,color:badgeColor,
+    style:{fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:'var(--s-1)',
+      padding:"2px 8px 2px 6px",borderRadius:'var(--radius-lg)',background:badgeBg,color:badgeColor,
       flexShrink:0,letterSpacing:0.2,lineHeight:1.4,border:"1px solid " + badgeDot + "33"}
   },
     h("span", {style:{width:6,height:6,borderRadius:"50%",background:badgeDot,display:"inline-block",
@@ -9345,7 +9345,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:function(){cv.setShowOverlay(function(v){return !v;});}
     },
       h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-        border:"2px solid "+(cv.showOverlay?"#B85C38":"#CFC4AC")}}),
+        border:"2px solid "+(cv.showOverlay?"var(--accent)":"var(--border)")}}),
       " Overlay"+(cv.showOverlay?" \u2713":"")
     ),
     cv.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
@@ -10430,17 +10430,17 @@ function SubstituteFromStashModalInner(props) {
         display: "inline-block", width: size, height: size,
         borderRadius: 3,
         background: "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")",
-        border: "1px solid #CFC4AC", flexShrink: 0, verticalAlign: "middle"
+        border: "1px solid var(--border)", flexShrink: 0, verticalAlign: "middle"
       }
     });
   }
 
   function statusBadge(status) {
-    var s = { fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, flexShrink: 0 };
-    if (status === "good")         return h("span", { style: Object.assign({}, s, { background: "#D5E5C8", color: "#065f46" }) }, "Good");
-    if (status === "fair")         return h("span", { style: Object.assign({}, s, { background: "#F2E2BE", color: "#6B461F" }) }, "Fair");
-    if (status === "poor")         return h("span", { style: Object.assign({}, s, { background: "#F1D2D2", color: "#722424" }) }, "Poor");
-    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "#F2E2BE", color: "#7c2d12" }) }, "\u26A0 Low stock");
+    var s = { fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius:'var(--radius-md)', flexShrink: 0 };
+    if (status === "good")         return h("span", { style: Object.assign({}, s, { background: "var(--success-soft)", color: "var(--success)" }) }, "Good");
+    if (status === "fair")         return h("span", { style: Object.assign({}, s, { background: "var(--warning-soft)", color: "var(--accent-ink)" }) }, "Fair");
+    if (status === "poor")         return h("span", { style: Object.assign({}, s, { background: "var(--danger-soft)", color: "var(--danger)" }) }, "Poor");
+    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "var(--warning-soft)", color: "var(--danger)" }) }, "\u26A0 Low stock");
     if (status === "conflict")     return h("span", { style: Object.assign({}, s, { background: "#fce7f3", color: "#9d174d" }) }, "Conflict");
     return null;
   }
@@ -10458,8 +10458,8 @@ function SubstituteFromStashModalInner(props) {
     return h(React.Fragment, { key: key },
       h("div", {
         style: {
-          borderRadius: 6, overflow: "hidden",
-          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#E5C99A" : "#E5DCCB") : "#EFE7D6"),
+          borderRadius:'var(--radius-sm)', overflow: "hidden",
+          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#E5C99A" : "var(--border)") : "var(--surface-tertiary)"),
           opacity: isEnabled ? 1 : 0.55
         }
       },
@@ -10467,30 +10467,30 @@ function SubstituteFromStashModalInner(props) {
         h("div", {
           style: {
             display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
-            background: isEnabled ? (hasContrastWarning ? "#FAF5E1" : "#fff") : "#FBF8F3"
+            background: isEnabled ? (hasContrastWarning ? "#FAF5E1" : "var(--surface)") : "var(--surface-secondary)"
           }
         },
           h("input", {
             type: "checkbox", checked: isEnabled, onChange: function() { toggleEnabled(sub); },
-            style: { flexShrink: 0, width: 14, height: 14, cursor: "pointer", accentColor: "#7c3aed" }
+            style: { flexShrink: 0, width: 14, height: 14, cursor: "pointer", accentColor: "var(--accent)" }
           }),
           swatch(sub.sourceRgb),
-          h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sub.sourceId),
+          h("span", { style: { fontSize:'var(--text-sm)', fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sub.sourceId),
           sub.isBlendComponent
-            ? h("span", { style: { fontSize: 10, color: "#A89E89", flexShrink: 0 } }, "(blend)")
+            ? h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", flexShrink: 0 } }, "(blend)")
             : null,
-          h("span", { style: { color: "#A89E89", fontSize: 13, flexShrink: 0 } }, "\u2192"),
+          h("span", { style: { color: "var(--text-tertiary)", fontSize:'var(--text-md)', flexShrink: 0 } }, "\u2192"),
           swatch(target.rgb),
-          h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + target.id),
-          h("span", { style: { fontSize: 11, color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
+          h("span", { style: { fontSize:'var(--text-sm)', fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + target.id),
+          h("span", { style: { fontSize:'var(--text-xs)', color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
           sub.includedFromNearMiss
-            ? h("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: "#F8EFD8", color: "#c2410c", flexShrink: 0 } }, "manual\u00B7\u0394E\u202F" + target.deltaE)
+            ? h("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius:'var(--radius-md)', background: "#F8EFD8", color: "#c2410c", flexShrink: 0 } }, "manual\u00B7\u0394E\u202F" + target.deltaE)
             : statusBadge(effStatus),
           !sub.includedFromNearMiss
-            ? h("span", { style: { fontSize: 10, color: "#A89E89", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
+            ? h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
             : null,
           h("span", {
-            style: { fontSize: 10, color: target.hasSufficient ? "#4F7D3F" : "#A04E11", flexShrink: 0, minWidth: 44, textAlign: "right" }
+            style: { fontSize: 10, color: target.hasSufficient ? "var(--success)" : "var(--accent-hover)", flexShrink: 0, minWidth: 44, textAlign: "right" }
           }, target.ownedSkeins + "/" + target.neededSkeins + "sk"),
           hasAlts
             ? h("button", {
@@ -10498,7 +10498,7 @@ function SubstituteFromStashModalInner(props) {
                 style: {
                   fontSize: 10, padding: "2px 7px", borderRadius: 5, cursor: "pointer",
                   border: "1px solid #e0e7ff",
-                  background: isExpanded ? "#e0e7ff" : "#fff",
+                  background: isExpanded ? "#e0e7ff" : "var(--surface)",
                   color: "#4338ca", flexShrink: 0
                 },
                 title: "Show alternative substitutions"
@@ -10511,8 +10511,8 @@ function SubstituteFromStashModalInner(props) {
               style: {
                 display: "flex", alignItems: "center", gap: 5,
                 padding: "4px 10px 5px 34px",
-                background: "#F2E2BE", borderTop: "1px solid #E5C97D",
-                fontSize: 11, color: "#6B461F"
+                background: "var(--warning-soft)", borderTop: "1px solid #E5C97D",
+                fontSize:'var(--text-xs)', color: "var(--accent-ink)"
               }
             },
               h("span", null, "\u26A0 Contrast: \u0394E\u202F" + sub.contrastWarning.pairDeltaE +
@@ -10530,17 +10530,17 @@ function SubstituteFromStashModalInner(props) {
                 onClick: function() { selectOverride(sub, alt); },
                 style: {
                   display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", borderRadius: 5,
-                  border: "1px solid " + (isSelected ? "#a78bfa" : "#E5DCCB"),
-                  background: isSelected ? "#f5f3ff" : "#fafafa",
-                  cursor: "pointer", fontSize: 11
+                  border: "1px solid " + (isSelected ? "var(--accent-light)" : "var(--border)"),
+                  background: isSelected ? "var(--surface-secondary)" : "var(--surface-secondary)",
+                  cursor: "pointer", fontSize:'var(--text-xs)'
                 }
               },
                 swatch(alt.rgb, 12),
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + alt.id),
-                h("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
-                h("span", { style: { color: "#A89E89", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
-                h("span", { style: { color: alt.hasSufficient ? "#4F7D3F" : "#A04E11", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
-                isSelected ? h("span", { style: { color: "#7c3aed", fontWeight: 700, marginLeft: 4, flexShrink: 0 } }, "\u2713") : null
+                h("span", { style: { color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
+                h("span", { style: { color: "var(--text-tertiary)", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
+                h("span", { style: { color: alt.hasSufficient ? "var(--success)" : "var(--accent-hover)", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
+                isSelected ? h("span", { style: { color: "var(--accent)", fontWeight: 700, marginLeft:'var(--s-1)', flexShrink: 0 } }, "\u2713") : null
               );
             })
           )
@@ -10560,14 +10560,14 @@ function SubstituteFromStashModalInner(props) {
         : "blend component";
 
     return h(React.Fragment, { key: skk },
-      h("div", { style: { display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", fontSize: 12 } },
+      h("div", { style: { display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", fontSize:'var(--text-sm)' } },
         swatch(sk.sourceRgb || [128, 128, 128], 12),
         h("span", { style: { fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sk.sourceId),
-        h("span", { style: { color: "#5C5448", flex: 1 } }, sk.sourceName),
+        h("span", { style: { color: "var(--text-secondary)", flex: 1 } }, sk.sourceName),
         sk.isBlendComponent
-          ? h("span", { style: { fontSize: 10, color: "#A89E89", flexShrink: 0 } }, "(blend)")
+          ? h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", flexShrink: 0 } }, "(blend)")
           : null,
-        h("span", { style: { color: "#A89E89", fontSize: 11, flexShrink: 0 } }, reasonText),
+        h("span", { style: { color: "var(--text-tertiary)", fontSize:'var(--text-xs)', flexShrink: 0 } }, reasonText),
         hasNm
           ? h("button", {
               onClick: function() { setNmExpanded(function(prev) { var n = Object.assign({}, prev); n[skk] = !n[skk]; return n; }); },
@@ -10575,31 +10575,31 @@ function SubstituteFromStashModalInner(props) {
                 fontSize: 10, padding: "2px 7px", borderRadius: 5, cursor: "pointer",
                 border: "1px solid #E5C99A",
                 background: isNmOpen ? "#E5C99A" : "#F8EFD8",
-                color: "#6B461F", flexShrink: 0
+                color: "var(--accent-ink)", flexShrink: 0
               }
             }, isNmOpen ? "\u25B4 Hide" : "Near misses \u25BE")
-          : h("span", { style: { fontSize: 10, color: "#CFC4AC", flexShrink: 0 } }, "no near misses")
+          : h("span", { style: { fontSize: 10, color: "var(--border)", flexShrink: 0 } }, "no near misses")
       ),
       isNmOpen && hasNm
-        ? h("div", { style: { paddingLeft: 28, paddingBottom: 6, display: "flex", flexDirection: "column", gap: 4 } },
+        ? h("div", { style: { paddingLeft: 28, paddingBottom: 6, display: "flex", flexDirection: "column", gap:'var(--s-1)' } },
             sk.nearMisses.map(function(nm) {
               return h("div", {
                 key: nm.id,
                 style: {
                   display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 5,
-                  border: "1px solid #E5C99A", background: "#F8EFD8", fontSize: 11
+                  border: "1px solid #E5C99A", background: "#F8EFD8", fontSize:'var(--text-xs)'
                 }
               },
                 swatch(nm.rgb, 12),
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + nm.id),
-                h("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nm.name),
+                h("span", { style: { color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nm.name),
                 h("span", { style: { color: "#A06F2D", flexShrink: 0 } }, "\u0394E\u202F" + nm.deltaE),
-                h("span", { style: { color: nm.hasSufficient ? "#4F7D3F" : "#A04E11", flexShrink: 0, minWidth: 40, textAlign: "right" } }, nm.ownedSkeins + "/" + nm.neededSkeins + "sk"),
+                h("span", { style: { color: nm.hasSufficient ? "var(--success)" : "var(--accent-hover)", flexShrink: 0, minWidth: 40, textAlign: "right" } }, nm.ownedSkeins + "/" + nm.neededSkeins + "sk"),
                 h("button", {
                   onClick: function() { includeNearMiss(sk, nm); },
                   style: {
                     fontSize: 10, padding: "3px 9px", borderRadius: 5, cursor: "pointer",
-                    border: "1px solid #a78bfa", background: "#f5f3ff", color: "#7c3aed",
+                    border: "1px solid var(--accent-light)", background: "var(--surface-secondary)", color: "var(--accent)",
                     fontWeight: 600, flexShrink: 0
                   }
                 }, "Include anyway \u2192")
@@ -10613,13 +10613,13 @@ function SubstituteFromStashModalInner(props) {
   // F2: Canvas preview section
   function renderPreview() {
     if (!ctx.pat || !ctx.sW || !ctx.sH) return null;
-    var sectionHeader = h("div", { style: { fontSize: 11, color: "#8A8270", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } }, "Pattern Preview");
+    var sectionHeader = h("div", { style: { fontSize:'var(--text-xs)', color: "var(--text-tertiary)", textTransform: "uppercase", fontWeight: 700, marginBottom:'var(--s-2)', letterSpacing: "0.04em" } }, "Pattern Preview");
 
     // Still generating
     if (!originalThumb) {
       return h("div", { style: { marginBottom: 14 } },
         sectionHeader,
-        h("div", { style: { height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "#FBF8F3", borderRadius: 8, border: "1px solid #EFE7D6", color: "#A89E89", fontSize: 12 } },
+        h("div", { style: { height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-secondary)", borderRadius:'var(--radius-md)', border: "1px solid var(--surface-tertiary)", color: "var(--text-tertiary)", fontSize:'var(--text-sm)' } },
           "Generating preview\u2026"
         )
       );
@@ -10638,14 +10638,14 @@ function SubstituteFromStashModalInner(props) {
             width: ctx.sW, height: ctx.sH,
             leftLabel: "Current", rightLabel: "After substitution"
           })
-        : h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
+        : h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap:'var(--s-2)' } },
             h("div", { style: { textAlign: "center" } },
-              h("img", { src: originalThumb, alt: "Current pattern", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #E5DCCB" } }),
-              h("div", { style: { fontSize: 10, color: "#A89E89", marginTop: 3 } }, "Current")
+              h("img", { src: originalThumb, alt: "Current pattern", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius:'var(--radius-sm)', border: "1px solid var(--border)" } }),
+              h("div", { style: { fontSize: 10, color: "var(--text-tertiary)", marginTop: 3 } }, "Current")
             ),
             h("div", { style: { textAlign: "center" } },
-              h("img", { src: afterSrc, alt: "After substitution", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #E5DCCB" } }),
-              h("div", { style: { fontSize: 10, color: "#A89E89", marginTop: 3 } }, "After substitution")
+              h("img", { src: afterSrc, alt: "After substitution", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius:'var(--radius-sm)', border: "1px solid var(--border)" } }),
+              h("div", { style: { fontSize: 10, color: "var(--text-tertiary)", marginTop: 3 } }, "After substitution")
             )
           )
     );
@@ -10665,18 +10665,18 @@ function SubstituteFromStashModalInner(props) {
   },
     h("div", {
       style: {
-        background: "#fff", borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+        background: "var(--surface)", borderRadius:'var(--radius-xl)', boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
         width: "100%", maxWidth: 660, maxHeight: "90vh",
         display: "flex", flexDirection: "column", overflow: "hidden",
         margin: "0 16px"
       }
     },
       // ── Header ────────────────────────────────────────────────────────────────
-      h("div", { style: { display: "flex", alignItems: "center", padding: "16px 20px 14px", borderBottom: "1px solid #EFE7D6", flexShrink: 0 } },
-        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1B1814", flex: 1 } }, "Replace with Stash Threads"),
+      h("div", { style: { display: "flex", alignItems: "center", padding: "16px 20px 14px", borderBottom: "1px solid var(--surface-tertiary)", flexShrink: 0 } },
+        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "var(--text-primary)", flex: 1 } }, "Replace with Stash Threads"),
         h("button", {
           onClick: closeModal,
-          style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#A89E89", padding: "0 4px", borderRadius: 6, lineHeight: 1 }
+          style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--text-tertiary)", padding: "0 4px", borderRadius:'var(--radius-sm)', lineHeight: 1 }
         }, "\xD7")
       ),
 
@@ -10684,19 +10684,19 @@ function SubstituteFromStashModalInner(props) {
       h("div", { style: { overflow: "auto", flex: 1, padding: "16px 20px" } },
 
         // Controls: ΔE slider + preserve contrast toggle
-        h("div", { style: { marginBottom: 16, padding: "12px 14px", background: "#FBF8F3", borderRadius: 8, border: "1px solid #EFE7D6" } },
-          h("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 8 } },
-            h("span", { style: { fontSize: 12, color: "#5C5448", fontWeight: 600 } }, "Max colour distance (\u0394E):"),
-            h("span", { style: { fontSize: 15, fontWeight: 700, color: "#1B1814", minWidth: 28 } }, localMaxDE),
-            analyzing ? h("span", { style: { fontSize: 11, color: "#7c3aed" } }, "Analysing\u2026") : null
+        h("div", { style: { marginBottom:'var(--s-4)', padding: "12px 14px", background: "var(--surface-secondary)", borderRadius:'var(--radius-md)', border: "1px solid var(--surface-tertiary)" } },
+          h("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom:'var(--s-2)' } },
+            h("span", { style: { fontSize:'var(--text-sm)', color: "var(--text-secondary)", fontWeight: 600 } }, "Max colour distance (\u0394E):"),
+            h("span", { style: { fontSize: 15, fontWeight: 700, color: "var(--text-primary)", minWidth: 28 } }, localMaxDE),
+            analyzing ? h("span", { style: { fontSize:'var(--text-xs)', color: "var(--accent)" } }, "Analysing\u2026") : null
           ),
           h("input", {
             type: "range", min: 1, max: 40, step: 1,
             value: localMaxDE,
             onChange: function(e) { handleSliderChange(parseInt(e.target.value)); },
-            style: { width: "100%", accentColor: "#7c3aed", cursor: "pointer" }
+            style: { width: "100%", accentColor: "var(--accent)", cursor: "pointer" }
           }),
-          h("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: "#A89E89", marginTop: 2 } },
+          h("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-tertiary)", marginTop: 2 } },
             h("span", null, "1 \u2014 exact match"),
             h("span", null, "40 \u2014 broad")
           ),
@@ -10705,10 +10705,10 @@ function SubstituteFromStashModalInner(props) {
             h("input", {
               type: "checkbox", checked: preserveContrast,
               onChange: function(e) { handlePreserveContrastChange(e.target.checked); },
-              style: { width: 14, height: 14, accentColor: "#7c3aed", cursor: "pointer" }
+              style: { width: 14, height: 14, accentColor: "var(--accent)", cursor: "pointer" }
             }),
-            h("span", { style: { fontSize: 12, color: "#5C5448" } }, "Preserve colour contrast"),
-            h("span", { style: { fontSize: 10, color: "#A89E89", marginLeft: 2 } },
+            h("span", { style: { fontSize:'var(--text-sm)', color: "var(--text-secondary)" } }, "Preserve colour contrast"),
+            h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", marginLeft: 2 } },
               "(avoid substitutions that make palette colours too similar)"
             )
           )
@@ -10721,9 +10721,9 @@ function SubstituteFromStashModalInner(props) {
         p.substitutions.length > 0
           ? h("div", { style: { marginBottom: 14 } },
               h("div", {
-                style: { fontSize: 11, color: "#8A8270", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" }
+                style: { fontSize:'var(--text-xs)', color: "var(--text-tertiary)", textTransform: "uppercase", fontWeight: 700, marginBottom:'var(--s-2)', letterSpacing: "0.04em" }
               }, "Proposed Substitutions (" + p.substitutions.length + ")"),
-              h("div", { style: { display: "flex", flexDirection: "column", gap: 4 } },
+              h("div", { style: { display: "flex", flexDirection: "column", gap:'var(--s-1)' } },
                 p.substitutions.map(renderSubRow)
               )
             )
@@ -10732,10 +10732,10 @@ function SubstituteFromStashModalInner(props) {
         // Skipped (F3: with near-miss expansion)
         p.skipped.length > 0
           ? h("div", { style: { marginBottom: 14 } },
-              h("div", { style: { fontSize: 11, color: "#8A8270", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } },
+              h("div", { style: { fontSize:'var(--text-xs)', color: "var(--text-tertiary)", textTransform: "uppercase", fontWeight: 700, marginBottom:'var(--s-2)', letterSpacing: "0.04em" } },
                 "Skipped \u2014 No Suitable Match (" + p.skipped.length + ")"
               ),
-              h("div", { style: { background: "#FBF8F3", borderRadius: 8, border: "1px solid #EFE7D6", padding: "4px 8px", display: "flex", flexDirection: "column" } },
+              h("div", { style: { background: "var(--surface-secondary)", borderRadius:'var(--radius-md)', border: "1px solid var(--surface-tertiary)", padding: "4px 8px", display: "flex", flexDirection: "column" } },
                 p.skipped.map(renderSkipRow)
               )
             )
@@ -10743,44 +10743,44 @@ function SubstituteFromStashModalInner(props) {
 
         // No results at all
         p.substitutions.length === 0 && p.skipped.length === 0
-          ? h("div", { style: { padding: "20px", textAlign: "center", color: "#A89E89", fontSize: 13 } },
+          ? h("div", { style: { padding: "20px", textAlign: "center", color: "var(--text-tertiary)", fontSize:'var(--text-md)' } },
               "No unowned threads found \u2014 all threads are already marked as owned."
             )
           : null,
 
         // Summary
-        h("div", { style: { padding: "10px 14px", background: "#f0f9ff", borderRadius: 8, border: "1px solid #bae6fd", fontSize: 12, color: "#0c4a6e" } },
+        h("div", { style: { padding: "10px 14px", background: "var(--surface-secondary)", borderRadius:'var(--radius-md)', border: "1px solid var(--accent-light)", fontSize:'var(--text-sm)', color: "var(--accent)" } },
           h("strong", null, enabledSubs.length + " substitution" + (enabledSubs.length !== 1 ? "s" : "") + " selected"),
           h("span", null, " \xB7 " + p.skipped.length + " skipped"),
           warningCount > 0
-            ? h("span", { style: { color: "#A04E11" } }, " \xB7 " + warningCount + " low stock")
+            ? h("span", { style: { color: "var(--accent-hover)" } }, " \xB7 " + warningCount + " low stock")
             : null,
           contrastWarningCount > 0
-            ? h("span", { style: { color: "#8A5C26" } }, " \xB7 " + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : ""))
+            ? h("span", { style: { color: "var(--accent-ink)" } }, " \xB7 " + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : ""))
             : null
         ),
-        h("div", { style: { marginTop: 8, fontSize: 11, color: "#A89E89" } },
+        h("div", { style: { marginTop:'var(--s-2)', fontSize:'var(--text-xs)', color: "var(--text-tertiary)" } },
           "Tip: All changes can be undone with Ctrl+Z"
         )
       ),
 
       // ── Footer ────────────────────────────────────────────────────────────────
       h("div", {
-        style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderTop: "1px solid #EFE7D6", flexShrink: 0 }
+        style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderTop: "1px solid var(--surface-tertiary)", flexShrink: 0 }
       },
         h("button", {
           onClick: closeModal,
-          style: { padding: "8px 20px", fontSize: 13, borderRadius: 8, border: "1px solid #E5DCCB", background: "#fff", color: "#5C5448", cursor: "pointer", fontWeight: 500 }
+          style: { padding: "8px 20px", fontSize:'var(--text-md)', borderRadius:'var(--radius-md)', border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-secondary)", cursor: "pointer", fontWeight: 500 }
         }, "Cancel"),
         h("button", {
           onClick: applySubstitutions,
           disabled: enabledSubs.length === 0,
           style: {
-            padding: "8px 22px", fontSize: 13, borderRadius: 8, fontWeight: 700,
+            padding: "8px 22px", fontSize:'var(--text-md)', borderRadius:'var(--radius-md)', fontWeight: 700,
             cursor: enabledSubs.length === 0 ? "not-allowed" : "pointer",
-            border: enabledSubs.length === 0 ? "1px solid #E5DCCB" : "1px solid #a78bfa",
-            background: enabledSubs.length === 0 ? "#FBF8F3" : "#7c3aed",
-            color: enabledSubs.length === 0 ? "#A89E89" : "#fff"
+            border: enabledSubs.length === 0 ? "1px solid var(--border)" : "1px solid var(--accent-light)",
+            background: enabledSubs.length === 0 ? "var(--surface-secondary)" : "var(--accent)",
+            color: enabledSubs.length === 0 ? "var(--text-tertiary)" : "var(--surface)"
           }
         }, applyLabel)
       )
@@ -10938,10 +10938,10 @@ window.ConvertPaletteModal = (function () {
 
   function ConfidenceBadge({ confidence }) {
     var colours = {
-      official: { bg: '#DEE7D2', text: '#3F6432', label: 'Exact match' },
+      official: { bg: 'var(--success-soft)', text: 'var(--success)', label: 'Exact match' },
       reconciled: { bg: '#fef9c3', text: '#854d0e', label: 'Best match' },
-      'single-source': { bg: '#F2E2BE', text: '#6B461F', label: 'One source' },
-      nearest: { bg: '#EFE7D6', text: '#5C5448', label: 'Closest colour' },
+      'single-source': { bg: 'var(--warning-soft)', text: 'var(--accent-ink)', label: 'One source' },
+      nearest: { bg: 'var(--surface-tertiary)', text: 'var(--text-secondary)', label: 'Closest colour' },
     };
     var c = colours[confidence] || colours.nearest;
     return React.createElement('span', {
@@ -11016,8 +11016,8 @@ window.ConvertPaletteModal = (function () {
           React.createElement('div', { className: 'modal-title', id: 'convert-palette-title' }, 'Change Thread Brand'),
           React.createElement(window.Overlay.CloseButton, { onClose: onClose, style: { position: 'static' } })
         ),
-        React.createElement('div', { style: { padding: '12px 20px', borderBottom: '1px solid #E5DCCB', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
-          React.createElement('span', { style: { fontSize: 13, color: '#5C5448', fontWeight: 600 } }, 'Convert to:'),
+        React.createElement('div', { style: { padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
+          React.createElement('span', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', fontWeight: 600 } }, 'Convert to:'),
           ['anchor', 'dmc'].map(function (brand) {
             return React.createElement('button', {
               key: brand,
@@ -11030,15 +11030,15 @@ window.ConvertPaletteModal = (function () {
             placeholder: 'Search…',
             value: searchQuery,
             onChange: function (e) { setSearchQuery(e.target.value); },
-            style: { marginLeft: 'auto', padding: '4px 8px', fontSize: 12, border: '1px solid #E5DCCB', borderRadius: 6, width: 140 }
+            style: { marginLeft: 'auto', padding: '4px 8px', fontSize:'var(--text-sm)', border: '1px solid var(--border)', borderRadius:'var(--radius-sm)', width: 140 }
           })
         ),
         uniqueCount > 0 && React.createElement('div', {
-          style: { padding: '8px 20px', background: '#F2E2BE', borderBottom: '1px solid #E5C97D', fontSize: 12, color: '#6B461F' }
+          style: { padding: '8px 20px', background: 'var(--warning-soft)', borderBottom: '1px solid #E5C97D', fontSize:'var(--text-sm)', color: 'var(--accent-ink)' }
         }, uniqueCount + ' thread' + (uniqueCount === 1 ? '' : 's') + ' ha' + (uniqueCount === 1 ? 's' : 've') + ' no close equivalent in ' + (targetBrand === 'anchor' ? 'Anchor' : 'DMC') + '. Review and choose substitutes manually.'),
         React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '8px 12px' } },
           filtered.length === 0
-            ? React.createElement('div', { style: { textAlign: 'center', padding: '32px 16px', color: '#A89E89', fontSize: 13 } }, 'No threads in the current pattern.')
+            ? React.createElement('div', { style: { textAlign: 'center', padding: '32px 16px', color: 'var(--text-tertiary)', fontSize:'var(--text-md)' } }, 'No threads in the current pattern.')
             : filtered.map(function (p) {
                 var overrideId = userOverrides[p.sourceId];
                 var effectiveTgt = overrideId
@@ -11049,29 +11049,29 @@ window.ConvertPaletteModal = (function () {
 
                 return React.createElement('div', {
                   key: p.sourceId,
-                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius: 6, marginBottom: 4, background: noMatch ? '#F8EFD8' : '#f8fafc', border: '1px solid ' + (noMatch ? '#E5C99A' : '#E5DCCB') }
+                  style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px', borderRadius:'var(--radius-sm)', marginBottom:'var(--s-1)', background: noMatch ? '#F8EFD8' : 'var(--surface-secondary)', border: '1px solid ' + (noMatch ? '#E5C99A' : 'var(--border)') }
                 },
                   // Source swatch + label
-                  React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + p.sourceRgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
-                  React.createElement('span', { style: { fontSize: 12, fontWeight: 600, width: 80, flexShrink: 0 } }, 'DMC ', p.sourceId),
-                  React.createElement('span', { style: { fontSize: 11, color: '#8A8270', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.sourceName),
-                  React.createElement('span', { style: { color: '#A89E89', fontSize: 13 } }, '→'),
+                  React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + p.sourceRgb + ')', border: '1px solid var(--border)', flexShrink: 0 } }),
+                  React.createElement('span', { style: { fontSize:'var(--text-sm)', fontWeight: 600, width: 80, flexShrink: 0 } }, 'DMC ', p.sourceId),
+                  React.createElement('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.sourceName),
+                  React.createElement('span', { style: { color: 'var(--text-tertiary)', fontSize:'var(--text-md)' } }, '→'),
                   // Target swatch + label (or dropdown)
                   effectiveTgt
                     ? React.createElement(React.Fragment, null,
-                        React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + effectiveTgt.rgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
-                        React.createElement('span', { style: { fontSize: 12, fontWeight: 600, width: 80, flexShrink: 0, color: targetBrand === 'anchor' ? '#0369a1' : '#333' } },
+                        React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + effectiveTgt.rgb + ')', border: '1px solid var(--border)', flexShrink: 0 } }),
+                        React.createElement('span', { style: { fontSize:'var(--text-sm)', fontWeight: 600, width: 80, flexShrink: 0, color: targetBrand === 'anchor' ? 'var(--accent)' : '#333' } },
                           (targetBrand === 'anchor' ? 'Anch ' : 'DMC '), effectiveTgt.id
                         )
                       )
-                    : React.createElement('span', { style: { fontSize: 11, color: '#C0883A', fontWeight: 600 } }, 'No match'),
+                    : React.createElement('span', { style: { fontSize:'var(--text-xs)', color: 'var(--warning)', fontWeight: 600 } }, 'No match'),
                   // Confidence badge (only for official proposals, not overrides)
                   !overrideId && p.target && React.createElement(ConfidenceBadge, { confidence: p.target.confidence }),
                   // ΔE
-                  de != null && React.createElement('span', { style: { fontSize: 10, color: '#A89E89', flexShrink: 0 } }, 'ΔE ' + de),
+                  de != null && React.createElement('span', { style: { fontSize: 10, color: 'var(--text-tertiary)', flexShrink: 0 } }, 'ΔE ' + de),
                   // Override select
                   React.createElement('select', {
-                    style: { fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid #E5DCCB', background: '#fff', maxWidth: 90 },
+                    style: { fontSize:'var(--text-xs)', padding: '2px 4px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', maxWidth: 90 },
                     value: overrideId || (effectiveTgt ? effectiveTgt.id : ''),
                     onChange: function (e) { handleOverrideChange(p.sourceId, e.target.value || null); }
                   },
@@ -11083,7 +11083,7 @@ window.ConvertPaletteModal = (function () {
                 );
               })
         ),
-        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', gap: 10, justifyContent: 'flex-end' } },
+        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' } },
           React.createElement('button', { className: 'g-btn', onClick: onClose }, 'Cancel'),
           React.createElement('button', { className: 'g-btn primary', onClick: handleApply, disabled: proposals.length === 0 },
             'Apply Conversion (' + proposals.length + ' threads)'
@@ -11163,12 +11163,12 @@ window.BulkAddModal = (function () {
   function ThreadChip({ item, brand, onRemove }) {
     if (!item.valid) {
       return React.createElement('span', {
-        style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#F1D2D2', color: '#8A2E2E', border: '1px solid #DEAEAE', margin: '2px 3px' }
+        style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize:'var(--text-sm)', padding: '2px 7px', borderRadius:'var(--radius-xl)', background: 'var(--danger-soft)', color: 'var(--danger)', border: '1px solid #DEAEAE', margin: '2px 3px' }
       },
         React.createElement('span', null, brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised, '\u00a0\u2014 not found'),
         React.createElement('button', {
           onClick: function () { onRemove(item.raw); },
-          style: { background: 'none', border: 'none', color: '#8A2E2E', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 13, fontWeight: 700, marginLeft: 2 }
+          style: { background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize:'var(--text-md)', fontWeight: 700, marginLeft: 2 }
         }, '×')
       );
     }
@@ -11176,13 +11176,13 @@ window.BulkAddModal = (function () {
       style: { width: 12, height: 12, borderRadius: 2, background: 'rgb(' + item.thread.rgb + ')', border: '1px solid rgba(0,0,0,0.12)', flexShrink: 0 }
     });
     return React.createElement('span', {
-      style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '2px 7px', borderRadius: 12, background: '#DEE7D2', color: '#3F6432', border: '1px solid #A8C594', margin: '2px 3px' }
+      style: { display: 'inline-flex', alignItems: 'center', gap:'var(--s-1)', fontSize:'var(--text-sm)', padding: '2px 7px', borderRadius:'var(--radius-xl)', background: 'var(--success-soft)', color: 'var(--success)', border: '1px solid #A8C594', margin: '2px 3px' }
     },
       swatch,
       brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised,
       React.createElement('button', {
         onClick: function () { onRemove(item.raw); },
-        style: { background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 13, fontWeight: 700, marginLeft: 2 }
+        style: { background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize:'var(--text-md)', fontWeight: 700, marginLeft: 2 }
       }, '×')
     );
   }
@@ -11282,8 +11282,8 @@ window.BulkAddModal = (function () {
         onClose: onClose, className: 'modal-box', labelledBy: 'bulk-add-done-title',
         style: { maxWidth: 440, width: '90vw', padding: '32px 24px', textAlign: 'center' }
       },
-        (window.Icons && window.Icons.check) ? React.createElement('div', { style: { color: 'var(--success)', marginBottom: 12, display: 'flex', justifyContent: 'center' } }, window.Icons.check()) : null,
-        React.createElement('div', { id: 'bulk-add-done-title', style: { fontSize: 16, fontWeight: 700, marginBottom: 8 } }, validCount + ' thread' + (validCount === 1 ? '' : 's') + ' added to your stash'),
+        (window.Icons && window.Icons.check) ? React.createElement('div', { style: { color: 'var(--success)', marginBottom:'var(--s-3)', display: 'flex', justifyContent: 'center' } }, window.Icons.check()) : null,
+        React.createElement('div', { id: 'bulk-add-done-title', style: { fontSize:'var(--text-xl)', fontWeight: 700, marginBottom:'var(--s-2)' } }, validCount + ' thread' + (validCount === 1 ? '' : 's') + ' added to your stash'),
         React.createElement('button', { className: 'g-btn primary', onClick: onClose, 'data-autofocus': true }, 'Done')
       );
     }
@@ -11298,15 +11298,15 @@ window.BulkAddModal = (function () {
           React.createElement(window.Overlay.CloseButton, { onClose: onClose, style: { position: 'static' } })
         ),
         // Tabs
-        React.createElement('div', { style: { display: 'flex', borderBottom: '1px solid #E5DCCB', padding: '0 20px' } },
+        React.createElement('div', { style: { display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 20px' } },
           ['paste', 'kit'].map(function (tab) {
             return React.createElement('button', {
               key: tab,
               onClick: function () { setActiveTab(tab); },
               style: {
-                padding: '10px 16px', fontSize: 13, fontWeight: 600, border: 'none', background: 'none', cursor: 'pointer',
+                padding: '10px 16px', fontSize:'var(--text-md)', fontWeight: 600, border: 'none', background: 'none', cursor: 'pointer',
                 borderBottom: activeTab === tab ? '2px solid #6366f1' : '2px solid transparent',
-                color: activeTab === tab ? '#6366f1' : '#8A8270'
+                color: activeTab === tab ? '#6366f1' : 'var(--text-tertiary)'
               }
             }, tab === 'paste' ? 'Paste list' : 'From a kit');
           })
@@ -11315,8 +11315,8 @@ window.BulkAddModal = (function () {
         React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: 20 } },
           activeTab === 'paste' && React.createElement(React.Fragment, null,
             // Brand selector
-            React.createElement('div', { style: { display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' } },
-              React.createElement('span', { style: { fontSize: 12, fontWeight: 600, color: '#5C5448' } }, 'Brand:'),
+            React.createElement('div', { style: { display: 'flex', gap:'var(--s-2)', marginBottom:'var(--s-3)', alignItems: 'center' } },
+              React.createElement('span', { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)' } }, 'Brand:'),
               ['dmc', 'anchor'].map(function (b) {
                 return React.createElement('button', {
                   key: b,
@@ -11330,10 +11330,10 @@ window.BulkAddModal = (function () {
               value: pasteText,
               onChange: function (e) { setPasteText(e.target.value); setRemovedRaws([]); },
               rows: 5,
-              style: { width: '100%', fontSize: 13, padding: '8px 10px', border: '1px solid #E5DCCB', borderRadius: 6, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'monospace' }
+              style: { width: '100%', fontSize:'var(--text-md)', padding: '8px 10px', border: '1px solid var(--border)', borderRadius:'var(--radius-sm)', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'monospace' }
             }),
-            pasteResolved.length > 0 && React.createElement('div', { style: { marginTop: 12 } },
-              React.createElement('div', { style: { fontSize: 11, color: '#8A8270', marginBottom: 6 } },
+            pasteResolved.length > 0 && React.createElement('div', { style: { marginTop:'var(--s-3)' } },
+              React.createElement('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 6 } },
                 validCount + ' valid' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised (click × to remove)' : '')
               ),
               pasteResolved.map(function (item) {
@@ -11342,8 +11342,8 @@ window.BulkAddModal = (function () {
             )
           ),
           activeTab === 'kit' && React.createElement(React.Fragment, null,
-            React.createElement('div', { style: { display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' } },
-              React.createElement('span', { style: { fontSize: 12, fontWeight: 600, color: '#5C5448' } }, 'Brand:'),
+            React.createElement('div', { style: { display: 'flex', gap:'var(--s-2)', marginBottom:'var(--s-3)', alignItems: 'center' } },
+              React.createElement('span', { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)' } }, 'Brand:'),
               ['dmc', 'anchor'].map(function (b) {
                 return React.createElement('button', {
                   key: b,
@@ -11363,7 +11363,7 @@ window.BulkAddModal = (function () {
               })
             ),
             kitResolved.length > 0 && React.createElement(React.Fragment, null,
-              React.createElement('div', { style: { fontSize: 11, color: '#8A8270', marginBottom: 6 } },
+              React.createElement('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 6 } },
                 validCount + ' threads in this kit' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised' : '')
               ),
               React.createElement('div', { style: { lineHeight: 2 } },
@@ -11372,12 +11372,12 @@ window.BulkAddModal = (function () {
                 })
               )
             ),
-            kitKeys.length === 0 && React.createElement('div', { style: { fontSize: 13, color: '#A89E89', padding: '24px 0' } }, 'No starter kits available for this brand.')
+            kitKeys.length === 0 && React.createElement('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-tertiary)', padding: '24px 0' } }, 'No starter kits available for this brand.')
           )
         ),
         // Footer
-        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' } },
-          invalidCount > 0 && React.createElement('span', { style: { fontSize: 12, color: '#C0883A', marginRight: 'auto' } },
+        React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' } },
+          invalidCount > 0 && React.createElement('span', { style: { fontSize:'var(--text-sm)', color: 'var(--warning)', marginRight: 'auto' } },
             invalidCount + ' unrecognised thread' + (invalidCount === 1 ? '' : 's') + ' will be skipped'
           ),
           React.createElement('button', { className: 'g-btn', onClick: onClose }, 'Cancel'),
@@ -11456,18 +11456,18 @@ window.CreatorSidebar = function CreatorSidebar() {
           props.onChange(!props.checked);
         }
       },
-      style:{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:8,userSelect:"none"}
+      style:{display:"flex",alignItems:"center",gap:'var(--s-2)',cursor:"pointer",marginBottom:'var(--s-2)',userSelect:"none"}
     },
       h("span", {"aria-hidden":"true", style:{position:"relative",display:"inline-block",width:32,height:18,flexShrink:0}},
         h("span", {style:{display:"block",position:"absolute",inset:0,borderRadius:9,
-          background:props.checked?"#B85C38":"#CFC4AC",transition:"background 0.15s"}}),
+          background:props.checked?"var(--accent)":"var(--border)",transition:"background 0.15s"}}),
         h("span", {style:{display:"block",position:"absolute",width:14,height:14,top:2,
-          left:props.checked?16:2,borderRadius:"50%",background:"#fff",
+          left:props.checked?16:2,borderRadius:"50%",background:"var(--surface)",
           transition:"left 0.15s",boxShadow:"0 1px 3px rgba(0,0,0,0.18)"}})
       ),
       h("span", {style:{flex:1}},
-        h("span", {style:{fontSize:12,fontWeight:500,color:"#1B1814",display:"block"}}, props.label),
-        props.help && h("span", {style:{fontSize:10,color:"#A89E89",display:"block",marginTop:1}}, props.help)
+        h("span", {style:{fontSize:'var(--text-sm)',fontWeight:500,color:"var(--text-primary)",display:"block"}}, props.label),
+        props.help && h("span", {style:{fontSize:10,color:"var(--text-tertiary)",display:"block",marginTop:1}}, props.help)
       )
     );
   }
@@ -11511,7 +11511,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       }
       return worst;
     }
-    var STASH_DOT = { owned: '#4F7D3F', partial: '#C0883A', needed: '#A53D3D' };
+    var STASH_DOT = { owned: 'var(--success)', partial: 'var(--warning)', needed: 'var(--danger)' };
     var hiddenByFilter = 0;
     // A1 (UX Phase 5) — collect composite keys of unowned palette threads so
     // the warning panel can wire its CTAs honestly. Mirrors stashStatusForChip.
@@ -11570,18 +11570,18 @@ window.CreatorSidebar = function CreatorSidebar() {
         },
         style: {
           display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
-          cursor:"pointer",fontSize:11,position:"relative",
-          border: ips ? "2px solid #B85C38" : ihs ? "2px solid #A04E11" : "0.5px solid #E5DCCB",
-          background: ips ? "#F4DDCF" : ihs ? "#F8EFD8" : "#fff",
+          cursor:"pointer",fontSize:'var(--text-xs)',position:"relative",
+          border: ips ? "2px solid var(--accent)" : ihs ? "2px solid var(--accent-hover)" : "0.5px solid var(--border)",
+          background: ips ? "var(--accent-light)" : ihs ? "#F8EFD8" : "var(--surface)",
           opacity: isUnused ? 0.6 : 1
         }
       },
-        h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #CFC4AC",display:"inline-block",flexShrink:0}}),
-        h("span", {style:{fontFamily:"monospace",color:"#5C5448",fontSize:10}}, p.symbol),
+        h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid var(--border)",display:"inline-block",flexShrink:0}}),
+        h("span", {style:{fontFamily:"monospace",color:"var(--text-secondary)",fontSize:10}}, p.symbol),
         h("span", {style:{fontWeight:500}}, p.id),
         isUnused && h("span", {
           onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
-          style:{fontSize:9,color:"#A89E89",cursor:"pointer",marginLeft:2,lineHeight:1}
+          style:{fontSize:9,color:"var(--text-tertiary)",cursor:"pointer",marginLeft:2,lineHeight:1}
         }, "\xD7"),
         // Brief D — stash status dot (top-right corner). Hidden when stash empty.
         stashStatus && h("span", {
@@ -11601,14 +11601,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           h("span", {style:{fontSize:9,color:"var(--text-tertiary)",display:"inline-block",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
-          h("span", {style:{fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
+          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
         ),
-        h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+        h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {
-        style:{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11,color:"#5C5448",flexWrap:"wrap"}
+        style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexWrap:"wrap"}
       },
         h("label", {style:{display:"flex",alignItems:"center",gap:5,cursor:"pointer",userSelect:"none"}},
           h("input", {
@@ -11622,7 +11622,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("button", {
           onClick: function() { if (typeof app.setModal === 'function') app.setModal('shopping_list'); },
           title: "What do I need to buy?",
-          style:{marginLeft:"auto",fontSize:10,padding:"2px 8px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#fff",color:"#5C5448",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}
+          style:{marginLeft:"auto",fontSize:10,padding:"2px 8px",cursor:"pointer",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,display:"inline-flex",alignItems:"center",gap:'var(--s-1)'}
         }, typeof Icons !== 'undefined' && Icons.cart ? Icons.cart() : null, "Shopping list")
       ),
       // A1 (UX Phase 5) — honest warning panel + actionable CTAs.
@@ -11632,7 +11632,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       ctx.creatorStashFilter && stashHas && unownedKeys.length > 0 && h("div", {
         role: "status",
         "aria-live": "polite",
-        style:{marginBottom:8,padding:"8px 10px",borderRadius:7,background:"#FAF5E1",border:"1px solid #E5C97D",fontSize:11,color:"#6B461F",display:"flex",flexDirection:"column",gap:6}
+        style:{marginBottom:'var(--s-2)',padding:"8px 10px",borderRadius:7,background:"#FAF5E1",border:"1px solid #E5C97D",fontSize:'var(--text-xs)',color:"var(--accent-ink)",display:"flex",flexDirection:"column",gap:6}
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6,fontWeight:600}},
           typeof Icons !== 'undefined' && Icons.warning ? Icons.warning() : null,
@@ -11665,7 +11665,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                 if (app.addToast) app.addToast("Could not load your stash.", {type:"error", duration:3000});
               });
             },
-            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #D49B45",background:"#fff",color:"#6B461F",fontWeight:600,cursor:"pointer"}
+            style:{fontSize:'var(--text-xs)',padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"1px solid #D49B45",background:"var(--surface)",color:"var(--accent-ink)",fontWeight:600,cursor:"pointer"}
           }, "Substitute from stash"),
           h("button", {
             onClick: function() {
@@ -11687,45 +11687,45 @@ window.CreatorSidebar = function CreatorSidebar() {
                 if (app.addToast) app.addToast("Could not update your shopping list.", {type:"error", duration:3000});
               });
             },
-            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #D49B45",background:"#F2E2BE",color:"#6B461F",fontWeight:600,cursor:"pointer"}
+            style:{fontSize:'var(--text-xs)',padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"1px solid #D49B45",background:"var(--warning-soft)",color:"var(--accent-ink)",fontWeight:600,cursor:"pointer"}
           }, "Add to shopping list")
         )
       ),
       // Brief D — banner when filter hides chips (kept as a quieter follow-up
       // line for users who still need the "turn off the filter" hint).
       ctx.creatorStashFilter && stashHas && hiddenByFilter > 0 && unownedKeys.length === 0 && h("div", {
-        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#FAF5E1",border:"0.5px solid #E5C97D",fontSize:10,color:"#6B461F"}
+        style:{marginBottom:'var(--s-2)',padding:"5px 8px",borderRadius:'var(--radius-sm)',background:"#FAF5E1",border:"0.5px solid #E5C97D",fontSize:10,color:"var(--accent-ink)"}
       }, hiddenByFilter + " unowned colour" + (hiddenByFilter !== 1 ? "s" : "") + " hidden \u2014 turn off the filter to see all."),
       ctx.creatorStashFilter && !stashHas && h("div", {
-        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#FCEFEF",border:"0.5px solid #ECC8C8",fontSize:10,color:"#722424"}
+        style:{marginBottom:'var(--s-2)',padding:"5px 8px",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",border:"0.5px solid var(--danger-soft)",fontSize:10,color:"var(--danger)"}
       }, "Your stash is empty \u2014 turn off this filter, or add threads in the Stash Manager."),
       isPaintMode && h("div", {
         style:{
-          marginBottom:8,padding:"5px 8px",borderRadius:7,
-          background: selInfo ? "#F4DDCF" : "#FAF5E1",
-          border: selInfo ? "1px solid #E8B89A" : "1px solid #E5C97D",
-          display:"flex",alignItems:"center",gap:7,fontSize:11,minHeight:30
+          marginBottom:'var(--s-2)',padding:"5px 8px",borderRadius:7,
+          background: selInfo ? "var(--accent-light)" : "#FAF5E1",
+          border: selInfo ? "1px solid var(--accent-border)" : "1px solid #E5C97D",
+          display:"flex",alignItems:"center",gap:7,fontSize:'var(--text-xs)',minHeight:30
         }
       },
         selInfo
           ? h(React.Fragment, null,
-              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid #CFC4AC"}}),
-              h("span", {style:{fontWeight:600,color:"#B85C38"}}, "DMC " + selInfo.id),
+              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid var(--border)"}}),
+              h("span", {style:{fontWeight:600,color:"var(--accent)"}}, "DMC " + selInfo.id),
               h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
               h("button", {
                 onClick:function(){cv.setSelectedColorId(null);},
                 title:"Clear selection",
-                style:{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:13,lineHeight:1,padding:"0 2px",flexShrink:0}
+                style:{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:'var(--text-md)',lineHeight:1,padding:"0 2px",flexShrink:0}
               }, "\xD7")
             )
           : h(React.Fragment, null,
-              h("span", {style:{fontSize:12}}, Icons.pointing()),
-              h("span", {style:{color:"#6B461F"}}, "Select a colour to paint \u2014 or right-click the canvas")
+              h("span", {style:{fontSize:'var(--text-sm)'}}, Icons.pointing()),
+              h("span", {style:{color:"var(--accent-ink)"}}, "Select a colour to paint \u2014 or right-click the canvas")
             )
       ),
       displayPal.length > 0
         ? h("div", {className:"creator-pattern-chips", style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
-        : h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textAlign:"center",padding:"8px 0"}}, "No colours yet")
+        : h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"8px 0"}}, "No colours yet")
       )
     );
   })() : null;
@@ -11735,12 +11735,12 @@ window.CreatorSidebar = function CreatorSidebar() {
   // prominent banner so the user knows this is the click target. ESC cancels
   // (wired in useKeyboardShortcuts.js).
   var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {id:"bg-pick-target", className:"card"+(gen.pickBg?" card--pickBg":"")},
-    gen.pickBg && h("div", {style:{padding:"10px 12px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#F8EFD8",borderBottom:"1px solid #E5C99A",display:"flex",alignItems:"center",gap:8}},
+    gen.pickBg && h("div", {style:{padding:"10px 12px",fontSize:'var(--text-sm)',color:"var(--accent-hover)",fontWeight:600,background:"#F8EFD8",borderBottom:"1px solid #E5C99A",display:"flex",alignItems:"center",gap:'var(--s-2)'}},
       h("span", {style:{flex:1}}, "Click anywhere on the image to set the background colour."),
       h("button", {
         onClick:function(){gen.setPickBg(false);},
         title:"Cancel pick (Esc)",
-        style:{fontSize:11,padding:"3px 8px",border:"1px solid #D4A570",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}
+        style:{fontSize:'var(--text-xs)',padding:"3px 8px",border:"1px solid #D4A570",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--accent-hover)",cursor:"pointer",fontWeight:600}
       }, "Cancel")
     ),
     h("div", {
@@ -11762,41 +11762,41 @@ window.CreatorSidebar = function CreatorSidebar() {
       gen.isCropping && gen.cropRect && h("div", {style:{
         position:"absolute",left:gen.cropRect.x,top:gen.cropRect.y,
         width:gen.cropRect.w,height:gen.cropRect.h,
-        border:"2px dashed #B85C38",background:"rgba(184, 92, 56,0.2)",
+        border:"2px dashed var(--accent)",background:"rgba(184, 92, 56,0.2)",
         boxSizing:"border-box",pointerEvents:"none"
       }})
     ),
     gen.isCropping
-      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #EFE7D6"}},
-          h("span", {style:{fontSize:11,color:"#A89E89"}}, "Draw a rectangle"),
+      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid var(--surface-tertiary)"}},
+          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, "Draw a rectangle"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){gen.setIsCropping(false); gen.setCropRect(null);},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}
+              style:{fontSize:'var(--text-xs)',padding:"3px 8px",cursor:"pointer",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface-secondary)"}
             }, "Cancel"),
             h("button", {
               onClick:gen.applyCrop,
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:6,background:"#B85C38",color:"#fff"}
+              style:{fontSize:'var(--text-xs)',padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:'var(--radius-sm)',background:"var(--accent)",color:"var(--surface)"}
             }, "Apply")
           )
         )
-      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #EFE7D6"}},
-          h("span", {style:{fontSize:11,color:"#A89E89"}}, gen.origW+"×"+gen.origH+"px"),
+      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid var(--surface-tertiary)"}},
+          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, gen.origW+"×"+gen.origH+"px"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){gen.setIsCropping(true); gen.setCropRect(null);},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}
+              style:{fontSize:'var(--text-xs)',padding:"3px 8px",cursor:"pointer",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface-secondary)"}
             }, "Crop"),
             h("button", {
               onClick:function(){gen.fRef.current.click();},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}
+              style:{fontSize:'var(--text-xs)',padding:"3px 8px",cursor:"pointer",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface-secondary)"}
             }, "Change")
           )
         )
   ) : null;
 
   // ── Colours section (scratch mode) ─────────────────────────────────────────
-  var coloursBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#B85C38",background:"#F4DDCF",padding:"1px 8px",borderRadius:10}},
+  var coloursBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--accent)",background:"var(--accent-light)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}},
     (ctx.displayPal ? ctx.displayPal.filter(function(p){return p.count>0;}).length : 0)+" used"
   );
   // ── Blend picker local state ──────────────────────────────────────────────
@@ -11840,38 +11840,38 @@ window.CreatorSidebar = function CreatorSidebar() {
   var coloursSection = ctx.pat ? h(Section, {
     title:"Colours", isOpen:ctx.colPickerOpen, onToggle:ctx.setColPickerOpen, badge:coloursBadge
   },
-    h("div", {style:{marginTop:8}},
-      ctx.isScratchMode && h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#EFE7D6",borderRadius:8}},
+    h("div", {style:{marginTop:'var(--s-2)'}},
+      ctx.isScratchMode && h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:'var(--s-1)',marginBottom:'var(--s-2)',padding:"6px 8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)'}},
         [["1","Add colour","\u2192"],["2","Select chip","\u2192"],["3","Paint!",""]].map(function(item,i) {
           return h(React.Fragment, {key:i},
-            h("div", {style:{display:"flex",alignItems:"center",gap:4}},
-              h("span", {style:{width:16,height:16,borderRadius:"50%",background:"#B85C38",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
+            h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)'}},
+              h("span", {style:{width:16,height:16,borderRadius:"50%",background:"var(--accent)",color:"var(--surface)",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
               h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
             ),
-            item[2] && h("span", {style:{fontSize:10,color:"#A89E89"}}, item[2])
+            item[2] && h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, item[2])
           );
         })
       ),
       // Toggle between single thread and blend mode
-      h("div", {style:{display:"flex",gap:4,marginBottom:8}},
+      h("div", {style:{display:"flex",gap:'var(--s-1)',marginBottom:'var(--s-2)'}},
         h("button", {
           onClick:function(){ setBlendMode(false); },
-          style:{flex:1,padding:"4px 8px",fontSize:11,fontWeight:blendMode?500:700,cursor:"pointer",
-            border:blendMode?"1px solid #E5DCCB":"1px solid #B85C38",borderRadius:6,
-            background:blendMode?"#fff":"#F4DDCF",color:blendMode?"#5C5448":"#B85C38"}
+          style:{flex:1,padding:"4px 8px",fontSize:'var(--text-xs)',fontWeight:blendMode?500:700,cursor:"pointer",
+            border:blendMode?"1px solid var(--border)":"1px solid var(--accent)",borderRadius:'var(--radius-sm)',
+            background:blendMode?"var(--surface)":"var(--accent-light)",color:blendMode?"var(--text-secondary)":"var(--accent)"}
         }, "Single thread"),
         h("button", {
           onClick:function(){ setBlendMode(true); },
-          style:{flex:1,padding:"4px 8px",fontSize:11,fontWeight:blendMode?700:500,cursor:"pointer",
-            border:blendMode?"1px solid #B85C38":"1px solid #E5DCCB",borderRadius:6,
-            background:blendMode?"#F4DDCF":"#fff",color:blendMode?"#B85C38":"#5C5448"}
+          style:{flex:1,padding:"4px 8px",fontSize:'var(--text-xs)',fontWeight:blendMode?700:500,cursor:"pointer",
+            border:blendMode?"1px solid var(--accent)":"1px solid var(--border)",borderRadius:'var(--radius-sm)',
+            background:blendMode?"var(--accent-light)":"var(--surface)",color:blendMode?"var(--accent)":"var(--text-secondary)"}
         }, "Blend (2 threads)")
       ),
       !blendMode ? h(React.Fragment, null,
         h("input", {
           type:"text", "aria-label":"Search DMC palette", placeholder:"Search by DMC # or name\u2026",
           value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);},
-          style:{width:"100%",padding:"6px 10px",border:"0.5px solid #E5DCCB",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
+          style:{width:"100%",padding:"6px 10px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',marginBottom:'var(--s-2)',boxSizing:"border-box"}
         }),
         h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
           ctx.dmcFiltered.slice(0,60).map(function(d) {
@@ -11879,49 +11879,49 @@ window.CreatorSidebar = function CreatorSidebar() {
             return h(Tooltip, {key:d.id, text:inPal?"Already in your palette":"Click to add to your palette", width:160},
               h("div", {
                 onClick:function(){ctx.addScratchColour(d);},
-                style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,cursor:"pointer",
-                  background:inPal?"#F4DDCF":"#fff",
-                  border:inPal?"1px solid #E8B89A":"1px solid transparent",
+                style:{display:"flex",alignItems:"center",gap:'var(--s-2)',padding:"4px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
+                  background:inPal?"var(--accent-light)":"var(--surface)",
+                  border:inPal?"1px solid var(--accent-border)":"1px solid transparent",
                   opacity:inPal?0.7:1,width:"100%"}
               },
-                h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #CFC4AC"}}),
-                h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1B1814"}}, d.id),
-                h("span", {style:{fontSize:11,color:"#5C5448",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-                inPal ? h("span", {style:{fontSize:10,color:"#B85C38"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#A89E89"}}, "+")
+                h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
+                h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
+                h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+                inPal ? h("span", {style:{fontSize:10,color:"var(--accent)"}}, "\u2713") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
               )
             );
           }),
-          ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#A89E89",padding:"8px 0",textAlign:"center"}}, "No colours found")
+          ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
         )
       ) : h(React.Fragment, null,
         // Blend mode UI: pick two threads
-        h("div", {style:{display:"flex",gap:4,marginBottom:6,alignItems:"center"}},
-          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:6,border:"1px solid #E5DCCB",fontSize:11,minHeight:24,display:"flex",alignItems:"center",gap:4,background:blendThread1?"#F4DDCF":"#fff"}},
+        h("div", {style:{display:"flex",gap:'var(--s-1)',marginBottom:6,alignItems:"center"}},
+          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-xs)',minHeight:24,display:"flex",alignItems:"center",gap:'var(--s-1)',background:blendThread1?"var(--accent-light)":"var(--surface)"}},
             blendThread1 ? h(React.Fragment, null,
-              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread1.rgb+")",border:"1px solid #CFC4AC",flexShrink:0}}),
+              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread1.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
               h("span", {style:{fontWeight:600}}, blendThread1.id),
-              h("span", {onClick:function(){setBlendThread1(null);},style:{cursor:"pointer",color:"#A89E89",marginLeft:2}}, "\u2715")
-            ) : h("span", {style:{color:"#A89E89"}}, "Thread 1\u2026")
+              h("span", {onClick:function(){setBlendThread1(null);},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2}}, "\u2715")
+            ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 1\u2026")
           ),
-          h("span", {style:{fontSize:11,color:"#A89E89",fontWeight:600}}, "+"),
-          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:6,border:"1px solid #E5DCCB",fontSize:11,minHeight:24,display:"flex",alignItems:"center",gap:4,background:blendThread2?"#F4DDCF":"#fff"}},
+          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",fontWeight:600}}, "+"),
+          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-xs)',minHeight:24,display:"flex",alignItems:"center",gap:'var(--s-1)',background:blendThread2?"var(--accent-light)":"var(--surface)"}},
             blendThread2 ? h(React.Fragment, null,
-              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread2.rgb+")",border:"1px solid #CFC4AC",flexShrink:0}}),
+              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread2.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
               h("span", {style:{fontWeight:600}}, blendThread2.id),
-              h("span", {onClick:function(){setBlendThread2(null);},style:{cursor:"pointer",color:"#A89E89",marginLeft:2}}, "\u2715")
-            ) : h("span", {style:{color:"#A89E89"}}, "Thread 2\u2026")
+              h("span", {onClick:function(){setBlendThread2(null);},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2}}, "\u2715")
+            ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 2\u2026")
           )
         ),
         blendThread1 && blendThread2 && blendThread1.id !== blendThread2.id && h("button", {
           onClick:addBlend,
-          style:{width:"100%",padding:"6px 0",fontSize:12,fontWeight:600,cursor:"pointer",
-            border:"1px solid #B85C38",borderRadius:6,background:"#F4DDCF",color:"#B85C38",marginBottom:8}
+          style:{width:"100%",padding:"6px 0",fontSize:'var(--text-sm)',fontWeight:600,cursor:"pointer",
+            border:"1px solid var(--accent)",borderRadius:'var(--radius-sm)',background:"var(--accent-light)",color:"var(--accent)",marginBottom:'var(--s-2)'}
         }, "Add blend " + blendThread1.id + "+" + blendThread2.id),
-        blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:11,color:"#A53D3D",marginBottom:8}}, "Pick two different threads"),
+        blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--danger)",marginBottom:'var(--s-2)'}}, "Pick two different threads"),
         h("input", {
           type:"text", "aria-label":"Search DMC threads", placeholder:"Search DMC threads\u2026",
           value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);},
-          style:{width:"100%",padding:"6px 10px",border:"0.5px solid #E5DCCB",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
+          style:{width:"100%",padding:"6px 10px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',marginBottom:'var(--s-2)',boxSizing:"border-box"}
         }),
         h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
           blendFiltered.slice(0,60).map(function(d) {
@@ -11933,27 +11933,27 @@ window.CreatorSidebar = function CreatorSidebar() {
                 if (!blendThread1) setBlendThread1(d);
                 else if (!blendThread2 && d.id !== blendThread1.id) setBlendThread2(d);
               },
-              style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,cursor:"pointer",
-                background:(isSel1||isSel2)?"#F4DDCF":"#fff",
-                border:(isSel1||isSel2)?"1px solid #E8B89A":"1px solid transparent",
+              style:{display:"flex",alignItems:"center",gap:'var(--s-2)',padding:"4px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
+                background:(isSel1||isSel2)?"var(--accent-light)":"var(--surface)",
+                border:(isSel1||isSel2)?"1px solid var(--accent-border)":"1px solid transparent",
                 opacity:(isSel1||isSel2)?0.7:1,width:"100%"}
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #CFC4AC"}}),
-              h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1B1814"}}, d.id),
-              h("span", {style:{fontSize:11,color:"#5C5448",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"#B85C38"}}, isSel1?"\u27981":"\u27982") : h("span", {style:{fontSize:10,color:"#A89E89"}}, "+")
+              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
+              h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
+              h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"var(--accent)"}}, isSel1?"\u27981":"\u27982") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
             );
           }),
-          blendFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#A89E89",padding:"8px 0",textAlign:"center"}}, "No colours found")
+          blendFiltered.length === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
         )
       )
     )
   ) : null;
 
   // ── Dimensions section ──────────────────────────────────────────────────────
-  var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#5C5448",background:"#EFE7D6",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
+  var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH);
   var dimSection = h(Section, {title:"Dimensions", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
       h(InfoIcon, {text:"Keep width and height proportional when resizing", width:200})
@@ -11961,50 +11961,50 @@ window.CreatorSidebar = function CreatorSidebar() {
     ctx.arLock
       ? h("div", null,
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
-          h("div", {style:{fontSize:10,color:"#A89E89",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
+          h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
         )
       : h("div", {style:{display:"flex",gap:10}},
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#A89E89",display:"block",marginBottom:2}}, "Width"),
-            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #E5DCCB",borderRadius:6,fontSize:13}})
+            h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Width"),
+            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
           ),
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#A89E89",display:"block",marginBottom:2}}, "Height"),
-            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #E5DCCB",borderRadius:6,fontSize:13}})
+            h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Height"),
+            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
           )
         )
   );
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:app.palOpen, onToggle:app.setPalOpen},
-    h("div", {style:{marginTop:8}},
+    h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
         helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
       gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#A06F2D",marginTop:2}},
         "Clamped to " + gen.stashThreadCount + " (stash size)"
       )
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:8,marginTop:8,opacity:gen.blendsAutoDisabled?0.5:1}},
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
       h("input", {type:"checkbox", checked:gen.allowBlends, disabled:gen.blendsAutoDisabled, onChange:function(e){gen.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
     ),
-    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#A89E89",marginBottom:8}},
+    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-2)'}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
     ),
     typeof StashBridge !== "undefined" && h("label", {
-      style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:4}
+      style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-1)'}
     },
       h("input", {type:"checkbox", checked:gen.stashConstrained, onChange:function(e){gen.setStashConstrained(e.target.checked);}}),
       h("span", null, "Use only stash threads"),
       h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
     ),
     gen.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
-      h("div", {style:{fontSize:11,color:"#B85C38",background:"#F4DDCF",border:"1px solid #E8B89A",borderRadius:8,padding:"6px 10px",marginBottom:8}},
+      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--accent)",background:"var(--accent-light)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-md)',padding:"6px 10px",marginBottom:'var(--s-2)'}},
         (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
           (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? " \u2014 palette limited to " + gen.effectiveMaxC + " colours" : "")
       ),
-      gen.stashPalette && gen.stashPalette.length > 0 && h("div", {style:{marginBottom:8}},
+      gen.stashPalette && gen.stashPalette.length > 0 && h("div", {style:{marginBottom:'var(--s-2)'}},
         h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
           (stashStripExpanded ? gen.stashPalette : gen.stashPalette.slice(0,60)).map(function(t) {
             return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:140},
@@ -12014,14 +12014,14 @@ window.CreatorSidebar = function CreatorSidebar() {
         ),
         gen.stashPalette.length > 60 && h("button", {
           onClick:function(){setStashStripExpanded(function(o){return !o;});},
-          style:{fontSize:10,color:"#B85C38",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
+          style:{fontSize:10,color:"var(--accent)",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
         }, stashStripExpanded ? "Show less" : "+" + (gen.stashPalette.length - 60) + " more")
       ),
       gen.coverageGaps && gen.coverageGaps.hasGaps && h("div", {style:{
-        fontSize:11,background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,
-        padding:"6px 10px",marginBottom:8,color:"#722424",display:"flex",alignItems:"flex-start",gap:6
+        fontSize:'var(--text-xs)',background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',
+        padding:"6px 10px",marginBottom:'var(--s-2)',color:"var(--danger)",display:"flex",alignItems:"flex-start",gap:6
       }},
-        h("span", {style:{fontSize:13,lineHeight:1,flexShrink:0}}, Icons.warning()),
+        h("span", {style:{fontSize:'var(--text-md)',lineHeight:1,flexShrink:0}}, Icons.warning()),
         h("span", null, "Your stash may lack coverage in: ",
           gen.coverageGaps.gaps.map(function(g, i) {
             return h("span", {key:g.hue},
@@ -12032,14 +12032,14 @@ window.CreatorSidebar = function CreatorSidebar() {
           })
         )
       ),
-      h("div", {style:{marginBottom:8}},
-        h("div", {style:{fontSize:11,color:"#5C5448",marginBottom:4,fontWeight:500}}, "Quick-add thread to stash"),
+      h("div", {style:{marginBottom:'var(--s-2)'}},
+        h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginBottom:'var(--s-1)',fontWeight:500}}, "Quick-add thread to stash"),
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           h("input", {
             type:"text", value:qaVal,
             placeholder:"DMC number\u2026",
             onChange:function(e){setQaVal(e.target.value);},
-            style:{flex:1,padding:"4px 8px",fontSize:12,borderRadius:6,border:"0.5px solid #E5DCCB",fontFamily:"inherit"}
+            style:{flex:1,padding:"4px 8px",fontSize:'var(--text-sm)',borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",fontFamily:"inherit"}
           }),
           (function(){
             var dmc = findThreadInCatalog('dmc', qaVal.trim());
@@ -12063,16 +12063,16 @@ window.CreatorSidebar = function CreatorSidebar() {
                 });
               }).catch(function(){ setQaLoading(false); });
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #E8B89A",background:qaLoading?"#E5DCCB":"#F4DDCF",color:"#B85C38",cursor:"pointer",fontFamily:"inherit"}
+            style:{fontSize:'var(--text-xs)',padding:"4px 10px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--accent-border)",background:qaLoading?"var(--border)":"var(--accent-light)",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}
           }, qaLoading ? "\u2026" : "+ Add")
         )
       ),
-      h("div", {style:{borderTop:"0.5px solid #E5DCCB",marginTop:8,paddingTop:10}},
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}},
+      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:10}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)',flexWrap:"wrap"}},
           h("button", {
             onClick:function(){ gen.randomise(); },
             disabled:!(gen.stashPalette && gen.stashPalette.length > 0) || !gen.img,
-            style:{display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:500,padding:"5px 12px",borderRadius:8,border:"0.5px solid #E8B89A",background:"#F4DDCF",color:"#B85C38",cursor:"pointer",fontFamily:"inherit"}
+            style:{display:"flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-sm)',fontWeight:500,padding:"5px 12px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--accent-border)",background:"var(--accent-light)",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}
           }, Icons.shuffle(), " Randomise"),
           gen.variationSeed ? (seedEditing ?
             h("span", {style:{display:"flex",alignItems:"center",gap:3}},
@@ -12084,47 +12084,47 @@ window.CreatorSidebar = function CreatorSidebar() {
                   else if(e.key==="Escape"){setSeedEditing(false);}
                 },
                 onBlur:function(){setSeedEditing(false);},
-                style:{width:70,padding:"2px 4px",fontSize:10,borderRadius:4,border:"0.5px solid #E8B89A",fontFamily:"inherit"}
+                style:{width:70,padding:"2px 4px",fontSize:10,borderRadius:4,border:"0.5px solid var(--accent-border)",fontFamily:"inherit"}
               })
             ) :
             h("span", {
               onClick:function(){setSeedEditing(true);setSeedTmp(String(gen.variationSeed));},
               title:"Click to enter a specific seed",
-              style:{fontSize:10,color:"#A89E89",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
+              style:{fontSize:10,color:"var(--text-tertiary)",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
             }, "#" + gen.variationSeed)
           ) : null
         ),
         gen.stashConstrained && gen.variationSeed && gen.variationSubset && gen.stashPalette && gen.stashPalette.length >= 3 && h("div", {
-          style:{fontSize:10,color:"#B85C38",marginBottom:6,display:"flex",alignItems:"center",gap:4}
+          style:{fontSize:10,color:"var(--accent)",marginBottom:6,display:"flex",alignItems:"center",gap:'var(--s-1)'}
         }, Icons.dice(), " Roulette \u2014 using " + gen.variationSubset.length + " of " + gen.stashPalette.length + " threads"),
         h("button", {
           onClick:function(){
             gen.setGalleryOpen(function(o){return !o;});
             if (!gen.galleryOpen) gen.generateGallery();
           },
-          style:{fontSize:11,color:"#5C5448",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,marginBottom:4}
+          style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}
         },
           h("span", {style:{fontSize:9,display:"inline-block",transform:gen.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
           "Explore variations"
         ),
-        gen.galleryOpen && h("div", {style:{marginTop:4}},
-          h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}},
+        gen.galleryOpen && h("div", {style:{marginTop:'var(--s-1)'}},
+          h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:'var(--s-2)'}},
             gen.gallerySlots.map(function(slot, i) {
               return h("div", {
                 key:i,
                 onClick:function(){ if (!slot.loading && slot.url) { gen.promoteVariation(slot); gen.setGalleryOpen(false); } },
                 style:{
-                  borderRadius:8,overflow:"hidden",border:"0.5px solid #E5DCCB",
+                  borderRadius:'var(--radius-md)',overflow:"hidden",border:"0.5px solid var(--border)",
                   cursor:(!slot.loading && slot.url) ? "pointer" : "default",
-                  background:"#f8fafc",transition:"border-color 0.15s"
+                  background:"var(--surface-secondary)",transition:"border-color 0.15s"
                 }
               },
                 slot.loading ?
-                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#A89E89"}}, "\u2026") :
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--text-tertiary)"}}, "\u2026") :
                 slot.url ?
                   h("div", null,
                     h("img", {src:slot.url, style:{width:"100%",display:"block",imageRendering:"pixelated"}}),
-                    h("div", {style:{padding:"3px 6px",fontSize:9,color:"#5C5448"}},
+                    h("div", {style:{padding:"3px 6px",fontSize:9,color:"var(--text-secondary)"}},
                       "#" + slot.seed + " \u00B7 " + slot.threadCount + " threads"
                     )
                   ) :
@@ -12135,36 +12135,36 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("div", {style:{display:"flex",justifyContent:"center"}},
             h("button", {
               onClick:function(){ gen.generateGallery(); },
-              style:{fontSize:11,padding:"4px 12px",borderRadius:6,border:"0.5px solid #E5DCCB",background:"#fff",color:"#5C5448",cursor:"pointer",fontFamily:"inherit"}
+              style:{fontSize:'var(--text-xs)',padding:"4px 12px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer",fontFamily:"inherit"}
             }, "New batch")
           )
         ),
-        gen.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
-          h("div", {style:{fontSize:10,color:"#A89E89",marginBottom:4}}, "Recent variations"),
-          h("div", {style:{display:"flex",gap:4,overflowX:"auto",paddingBottom:4}},
+        gen.variationHistory.length > 0 && h("div", {style:{marginTop:'var(--s-2)'}},
+          h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-1)'}}, "Recent variations"),
+          h("div", {style:{display:"flex",gap:'var(--s-1)',overflowX:"auto",paddingBottom:4}},
             gen.variationHistory.map(function(entry, i) {
               return h("div", {
                 key:(entry.timestamp || i) + "-" + i,
                 onClick:function(){ gen.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); },
                 title:"Seed #" + entry.seed,
-                style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid #E5DCCB"}
+                style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid var(--border)"}
               },
                 entry.previewUrl ?
                   h("img", {src:entry.previewUrl, style:{width:32,height:32,display:"block",imageRendering:"pixelated",objectFit:"cover"}}) :
-                  h("div", {style:{width:32,height:32,background:"#EFE7D6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#A89E89"}}, "?"),
-                h("div", {style:{fontSize:7,color:"#A89E89",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
+                  h("div", {style:{width:32,height:32,background:"var(--surface-tertiary)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"var(--text-tertiary)"}}, "?"),
+                h("div", {style:{fontSize:7,color:"var(--text-tertiary)",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
               );
             })
           )
         )
       )
     ),
-    h("div", {style:{marginTop:8}},
+    h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
         format:function(v){return v===0?"Off":v;},
         helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
     ),
-    h("div", {style:{marginTop:8}},
+    h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Remove Orphans", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
         format:function(v){return v===0?"Off":String(v);},
         helpText:"Removes isolated stitches with no same-colour neighbours — reduces confetti and makes the pattern easier to stitch"}),
@@ -12175,12 +12175,12 @@ window.CreatorSidebar = function CreatorSidebar() {
         } else if (gen.orphans === 2) {
           desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
         } else {
-          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#A53D3D",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
         }
-        return h("div", {style:{fontSize:11,color:"#5C5448",marginTop:4,lineHeight:1.5}}, desc);
+        return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
       })()
     ),
-    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#A89E89",marginTop:2}},
+    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
       "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
       " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),
@@ -12188,24 +12188,24 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("button", {
         onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
         style:{
-          fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-          border:gen.showCleanupDiff?"1px solid #B85C38":"0.5px solid #E5DCCB",
-          background:gen.showCleanupDiff?"#F4DDCF":"#fff",
-          color:gen.showCleanupDiff?"#B85C38":"#5C5448",
+          fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
+          border:gen.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--border)",
+          background:gen.showCleanupDiff?"var(--accent-light)":"var(--surface)",
+          color:gen.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
           fontWeight:gen.showCleanupDiff?600:400,
-          display:"flex",alignItems:"center",gap:4,lineHeight:1.4
+          display:"flex",alignItems:"center",gap:'var(--s-1)',lineHeight:1.4
         }
       }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
     ),
     gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
-      fontSize:11,color:"#5C5448",padding:"6px 10px",
-      background:"#fdf4ff",border:"1px solid #f0abfc",borderRadius:8,
-      marginTop:4,lineHeight:1.5
+      fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
+      background:"var(--surface-secondary)",border:"1px solid #f0abfc",borderRadius:'var(--radius-md)',
+      marginTop:'var(--s-1)',lineHeight:1.5
     }},
-      h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
+      h("span", {style:{color:"var(--accent)",fontWeight:700,marginRight:'var(--s-1)'}}, "\u25CF"),
       gen.cleanupDiff.count.toLocaleString(), " stitches changed",
       ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#A89E89"}},
+      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
         Object.entries(gen.cleanupDiff.byColour)
           .sort(function(a,b){return b[1]-a[1];})
           .slice(0,4)
@@ -12219,40 +12219,40 @@ window.CreatorSidebar = function CreatorSidebar() {
       if (!warning) return null;
       var isDanger = warning.level === "danger";
       return h("div", {style:{
-        marginTop:6,padding:"8px 10px",borderRadius:8,fontSize:11,lineHeight:1.5,
-        background:isDanger?"#FCEFEF":"#FAF5E1",
-        border:"1px solid "+(isDanger?"#ECC8C8":"#E5C97D"),
-        color:isDanger?"#722424":"#6B461F",
+        marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
+        background:isDanger?"var(--danger-soft)":"#FAF5E1",
+        border:"1px solid "+(isDanger?"var(--danger-soft)":"#E5C97D"),
+        color:isDanger?"var(--danger)":"var(--accent-ink)",
         display:"flex",alignItems:"flex-start",gap:6
       }},
-        h("span", {style:{fontSize:14,lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
+        h("span", {style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
         h("span", null, warning.message)
       );
     })(),
     h("button", {
       onClick:function(){app.setPalAdvanced(function(o){return !o;});},
-      style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#5C5448",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
+      style:{marginTop:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
     },
       h("span", {style:{fontSize:9,display:"inline-block",transform:app.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
       "Dithering",
-      gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#B85C38",display:"inline-block",marginLeft:2}}) : null
+      gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block",marginLeft:2}}) : null
     ),
     app.palAdvanced && h(React.Fragment, null,
-      h("div", {style:{marginTop:6,padding:"8px 10px",background:"#F8EFD8",borderRadius:8,border:"0.5px solid #E5C99A",fontSize:10,color:"#8A5C26"}},
+      h("div", {style:{marginTop:6,padding:"8px 10px",background:"#F8EFD8",borderRadius:'var(--radius-md)',border:"0.5px solid #E5C99A",fontSize:10,color:"var(--accent-ink)"}},
         "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
       ),
       h("div", {style:{display:"flex",gap:6,marginTop:6}},
-        h("div", {style:{display:"flex",gap:2,background:"#EFE7D6",borderRadius:8,padding:2,flex:1}},
+        h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
           h(Tooltip, {text:"Maps each pixel directly to its closest DMC colour. Fewer scattered stitches", width:200},
             h("button", {
               onClick:function(){gen.setDith(false);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:!gen.dith?500:400,background:!gen.dith?"#fff":"transparent",borderRadius:6,color:!gen.dith?"#1B1814":"#5C5448",border:"none",cursor:"pointer",boxShadow:!gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:!gen.dith?500:400,background:!gen.dith?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:!gen.dith?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:!gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Direct")
           ),
           h(Tooltip, {text:"Uses Floyd-Steinberg error diffusion for smoother colour gradients, but creates more scattered stitches", width:220},
             h("button", {
               onClick:function(){gen.setDith(true);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:gen.dith?500:400,background:gen.dith?"#fff":"transparent",borderRadius:6,color:gen.dith?"#1B1814":"#5C5448",border:"none",cursor:"pointer",boxShadow:gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.dith?500:400,background:gen.dith?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.dith?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Dithered")
           )
         )
@@ -12264,15 +12264,15 @@ window.CreatorSidebar = function CreatorSidebar() {
   var cleanupSection = !ctx.isScratchMode ? (function() {
     var sc2 = gen.stitchCleanup;
     var scBadge = h("span", {style:{
-      fontSize:11,fontWeight:500,padding:"1px 8px",borderRadius:10,
-      color:sc2.enabled?"#B85C38":"#A89E89",background:sc2.enabled?"#F4DDCF":"#EFE7D6"
+      fontSize:'var(--text-xs)',fontWeight:500,padding:"1px 8px",borderRadius:'var(--radius-lg)',
+      color:sc2.enabled?"var(--accent)":"var(--text-tertiary)",background:sc2.enabled?"var(--accent-light)":"var(--surface-tertiary)"
     }}, sc2.enabled ? "On \u2014 "+(sc2.strength[0].toUpperCase()+sc2.strength.slice(1)) : "Off");
     var strengthKeys=["gentle","balanced","thorough"];
     var strengthLabels=["Gentle","Balanced","Thorough"];
     var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
     var strengthIdx=strengthKeys.indexOf(sc2.strength);
     return h(Section, {title:"Stitch Cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:scBadge},
-      h("div", {style:{marginTop:8}},
+      h("div", {style:{marginTop:'var(--s-2)'}},
         h(Toggle, {
           checked:sc2.enabled,
           onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
@@ -12280,24 +12280,24 @@ window.CreatorSidebar = function CreatorSidebar() {
           help:"Automatically removes scattered single stitches that are hard to sew. Turn off if you want to keep the full dithered detail."
         }),
         sc2.enabled && h(React.Fragment, null,
-          h("div", {style:{marginBottom:10,padding:"8px 10px",background:"#F4DDCF",borderRadius:8,border:"0.5px solid #E8B89A",fontSize:11,color:"#B85C38",fontWeight:500}},
+          h("div", {style:{marginBottom:10,padding:"8px 10px",background:"var(--accent-light)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--accent-border)",fontSize:'var(--text-xs)',color:"var(--accent)",fontWeight:500}},
             "Removes scattered single stitches (confetti) that are impractical to sew \u2014 especially in dithered areas and gradients."
           ),
-          h("div", {style:{marginTop:4,marginBottom:10}},
-            h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
-              h("span", {style:{fontSize:12,color:"#52525b",fontWeight:500}}, "Cleanup strength"),
+          h("div", {style:{marginTop:'var(--s-1)',marginBottom:10}},
+            h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
+              h("span", {style:{fontSize:'var(--text-sm)',color:"#52525b",fontWeight:500}}, "Cleanup strength"),
               h(InfoIcon, {text:"How aggressively scattered stitches are merged into nearby colours. Gentle keeps more detail. Thorough creates smoother, easier-to-sew blocks.", width:220})
             ),
             h("input", {
               type:"range",min:0,max:2,step:1,value:strengthIdx,
               onChange:function(e){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[+e.target.value]});});},
-              style:{width:"100%",accentColor:"#B85C38"}
+              style:{width:"100%",accentColor:"var(--accent)"}
             }),
-            h("div", {style:{display:"flex",justifyContent:"space-between",marginTop:6,gap:4}},
+            h("div", {style:{display:"flex",justifyContent:"space-between",marginTop:6,gap:'var(--s-1)'}},
               strengthLabels.map(function(l,i) {
                 return h(Tooltip, {key:l, text:strengthDescs[i], width:160},
                   h("span", {
-                    style:{fontSize:10,color:strengthIdx===i?"#B85C38":"#A89E89",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
+                    style:{fontSize:10,color:strengthIdx===i?"var(--accent)":"var(--text-tertiary)",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
                     onClick:function(){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
                   }, l)
                 );
@@ -12322,38 +12322,38 @@ window.CreatorSidebar = function CreatorSidebar() {
   })() : null;
 
   // ── Fabric & Floss section ──────────────────────────────────────────────────
-  var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#5C5448",background:"#EFE7D6",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
+  var fabBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.fabricCt+"ct");
   var fabSection = h(Section, {title:"Fabric & Floss", isOpen:app.fabOpen, onToggle:app.setFabOpen, badge:fabBadge},
-    h("div", {style:{marginTop:8}},
-      h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
-        h("span", {style:{fontSize:12,color:"#5C5448",fontWeight:600}}, "Fabric count"),
+    h("div", {style:{marginTop:'var(--s-2)'}},
+      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
+        h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Fabric count"),
         h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
       ),
       h("select", {
         value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{width:"100%",padding:"6px 10px",borderRadius:8,border:"0.5px solid #E5DCCB",fontSize:13,background:"#fff"}
+        style:{width:"100%",padding:"6px 10px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-md)',background:"var(--surface)"}
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("div", {style:{fontSize:11,color:"#A89E89",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
+      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
     )
   );
 
   // ── Adjustments section (non-scratch) ──────────────────────────────────────
-  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#B85C38",display:"inline-block"}}) : null;
+  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
   var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
-    h("div", {style:{marginTop:8}},
+    h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
         helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
-      gen.smooth===0 && h("div", {style:{fontSize:11,color:"#A89E89",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
+      gen.smooth===0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
       gen.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
-        h("div", {style:{display:"flex",gap:2,background:"#EFE7D6",borderRadius:8,padding:2,flex:1}},
+        h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
           h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
-            h("button", {onClick:function(){gen.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:gen.smoothType==="median"?500:400,background:gen.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:gen.smoothType==="median"?"#1B1814":"#5C5448",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
+            h("button", {onClick:function(){gen.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="median"?500:400,background:gen.smoothType==="median"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="median"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
           ),
           h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:180},
-            h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:gen.smoothType==="gaussian"?"#1B1814":"#5C5448",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
+            h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="gaussian"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
           )
         )
       ),
@@ -12368,7 +12368,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // turned on so the user is never left wondering what to click. Re-toggling
   // off and on doesn't keep re-arming pick mode (only on the 0→1 transition
   // when no bgCol has been customised).
-  var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#4F7D3F",display:"inline-block"}}) : null;
+  var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--success)",display:"inline-block"}}) : null;
   function armBgPick() {
     // Switch the user to the Image tab so the pick target is visible.
     if (app.appMode === "create" && app.setSidebarTab) app.setSidebarTab("image");
@@ -12388,7 +12388,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     }
   }
   var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:app.bgOpen, onToggle:app.setBgOpen, badge:bgBadge},
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}},
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){
         var on = e.target.checked;
         gen.setSkipBg(on);
@@ -12402,24 +12402,24 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})
     ),
     gen.skipBg && h("div", {style:{marginTop:10}},
-      h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
+      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:10}},
         h("div", {
           onClick:armBgPick,
           title:"Pick background colour from the source image",
-          style:{width:24,height:24,borderRadius:6,background:"rgb("+gen.bgCol+")",border:"2px solid #E5DCCB",cursor:"pointer"}
+          style:{width:24,height:24,borderRadius:'var(--radius-sm)',background:"rgb("+gen.bgCol+")",border:"2px solid var(--border)",cursor:"pointer"}
         }),
         h("button", {
           onClick:armBgPick,
-          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #E5DCCB",borderRadius:6,background:gen.pickBg?"#F8EFD8":"#FBF8F3",color:gen.pickBg?"#9a3412":"#1B1814",cursor:"pointer"}
+          style:{fontSize:'var(--text-xs)',padding:"3px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:gen.pickBg?"#F8EFD8":"var(--surface-secondary)",color:gen.pickBg?"var(--accent-hover)":"var(--text-primary)",cursor:"pointer"}
         }, gen.pickBg ? "Picking…" : "Pick")
       ),
       h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
         helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
-      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#EFE7D6",borderRadius:8,fontSize:11,color:"#5C5448"}},
+      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
         h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
         h("button", {
           onClick:gen.autoCrop,
-          style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #CFC4AC",borderRadius:6,cursor:"pointer",color:"#1B1814"}
+          style:{width:"100%",padding:"6px",fontSize:'var(--text-sm)',fontWeight:500,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',cursor:"pointer",color:"var(--text-primary)"}
         }, "Auto-Crop to Stitches")
       )
     )
@@ -12429,13 +12429,13 @@ window.CreatorSidebar = function CreatorSidebar() {
   var actionBtn = ctx.isScratchMode
     ? h("button", {
         onClick:function(){ctx.initBlankGrid(ctx.sW, ctx.sH);},
-        style:{padding:"8px 14px",fontSize:12,fontWeight:600,background:"#A53D3D",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}
+        style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,background:"var(--danger)",color:"var(--surface)",border:"none",borderRadius:'var(--radius-md)',cursor:"pointer"}
       }, "Reset Canvas")
     : h("button", {
         onClick:gen.generate, disabled:gen.busy,
-        style:{padding:"8px 14px",fontSize:12,fontWeight:600,
-          background:gen.busy?"#A89E89":"#B85C38",color:"#fff",
-          border:"none",borderRadius:8,cursor:gen.busy?"wait":"pointer"}
+        style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,
+          background:gen.busy?"var(--text-tertiary)":"var(--accent)",color:"var(--surface)",
+          border:"none",borderRadius:'var(--radius-md)',cursor:gen.busy?"wait":"pointer"}
       }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
   // ─── Mode-aware sidebar tab bar ────────────────────────────────────────────
@@ -12489,7 +12489,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             }
           },
           style:{
-            flex:"1 1 0",minWidth:0,padding:"8px 4px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
+            flex:"1 1 0",minWidth:0,padding:"8px 4px",fontSize:'var(--text-xs)',fontWeight:sTab===kl[0]?600:400,
             border:"none",borderBottom:sTab===kl[0]?"2px solid var(--accent)":"2px solid transparent",
             cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",
             background:"transparent",
@@ -12502,18 +12502,18 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ─── View toggle (shared between View tab content in both modes) ─────────
   var viewToggle = (ctx.pat && ctx.pal) ? h("div", {
-    style:{padding:"8px 12px",display:"flex",alignItems:"center",gap:8}
+    style:{padding:"8px 12px",display:"flex",alignItems:"center",gap:'var(--s-2)'}
   },
-    h("span", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginRight:4}}, "View"),
-    h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:8,padding:2,flex:1}},
+    h("span", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginRight:'var(--s-1)'}}, "View"),
+    h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
       [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
         return h("button", {
           key:kl[0],
           onClick:function(){cv.setView(kl[0]);},
           title:"Cycle view (V)",
           style:{
-            flex:1,padding:"4px 6px",fontSize:11,fontWeight:cv.view===kl[0]?600:400,
-            border:"none",cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+            flex:1,padding:"4px 6px",fontSize:'var(--text-xs)',fontWeight:cv.view===kl[0]?600:400,
+            border:"none",cursor:"pointer",borderRadius:'var(--radius-sm)',fontFamily:"inherit",
             background:cv.view===kl[0]?"var(--surface)":"transparent",
             color:cv.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
             boxShadow:cv.view===kl[0]?"var(--shadow-sm)":"none"
@@ -12525,7 +12525,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ─── Highlight mode controls (shared between Edit and Track View tabs) ──
   var highlightControls = cv.hiId ? h("div", {style:{padding:"8px 12px",borderTop:"0.5px solid var(--border)"}},
-    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:6}}, "Highlight Mode"),
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:6}}, "Highlight Mode"),
     h("div", {style:{display:"flex",gap:3,flexWrap:"wrap"}},
       [["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(function(kl) {
         return h("button", {
@@ -12534,7 +12534,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           style:{
             flex:1,padding:"4px 6px",fontSize:10,fontWeight:cv.highlightMode===kl[0]?600:400,
             border:"1px solid "+(cv.highlightMode===kl[0]?"var(--accent)":"var(--border)"),
-            cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+            cursor:"pointer",borderRadius:'var(--radius-sm)',fontFamily:"inherit",
             background:cv.highlightMode===kl[0]?"var(--accent-light)":"transparent",
             color:cv.highlightMode===kl[0]?"var(--accent)":"var(--text-secondary)",
           }
@@ -12542,20 +12542,20 @@ window.CreatorSidebar = function CreatorSidebar() {
       })
     ),
     cv.highlightMode === "isolate" && h("div", {style:{marginTop:6}},
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
         "Dim strength",
         h("input", {type:"range",min:0,max:1,step:0.05,value:cv.bgDimOpacity,
           onChange:function(e){cv.setBgDimOpacity(parseFloat(e.target.value));}})
       )
     ),
     cv.highlightMode === "tint" && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6}},
-      h("label", {style:{fontSize:11,color:"var(--text-secondary)"}}, "Tint"),
+      h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)"}}, "Tint"),
       h("input", {type:"color",value:cv.tintColor,onChange:function(e){cv.setTintColor(e.target.value);},style:{width:24,height:20,border:"none",padding:0,cursor:"pointer"}}),
       h("input", {type:"range",min:0,max:1,step:0.05,value:cv.tintOpacity,
         onChange:function(e){cv.setTintOpacity(parseFloat(e.target.value));}})
     ),
     cv.highlightMode === "spotlight" && h("div", {style:{marginTop:6}},
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
         "Dim strength",
         h("input", {type:"range",min:0,max:1,step:0.05,value:cv.spotDimOpacity,
           onChange:function(e){cv.setSpotDimOpacity(parseFloat(e.target.value));}})
@@ -12566,8 +12566,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ─── Preview panel (shared between Create and Edit) ──────────────────────
   var isRealistic = app.previewMode === "realistic";
   var previewPanel = h("div", {style:{padding:"12px"}},
-    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:8}}, "Chart Mode"),
-    h("div", {style:{display:"flex",gap:3,marginBottom:12}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:'var(--s-2)'}}, "Chart Mode"),
+    h("div", {style:{display:"flex",gap:3,marginBottom:'var(--s-3)'}},
       [["chart","Chart"],["pixel","Pixel"],["realistic","Realistic"]].map(function(kl) {
         var active = (!app.previewActive && kl[0]==="chart") || (app.previewActive && app.previewMode===kl[0]);
         return h("button", {
@@ -12577,9 +12577,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             else{app.setPreviewActive(true);app.setPreviewMode(kl[0]);}
           },
           style:{
-            flex:1,padding:"6px 4px",fontSize:11,fontWeight:active?600:400,
+            flex:1,padding:"6px 4px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
             border:"1px solid "+(active?"var(--accent)":"var(--border)"),
-            cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+            cursor:"pointer",borderRadius:'var(--radius-sm)',fontFamily:"inherit",
             background:active?"var(--accent-light)":"transparent",
             color:active?"var(--accent)":"var(--text-secondary)",
           }
@@ -12587,16 +12587,16 @@ window.CreatorSidebar = function CreatorSidebar() {
       })
     ),
     isRealistic && app.previewActive && h(React.Fragment, null,
-      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:4}}, "Quality Level"),
-      h("div", {style:{display:"flex",gap:3,marginBottom:12}},
+      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:'var(--s-1)'}}, "Quality Level"),
+      h("div", {style:{display:"flex",gap:3,marginBottom:'var(--s-3)'}},
         [1,2,3,4].map(function(lv) {
           return h("button", {
             key:lv,
             onClick:function(){app.setRealisticLevel(lv);},
             style:{
-              flex:1,padding:"5px 4px",fontSize:11,fontWeight:app.realisticLevel===lv?600:400,
+              flex:1,padding:"5px 4px",fontSize:'var(--text-xs)',fontWeight:app.realisticLevel===lv?600:400,
               border:"1px solid "+(app.realisticLevel===lv?"var(--accent)":"var(--border)"),
-              cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+              cursor:"pointer",borderRadius:'var(--radius-sm)',fontFamily:"inherit",
               background:app.realisticLevel===lv?"var(--accent-light)":"transparent",
               color:app.realisticLevel===lv?"var(--accent)":"var(--text-secondary)",
             }
@@ -12604,8 +12604,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         })
       )
     ),
-    h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
-      h("label", {style:{fontSize:11,color:"var(--text-secondary)",flexShrink:0}}, "Coverage"),
+    h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:6}},
+      h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexShrink:0}}, "Coverage"),
       h("input", {type:"range",min:0,max:1,step:0.05,
         value:app.coverageOverride!=null?app.coverageOverride:0.5,
         onChange:function(e){app.setCoverageOverride(parseFloat(e.target.value));},
@@ -12616,7 +12616,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         style:{fontSize:10,padding:"2px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--surface)",cursor:"pointer",color:"var(--text-secondary)"}
       }, "\u21BA Auto")
     ),
-    h("div", {style:{display:"flex",gap:3,marginBottom:12}},
+    h("div", {style:{display:"flex",gap:3,marginBottom:'var(--s-3)'}},
       [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
         var active = app.coverageOverride!=null && Math.abs(app.coverageOverride - preset[1]) < 0.03;
         return h("button", {
@@ -12626,22 +12626,22 @@ window.CreatorSidebar = function CreatorSidebar() {
             flex:1,fontSize:9,padding:"3px 0",
             border:"1px solid "+(active?"var(--accent)":"var(--border)"),
             borderRadius:4,background:active?"var(--accent)":"transparent",
-            color:active?"#fff":"var(--text-secondary)",cursor:"pointer"
+            color:active?"var(--surface)":"var(--text-secondary)",cursor:"pointer"
           }
         }, preset[0]);
       })
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)",marginBottom:4}},
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginBottom:'var(--s-1)'}},
       h("input", {type:"checkbox",checked:app.previewShowGrid,onChange:function(){app.setPreviewShowGrid(!app.previewShowGrid);}}),
       "Grid overlay"
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
       h("input", {type:"checkbox",checked:app.previewFabricBg,onChange:function(){app.setPreviewFabricBg(!app.previewFabricBg);}}),
       "Fabric background"
     ),
     // ── Split / compare view (moved here from the top toolbar) ──────────
     (ctx.pat && ctx.pal) && h("div", {style:{marginTop:14,paddingTop:10,borderTop:"1px solid var(--border)"}},
-      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:8}}, "Compare"),
+      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:'var(--s-2)'}}, "Compare"),
       h("button", {
         onClick:function(){
           var next = !app.splitPaneEnabled;
@@ -12651,11 +12651,11 @@ window.CreatorSidebar = function CreatorSidebar() {
         "aria-pressed": app.splitPaneEnabled ? "true" : "false",
         title: app.splitPaneEnabled ? "Exit compare view (\\)" : "Compare chart vs realistic preview (\\)",
         style:{
-          width:"100%",padding:"8px 10px",fontSize:12,fontWeight:app.splitPaneEnabled?600:500,
+          width:"100%",padding:"8px 10px",fontSize:'var(--text-sm)',fontWeight:app.splitPaneEnabled?600:500,
           border:"1px solid "+(app.splitPaneEnabled?"var(--accent)":"var(--border)"),
           background:app.splitPaneEnabled?"var(--accent-light)":"transparent",
           color:app.splitPaneEnabled?"var(--accent)":"var(--text-secondary)",
-          borderRadius:6,cursor:"pointer",fontFamily:"inherit",
+          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit",
           display:"flex",alignItems:"center",justifyContent:"center",gap:6
         }
       },
@@ -12676,32 +12676,32 @@ window.CreatorSidebar = function CreatorSidebar() {
     // Project info — name, designer, description. Always-visible at top so
     // users can name a pattern before generating it.
     var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
-      h("div", {style:{display:"flex",flexDirection:"column",gap:8,padding:"4px 0 2px"}},
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+      h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
           "Pattern name",
           h("input", {
             type:"text", value: app.projectName || "", maxLength:60,
             placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
             onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
-            style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
           })
         ),
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
           "Designer (optional)",
           h("input", {
             type:"text", value: app.projectDesigner || "", maxLength:80,
             placeholder: "Your name or studio",
             onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
-            style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
           })
         ),
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
           "Description / notes (optional)",
           h("textarea", {
             value: app.projectDescription || "", maxLength:500, rows:3,
             placeholder: "Source, copyright, stitching notes\u2026",
             onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
-            style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
           })
         )
       )
@@ -12710,14 +12710,14 @@ window.CreatorSidebar = function CreatorSidebar() {
     //   plus the canonical Source-overlay toggle + opacity slider. The
     //   toolbar overlay button still works as a quick toggle.
     var overlayRow = h("div", {style:{padding:"12px",borderTop:ctx.pat&&gen.img?"1px solid var(--border)":"none"}},
-      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}, "Source overlay"),
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--text-secondary)",marginBottom:8,cursor:gen.img?"pointer":"not-allowed",opacity:gen.img?1:0.5}},
+      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}, "Source overlay"),
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:'var(--s-2)',cursor:gen.img?"pointer":"not-allowed",opacity:gen.img?1:0.5}},
         h("input", {type:"checkbox", disabled:!gen.img, checked:!!cv.showOverlay,
           onChange:function(){cv.setShowOverlay(function(v){return !v;});}}),
         h("span", null, "Show source image over chart")
       ),
-      h("div", {style:{display:"flex",alignItems:"center",gap:8,opacity:(gen.img&&cv.showOverlay)?1:0.4}},
-        h("label", {style:{fontSize:11,color:"var(--text-secondary)",flexShrink:0}}, "Opacity"),
+      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',opacity:(gen.img&&cv.showOverlay)?1:0.4}},
+        h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexShrink:0}}, "Opacity"),
         h("input", {type:"range",min:0,max:1,step:0.05,
           value:cv.overlayOpacity!=null?cv.overlayOpacity:0.3,
           disabled:!gen.img||!cv.showOverlay,
@@ -12730,12 +12730,12 @@ window.CreatorSidebar = function CreatorSidebar() {
         "Load an image to enable the overlay.")
     );
     var imageContent = h(React.Fragment, null,
-      h("div", {style:{padding:"12px",display:"flex",flexDirection:"column",gap:8}},
+      h("div", {style:{padding:"12px",display:"flex",flexDirection:"column",gap:'var(--s-2)'}},
         h("button", {
           onClick:function(){ if(gen.fRef && gen.fRef.current) gen.fRef.current.click(); },
-          style:{padding:"8px 14px",fontSize:12,fontWeight:600,border:"1px solid var(--border)",borderRadius:8,background:"var(--surface-tertiary)",color:"var(--text-primary)",cursor:"pointer",fontFamily:"inherit"}
+          style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,border:"1px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",color:"var(--text-primary)",cursor:"pointer",fontFamily:"inherit"}
         }, gen.img ? "Change image\u2026" : "Choose image\u2026"),
-        !gen.img && h("div", {style:{fontSize:11,color:"var(--text-tertiary)"}},
+        !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}},
           "Pick a photo or drawing to convert into a cross-stitch chart.")
       ),
       imageCard,
@@ -12784,7 +12784,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         );
       }
       return h(Section, {title:"Live summary", defaultOpen:true},
-        h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:12,padding:"4px 0"}},
+        h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"4px 0"}},
           row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
           row("Finished", finishedW + " \u00D7 " + finishedH + " in (" + fabricCt + "ct)"),
           row("Colours", ctx.pat ? (palLen + " colour" + (palLen === 1 ? "" : "s")) : "\u2014"),
@@ -12814,17 +12814,17 @@ window.CreatorSidebar = function CreatorSidebar() {
     // ── Create mode bottom action bar ─────────────────────────────────────
     var createActions = h("div", {style:{
       flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
-      background:"var(--surface)", display:"flex", flexDirection:"column", gap:8
+      background:"var(--surface)", display:"flex", flexDirection:"column", gap:'var(--s-2)'
     }},
       // Generate / Regenerate button
       gen.img && h("button", {
         onClick:function(){ gen.generate(); },
         disabled:gen.busy,
         "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
-        style:{width:"100%",padding:"10px",fontSize:13,fontWeight:600,cursor:gen.busy?"wait":"pointer",
-          border:"none",borderRadius:8,
-          background:gen.busy?"#A89E89":gen.hasGenerated?"var(--surface-tertiary)":"#B85C38",
-          color:gen.hasGenerated?"var(--text-primary)":"#fff"}
+        style:{width:"100%",padding:"10px",fontSize:'var(--text-md)',fontWeight:600,cursor:gen.busy?"wait":"pointer",
+          border:"none",borderRadius:'var(--radius-md)',
+          background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
+          color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
       }, gen.busy ? "Generating\u2026" : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
       // Continue to Edit → (only after generation)
       gen.hasGenerated && h("button", {
@@ -12843,12 +12843,12 @@ window.CreatorSidebar = function CreatorSidebar() {
           if(window.__switchToEdit) window.__switchToEdit();
           app.addToast("Switched to Edit mode", {type:"info", duration:2000});
         },
-        style:{width:"100%",padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",
-          border:"none",borderRadius:8,background:"#B85C38",color:"#fff",
+        style:{width:"100%",padding:"10px",fontSize:'var(--text-md)',fontWeight:600,cursor:"pointer",
+          border:"none",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",
           display:"flex",alignItems:"center",justifyContent:"center",gap:6}
       }, "Edit Pattern \u2192"),
       // Hint text
-      !gen.img && h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
+      !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
         "Upload an image to get started")
     );
     return h(React.Fragment, null,
@@ -12879,7 +12879,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   ];
   var curStitch = cv.stitchType || "cross";
   var stitchTypeSection = h("div", {style:{padding:"12px"}},
-    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
       "Stitch type"),
     h("div", {role:"radiogroup", "aria-label":"Stitch type",
       style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
@@ -12891,11 +12891,11 @@ window.CreatorSidebar = function CreatorSidebar() {
           "aria-checked": on ? "true" : "false",
           onClick:function(){ cv.selectStitchType(kl[0]); },
           style:{
-            padding:"7px 8px",fontSize:12,fontWeight:on?600:400,
+            padding:"7px 8px",fontSize:'var(--text-sm)',fontWeight:on?600:400,
             border:"1px solid "+(on?"var(--accent)":"var(--border)"),
             background:on?"var(--accent-light)":"transparent",
             color:on?"var(--accent)":"var(--text-secondary)",
-            borderRadius:6,cursor:"pointer",fontFamily:"inherit",textAlign:"left"
+            borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit",textAlign:"left"
           }
         }, kl[1]);
       })
@@ -12907,9 +12907,9 @@ window.CreatorSidebar = function CreatorSidebar() {
   var bsContSection = (curStitch === "backstitch") ? h("div", {
     style:{padding:"0 12px 12px"}
   },
-    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}},
       "Backstitch options"),
-    h("label", {style:{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text-secondary)",cursor:"pointer"}},
+    h("label", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',fontSize:'var(--text-sm)',color:"var(--text-secondary)",cursor:"pointer"}},
       h("input", {type:"checkbox", checked: !!cv.bsContinuous,
         onChange:function(e){ cv.setBsContinuous(e.target.checked); cv.setBsStart(null); }}),
       h("span", null, "Continuous mode \u2014 chain segments without re-clicking the start")
@@ -12917,9 +12917,9 @@ window.CreatorSidebar = function CreatorSidebar() {
   ) : null;
 
   var brushSizeSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
-    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
       "Brush size"),
-    h("div", {style:{display:"flex",alignItems:"center",gap:8}},
+    h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)'}},
       h("input", {type:"range", min:1, max:3, step:1, value:cv.brushSize||1,
         onChange:function(e){ cv.setBrushSize(parseInt(e.target.value,10)); },
         "aria-label":"Brush size",
@@ -12932,11 +12932,11 @@ window.CreatorSidebar = function CreatorSidebar() {
             onClick:function(){ cv.setBrushSize(sz); },
             "aria-pressed": on ? "true" : "false",
             style:{
-              minWidth:28,padding:"4px 8px",fontSize:12,fontWeight:on?600:400,
+              minWidth:28,padding:"4px 8px",fontSize:'var(--text-sm)',fontWeight:on?600:400,
               border:"1px solid "+(on?"var(--accent)":"var(--border)"),
               background:on?"var(--accent-light)":"transparent",
               color:on?"var(--accent)":"var(--text-secondary)",
-              borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+              borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
             }
           }, sz);
         })
@@ -12949,7 +12949,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var lassoModes = [["freehand","Freehand"],["polygon","Polygon"],["magnetic","Magnetic"]];
   var curLasso = cv.lassoMode || "freehand";
   var selectionSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
-    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
       "Selection"),
     h("div", {style:{display:"flex",gap:6,marginBottom:10}},
       h("button", {
@@ -12959,12 +12959,12 @@ window.CreatorSidebar = function CreatorSidebar() {
         },
         "aria-pressed": cv.activeTool === "magicWand" ? "true" : "false",
         style:{
-          flex:1,padding:"6px 8px",fontSize:12,
+          flex:1,padding:"6px 8px",fontSize:'var(--text-sm)',
           fontWeight:cv.activeTool==="magicWand"?600:400,
           border:"1px solid "+(cv.activeTool==="magicWand"?"var(--accent)":"var(--border)"),
           background:cv.activeTool==="magicWand"?"var(--accent-light)":"transparent",
           color:cv.activeTool==="magicWand"?"var(--accent)":"var(--text-secondary)",
-          borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
         }
       }, "Magic Wand (W)"),
       h("button", {
@@ -12974,19 +12974,19 @@ window.CreatorSidebar = function CreatorSidebar() {
         },
         "aria-pressed": cv.activeTool === "lasso" ? "true" : "false",
         style:{
-          flex:1,padding:"6px 8px",fontSize:12,
+          flex:1,padding:"6px 8px",fontSize:'var(--text-sm)',
           fontWeight:cv.activeTool==="lasso"?600:400,
           border:"1px solid "+(cv.activeTool==="lasso"?"var(--accent)":"var(--border)"),
           background:cv.activeTool==="lasso"?"var(--accent-light)":"transparent",
           color:cv.activeTool==="lasso"?"var(--accent)":"var(--text-secondary)",
-          borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
         }
       }, "Lasso")
     ),
     h("div", {style:{fontSize:10,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}},
       "Lasso mode"),
     h("div", {role:"radiogroup", "aria-label":"Lasso mode",
-      style:{display:"flex",gap:4,marginBottom:8}},
+      style:{display:"flex",gap:'var(--s-1)',marginBottom:'var(--s-2)'}},
       lassoModes.map(function(kl) {
         var on = curLasso === kl[0];
         return h("button", {
@@ -13001,11 +13001,11 @@ window.CreatorSidebar = function CreatorSidebar() {
             }
           },
           style:{
-            flex:1,padding:"5px 6px",fontSize:11,fontWeight:on?600:400,
+            flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:on?600:400,
             border:"1px solid "+(on?"var(--accent)":"var(--border)"),
             background:on?"var(--accent-light)":"transparent",
             color:on?"var(--accent)":"var(--text-secondary)",
-            borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+            borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
           }
         }, kl[1]);
       })
@@ -13015,8 +13015,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     (cv.hasSelection || cv.lassoInProgress) && h("button", {
       onClick:function(){ if (cv.cancelLasso) cv.cancelLasso(); if (cv.clearSelection) cv.clearSelection(); },
       style:{
-        marginTop:8,width:"100%",padding:"6px 8px",fontSize:11,
-        border:"1px solid var(--border)",borderRadius:6,
+        marginTop:'var(--s-2)',width:"100%",padding:"6px 8px",fontSize:'var(--text-xs)',
+        border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',
         background:"var(--surface)",color:"var(--text-secondary)",
         cursor:"pointer",fontFamily:"inherit"
       }
@@ -13047,11 +13047,11 @@ window.CreatorSidebar = function CreatorSidebar() {
           gen.generate();
         },
         disabled:gen.busy,
-        style:{width:"100%",padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer",border:"none",borderRadius:8,background:"var(--accent)",color:"#fff",marginTop:8}
+        style:{width:"100%",padding:"8px",fontSize:'var(--text-sm)',fontWeight:600,cursor:"pointer",border:"none",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",marginTop:'var(--s-2)'}
       }, "\u21BB Regenerate")
     ),
     h(Section, {title:"Project Info",defaultOpen:false},
-      h("div", {style:{fontSize:11,color:"var(--text-secondary)",padding:"4px 0"}},
+      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},
         ctx.sW + " \xD7 " + ctx.sH + " stitches \u00B7 " + (ctx.displayPal||ctx.pal||[]).length + " colours"
       )
     )
@@ -13060,7 +13060,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Edit mode bottom action bar ──────────────────────────────────────────
   var editActions = (ctx.pat && ctx.pal) ? h("div", {style:{
     flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
-    background:"var(--surface)", display:"flex", gap:8
+    background:"var(--surface)", display:"flex", gap:'var(--s-2)'
   }},
     h("button", {
       "aria-label":"Switch to Create mode",
@@ -13071,15 +13071,15 @@ window.CreatorSidebar = function CreatorSidebar() {
         if(window.__switchToCreate) window.__switchToCreate();
         app.addToast("Switched to Create mode", {type:"info", duration:2000});
       },
-      style:{flex:1,padding:"10px",fontSize:12,fontWeight:500,cursor:"pointer",
-        border:"1px solid var(--border)",borderRadius:8,background:"var(--surface)",
+      style:{flex:1,padding:"10px",fontSize:'var(--text-sm)',fontWeight:500,cursor:"pointer",
+        border:"1px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface)",
         color:"var(--text-secondary)"}
     }, "\u2190 Create"),
     h("button", {
       "aria-label":"Open pattern in Stitch Tracker",
       onClick:function(){ app.handleOpenInTracker(); },
-      style:{flex:2,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",
-        border:"none",borderRadius:8,background:"#B85C38",color:"#fff",
+      style:{flex:2,padding:"10px",fontSize:'var(--text-md)',fontWeight:600,cursor:"pointer",
+        border:"none",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",
         display:"flex",alignItems:"center",justifyContent:"center",gap:6}
     }, "Start Tracking \u2192")
   ) : null;
@@ -13093,8 +13093,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   if (ctx.pat && ctx.pal && app && app.tab === 'project') {
     var palLen = (ctx.displayPal || ctx.pal || []).length;
     return h('aside', { className: 'cs-sidebar-fade', style: { padding: '12px', display: 'flex', flexDirection: 'column', gap: 10 } },
-      h('div', { style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 0.4 } }, 'Project at a glance'),
-      h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 4, fontSize: 12 } },
+      h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 0.4 } }, 'Project at a glance'),
+      h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 4, fontSize:'var(--text-sm)' } },
         h('span', { style: { color: 'var(--text-tertiary)' } }, 'Size'),
         h('span', null, ctx.sW + ' \u00D7 ' + ctx.sH + ' stitches'),
         h('span', { style: { color: 'var(--text-tertiary)' } }, 'Colours'),
@@ -13104,7 +13104,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         ctx.totalSkeins != null && h('span', { style: { color: 'var(--text-tertiary)' } }, 'Skeins'),
         ctx.totalSkeins != null && h('span', null, ctx.totalSkeins)
       ),
-      h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.4 } },
+      h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', lineHeight: 1.4 } },
         'Use the canvas tools on the Pattern page to edit. Generation parameters are above on this page.')
     );
   }
@@ -13140,16 +13140,16 @@ window.CreatorToastContainer = function CreatorToastContainer() {
   if (!app.toasts || app.toasts.length === 0) return null;
 
   var typeStyles = {
-    info:    { bg: "#F4DDCF", border: "#E8B89A", color: "#944526", icon: Icons.info },
-    success: { bg: "#E6EFD9", border: "#B8CC9E", color: "#3F6432", icon: Icons.check },
+    info:    { bg: "var(--accent-light)", border: "var(--accent-border)", color: "var(--accent-hover)", icon: Icons.info },
+    success: { bg: "#E6EFD9", border: "#B8CC9E", color: "var(--success)", icon: Icons.check },
     warning: { bg: "#F4E5C8", border: "#D6B97A", color: "#8A6325", icon: Icons.warning },
-    error:   { bg: "#F2D8D8", border: "#D49A9A", color: "#7A2C2C", icon: Icons.x }
+    error:   { bg: "#F2D8D8", border: "#D49A9A", color: "var(--danger)", icon: Icons.x }
   };
 
   return h("div", {
     style: {
       position: "fixed", bottom: 20, right: 20, zIndex: 10000,
-      display: "flex", flexDirection: "column-reverse", gap: 8,
+      display: "flex", flexDirection: "column-reverse", gap:'var(--s-2)',
       pointerEvents: "none", maxWidth: 340
     }
   },
@@ -13159,22 +13159,22 @@ window.CreatorToastContainer = function CreatorToastContainer() {
         key: toast.id,
         style: {
           pointerEvents: "auto",
-          display: "flex", alignItems: "center", gap: 8,
-          padding: "8px 14px", borderRadius: 10,
+          display: "flex", alignItems: "center", gap:'var(--s-2)',
+          padding: "8px 14px", borderRadius:'var(--radius-lg)',
           background: ts.bg, border: "1px solid " + ts.border,
-          color: ts.color, fontSize: 12, fontWeight: 500,
+          color: ts.color, fontSize:'var(--text-sm)', fontWeight: 500,
           boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
           animation: "toast-in 0.25s ease-out",
           fontFamily: "inherit", lineHeight: 1.4, maxWidth: 340
         }
       },
-        h("span", { style: { fontSize: 14, flexShrink: 0 } }, ts.icon()),
+        h("span", { style: { fontSize:'var(--text-lg)', flexShrink: 0 } }, ts.icon()),
         h("span", { style: { flex: 1 } }, toast.message),
         h("button", {
           onClick: function() { app.dismissToast(toast.id); },
           style: {
             background: "none", border: "none", cursor: "pointer",
-            color: ts.color, opacity: 0.6, fontSize: 14, padding: 0,
+            color: ts.color, opacity: 0.6, fontSize:'var(--text-lg)', padding: 0,
             lineHeight: 1, flexShrink: 0
           }
         }, "\xD7")
@@ -13240,40 +13240,40 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       disabled: opts.disabled,
       style: {
         display:"block", width:"100%", textAlign:"left",
-        padding:"5px 12px", fontSize:12, fontFamily:"inherit",
+        padding:"5px 12px", fontSize:'var(--text-sm)', fontFamily:"inherit",
         border:"none", background:opts.disabled ? "transparent" : "transparent",
-        color:opts.disabled ? "#A89E89" : "#1B1814",
+        color:opts.disabled ? "var(--text-tertiary)" : "var(--text-primary)",
         cursor:opts.disabled ? "default" : "pointer",
         borderRadius:4
       },
-      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "#EFE7D6"; },
+      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "var(--surface-tertiary)"; },
       onMouseLeave: function(e) { e.target.style.background = "transparent"; }
     }, label);
   }
 
   function sep() {
-    return h("div", {style:{height:1,background:"#E5DCCB",margin:"3px 0"}});
+    return h("div", {style:{height:1,background:"var(--border)",margin:"3px 0"}});
   }
 
   return h("div", {
     ref: menuRef,
     style:{
       position:"fixed", left:pos.x, top:pos.y, zIndex:9999,
-      background:"#fff", border:"1px solid #CFC4AC", borderRadius:8,
+      background:"var(--surface)", border:"1px solid var(--border)", borderRadius:'var(--radius-md)',
       boxShadow:"0 4px 16px rgba(0,0,0,0.12)", padding:"4px 0",
       minWidth:180, maxWidth:240
     }
   },
     // Header: cell info
     hasCellColour && h("div", {
-      style:{padding:"5px 12px 4px",fontSize:11,color:"#5C5448",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #EFE7D6",marginBottom:2}
+      style:{padding:"5px 12px 4px",fontSize:'var(--text-xs)',color:"var(--text-secondary)",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid var(--surface-tertiary)",marginBottom:2}
     },
-      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid #CFC4AC",
+      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid var(--border)",
         background:"rgb("+cellInfo.rgb+")"}}),
       "DMC " + cellInfo.id + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
     ),
     !hasCellColour && h("div", {
-      style:{padding:"5px 12px 4px",fontSize:11,color:"#A89E89",borderBottom:"1px solid #EFE7D6",marginBottom:2}
+      style:{padding:"5px 12px 4px",fontSize:'var(--text-xs)',color:"var(--text-tertiary)",borderBottom:"1px solid var(--surface-tertiary)",marginBottom:2}
     }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
 
     // Pick this colour
@@ -13412,15 +13412,15 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   return h("div", null,
     cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {
-      style:{fontSize:12,color:"#5C5448",marginBottom:6,background:"#EFE7D6",padding:"6px 10px",borderRadius:8}
+      style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:6,background:"var(--surface-tertiary)",padding:"6px 10px",borderRadius:'var(--radius-md)'}
     }, "To see symbols, you may need to zoom in."),
 
     ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
-      style:{fontSize:12,color:"#A89E89",padding:"8px 12px",background:"#EFE7D6",borderRadius:8,marginBottom:8,textAlign:"center"}
+      style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',textAlign:"center"}
     }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
     !app.shortcutsHintDismissed && h("div", {
-      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #E5DCCB",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
+      style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 10px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
@@ -13428,7 +13428,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
           localStorage.setItem("shortcuts_hint_dismissed", "1");
           app.setShortcutsHintDismissed(true);
         },
-        style:{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}
+        style:{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:15,lineHeight:1,padding:0}
       }, "\xD7")
     ),
 
@@ -13440,12 +13440,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       var pctOfTotal = removed / Math.max(1, totalStitchable) * 100;
       if (pctOfTotal < 15) return null;
       return h("div", {
-        style:{padding:"8px 12px",background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,fontSize:12,color:"#722424",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}
+        style:{padding:"8px 12px",background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-2)',display:"flex",justifyContent:"space-between",alignItems:"center"}
       },
         h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
         h("button", {
           onClick:function(){setConfettiBannerDismissed(true);},
-          style:{background:"none",border:"none",color:"#722424",cursor:"pointer",fontSize:14,flexShrink:0,marginLeft:8}
+          style:{background:"none",border:"none",color:"var(--danger)",cursor:"pointer",fontSize:'var(--text-lg)',flexShrink:0,marginLeft:'var(--s-2)'}
         }, "\xD7")
       );
     })(),
@@ -13456,7 +13456,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ? h(window.CreatorSplitPane, null)
       : h("div", {
       ref:app.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #E5DCCB",borderRadius:8,background:"#EFE7D6",cursor:(function(){
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
         if (cv.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
@@ -13507,42 +13507,42 @@ window.CreatorPatternTab = function CreatorPatternTab() {
           parts.push("DMC " + info.id + (info.name ? " " + info.name : "") + " (" + (info.count || 0) + " st)");
         }
       }
-      return h("div", {className:"tb-status", style:{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
+      return h("div", {className:"tb-status", style:{display:"flex",gap:'var(--s-3)',alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
         h("span", null, parts[0]),
-        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#A89E89",flexShrink:0}}, parts[1]),
+        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}, parts[1]),
         parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
           ctx.cmap && ctx.pat && cv.hoverCoords && (function() {
             var hIdx2 = cv.hoverCoords.gy * ctx.sW + cv.hoverCoords.gx;
             var hCell2 = ctx.pat[hIdx2];
             if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
-              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #CFC4AC",
+              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid var(--border)",
                 background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
             }
             return null;
           })(),
-          h("span", {style:{fontSize:10,color:"#5C5448"}}, parts[2])
+          h("span", {style:{fontSize:10,color:"var(--text-secondary)"}}, parts[2])
         )
       );
     })(),
 
-    h("div", {style:{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}},
+    h("div", {style:{display:"flex",gap:'var(--s-1)',justifyContent:"flex-end",marginTop:'var(--s-1)',marginBottom:'var(--s-1)'}},
       cv.editHistory.length > 0 && h("button", {
         onClick: cv.undoEdit,
-        style:{fontSize:11,padding:"4px 10px",border:"1px solid #E8B89A",borderRadius:6,background:"#F4DDCF",color:"#B85C38",cursor:"pointer"}
+        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',background:"var(--accent-light)",color:"var(--accent)",cursor:"pointer"}
       }, "\u21A9 Undo"),
       cv.redoHistory.length > 0 && h("button", {
         onClick: cv.redoEdit,
-        style:{fontSize:11,padding:"4px 10px",border:"1px solid #E8B89A",borderRadius:6,background:"#F4DDCF",color:"#B85C38",cursor:"pointer"}
+        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',background:"var(--accent-light)",color:"var(--accent)",cursor:"pointer"}
       }, "\u21AA Redo"),
       cv.hiId && h("button", {
         onClick: function(){cv.setHiId(null);},
-        style:{fontSize:11,padding:"4px 10px",border:"1px solid #ECC8C8",borderRadius:6,background:"#FCEFEF",color:"#A53D3D",cursor:"pointer"}
+        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer"}
       }, "Clear \u2715")
     ),
 
-    cv.hiId && h("div", {style:{background:"#F8EFD8",border:"0.5px solid #E5C99A",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11,color:"#6B461F"}},
+    cv.hiId && h("div", {style:{background:"#F8EFD8",border:"0.5px solid #E5C99A",borderRadius:'var(--radius-md)',padding:"8px 10px",marginBottom:6,fontSize:'var(--text-xs)',color:"var(--accent-ink)"}},
       // ── Mode toggle segmented control ──
-      h("div", {style:{display:"flex",gap:0,marginBottom:6,borderRadius:6,overflow:"hidden",border:"1px solid #D4A570"}},
+      h("div", {style:{display:"flex",gap:0,marginBottom:6,borderRadius:'var(--radius-sm)',overflow:"hidden",border:"1px solid #D4A570"}},
         ["isolate","outline","tint","spotlight"].map(function(m) {
           var labels = {isolate:"Isolate",outline:"Outline",tint:"Tint",spotlight:"Spotlight"};
           var active = cv.highlightMode === m;
@@ -13552,8 +13552,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
             style:{
               flex:1, padding:"4px 0", fontSize:10, fontWeight: active ? 700 : 500, cursor:"pointer",
               border:"none", borderRight:"1px solid #D4A570",
-              background: active ? "#A04E11" : "#F8EFD8",
-              color: active ? "#fff" : "#6B461F"
+              background: active ? "var(--accent-hover)" : "#F8EFD8",
+              color: active ? "var(--surface)" : "var(--accent-ink)"
             }
           }, labels[m]);
         })
@@ -13561,7 +13561,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
       // ── Isolate settings ──
       cv.highlightMode === "isolate" && h("div", null,
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)'}},
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Background dimming"),
           h("input", {
             type:"range", min:5, max:60, step:1,
@@ -13571,24 +13571,24 @@ window.CreatorPatternTab = function CreatorPatternTab() {
               cv.setBgDimOpacity(op);
               if (!cv.hiAdvanced) cv.setBgDimDesaturation(Math.min(1, (100 - parseInt(e.target.value)) / 100));
             },
-            style:{flex:1,accentColor:"#A04E11"}
+            style:{flex:1,accentColor:"var(--accent-hover)"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.bgDimOpacity * 100) + "%")
         ),
-        cv.hiAdvanced && h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+        cv.hiAdvanced && h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)'}},
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Desaturation"),
           h("input", {
             type:"range", min:0, max:100, step:1,
             value: Math.round(cv.bgDimDesaturation * 100),
             onChange: function(e) { cv.setBgDimDesaturation(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"#A04E11"}
+            style:{flex:1,accentColor:"var(--accent-hover)"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.bgDimDesaturation * 100) + "%")
         ),
         h("div", {style:{display:"flex",justifyContent:"flex-end"}},
-          h("label", {style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none"}},
-            h("input", {type:"checkbox", checked:cv.hiAdvanced, onChange:function(e){cv.setHiAdvanced(e.target.checked);}, style:{accentColor:"#A04E11"}}),
-            h("span", {style:{fontSize:10,color:"#6B461F"}}, "Advanced (decouple sliders)")
+          h("label", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',cursor:"pointer",userSelect:"none"}},
+            h("input", {type:"checkbox", checked:cv.hiAdvanced, onChange:function(e){cv.setHiAdvanced(e.target.checked);}, style:{accentColor:"var(--accent-hover)"}}),
+            h("span", {style:{fontSize:10,color:"var(--accent-ink)"}}, "Advanced (decouple sliders)")
           )
         )
       ),
@@ -13600,7 +13600,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
       // ── Tint settings ──
       cv.highlightMode === "tint" && h("div", null,
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)'}},
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Tint colour"),
           h("input", {
             type:"color",
@@ -13608,12 +13608,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
             onChange: function(e) { cv.setTintColor(e.target.value); },
             style:{width:28,height:22,padding:0,border:"1px solid #D4A570",borderRadius:4,cursor:"pointer"}
           }),
-          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f",marginLeft:8}}, "Opacity"),
+          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f",marginLeft:'var(--s-2)'}}, "Opacity"),
           h("input", {
             type:"range", min:10, max:80, step:1,
             value: Math.round(cv.tintOpacity * 100),
             onChange: function(e) { cv.setTintOpacity(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"#A04E11"}
+            style:{flex:1,accentColor:"var(--accent-hover)"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.tintOpacity * 100) + "%")
         )
@@ -13621,13 +13621,13 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
       // ── Spotlight settings ──
       cv.highlightMode === "spotlight" && h("div", null,
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)'}},
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Dim strength"),
           h("input", {
             type:"range", min:5, max:50, step:1,
             value: Math.round(cv.spotDimOpacity * 100),
             onChange: function(e) { cv.setSpotDimOpacity(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"#A04E11"}
+            style:{flex:1,accentColor:"var(--accent-hover)"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.spotDimOpacity * 100) + "%")
         )
@@ -13669,16 +13669,16 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     ];
 
     var difficultyBadge = ctx.difficulty && h("div", {
-      style:{marginTop:12,padding:"8px 12px",background:"#FBF8F3",borderRadius:8,border:"0.5px solid #E5DCCB",display:"flex",alignItems:"center",gap:10}
+      style:{marginTop:'var(--s-3)',padding:"8px 12px",background:"var(--surface-secondary)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",display:"flex",alignItems:"center",gap:10}
     },
-      h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
+      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
       h("div", {style:{display:"flex",gap:2}},
         [1,2,3,4].map(function(s) {
-          return h("span", {key:s, style:{fontSize:16,color:s<=ctx.difficulty.stars?ctx.difficulty.color:"#E5DCCB"}}, "\u2605");
+          return h("span", {key:s, style:{fontSize:'var(--text-xl)',color:s<=ctx.difficulty.stars?ctx.difficulty.color:"var(--border)"}}, "\u2605");
         })
       ),
-      h("span", {style:{fontSize:13,fontWeight:700,color:ctx.difficulty.color}}, ctx.difficulty.label),
-      h("span", {style:{fontSize:11,color:"#A89E89",marginLeft:"auto"}},
+      h("span", {style:{fontSize:'var(--text-md)',fontWeight:700,color:ctx.difficulty.color}}, ctx.difficulty.label),
+      h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginLeft:"auto"}},
         ctx.pal.length + " colours \xB7 " + (ctx.blendCount > 0 ? ctx.blendCount + " blends \xB7 " : "") + ctx.totalStitchable.toLocaleString() + " stitches"
       )
     );
@@ -13687,41 +13687,41 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       var cd = app.confettiData.clean;
       var t = confettiTier(cd.pct);
       var barW = Math.max(3, Math.min(100, Math.round(100 - cd.pct * 5)));
-      return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#FBF8F3",borderRadius:8,border:"0.5px solid #E5DCCB"}},
-        h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
-          h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
-          h("span", {style:{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18",marginLeft:"auto"}}, t.label)
+      return h("div", {style:{marginTop:'var(--s-2)',padding:"8px 12px",background:"var(--surface-secondary)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)"}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:6}},
+          h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
+          h("span", {style:{fontSize:'var(--text-xs)',fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:'var(--radius-lg)',background:t.color+"18",marginLeft:"auto"}}, t.label)
         ),
-        h("div", {style:{display:"flex",alignItems:"center",gap:8}},
-          h("div", {style:{flex:1,height:6,background:"#E5DCCB",borderRadius:3,overflow:"hidden"}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)'}},
+          h("div", {style:{flex:1,height:6,background:"var(--border)",borderRadius:3,overflow:"hidden"}},
             h("div", {style:{height:"100%",width:barW+"%",background:t.color,borderRadius:3,transition:"width 0.4s"}})
           ),
-          h("span", {style:{fontSize:12,fontWeight:600,color:t.color,flexShrink:0}},
+          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:t.color,flexShrink:0}},
             cd.singles.toLocaleString() + " isolated (" + cd.pct.toFixed(1) + "%)"
           )
         ),
-        app.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#A89E89",marginTop:4}},
+        app.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:'var(--s-1)'}},
           app.confettiData.raw.singles.toLocaleString() + " before orphan removal"
         )
       );
     })();
 
     var progressBadge = ctx.done && ctx.doneCount > 0 && h("div", {
-      style:{marginTop:8,padding:"8px 12px",background:"#DEE7D2",borderRadius:8,border:"1px solid #C4DCB6"}
+      style:{marginTop:'var(--s-2)',padding:"8px 12px",background:"var(--success-soft)",borderRadius:'var(--radius-md)',border:"1px solid var(--success-soft)"}
     },
-      h("div", {style:{fontSize:12,fontWeight:600,color:"#4F7D3F"}},
+      h("div", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--success)"}},
         "Progress: " + ctx.progressPct + "% \u2014 " + ctx.doneCount.toLocaleString() + " of " + ctx.totalStitchable.toLocaleString() + " stitches"
       )
     );
 
     return h(Section, {title:"Pattern Summary"},
       h("div", {
-        style:{marginTop:8,display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}
+        style:{marginTop:'var(--s-2)',display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}
       },
         rows.map(function(r, i) {
           return h("div", {key:i},
-            h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
-            h("div", {style:{fontSize:14,fontWeight:600,color:"#1B1814"}}, r[1])
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
+            h("div", {style:{fontSize:'var(--text-lg)',fontWeight:600,color:"var(--text-primary)"}}, r[1])
           );
         })
       ),
@@ -13734,27 +13734,27 @@ window.CreatorProjectTab = function CreatorProjectTab() {
   // ── Time Estimate ───────────────────────────────────────────────────────────
   function renderTimeEstimate() {
     return h(Section, {title:"Time Estimate"},
-      h("div", {style:{marginTop:8}},
+      h("div", {style:{marginTop:'var(--s-2)'}},
         h(SliderRow, {
           label:"Stitching speed", value:ctx.stitchSpeed, min:10, max:120, step:5,
           onChange:ctx.setStitchSpeed, format:function(v){return v+" stitches/hr";}
         }),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px",marginTop:10}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#1B1814"}},
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
+            h("div", {style:{fontSize:'var(--text-xl)',fontWeight:700,color:"var(--text-primary)"}},
               fmtTimeL(Math.round(ctx.totalStitchable / ctx.stitchSpeed * 3600))
             )
           ),
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"#4F7D3F":"#B85C38"}},
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
+            h("div", {style:{fontSize:'var(--text-xl)',fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"var(--success)":"var(--accent)"}},
               ctx.doneCount >= ctx.totalStitchable ? "Done!" : fmtTimeL(Math.round((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed * 3600))
             )
           )
         ),
         ctx.totalTime > 0 && ctx.doneCount > 0 && h("div", {
-          style:{marginTop:8,padding:"8px 12px",background:"#FBF8F3",borderRadius:8,border:"0.5px solid #E5DCCB",fontSize:12,color:"#5C5448"}
+          style:{marginTop:'var(--s-2)',padding:"8px 12px",background:"var(--surface-secondary)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-sm)',color:"var(--text-secondary)"}
         }, "Based on your actual sessions: " + Math.round(ctx.doneCount / (ctx.totalTime / 3600)) + " stitches/hr average")
       )
     );
@@ -13768,12 +13768,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       {ct:25,label:"25 count Evenweave"},{ct:28,label:"28 count Evenweave (over 2)"}
     ];
     return h(Section, {title:"Finished Size"},
-      h("div", {style:{marginTop:8,overflow:"auto"}},
-        h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
+      h("div", {style:{marginTop:'var(--s-2)',overflow:"auto"}},
+        h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:'var(--text-sm)'}},
           h("thead", null,
-            h("tr", {style:{background:"#FBF8F3"}},
+            h("tr", {style:{background:"var(--surface-secondary)"}},
               ["Fabric","Width","Height","With margin"].map(function(hd, i) {
-                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid #E5DCCB",color:"#5C5448",fontWeight:600,fontSize:11,textTransform:"uppercase"}}, hd);
+                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid var(--border)",color:"var(--text-secondary)",fontWeight:600,fontSize:'var(--text-xs)',textTransform:"uppercase"}}, hd);
               })
             )
           ),
@@ -13785,12 +13785,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var isCurrent = f.ct === ctx.fabricCt;
               return h("tr", {
                 key:f.ct,
-                style:{borderBottom:"0.5px solid #EFE7D6",background:isCurrent?"#F4DDCF":"transparent"}
+                style:{borderBottom:"0.5px solid var(--surface-tertiary)",background:isCurrent?"var(--accent-light)":"transparent"}
               },
                 h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}}, f.label+(isCurrent?" \u2713":"")),
                 h("td", {style:{padding:"6px 10px"}}, wIn.toFixed(1)+"\u2033 / "+wCm.toFixed(1)+" cm"),
                 h("td", {style:{padding:"6px 10px"}}, hIn.toFixed(1)+"\u2033 / "+hCm.toFixed(1)+" cm"),
-                h("td", {style:{padding:"6px 10px",fontSize:11,color:"#A89E89"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
+                h("td", {style:{padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
               );
             })
           )
@@ -13802,32 +13802,32 @@ window.CreatorProjectTab = function CreatorProjectTab() {
   // ── Cost Estimate ───────────────────────────────────────────────────────────
   function renderCostEstimate() {
     return h(Section, {title:"Cost Estimate", defaultOpen:false},
-      h("div", {style:{marginTop:8}},
-        h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
-          h("span", {style:{fontSize:12,color:"#5C5448"}}, "Price per skein (\xA3)"),
+      h("div", {style:{marginTop:'var(--s-2)'}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:10}},
+          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}, "Price per skein (\xA3)"),
           h("input", {
             type:"number", inputMode:"decimal", value:ctx.skeinPrice, min:0, step:0.05,
             onChange:function(e){ctx.setSkeinPrice(Math.max(0,parseFloat(e.target.value)||0));},
-            style:{width:70,padding:"5px 8px",border:"0.5px solid #E5DCCB",borderRadius:6,fontSize:13,textAlign:"right"}
+            style:{width:70,padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)',textAlign:"right"}
           })
         ),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#1B1814"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
-            h("div", {style:{fontSize:11,color:"#A89E89"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
+            h("div", {style:{fontSize:'var(--text-xl)',fontWeight:700,color:"var(--text-primary)"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
           ),
           ctx.toBuyCount < ctx.skeinData.length && h("div", null,
-            h("div", {style:{fontSize:11,color:"#A89E89",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#A04E11"}},
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
+            h("div", {style:{fontSize:'var(--text-xl)',fontWeight:700,color:"var(--accent-hover)"}},
               "\xA3"+(ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)*ctx.skeinPrice).toFixed(2)
             ),
-            h("div", {style:{fontSize:11,color:"#A89E89"}},
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}},
               ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)+" skeins"
             )
           )
         ),
-        h("div", {style:{fontSize:11,color:"#A89E89",marginTop:8}},
+        h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:'var(--s-2)'}},
           "Doesn\u2019t include fabric, needles, hoop, or frame. DMC skeins typically \xA30.85\u2013\xA31.10 in UK shops."
         )
       )
@@ -13847,27 +13847,27 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       }
     }
     return h(Section, {title:"Thread Organiser"},
-      h("div", {style:{marginTop:8,display:"flex",gap:12,marginBottom:10}},
-        h("div", {style:{padding:"6px 14px",background:"#DEE7D2",borderRadius:8,border:"1px solid #C4DCB6",fontSize:12}},
-          h("span", {style:{fontWeight:700,color:"#4F7D3F"}}, ctx.ownedCount), " ",
-          h("span", {style:{color:"#5C5448"}}, "owned")
+      h("div", {style:{marginTop:'var(--s-2)',display:"flex",gap:'var(--s-3)',marginBottom:10}},
+        h("div", {style:{padding:"6px 14px",background:"var(--success-soft)",borderRadius:'var(--radius-md)',border:"1px solid var(--success-soft)",fontSize:'var(--text-sm)'}},
+          h("span", {style:{fontWeight:700,color:"var(--success)"}}, ctx.ownedCount), " ",
+          h("span", {style:{color:"var(--text-secondary)"}}, "owned")
         ),
-        h("div", {style:{padding:"6px 14px",background:"#F8EFD8",borderRadius:8,border:"1px solid #E5C99A",fontSize:12}},
-          h("span", {style:{fontWeight:700,color:"#A04E11"}}, ctx.toBuyList.length), " ",
-          h("span", {style:{color:"#5C5448"}}, "to buy")
+        h("div", {style:{padding:"6px 14px",background:"#F8EFD8",borderRadius:'var(--radius-md)',border:"1px solid #E5C99A",fontSize:'var(--text-sm)'}},
+          h("span", {style:{fontWeight:700,color:"var(--accent-hover)"}}, ctx.toBuyList.length), " ",
+          h("span", {style:{color:"var(--text-secondary)"}}, "to buy")
         ),
-        h("div", {style:{marginLeft:"auto",display:"flex",gap:4}},
+        h("div", {style:{marginLeft:"auto",display:"flex",gap:'var(--s-1)'}},
           h("button", {
             onClick:function(){
               var n = {};
               ctx.skeinData.forEach(function(d){n[d.id]="owned";});
               ctx.setThreadOwned(n);
             },
-            style:{fontSize:11,padding:"4px 10px",border:"1px solid #C4DCB6",borderRadius:6,background:"#DEE7D2",color:"#4F7D3F",cursor:"pointer"}
+            style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--success-soft)",borderRadius:'var(--radius-sm)',background:"var(--success-soft)",color:"var(--success)",cursor:"pointer"}
           }, "Own all"),
           h("button", {
             onClick:function(){ctx.setThreadOwned({});},
-            style:{fontSize:11,padding:"4px 10px",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#fff",color:"#5C5448",cursor:"pointer"}
+            style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer"}
           }, "Clear")
         )
       ),
@@ -13880,20 +13880,20 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           var enough = owned >= d.skeins;
           return h(React.Fragment, {key:d.id},
             h("div", {
-              style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,
-                background:isOwned?"#DEE7D2":"#fff",
-                border:"1px solid "+(isOwned?"#C4DCB6":"#EFE7D6")}
+              style:{display:"flex",alignItems:"center",gap:'var(--s-2)',padding:"4px 8px",borderRadius:'var(--radius-sm)',
+                background:isOwned?"var(--success-soft)":"var(--surface)",
+                border:"1px solid "+(isOwned?"var(--success-soft)":"var(--surface-tertiary)")}
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #CFC4AC",flexShrink:0}}),
-              h("span", {style:{fontWeight:700,fontSize:13,minWidth:44}}, "DMC "+d.id),
-              h("span", {style:{fontSize:11,color:"#5C5448",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              h("span", {style:{fontSize:11,color:"#A89E89",flexShrink:0}}, d.skeins+"sk"),
+              h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)",flexShrink:0}}),
+              h("span", {style:{fontWeight:700,fontSize:'var(--text-md)',minWidth:44}}, "DMC "+d.id),
+              h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",flexShrink:0}}, d.skeins+"sk"),
               h("button", {
                 onClick:function(){ctx.toggleOwned(d.id);},
-                style:{fontSize:11,padding:"3px 10px",borderRadius:5,cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center",
-                  border:"1px solid "+(isOwned?"#C4DCB6":"#E5C99A"),
-                  background:isOwned?"#DEE7D2":"#F8EFD8",
-                  color:isOwned?"#4F7D3F":"#A04E11"
+                style:{fontSize:'var(--text-xs)',padding:"3px 10px",borderRadius:5,cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center",
+                  border:"1px solid "+(isOwned?"var(--success-soft)":"#E5C99A"),
+                  background:isOwned?"var(--success-soft)":"#F8EFD8",
+                  color:isOwned?"var(--success)":"var(--accent-hover)"
                 }
               }, isOwned ? "Owned" : "To buy"),
               h("span", {className:"stash-badge "+(enough?"stash-badge--in":"stash-badge--out")}, owned+"/"+d.skeins+" in stash"),
@@ -13904,7 +13904,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                 },
                 style:{fontSize:10,padding:"2px 6px",borderRadius:4,cursor:"pointer",fontWeight:600,
                   border:"1px solid #e0e7ff",
-                  background:ctx.altOpen===d.id?"#e0e7ff":"#fff",
+                  background:ctx.altOpen===d.id?"#e0e7ff":"var(--surface)",
                   color:"#4338ca"
                 },
                 title:"Show similar threads from stash"
@@ -13913,26 +13913,26 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             ctx.altOpen === d.id && (function() {
               var alts = StashBridge.suggestAlternatives(d.id, 5, ctx.globalStash);
               return alts.length > 0
-                ? h("div", {style:{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}},
-                    h("span", {style:{color:"#5C5448",fontWeight:600}}, "Similar in stash:"),
+                ? h("div", {style:{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:'var(--text-xs)',alignItems:"center"}},
+                    h("span", {style:{color:"var(--text-secondary)",fontWeight:600}}, "Similar in stash:"),
                     alts.map(function(a) {
-                      return h("span", {key:a.id, style:{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}},
-                        h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid #CFC4AC"}}),
+                      return h("span", {key:a.id, style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',padding:"2px 8px",borderRadius:'var(--radius-lg)',background:"#f0f0ff",border:"1px solid #e0e7ff"}},
+                        h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid var(--border)"}}),
                         h("span", {style:{fontWeight:600}}, "DMC "+a.id),
-                        h("span", {style:{color:"#5C5448"}}, a.name),
-                        h("span", {style:{color:"#A89E89"}}, "\u0394E "+a.deltaE),
+                        h("span", {style:{color:"var(--text-secondary)"}}, a.name),
+                        h("span", {style:{color:"var(--text-tertiary)"}}, "\u0394E "+a.deltaE),
                         h("span", {style:{color:"#4338ca"}}, a.owned+"sk")
                       );
                     })
                   )
-                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:11,color:"#A89E89"}},
+                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}},
                     "No similar threads found in your stash."
                   );
             })()
           );
         })
       ),
-      h("div", {style:{display:"flex",gap:8,marginTop:10,flexWrap:"wrap",alignItems:"center"}},
+      h("div", {style:{display:"flex",gap:'var(--s-2)',marginTop:10,flexWrap:"wrap",alignItems:"center"}},
         h("button", {
           onClick: function() {
             if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
@@ -13964,7 +13964,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             if (!hasOwnedStash) return "Add threads to your stash first";
             return "Find stash alternatives for unowned threads";
           })(),
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600,
+          style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600,
             opacity:(function() {
               if (typeof StashBridge === "undefined" || !ctx.pat || ctx.toBuyList.length === 0) return 0.5;
               if (!hasOwnedStash) return 0.5;
@@ -13986,36 +13986,36 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               ctx.setKittingResult({missing:missing, short:short, total:ctx.skeinData.length});
             });
           },
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}
+          style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600}
         }, "Kit This Project"),
         typeof window.ConvertPaletteModal !== "undefined"
           ? h("button", {
               onClick: function() { setConvertOpen(true); },
               disabled: !ctx.pat || !ctx.pal || ctx.pal.length === 0,
               title: "Convert this pattern's palette between DMC and Anchor thread brands",
-              style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontWeight:600,
+              style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600,
                 opacity:(!ctx.pat || !ctx.pal || ctx.pal.length === 0) ? 0.5 : 1}
             }, "Change Thread Brand")
           : null
       ),
-      ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #E5DCCB",background:"#FBF8F3",fontSize:12}},
-        h("div", {style:{fontWeight:700,marginBottom:4}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
-        ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"#4F7D3F",fontWeight:600}}, "\u2713 You have everything!"),
+      ctx.kittingResult && h("div", {style:{marginTop:'var(--s-2)',padding:"10px 14px",borderRadius:'var(--radius-md)',border:"1px solid var(--border)",background:"var(--surface-secondary)",fontSize:'var(--text-sm)'}},
+        h("div", {style:{fontWeight:700,marginBottom:'var(--s-1)'}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
+        ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"var(--success)",fontWeight:600}}, "\u2713 You have everything!"),
         ctx.kittingResult.missing.length > 0 && h("div", null,
-          h("div", {style:{color:"#A53D3D",fontWeight:600,marginBottom:2}}, "Missing ("+ctx.kittingResult.missing.length+"):"),
-          ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{color:"#A53D3D",marginLeft:8}}, m); })
+          h("div", {style:{color:"var(--danger)",fontWeight:600,marginBottom:2}}, "Missing ("+ctx.kittingResult.missing.length+"):"),
+          ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{color:"var(--danger)",marginLeft:'var(--s-2)'}}, m); })
         ),
-        ctx.kittingResult.short.length > 0 && h("div", {style:{marginTop:4}},
+        ctx.kittingResult.short.length > 0 && h("div", {style:{marginTop:'var(--s-1)'}},
           h("div", {style:{color:"#A06F2D",fontWeight:600,marginBottom:2}}, "Low stock ("+ctx.kittingResult.short.length+"):"),
-          ctx.kittingResult.short.map(function(m, i) { return h("div", {key:i, style:{color:"#A06F2D",marginLeft:8}}, m); })
+          ctx.kittingResult.short.map(function(m, i) { return h("div", {key:i, style:{color:"#A06F2D",marginLeft:'var(--s-2)'}}, m); })
         ),
-        h("div", {style:{display:"flex",gap:6,marginTop:8}},
+        h("div", {style:{display:"flex",gap:6,marginTop:'var(--s-2)'}},
           h("button", {
             onClick:function(){
               var lines = ctx.kittingResult.missing.concat(ctx.kittingResult.short);
               app.copyText(lines.join("\n"), "kit");
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #E5DCCB",background:"#fff",cursor:"pointer"}
+            style:{fontSize:'var(--text-xs)',padding:"4px 10px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",background:"var(--surface)",cursor:"pointer"}
           }, "Copy gaps"),
           typeof StashBridge !== "undefined" && h("button", {
             onClick:function(){
@@ -14025,11 +14025,11 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               Promise.all(toBuy2.map(function(id){return StashBridge.updateThreadToBuy(id, true);}))
                 .then(function(){alert("Marked "+toBuy2.length+" thread(s) as To Buy in Stash Manager.");});
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #E5C99A",background:"#F8EFD8",color:"#A04E11",cursor:"pointer",fontWeight:600}
+            style:{fontSize:'var(--text-xs)',padding:"4px 10px",borderRadius:'var(--radius-sm)',border:"1px solid #E5C99A",background:"#F8EFD8",color:"var(--accent-hover)",cursor:"pointer",fontWeight:600}
           }, "Mark all To Buy"),
           h("button", {
             onClick:function(){ctx.setKittingResult(null);},
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #E5DCCB",background:"#fff",cursor:"pointer",marginLeft:"auto"}
+            style:{fontSize:'var(--text-xs)',padding:"4px 10px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",background:"var(--surface)",cursor:"pointer",marginLeft:"auto"}
           }, "Dismiss")
         )
       ),
@@ -14039,54 +14039,54 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             var txt=ctx.toBuyList.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
             app.copyText(txt, "shopping");
           },
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#B85C38",color:"#fff",cursor:"pointer",fontWeight:600}
+          style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"none",background:"var(--accent)",color:"var(--surface)",cursor:"pointer",fontWeight:600}
         }, "Copy To-Buy List"),
         h("button", {
           onClick:function(){
             var txt=ctx.skeinData.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
             app.copyText(txt, "full");
           },
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #E5DCCB",background:"#fff",cursor:"pointer",fontWeight:500}
+          style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontWeight:500}
         }, "Copy Full List")
       ),
-      app.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#4F7D3F",fontWeight:600}}, "Copied!")
+      app.copied && h("div", {style:{marginTop:6,fontSize:'var(--text-sm)',color:"var(--success)",fontWeight:600}}, "Copied!")
     );
   }
 
   // ── Project info (name, designer, description) ─────────────────────────────
   var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
-    h("div", {style:{display:"flex",flexDirection:"column",gap:8,padding:"4px 0 2px"}},
-      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+    h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
         "Pattern name",
         h("input", {
           type:"text", value: app.projectName || "", maxLength:60,
           placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
           onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
-          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),
-      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
         "Designer (optional)",
         h("input", {
           type:"text", value: app.projectDesigner || "", maxLength:80,
           placeholder: "Your name or studio",
           onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
-          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),
-      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
         "Description / notes (optional)",
         h("textarea", {
           value: app.projectDescription || "", maxLength:500, rows:3,
           placeholder: "Source, copyright, stitching notes\u2026",
           onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
-          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
         })
       )
     )
   );
 
-  return h("div", {style:{display:"flex",flexDirection:"column",gap:12}},
+  return h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-3)'}},
     projectInfoSection,
     renderPatternSummary(),
     renderTimeEstimate(),
@@ -14263,9 +14263,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   var allOwned = hasStash && ownedColours === totalColours;
 
   function thSt(align) {
-    return {padding:"6px 10px", textAlign:align, borderBottom:"2px solid #E5DCCB",
-            color:"#8A8270", fontWeight:600, fontSize:10, textTransform:"uppercase",
-            background:"#f8fafc", whiteSpace:"nowrap"};
+    return {padding:"6px 10px", textAlign:align, borderBottom:"2px solid var(--border)",
+            color:"var(--text-tertiary)", fontWeight:600, fontSize:10, textTransform:"uppercase",
+            background:"var(--surface-secondary)", whiteSpace:"nowrap"};
   }
 
   function calcFab(ct, div) {
@@ -14279,12 +14279,12 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   function statusBadge(status) {
     var cfg = {
-      owned:   {label:"In stash \u2713", bg:"#DEE7D2", color:"#4F7D3F"},
-      partial: {label:"Partial",         bg:"#F8EFD8", color:"#A04E11"},
-      needed:  {label:"Need to buy",     bg:"#FCEFEF", color:"#A53D3D"}
+      owned:   {label:"In stash \u2713", bg:"var(--success-soft)", color:"var(--success)"},
+      partial: {label:"Partial",         bg:"#F8EFD8", color:"var(--accent-hover)"},
+      needed:  {label:"Need to buy",     bg:"var(--danger-soft)", color:"var(--danger)"}
     };
     var s = cfg[status] || cfg.needed;
-    return h("span", {style:{padding:"2px 7px", borderRadius:10, fontSize:10, fontWeight:600,
+    return h("span", {style:{padding:"2px 7px", borderRadius:'var(--radius-lg)', fontSize:10, fontWeight:600,
                               background:s.bg, color:s.color, whiteSpace:"nowrap"}}, s.label);
   }
 
@@ -14331,8 +14331,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   // ── Section heading style ─────────────────────────────────────────────────
   var secHead = {
-    fontSize:11, fontWeight:700, color:"#5C5448", textTransform:"uppercase",
-    letterSpacing:"0.05em", marginBottom:8, display:"block"
+    fontSize:'var(--text-xs)', fontWeight:700, color:"var(--text-secondary)", textTransform:"uppercase",
+    letterSpacing:"0.05em", marginBottom:'var(--s-2)', display:"block"
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -14341,35 +14341,35 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     // ── Summary bar ──────────────────────────────────────────────────────────
     h("div", {style:{
       display:"flex", alignItems:"center", gap:10, flexWrap:"wrap",
-      padding:"9px 14px", borderRadius:8, marginBottom:14, fontSize:12,
-      background: allOwned ? "#DEE7D2" : "#FBF8F3",
-      border:"0.5px solid " + (allOwned ? "#C4DCB6" : "#E5DCCB")
+      padding:"9px 14px", borderRadius:'var(--radius-md)', marginBottom:14, fontSize:'var(--text-sm)',
+      background: allOwned ? "var(--success-soft)" : "var(--surface-secondary)",
+      border:"0.5px solid " + (allOwned ? "var(--success-soft)" : "var(--border)")
     }},
-      h("span", {style:{fontSize:11, color:"#A89E89"}},
+      h("span", {style:{fontSize:'var(--text-xs)', color:"var(--text-tertiary)"}},
         totalColours + " colour" + (totalColours !== 1 ? "s" : "") + ", " + totalSkeins + " skein" + (totalSkeins !== 1 ? "s" : "")
       ),
-      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "#3F6432" : "#5C5448"}},
+      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "var(--success)" : "var(--text-secondary)"}},
         allOwned
           ? "\u2713 All colours in stash!"
           : "Stash: " + ownedColours + "/" + totalColours + " owned"
             + (partialColours > 0 ? ", " + partialColours + " partial" : "")
       ),
-      hasStash && !allOwned && h("span", {style:{color:"#A53D3D", fontSize:11}},
+      hasStash && !allOwned && h("span", {style:{color:"var(--danger)", fontSize:'var(--text-xs)'}},
         "\u2014 ~" + needSkeins + " skein" + (needSkeins !== 1 ? "s" : "") + " still needed"
       ),
       h("div", {style:{marginLeft:"auto", display:"flex", gap:6}},
         h("button", {onClick:handleCopy, style:{
-          fontSize:11, padding:"4px 10px", borderRadius:6, cursor:"pointer",
-          border:"0.5px solid #E5DCCB", background:copied?"#B85C38":"#fff",
-          color:copied?"#fff":"#5C5448", fontWeight:500
+          fontSize:'var(--text-xs)', padding:"4px 10px", borderRadius:'var(--radius-sm)', cursor:"pointer",
+          border:"0.5px solid var(--border)", background:copied?"var(--accent)":"var(--surface)",
+          color:copied?"var(--surface)":"var(--text-secondary)", fontWeight:500
         }}, copied ? "\u2713 Copied" : "Copy list"),
         canShare && !allOwned && h("button", {onClick:handleShare, style:{
-          fontSize:11, padding:"4px 10px", borderRadius:6, cursor:"pointer",
-          border:"0.5px solid #E5DCCB", background:"#fff", color:"#5C5448", fontWeight:500
+          fontSize:'var(--text-xs)', padding:"4px 10px", borderRadius:'var(--radius-sm)', cursor:"pointer",
+          border:"0.5px solid var(--border)", background:"var(--surface)", color:"var(--text-secondary)", fontWeight:500
         }}, "Share"),
         h("a", {href:"manager.html", target:"_blank", style:{
-          fontSize:11, padding:"4px 10px", borderRadius:6,
-          border:"0.5px solid #E5DCCB", background:"#fff", color:"#5C5448",
+          fontSize:'var(--text-xs)', padding:"4px 10px", borderRadius:'var(--radius-sm)',
+          border:"0.5px solid var(--border)", background:"var(--surface)", color:"var(--text-secondary)",
           fontWeight:500, textDecoration:"none", display:"inline-block"
         }}, "Thread stash \u2192")
       )
@@ -14381,14 +14381,14 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       // ── LEFT: Threads ───────────────────────────────────────────────────────
       h("div", {style:{minWidth:0}},
         // Sub-header + controls
-        h("div", {style:{display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap"}},
+        h("div", {style:{display:"flex", alignItems:"center", gap:'var(--s-2)', marginBottom:'var(--s-2)', flexWrap:"wrap"}},
           h("span", {style:secHead}, "Threads"),
-          h("span", {style:{fontSize:12, color:"#CFC4AC", marginBottom:8}}, "|"),
-          h("span", {style:{fontSize:12, color:"#5C5448", marginBottom:8}}, "Sort:"),
+          h("span", {style:{fontSize:'var(--text-sm)', color:"#CFC4AC", marginBottom:'var(--s-2)'}}, "|"),
+          h("span", {style:{fontSize:'var(--text-sm)', color:"var(--text-secondary)", marginBottom:'var(--s-2)'}}, "Sort:"),
           h("select", {
             value:sort, onChange:function(e){setSort(e.target.value);},
-            style:{fontSize:11, padding:"3px 8px", borderRadius:6, border:"0.5px solid #E5DCCB",
-                   background:"#fff", marginBottom:8}
+            style:{fontSize:'var(--text-xs)', padding:"3px 8px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)",
+                   background:"var(--surface)", marginBottom:'var(--s-2)'}
           },
             h("option", {value:"number"},  "Thread number"),
             h("option", {value:"stitches"}, "Stitch count"),
@@ -14396,14 +14396,14 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             hasStash && h("option", {value:"status"}, "Stash status")
           ),
           hasStash && !allOwned && h("button", {onClick:handleAddAll, style:{
-            fontSize:11, padding:"3px 10px", borderRadius:6, cursor:"pointer", marginBottom:8,
-            border:"0.5px solid #E5DCCB", background:addedAll?"#B85C38":"#fff",
-            color:addedAll?"#fff":"#5C5448", fontWeight:500, marginLeft:"auto"
+            fontSize:'var(--text-xs)', padding:"3px 10px", borderRadius:'var(--radius-sm)', cursor:"pointer", marginBottom:'var(--s-2)',
+            border:"0.5px solid var(--border)", background:addedAll?"var(--accent)":"var(--surface)",
+            color:addedAll?"var(--surface)":"var(--text-secondary)", fontWeight:500, marginLeft:"auto"
           }}, addedAll ? "\u2713 Added" : "Mark all owned")
         ),
         // Thread table
-        h("div", {style:{overflow:"auto", maxHeight:440, border:"0.5px solid #E5DCCB", borderRadius:8}},
-          h("table", {style:{width:"100%", borderCollapse:"collapse", fontSize:12}},
+        h("div", {style:{overflow:"auto", maxHeight:440, border:"0.5px solid var(--border)", borderRadius:'var(--radius-md)'}},
+          h("table", {style:{width:"100%", borderCollapse:"collapse", fontSize:'var(--text-sm)'}},
             h("thead", null,
               h("tr", null,
                 h("th", {style:thSt("left")}, "Sym"),
@@ -14423,42 +14423,42 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                 var p    = r.p;
                 var isHi = cv.hiId === p.id;
                 var rowBg = isHi ? "#F8EFD8"
-                  : (hasStash && r.status === "owned") ? "#DEE7D2"
-                  : i % 2 === 0 ? "transparent" : "#fafafa";
+                  : (hasStash && r.status === "owned") ? "var(--success-soft)"
+                  : i % 2 === 0 ? "transparent" : "var(--surface-secondary)";
                 return h("tr", {
                   key: p.id,
                   onClick: function() { cv.setHiId(isHi ? null : p.id); app.setTab("pattern"); },
-                  style:{borderBottom:"0.5px solid #EFE7D6", cursor:"pointer", background:rowBg}
+                  style:{borderBottom:"0.5px solid var(--surface-tertiary)", cursor:"pointer", background:rowBg}
                 },
                   h("td", {style:{padding:"5px 10px", fontFamily:"monospace", fontSize:15}}, p.symbol),
                   h("td", {style:{padding:"5px 8px"}},
                     h("div", {style:{width:20, height:20, borderRadius:3, background:"rgb("+p.rgb+")",
-                                      border:"0.5px solid #E5DCCB", display:"inline-block"}})
+                                      border:"0.5px solid var(--border)", display:"inline-block"}})
                   ),
                   h("td", {style:{padding:"5px 10px", fontWeight:600}}, p.id),
-                  h("td", {style:{padding:"5px 10px", color:"#5C5448", whiteSpace:"nowrap"}},
+                  h("td", {style:{padding:"5px 10px", color:"var(--text-secondary)", whiteSpace:"nowrap"}},
                     r.name,
                     r.confettiCount ? h("span", {
                       title: r.confettiCount + " isolated stitch" + (r.confettiCount !== 1 ? "es" : ""),
-                      style:{marginLeft:5, color:"#A53D3D", fontSize:10, fontWeight:600, cursor:"default"}
+                      style:{marginLeft:5, color:"var(--danger)", fontSize:10, fontWeight:600, cursor:"default"}
                     }, "\u25cf " + r.confettiCount) : null
                   ),
                   h("td", {style:{padding:"5px 10px"}},
                     h("span", {style:{
-                      padding:"2px 6px", borderRadius:10, fontSize:10, fontWeight:600,
-                      background: p.type === "blend" ? "#F8EFD8" : "#DEE7D2",
-                      color:       p.type === "blend" ? "#A04E11" : "#4F7D3F"
+                      padding:"2px 6px", borderRadius:'var(--radius-lg)', fontSize:10, fontWeight:600,
+                      background: p.type === "blend" ? "#F8EFD8" : "var(--success-soft)",
+                      color:       p.type === "blend" ? "var(--accent-hover)" : "var(--success)"
                     }}, p.type === "blend" ? "Blend" : "Solid")
                   ),
                   h("td", {style:{padding:"5px 10px", textAlign:"right"}}, p.count.toLocaleString()),
                   h("td", {style:{padding:"5px 10px", textAlign:"right", fontWeight:600}}, r.needed),
                   hasStash && h("td", {style:{padding:"5px 10px", textAlign:"right",
-                                              color: r.owned > 0 ? "#3F6432" : "#A89E89"}},
+                                              color: r.owned > 0 ? "var(--success)" : "var(--text-tertiary)"}},
                     r.owned > 0 ? r.owned : "\u2014"
                   ),
                   hasStash && h("td", {style:{padding:"5px 10px"}}, statusBadge(r.status)),
                   ctx.done && h("td", {style:{padding:"5px 10px", textAlign:"right"}},
-                    h("span", {style:{color: r.dc.done >= r.dc.total ? "#4F7D3F" : "#5C5448"}},
+                    h("span", {style:{color: r.dc.done >= r.dc.total ? "var(--success)" : "var(--text-secondary)"}},
                       r.dc.done + "/" + r.dc.total)
                   )
                 );
@@ -14474,49 +14474,49 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
         // Fabric count + over-two
         h("div", {style:{
-          padding:"10px 12px", background:"#f8fafc", border:"0.5px solid #E5DCCB",
-          borderRadius:"8px 8px 0 0", display:"flex", flexDirection:"column", gap:8
+          padding:"10px 12px", background:"var(--surface-secondary)", border:"0.5px solid var(--border)",
+          borderRadius:"8px 8px 0 0", display:"flex", flexDirection:"column", gap:'var(--s-2)'
         }},
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#5C5448"}},
+          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:'var(--text-sm)', color:"var(--text-secondary)"}},
             "Count:",
             h("select", {
               value: ctx.fabricCt,
               onChange: function(e) { ctx.setFabricCt(Number(e.target.value)); },
-              style:{flex:1, padding:"3px 8px", borderRadius:6, border:"0.5px solid #E5DCCB",
-                     fontSize:12, background:"#fff"}
+              style:{flex:1, padding:"3px 8px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)",
+                     fontSize:'var(--text-sm)', background:"var(--surface)"}
             }, fabCounts.map(function(f) { return h("option", {key:f.ct, value:f.ct}, f.label); }))
           ),
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#5C5448"}},
+          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:'var(--text-sm)', color:"var(--text-secondary)"}},
             h("input", {type:"checkbox", checked:overTwo,
               onChange: function(e) { setOverTwo(e.target.checked); }}),
             "Stitching over two"
           ),
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#5C5448"}},
+          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:'var(--text-sm)', color:"var(--text-secondary)"}},
             "Margin:",
             h("input", {
               type:"number", min:0, max:10, step:0.5, value:margin,
               onChange: function(e) { setMargin(Number(e.target.value) || 0); },
-              style:{width:52, padding:"3px 6px", fontSize:12, borderRadius:6,
-                     border:"0.5px solid #E5DCCB", background:"#fff"}
+              style:{width:52, padding:"3px 6px", fontSize:'var(--text-sm)', borderRadius:'var(--radius-sm)',
+                     border:"0.5px solid var(--border)", background:"var(--surface)"}
             }),
-            h("span", {style:{fontSize:11, color:"#A89E89"}}, "\" each side")
+            h("span", {style:{fontSize:'var(--text-xs)', color:"var(--text-tertiary)"}}, "\" each side")
           ),
-          h("div", {style:{display:"flex", gap:4}},
+          h("div", {style:{display:"flex", gap:'var(--s-1)'}},
             ["in","cm"].map(function(u) {
               return h("button", {key:u, onClick:function(){setUnits(u);}, style:{
-                flex:1, fontSize:11, padding:"3px 0", borderRadius:6, cursor:"pointer",
-                border:"0.5px solid " + (units===u?"#B85C38":"#E5DCCB"),
-                background: units===u?"#F4DDCF":"#fff",
-                color:       units===u?"#B85C38":"#5C5448", fontWeight:units===u?600:400
+                flex:1, fontSize:'var(--text-xs)', padding:"3px 0", borderRadius:'var(--radius-sm)', cursor:"pointer",
+                border:"0.5px solid " + (units===u?"var(--accent)":"var(--border)"),
+                background: units===u?"var(--accent-light)":"var(--surface)",
+                color:       units===u?"var(--accent)":"var(--text-secondary)", fontWeight:units===u?600:400
               }}, u === "in" ? "Inches" : "Centimetres");
             })
           )
         ),
 
         // Fabric size table
-        h("div", {style:{border:"0.5px solid #E5DCCB", borderTop:"none",
+        h("div", {style:{border:"0.5px solid var(--border)", borderTop:"none",
                           borderRadius:"0 0 8px 8px", overflow:"hidden"}},
-          h("table", {style:{width:"100%", borderCollapse:"collapse", fontSize:12}},
+          h("table", {style:{width:"100%", borderCollapse:"collapse", fontSize:'var(--text-sm)'}},
             h("thead", null,
               h("tr", null,
                 h("th", {style:thSt("left")}, "Count"),
@@ -14529,10 +14529,10 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                 var dims      = calcFab(f.ct, overTwo ? 2 : null);
                 var isCurrent = f.ct === fabricCt;
                 return h("tr", {key:f.ct, style:{
-                  borderBottom:"0.5px solid #EFE7D6",
-                  background: isCurrent ? "#DEE7D2" : "transparent"
+                  borderBottom:"0.5px solid var(--surface-tertiary)",
+                  background: isCurrent ? "var(--success-soft)" : "transparent"
                 }},
-                  h("td", {style:{padding:"6px 10px", fontWeight:isCurrent?700:400, color:isCurrent?"#B85C38":"inherit"}},
+                  h("td", {style:{padding:"6px 10px", fontWeight:isCurrent?700:400, color:isCurrent?"var(--accent)":"inherit"}},
                     f.ct + (overTwo ? " (×2)" : "") + " ct"
                   ),
                   h("td", {style:{padding:"6px 10px", textAlign:"right", fontWeight:600, fontVariantNumeric:"tabular-nums"}}, dims.w),
@@ -14542,7 +14542,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             )
           )
         ),
-        h("p", {style:{fontSize:10, color:"#A89E89", marginTop:6, marginBottom:0, lineHeight:1.4}},
+        h("p", {style:{fontSize:10, color:"var(--text-tertiary)", marginTop:6, marginBottom:0, lineHeight:1.4}},
           sW + "\u00d7" + sH + " stitches"
           + (margin > 0 ? " + " + margin + "\" margin" : "")
           + (overTwo ? ", over two" : "")
@@ -14741,13 +14741,13 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Status badge
   function statusBadge(status) {
     var map = {
-      owned: { label: 'You own this', bg: '#DEE7D2', color: '#4F7D3F' },
-      partial: { label: 'Low stock', bg: '#F8EFD8', color: '#A04E11' },
-      needed: { label: 'Need to buy', bg: '#FCEFEF', color: '#A53D3D' }
+      owned: { label: 'You own this', bg: 'var(--success-soft)', color: 'var(--success)' },
+      partial: { label: 'Low stock', bg: '#F8EFD8', color: 'var(--accent-hover)' },
+      needed: { label: 'Need to buy', bg: 'var(--danger-soft)', color: 'var(--danger)' }
     };
     var s = map[status] || map.needed;
     return h('span', {
-      style: { padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+      style: { padding: '2px 8px', borderRadius:'var(--radius-lg)', fontSize: 10, fontWeight: 600,
                background: s.bg, color: s.color }
     }, s.label);
   }
@@ -14757,57 +14757,57 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   return h('div', {style: {maxWidth: 900}},
     // Summary banner
     h('div', {style: {
-      display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-      padding: '10px 14px', background: '#DEE7D2', borderRadius: 8,
-      border: '0.5px solid #C4DCB6', marginBottom: 16, fontSize: 12
+      display: 'flex', alignItems: 'center', gap:'var(--s-3)', flexWrap: 'wrap',
+      padding: '10px 14px', background: 'var(--success-soft)', borderRadius:'var(--radius-md)',
+      border: '0.5px solid var(--success-soft)', marginBottom:'var(--s-4)', fontSize:'var(--text-sm)'
     }},
-      h('span', {style: {fontWeight: 600, color: '#3F6432'}},
+      h('span', {style: {fontWeight: 600, color: 'var(--success)'}},
         ownedColours === totalColours
           ? '\u2713 All ' + totalColours + ' colours in stash!'
           : 'You own ' + ownedColours + ' of ' + totalColours + ' colours.'
       ),
-      partialColours > 0 && h('span', {style: {color: '#A04E11'}},
+      partialColours > 0 && h('span', {style: {color: 'var(--accent-hover)'}},
         partialColours + ' partial.'
       ),
-      (ownedColours < totalColours) && h('span', {style: {color: '#A53D3D'}},
+      (ownedColours < totalColours) && h('span', {style: {color: 'var(--danger)'}},
         'Still need: ' + (totalColours - ownedColours - partialColours) + ' colours, ~' + needSkeins + ' skeins.'
       ),
-      h('div', {style: {marginLeft: 'auto', display: 'flex', gap: 8}},
+      h('div', {style: {marginLeft: 'auto', display: 'flex', gap:'var(--s-2)'}},
         h('button', {
           onClick: handleCopy,
-          style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                   border: '0.5px solid #E5DCCB', background: copied ? '#B85C38' : '#fff',
-                   color: copied ? '#fff' : '#5C5448', fontWeight: 500 }
+          style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
+                   border: '0.5px solid var(--border)', background: copied ? 'var(--accent)' : 'var(--surface)',
+                   color: copied ? 'var(--surface)' : 'var(--text-secondary)', fontWeight: 500 }
         }, copied ? '\u2713 Copied' : 'Copy list'),
         canShare && h('button', {
           onClick: handleShare,
-          style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                   border: '0.5px solid #E5DCCB', background: '#fff', color: '#5C5448', fontWeight: 500 }
+          style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
+                   border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontWeight: 500 }
         }, 'Share'),
         h('a', {
           href: 'manager.html', target: '_blank',
-          style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                   border: '0.5px solid #E5DCCB', background: '#fff', color: '#5C5448',
+          style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
+                   border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)',
                    fontWeight: 500, textDecoration: 'none', display: 'inline-block' }
         }, 'View thread stash \u2192')
       )
     ),
 
     // Controls row
-    h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap'}},
-      h('label', {style: {fontSize: 12, color: '#5C5448', display: 'flex', alignItems: 'center', gap: 4}},
+    h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom:'var(--s-3)', flexWrap: 'wrap'}},
+      h('label', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap:'var(--s-1)'}},
         h('input', {
           type: 'checkbox', checked: overTwo,
           onChange: function(e) { setOverTwo(e.target.checked); }
         }),
         'Over two'
       ),
-      h('span', {style: {fontSize: 12, color: '#A89E89'}},'|'),
-      h('span', {style: {fontSize: 12, color: '#5C5448'}}, 'Sort:'),
+      h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-tertiary)'}},'|'),
+      h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)'}}, 'Sort:'),
       h('select', {
         value: sort,
         onChange: function(e) { setSort(e.target.value); },
-        style: { fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '0.5px solid #E5DCCB', background: '#fff' }
+        style: { fontSize:'var(--text-xs)', padding: '3px 8px', borderRadius:'var(--radius-sm)', border: '0.5px solid var(--border)', background: 'var(--surface)' }
       },
         h('option', {value: 'number'}, 'Thread number'),
         h('option', {value: 'stitches'}, 'Stitch count'),
@@ -14816,24 +14816,24 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
       ),
       (ownedColours < totalColours) && h('button', {
         onClick: handleAddAll,
-        style: { fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                 border: '0.5px solid #E5DCCB', background: addedAll ? '#B85C38' : '#fff',
-                 color: addedAll ? '#fff' : '#5C5448', fontWeight: 500, marginLeft: 'auto' }
+        style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
+                 border: '0.5px solid var(--border)', background: addedAll ? 'var(--accent)' : 'var(--surface)',
+                 color: addedAll ? 'var(--surface)' : 'var(--text-secondary)', fontWeight: 500, marginLeft: 'auto' }
       }, addedAll ? '\u2713 Added to stash' : 'Mark all as owned')
     ),
 
     // Thread table
     h('div', {style: {overflow: 'auto', maxHeight: 480, marginBottom: 20}},
-      h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize: 12}},
+      h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize:'var(--text-sm)'}},
         h('thead', null,
-          h('tr', {style: {background: '#FBF8F3'}},
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, ''),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'DMC'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Name'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Stitches'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Skeins'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'In stash'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Status')
+          h('tr', {style: {background: 'var(--surface-secondary)'}},
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, ''),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'DMC'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Name'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Stitches'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Skeins'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'In stash'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Status')
           )
         ),
         h('tbody', null,
@@ -14841,19 +14841,19 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
             return h('tr', {
               key: r.p.id,
               style: {
-                borderBottom: '0.5px solid #EFE7D6',
-                background: r.status === 'owned' ? '#DEE7D2' : i % 2 === 0 ? 'transparent' : '#fafafa'
+                borderBottom: '0.5px solid var(--surface-tertiary)',
+                background: r.status === 'owned' ? 'var(--success-soft)' : i % 2 === 0 ? 'transparent' : 'var(--surface-secondary)'
               }
             },
               h('td', {style: {padding: '6px 10px'}},
                 h('div', {style: {width: 20, height: 20, borderRadius: 4, background: 'rgb(' + r.p.rgb + ')',
-                                  border: '0.5px solid #E5DCCB', display: 'inline-block'}})
+                                  border: '0.5px solid var(--border)', display: 'inline-block'}})
               ),
               h('td', {style: {padding: '6px 10px', fontWeight: 600}}, r.p.id),
-              h('td', {style: {padding: '6px 10px', color: '#5C5448'}}, r.name),
+              h('td', {style: {padding: '6px 10px', color: 'var(--text-secondary)'}}, r.name),
               h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.p.count.toLocaleString()),
               h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, r.needed),
-              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? '#3F6432' : '#A89E89'}},
+              h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? 'var(--success)' : 'var(--text-tertiary)'}},
                 r.owned > 0 ? r.owned : '\u2014'
               ),
               h('td', {style: {padding: '6px 10px'}}, statusBadge(r.status))
@@ -14864,12 +14864,12 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     ),
 
     // Fabric calculator (collapsible)
-    h('div', {style: {border: '0.5px solid #E5DCCB', borderRadius: 8, overflow: 'hidden'}},
+    h('div', {style: {border: '0.5px solid var(--border)', borderRadius:'var(--radius-md)', overflow: 'hidden'}},
       h('button', {
         onClick: function() { setFabOpen(function(o) { return !o; }); },
         style: {
-          width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 12,
-          fontWeight: 600, color: '#5C5448', background: '#FBF8F3', border: 'none',
+          width: '100%', textAlign: 'left', padding: '10px 14px', fontSize:'var(--text-sm)',
+          fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--surface-secondary)', border: 'none',
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
         }
       },
@@ -14879,28 +14879,28 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
       fabOpen && h('div', {style: {padding: '14px'}},
         // Controls
         h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap'}},
-          h('span', {style: {fontSize: 12, color: '#5C5448'}}, 'Margin:'),
+          h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)'}}, 'Margin:'),
           h('input', {
             type: 'number', min: 0, max: 10, step: 0.5, value: margin,
             onChange: function(e) { setMargin(Number(e.target.value) || 0); },
-            style: { width: 60, padding: '3px 8px', fontSize: 12, borderRadius: 6, border: '0.5px solid #E5DCCB' }
+            style: { width: 60, padding: '3px 8px', fontSize:'var(--text-sm)', borderRadius:'var(--radius-sm)', border: '0.5px solid var(--border)' }
           }),
-          h('span', {style: {fontSize: 12, color: '#A89E89'}}, 'inches each side'),
-          h('span', {style: {fontSize: 12, color: '#A89E89'}}, '|'),
-          h('span', {style: {fontSize: 12, color: '#5C5448'}}, 'Units:'),
+          h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-tertiary)'}}, 'inches each side'),
+          h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-tertiary)'}}, '|'),
+          h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)'}}, 'Units:'),
           ['in', 'cm'].map(function(u) {
             return h('button', {
               key: u,
               onClick: function() { setUnits(u); },
               style: {
-                fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
-                border: '0.5px solid ' + (units === u ? '#B85C38' : '#E5DCCB'),
-                background: units === u ? '#F4DDCF' : '#fff',
-                color: units === u ? '#B85C38' : '#5C5448', fontWeight: units === u ? 600 : 400
+                fontSize:'var(--text-xs)', padding: '3px 10px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
+                border: '0.5px solid ' + (units === u ? 'var(--accent)' : 'var(--border)'),
+                background: units === u ? 'var(--accent-light)' : 'var(--surface)',
+                color: units === u ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: units === u ? 600 : 400
               }
             }, u === 'in' ? 'Inches' : 'Centimetres');
           }),
-          h('label', {style: {fontSize: 12, color: '#5C5448', display: 'flex', alignItems: 'center', gap: 4}},
+          h('label', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap:'var(--s-1)'}},
             h('input', {
               type: 'checkbox', checked: overTwo,
               onChange: function(e) { setOverTwo(e.target.checked); }
@@ -14910,13 +14910,13 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         ),
         // Table
         h('div', {style: {overflow: 'auto'}},
-          h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize: 12}},
+          h('table', {style: {width: '100%', borderCollapse: 'collapse', fontSize:'var(--text-sm)'}},
             h('thead', null,
-              h('tr', {style: {background: '#FBF8F3'}},
-                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Count'),
-                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Width'),
-                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, 'Height'),
-                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid #E5DCCB', color: '#5C5448', fontWeight: 600, fontSize: 11, textTransform: 'uppercase'}}, '')
+              h('tr', {style: {background: 'var(--surface-secondary)'}},
+                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Count'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Width'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Height'),
+                h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, '')
               )
             ),
             h('tbody', null,
@@ -14926,8 +14926,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                 return h('tr', {
                   key: f.ct,
                   style: {
-                    borderBottom: '0.5px solid #EFE7D6',
-                    background: isCurrent ? '#DEE7D2' : 'transparent'
+                    borderBottom: '0.5px solid var(--surface-tertiary)',
+                    background: isCurrent ? 'var(--success-soft)' : 'transparent'
                   }
                 },
                   h('td', {style: {padding: '6px 10px', fontWeight: isCurrent ? 700 : 400}},
@@ -14936,14 +14936,14 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.w),
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.h),
                   h('td', {style: {padding: '6px 10px'}},
-                    isCurrent && h('span', {style: {fontSize: 10, color: '#B85C38', fontWeight: 600}}, '\u2190 current')
+                    isCurrent && h('span', {style: {fontSize: 10, color: 'var(--accent)', fontWeight: 600}}, '\u2190 current')
                   )
                 );
               })
             )
           )
         ),
-        h('p', {style: {fontSize: 11, color: '#A89E89', marginTop: 10}},
+        h('p', {style: {fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 10}},
           'Pattern: ' + sW + '\u00d7' + sH + ' stitches. Margin: ' + margin + '" each side.'
           + (overTwo ? ' Stitching over two threads.' : '')
         )
@@ -15111,11 +15111,11 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
 
 // Module-scope hoisted values (regex / style objects).
 var EXPORT_UNSAFE_FILENAME_CHARS = /[^\w\-]+/g;
-var EXPORT_PRESET_CARD_BASE = { flex: 1, padding: 14, borderRadius: 10, border: "1.5px solid #CFC4AC", background: "#fff", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 4 };
-var EXPORT_PRESET_CARD_ACTIVE = { background: "#B85C38", color: "#fff", borderColor: "#B85C38" };
-var EXPORT_CTA_STYLE = { padding: "14px 22px", fontSize: 16, borderRadius: 10, border: "none", background: "#B85C38", color: "#fff", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
-var EXPORT_DISABLED_CTA = Object.assign({}, EXPORT_CTA_STYLE, { background: "#A89E89", cursor: "not-allowed" });
-var EXPORT_SECTION_TOGGLE = { background: "#fff", border: "1px solid #E5DCCB", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "#0f172a" };
+var EXPORT_PRESET_CARD_BASE = { flex: 1, padding: 14, borderRadius:'var(--radius-lg)', border: "1.5px solid #CFC4AC", background: "var(--surface)", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap:'var(--s-1)' };
+var EXPORT_PRESET_CARD_ACTIVE = { background: "var(--accent)", color: "var(--surface)", borderColor: "var(--accent)" };
+var EXPORT_CTA_STYLE = { padding: "14px 22px", fontSize:'var(--text-xl)', borderRadius:'var(--radius-lg)', border: "none", background: "var(--accent)", color: "var(--surface)", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
+var EXPORT_DISABLED_CTA = Object.assign({}, EXPORT_CTA_STYLE, { background: "var(--text-tertiary)", cursor: "not-allowed" });
+var EXPORT_SECTION_TOGGLE = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius:'var(--radius-md)', padding: "10px 14px", fontSize:'var(--text-md)', cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", fontWeight: 600, color: "var(--text-primary)" };
 
 window.CreatorExportTab = function CreatorExportTab() {
   var ctx = window.usePatternData();
@@ -15277,7 +15277,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       c.width = ctx.sW * CELL;
       c.height = ctx.sH * CELL;
       var g = c.getContext("2d");
-      g.fillStyle = "#ffffff";
+      g.fillStyle = "var(--surface)";
       g.fillRect(0, 0, c.width, c.height);
       for (var y = 0; y < ctx.sH; y++) {
         for (var x = 0; x < ctx.sW; x++) {
@@ -15481,26 +15481,26 @@ window.CreatorExportTab = function CreatorExportTab() {
   var sectionToggle = EXPORT_SECTION_TOGGLE;
 
   return h("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
-    app.copied && h("div", { style: { background: "#DEE7D2", border: "1px solid #C4DCB6", borderRadius: 8, padding: "8px 14px", fontSize: 12, color: "#4F7D3F", fontWeight: 600 } }, "Copied!"),
+    app.copied && h("div", { style: { background: "var(--success-soft)", border: "1px solid var(--success-soft)", borderRadius:'var(--radius-md)', padding: "8px 14px", fontSize:'var(--text-sm)', color: "var(--success)", fontWeight: 600 } }, "Copied!"),
 
     h("button", {
       onClick: app.handleOpenInTracker,
-      style: { padding: "12px 20px", fontSize: 15, borderRadius: 8, border: "none", background: "#944526", color: "#fff", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }
+      style: { padding: "12px 20px", fontSize: 15, borderRadius:'var(--radius-md)', border: "none", background: "var(--accent-hover)", color: "var(--surface)", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap:'var(--s-2)' }
     }, window.Icons && Icons.thread && Icons.thread(), " Open in Stitch Tracker →"),
 
     h("div", null,
-      h("h3", { style: { margin: "0 0 8px", fontSize: 14, color: "#0f172a" } }, "Quick presets"),
+      h("h3", { style: { margin: "0 0 8px", fontSize:'var(--text-lg)', color: "var(--text-primary)" } }, "Quick presets"),
       h("div", { style: { display: "flex", gap: 10 } },
         h("button", { onClick: function () { applyPreset("patternKeeper"); },
           style: Object.assign({}, presetCardBase, presetState[0] === "patternKeeper" ? presetCardActive : {}) },
-          h("strong", { style: { fontSize: 14 } }, "For Pattern Keeper"),
-          h("span", { style: { fontSize: 11, opacity: 0.85 } },
+          h("strong", { style: { fontSize:'var(--text-lg)' } }, "For Pattern Keeper"),
+          h("span", { style: { fontSize:'var(--text-xs)', opacity: 0.85 } },
             "Symbols + colour, medium print, 2-row overlap, cover page on. Customers can highlight and track stitches in Pattern Keeper.")
         ),
         h("button", { onClick: function () { applyPreset("homePrinting"); },
           style: Object.assign({}, presetCardBase, presetState[0] === "homePrinting" ? presetCardActive : {}) },
-          h("strong", { style: { fontSize: 14 } }, "For printing (home)"),
-          h("span", { style: { fontSize: 11, opacity: 0.85 } },
+          h("strong", { style: { fontSize:'var(--text-lg)' } }, "For printing (home)"),
+          h("span", { style: { fontSize:'var(--text-xs)', opacity: 0.85 } },
             "Colour + B&W charts, large print, no overlap, cover page off. Easier on the eyes when stitching from paper.")
         )
       )
@@ -15512,112 +15512,112 @@ window.CreatorExportTab = function CreatorExportTab() {
         h("span", { "aria-hidden": "true", style: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, color: "var(--text-tertiary)" } },
           (typeof window !== "undefined" && window.Icons) ? (settingsOpen[0] ? window.Icons.chevronUp() : window.Icons.chevronDown()) : null)
       ),
-      settingsOpen[0] && h("div", { style: { background: "#fff", border: "1px solid #E5DCCB", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 14 } },
+      settingsOpen[0] && h("div", { style: { background: "var(--surface)", border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 14 } },
 
         h("div", { style: { marginBottom: 14 } },
-          h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 6 } }, "Format"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+          h("div", { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: "#3f3f46", marginBottom: 6 } }, "Format"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "pdf", onChange: function () { exportFormat[1]("pdf"); } }), "PDF"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "radio", name: "expFmt", checked: exportFormat[0] === "png", onChange: function () { exportFormat[1]("png"); } }), "PNG")
         ),
 
-        h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 } },
+        h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap:'var(--s-3)', marginBottom:'var(--s-3)' } },
           h("div", null,
-            h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Page size"),
-            h("select", { value: pageSize[0], onChange: function (e) { setPageSize(e.target.value); }, style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12, width: "100%" } },
+            h("div", { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: "#3f3f46", marginBottom:'var(--s-1)' } }, "Page size"),
+            h("select", { value: pageSize[0], onChange: function (e) { setPageSize(e.target.value); }, style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)', width: "100%" } },
               h("option", { value: "auto" },   "Auto (A4 / Letter from locale)"),
               h("option", { value: "a4" },     "A4 (210 × 297 mm)"),
               h("option", { value: "letter" }, "US Letter (8.5 × 11 in)")
             )
           ),
           h("div", null,
-            h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Page margin (mm)"),
+            h("div", { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: "#3f3f46", marginBottom:'var(--s-1)' } }, "Page margin (mm)"),
             h("input", { type: "number", min: 10, max: 30, value: marginsMm[0], onChange: function (e) { setMarginsMm(Number(e.target.value)); },
-              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12, width: "100%" } })
+              style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)', width: "100%" } })
           )
         ),
 
-        h("div", { style: { marginBottom: 12 } },
-          h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Stitches per page"),
-          h("select", { value: stPerPg[0], onChange: function (e) { setStPerPg(e.target.value); }, style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12 } },
+        h("div", { style: { marginBottom:'var(--s-3)' } },
+          h("div", { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: "#3f3f46", marginBottom:'var(--s-1)' } }, "Stitches per page"),
+          h("select", { value: stPerPg[0], onChange: function (e) { setStPerPg(e.target.value); }, style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)' } },
             h("option", { value: "small" },  "Small print (~80 × 100, ~2mm cells)"),
             h("option", { value: "medium" }, "Medium print (~60 × 70, ~2.8mm cells, ideal for PK)"),
             h("option", { value: "large" },  "Large print (~40 × 50, ~4mm cells, easier to read)"),
             h("option", { value: "custom" }, "Custom")
           ),
-          stPerPg[0] === "custom" && h("div", { style: { display: "flex", gap: 8, marginTop: 6 } },
+          stPerPg[0] === "custom" && h("div", { style: { display: "flex", gap:'var(--s-2)', marginTop: 6 } },
             h("input", { type: "number", min: 10, max: 200, step: 10, value: customCols[0], onChange: function (e) { setCustomCols(Number(e.target.value)); },
-              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12, width: 90 } }),
-            h("span", { style: { fontSize: 12, alignSelf: "center" } }, "cols ×"),
+              style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)', width: 90 } }),
+            h("span", { style: { fontSize:'var(--text-sm)', alignSelf: "center" } }, "cols ×"),
             h("input", { type: "number", min: 10, max: 200, step: 10, value: customRows[0], onChange: function (e) { setCustomRows(Number(e.target.value)); },
-              style: { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 12, width: 90 } }),
-            h("span", { style: { fontSize: 12, alignSelf: "center" } }, "rows")
+              style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)', width: 90 } }),
+            h("span", { style: { fontSize:'var(--text-sm)', alignSelf: "center" } }, "rows")
           )
         ),
 
-        h("div", { style: { marginBottom: 12 } },
-          h("div", { style: { fontSize: 12, fontWeight: 600, color: "#3f3f46", marginBottom: 4 } }, "Chart modes"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize: 12, cursor: "pointer" } },
+        h("div", { style: { marginBottom:'var(--s-3)' } },
+          h("div", { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: "#3f3f46", marginBottom:'var(--s-1)' } }, "Chart modes"),
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: modeBw[0], onChange: function (e) { setModeBw(e.target.checked); } }),
             "Symbols on white (B&W)"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: modeColour[0], onChange: function (e) { setModeColour(e.target.checked); } }),
             "Colour blocks with symbols")
         ),
 
         h("div", { style: { display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 6 } },
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: overlap[0], onChange: function (e) { setOverlap(e.target.checked); } }),
             "2-row/column overlap zone"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: includeCover[0], onChange: function (e) { setIncludeCover(e.target.checked); } }),
             "Cover page"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: includeInfo[0], onChange: function (e) { setIncludeInfo(e.target.checked); } }),
             "Info page"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: includeIndex[0], onChange: function (e) { setIncludeIndex(e.target.checked); } }),
             "Chart index"),
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize:'var(--text-sm)', cursor: "pointer" } },
             h("input", { type: "checkbox", checked: miniLegend[0], onChange: function (e) { setMiniLegend(e.target.checked); } }),
             "Mini-legend strip on each page")
         ),
 
         h("div", { style: { marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border)" } },
-          h("label", { style: { display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 12, cursor: "pointer", fontWeight: 600, color: "var(--text-primary)" } },
+          h("label", { style: { display: "inline-flex", alignItems: "center", gap:'var(--s-2)', minHeight: 44, fontSize:'var(--text-sm)', cursor: "pointer", fontWeight: 600, color: "var(--text-primary)" } },
             h("input", {
               type: "checkbox",
               checked: workshopTheme[0],
               onChange: function (e) { setWorkshopTheme(e.target.checked); }
             }),
             "Workshop print theme (terracotta grid + linen background)"),
-          h("p", { style: { fontSize: 11, color: "var(--text-secondary)", margin: "4px 0 0 22px" } },
+          h("p", { style: { fontSize:'var(--text-xs)', color: "var(--text-secondary)", margin: "4px 0 0 22px" } },
             "Off by default. Pattern Keeper compatibility uses the standard black-grid output.")
         ),
 
-        pageGeom && h("p", { style: { fontSize: 11, color: "#8A8270", marginTop: 12, marginBottom: 0 } },
+        pageGeom && h("p", { style: { fontSize:'var(--text-xs)', color: "var(--text-tertiary)", marginTop:'var(--s-3)', marginBottom: 0 } },
           "Will produce ~" + totalPagesPreview + " page" + (totalPagesPreview === 1 ? "" : "s") +
           " (chart grid: " + pageGeom.colsPerPage + " × " + pageGeom.rowsPerPage +
           " stitches per chart page, cell ≈ " + pageGeom.cellMm.toFixed(2) + " mm).")
       )
     ),
 
-    h("div", { style: { background: "#f8fafc", border: "1px solid #E5DCCB", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#5C5448" } },
+    h("div", { style: { background: "var(--surface-secondary)", border: "1px solid var(--border)", borderRadius:'var(--radius-md)', padding: "10px 14px", fontSize:'var(--text-sm)', color: "var(--text-secondary)" } },
       "Designer branding (name, logo, copyright) is now in ",
       h("strong", null, "File → Preferences"),
       ". Settings there apply to every PDF you export."
     ),
 
-    progressState[0] ? h("div", { style: { background: "#EFE7D6", border: "1px solid #CFC4AC", borderRadius: 10, padding: 16 } },
-      h("div", { style: { fontSize: 13, fontWeight: 600, color: "#0f172a", marginBottom: 8 } },
+    progressState[0] ? h("div", { style: { background: "var(--surface-tertiary)", border: "1px solid #CFC4AC", borderRadius:'var(--radius-lg)', padding:'var(--s-4)' } },
+      h("div", { style: { fontSize:'var(--text-md)', fontWeight: 600, color: "var(--text-primary)", marginBottom:'var(--s-2)' } },
         "Generating PDF… " + (progressState[0].current || 0) + " of " + (progressState[0].total || "?") + " pages"),
-      h("div", { style: { background: "#E5DCCB", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 10 } },
+      h("div", { style: { background: "var(--border)", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 10 } },
         h("div", { style: {
           width: ((progressState[0].total ? Math.min(100, (progressState[0].current / progressState[0].total) * 100) : 30)) + "%",
-          height: "100%", background: "#B85C38", transition: "width 120ms ease-out" } })
+          height: "100%", background: "var(--accent)", transition: "width 120ms ease-out" } })
       ),
-      h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize: 13, borderRadius: 8, border: "1px solid #ECC8C8", background: "#fff", color: "#8A2E2E", cursor: "pointer", fontWeight: 600 } }, "Cancel")
+      h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize:'var(--text-md)', borderRadius:'var(--radius-md)', border: "1px solid var(--danger-soft)", background: "var(--surface)", color: "var(--danger)", cursor: "pointer", fontWeight: 600 } }, "Cancel")
     ) : h("button", {
       onClick: exportFormat[0] === "png" ? doExportPng : doExport,
       style: (exportFormat[0] === "pdf" && modesArr.length === 0) ? disabledCta : ctaStyle,
@@ -15625,22 +15625,22 @@ window.CreatorExportTab = function CreatorExportTab() {
     }, exportFormat[0] === "png" ? "Export PNG" : "Export PDF"),
 
     // C6: Download bundle (zip with PDF + OXS + PNG + JSON + manifest).
-    h("div", { style: { borderTop: "1px solid #E5DCCB", marginTop: 4, paddingTop: 14, display: "flex", flexDirection: "column", gap: 8 } },
-      h("div", { style: { fontSize: 13, fontWeight: 600, color: "#0f172a" } }, "Download as bundle"),
-      h("div", { style: { fontSize: 11, color: "#8A8270" } },
+    h("div", { style: { borderTop: "1px solid var(--border)", marginTop:'var(--s-1)', paddingTop: 14, display: "flex", flexDirection: "column", gap:'var(--s-2)' } },
+      h("div", { style: { fontSize:'var(--text-md)', fontWeight: 600, color: "var(--text-primary)" } }, "Download as bundle"),
+      h("div", { style: { fontSize:'var(--text-xs)', color: "var(--text-tertiary)" } },
         "One .zip with the PDF chart, OXS pattern, PNG preview, JSON snapshot, and a manifest. Useful for archiving or sharing the finished project."),
       bundleState[0]
-        ? h("div", { style: { background: "#EFE7D6", border: "1px solid #CFC4AC", borderRadius: 8, padding: 10, fontSize: 12, color: "#0f172a" } },
+        ? h("div", { style: { background: "var(--surface-tertiary)", border: "1px solid #CFC4AC", borderRadius:'var(--radius-md)', padding: 10, fontSize:'var(--text-sm)', color: "var(--text-primary)" } },
             (bundleState[0].msg || "Working…"))
         : h("button", {
             onClick: doExportBundle,
-            style: Object.assign({}, ctaStyle, { display: "inline-flex", alignItems: "center", gap: 8, alignSelf: "flex-start" }),
+            style: Object.assign({}, ctaStyle, { display: "inline-flex", alignItems: "center", gap:'var(--s-2)', alignSelf: "flex-start" }),
           },
           window.Icons && Icons.archive && Icons.archive(),
           h("span", null, "Download bundle"))
     ),
 
-    errorState[0] && h("div", { style: { background: "#FCEFEF", border: "1px solid #ECC8C8", borderRadius: 8, padding: 10, fontSize: 12, color: "#8A2E2E" } }, errorState[0])
+    errorState[0] && h("div", { style: { background: "var(--danger-soft)", border: "1px solid var(--danger-soft)", borderRadius:'var(--radius-md)', padding: 10, fontSize:'var(--text-sm)', color: "var(--danger)" } }, errorState[0])
   );
 };
 
@@ -15795,22 +15795,22 @@ window.CreatorExportTab = function CreatorExportTab() {
     }
 
     var sectionLabel = function (text, color) {
-      return h('div', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.04, color: color, margin: '12px 0 6px' } }, text);
+      return h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.04, color: color, margin: '12px 0 6px' } }, text);
     };
     var rowEl = function (r, kind) {
-      var bg = kind === 'owned' ? '#DEE7D2' : '#FCEFEF';
-      var border = kind === 'owned' ? '#C4DCB6' : '#ECC8C8';
+      var bg = kind === 'owned' ? 'var(--success-soft)' : 'var(--danger-soft)';
+      var border = kind === 'owned' ? 'var(--success-soft)' : 'var(--danger-soft)';
       var note = kind === 'owned'
         ? 'own ' + r.owned + ', need ~' + r.needed
         : 'need ~' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + (r.owned > 0 ? ' (own ' + r.owned + ')' : '');
       return h('div', {
         key: r.id,
-        style: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: bg, borderRadius: 6, border: '1px solid ' + border, marginBottom: 4 }
+        style: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: bg, borderRadius:'var(--radius-sm)', border: '1px solid ' + border, marginBottom:'var(--s-1)' }
       },
-        h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid #CFC4AC', flexShrink: 0 } }),
-        h('div', { style: { width: 38, fontWeight: 700, fontSize: 12, flexShrink: 0 } }, r.id),
-        h('div', { style: { flex: 1, fontSize: 12, color: '#5C5448', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name),
-        h('div', { style: { fontSize: 11, color: kind === 'owned' ? '#3F6432' : '#8A2E2E', fontWeight: 500, flexShrink: 0 } }, note)
+        h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid var(--border)', flexShrink: 0 } }),
+        h('div', { style: { width: 38, fontWeight: 700, fontSize:'var(--text-sm)', flexShrink: 0 } }, r.id),
+        h('div', { style: { flex: 1, fontSize:'var(--text-sm)', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name),
+        h('div', { style: { fontSize:'var(--text-xs)', color: kind === 'owned' ? 'var(--success)' : 'var(--danger)', fontWeight: 500, flexShrink: 0 } }, note)
       );
     };
 
@@ -15818,15 +15818,15 @@ window.CreatorExportTab = function CreatorExportTab() {
       onClose: onClose, className: 'modal-content', zIndex: 1000, labelledBy: 'shopping-list-title',
       style: { maxWidth: 540, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }
     },
-        h('div', { style: { padding: '16px 20px', borderBottom: '1px solid #E5DCCB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        h('div', { style: { padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
           h('h2', { id: 'shopping-list-title', style: { margin: 0, fontSize: 18 } }, 'What do I need to buy?'),
           h(window.Overlay.CloseButton, { onClose: onClose, style: { position: 'static' } })
         ),
         h('div', {
           style: {
-            padding: '10px 20px', background: buyRows.length === 0 ? '#DEE7D2' : '#FAF5E1',
-            borderBottom: '1px solid #E5DCCB', fontSize: 12,
-            color: buyRows.length === 0 ? '#3F6432' : '#6B461F', fontWeight: 600
+            padding: '10px 20px', background: buyRows.length === 0 ? 'var(--success-soft)' : '#FAF5E1',
+            borderBottom: '1px solid var(--border)', fontSize:'var(--text-sm)',
+            color: buyRows.length === 0 ? 'var(--success)' : 'var(--accent-ink)', fontWeight: 600
           }
         },
           buyRows.length === 0
@@ -15835,26 +15835,26 @@ window.CreatorExportTab = function CreatorExportTab() {
         ),
         h('div', { style: { padding: '12px 20px', overflowY: 'auto', flex: 1 } },
           rows.length === 0
-            ? h('div', { style: { padding: 30, textAlign: 'center', color: '#A89E89' } }, 'No threads in this pattern yet.')
+            ? h('div', { style: { padding: 30, textAlign: 'center', color: 'var(--text-tertiary)' } }, 'No threads in this pattern yet.')
             : h(React.Fragment, null,
-                buyRows.length > 0 && sectionLabel('Need to buy (' + buyRows.length + ')', '#A53D3D'),
+                buyRows.length > 0 && sectionLabel('Need to buy (' + buyRows.length + ')', 'var(--danger)'),
                 buyRows.map(function (r) { return rowEl(r, 'needed'); }),
-                ownedRows.length > 0 && sectionLabel('Already in your stash (' + ownedRows.length + ')', '#4F7D3F'),
+                ownedRows.length > 0 && sectionLabel('Already in your stash (' + ownedRows.length + ')', 'var(--success)'),
                 ownedRows.map(function (r) { return rowEl(r, 'owned'); })
               )
         ),
         h('div', {
-          style: { padding: '14px 20px', borderTop: '1px solid #E5DCCB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FBF8F3', gap: 8, flexWrap: 'wrap' }
+          style: { padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-secondary)', gap:'var(--s-2)', flexWrap: 'wrap' }
         },
-          h('span', { style: { fontSize: 12, color: '#4F7D3F', fontWeight: 600, opacity: copied ? 1 : 0, transition: 'opacity 0.2s' } }, 'Copied!'),
-          h('div', { style: { display: 'flex', gap: 8, marginLeft: 'auto' } },
+          h('span', { style: { fontSize:'var(--text-sm)', color: 'var(--success)', fontWeight: 600, opacity: copied ? 1 : 0, transition: 'opacity 0.2s' } }, 'Copied!'),
+          h('div', { style: { display: 'flex', gap:'var(--s-2)', marginLeft: 'auto' } },
             h('a', {
               href: 'manager.html',
-              style: { padding: '7px 14px', borderRadius: 8, border: '0.5px solid #E5DCCB', background: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13, textDecoration: 'none', color: '#5C5448' }
+              style: { padding: '7px 14px', borderRadius:'var(--radius-md)', border: '0.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontWeight: 600, fontSize:'var(--text-md)', textDecoration: 'none', color: 'var(--text-secondary)' }
             }, 'Open in Stash Manager'),
             rows.length > 0 && h('button', {
               onClick: copyText,
-              style: { padding: '7px 14px', borderRadius: 8, border: 'none', background: '#B85C38', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13 }
+              style: { padding: '7px 14px', borderRadius:'var(--radius-md)', border: 'none', background: 'var(--accent)', color: 'var(--surface)', cursor: 'pointer', fontWeight: 600, fontSize:'var(--text-md)' }
             }, 'Copy list')
           )
         )

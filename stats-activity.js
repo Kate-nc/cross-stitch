@@ -7,7 +7,7 @@ const h = React.createElement;
 
 // ── Constants ────────────────────────────────────────────────────
 const STITCHES_PER_HOUR = 400;
-const TEAL_RAMP = ['#FBF8F3', '#DEE7D2', '#A8C594', '#88B077', '#4F7D3F'];
+const TEAL_RAMP = ['var(--surface-secondary)', 'var(--success-soft)', '#A8C594', '#88B077', 'var(--success)'];
 const CELL = 11; // 8px cell + 3px gap
 const DAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -191,7 +191,7 @@ function Sparkline({ days }) {
     return x + ',' + y;
   }).join(' ');
   return h('svg', { width: W, height: H, style: { display: 'block', flexShrink: 0 } },
-    h('polyline', { points: pts, fill: 'none', stroke: '#B85C38', strokeWidth: 1.5, strokeLinejoin: 'round', strokeLinecap: 'round' })
+    h('polyline', { points: pts, fill: 'none', stroke: 'var(--accent)', strokeWidth: 1.5, strokeLinejoin: 'round', strokeLinecap: 'round' })
   );
 }
 
@@ -225,11 +225,11 @@ function ActivityHeatmap({ grid, byDay, onCellHover, onCellLeave, onCellClick, h
     },
       // Month labels
       monthLabels.map((ml, i) =>
-        h('text', { key: i, x: ml.x, y: 12, fontSize: 9, fill: '#A89E89' }, ml.text)
+        h('text', { key: i, x: ml.x, y: 12, fontSize: 9, fill: 'var(--text-tertiary)' }, ml.text)
       ),
       // Day-of-week labels
       DAY_LABELS.map((label, di) =>
-        label ? h('text', { key: di, x: LEFT - 4, y: 20 + di * CELL + CELL * 0.75, textAnchor: 'end', fontSize: 9, fill: '#A89E89' }, label) : null
+        label ? h('text', { key: di, x: LEFT - 4, y: 20 + di * CELL + CELL * 0.75, textAnchor: 'end', fontSize: 9, fill: 'var(--text-tertiary)' }, label) : null
       ),
       // Cells
       weeks.map((week, wi) =>
@@ -241,10 +241,10 @@ function ActivityHeatmap({ grid, byDay, onCellHover, onCellLeave, onCellClick, h
           if (!day.inPeriod) {
             fill = 'none'; stroke = 'none'; opacity = 0;
           } else if (day.preTracking) {
-            fill = '#f8fafc'; stroke = '#E5DCCB'; opacity = 0.5;
+            fill = 'var(--surface-secondary)'; stroke = 'var(--border)'; opacity = 0.5;
           } else {
             fill = day.count > 0 ? TEAL_RAMP[day.bin] : TEAL_RAMP[0];
-            stroke = isHighlighted ? '#B85C38' : 'none';
+            stroke = isHighlighted ? 'var(--accent)' : 'none';
             opacity = 1;
           }
           return h('rect', {
@@ -267,11 +267,11 @@ function ActivityHeatmap({ grid, byDay, onCellHover, onCellLeave, onCellClick, h
       ),
       // Legend
       h('g', { transform: 'translate(' + LEFT + ',' + (SVG_H + 8) + ')' },
-        h('text', { x: 0, y: 8, fontSize: 9, fill: '#A89E89' }, 'Less'),
+        h('text', { x: 0, y: 8, fontSize: 9, fill: 'var(--text-tertiary)' }, 'Less'),
         TEAL_RAMP.map((color, i) =>
           h('rect', { key: i, x: 28 + i * (CELL - 1), y: 0, width: CELL - 3, height: CELL - 3, rx: 2, fill: color })
         ),
-        h('text', { x: 28 + 5 * (CELL - 1) + 4, y: 8, fontSize: 9, fill: '#A89E89' }, 'More')
+        h('text', { x: 28 + 5 * (CELL - 1) + 4, y: 8, fontSize: 9, fill: 'var(--text-tertiary)' }, 'More')
       )
     )
   );
@@ -372,22 +372,22 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
     setHighlightPeriod(null);
   }, []);
 
-  const lnk = { fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' };
+  const lnk = { fontSize:'var(--text-sm)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' };
   const wrap = { maxWidth: 700, margin: '0 auto', padding: '0 16px 80px' };
 
   if (!premium) {
     return h('div', { style: wrap },
       h('div', { style: { paddingTop: 60, textAlign: 'center' } },
-        h('div', { style: { fontSize: 32, marginBottom: 12 } }, '🔒'),
+        h('div', { style: { fontSize: 32, marginBottom:'var(--s-3)' } }, '🔒'),
         h('h2', { style: { fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' } }, 'Activity'),
-        h('p', { style: { color: 'var(--text-secondary)', fontSize: 14 } }, 'Activity tracking is a premium feature.')
+        h('p', { style: { color: 'var(--text-secondary)', fontSize:'var(--text-lg)' } }, 'Activity tracking is a premium feature.')
       )
     );
   }
 
   if (loading) {
     return h('div', { style: Object.assign({}, wrap, { paddingTop: 60, textAlign: 'center', color: 'var(--text-tertiary)' }) },
-      h('div', { style: { width: 28, height: 28, border: '2.5px solid #E5DCCB', borderTopColor: '#B85C38', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' } }),
+      h('div', { style: { width: 28, height: 28, border: '2.5px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' } }),
       'Loading your activity\u2026'
     );
   }
@@ -413,26 +413,26 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
     // ── Page header ───────────────────────────────────────────────
     h('div', { style: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', paddingTop: 24, paddingBottom: 12 } },
       h('div', null,
-        h('div', { style: { fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 2 } }, 'your stitching'),
+        h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 2 } }, 'your stitching'),
         h('h2', { style: { fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--text-primary)' } }, 'Activity')
       ),
-      h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap:'var(--s-3)' } },
         onNavigateToShowcase && h('button', { onClick: onNavigateToShowcase, style: lnk }, 'Showcase \u2192'),
         onNavigateToDashboard && h('button', { onClick: onNavigateToDashboard, style: lnk }, 'Full dashboard \u2192')
       )
     ),
 
     // ── Filter warning ────────────────────────────────────────────
-    filterWarning && h('div', { role: 'alert', style: { background: '#F2E2BE', border: '1px solid #D9B055', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#6B461F' } }, filterWarning),
+    filterWarning && h('div', { role: 'alert', style: { background: 'var(--warning-soft)', border: '1px solid #D9B055', borderRadius:'var(--radius-md)', padding: '8px 12px', marginBottom:'var(--s-3)', fontSize:'var(--text-md)', color: 'var(--accent-ink)' } }, filterWarning),
     filterProjectId && filteredProjectName && h('div', {
-      style: { background: '#F4DDCF', border: '1px solid #E8B89A', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#944526', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
+      style: { background: 'var(--accent-light)', border: '1px solid var(--accent-border)', borderRadius:'var(--radius-md)', padding: '8px 12px', marginBottom:'var(--s-3)', fontSize:'var(--text-md)', color: 'var(--accent-hover)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
     },
       h('span', null, 'Filtered to ', h('strong', null, filteredProjectName)),
-      h('button', { onClick: handleDismissFilter, style: Object.assign({}, lnk, { fontSize: 12, color: '#944526' }) }, 'Clear filter \u2192')
+      h('button', { onClick: handleDismissFilter, style: Object.assign({}, lnk, { fontSize:'var(--text-sm)', color: 'var(--accent-hover)' }) }, 'Clear filter \u2192')
     ),
 
     // ── Heatmap ───────────────────────────────────────────────────
-    h('div', { style: { background: 'var(--surface, #fff)', border: '1px solid var(--border, #E5DCCB)', borderRadius: 12, padding: '16px 16px 12px', marginBottom: 12 } },
+    h('div', { style: { background: 'var(--surface, #fff)', border: '1px solid var(--border, var(--border))', borderRadius:'var(--radius-xl)', padding: '16px 16px 12px', marginBottom:'var(--s-3)' } },
       h(ActivityHeatmap, {
         grid,
         byDay,
@@ -447,8 +447,8 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
     tooltip && h('div', {
       style: {
         position: 'fixed', left: tooltip.x + 14, top: tooltip.y + 14,
-        background: 'var(--surface, #fff)', border: '1px solid var(--border, #E5DCCB)',
-        borderRadius: 6, padding: '6px 10px', fontSize: 12, color: 'var(--text-primary)',
+        background: 'var(--surface, #fff)', border: '1px solid var(--border, var(--border))',
+        borderRadius:'var(--radius-sm)', padding: '6px 10px', fontSize:'var(--text-sm)', color: 'var(--text-primary)',
         boxShadow: '0 2px 8px rgba(0,0,0,0.12)', whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 9999
       },
       'aria-hidden': 'true'
@@ -456,11 +456,11 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
 
     // ── Selected day panel (mobile-friendly) ──────────────────────
     selectedDay && h('div', {
-      style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
+      style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-md)', padding: '10px 14px', marginBottom:'var(--s-3)', fontSize:'var(--text-md)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
     },
       h('span', null,
         h('strong', null, new Date(selectedDay.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })),
-        h('span', { style: { color: 'var(--text-secondary)', marginLeft: 8 } }, fmtNum(selectedDay.count) + ' stitches')
+        h('span', { style: { color: 'var(--text-secondary)', marginLeft:'var(--s-2)' } }, fmtNum(selectedDay.count) + ' stitches')
       ),
       h('button', { onClick: () => setSelectedDay(null), 'aria-label': 'Dismiss', style: { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, padding: '0 4px', lineHeight: 1 } }, '\xd7')
     ),
@@ -471,10 +471,10 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
         key: p.value,
         onClick: () => handlePeriodChange(p.value),
         style: {
-          padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-          background: period === p.value ? 'var(--accent, #B85C38)' : 'var(--surface, #fff)',
-          color: period === p.value ? '#fff' : 'var(--text-secondary)',
-          border: '1px solid ' + (period === p.value ? 'var(--accent, #B85C38)' : 'var(--border, #E5DCCB)')
+          padding: '5px 12px', borderRadius: 20, fontSize:'var(--text-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+          background: period === p.value ? 'var(--accent, var(--accent))' : 'var(--surface, #fff)',
+          color: period === p.value ? 'var(--surface)' : 'var(--text-secondary)',
+          border: '1px solid ' + (period === p.value ? 'var(--accent, var(--accent))' : 'var(--border, var(--border))')
         }
       }, p.label))
     ),
@@ -488,34 +488,34 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
           if (found) setSelectedDay(prev => prev && prev.date === ins.date ? null : found);
         } : undefined,
         style: {
-          background: 'var(--surface, #fff)', border: '1px solid var(--border, #E5DCCB)',
-          borderRadius: 10, padding: '12px 14px', fontSize: 13, color: 'var(--text-primary)',
+          background: 'var(--surface, #fff)', border: '1px solid var(--border, var(--border))',
+          borderRadius:'var(--radius-lg)', padding: '12px 14px', fontSize:'var(--text-md)', color: 'var(--text-primary)',
           lineHeight: 1.5, cursor: ins.date ? 'pointer' : 'default'
         }
       },
-        h('div', { style: { fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 4 } }, ins.label),
+        h('div', { style: { fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom:'var(--s-1)' } }, ins.label),
         ins.text
       ))
     ),
 
     // ── Pace stats (4 cards) ──────────────────────────────────────
     paceStats && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 } },
-      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' } },
+      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
         h('div', { className: 'gsd-metric-label' }, 'Avg. per Session'),
         h('div', { className: 'gsd-metric-value' }, fmtNum(paceStats.avgPerSession)),
         h('div', { className: 'gsd-metric-sub' }, 'stitches per active day')
       ),
-      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' } },
+      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
         h('div', { className: 'gsd-metric-label' }, 'Est. Hours'),
         h('div', { className: 'gsd-metric-value' }, '\u2248 ' + paceStats.estHours),
         h('div', { className: 'gsd-metric-sub' }, 'based on ~400 stitches/hour')
       ),
-      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' } },
+      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
         h('div', { className: 'gsd-metric-label' }, 'Avg. Session'),
         h('div', { className: 'gsd-metric-value' }, '~' + fmtHours(paceStats.sessionHours)),
         h('div', { className: 'gsd-metric-sub' }, 'per active day')
       ),
-      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' } },
+      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
         h('div', { className: 'gsd-metric-label' }, 'Active Days'),
         h('div', { className: 'gsd-metric-value' }, paceStats.sessionCount),
         h('div', { className: 'gsd-metric-sub' }, 'of ' + paceStats.totalDays + ' in period')
@@ -524,9 +524,9 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
 
     // ── Busiest periods ───────────────────────────────────────────
     busiestPeriods.length > 0 && h('div', {
-      style: { background: 'var(--surface, #fff)', border: '1px solid var(--border, #E5DCCB)', borderRadius: 12, overflow: 'hidden', marginBottom: 20 }
+      style: { background: 'var(--surface, #fff)', border: '1px solid var(--border, var(--border))', borderRadius:'var(--radius-xl)', overflow: 'hidden', marginBottom: 20 }
     },
-      h('div', { style: { padding: '12px 16px', borderBottom: '1px solid var(--border, #E5DCCB)', fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)' } },
+      h('div', { style: { padding: '12px 16px', borderBottom: '1px solid var(--border, var(--border))', fontSize:'var(--text-xs)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)' } },
         groupBy === 'month' ? 'Busiest Months' : 'Busiest Weeks'
       ),
       busiestPeriods.map((p, i) => {
@@ -538,22 +538,22 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
           key: p.key,
           onClick: () => setHighlightPeriod(prev => prev === p.key ? null : p.key),
           style: {
-            display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
-            borderBottom: i < busiestPeriods.length - 1 ? '1px solid var(--border-subtle, #EFE7D6)' : 'none',
-            cursor: 'pointer', fontSize: 13,
-            background: isHL ? '#F4DDCF' : 'transparent'
+            display: 'flex', alignItems: 'center', gap:'var(--s-3)', padding: '10px 16px',
+            borderBottom: i < busiestPeriods.length - 1 ? '1px solid var(--border-subtle, var(--surface-tertiary))' : 'none',
+            cursor: 'pointer', fontSize:'var(--text-md)',
+            background: isHL ? 'var(--accent-light)' : 'transparent'
           }
         },
-          h('span', { style: { width: 20, textAlign: 'right', color: 'var(--text-tertiary)', fontWeight: 600, fontSize: 11, flexShrink: 0 } }, '#' + (i + 1)),
+          h('span', { style: { width: 20, textAlign: 'right', color: 'var(--text-tertiary)', fontWeight: 600, fontSize:'var(--text-xs)', flexShrink: 0 } }, '#' + (i + 1)),
           h('span', { style: { flex: 1, color: 'var(--text-primary)' } }, label),
-          h('span', { style: { color: '#B85C38', fontWeight: 600, whiteSpace: 'nowrap', fontSize: 13 } }, fmtNum(p.total)),
+          h('span', { style: { color: 'var(--accent)', fontWeight: 600, whiteSpace: 'nowrap', fontSize:'var(--text-md)' } }, fmtNum(p.total)),
           h('div', { style: { width: 60, flexShrink: 0 } }, h(Sparkline, { days: p.days }))
         );
       })
     ),
 
     // ── Empty state ───────────────────────────────────────────────
-    !hasData && h('div', { style: { textAlign: 'center', padding: '40px 0', color: 'var(--text-tertiary)', fontSize: 14 } },
+    !hasData && h('div', { style: { textAlign: 'center', padding: '40px 0', color: 'var(--text-tertiary)', fontSize:'var(--text-lg)' } },
       'No stitching activity recorded yet in this period.',
       h('br'),
       'Mark stitches in the tracker to build your history here.'

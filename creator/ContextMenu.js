@@ -53,40 +53,40 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       disabled: opts.disabled,
       style: {
         display:"block", width:"100%", textAlign:"left",
-        padding:"5px 12px", fontSize:12, fontFamily:"inherit",
+        padding:"5px 12px", fontSize:'var(--text-sm)', fontFamily:"inherit",
         border:"none", background:opts.disabled ? "transparent" : "transparent",
-        color:opts.disabled ? "#A89E89" : "#1B1814",
+        color:opts.disabled ? "var(--text-tertiary)" : "var(--text-primary)",
         cursor:opts.disabled ? "default" : "pointer",
         borderRadius:4
       },
-      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "#EFE7D6"; },
+      onMouseEnter: function(e) { if (!opts.disabled) e.target.style.background = "var(--surface-tertiary)"; },
       onMouseLeave: function(e) { e.target.style.background = "transparent"; }
     }, label);
   }
 
   function sep() {
-    return h("div", {style:{height:1,background:"#E5DCCB",margin:"3px 0"}});
+    return h("div", {style:{height:1,background:"var(--border)",margin:"3px 0"}});
   }
 
   return h("div", {
     ref: menuRef,
     style:{
       position:"fixed", left:pos.x, top:pos.y, zIndex:9999,
-      background:"#fff", border:"1px solid #CFC4AC", borderRadius:8,
+      background:"var(--surface)", border:"1px solid var(--border)", borderRadius:'var(--radius-md)',
       boxShadow:"0 4px 16px rgba(0,0,0,0.12)", padding:"4px 0",
       minWidth:180, maxWidth:240
     }
   },
     // Header: cell info
     hasCellColour && h("div", {
-      style:{padding:"5px 12px 4px",fontSize:11,color:"#5C5448",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid #EFE7D6",marginBottom:2}
+      style:{padding:"5px 12px 4px",fontSize:'var(--text-xs)',color:"var(--text-secondary)",display:"flex",alignItems:"center",gap:5,borderBottom:"1px solid var(--surface-tertiary)",marginBottom:2}
     },
-      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid #CFC4AC",
+      h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid var(--border)",
         background:"rgb("+cellInfo.rgb+")"}}),
       "DMC " + cellInfo.id + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
     ),
     !hasCellColour && h("div", {
-      style:{padding:"5px 12px 4px",fontSize:11,color:"#A89E89",borderBottom:"1px solid #EFE7D6",marginBottom:2}
+      style:{padding:"5px 12px 4px",fontSize:'var(--text-xs)',color:"var(--text-tertiary)",borderBottom:"1px solid var(--surface-tertiary)",marginBottom:2}
     }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
 
     // Pick this colour

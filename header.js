@@ -64,7 +64,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
         meta && React.createElement('span', { className: 'tb-context-meta' }, meta),
         showAutosaved && React.createElement('span', {
           className: 'tb-context-meta',
-          style: { color:'#4F7D3F', fontSize:11, display:'inline-flex', alignItems:'center', gap:4 },
+          style: { color:'var(--success)', fontSize:'var(--text-xs)', display:'inline-flex', alignItems:'center', gap:'var(--s-1)' },
           title: 'Your work auto-saves to this device. Use Download to export a .json file.'
         },
           (window.Icons && window.Icons.check) ? window.Icons.check() : null,
@@ -480,7 +480,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   onClick: function(e) { e.stopPropagation(); setEditingName(true); },
                   title: 'Click to rename',
                   'aria-label': 'Rename project',
-                  style: { display: 'inline-flex', alignItems: 'center', gap: 4 }
+                  style: { display: 'inline-flex', alignItems: 'center', gap:'var(--s-1)' }
                 },
                 propProjectName || projName,
                 React.createElement('span', {
@@ -547,7 +547,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           ),
           fileMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 210 } },
             // Storage usage summary
-            storageUsage && React.createElement('div', { style: { padding: '8px 14px 6px', fontSize: 11, color: '#5C5448', borderBottom: '1px solid #EFE7D6' } },
+            storageUsage && React.createElement('div', { style: { padding: '8px 14px 6px', fontSize:'var(--text-xs)', color: 'var(--text-secondary)', borderBottom: '1px solid var(--surface-tertiary)' } },
               storageUsage.persistent ? React.createElement(React.Fragment, null, Icons.lock(), ' Protected') : React.createElement(React.Fragment, null, Icons.hourglass(), ' Temporary'),
               ' · ',
               (storageUsage.used / 1024 / 1024).toFixed(1) + ' MB'
@@ -587,7 +587,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             // and the Stash Manager — no longer surfaced in the File menu.
             // Separator before backup/restore
             !!(onNewProject || onOpen || onSave || ((page === 'creator' || page === 'editor') && onTrack) || onExportPDF) &&
-              React.createElement('div', { style: { height: 1, background: '#EFE7D6', margin: '4px 0' } }),
+              React.createElement('div', { style: { height: 1, background: 'var(--surface-tertiary)', margin: '4px 0' } }),
             // Backup — use prop handler if provided (e.g. manager shows status feedback), else inline
             React.createElement('button', {
               className: 'tb-page-dropdown-item',
@@ -614,7 +614,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               })
             ),
             // Sync separator and options
-            typeof SyncEngine !== 'undefined' && React.createElement('div', { style: { height: 1, background: '#EFE7D6', margin: '4px 0' } }),
+            typeof SyncEngine !== 'undefined' && React.createElement('div', { style: { height: 1, background: 'var(--surface-tertiary)', margin: '4px 0' } }),
             typeof SyncEngine !== 'undefined' && React.createElement('button', {
               className: 'tb-page-dropdown-item',
               onClick: () => {
