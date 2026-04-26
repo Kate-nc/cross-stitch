@@ -969,10 +969,11 @@ function UnifiedApp(){
     if(p.get('mode')==='track') return 'track';
     if(p.get('mode')==='stats') return 'stats';
     if(p.get('mode')==='showcase'){window.history.replaceState({},'','?mode=stats&tab=showcase');return 'stats';}
-    // /home tile clicks land here with ?action=new-from-image / new-blank.
-    // Skip the legacy in-tool home screen and drop the user straight into Creator.
+    // /home tile clicks land here with ?action=new-from-image / new-blank /
+    // home-image-pending. Skip the legacy in-tool home screen and drop the
+    // user straight into Creator.
     var act=p.get('action');
-    if(act==='new-from-image'||act==='new-blank'||act==='open') return 'design';
+    if(act==='new-from-image'||act==='new-blank'||act==='open'||act==='home-image-pending') return 'design';
     return 'home';
   });
   // Process ?action= deep links from /home so the user lands directly in Creator
@@ -987,11 +988,31 @@ function UnifiedApp(){
       window.__pendingCreatorAction='scratch';
       // Match handleHomeOpenCreatorBlank: scratch defaults to Edit, not Create.
       setTimeout(()=>{if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');},0);
+    } else if(act==='home-image-pending'){
+      // home-app.js triggered the file picker in the same user gesture, stored
+      // the selected file as a data URL in sessionStorage, then navigated here.
+      // Reconstruct a File object from the stored data URL so the Creator can
+      // process it immediately without requiring a second click.
+      var pendingDataUrl=sessionStorage.getItem('cs_pending_image_dataurl');
+      var pendingName=sessionStorage.getItem('cs_pending_image_name')||'image.jpg';
+      var pendingType=sessionStorage.getItem('cs_pending_image_type')||'image/jpeg';
+      sessionStorage.removeItem('cs_pending_image_dataurl');
+      sessionStorage.removeItem('cs_pending_image_name');
+      sessionStorage.removeItem('cs_pending_image_type');
+      if(pendingDataUrl){
+        try{
+          var b64=pendingDataUrl.split(',')[1];
+          var byteStr=atob(b64);
+          var ab=new ArrayBuffer(byteStr.length);
+          var ia=new Uint8Array(ab);
+          for(var bi=0;bi<byteStr.length;bi++) ia[bi]=byteStr.charCodeAt(bi);
+          var blob=new Blob([ab],{type:pendingType});
+          window.__pendingCreatorFile=new File([blob],pendingName,{type:pendingType});
+        }catch(_){}
+      }
     } else if(act==='new-from-image'){
-      // The Creator upload screen shows a "Create New Pattern" tile the user
-      // can click directly — no programmatic file-picker trigger needed.
-      // (Polling setInterval hacks fail silently on modern Chrome because
-      // input.click() requires a synchronous user-activation context.)
+      // Fallback path (e.g. sessionStorage quota exceeded): Creator upload
+      // screen is already showing — guide user to click "Create New Pattern".
       if(window.Toast) window.Toast.show({message:'Click "Create New Pattern" below to choose your image.',type:'info',duration:5000});
     } else if(act==='open'){
       // Same: the "Load Existing Project" tile in the upload screen handles this.

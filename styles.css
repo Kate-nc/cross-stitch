@@ -5401,6 +5401,7 @@ html.pref-dark a { color: var(--accent); }
 }
 
 /* ── Create new panel ── */
+.home-create-file-input { display: none; }
 .home-create-panel { padding: var(--s-3, 12px) 0 0; }
 .home-create-panel__grid {
   display: grid;

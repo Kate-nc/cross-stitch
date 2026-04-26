@@ -217,47 +217,88 @@
   }
 
   // ── CreatePanel ─────────────────────────────────────────────────────────
-  // "Create new" tab content. Replaces the two creation QuickTiles.
-  // The nav-duplicating "Open Tracker" + "Open Stash Manager" tiles are gone.
+  // "Create new" tab content.
+  //
+  // "New from image": triggers the file picker in the same user-gesture as the
+  // button click (so the browser allows it), serialises the selected file to
+  // sessionStorage as a data URL, then navigates to
+  // index.html?action=home-image-pending where creator-main.js reconstructs the
+  // File object and passes it to the Creator without a second click.
+  //
+  // "New from scratch": navigates to index.html?action=new-blank which already
+  // sets mode='design' + pendingCreatorAction='scratch' in one step.
   function CreatePanel() {
     var Icons = window.Icons || {};
-    var tiles = [
-      {
-        key: 'image',
-        title: 'New from image',
-        sub: 'Convert a photo into stitches',
-        href: 'index.html?action=new-from-image',
-        icon: Icons.image,
-        primary: true
-      },
-      {
-        key: 'blank',
-        title: 'New from scratch',
-        sub: 'Start with a blank grid',
-        href: 'index.html?action=new-blank',
-        icon: Icons.plus
-      }
-    ];
+    var fileInputRef = React.useRef(null);
+
+    function handleNewFromImage() {
+      var input = fileInputRef.current;
+      if (input) input.click();
+    }
+
+    function handleFileChange(e) {
+      var file = e.target.files && e.target.files[0];
+      // Reset so the same file can be re-selected if needed
+      e.target.value = '';
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        var dataUrl = ev.target.result;
+        try {
+          sessionStorage.setItem('cs_pending_image_dataurl', dataUrl);
+          sessionStorage.setItem('cs_pending_image_name', file.name);
+          sessionStorage.setItem('cs_pending_image_type', file.type || 'image/jpeg');
+          window.location.href = 'index.html?action=home-image-pending&from=home';
+        } catch (_) {
+          // sessionStorage quota exceeded (very large image) — fall back to the
+          // existing two-click flow rather than silently failing.
+          window.location.href = 'index.html?action=new-from-image';
+        }
+      };
+      reader.onerror = function () {
+        window.location.href = 'index.html?action=new-from-image';
+      };
+      reader.readAsDataURL(file);
+    }
+
     return h('section', {
       className: 'home-create-panel',
       'aria-labelledby': 'home-create-panel-title'
     },
       h('h2', { id: 'home-create-panel-title', className: 'home-section__title' }, 'Start a new pattern'),
+      h('input', {
+        ref: fileInputRef,
+        type: 'file',
+        accept: 'image/*',
+        className: 'home-create-file-input',
+        onChange: handleFileChange,
+        'aria-hidden': 'true',
+        tabIndex: -1
+      }),
       h('div', { className: 'home-create-panel__grid' },
-        tiles.map(function (t) {
-          return h('a', {
-            key: t.key,
-            href: t.href,
-            className: 'home-create-tile' + (t.primary ? ' home-create-tile--primary' : '')
-          },
-            h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
-              typeof t.icon === 'function' ? t.icon() : null),
-            h('span', { className: 'home-create-tile__copy' },
-              h('strong', null, t.title),
-              h('span', null, t.sub)
-            )
-          );
-        })
+        h('button', {
+          type: 'button',
+          className: 'home-create-tile home-create-tile--primary',
+          onClick: handleNewFromImage
+        },
+          h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
+            typeof Icons.image === 'function' ? Icons.image() : null),
+          h('span', { className: 'home-create-tile__copy' },
+            h('strong', null, 'New from image'),
+            h('span', null, 'Convert a photo into stitches')
+          )
+        ),
+        h('a', {
+          href: 'index.html?action=new-blank',
+          className: 'home-create-tile'
+        },
+          h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
+            typeof Icons.plus === 'function' ? Icons.plus() : null),
+          h('span', { className: 'home-create-tile__copy' },
+            h('strong', null, 'New from scratch'),
+            h('span', null, 'Start with a blank grid')
+          )
+        )
       )
     );
   }
