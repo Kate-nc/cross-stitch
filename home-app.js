@@ -1,17 +1,20 @@
-// home-app.js — UX-12 Phase 7 PR #13
+// home-app.js — Combo A (tab bar + project hub)
 // Cross-mode landing page (`/home`). Mounts to #root in home.html.
 //
-// Renders, top-to-bottom:
-//   1. Shared <Header page="home"> (tabs + project switcher).
-//   2. Greeting hero with quick "New" / "Import" / "Stash" actions.
-//   3. Active-project resume card (if ProjectStorage.getActiveProject() returns one).
-//   4. Recent-projects grid (top 6 by updatedAt, links into Tracker).
-//   5. Four Workshop quick-action tiles.
-//   6. Stash summary card (read from stash-bridge.js when available).
-//   7. Footer links (Help, Preferences, About).
+// Tabs: Projects (default) | Create new | Stash | Stats
 //
-// Workshop tokens only — no raw hex outside box-shadow rgba(). 44px touch
-// targets on coarse pointers; reduced-motion suppression handled via styles.css.
+// Projects tab renders, top-to-bottom:
+//   1. Shared <Header page="home"> — Help + File menu live there; no duplication.
+//   2. HomeTabBar — Projects / Create new / Stash / Stats.
+//   3. Greeting row — time-aware greeting + "New project" button.
+//   4. ActiveProjectCard — merges old GreetingHero + ResumeCard into one card.
+//   5. ProjectsList — all projects with per-row Track + Edit buttons.
+//
+// Create new tab: two creation tiles (image + blank).
+// Stash tab: stash stats + Open Stash Manager link.
+// Stats tab: link to stats page.
+//
+// Help and Preferences are in the shared Header — HomeFooter shows About only.
 // No emojis or unicode glyphs — every icon comes from window.Icons.
 
 (function () {
@@ -62,49 +65,100 @@
     window.location.href = href + sep + 'from=home';
   }
 
-  // ── Sections ───────────────────────────────────────────────────────────
-  function GreetingHero(props) {
-    var name = props.activeProject && props.activeProject.name;
-    var sub = name
-      ? 'Last opened ' + (props.activeProject.updatedAt ? timeAgo(props.activeProject.updatedAt) : 'recently') + ' \u00b7 ' + name
-      : 'Pick a project below, or start something new.';
-    return h('section', { className: 'home-hero' },
-      h('div', { className: 'home-hero__copy' },
-        h('h1', { className: 'home-hero__title' }, getGreeting() + ', ready to stitch?'),
-        h('p', { className: 'home-hero__sub' }, sub)
-      )
+  // ── HomeTabBar ──────────────────────────────────────────────────────────
+  function HomeTabBar(props) {
+    var tab = props.tab;
+    var onTab = props.onTab;
+    var projectCount = props.projectCount;
+    var tabs = [
+      { key: 'projects', label: 'Projects', badge: projectCount > 0 ? projectCount : null },
+      { key: 'create',   label: 'Create new' },
+      { key: 'stash',    label: 'Stash' },
+      { key: 'stats',    label: 'Stats' },
+    ];
+    return h('div', { className: 'home-tabs', role: 'tablist', 'aria-label': 'Home sections' },
+      tabs.map(function (t) {
+        return h('button', {
+          key: t.key,
+          role: 'tab',
+          type: 'button',
+          className: 'home-tab' + (tab === t.key ? ' home-tab--active' : ''),
+          'aria-selected': tab === t.key ? 'true' : 'false',
+          onClick: function () { onTab(t.key); }
+        },
+          t.label,
+          t.badge ? h('span', { className: 'home-tab__badge', 'aria-hidden': 'true' }, t.badge) : null
+        );
+      })
     );
   }
 
-  function ResumeCard(props) {
-    var p = props.project;
-    if (!p) return null;
+  // ── GreetingRow ─────────────────────────────────────────────────────────
+  // Greeting text + single "New project" button. Replaces standalone GreetingHero.
+  function GreetingRow(props) {
+    var list = props.list || [];
+    var sub = list.length
+      ? list.length + ' project' + (list.length !== 1 ? 's' : '')
+      : 'No projects yet — create one to get started.';
+    return h('div', { className: 'home-greeting-row' },
+      h('div', null,
+        h('h1', { className: 'home-greeting-row__title' }, getGreeting() + ', ready to stitch?'),
+        h('p', { className: 'home-greeting-row__sub' }, sub)
+      ),
+      h('a', {
+        href: 'index.html?action=new-from-image',
+        className: 'btn btn-primary home-greeting-row__new-btn'
+      }, '+ New project')
+    );
+  }
+
+  // ── ActiveProjectCard ───────────────────────────────────────────────────
+  // Merges the old GreetingHero + ResumeCard into one prominent card.
+  function ActiveProjectCard(props) {
+    var p = props.activeProject;
+    if (!p) {
+      return h('div', { className: 'home-active-card home-active-card--empty' },
+        h('div', { className: 'home-active-card__band' }, 'No active project'),
+        h('div', { className: 'home-active-card__body' },
+          h('p', { className: 'home-active-card__empty-msg' }, 'Pick a project below, or start something new.')
+        )
+      );
+    }
     var pct = projectPct(p);
-    var dim = p.settings && (p.settings.sW + '\u00d7' + p.settings.sH);
-    return h('section', { className: 'home-resume', 'aria-labelledby': 'home-resume-title' },
-      h('h2', { id: 'home-resume-title', className: 'home-section__title' }, 'Pick up where you left off'),
-      h('div', { className: 'home-resume__card' },
-        h('div', { className: 'home-resume__avatar', 'aria-hidden': 'true' }, projectInitials(p.name)),
-        h('div', { className: 'home-resume__info' },
-          h('div', { className: 'home-resume__name' }, p.name || 'Untitled project'),
-          h('div', { className: 'home-resume__meta' },
-            dim ? h('span', null, dim) : null,
-            pct !== null ? h('span', null, pct + '% complete') : null,
-            p.updatedAt ? h('span', null, 'Updated ' + timeAgo(p.updatedAt)) : null
-          ),
-          pct !== null && h('div', { className: 'home-resume__bar', 'aria-hidden': 'true' },
-            h('div', { className: 'home-resume__bar-fill', style: { width: pct + '%' } })
+    var dim = p.settings && (p.settings.sW + '×' + p.settings.sH);
+    var metaParts = [
+      dim || null,
+      p.updatedAt ? ('Updated ' + timeAgo(p.updatedAt)) : null,
+      pct !== null ? (pct + '% complete') : null
+    ].filter(Boolean);
+    return h('section', {
+      className: 'home-active-card',
+      'aria-labelledby': 'home-active-card-title'
+    },
+      h('div', { className: 'home-active-card__band', 'aria-hidden': 'true' },
+        'Active — pick up where you left off'
+      ),
+      h('div', { className: 'home-active-card__body' },
+        h('div', { className: 'home-active-card__avatar', 'aria-hidden': 'true' }, projectInitials(p.name)),
+        h('div', { className: 'home-active-card__info' },
+          h('div', {
+            id: 'home-active-card-title',
+            className: 'home-active-card__name'
+          }, p.name || 'Untitled project'),
+          h('div', { className: 'home-active-card__meta' }, metaParts.join(' · ')),
+          pct !== null && h('div', { className: 'home-active-card__bar', 'aria-hidden': 'true' },
+            h('div', { className: 'home-active-card__bar-fill', style: { width: pct + '%' } })
           )
         ),
-        h('div', { className: 'home-resume__actions' },
+        h('div', { className: 'home-active-card__actions' },
           h('button', {
             type: 'button',
-            className: 'btn btn-primary home-resume__btn',
+            className: 'btn btn-primary',
             onClick: function () { activateAndGo(p.id, 'stitch.html'); }
           }, 'Resume tracking'),
           h('button', {
             type: 'button',
-            className: 'btn home-resume__btn',
+            className: 'btn',
             onClick: function () { activateAndGo(p.id, 'index.html'); }
           }, 'Edit pattern')
         )
@@ -112,31 +166,49 @@
     );
   }
 
-  function RecentGrid(props) {
-    var list = (props.projects || []).slice(0, 6);
+  // ── ProjectsList ────────────────────────────────────────────────────────
+  // Replaces RecentGrid. Each row exposes both Track and Edit so the user
+  // chooses their destination — no silent redirect to the Tracker.
+  function ProjectsList(props) {
+    var list = (props.projects || []).slice(0, 8);
     if (!list.length) return null;
-    return h('section', { className: 'home-recent', 'aria-labelledby': 'home-recent-title' },
-      h('h2', { id: 'home-recent-title', className: 'home-section__title' }, 'Your projects'),
-      h('div', { className: 'home-recent__grid' },
+    return h('section', {
+      className: 'home-proj-list',
+      'aria-labelledby': 'home-proj-list-title'
+    },
+      h('h2', { id: 'home-proj-list-title', className: 'home-section__title' }, 'All projects'),
+      h('div', { className: 'home-proj-list__rows' },
         list.map(function (p) {
           var pct = projectPct(p);
-          return h('button', {
+          var dim = p.settings && (p.settings.sW + '×' + p.settings.sH);
+          var metaParts = [
+            dim || null,
+            p.updatedAt ? timeAgo(p.updatedAt) : null,
+            pct !== null ? pct + '%' : null
+          ].filter(Boolean);
+          return h('div', {
             key: p.id,
-            type: 'button',
-            className: 'home-pj-card',
-            onClick: function () { activateAndGo(p.id, 'stitch.html'); },
-            'aria-label': 'Open ' + (p.name || 'Untitled')
+            className: 'home-proj-row'
           },
-            h('span', { className: 'home-pj-card__avatar', 'aria-hidden': 'true' }, projectInitials(p.name)),
-            h('span', { className: 'home-pj-card__body' },
-              h('span', { className: 'home-pj-card__name' }, p.name || 'Untitled'),
-              h('span', { className: 'home-pj-card__meta' },
-                p.updatedAt ? timeAgo(p.updatedAt) : '',
-                pct !== null ? ' \u00b7 ' + pct + '%' : ''
-              ),
-              pct !== null && h('span', { className: 'home-pj-card__bar', 'aria-hidden': 'true' },
-                h('span', { className: 'home-pj-card__bar-fill', style: { width: pct + '%' } })
+            h('div', { className: 'home-proj-row__avatar', 'aria-hidden': 'true' }, projectInitials(p.name)),
+            h('div', { className: 'home-proj-row__body' },
+              h('div', { className: 'home-proj-row__name' }, p.name || 'Untitled'),
+              h('div', { className: 'home-proj-row__meta' }, metaParts.join(' · ')),
+              pct !== null && h('div', { className: 'home-proj-row__bar', 'aria-hidden': 'true' },
+                h('div', { className: 'home-proj-row__bar-fill', style: { width: pct + '%' } })
               )
+            ),
+            h('div', { className: 'home-proj-row__actions' },
+              h('button', {
+                type: 'button',
+                className: 'btn btn-primary btn-sm',
+                onClick: function () { activateAndGo(p.id, 'stitch.html'); }
+              }, 'Track'),
+              h('button', {
+                type: 'button',
+                className: 'btn btn-sm',
+                onClick: function () { activateAndGo(p.id, 'index.html'); }
+              }, 'Edit')
             )
           );
         })
@@ -144,26 +216,43 @@
     );
   }
 
-  function QuickTiles() {
+  // ── CreatePanel ─────────────────────────────────────────────────────────
+  // "Create new" tab content. Replaces the two creation QuickTiles.
+  // The nav-duplicating "Open Tracker" + "Open Stash Manager" tiles are gone.
+  function CreatePanel() {
     var Icons = window.Icons || {};
     var tiles = [
-      { key: 'image', title: 'New from image', sub: 'Convert a photo into stitches', href: 'index.html?action=new-from-image', icon: Icons.image, primary: true },
-      { key: 'blank', title: 'New from scratch', sub: 'Start with a blank grid', href: 'index.html?action=new-blank', icon: Icons.plus },
-      { key: 'stash', title: 'Open Stash Manager', sub: 'Threads, patterns, shopping list', href: 'manager.html?from=home', icon: Icons.box || Icons.layers },
-      { key: 'track', title: 'Open Tracker', sub: 'Mark stitches as you go', href: 'stitch.html?from=home', icon: Icons.check }
+      {
+        key: 'image',
+        title: 'New from image',
+        sub: 'Convert a photo into stitches',
+        href: 'index.html?action=new-from-image',
+        icon: Icons.image,
+        primary: true
+      },
+      {
+        key: 'blank',
+        title: 'New from scratch',
+        sub: 'Start with a blank grid',
+        href: 'index.html?action=new-blank',
+        icon: Icons.plus
+      }
     ];
-    return h('section', { className: 'home-quick', 'aria-labelledby': 'home-quick-title' },
-      h('h2', { id: 'home-quick-title', className: 'home-section__title' }, 'Quick actions'),
-      h('div', { className: 'home-quick__grid' },
+    return h('section', {
+      className: 'home-create-panel',
+      'aria-labelledby': 'home-create-panel-title'
+    },
+      h('h2', { id: 'home-create-panel-title', className: 'home-section__title' }, 'Start a new pattern'),
+      h('div', { className: 'home-create-panel__grid' },
         tiles.map(function (t) {
           return h('a', {
             key: t.key,
             href: t.href,
-            className: 'home-quick__tile' + (t.primary ? ' home-quick__tile--primary' : '')
+            className: 'home-create-tile' + (t.primary ? ' home-create-tile--primary' : '')
           },
-            h('span', { className: 'home-quick__icon', 'aria-hidden': 'true' },
+            h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
               typeof t.icon === 'function' ? t.icon() : null),
-            h('span', { className: 'home-quick__copy' },
+            h('span', { className: 'home-create-tile__copy' },
               h('strong', null, t.title),
               h('span', null, t.sub)
             )
@@ -173,19 +262,29 @@
     );
   }
 
-  function StashSummary(props) {
+  // ── StashPanel ──────────────────────────────────────────────────────────
+  // "Stash" tab content. Reuses the stash data loaded in HomeApp.
+  function StashPanel(props) {
     var s = props.stash;
-    if (!s) return null;
+    if (!s) {
+      return h('div', { className: 'home-stash-panel home-stash-panel--empty' },
+        h('p', null, 'No stash data yet. Add threads in the Stash Manager.'),
+        h('a', { href: 'manager.html?from=home', className: 'btn btn-primary', style: { marginTop: '12px', display: 'inline-flex' } }, 'Open Stash Manager')
+      );
+    }
     var rows = [
-      { label: 'Owned skeins', value: s.ownedSkeins },
+      { label: 'Owned skeins',   value: s.ownedSkeins },
       { label: 'Unique threads', value: s.uniqueThreads },
       { label: 'Patterns saved', value: s.patternCount }
     ].filter(function (r) { return typeof r.value === 'number'; });
     if (!rows.length) return null;
-    return h('section', { className: 'home-stash', 'aria-labelledby': 'home-stash-title' },
-      h('h2', { id: 'home-stash-title', className: 'home-section__title' },
-        'Stash at a glance',
-        h('a', { href: 'manager.html?from=home', className: 'home-section__more' }, 'Manage')
+    return h('section', {
+      className: 'home-stash-panel',
+      'aria-labelledby': 'home-stash-panel-title'
+    },
+      h('div', { className: 'home-stash-panel__head' },
+        h('h2', { id: 'home-stash-panel-title', className: 'home-section__title' }, 'Stash at a glance'),
+        h('a', { href: 'manager.html?from=home', className: 'home-section__more' }, 'Open Stash Manager')
       ),
       h('div', { className: 'home-stash__card' },
         rows.map(function (r) {
@@ -198,28 +297,29 @@
     );
   }
 
+  // ── StatsPanel ──────────────────────────────────────────────────────────
+  function StatsPanel() {
+    return h('section', { className: 'home-stats-panel' },
+      h('p', { className: 'home-stats-panel__sub' }, 'View stitching statistics and your pattern showcase.'),
+      h('a', {
+        href: 'index.html?mode=stats',
+        className: 'home-stats-panel__link'
+      }, 'Open Stats & Showcase →')
+    );
+  }
+
+  // ── HomeFooter ──────────────────────────────────────────────────────────
+  // Simplified — Help is the header Help button; Preferences is File > Preferences.
   function HomeFooter() {
     return h('footer', { className: 'home-footer' },
-      h('button', {
-        type: 'button',
-        className: 'home-footer__link',
-        onClick: function () {
-          try { window.dispatchEvent(new CustomEvent('cs:openHelp')); } catch (_) {}
-        }
-      }, 'Help'),
-      h('button', {
-        type: 'button',
-        className: 'home-footer__link',
-        onClick: function () {
-          try { window.dispatchEvent(new CustomEvent('cs:openPreferences')); } catch (_) {}
-        }
-      }, 'Preferences'),
       h('a', { href: 'https://github.com/', className: 'home-footer__link', rel: 'noopener' }, 'About')
     );
   }
 
-  // ── Root component ─────────────────────────────────────────────────────
+  // ── Root component ──────────────────────────────────────────────────────
   function HomeApp() {
+    var tabState = React.useState('projects');
+    var tab = tabState[0]; var setTab = tabState[1];
     var activeState = React.useState(null);
     var active = activeState[0]; var setActive = activeState[1];
     var listState = React.useState([]);
@@ -275,12 +375,14 @@
     }, []);
 
     function onOpenProject() {
-      // Defer to tracker: it owns the picker. Sending the user there with a
-      // ?picker hint preserves the existing flow without duplicating the modal.
       window.location.href = 'stitch.html?picker=1&from=home';
     }
 
     var Header = window.Header;
+    // Projects tab excludes active project from "All projects" list since it
+    // already appears in ActiveProjectCard above.
+    var otherProjects = list.filter(function (p) { return !active || p.id !== active.id; });
+
     return h('div', { className: 'home-shell' },
       Header
         ? h(Header, {
@@ -293,13 +395,26 @@
             }
           })
         : null,
-      h('div', { className: 'home-page' },
-        h(GreetingHero, { activeProject: active }),
-        active ? h(ResumeCard, { project: active }) : null,
-        h(RecentGrid, { projects: list.filter(function (p) { return !active || p.id !== active.id; }) }),
-        h(QuickTiles, null),
-        stash ? h(StashSummary, { stash: stash }) : null,
-        h(HomeFooter, null)
+      h(HomeTabBar, { tab: tab, onTab: setTab, projectCount: list.length }),
+      h('div', { className: 'home-page', role: 'tabpanel' },
+        tab === 'projects' && h(React.Fragment, null,
+          h(GreetingRow, { list: list }),
+          h(ActiveProjectCard, { activeProject: active }),
+          h(ProjectsList, { projects: otherProjects }),
+          h(HomeFooter, null)
+        ),
+        tab === 'create' && h(React.Fragment, null,
+          h(CreatePanel, null),
+          h(HomeFooter, null)
+        ),
+        tab === 'stash' && h(React.Fragment, null,
+          h(StashPanel, { stash: stash }),
+          h(HomeFooter, null)
+        ),
+        tab === 'stats' && h(React.Fragment, null,
+          h(StatsPanel, null),
+          h(HomeFooter, null)
+        )
       ),
       prefsOpen && typeof window.PreferencesModal !== 'undefined'
         ? h(window.PreferencesModal, { onClose: function () { setPrefsOpen(false); } })

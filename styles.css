@@ -5159,4 +5159,351 @@ html.pref-dark a { color: var(--accent); }
   .home-quick__tile:hover { transform: none; }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Combo A — Tab bar + Project Hub (home-app.js rewrite)
+   Adds: HomeTabBar · GreetingRow · ActiveProjectCard · ProjectsList
+         CreatePanel · StashPanel · StatsPanel · btn-sm
+   Old .home-hero__* / .home-resume__* / .home-recent__* / .home-quick__*
+   selectors above are kept for now (home-screen.js still references some
+   of them via the legacy Creator home mode).
+───────────────────────────────────────────────────────────────────────── */
+
+/* ── Base button styles used by home-app.js ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2, 8px);
+  padding: 8px 14px;
+  font-size: var(--text-sm, 12px);
+  font-weight: 600;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  line-height: 1;
+  transition: background var(--motion, 160ms ease-out), color var(--motion, 160ms ease-out);
+}
+.btn:hover { background: var(--surface-tertiary); color: var(--text-primary); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn-primary { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent-hover, #9E4D2F); border-color: var(--accent-hover, #9E4D2F); color: var(--surface); }
+/* ── btn-sm modifier (used by project row Track / Edit buttons) ── */
+.btn-sm { padding: 5px 11px; font-size: var(--text-sm, 12px); }
+
+/* ── Home tab bar ── */
+.home-tabs {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--s-5, 24px);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-1, 4px);
+}
+.home-tab {
+  padding: var(--s-3, 12px) var(--s-4, 16px) calc(var(--s-3, 12px) - 1px);
+  font-size: var(--text-md, 13px);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  line-height: 1;
+}
+.home-tab:hover { color: var(--text-secondary); }
+.home-tab--active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
+.home-tab__badge {
+  font-size: var(--text-xs, 11px);
+  font-weight: 700;
+  background: var(--accent-soft, var(--accent-light));
+  color: var(--accent);
+  padding: 1px 5px;
+  border-radius: 20px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* ── Greeting row ── */
+.home-greeting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3, 12px);
+  padding: var(--s-3, 12px) 0 0;
+}
+.home-greeting-row__title {
+  font-size: var(--text-hero, 28px);
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--text-primary);
+  line-height: 1.2;
+  margin: 0 0 4px;
+}
+.home-greeting-row__sub {
+  font-size: var(--text-md, 13px);
+  color: var(--text-secondary);
+  margin: 0;
+}
+.home-greeting-row__new-btn { flex-shrink: 0; }
+
+/* ── Active project card (merges old GreetingHero + ResumeCard) ── */
+.home-active-card {
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-lg, 10px);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(184, 92, 56, 0.1), var(--shadow-sm);
+}
+.home-active-card--empty {
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.home-active-card__band {
+  background: var(--accent);
+  padding: 5px var(--s-4, 16px);
+  font-size: var(--text-xs, 11px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(255, 255, 255, 0.85);
+}
+.home-active-card--empty .home-active-card__band {
+  background: var(--surface-secondary);
+  color: var(--text-tertiary);
+}
+.home-active-card__body {
+  padding: var(--s-4, 16px);
+  display: flex;
+  align-items: center;
+  gap: var(--s-4, 16px);
+}
+.home-active-card__avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--accent-soft, var(--accent-light));
+  border: 1px solid rgba(184, 92, 56, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: var(--text-lg, 14px);
+  color: var(--accent);
+  flex-shrink: 0;
+  letter-spacing: -0.5px;
+}
+.home-active-card__info { flex: 1; min-width: 0; }
+.home-active-card__name {
+  font-size: var(--text-xl, 17px);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+  margin: 0 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-active-card__meta {
+  font-size: var(--text-sm, 12px);
+  color: var(--text-secondary);
+  margin-bottom: var(--s-2, 8px);
+}
+.home-active-card__bar {
+  height: 5px;
+  background: var(--border-subtle);
+  border-radius: var(--radius-pill, 999px);
+  overflow: hidden;
+}
+.home-active-card__bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--motion, 160ms ease-out);
+}
+.home-active-card__actions {
+  display: flex;
+  gap: var(--s-2, 8px);
+  flex-shrink: 0;
+  align-items: center;
+}
+.home-active-card__empty-msg {
+  font-size: var(--text-md, 13px);
+  color: var(--text-secondary);
+}
+
+/* ── Project rows list ── */
+.home-proj-list__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2, 8px);
+}
+.home-proj-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 10px);
+  padding: var(--s-3, 12px) var(--s-4, 16px);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3, 12px);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--motion, 160ms ease-out);
+}
+.home-proj-row:hover { border-color: var(--accent); }
+.home-proj-row__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--accent-soft, var(--accent-light));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-sm, 12px);
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.home-proj-row__body { flex: 1; min-width: 0; }
+.home-proj-row__name {
+  font-size: var(--text-md, 13px);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-proj-row__meta {
+  font-size: var(--text-xs, 11px);
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.home-proj-row__bar {
+  height: 3px;
+  background: var(--border-subtle);
+  border-radius: var(--radius-pill, 999px);
+  margin-top: 6px;
+  overflow: hidden;
+}
+.home-proj-row__bar-fill {
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.6;
+}
+.home-proj-row__actions {
+  display: flex;
+  gap: var(--s-2, 8px);
+  flex-shrink: 0;
+}
+
+/* ── Create new panel ── */
+.home-create-panel { padding: var(--s-3, 12px) 0 0; }
+.home-create-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s-3, 12px);
+}
+.home-create-tile {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3, 12px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 10px);
+  padding: var(--s-4, 16px);
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--motion, 160ms ease-out), transform var(--motion, 160ms ease-out);
+}
+.home-create-tile:hover { border-color: var(--accent); transform: translateY(-1px); }
+.home-create-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; transform: none; }
+.home-create-tile--primary { background: var(--accent); border-color: var(--accent); }
+.home-create-tile--primary:hover { background: var(--accent-hover, #9E4D2F); border-color: var(--accent-hover, #9E4D2F); }
+.home-create-tile__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+.home-create-tile--primary .home-create-tile__icon {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.home-create-tile__copy { display: flex; flex-direction: column; gap: 2px; }
+.home-create-tile__copy strong { font-size: var(--text-md, 13px); font-weight: 600; color: var(--text-primary); }
+.home-create-tile__copy span { font-size: var(--text-sm, 12px); color: var(--text-secondary); }
+.home-create-tile--primary .home-create-tile__copy strong { color: #fff; }
+.home-create-tile--primary .home-create-tile__copy span { color: rgba(255, 255, 255, 0.78); }
+
+/* ── Stash panel ── */
+.home-stash-panel { padding: var(--s-3, 12px) 0 0; }
+.home-stash-panel--empty {
+  color: var(--text-secondary);
+  font-size: var(--text-md, 13px);
+  padding: var(--s-5, 24px) 0;
+}
+.home-stash-panel__head {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--s-3, 12px);
+}
+.home-stash-panel__head .home-section__title { margin-bottom: 0; }
+
+/* ── Stats panel ── */
+.home-stats-panel {
+  padding: var(--s-5, 24px) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3, 12px);
+}
+.home-stats-panel__sub {
+  font-size: var(--text-md, 13px);
+  color: var(--text-secondary);
+  margin: 0;
+}
+.home-stats-panel__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2, 8px);
+  font-size: var(--text-lg, 14px);
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+.home-stats-panel__link:hover { text-decoration: underline; }
+
+/* ── Mobile reflow for new components ── */
+@media (max-width: 599px) {
+  .home-greeting-row__title { font-size: var(--text-h, 22px); }
+  .home-active-card__body { flex-wrap: wrap; }
+  .home-active-card__actions { width: 100%; }
+  .home-active-card__actions .btn { flex: 1; justify-content: center; }
+  .home-create-panel__grid { grid-template-columns: 1fr; }
+  .home-proj-row__actions .btn-sm { padding: 8px 12px; }
+}
+
+/* ── Coarse pointer: enlarge touch targets ── */
+@media (pointer: coarse) {
+  .home-tab { min-height: 44px; }
+  .home-proj-row__actions .btn-sm { min-height: 44px; }
+  .home-create-tile { min-height: 56px; }
+}
+
+/* ── Reduced motion: kill transforms ── */
+@media (prefers-reduced-motion: reduce) {
+  .home-active-card__bar-fill,
+  .home-proj-row,
+  .home-create-tile { transition: none; }
+  .home-create-tile:hover { transform: none; }
+}
+
 

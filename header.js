@@ -411,8 +411,10 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           onClick: () => { if (typeof window.__goHome === 'function') { window.__goHome(); } else if (page === 'creator') { window.scrollTo(0, 0); } else { window.location.href = 'index.html'; } }
         }, '×∕× Cross Stitch'),
 
-        // App-section navigation tabs
-        React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
+        // App-section navigation tabs — suppressed on home page because
+        // home.html has its own in-page tab bar (HomeTabBar in home-app.js)
+        // covering the same destinations. Shown on all other pages as before.
+        page !== 'home' && React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
           appSections.map(({ id, label, href }) => {
             const switchMap = { tracker: '__switchToTrack', creator: '__switchToCreate', editor: '__switchToEdit', stats: '__switchToStats' };
             const fn = window[switchMap[id]];
