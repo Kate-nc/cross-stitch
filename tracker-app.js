@@ -6191,9 +6191,9 @@ return(
   />}
 
   {showExitEditModal && (
-    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10000}}>
+    <div role="dialog" aria-modal="true" aria-labelledby="exit-edit-title" style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10000}}>
       <div style={{background:"var(--surface)",padding:24,borderRadius:'var(--radius-xl)',width:350,maxWidth:"90%",boxShadow:"0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)"}}>
-        <h3 style={{margin:"0 0 12px 0",fontSize:18,color:"var(--text-primary)"}}>Apply changes?</h3>
+        <h3 id="exit-edit-title" style={{margin:"0 0 12px 0",fontSize:18,color:"var(--text-primary)"}}>Apply changes?</h3>
         <p style={{fontSize:'var(--text-lg)',color:"var(--text-secondary)",margin:"0 0 24px 0",lineHeight:1.5}}>You have made changes to the symbol assignments. Do you want to apply them?</p>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}>
           <button onClick={()=>{

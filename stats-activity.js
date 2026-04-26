@@ -432,7 +432,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
     ),
 
     // ── Heatmap ───────────────────────────────────────────────────
-    h('div', { style: { background: 'var(--surface, #fff)', border: '1px solid var(--border, var(--border))', borderRadius:'var(--radius-xl)', padding: '16px 16px 12px', marginBottom:'var(--s-3)' } },
+    h('div', { style: { background: 'var(--surface, #fff)', border: '1px solid var(--border)', borderRadius:'var(--radius-xl)', padding: '16px 16px 12px', marginBottom:'var(--s-3)' } },
       h(ActivityHeatmap, {
         grid,
         byDay,
@@ -447,7 +447,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
     tooltip && h('div', {
       style: {
         position: 'fixed', left: tooltip.x + 14, top: tooltip.y + 14,
-        background: 'var(--surface, #fff)', border: '1px solid var(--border, var(--border))',
+        background: 'var(--surface, #fff)', border: '1px solid var(--border)',
         borderRadius:'var(--radius-sm)', padding: '6px 10px', fontSize:'var(--text-sm)', color: 'var(--text-primary)',
         boxShadow: '0 2px 8px rgba(0,0,0,0.12)', whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 9999
       },
@@ -472,9 +472,9 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
         onClick: () => handlePeriodChange(p.value),
         style: {
           padding: '5px 12px', borderRadius: 20, fontSize:'var(--text-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-          background: period === p.value ? 'var(--accent, var(--accent))' : 'var(--surface, #fff)',
+          background: period === p.value ? 'var(--accent)' : 'var(--surface, #fff)',
           color: period === p.value ? 'var(--surface)' : 'var(--text-secondary)',
-          border: '1px solid ' + (period === p.value ? 'var(--accent, var(--accent))' : 'var(--border, var(--border))')
+          border: '1px solid ' + (period === p.value ? 'var(--accent)' : 'var(--border)')
         }
       }, p.label))
     ),
@@ -488,7 +488,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
           if (found) setSelectedDay(prev => prev && prev.date === ins.date ? null : found);
         } : undefined,
         style: {
-          background: 'var(--surface, #fff)', border: '1px solid var(--border, var(--border))',
+          background: 'var(--surface, #fff)', border: '1px solid var(--border)',
           borderRadius:'var(--radius-lg)', padding: '12px 14px', fontSize:'var(--text-md)', color: 'var(--text-primary)',
           lineHeight: 1.5, cursor: ins.date ? 'pointer' : 'default'
         }
@@ -524,9 +524,9 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
 
     // ── Busiest periods ───────────────────────────────────────────
     busiestPeriods.length > 0 && h('div', {
-      style: { background: 'var(--surface, #fff)', border: '1px solid var(--border, var(--border))', borderRadius:'var(--radius-xl)', overflow: 'hidden', marginBottom: 20 }
+      style: { background: 'var(--surface, #fff)', border: '1px solid var(--border)', borderRadius:'var(--radius-xl)', overflow: 'hidden', marginBottom: 20 }
     },
-      h('div', { style: { padding: '12px 16px', borderBottom: '1px solid var(--border, var(--border))', fontSize:'var(--text-xs)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)' } },
+      h('div', { style: { padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize:'var(--text-xs)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)' } },
         groupBy === 'month' ? 'Busiest Months' : 'Busiest Weeks'
       ),
       busiestPeriods.map((p, i) => {
