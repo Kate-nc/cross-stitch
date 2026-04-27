@@ -119,10 +119,10 @@ window.useCreatorState = function useCreatorState() {
   });
   var tab        = _tab[0],        setTabRaw     = _tab[1];
   // B4: which sub-tab inside MaterialsHub is active.
-  // 'threads' | 'stash' | 'shopping' | 'output'
+  // 'threads' | 'stash' | 'output'
   var _materialsTab = useState(function () {
     var v = loadUserPref("creator.materialsTab", null);
-    if (v === "threads" || v === "stash" || v === "shopping" || v === "output") return v;
+    if (v === "threads" || v === "stash" || v === "output") return v;
     // Honour legacy lastPage as a one-off seed so a user whose last visit
     // was the old Export tab lands on Output in the new hub.
     var lp = loadUserPref("creator.lastPage", null);
@@ -134,7 +134,7 @@ window.useCreatorState = function useCreatorState() {
   var materialsTab = _materialsTab[0];
   var setMaterialsTabRaw = _materialsTab[1];
   function setMaterialsTab(v) {
-    if (v !== "threads" && v !== "stash" && v !== "shopping" && v !== "output") return;
+    if (v !== "threads" && v !== "stash" && v !== "output") return;
     setMaterialsTabRaw(v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.materialsTab", v); } catch (_) {}
   }

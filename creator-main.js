@@ -302,11 +302,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         id: 'cre_save_project', label: 'Save Project', section: 'action',
         keywords: ['save', 'project'],
         action: () => { if (_ioRef.current) _ioRef.current.saveProject(); }
-      },
-      {
-        id: 'cre_shopping_list', label: 'What do I need to buy?', section: 'action',
-        keywords: ['shopping', 'buy', 'cart', 'stash', 'list', 'threads'],
-        action: () => { state.setModal('shopping_list'); }
       }
     ]);
     return () => { if (window.CommandPalette) window.CommandPalette.registerPage('creator', []); };
@@ -977,7 +972,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         {state.modal==="help"&&<SharedModals.Help defaultTab="creator" onClose={()=>state.setModal(null)} />}
         {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}
         {state.modal==="shortcuts"&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>state.setModal(null)} />}
-        {state.modal==="shopping_list"&&window.CreatorShoppingListModal&&<window.CreatorShoppingListModal onClose={()=>state.setModal(null)} />}
       </div>
       {state.busy&&<div style={{
         position:"fixed",top:0,left:0,right:0,bottom:0,

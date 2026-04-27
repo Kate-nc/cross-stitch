@@ -103,7 +103,6 @@
           heading: "Pattern Library",
           body: "Auto-synced from any project you save in the Creator / Tracker, plus any pattern you add manually here.",
           bullets: [
-            ["Shopping list", "Tick patterns to compute the threads you'd need to buy."],
             ["Coverage", "Each card shows how many of its required threads you already own."],
             ["Stash Manager only", "Patterns added here without a linked project are flagged so you don't expect Tracker progress."]
           ]
@@ -249,7 +248,7 @@
     {
       id: "stash",
       heading: "Manage your stash",
-      body: "The Stash Manager keeps a tally of every DMC and Anchor skein you own, alongside a pattern library that auto-syncs from your saved projects. Tick patterns to build a shopping list of just the threads you're missing.",
+      body: "The Stash Manager keeps a tally of every DMC and Anchor skein you own, alongside a pattern library that auto-syncs from your saved projects.",
       action: { label: "Replay the Stash walkthrough", kind: "wizard", page: "manager" }
     },
     {

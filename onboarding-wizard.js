@@ -77,10 +77,6 @@
         target: "[data-onboard=\"mgr-patterns-tab\"]",
         placement: "bottom",
         dismissOnTargetClick: true
-      },
-      {
-        title: "3. Plan a shopping trip",
-        body: "Tick patterns to add them to a shopping list. The Manager calculates the threads you'd need to buy."
       }
     ],
     tracker: [

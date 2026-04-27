@@ -494,10 +494,7 @@
     var rows = [
       { label: 'Owned skeins',   value: s.ownedSkeins },
       { label: 'Unique threads', value: s.uniqueThreads },
-      { label: 'Patterns saved', value: s.patternCount },
-      // Step 3 (Shopping List rebuild): clickable "On shopping list" row that
-      // deep-links into manager.html?tab=shopping for one-tap access.
-      { label: 'On shopping list', value: s.shoppingCount, href: 'manager.html?tab=shopping&from=home' }
+      { label: 'Patterns saved', value: s.patternCount }
     ].filter(function (r) { return typeof r.value === 'number'; });
     if (!rows.length) return null;
     return h('section', {
@@ -635,7 +632,7 @@
           if (cancelled) return;
           var threads = parts[0] || {};
           var patterns = parts[1] || [];
-          var owned = 0, unique = 0, toBuy = 0;
+          var owned = 0, unique = 0;
           Object.keys(threads).forEach(function (k) {
             var t = threads[k];
             // Stash entries use { owned: number } (see stash-bridge.js
@@ -646,14 +643,11 @@
             else if (t && typeof t.skeins === 'number') n = t.skeins;
             else if (t && t.owned) n = 1;
             if (n > 0) { owned += n; unique += 1; }
-            // Step 3 (Shopping List rebuild): surface the My-list count on /home.
-            if (t && t.tobuy) toBuy += 1;
           });
           setStash({
             ownedSkeins: owned,
             uniqueThreads: unique,
-            patternCount: patterns.length,
-            shoppingCount: toBuy
+            patternCount: patterns.length
           });
         }).catch(function () {});
       }
