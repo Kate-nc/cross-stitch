@@ -482,6 +482,25 @@ window.Icons = (function() {
         p('M7 8l-4 4 4 4'),
         p('M17 8l4 4-4 4')
       );
+    },
+    // Lasso — replaces 🧲 (used by the embroidery lasso-select tool)
+    lasso: function() {
+      return svg(
+        p('M3 12c0-4 4-7 9-7s9 3 9 7-4 7-9 7c-1.4 0-2.7-.2-3.9-.6'),
+        p('M9 18.4c-.7 1-1.5 1.8-2.5 2.1-.9.3-1.6 0-1.6-.8 0-.7.5-1.4 1.3-1.9'),
+        c(6.5, 19, 1.2)
+      );
+    },
+    // Nodes / shape edit — replaces ◇ (used by the embroidery edit-shape tool)
+    nodes: function() {
+      return svg(
+        rc(3, 3, 4, 4, 0.5),
+        rc(17, 3, 4, 4, 0.5),
+        rc(10, 17, 4, 4, 0.5),
+        l(7, 5, 17, 5),
+        l(5, 7, 11, 17),
+        l(19, 7, 13, 17)
+      );
     }
   };
 })();

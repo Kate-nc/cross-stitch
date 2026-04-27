@@ -1371,15 +1371,15 @@ function EmbroideryApp(){
         {/* Toolbar */}
         <div className="tb-grp" style={{width:"100%",marginBottom:6}}>
           <button className={'tb-btn'+(editMode==="select"?' tb-btn--on':'')} onClick={()=>{setEditMode("select");setDragNode(null);}}>
-            👆 Select</button>
+            <span style={{display:"inline-flex",alignItems:"center",gap:4}}>{Icons.pointing()} Select</span></button>
           {sel&&<button className={'tb-btn'+(isNodeEdit?' tb-btn--on':'')} onClick={()=>{setEditMode("editNodes");setDragNode(null);}}>
-            ◇ Edit Shape</button>}
+            <span style={{display:"inline-flex",alignItems:"center",gap:4}}>{Icons.nodes()} Edit Shape</span></button>}
           <button className={'tb-btn'+(editMode==="draw"?' tb-btn--on':'')} onClick={()=>{setEditMode("draw");setSelId(null);setDragNode(null);}}>
-            ✏️ Add</button>
+            <span style={{display:"inline-flex",alignItems:"center",gap:4}}>{Icons.pencil()} Add</span></button>
           <button className={'tb-btn'+(editMode==="wand"?' tb-btn--on':'')} onClick={()=>{setEditMode("wand");setSelId(null);setDragNode(null);}}>
-            🪄 Wand</button>
+            <span style={{display:"inline-flex",alignItems:"center",gap:4}}>{Icons.wand()} Wand</span></button>
           <button className={'tb-btn'+(editMode==="lasso"?' tb-btn--on':'')} onClick={()=>{setEditMode("lasso");setSelId(null);setDragNode(null);resetLasso();}}>
-            🧲 Lasso</button>
+            <span style={{display:"inline-flex",alignItems:"center",gap:4}}>{Icons.lasso()} Lasso</span></button>
         </div>
 
         {/* Zoom toolbar */}
