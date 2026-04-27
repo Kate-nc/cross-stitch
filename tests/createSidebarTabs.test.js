@@ -15,12 +15,13 @@ describe('Create-mode sidebar — five task tabs', () => {
   it('declares Image / Dimensions / Palette / Preview / Project as the five createTabs', () => {
     const m = sidebarSrc.match(/var createTabs\s*=\s*\[([\s\S]*?)\];/);
     expect(m).toBeTruthy();
-    const ids = Array.from(m[1].matchAll(/\["([^"]+)","([^"]+)"\]/g)).map(x => x[1]);
+    // Polish 13 — tabs are now {id,label,icon,...} objects (was [id,label] tuples).
+    const ids = Array.from(m[1].matchAll(/id:\s*"([^"]+)"/g)).map(x => x[1]);
     expect(ids).toEqual(['image', 'dimensions', 'palette', 'preview', 'project']);
   });
 
   it('no longer ships the legacy single-Settings tab', () => {
-    expect(sidebarSrc).not.toMatch(/\["settings","Settings"\]/);
+    expect(sidebarSrc).not.toMatch(/id:\s*"settings"/);
   });
 
   it('remaps a stored "settings" sidebarTab to "image" for back-compat', () => {

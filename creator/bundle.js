@@ -12448,27 +12448,27 @@ window.CreatorSidebar = function CreatorSidebar() {
   var sTab = rawTab || (mode === "create" ? "image" : "palette");
 
   var createTabs = [
-    ["image","Image"],
-    ["dimensions","Dimensions"],
-    ["palette","Palette"],
-    ["preview","Preview"],
-    ["project","Project"]
+    {id:"image",      label:"Image",      icon:"image"},
+    {id:"dimensions", label:"Dimensions", icon:"ruler"},
+    {id:"palette",    label:"Palette",    icon:"palette"},
+    {id:"preview",    label:"Preview",    icon:"layers"},
+    {id:"project",    label:"Project",    icon:"folder"}
   ];
   // Polish A — locked to share Palette/Preview slots with createTabs
   // (positions 3 and 4) so users don't lose their place when the Generate
   // step swaps the bar from create to edit. Tools/View take the first two
   // slots that Image/Dimensions occupied; More keeps the trailing slot.
   var editTabs = [
-    ["tools","Tools"],
-    ["view","View"],
-    ["palette","Palette"],
-    ["preview","Preview"],
-    ["more","More"]
+    {id:"tools",   label:"Tools",   icon:"pencil"},
+    {id:"view",    label:"View",    icon:"eye"},
+    {id:"palette", label:"Palette", icon:"palette"},
+    {id:"preview", label:"Preview", icon:"layers"},
+    {id:"more",    label:"More",    icon:"menu"}
   ];
   var tabs = mode === "create" ? createTabs : editTabs;
 
   // Ensure sidebarTab is valid for current mode
-  var validIds = tabs.map(function(t) { return t[0]; });
+  var validIds = tabs.map(function(t) { return t.id; });
   if (validIds.indexOf(sTab) === -1) sTab = validIds[0];
 
   var tabBar = h("div", {
@@ -12478,36 +12478,43 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {"aria-hidden":"true", className:"rpanel-handle-wrap", style:{paddingTop:6,paddingBottom:2,display:"flex",justifyContent:"center"}},
       h("div", {className:"rpanel-handle-bar"})
     ),
-    h("div", {style:{display:"flex",borderBottom:"1px solid var(--border)",overflowX:"auto",scrollbarWidth:"none"}},
-      tabs.map(function(kl) {
+    h("div", {className:"creator-sidebar-tabs"},
+      tabs.map(function(t) {
+        var isActive = sTab === t.id;
+        var isDisabled = !!t.disabled;
+        var iconFn = (window.Icons && window.Icons[t.icon]) ? window.Icons[t.icon] : null;
         return h("button", {
-          key:kl[0],
-          role:"tab",
-          "aria-selected":sTab===kl[0],
-          "aria-controls":"sidebar-panel-"+kl[0],
-          onClick:function(){
+          key: t.id,
+          role: "tab",
+          className: "creator-sidebar-tab",
+          "aria-selected": isActive ? "true" : "false",
+          "aria-disabled": isDisabled ? "true" : "false",
+          "aria-controls": "sidebar-panel-" + t.id,
+          tabIndex: isActive ? 0 : -1,
+          title: isDisabled ? (t.disabledHint || "Generate a pattern to unlock") : t.label,
+          onClick: function() {
+            if (isDisabled) return;
             var isMobile = window.matchMedia && window.matchMedia("(max-width: 899px)").matches;
             if (isMobile) {
               var panelIsOpen = typeof app.panelOpen === "boolean" ? app.panelOpen : !!app.sidebarOpen;
               var setPanelOpen = typeof app.setPanelOpen === "function" ? app.setPanelOpen : (typeof app.setSidebarOpen === "function" ? app.setSidebarOpen : null);
-              if (app.sidebarTab === kl[0] && panelIsOpen) {
+              if (app.sidebarTab === t.id && panelIsOpen) {
                 if (setPanelOpen) setPanelOpen(false);
               } else {
-                app.setSidebarTab(kl[0]);
+                app.setSidebarTab(t.id);
                 if (setPanelOpen) setPanelOpen(true);
               }
             } else {
-              app.setSidebarTab(kl[0]);
+              app.setSidebarTab(t.id);
             }
-          },
-          style:{
-            flex:"1 1 0",minWidth:0,padding:"8px 4px",fontSize:'var(--text-xs)',fontWeight:sTab===kl[0]?600:400,
-            border:"none",borderBottom:sTab===kl[0]?"2px solid var(--accent)":"2px solid transparent",
-            cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",
-            background:"transparent",
-            color:sTab===kl[0]?"var(--accent)":"var(--text-secondary)",
           }
-        }, kl[1]);
+        },
+          iconFn ? iconFn() : null,
+          h("span", {className:"creator-sidebar-tab__label"}, t.label),
+          isDisabled && window.Icons && window.Icons.lock
+            ? h("span", {className:"creator-sidebar-tab__lock", "aria-hidden":"true"}, window.Icons.lock())
+            : null
+        );
       })
     )
   );

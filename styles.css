@@ -6096,3 +6096,128 @@ button[aria-disabled="true"] {
   }
 }
 
+
+/* --- Polish 13 (UX-12) — Sidebar tab bar redesign --------------------
+   Replaces the cramped 5-7 text-only tabs with icon+label pill cards
+   in a flex-wrap row. Each tab has a clear hover/active/disabled
+   state. Disabled tabs (Phase 1 of the consolidation plan) show a
+   small lock badge in the corner. */
+.creator-sidebar-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border, var(--line, #E5DCCB));
+  scrollbar-width: none;
+}
+.creator-sidebar-tabs::-webkit-scrollbar { display: none; }
+.creator-sidebar-tab {
+  flex: 1 1 56px;
+  min-width: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border: 1px solid transparent;
+  background: var(--surface-secondary, var(--surface-2, #F9F5F0));
+  border-radius: var(--radius-md, 8px);
+  font: 600 11px/1 inherit;
+  color: var(--text-secondary, #5C5448);
+  cursor: pointer;
+  position: relative;
+  min-height: 50px;
+  font-family: inherit;
+  transition: background .12s ease, color .12s ease, border-color .12s ease, transform .08s ease;
+}
+.creator-sidebar-tab svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+.creator-sidebar-tab__label {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.creator-sidebar-tab:hover:not([aria-disabled="true"]):not([aria-selected="true"]) {
+  background: var(--accent-soft, var(--accent-light, #F4DDCF));
+  color: var(--text-primary, #1B1814);
+  border-color: var(--accent, #B85C38);
+}
+.creator-sidebar-tab[aria-selected="true"] {
+  background: var(--accent, #B85C38);
+  color: #FFFDF8;
+  border-color: var(--accent, #B85C38);
+  box-shadow: 0 1px 0 var(--accent-hover, #9E4D2F) inset;
+}
+.creator-sidebar-tab[aria-selected="true"]:hover {
+  background: var(--accent-hover, var(--accent, #B85C38));
+}
+.creator-sidebar-tab[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.creator-sidebar-tab[aria-disabled="true"]:hover {
+  background: var(--surface-secondary, var(--surface-2, #F9F5F0));
+}
+.creator-sidebar-tab__lock {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  opacity: 0.75;
+  pointer-events: none;
+}
+.creator-sidebar-tab:focus-visible {
+  outline: 2px solid var(--accent, #B85C38);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .creator-sidebar-tab { transition: none; }
+}
+
+/* Locked-tab hint pill shown in the panel body when a disabled tab is
+   focused. Used by the Phase 1+ unified sidebar to tell users why
+   Tools / View are not yet available. */
+.creator-sidebar-locked {
+  margin: 16px 12px;
+  padding: 16px 14px;
+  background: var(--surface-secondary, #F9F5F0);
+  border: 1.5px dashed var(--border-strong, var(--border, #D0C4B4));
+  border-radius: var(--radius-md, 8px);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+.creator-sidebar-locked__title {
+  font: 600 13px/1.2 inherit;
+  color: var(--text-primary, #1B1814);
+}
+.creator-sidebar-locked__body {
+  font-size: 12px;
+  color: var(--text-secondary, #5C5448);
+  line-height: 1.45;
+  max-width: 240px;
+}
+.creator-sidebar-locked__cta {
+  margin-top: 4px;
+  padding: 6px 12px;
+  font: 600 12px/1 inherit;
+  color: var(--accent-hover, #9E4D2F);
+  background: var(--accent-light, #FBF0EB);
+  border: 1px solid var(--accent-soft, #F4DDCF);
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  font-family: inherit;
+}
+.creator-sidebar-locked__cta:hover {
+  background: var(--accent-soft, #F4DDCF);
+}
