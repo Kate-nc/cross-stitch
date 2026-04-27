@@ -1519,7 +1519,12 @@ useEffect(()=>{
         setAnalysisRunning(false);
       }
     };
-    w.onerror=function(err){setAnalysisRunning(false);};
+    w.onerror=function(err){
+      // PERF (perf-8 #12): terminate the worker on error so a wedged worker doesn't
+      // leak; null the ref so the analyse useEffect skips until next mount.
+      setAnalysisRunning(false);
+      try{if(analysisWorkerRef.current){analysisWorkerRef.current.terminate();analysisWorkerRef.current=null;}}catch(_){}
+    };
   }catch(e){}
   return()=>{clearTimeout(analysisThrottleRef.current);if(analysisWorkerRef.current){analysisWorkerRef.current.terminate();analysisWorkerRef.current=null;}};
 },[]);
