@@ -1295,7 +1295,7 @@ function EmbroideryApp(){
         </div>
         <p className="emb-subtitle">Turn images into hand embroidery patterns with stitch annotations</p>
         <div className="upload-area" onClick={()=>fileRef.current?.click()}>
-          <div style={{fontSize:36}}>🧵</div>
+          <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--accent)",width:48,height:48}}>{Icons.thread()}</div>
           <p className="emb-upload-text">Upload your own image</p>
           <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
           <button className="emb-btn emb-btn--primary" onClick={e=>{e.stopPropagation();fileRef.current?.click();}}>Upload Image</button>
@@ -1321,7 +1321,7 @@ function EmbroideryApp(){
         <div className="emb-method-row">
           <div className="emb-method-card emb-method-card--auto">
             <div style={{textAlign:"center",marginBottom:'var(--s-2)'}}>
-              <span style={{fontSize:26}}>🤖</span>
+              <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--accent)",width:32,height:32}}>{Icons.sparkles()}</span>
               <h3 className="emb-method-title">Auto Detect</h3>
               <p className="emb-method-desc">SLIC superpixel segmentation</p>
             </div>
@@ -1341,7 +1341,7 @@ function EmbroideryApp(){
           </div>
           <div className="emb-method-card emb-method-card--draw">
             <div style={{textAlign:"center"}}>
-              <span style={{fontSize:26}}>✏️</span>
+              <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--accent)",width:32,height:32}}>{Icons.pencil()}</span>
               <h3 className="emb-method-title">Draw by Hand</h3>
               <p className="emb-method-desc">Freehand trace regions</p>
             </div>
@@ -1442,7 +1442,7 @@ function EmbroideryApp(){
                   <div className="emb-region-dmc">DMC {sel.dmc.c} — {sel.dmc.n}</div>
                 </div>
               </div>
-              <button className="emb-delete-btn" onClick={()=>deleteR(sel.id)}>✕</button>
+              <button className="emb-delete-btn" aria-label="Delete region" onClick={()=>deleteR(sel.id)}><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:14,height:14}}>{Icons.x()}</span></button>
             </div>
 
             {isNodeEdit&&<div className="emb-hint emb-hint--amber" style={{marginBottom:'var(--s-2)'}}>{sel.nodes.length} control nodes</div>}

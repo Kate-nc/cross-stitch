@@ -12380,7 +12380,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         window.requestAnimationFrame(function(){
           var el = document.getElementById("bg-pick-target");
           if (el && el.scrollIntoView) {
-            try { el.scrollIntoView({behavior:"smooth", block:"center"}); }
+            try { var __reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; el.scrollIntoView({behavior: __reduced ? "auto" : "smooth", block:"center"}); }
             catch (_) { el.scrollIntoView(); }
           }
         });

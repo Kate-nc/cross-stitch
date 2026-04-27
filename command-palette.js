@@ -282,7 +282,7 @@
     // for users without an explicit data-theme attribute.
     var css = [
       '.cs-cmdp-overlay{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,0.5);display:flex;align-items:flex-start;justify-content:center;padding:max(20vh, env(safe-area-inset-top, 0px) + 12px) 16px 16px;}',
-      '.cs-cmdp-dialog{width:100%;max-width:min(520px, calc(100vw - 32px));max-height:calc(100vh - max(20vh, env(safe-area-inset-top, 0px) + 12px) - 16px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg, 14px);box-shadow:var(--shadow-lg, 0 24px 48px rgba(0,0,0,0.18));overflow:hidden;display:flex;flex-direction:column;font-family:inherit;color:var(--text-primary);}',
+      '.cs-cmdp-dialog{width:100%;max-width:min(520px, calc(100vw - 32px));max-height:calc(100dvh - max(20vh, env(safe-area-inset-top, 0px) + 12px) - 16px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg, 14px);box-shadow:var(--shadow-lg, 0 24px 48px rgba(0,0,0,0.18));overflow:hidden;display:flex;flex-direction:column;font-family:inherit;color:var(--text-primary);}',
       '.cs-cmdp-input-wrap{display:flex;align-items:center;gap:10px;padding:0 16px;height:48px;border-bottom:1px solid var(--border);}',
       '.cs-cmdp-input-wrap svg{flex-shrink:0;color:var(--text-tertiary);}',
       '.cs-cmdp-input{flex:1;border:none;outline:none;background:transparent;font-size:16px;font-family:inherit;color:var(--text-primary);height:100%;}',

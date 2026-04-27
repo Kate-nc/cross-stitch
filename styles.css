@@ -68,6 +68,23 @@
   /* Workshop raised/lg shadows. */
   --shadow:    0 2px 8px rgba(60,40,20,.08);
   --shadow-lg: 0 12px 28px rgba(60,40,20,.14);
+
+  /* Polish pass — small token additions.
+     --radius-xs: matches the kbd-hint / chip rounding already in use.
+     --app-header-height: single source of truth for sticky offsets.
+     --z-* scale: semantic stacking context, mirrors the values that
+     were previously hardcoded across components. */
+  --radius-xs: 4px;
+  --app-header-height: 48px;
+  --z-base:       1;
+  --z-sticky:    100;
+  --z-dropdown:  400;
+  --z-fab:       450;
+  --z-action-bar: 500;
+  --z-backdrop:  900;
+  --z-modal:    1000;
+  --z-toast:    1100;
+  --z-coachmark: 1200;
 }
 
 [data-theme="dark"] {
@@ -2664,11 +2681,11 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .tb-progress-today{background:var(--success);border-radius:0 2px 2px 0;animation:todayGlow 2s ease-in-out infinite alternate;}
 
 /* ═══ Info Strip (replaces Progress Bar + MiniStatsBar) ═══ */
-.info-strip-wrap{position:sticky;top:100px;z-index:98;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:stretch;}
+.info-strip-wrap{position:sticky;top:calc(var(--app-header-height, 48px) + env(safe-area-inset-top, 52px));z-index:98;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:stretch;}
 .info-strip-wrap > .info-strip{position:static;border-bottom:0;flex:1;min-width:0;}
 .info-strip-chip-wrap{display:flex;align-items:center;padding:0 12px 0 6px;flex-shrink:0;}
 .info-strip-chip{font-size:11px;padding:4px 10px;}
-.info-strip{position:sticky;top:100px;z-index:98;background:var(--surface);border-bottom:1px solid var(--border);height:28px;display:flex;flex-direction:column;justify-content:flex-end;}
+.info-strip{position:sticky;top:calc(var(--app-header-height, 48px) + env(safe-area-inset-top, 52px));z-index:98;background:var(--surface);border-bottom:1px solid var(--border);height:28px;display:flex;flex-direction:column;justify-content:flex-end;}
 .info-strip-bar{height:4px;background:var(--border);display:flex;width:100%;flex-shrink:0;}
 .info-strip-fill{height:100%;background:var(--accent);transition:width 0.3s ease;}
 .info-strip-fill--done{background:var(--success);}
@@ -6022,6 +6039,45 @@ html.pref-dark a { color: var(--accent); }
   .home-proj-row,
   .home-create-tile { transition: none; }
   .home-create-tile:hover { transform: none; }
+  .home-screen { animation: none; }
 }
 
+/* ═════════════════════════════════════════════════════════
+   Polish pass — accessibility safety net
+   (focus-visible replacements for elements that strip outline,
+   generic disabled state, and a few mobile-drawer reduced-motion
+   guards). Appended at the end of the file so component rules
+   override where appropriate but disabled/focus styles always
+   land last.
+   ═════════════════════════════════════════════════════════ */
+
+/* Replace stripped outlines with a visible focus ring whenever
+   the element receives keyboard focus. */
+.tb-proj-badge-input:focus-visible,
+.tb-context-name-input:focus-visible,
+.session-toast input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Generic disabled affordance. Component-level rules can still
+   opt out by being more specific. */
+button:disabled,
+button[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Mobile drawer / immersive-toolbar transitions should respect
+   the reduced-motion preference. */
+@media (prefers-reduced-motion: reduce) {
+  .rpanel,
+  .mgr-rpanel,
+  .colour-quick-drawer,
+  .tb-topbar,
+  .toolbar-row {
+    transition: none !important;
+    animation: none !important;
+  }
+}
 

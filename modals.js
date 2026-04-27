@@ -26,8 +26,8 @@ const SharedModals = {
     },
         React.createElement(window.Overlay.CloseButton, { onClose: onClose }),
         React.createElement('div', { style: { padding: 24 } },
-          React.createElement("h3", { id: 'help-fallback-title', style: { marginTop: 0, marginBottom: 12, fontSize: 20, color: "#1B1814" } }, "Help"),
-          React.createElement("p", { style: { margin: 0, color: "#5C5448", fontSize: 14, lineHeight: 1.6 } },
+          React.createElement("h3", { id: 'help-fallback-title', style: { marginTop: 0, marginBottom: 12, fontSize: 20, color: "var(--text-primary)" } }, "Help"),
+          React.createElement("p", { style: { margin: 0, color: "var(--text-secondary)", fontSize: 14, lineHeight: 1.6 } },
             "The help panel could not be opened. Please reload the page to restore full functionality."
           ),
           React.createElement("div", { style: { marginTop: 16, textAlign: "right" } },
@@ -92,7 +92,7 @@ const SharedModals = {
         React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#6B461F", marginBottom: 8 } },
           `DMC ${swapCandidate.id} is already assigned to another symbol.`
         ),
-        React.createElement("div", { style: { fontSize: 12, color: "#5C5448", marginBottom: 10 } },
+        React.createElement("div", { style: { fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 } },
           `Swap the two symbols' colour assignments? Both symbols will keep their shapes — only their thread colours will exchange.`
         ),
         React.createElement("div", { style: { display: "flex", gap: 8 } },
@@ -107,7 +107,7 @@ const SharedModals = {
           }, "Swap Colours"),
           React.createElement("button", {
             onClick: () => setSwapCandidate(null),
-            style: { padding: "7px 14px", fontSize: 13, background: "#fff", color: "#5C5448", border: "1px solid #E5DCCB", borderRadius: 6, cursor: "pointer" }
+            style: { padding: "7px 14px", fontSize: 13, background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer" }
           }, "Cancel")
         )
       );
@@ -115,7 +115,7 @@ const SharedModals = {
 
     function renderEmptyThreadList() {
       return React.createElement("div", { style: { padding: 20, textAlign: "center" } },
-        React.createElement("div", { style: { color: "#5C5448", fontSize: 14, marginBottom: 12 } }, "No threads found."),
+        React.createElement("div", { style: { color: "var(--text-secondary)", fontSize: 14, marginBottom: 12 } }, "No threads found."),
         search.trim() !== "" ? React.createElement("button", {
           onClick: () => {
             if (usedThreads.includes(search.trim())) {
@@ -129,7 +129,7 @@ const SharedModals = {
               lab: [80, 0, 0]
             });
           },
-          style: { padding: "8px 16px", fontSize: 13, background: "#B85C38", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 }
+          style: { padding: "8px 16px", fontSize: 13, background: "var(--accent)", color: "var(--text-on-accent)", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 }
         }, `Use "${search.trim()}" anyway`) : null
       );
     }
@@ -148,16 +148,16 @@ const SharedModals = {
           onSelect(t);
         },
         style: {
-          display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #EFE7D6",
-          background: isCurrent ? "#F4DDCF" : isSwapCandidate ? "#FAF5E1" : (isUsed ? "#FBF8F3" : "#fff"),
+          display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid var(--border-subtle)",
+          background: isCurrent ? "var(--accent-light)" : isSwapCandidate ? "#FAF5E1" : (isUsed ? "var(--surface-secondary)" : "var(--surface)"),
           cursor: isUsed ? "pointer" : "pointer",
           opacity: 1
         }
       },
-        React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid #CFC4AC", flexShrink: 0 } }),
-        React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "#1B1814" } }, "DMC " + t.id),
-        React.createElement("div", { style: { fontSize: 13, color: "#5C5448", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
-        isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#B85C38", background: "#F4DDCF", padding: "2px 8px", borderRadius: 10 } }, "Current"),
+        React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid var(--line-2)", flexShrink: 0 } }),
+        React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "var(--text-primary)" } }, "DMC " + t.id),
+        React.createElement("div", { style: { fontSize: 13, color: "var(--text-secondary)", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
+        isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "var(--accent)", background: "var(--accent-light)", padding: "2px 8px", borderRadius: 10 } }, "Current"),
         isUsed && !isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#A06F2D", background: "#F2E2BE", padding: "2px 8px", borderRadius: 10 } }, "In Use — tap to swap"),
         isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#6B461F", background: "#E5C97D", padding: "2px 8px", borderRadius: 10 } }, "Swap?")
       );

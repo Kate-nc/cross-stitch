@@ -467,6 +467,21 @@ window.Icons = (function() {
         l(13, 8, 15, 10),
         l(16, 5, 18, 7)
       );
+    },
+    // Sparkles — replaces 🤖 (used by the embroidery auto-detect card)
+    sparkles: function() {
+      return svg(
+        p('M12 3v4M12 17v4M3 12h4M17 12h4'),
+        p('M5.6 5.6l2.5 2.5M15.9 15.9l2.5 2.5M5.6 18.4l2.5-2.5M15.9 8.1l2.5-2.5')
+      );
+    },
+    // Arrows horizontal — replaces ⟺ (used by the split-view drag handle)
+    arrowsHorizontal: function() {
+      return svg(
+        l(3, 12, 21, 12),
+        p('M7 8l-4 4 4 4'),
+        p('M17 8l4 4-4 4')
+      );
     }
   };
 })();
