@@ -60,6 +60,16 @@ const StashBridge = (() => {
     try { window.dispatchEvent(new CustomEvent('cs:stashChanged')); } catch (_) { /* swallow */ }
   }
 
+  // Mirror of the above for the patterns store. Fired after the manager-side
+  // pattern library is mutated (auto-sync from the Creator, manual unlink, or
+  // any other writer) so any open Manager / Home / Shopping view rebuilds in
+  // place rather than waiting for the next visibilitychange.
+  function _dispatchPatternsChanged() {
+    if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+    if (typeof CustomEvent !== 'function') return;
+    try { window.dispatchEvent(new CustomEvent('cs:patternsChanged')); } catch (_) { /* swallow */ }
+  }
+
   // Pure helper: builds the sorted shopping-list rows from a raw threads dict.
   // Exposed for unit tests via window.StashBridge._buildShoppingListRows.
   // infoLookup(brand, id) -> { name, rgb } | null. Defaults to a stub when
@@ -225,6 +235,26 @@ const StashBridge = (() => {
       }
     },
 
+    // Reads the manager_state.patterns array (the Stash Manager pattern library).
+    // Used by the Shopping tab so manager-only patterns (added via the Manager's
+    // Add Pattern modal, or wishlist entries with no live ProjectStorage row)
+    // are still considered when computing thread deficits.
+    async getManagerPatterns() {
+      try {
+        const db = await openManagerDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readonly");
+          const store = tx.objectStore("manager_state");
+          const req = store.get("patterns");
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => reject(req.error);
+        });
+      } catch (e) {
+        console.error("StashBridge.getManagerPatterns failed:", e);
+        return [];
+      }
+    },
+
     // Returns threads filtered by brand from the composite-keyed stash.
     // brand: 'dmc' | 'anchor' | undefined (all)
     async getStashByBrand(brand) {
@@ -378,7 +408,7 @@ const StashBridge = (() => {
             if (existingIdx >= 0) patterns[existingIdx] = entry;
             else patterns.push(entry);
             store.put(patterns, "patterns");
-            tx.oncomplete = () => resolve();
+            tx.oncomplete = () => { _dispatchPatternsChanged(); resolve(); };
           };
           req.onerror = () => reject(req.error);
         });
@@ -402,7 +432,10 @@ const StashBridge = (() => {
             if (filtered.length !== patterns.length) {
               store.put(filtered, "patterns");
             }
-            tx.oncomplete = () => resolve();
+            tx.oncomplete = () => {
+              if (filtered.length !== patterns.length) _dispatchPatternsChanged();
+              resolve();
+            };
           };
           req.onerror = () => reject(req.error);
         });

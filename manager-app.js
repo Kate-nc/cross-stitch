@@ -394,9 +394,22 @@ function ManagerApp() {
       ProjectStorage.listProjects().then(setStoredProjects).catch(e => console.warn('listProjects failed:', e));
     };
     window.addEventListener('cs:backupRestored', handleBackupRestored);
+
+    // Live refresh when other tabs/components mutate projects, the auto-synced
+    // pattern library, or the stash. Without these the Manager only refreshes
+    // on visibilitychange — so a pattern just generated in the Creator wouldn't
+    // appear here until the user clicked away and back.
+    const handleProjectsOrPatternsChanged = () => {
+      handleVisibilityChange();
+    };
+    window.addEventListener('cs:projectsChanged', handleProjectsOrPatternsChanged);
+    window.addEventListener('cs:patternsChanged', handleProjectsOrPatternsChanged);
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('cs:backupRestored', handleBackupRestored);
+      window.removeEventListener('cs:projectsChanged', handleProjectsOrPatternsChanged);
+      window.removeEventListener('cs:patternsChanged', handleProjectsOrPatternsChanged);
     };
   }, []);
 
@@ -410,6 +423,11 @@ function ManagerApp() {
         store.put(threads, "threads");
         store.put(patterns, "patterns");
         store.put(userProfile, "userProfile");
+        tx.oncomplete = () => {
+          // Notify other components/tabs (Home, Shopping, project library) that
+          // the patterns store changed. Dispatched once per debounced save.
+          try { window.dispatchEvent(new CustomEvent('cs:patternsChanged')); } catch (_) {}
+        };
       } catch (err) {
         console.error("Auto-save failed:", err);
       }
@@ -2109,6 +2127,7 @@ function UserProfileModal({ profile, onSave, onClose }) {
 
 function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose }) {
   const [copied, setCopied] = useState(false);
+  const [added, setAdded] = useState(false);
   const [sort, setSort] = useState('number');
 
   const allThreads = useMemo(() => {
@@ -2241,6 +2260,26 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
     navigator.share({ title: 'Cross Stitch Shopping List', text }).catch(() => {});
   };
 
+  // Push the missing threads from the selected pattern(s) into the global
+  // "My shopping list" (tobuy_qty) via StashBridge. This is what makes the
+  // per-pattern "Shopping list" checkbox actually do something — without it
+  // the modal could only copy / share text and the My-list view would stay
+  // empty. Idempotent: re-clicking just re-asserts the same quantities.
+  const addMissingToMyList = () => {
+    if (typeof StashBridge === 'undefined' || typeof StashBridge.setToBuyQtyMany !== 'function') return;
+    const qtyMap = {};
+    sortedThreads.forEach(t => {
+      if (t.status === 'owned') return;
+      if (!t.missing || t.missing <= 0) return;
+      qtyMap['dmc:' + t.id] = t.missing;
+    });
+    if (Object.keys(qtyMap).length === 0) return;
+    StashBridge.setToBuyQtyMany(qtyMap).then(() => {
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2000);
+    }).catch(err => console.warn('addMissingToMyList failed:', err));
+  };
+
   const statusBadge = (status, owned, needed) => {
     if (status === 'owned') return <span style={{ fontSize: 10, fontWeight: 600, color: '#4F7D3F', background: 'var(--success-soft)', padding: '2px 7px', borderRadius: 10 }}>In stash</span>;
     if (status === 'partial') return <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent-ink)', background: 'var(--warning-soft)', padding: '2px 7px', borderRadius: 10 }}>Partial ({owned}/{needed})</span>;
@@ -2301,6 +2340,13 @@ function ShoppingListModal({ patterns, inventoryThreads, userProfile, onClose })
             <button onClick={onClose} style={{ padding: "7px 14px", borderRadius: 8, border: "0.5px solid var(--border)", background: "var(--surface)", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Close</button>
             {typeof navigator !== 'undefined' && navigator.share && totalMissingColours > 0 && (
               <button onClick={handleShare} style={{ padding: "7px 14px", borderRadius: 8, border: "0.5px solid var(--border)", background: "var(--surface)", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Share</button>
+            )}
+            {totalMissingColours > 0 && (
+              <button
+                onClick={addMissingToMyList}
+                title="Add the missing skeins to the Shopping tab \u2192 My list"
+                style={{ padding: "7px 14px", borderRadius: 8, border: "0.5px solid var(--border)", background: added ? "var(--success-soft)" : "var(--surface)", color: added ? "var(--success)" : "var(--text-primary)", cursor: "pointer", fontWeight: 600, fontSize: 13 }}
+              >{added ? "Added to My list" : "Add to My list"}</button>
             )}
             {allThreads.length > 0 && (
               <button onClick={copyList} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#B85C38", color: "var(--surface)", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>{copied ? "\u2713 Copied" : "Copy List"}</button>

@@ -229,10 +229,12 @@
       }
       var states = (typeof ProjectStorage.getProjectStates === 'function')
         ? ProjectStorage.getProjectStates() : {};
+      var activeProjectIdSet = new Set();
       ProjectStorage.listProjects().then(function (metas) {
         var actives = (metas || []).filter(function (m) {
           return isActiveStateForShopping(states[m.id]);
         });
+        actives.forEach(function (m) { activeProjectIdSet.add(m.id); });
         // Lazy-load full payloads (B5 PERF NOTE pattern).
         return Promise.all(actives.map(function (m) {
           return ProjectStorage.get(m.id).then(function (full) {
@@ -246,8 +248,41 @@
           }).catch(function () { return null; });
         }));
       }).then(function (full) {
-        if (cancelled.value) return;
-        setProjects((full || []).filter(Boolean));
+        if (cancelled.value) return null;
+        var projectShapes = (full || []).filter(Boolean);
+        // Also fold in manager-only library patterns (wishlist, manually added,
+        // or entries whose linked project is no longer active for shopping).
+        // Without this, adding a pattern via the Manager's Add Pattern modal
+        // would never affect the shopping deficits.
+        return StashBridge.getManagerPatterns().then(function (mgrPatterns) {
+          (mgrPatterns || []).forEach(function (mp) {
+            if (!mp || !Array.isArray(mp.threads) || mp.threads.length === 0) return;
+            // Skip "completed" — they don't need any more shopping.
+            if (mp.status === 'completed') return;
+            // Skip when the linked project is already in the active set
+            // (avoids double-counting via both sources).
+            if (mp.linkedProjectId && activeProjectIdSet.has(mp.linkedProjectId)) return;
+            var palShape = mp.threads.map(function (t) {
+              var stitches = t.unit === 'stitches' ? (Number(t.qty) || 0) : 0;
+              return {
+                id: t.id,
+                brand: (t.brand || 'DMC').toLowerCase(),
+                count: stitches,
+                name: t.name,
+              };
+            });
+            projectShapes.push({
+              id: 'mgr:' + (mp.id || mp.title || Math.random()),
+              pal: palShape,
+              fabricCt: mp.fabricCt || 14,
+              name: mp.title || 'Manager pattern',
+            });
+          });
+          return projectShapes;
+        }).catch(function () { return projectShapes; });
+      }).then(function (projectShapes) {
+        if (cancelled.value || projectShapes == null) return;
+        setProjects(projectShapes);
         return StashBridge.getGlobalStash();
       }).then(function (s) {
         if (cancelled.value) return;
@@ -265,10 +300,12 @@
       function onChange() { loadAll(); }
       window.addEventListener('cs:projectsChanged', onChange);
       window.addEventListener('cs:stashChanged', onChange);
+      window.addEventListener('cs:patternsChanged', onChange);
       return function () {
         if (cancelled) cancelled.value = true;
         window.removeEventListener('cs:projectsChanged', onChange);
         window.removeEventListener('cs:stashChanged', onChange);
+        window.removeEventListener('cs:patternsChanged', onChange);
       };
     }, [loadAll]);
 
