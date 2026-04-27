@@ -519,10 +519,13 @@ function reducePalette(hexColours, targetCount) {
 }
 
 function getPresetById(id) {
-  for (var i = 0; i < PALETTE_PRESETS.length; i++) {
-    if (PALETTE_PRESETS[i].id === id) return PALETTE_PRESETS[i];
+  // PERF (perf-5 #7): O(1) lookup via lazy Map instead of linear scan over PALETTE_PRESETS.
+  if (!getPresetById._map) {
+    var m = new Map();
+    for (var i = 0; i < PALETTE_PRESETS.length; i++) m.set(PALETTE_PRESETS[i].id, PALETTE_PRESETS[i]);
+    getPresetById._map = m;
   }
-  return null;
+  return getPresetById._map.get(id) || null;
 }
 
 function getEffectiveTierColours(preset, tier, unlockedCount) {
