@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v15';
+var CACHE_NAME = 'cross-stitch-cache-v16';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -7,7 +7,8 @@ var PRECACHE_URLS = [
   './create.html',
   './stitch.html',
   './manager.html',
-  './embroidery.html',
+  // PERF (perf-6 #9): embroidery.html/embroidery.js are opt-in experimental (default off);
+  // dropped from precache — runtime stale-while-revalidate caches them on first visit.
 
   // PWA manifest
   './manifest.json',
@@ -43,7 +44,6 @@ var PRECACHE_URLS = [
   './creator-main.js',
   './tracker-app.js',
   './manager-app.js',
-  './embroidery.js',
 
   // Lazy-loaded local assets
   './pdf-importer.js',
